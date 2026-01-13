@@ -8,6 +8,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useAuth } from '@/contexts/AuthContext';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,7 +44,11 @@ export default function ProfileSettings() {
   const navigate = useNavigate();
   const { user, profile, refreshProfile } = useAuth();
   const { currentCompany } = useCompany();
+  const activeCompanyRole = useActiveCompanyRole();
   const { toast } = useToast();
+  
+  // Use company-specific role, fallback to profile role
+  const displayRole = activeCompanyRole || profile?.role || '';
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -496,15 +501,15 @@ export default function ProfileSettings() {
               </div>
 
               <div className="space-y-2">
-                <Label htmlFor="role">Role</Label>
+                <Label htmlFor="role">Role (for {currentCompany?.display_name || currentCompany?.name || 'current company'})</Label>
                 <Input
                   id="role"
-                  value={profile?.role || ''}
+                  value={displayRole}
                   disabled
                   className="bg-muted capitalize"
                 />
                 <p className="text-xs text-muted-foreground">
-                  Role is managed by administrators
+                  Role is managed by administrators for each company
                 </p>
               </div>
 
