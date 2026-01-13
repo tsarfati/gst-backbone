@@ -33,36 +33,62 @@ async function validatePin(supabaseAdmin: any, pin: string) {
   // First check regular profiles table
   const { data: profileData, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('user_id, first_name, last_name, role')
+    .select('user_id, first_name, last_name, role, current_company_id')
     .eq('pin_code', pin)
     .maybeSingle();
 
   if (profileData && !profileError) {
+    // Get tenant_id from their current company for tenant isolation
+    let tenant_id: string | null = null;
+    if (profileData.current_company_id) {
+      const { data: companyData } = await supabaseAdmin
+        .from('companies')
+        .select('tenant_id')
+        .eq('id', profileData.current_company_id)
+        .maybeSingle();
+      tenant_id = companyData?.tenant_id || null;
+    }
+    
     return {
       user_id: profileData.user_id,
       first_name: profileData.first_name,
       last_name: profileData.last_name,
       role: profileData.role,
-      is_pin_employee: false
+      is_pin_employee: false,
+      company_id: profileData.current_company_id,
+      tenant_id
     };
   }
 
-  // Then check PIN employees table
+  // Then check PIN employees table - include company_id for tenant isolation
   const { data: pinEmployeeData, error: pinError } = await supabaseAdmin
     .from('pin_employees')
-    .select('id, first_name, last_name, display_name, avatar_url')
+    .select('id, first_name, last_name, display_name, avatar_url, company_id')
     .eq('pin_code', pin)
     .eq('is_active', true)
     .maybeSingle();
 
   if (pinEmployeeData && !pinError) {
+    // Fetch the tenant_id from the company for tenant isolation
+    let tenant_id: string | null = null;
+    if (pinEmployeeData.company_id) {
+      const { data: companyData } = await supabaseAdmin
+        .from('companies')
+        .select('tenant_id')
+        .eq('id', pinEmployeeData.company_id)
+        .maybeSingle();
+      tenant_id = companyData?.tenant_id || null;
+    }
+    
     return {
       user_id: pinEmployeeData.id,
       first_name: pinEmployeeData.first_name,
       last_name: pinEmployeeData.last_name,
       role: 'employee',
       is_pin_employee: true,
-      existing_avatar: pinEmployeeData.avatar_url
+      existing_avatar: pinEmployeeData.avatar_url,
+      company_id: pinEmployeeData.company_id,
+      tenant_id
     };
   }
 
@@ -85,18 +111,38 @@ serve(async (req) => {
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
-      // Load user's assigned jobs and cost codes across all companies
+      // Get tenant-scoped company IDs for filtering
+      let tenantCompanyIds: string[] = [];
+      if (userRow.tenant_id) {
+        const { data: tenantCompanies } = await supabaseAdmin
+          .from('companies')
+          .select('id')
+          .eq('tenant_id', userRow.tenant_id);
+        tenantCompanyIds = (tenantCompanies || []).map((c: any) => c.id);
+      } else if (userRow.company_id) {
+        // Fallback: if no tenant, at least scope to user's company
+        tenantCompanyIds = [userRow.company_id];
+      }
+
+      // Load user's assigned jobs and cost codes within tenant
       let assignedJobs: string[] = [];
       let assignedCostCodes: string[] = [];
       
       if (userRow.is_pin_employee) {
-        // For PIN employees, get all assigned jobs and cost codes across all companies
-        const { data: allSettings } = await supabaseAdmin
+        // For PIN employees, get assigned jobs and cost codes from their tenant's companies
+        let settingsQuery = supabaseAdmin
           .from('pin_employee_timecard_settings')
           .select('assigned_jobs, assigned_cost_codes')
           .eq('pin_employee_id', userRow.user_id);
         
-        // Merge all assigned jobs and cost codes from all companies
+        // Filter by tenant companies if available
+        if (tenantCompanyIds.length > 0) {
+          settingsQuery = settingsQuery.in('company_id', tenantCompanyIds);
+        }
+        
+        const { data: allSettings } = await settingsQuery;
+        
+        // Merge all assigned jobs and cost codes from tenant companies
         if (allSettings && allSettings.length > 0) {
           const allJobs = new Set<string>();
           const allCostCodes = new Set<string>();
@@ -111,7 +157,7 @@ serve(async (req) => {
         }
       }
 
-      // Load jobs - filter by assignments only (across all companies)
+      // Load jobs - filter by tenant and assignments
       let jobs: any[] = [];
       if (userRow.is_pin_employee) {
         if (assignedJobs.length > 0) {
@@ -128,29 +174,39 @@ serve(async (req) => {
           jobs = [];
         }
       } else {
-        // Regular users may see all company jobs per RLS; keep existing behavior
-        const { data: j, error: jobsErr } = await supabaseAdmin
+        // Regular users: filter by tenant companies
+        let jobsQuery = supabaseAdmin
           .from("jobs")
           .select("id, name, address, status, company_id")
-          .in("status", ["active", "planning"]) 
-          .order("name");
+          .in("status", ["active", "planning"]);
+        
+        if (tenantCompanyIds.length > 0) {
+          jobsQuery = jobsQuery.in("company_id", tenantCompanyIds);
+        }
+        
+        const { data: j, error: jobsErr } = await jobsQuery.order("name");
         if (jobsErr) return errorResponse(jobsErr.message, 500);
         jobs = j || [];
       }
 
-      // Load cost codes - filter by assignments and type=labor only
+      // Load cost codes - filter by tenant, assignments and type=labor only
       let costCodesQuery = supabaseAdmin
         .from("cost_codes")
-        .select("id, code, description, job_id")
+        .select("id, code, description, job_id, company_id")
         .eq("is_active", true)
-        .eq("type", "labor")
-        .order("code");
+        .eq("type", "labor");
       
+      // Apply tenant filtering for cost codes
+      if (tenantCompanyIds.length > 0) {
+        costCodesQuery = costCodesQuery.in("company_id", tenantCompanyIds);
+      }
+      
+      // For PIN employees with specific assignments, further filter
       if (userRow.is_pin_employee && assignedCostCodes.length > 0) {
         costCodesQuery = costCodesQuery.in("id", assignedCostCodes);
       }
       
-      const { data: costCodes, error: ccErr } = await costCodesQuery;
+      const { data: costCodes, error: ccErr } = await costCodesQuery.order("code");
       if (ccErr) return errorResponse(ccErr.message, 500);
 
       const { data: currentPunch, error: curErr } = await supabaseAdmin
