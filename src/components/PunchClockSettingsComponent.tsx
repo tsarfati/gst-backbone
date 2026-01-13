@@ -317,16 +317,26 @@ export default function PunchClockSettingsComponent() {
   }
 
   // Debug: log role information
-  console.log('PunchClockSettings - activeCompanyRole:', activeCompanyRole);
-  console.log('PunchClockSettings - effectiveRole:', effectiveRole);
-  console.log('PunchClockSettings - isManager:', isManager);
-  console.log('PunchClockSettings - userCompanies:', userCompanies);
+  console.log('PunchClockSettings DEBUG:', {
+    activeCompanyRole,
+    effectiveRole,
+    isManager,
+    profileRole: profile?.role,
+    currentCompanyId: currentCompany?.id,
+    userCompanies: userCompanies.map(uc => ({ company_id: uc.company_id, role: uc.role })),
+  });
 
   if (!isManager) {
     return (
       <div className="text-center py-8">
         <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
-        <p className="text-muted-foreground">Only managers can access punch clock settings.</p>
+        <p className="text-muted-foreground">
+          Only managers can access punch clock settings.
+          <br />
+          <span className="text-xs text-red-500">
+            Debug: effectiveRole={effectiveRole}, activeCompanyRole={activeCompanyRole}
+          </span>
+        </p>
       </div>
     );
   }
