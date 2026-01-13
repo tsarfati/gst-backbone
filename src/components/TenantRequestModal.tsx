@@ -140,6 +140,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
         .from('tenant_access_requests')
         .insert({
           user_id: user.id,
+          request_type: 'create_tenant',
           tenant_name: tenantName,
           notes: notes || null,
           status: 'pending'
