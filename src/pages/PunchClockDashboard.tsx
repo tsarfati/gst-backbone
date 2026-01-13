@@ -81,6 +81,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   const [costCodeTiming, setCostCodeTiming] = useState<'punch_in' | 'punch_out'>('punch_in');
   const [adminSelectedCostCode, setAdminSelectedCostCode] = useState<string | null>(null);
   const [adminCostCodeOptions, setAdminCostCodeOptions] = useState<Array<{ id: string; code: string; description: string }>>([]);
+  const [loadingAdminCostCodes, setLoadingAdminCostCodes] = useState(false);
   
   const { user, profile } = useAuth();
   const { toast } = useToast();
@@ -347,7 +348,61 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
     setDetailOpen(true);
   };
 
-  const handleAdminPunchOut = (row: CurrentStatus) => {
+  const loadAdminCostCodeOptions = async (row: CurrentStatus) => {
+    if (!currentCompany?.id || !row.job_id) {
+      setAdminCostCodeOptions([]);
+      return;
+    }
+
+    try {
+      setLoadingAdminCostCodes(true);
+      setAdminCostCodeOptions([]);
+
+      const { data: accessData, error: accessErr } = await supabase.functions.invoke('get-employee-timecard-access', {
+        body: { company_id: currentCompany.id, employee_user_id: row.user_id },
+      });
+
+      if (accessErr) throw accessErr;
+
+      const assignedCostCodes: string[] = accessData?.assigned_cost_codes || [];
+      const hasGlobal: boolean = !!accessData?.has_global_job_access;
+
+      // Match PunchClockApp behavior: cost codes must belong to selected job, and be limited to assigned_cost_codes unless global
+      if (!hasGlobal && (!assignedCostCodes || assignedCostCodes.length === 0)) {
+        setAdminCostCodeOptions([]);
+        return;
+      }
+
+      let query = supabase
+        .from('cost_codes')
+        .select('id, code, description')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .eq('job_id', row.job_id)
+        .order('code');
+
+      if (!hasGlobal) {
+        query = query.in('id', assignedCostCodes);
+      }
+
+      const { data, error } = await query;
+      if (error) throw error;
+
+      setAdminCostCodeOptions((data || []) as any);
+    } catch (e) {
+      console.error('Error loading admin cost code options:', e);
+      toast({
+        title: 'Error',
+        description: 'Failed to load cost codes for this job.',
+        variant: 'destructive',
+      });
+      setAdminCostCodeOptions([]);
+    } finally {
+      setLoadingAdminCostCodes(false);
+    }
+  };
+
+  const handleAdminPunchOut = async (row: CurrentStatus) => {
     if (!isAdmin) {
       toast({
         title: "Access Denied",
@@ -358,11 +413,24 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
     }
 
     setEmployeeToPunchOut(row);
+    setAdminSelectedCostCode(null);
     setConfirmPunchOutOpen(true);
+
+    if (costCodeTiming === 'punch_out') {
+      await loadAdminCostCodeOptions(row);
+    }
   };
 
   const confirmAdminPunchOut = async () => {
     if (!employeeToPunchOut) return;
+
+    // If cost code selection is done at punch-out, prefer the admin selection.
+    // Otherwise, keep the employee's current punch cost code.
+    const allowedIds = new Set(adminCostCodeOptions.map(o => o.id));
+    const costCodeIdForPunchOut =
+      costCodeTiming === 'punch_out'
+        ? (adminSelectedCostCode || (employeeToPunchOut.cost_code_id && allowedIds.has(employeeToPunchOut.cost_code_id) ? employeeToPunchOut.cost_code_id : null))
+        : employeeToPunchOut.cost_code_id;
 
     try {
       // Create punch out record
@@ -370,7 +438,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         user_id: employeeToPunchOut.user_id,
         company_id: currentCompany?.id,
         job_id: employeeToPunchOut.job_id,
-        cost_code_id: employeeToPunchOut.cost_code_id,
+        cost_code_id: costCodeIdForPunchOut ?? null,
         punch_type: 'punched_out',
         punch_time: new Date().toISOString(),
         latitude: null,
@@ -400,7 +468,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         user_id: employeeToPunchOut.user_id,
         company_id: currentCompany?.id,
         job_id: employeeToPunchOut.job_id,
-        cost_code_id: employeeToPunchOut.cost_code_id ?? null,
+        cost_code_id: costCodeIdForPunchOut ?? null,
         punch_in_time: employeeToPunchOut.punch_in_time,
         punch_out_time: punchOutTime.toISOString(),
         total_hours: totalHours,
@@ -456,6 +524,8 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
     } finally {
       setConfirmPunchOutOpen(false);
       setEmployeeToPunchOut(null);
+      setAdminSelectedCostCode(null);
+      setAdminCostCodeOptions([]);
     }
   };
 
@@ -913,11 +983,11 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                 <label className="text-sm text-muted-foreground">Daily Task (optional)</label>
                 <Select value={adminSelectedCostCode || ''} onValueChange={(v) => setAdminSelectedCostCode(v)}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select a cost code (optional)" />
+                    <SelectValue placeholder={loadingAdminCostCodes ? 'Loading cost codes...' : 'Select a cost code (optional)'} />
                   </SelectTrigger>
                   <SelectContent>
-                    {Object.entries(costCodes).map(([id, cc]) => (
-                      <SelectItem key={id} value={id}>{cc.code} - {cc.description}</SelectItem>
+                    {adminCostCodeOptions.map((cc) => (
+                      <SelectItem key={cc.id} value={cc.id}>{cc.code} - {cc.description}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
