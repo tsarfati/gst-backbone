@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Loader2, Building2, CheckCircle } from 'lucide-react';
+import { Loader2, Building2, CheckCircle, Mail } from 'lucide-react';
 
 interface TenantRequestModalProps {
   open: boolean;
@@ -16,7 +16,7 @@ interface TenantRequestModalProps {
 }
 
 export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalProps) {
-  const [step, setStep] = useState<'auth' | 'request' | 'success'>('auth');
+  const [step, setStep] = useState<'auth' | 'confirm-email' | 'request' | 'success'>('auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [firstName, setFirstName] = useState('');
@@ -25,13 +25,15 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
   const [tenantName, setTenantName] = useState('');
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
+  const [signupEmail, setSignupEmail] = useState('');
   
   const { user, signUp, signIn, signInWithGoogle } = useAuth();
   const { refreshTenant } = useTenant();
   const { toast } = useToast();
 
-  // If user is already authenticated, skip to request step
-  const currentStep = user ? (step === 'auth' ? 'request' : step) : step;
+  // If user is authenticated and email confirmed, go to request step
+  // If on confirm-email step, stay there until they manually proceed
+  const currentStep = user && step !== 'confirm-email' ? (step === 'auth' ? 'request' : step) : step;
 
   const resetForm = () => {
     setStep('auth');
@@ -42,6 +44,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
     setPhone('');
     setTenantName('');
     setNotes('');
+    setSignupEmail('');
   };
 
   const validateForm = () => {
@@ -88,11 +91,13 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
         }
       }, 1000);
       
+      // Store email for display and go to confirm-email step
+      setSignupEmail(email);
+      setStep('confirm-email');
       toast({
         title: 'Account Created',
-        description: 'Please check your email for verification, then continue.',
+        description: 'Please check your email for a confirmation link.',
       });
-      setStep('request');
     }
     setLoading(false);
   };
@@ -248,6 +253,39 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
                   Continue with Google
                 </Button>
               </div>
+            </div>
+          </>
+        )}
+
+        {currentStep === 'confirm-email' && (
+          <>
+            <DialogHeader>
+              <DialogTitle className="text-2xl font-bold text-center">
+                <Mail className="h-12 w-12 text-primary mx-auto mb-2" />
+                Check Your Email
+              </DialogTitle>
+              <DialogDescription className="text-center">
+                We've sent a confirmation link to <span className="font-medium text-foreground">{signupEmail}</span>
+              </DialogDescription>
+            </DialogHeader>
+            
+            <div className="mt-6 space-y-4">
+              <div className="bg-muted p-4 rounded-lg text-sm text-muted-foreground">
+                <p className="mb-2">Please check your email and click the confirmation link to verify your account.</p>
+                <p>Once confirmed, return here and click the button below to continue.</p>
+              </div>
+              
+              <Button 
+                onClick={() => setStep('request')} 
+                className="w-full"
+                disabled={!user}
+              >
+                {user ? "I've Confirmed My Email - Continue" : "Waiting for confirmation..."}
+              </Button>
+              
+              <p className="text-xs text-center text-muted-foreground">
+                Didn't receive the email? Check your spam folder or try signing up again.
+              </p>
             </div>
           </>
         )}
