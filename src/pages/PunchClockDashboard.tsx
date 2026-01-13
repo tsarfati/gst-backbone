@@ -364,8 +364,10 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
 
       if (accessErr) throw accessErr;
 
-      const assignedCostCodes: string[] = accessData?.assigned_cost_codes || [];
-      const hasGlobal: boolean = !!accessData?.has_global_job_access;
+      // Edge function returns { access: { ... } }
+      const access = accessData?.access || {};
+      const assignedCostCodes: string[] = access.assigned_cost_codes || [];
+      const hasGlobal: boolean = !!access.has_global_job_access;
 
       // Match PunchClockApp behavior: cost codes must belong to selected job, and be limited to assigned_cost_codes unless global
       if (!hasGlobal && (!assignedCostCodes || assignedCostCodes.length === 0)) {
