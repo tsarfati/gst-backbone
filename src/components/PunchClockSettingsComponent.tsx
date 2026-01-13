@@ -116,9 +116,21 @@ export default function PunchClockSettingsComponent() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
 
   // Use centralized hook for company-specific role
+  const normalizeRole = (role?: string | null) => {
+    const r = (role ?? '').trim().toLowerCase();
+    return r.length ? r : null;
+  };
+
   const activeCompanyRole = useActiveCompanyRole();
-  const effectiveRole = activeCompanyRole || profile?.role;
-  const isManager = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner' || effectiveRole === 'controller' || effectiveRole === 'project_manager';
+  const effectiveRole = normalizeRole(activeCompanyRole ?? profile?.role);
+
+  const isManager =
+    effectiveRole === 'admin' ||
+    effectiveRole === 'company_admin' ||
+    effectiveRole === 'owner' ||
+    effectiveRole === 'controller' ||
+    effectiveRole === 'project_manager' ||
+    effectiveRole === 'manager';
 
   useEffect(() => {
     if (currentCompany) {

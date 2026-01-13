@@ -48,21 +48,27 @@ export function RoleGuard({
   }
 
   // Use company-specific role if available, otherwise fall back to profile role
-  const effectiveRole = activeCompanyRole || profile.role;
+  const normalizeRole = (role?: string | null) => {
+    const r = (role ?? '').trim().toLowerCase();
+    return r.length ? r : null;
+  };
+
+  const effectiveRole = normalizeRole(activeCompanyRole || profile.role);
+  const normalizedAllowedRoles = allowedRoles.map((r) => r.trim().toLowerCase());
 
   // Debug logging for development only
   if (import.meta.env.DEV) {
     console.log('RoleGuard - Active company role:', activeCompanyRole);
     console.log('RoleGuard - Profile role:', profile.role);
     console.log('RoleGuard - Effective role:', effectiveRole);
-    console.log('RoleGuard - Allowed roles:', allowedRoles);
-    console.log('RoleGuard - Has access:', allowedRoles.includes(effectiveRole));
+    console.log('RoleGuard - Allowed roles:', normalizedAllowedRoles);
+    console.log('RoleGuard - Has access:', !!effectiveRole && normalizedAllowedRoles.includes(effectiveRole));
   }
 
   // If user role is not in allowed roles, redirect
-  if (!effectiveRole || !allowedRoles.includes(effectiveRole)) {
+  if (!effectiveRole || !normalizedAllowedRoles.includes(effectiveRole)) {
     if (import.meta.env.DEV) {
-      console.warn('Access denied - Effective role:', effectiveRole, 'Allowed roles:', allowedRoles);
+      console.warn('Access denied - Effective role:', effectiveRole, 'Allowed roles:', normalizedAllowedRoles);
     }
     return <Navigate to={redirectTo} replace />;
   }
