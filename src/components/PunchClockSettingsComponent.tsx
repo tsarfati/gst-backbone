@@ -15,7 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import EmployeeTimecardSettings from '@/components/EmployeeTimecardSettings';
 import JobPunchClockSettings from '@/components/JobPunchClockSettings';
-
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 interface PunchClockSettings {
   require_location: boolean;
   require_photo: boolean;
@@ -107,7 +107,7 @@ const defaultSettings: PunchClockSettings = {
 
 export default function PunchClockSettingsComponent() {
   const { user, profile } = useAuth();
-  const { currentCompany, userCompanies } = useCompany();
+  const { currentCompany, userCompanies, loading: companyLoading } = useCompany();
   const { toast } = useToast();
   const [settings, setSettings] = useState<PunchClockSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
@@ -115,10 +115,8 @@ export default function PunchClockSettingsComponent() {
   const [recalculating, setRecalculating] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
 
-  // Get role for current company from user_company_access
-  const activeCompanyRole = userCompanies.find(
-    (uc) => uc.company_id === currentCompany?.id
-  )?.role;
+  // Use centralized hook for company-specific role
+  const activeCompanyRole = useActiveCompanyRole();
   const effectiveRole = activeCompanyRole || profile?.role;
   const isManager = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner' || effectiveRole === 'controller' || effectiveRole === 'project_manager';
 
@@ -296,7 +294,8 @@ export default function PunchClockSettingsComponent() {
     }
   };
 
-  if (loading) {
+  // Wait for company context to fully load before checking permissions
+  if (loading || companyLoading) {
     return <div className="text-center py-8">Loading punch clock settings...</div>;
   }
 
