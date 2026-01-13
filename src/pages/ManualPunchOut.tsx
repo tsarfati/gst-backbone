@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -8,6 +8,21 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 
 interface PunchedInEmployee {
   id: string;
@@ -31,6 +46,12 @@ interface PunchedInEmployee {
   };
 }
 
+interface CostCode {
+  id: string;
+  code: string;
+  description: string;
+}
+
 export default function ManualPunchOut() {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -38,6 +59,13 @@ export default function ManualPunchOut() {
   const [punchedInEmployees, setPunchedInEmployees] = useState<PunchedInEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [punchingOut, setPunchingOut] = useState<string | null>(null);
+  
+  // Dialog state for cost code selection
+  const [punchOutDialogOpen, setPunchOutDialogOpen] = useState(false);
+  const [selectedEmployee, setSelectedEmployee] = useState<PunchedInEmployee | null>(null);
+  const [jobCostCodes, setJobCostCodes] = useState<CostCode[]>([]);
+  const [selectedCostCodeId, setSelectedCostCodeId] = useState<string>('');
+  const [loadingCostCodes, setLoadingCostCodes] = useState(false);
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
@@ -108,23 +136,65 @@ export default function ManualPunchOut() {
     }
   };
 
-  const handleManualPunchOut = async (employee: PunchedInEmployee) => {
+  const loadJobCostCodes = async (jobId: string) => {
     try {
-      setPunchingOut(employee.id);
+      setLoadingCostCodes(true);
+      
+      // Fetch cost codes that are assigned to this specific job
+      const { data, error } = await supabase
+        .from('cost_codes')
+        .select('id, code, description')
+        .eq('job_id', jobId)
+        .eq('is_active', true)
+        .order('code');
 
-      // Create punch out record
+      if (error) throw error;
+      
+      setJobCostCodes(data || []);
+    } catch (error) {
+      console.error('Error loading job cost codes:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load cost codes for this job.",
+        variant: "destructive",
+      });
+      setJobCostCodes([]);
+    } finally {
+      setLoadingCostCodes(false);
+    }
+  };
+
+  const openPunchOutDialog = async (employee: PunchedInEmployee) => {
+    setSelectedEmployee(employee);
+    setSelectedCostCodeId(employee.cost_code_id || '');
+    setPunchOutDialogOpen(true);
+    
+    if (employee.job_id) {
+      await loadJobCostCodes(employee.job_id);
+    } else {
+      setJobCostCodes([]);
+    }
+  };
+
+  const handleManualPunchOut = async () => {
+    if (!selectedEmployee) return;
+    
+    try {
+      setPunchingOut(selectedEmployee.id);
+
+      // Create punch out record with selected cost code
       const { error: punchError } = await supabase
         .from('punch_records')
         .insert({
-          user_id: employee.user_id,
-          job_id: employee.job_id,
-          cost_code_id: employee.cost_code_id,
-          company_id: employee.company_id || '',
+          user_id: selectedEmployee.user_id,
+          job_id: selectedEmployee.job_id,
+          cost_code_id: selectedCostCodeId || selectedEmployee.cost_code_id,
+          company_id: selectedEmployee.company_id || '',
           punch_type: 'punched_out',
           punch_time: new Date().toISOString(),
           notes: 'Manual punch out by manager',
           user_agent: navigator.userAgent,
-          ip_address: null // Browser can't directly access IP
+          ip_address: null
         });
 
       if (punchError) throw punchError;
@@ -133,15 +203,20 @@ export default function ManualPunchOut() {
       const { error: statusError } = await supabase
         .from('current_punch_status')
         .update({ is_active: false })
-        .eq('id', employee.id);
+        .eq('id', selectedEmployee.id);
 
       if (statusError) throw statusError;
 
       toast({
         title: "Employee Punched Out",
-        description: `${employee.profiles?.display_name} has been successfully punched out.`,
+        description: `${selectedEmployee.profiles?.display_name} has been successfully punched out.`,
       });
 
+      setPunchOutDialogOpen(false);
+      setSelectedEmployee(null);
+      setJobCostCodes([]);
+      setSelectedCostCodeId('');
+      
       // Reload the list
       loadPunchedInEmployees();
     } catch (error) {
@@ -289,7 +364,7 @@ export default function ManualPunchOut() {
                       
                       <Button
                         variant="outline"
-                        onClick={() => handleManualPunchOut(employee)}
+                        onClick={() => openPunchOutDialog(employee)}
                         disabled={punchingOut === employee.id}
                         className="gap-2"
                       >
@@ -304,6 +379,68 @@ export default function ManualPunchOut() {
           })}
         </div>
       )}
+
+      {/* Punch Out Dialog with Cost Code Selection */}
+      <Dialog open={punchOutDialogOpen} onOpenChange={setPunchOutDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              Punch Out {selectedEmployee?.profiles?.display_name}
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {selectedEmployee?.jobs?.name && (
+              <div>
+                <Label className="text-muted-foreground">Job</Label>
+                <p className="font-medium">{selectedEmployee.jobs.name}</p>
+              </div>
+            )}
+            
+            {selectedEmployee?.job_id && (
+              <div className="space-y-2">
+                <Label htmlFor="cost-code">Cost Code</Label>
+                {loadingCostCodes ? (
+                  <p className="text-sm text-muted-foreground">Loading cost codes...</p>
+                ) : jobCostCodes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No cost codes assigned to this job</p>
+                ) : (
+                  <Select 
+                    value={selectedCostCodeId} 
+                    onValueChange={setSelectedCostCodeId}
+                  >
+                    <SelectTrigger id="cost-code">
+                      <SelectValue placeholder="Select a cost code" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {jobCostCodes.map((cc) => (
+                        <SelectItem key={cc.id} value={cc.id}>
+                          {cc.code} - {cc.description}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
+            )}
+          </div>
+          
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => setPunchOutDialogOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleManualPunchOut}
+              disabled={punchingOut !== null}
+            >
+              {punchingOut ? 'Punching Out...' : 'Confirm Punch Out'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
