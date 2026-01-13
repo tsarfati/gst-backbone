@@ -257,7 +257,9 @@ export default function PunchClockSettingsComponent() {
   const handleRecalculate = async () => {
     if (!currentCompany) return;
 
-    const isAdmin = profile?.role === 'admin' || profile?.role === 'controller';
+    // Use effectiveRole (company-specific role when available) instead of profile.role
+    // so company admins/controllers aren't blocked by a generic profile role.
+    const isAdmin = effectiveRole === 'admin' || effectiveRole === 'controller';
     if (!isAdmin) {
       toast({
         title: "Access Denied",
