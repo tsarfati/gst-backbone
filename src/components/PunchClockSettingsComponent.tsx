@@ -295,8 +295,10 @@ export default function PunchClockSettingsComponent() {
   };
 
   // Wait for company context to fully load before checking permissions
-  // Also wait for userCompanies to be populated (activeCompanyRole will be non-null when ready)
-  if (loading || companyLoading || (userCompanies.length === 0 && currentCompany)) {
+  // activeCompanyRole will be null until userCompanies is populated with correct data
+  const isRoleReady = activeCompanyRole !== null || !currentCompany;
+  
+  if (loading || companyLoading || !isRoleReady) {
     return <div className="text-center py-8">Loading punch clock settings...</div>;
   }
 
