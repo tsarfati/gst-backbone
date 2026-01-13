@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import EmployeeTimecardSettings from '@/components/EmployeeTimecardSettings';
 import JobPunchClockSettings from '@/components/JobPunchClockSettings';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 
 // Helper to resize any image to square PNG (contain) at desired size
 async function resizeImageToPng(file: File, size: number): Promise<Blob> {
@@ -143,7 +144,10 @@ export default function PunchClockSettings() {
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [recalculating, setRecalculating] = useState(false);
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  // Use the company-specific role, not the global profile.role
+  const activeCompanyRole = useActiveCompanyRole();
+  const effectiveRole = activeCompanyRole?.trim().toLowerCase() || profile?.role?.trim().toLowerCase();
+  const isManager = effectiveRole === 'admin' || effectiveRole === 'controller' || effectiveRole === 'project_manager' || effectiveRole === 'company_admin' || effectiveRole === 'owner' || effectiveRole === 'manager';
 
   useEffect(() => {
     if (currentCompany) {

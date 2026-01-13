@@ -2,12 +2,13 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, User, Mail } from "lucide-react";
+import { CheckCircle, XCircle, User, Mail, UserPlus } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useNavigate } from "react-router-dom";
+import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 
 interface UserProfile {
   user_id: string;
@@ -38,6 +39,10 @@ export default function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+
+  // Use company-specific role for permission checks
+  const activeCompanyRole = useActiveCompanyRole();
+  const isAdmin = activeCompanyRole === 'admin' || activeCompanyRole === 'company_admin' || activeCompanyRole === 'owner';
 
   const roleColors = {
     admin: 'bg-red-500',
@@ -239,6 +244,12 @@ export default function UserManagement() {
             Manage users for {currentCompany.display_name || currentCompany.name}
           </p>
         </div>
+        {isAdmin && (
+          <Button onClick={() => navigate('/employees/add')}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add User
+          </Button>
+        )}
       </div>
 
       {/* Pending Approvals */}
