@@ -826,10 +826,10 @@ export default function CreditCardTransactions() {
                       className="font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
-                      <span className={Number(trans.amount) > 0 ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
-                        {Number(trans.amount) > 0
-                          ? `+${formatCurrency(Math.abs(Number(trans.amount)))} (Credit)`
-                          : formatCurrency(Math.abs(Number(trans.amount)))
+                      <span className={(trans.transaction_type === 'payment' || trans.transaction_type === 'credit' || Number(trans.amount) < 0) ? 'text-green-600 dark:text-green-400' : 'text-red-600 dark:text-red-400'}>
+                        {(trans.transaction_type === 'payment' || trans.transaction_type === 'credit' || Number(trans.amount) < 0)
+                          ? `${formatCurrency(Math.abs(Number(trans.amount)))} (Credit)`
+                          : formatCurrency(Number(trans.amount))
                         }
                       </span>
                     </TableCell>
