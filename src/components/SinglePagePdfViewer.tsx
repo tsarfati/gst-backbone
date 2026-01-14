@@ -1,5 +1,6 @@
-import React, { useEffect, useRef, useState, useCallback, useMemo } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
+import { cn } from "@/lib/utils";
 
 interface SinglePagePdfViewerProps {
   url: string;
@@ -10,10 +11,13 @@ interface SinglePagePdfViewerProps {
   onZoomChange?: (zoom: number) => void;
 }
 
+type RenderReason = "page" | "zoom";
+
 /**
- * Renders a single page of a PDF with high-resolution support for zooming.
- * Supports pan/drag when zoomed in and pinch-to-zoom on trackpad/touch.
- * Only the PDF content zooms - parent toolbars remain unaffected.
+ * Single-page PDF renderer.
+ * - Trackpad pinch and touch pinch are handled without zooming the whole page.
+ * - Zoom feels smooth by resizing via CSS immediately, then re-rendering at high-res after a short idle.
+ * - Panning works in both directions when zoomed.
  */
 export default function SinglePagePdfViewer({
   url,
@@ -25,25 +29,47 @@ export default function SinglePagePdfViewer({
 }: SinglePagePdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
-  const [renderedZoom, setRenderedZoom] = useState<number | null>(null);
-  
+
+  // Tracks layout metrics so we can instantly resize the canvas element during zoom.
+  const layoutRef = useRef<{
+    fitScale: number;
+    baseWidth: number;
+    baseHeight: number;
+  } | null>(null);
+
   // Pan state
   const [isPanning, setIsPanning] = useState(false);
   const panStartRef = useRef({ x: 0, y: 0 });
   const scrollStartRef = useRef({ x: 0, y: 0 });
 
-  // Pinch zoom state for touch
+  // Touch pinch state
   const lastTouchDistance = useRef<number | null>(null);
   const baseZoomRef = useRef<number>(zoomLevel);
 
-  // Debounce rendering to reduce flashing
-  const renderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  // Render scheduling
   const isRenderingRef = useRef(false);
+  const pendingRenderRef = useRef<{ page: number; zoom: number; reason: RenderReason } | null>(null);
+  const requestRenderRef = useRef<((args: { page: number; zoom: number; reason: RenderReason }) => void) | null>(null);
+  const zoomRenderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  // Load PDF document once
+  const clampZoom = useCallback((z: number) => Math.min(Math.max(z, 0.5), 4), []);
+
+  const updateCanvasCssSize = useCallback((zoom: number) => {
+    const canvas = canvasRef.current;
+    const layout = layoutRef.current;
+    if (!canvas || !layout) return;
+
+    const w = Math.ceil(layout.baseWidth * layout.fitScale * zoom);
+    const h = Math.ceil(layout.baseHeight * layout.fitScale * zoom);
+    canvas.style.width = `${w}px`;
+    canvas.style.height = `${h}px`;
+  }, []);
+
+  // Load PDF document once per URL
   useEffect(() => {
     let cancelled = false;
 
@@ -51,6 +77,7 @@ export default function SinglePagePdfViewer({
       try {
         setLoading(true);
         setError(null);
+        layoutRef.current = null;
 
         const pdfjs = await import("pdfjs-dist");
         (pdfjs as any).GlobalWorkerOptions.workerSrc =
@@ -82,102 +109,127 @@ export default function SinglePagePdfViewer({
     return () => {
       cancelled = true;
     };
-  }, [url]);
+  }, [url, onTotalPagesChange]);
 
-  // Render current page when page number or zoom changes (debounced)
+  const requestRender = useCallback(
+    async ({ page, zoom, reason }: { page: number; zoom: number; reason: RenderReason }) => {
+      if (!pdfDoc) return;
+
+      if (isRenderingRef.current) {
+        pendingRenderRef.current = { page, zoom, reason };
+        return;
+      }
+
+      isRenderingRef.current = true;
+
+      try {
+        if (reason === "page") {
+          setLoading(true);
+        }
+        setError(null);
+
+        const pdfPage = await pdfDoc.getPage(page);
+        const container = containerRef.current;
+        const displayCanvas = canvasRef.current;
+        if (!container || !displayCanvas) return;
+
+        const containerWidth = container.clientWidth || window.innerWidth;
+        const baseViewport = pdfPage.getViewport({ scale: 1 });
+        const fitScale = (containerWidth * 0.95) / baseViewport.width;
+
+        layoutRef.current = {
+          fitScale,
+          baseWidth: baseViewport.width,
+          baseHeight: baseViewport.height,
+        };
+
+        // Resize immediately (keeps existing bitmap visible while we re-render).
+        updateCanvasCssSize(zoom);
+
+        const dpr = window.devicePixelRatio || 1;
+        const displayScale = fitScale * zoom;
+        const renderScale = displayScale * dpr;
+        const renderViewport = pdfPage.getViewport({ scale: renderScale });
+
+        // Render to offscreen first to avoid visible "blank" flashes.
+        const offscreen = document.createElement("canvas");
+        offscreen.width = Math.ceil(renderViewport.width);
+        offscreen.height = Math.ceil(renderViewport.height);
+        const offscreenCtx = offscreen.getContext("2d");
+        if (!offscreenCtx) return;
+
+        await pdfPage.render({ canvasContext: offscreenCtx, viewport: renderViewport }).promise;
+
+        const ctx = displayCanvas.getContext("2d");
+        if (!ctx) return;
+
+        displayCanvas.width = offscreen.width;
+        displayCanvas.height = offscreen.height;
+        ctx.drawImage(offscreen, 0, 0);
+
+        if (reason === "page") {
+          setLoading(false);
+        }
+      } catch (err: any) {
+        console.error("Page render error:", err);
+        setError("Failed to render page");
+        setLoading(false);
+      } finally {
+        isRenderingRef.current = false;
+
+        const pending = pendingRenderRef.current;
+        if (pending) {
+          pendingRenderRef.current = null;
+          requestRenderRef.current?.(pending);
+        }
+      }
+    },
+    [pdfDoc, updateCanvasCssSize]
+  );
+
+  useEffect(() => {
+    requestRenderRef.current = requestRender;
+  }, [requestRender]);
+
+  // Render on page changes immediately
   useEffect(() => {
     if (!pdfDoc) return;
+    void requestRender({ page: pageNumber, zoom: zoomLevel, reason: "page" });
+  }, [pdfDoc, pageNumber, zoomLevel, requestRender]);
 
-    // Clear any pending render
-    if (renderTimeoutRef.current) {
-      clearTimeout(renderTimeoutRef.current);
+  // Zoom: resize immediately, then re-render at high-res after user stops zooming
+  useEffect(() => {
+    updateCanvasCssSize(zoomLevel);
+
+    if (!pdfDoc) return;
+
+    if (zoomRenderTimeoutRef.current) {
+      clearTimeout(zoomRenderTimeoutRef.current);
     }
 
-    // Debounce rendering during active zooming
-    const delay = isRenderingRef.current ? 150 : 0;
-    
-    renderTimeoutRef.current = setTimeout(() => {
-      renderPage();
-    }, delay);
+    zoomRenderTimeoutRef.current = setTimeout(() => {
+      void requestRender({ page: pageNumber, zoom: zoomLevel, reason: "zoom" });
+    }, 250);
 
     return () => {
-      if (renderTimeoutRef.current) {
-        clearTimeout(renderTimeoutRef.current);
+      if (zoomRenderTimeoutRef.current) {
+        clearTimeout(zoomRenderTimeoutRef.current);
       }
     };
-  }, [pdfDoc, pageNumber, zoomLevel]);
+  }, [zoomLevel, pageNumber, pdfDoc, requestRender, updateCanvasCssSize]);
 
-  const renderPage = async () => {
-    if (!pdfDoc || isRenderingRef.current) return;
-    
-    isRenderingRef.current = true;
-    
-    try {
-      setLoading(true);
-      setError(null);
-
-      const page = await pdfDoc.getPage(pageNumber);
-
-      const canvas = canvasRef.current;
-      const container = containerRef.current;
-      if (!canvas || !container) {
-        isRenderingRef.current = false;
-        return;
-      }
-
-      const ctx = canvas.getContext("2d");
-      if (!ctx) {
-        isRenderingRef.current = false;
-        return;
-      }
-
-      // Calculate scale to fit container width, then apply zoom
-      const containerWidth = container.clientWidth || window.innerWidth;
-      const baseViewport = page.getViewport({ scale: 1 });
-      const fitScale = (containerWidth * 0.95) / baseViewport.width;
-      
-      // For high-res rendering, use device pixel ratio * zoom
-      const devicePixelRatio = window.devicePixelRatio || 1;
-      const renderScale = fitScale * zoomLevel * devicePixelRatio;
-      const displayScale = fitScale * zoomLevel;
-      
-      const viewport = page.getViewport({ scale: renderScale });
-      const displayViewport = page.getViewport({ scale: displayScale });
-
-      // Set canvas size to high-res dimensions
-      canvas.width = Math.ceil(viewport.width);
-      canvas.height = Math.ceil(viewport.height);
-      
-      // Set display size via CSS
-      canvas.style.width = `${Math.ceil(displayViewport.width)}px`;
-      canvas.style.height = `${Math.ceil(displayViewport.height)}px`;
-
-      await page.render({ canvasContext: ctx, viewport }).promise;
-
-      setRenderedZoom(zoomLevel);
-      setLoading(false);
-    } catch (err: any) {
-      console.error("Page render error:", err);
-      setError("Failed to render page");
-      setLoading(false);
-    } finally {
-      isRenderingRef.current = false;
-    }
-  };
-
-  // Pan/drag handlers
+  // Pan/drag
   const handleMouseDown = useCallback(
     (e: React.MouseEvent) => {
       if (zoomLevel <= 1) return;
-      
       setIsPanning(true);
       panStartRef.current = { x: e.clientX, y: e.clientY };
-      
+
       const container = containerRef.current;
       if (container) {
         scrollStartRef.current = { x: container.scrollLeft, y: container.scrollTop };
       }
-      
+
       e.preventDefault();
     },
     [zoomLevel]
@@ -186,7 +238,6 @@ export default function SinglePagePdfViewer({
   const handleMouseMove = useCallback(
     (e: React.MouseEvent) => {
       if (!isPanning) return;
-
       const container = containerRef.current;
       if (!container) return;
 
@@ -199,36 +250,25 @@ export default function SinglePagePdfViewer({
     [isPanning]
   );
 
-  const handleMouseUp = useCallback(() => {
-    setIsPanning(false);
-  }, []);
+  const endPan = useCallback(() => setIsPanning(false), []);
 
-  const handleMouseLeave = useCallback(() => {
-    setIsPanning(false);
-  }, []);
-
-  // Touch handlers for mobile pan and pinch zoom
+  // Touch handlers
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
       if (e.touches.length === 2) {
-        // Pinch gesture start
         e.preventDefault();
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        const distance = Math.hypot(
-          touch2.clientX - touch1.clientX,
-          touch2.clientY - touch1.clientY
-        );
-        lastTouchDistance.current = distance;
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        lastTouchDistance.current = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
         baseZoomRef.current = zoomLevel;
         return;
       }
-      
+
       if (zoomLevel <= 1 || e.touches.length !== 1) return;
-      
+
       setIsPanning(true);
       panStartRef.current = { x: e.touches[0].clientX, y: e.touches[0].clientY };
-      
+
       const container = containerRef.current;
       if (container) {
         scrollStartRef.current = { x: container.scrollLeft, y: container.scrollTop };
@@ -240,24 +280,17 @@ export default function SinglePagePdfViewer({
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
       if (e.touches.length === 2 && lastTouchDistance.current !== null && onZoomChange) {
-        // Pinch gesture - prevent default to stop page zoom
         e.preventDefault();
         e.stopPropagation();
-        
-        const touch1 = e.touches[0];
-        const touch2 = e.touches[1];
-        const distance = Math.hypot(
-          touch2.clientX - touch1.clientX,
-          touch2.clientY - touch1.clientY
-        );
-        
+
+        const t1 = e.touches[0];
+        const t2 = e.touches[1];
+        const distance = Math.hypot(t2.clientX - t1.clientX, t2.clientY - t1.clientY);
         const scale = distance / lastTouchDistance.current;
-        const newZoom = Math.min(Math.max(baseZoomRef.current * scale, 0.5), 4);
-        
-        onZoomChange(newZoom);
+        onZoomChange(clampZoom(baseZoomRef.current * scale));
         return;
       }
-      
+
       if (!isPanning || e.touches.length !== 1) return;
 
       const container = containerRef.current;
@@ -269,51 +302,24 @@ export default function SinglePagePdfViewer({
       container.scrollLeft = scrollStartRef.current.x + dx;
       container.scrollTop = scrollStartRef.current.y + dy;
     },
-    [isPanning, onZoomChange]
+    [isPanning, onZoomChange, clampZoom]
   );
 
-  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
-    if (e.touches.length < 2) {
-      // Pinch ended, update base zoom level
-      lastTouchDistance.current = null;
-      baseZoomRef.current = zoomLevel;
-    }
-    if (e.touches.length === 0) {
-      setIsPanning(false);
-    }
-  }, [zoomLevel]);
-
-  // Trackpad pinch-to-zoom (wheel event with ctrlKey)
-  // This is a native event handler to ensure we can properly preventDefault
-  useEffect(() => {
-    const container = containerRef.current;
-    if (!container) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      // Trackpad pinch gesture fires as wheel event with ctrlKey
-      if (e.ctrlKey && onZoomChange) {
-        // CRITICAL: Prevent the browser from zooming the page
-        e.preventDefault();
-        e.stopPropagation();
-        
-        const delta = -e.deltaY * 0.01;
-        const newZoom = Math.min(Math.max(zoomLevel + delta, 0.5), 4);
-        onZoomChange(newZoom);
+  const handleTouchEnd = useCallback(
+    (e: React.TouchEvent) => {
+      if (e.touches.length < 2) {
+        lastTouchDistance.current = null;
+        baseZoomRef.current = zoomLevel;
       }
-    };
-
-    // Use passive: false to allow preventDefault
-    container.addEventListener("wheel", handleWheel, { passive: false });
-
-    return () => {
-      container.removeEventListener("wheel", handleWheel);
-    };
-  }, [zoomLevel, onZoomChange]);
+      if (e.touches.length === 0) {
+        setIsPanning(false);
+      }
+    },
+    [zoomLevel]
+  );
 
   const cursorStyle = useMemo(() => {
-    if (zoomLevel > 1) {
-      return isPanning ? "grabbing" : "grab";
-    }
+    if (zoomLevel > 1) return isPanning ? "grabbing" : "grab";
     return "default";
   }, [zoomLevel, isPanning]);
 
@@ -321,43 +327,51 @@ export default function SinglePagePdfViewer({
     <div
       ref={containerRef}
       className="w-full h-full overflow-auto bg-muted/30"
-      style={{ 
+      style={{
         cursor: cursorStyle,
-        touchAction: "none", // Disable browser touch gestures
+        touchAction: "none",
+        overscrollBehavior: "contain",
       }}
       onMouseDown={handleMouseDown}
       onMouseMove={handleMouseMove}
-      onMouseUp={handleMouseUp}
-      onMouseLeave={handleMouseLeave}
+      onMouseUp={endPan}
+      onMouseLeave={endPan}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      aria-label={`PDF page ${pageNumber} of ${totalPages}`}
     >
-      <div className="flex items-center justify-center min-h-full p-4">
-        {loading && renderedZoom !== zoomLevel && (
-          <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 pointer-events-none">
-            <div className="flex flex-col items-center gap-2">
-              <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading page {pageNumber}...</p>
+      <div
+        className={cn(
+          "relative min-h-full p-4 flex",
+          zoomLevel <= 1 ? "w-full items-center justify-center" : "w-max items-start justify-start"
+        )}
+      >
+        <div className="relative shrink-0">
+          {loading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 pointer-events-none">
+              <div className="flex flex-col items-center gap-2">
+                <Loader2 className="h-8 w-8 animate-spin text-primary" />
+                <p className="text-sm text-muted-foreground">Loading page {pageNumber}...</p>
+              </div>
             </div>
-          </div>
-        )}
+          )}
 
-        {error && (
-          <div className="flex flex-col items-center justify-center gap-2 text-destructive">
-            <p>{error}</p>
-          </div>
-        )}
+          {error && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-2 text-destructive bg-background/60 z-10">
+              <p>{error}</p>
+            </div>
+          )}
 
-        <canvas
-          ref={canvasRef}
-          className="bg-white shadow-lg rounded"
-          style={{ 
-            display: "block",
-            maxWidth: zoomLevel > 1 ? "none" : "100%",
-            transition: "none", // No transition to reduce flashing
-          }}
-        />
+          <canvas
+            ref={canvasRef}
+            className="shadow-lg rounded shrink-0"
+            style={{
+              display: "block",
+              maxWidth: zoomLevel > 1 ? "none" : "100%",
+            }}
+          />
+        </div>
       </div>
     </div>
   );
