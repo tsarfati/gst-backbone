@@ -95,6 +95,23 @@ export default function PlanViewer() {
     }
   }, [searchParams]);
 
+  // Prevent browser page zoom on trackpad pinch (ctrl+wheel) so only the plan zooms.
+  useEffect(() => {
+    const handleWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      e.preventDefault();
+
+      const delta = -e.deltaY * 0.01;
+      setZoomLevel((prev) => {
+        const next = Math.min(Math.max(prev + delta, 0.5), 4);
+        return Math.round(next * 100) / 100;
+      });
+    };
+
+    window.addEventListener("wheel", handleWheel, { passive: false });
+    return () => window.removeEventListener("wheel", handleWheel);
+  }, []);
+
   useEffect(() => {
     if (plan && pages.length === 0 && !analyzing) {
       analyzePlan();
