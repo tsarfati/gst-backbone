@@ -15,6 +15,7 @@ import heroVideo5 from '@/assets/hero-construction-5.mp4';
 import logoImage from '@/assets/builderlynk-logo-new.png';
 import logoTransparent from '@/assets/builderlynk-logo-new.png';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo.png';
+import headerLogo from '@/assets/builderlynk-header-logo.png';
 import {
   Shield,
   Users,
@@ -194,9 +195,15 @@ export default function LandingPage() {
         style={{ backgroundColor: scrollY > 50 ? 'rgba(15, 20, 25, 0.9)' : 'transparent' }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
+        <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-2">
-              <img src={logoTransparent} alt="BuilderLYNK" className="h-14 w-auto drop-shadow-lg" />
+              {scrollY > 50 ? (
+                <div className="bg-white rounded-lg p-1.5">
+                  <img src={headerLogo} alt="BuilderLYNK" className="h-12 w-auto" />
+                </div>
+              ) : (
+                <img src={logoTransparent} alt="BuilderLYNK" className="h-14 w-auto drop-shadow-lg" />
+              )}
             </div>
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-white/80 hover:text-white transition-colors font-medium">Features</a>
@@ -260,7 +267,7 @@ export default function LandingPage() {
             <img 
               src={builderlynkIcon} 
               alt="BuilderLYNK Icon" 
-              className="h-32 sm:h-40 lg:h-48 w-auto mx-auto mb-6 drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]" 
+              className="h-44 sm:h-52 lg:h-64 w-auto mx-auto mb-6 drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]" 
             />
             <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black mb-4 tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]" style={{ textShadow: '4px 4px 16px rgba(0,0,0,0.6)' }}>
               <span className="text-white">Builder</span><span className="text-[#E88A2D]">LYNK</span>
