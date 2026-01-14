@@ -6347,6 +6347,33 @@ export type Database = {
         }
         Relationships: []
       }
+      user_report_favorites: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          report_category: string
+          report_key: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          report_category: string
+          report_key: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          report_category?: string
+          report_key?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       vault_entries: {
         Row: {
           algo: string
