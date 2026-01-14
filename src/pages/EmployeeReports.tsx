@@ -6,15 +6,26 @@ import { useNavigate } from "react-router-dom";
 import { Users, QrCode, UserCircle, ArrowRight, Search, Filter, FileText } from "lucide-react";
 import { useReportFavorites } from "@/hooks/useReportFavorites";
 import { ReportFavoriteButton } from "@/components/ReportFavoriteButton";
+import { ComingSoonBadge } from "@/components/ComingSoonBadge";
 import { cn } from "@/lib/utils";
 
-const reports = [
+interface Report {
+  key: string;
+  title: string;
+  description: string;
+  icon: any;
+  path: string;
+  isBuilt?: boolean;
+}
+
+const reports: Report[] = [
   {
     key: "pin-list",
     title: "PIN Employee Master List",
     description: "Complete list of all PIN employees with their credentials",
     icon: Users,
     path: "/employees/reports/pin-list",
+    isBuilt: true,
   },
   {
     key: "qr-cards",
@@ -22,6 +33,7 @@ const reports = [
     description: "Generate customized QR code cards for employees to access punch clock",
     icon: QrCode,
     path: "/employees/reports/qr-cards",
+    isBuilt: true,
   },
   {
     key: "all-pins",
@@ -29,6 +41,7 @@ const reports = [
     description: "Both regular employees and PIN employees with punch clock access",
     icon: UserCircle,
     path: "/employees/reports/all-pins",
+    isBuilt: true,
   },
 ];
 
@@ -59,6 +72,12 @@ export default function EmployeeReports() {
     if (!aFav && bFav) return 1;
     return 0;
   });
+
+  const handleReportClick = (report: Report) => {
+    if (report.isBuilt !== false) {
+      navigate(report.path);
+    }
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -97,11 +116,13 @@ export default function EmployeeReports() {
             <Card 
               key={report.key} 
               className={cn(
-                "hover:shadow-md transition-shadow cursor-pointer",
+                "hover:shadow-md transition-shadow relative overflow-hidden",
+                report.isBuilt !== false && "cursor-pointer",
                 isFavorite(report.key) && "border-yellow-500/30"
               )}
-              onClick={() => navigate(report.path)}
+              onClick={() => handleReportClick(report)}
             >
+              {report.isBuilt === false && <ComingSoonBadge />}
               <CardHeader>
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-3">

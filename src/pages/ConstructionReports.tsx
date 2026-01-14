@@ -6,6 +6,7 @@ import { FileText, TrendingUp, DollarSign, Users, Package, Clock, BarChart3, Fil
 import { useNavigate } from "react-router-dom";
 import { useReportFavorites } from "@/hooks/useReportFavorites";
 import { ReportFavoriteButton } from "@/components/ReportFavoriteButton";
+import { ComingSoonBadge } from "@/components/ComingSoonBadge";
 import { cn } from "@/lib/utils";
 
 interface Report {
@@ -14,6 +15,7 @@ interface Report {
   icon: any;
   route: string;
   key: string;
+  isBuilt?: boolean;
 }
 
 export default function ConstructionReports() {
@@ -30,6 +32,7 @@ export default function ConstructionReports() {
       description: "View current balance and financial status of all projects",
       icon: DollarSign,
       route: "/construction/reports/project-balance",
+      isBuilt: false,
     },
     {
       key: "profitability",
@@ -37,6 +40,7 @@ export default function ConstructionReports() {
       description: "Analyze profit margins and profitability by project",
       icon: TrendingUp,
       route: "/construction/reports/profitability",
+      isBuilt: false,
     },
     {
       key: "projects",
@@ -44,6 +48,7 @@ export default function ConstructionReports() {
       description: "Comprehensive list and overview of all projects",
       icon: BarChart3,
       route: "/jobs",
+      isBuilt: true,
     },
     {
       key: "progress",
@@ -51,6 +56,7 @@ export default function ConstructionReports() {
       description: "Track completion status and milestones",
       icon: Clock,
       route: "/construction/reports/progress",
+      isBuilt: false,
     },
     {
       key: "project-tasks",
@@ -58,6 +64,7 @@ export default function ConstructionReports() {
       description: "View all tasks across projects",
       icon: FileText,
       route: "/tasks/projects",
+      isBuilt: true,
     },
     {
       key: "employee-hours",
@@ -65,6 +72,7 @@ export default function ConstructionReports() {
       description: "Employee time tracking and hours report",
       icon: Users,
       route: "/timecards/reports",
+      isBuilt: true,
     },
     {
       key: "billing",
@@ -72,6 +80,7 @@ export default function ConstructionReports() {
       description: "Billing status and invoices by project",
       icon: FileBarChart,
       route: "/construction/reports/billing",
+      isBuilt: false,
     },
     {
       key: "transactions",
@@ -79,6 +88,7 @@ export default function ConstructionReports() {
       description: "All financial transactions by project",
       icon: DollarSign,
       route: "/construction/reports/transactions",
+      isBuilt: true,
     },
     {
       key: "cost-history",
@@ -86,6 +96,7 @@ export default function ConstructionReports() {
       description: "Detailed cost transaction history",
       icon: FileText,
       route: "/construction/reports/cost-history",
+      isBuilt: true,
     },
     {
       key: "subcontract-summary",
@@ -93,6 +104,7 @@ export default function ConstructionReports() {
       description: "Overview of all subcontract agreements",
       icon: Users,
       route: "/construction/reports/subcontract-summary",
+      isBuilt: true,
     },
     {
       key: "subcontract-details",
@@ -100,6 +112,7 @@ export default function ConstructionReports() {
       description: "Subcontract information organized by vendor",
       icon: Package,
       route: "/construction/reports/subcontract-details",
+      isBuilt: true,
     },
     {
       key: "profit-analysis",
@@ -107,6 +120,7 @@ export default function ConstructionReports() {
       description: "Detailed profit and loss analysis",
       icon: TrendingUp,
       route: "/construction/reports/profit-analysis",
+      isBuilt: false,
     },
     {
       key: "performance",
@@ -114,6 +128,7 @@ export default function ConstructionReports() {
       description: "Performance metrics and KPIs",
       icon: BarChart3,
       route: "/construction/reports/performance",
+      isBuilt: false,
     },
     {
       key: "budget-status",
@@ -121,6 +136,7 @@ export default function ConstructionReports() {
       description: "Budget vs actual costs comparison",
       icon: DollarSign,
       route: "/construction/reports/budget-status",
+      isBuilt: true,
     },
     {
       key: "subcontract-audit",
@@ -128,6 +144,7 @@ export default function ConstructionReports() {
       description: "Audit trail for subcontract changes",
       icon: FileText,
       route: "/construction/reports/subcontract-audit",
+      isBuilt: false,
     },
     {
       key: "proforma",
@@ -135,6 +152,7 @@ export default function ConstructionReports() {
       description: "Generate pro forma invoices with quantities",
       icon: FileBarChart,
       route: "/construction/reports/proforma",
+      isBuilt: false,
     },
     {
       key: "ar-open",
@@ -142,6 +160,7 @@ export default function ConstructionReports() {
       description: "Accounts receivable open documents",
       icon: FileText,
       route: "/construction/reports/ar-open",
+      isBuilt: false,
     },
     {
       key: "ar-paid",
@@ -149,6 +168,7 @@ export default function ConstructionReports() {
       description: "AR documents with payment information",
       icon: DollarSign,
       route: "/construction/reports/ar-paid",
+      isBuilt: false,
     },
     {
       key: "ap-open",
@@ -156,6 +176,7 @@ export default function ConstructionReports() {
       description: "Accounts payable open documents",
       icon: FileText,
       route: "/construction/reports/ap-open",
+      isBuilt: false,
     },
     {
       key: "ap-paid",
@@ -163,6 +184,7 @@ export default function ConstructionReports() {
       description: "AP documents with payment information",
       icon: DollarSign,
       route: "/construction/reports/ap-paid",
+      isBuilt: false,
     },
     {
       key: "wip",
@@ -170,6 +192,7 @@ export default function ConstructionReports() {
       description: "Work in progress report",
       icon: Clock,
       route: "/construction/reports/wip",
+      isBuilt: false,
     },
     {
       key: "wip-detail",
@@ -177,6 +200,7 @@ export default function ConstructionReports() {
       description: "Detailed work in progress breakdown",
       icon: FileText,
       route: "/construction/reports/wip-detail",
+      isBuilt: false,
     },
     {
       key: "subcontract-payment",
@@ -184,6 +208,7 @@ export default function ConstructionReports() {
       description: "Subcontractor payment status",
       icon: DollarSign,
       route: "/construction/reports/subcontract-payment",
+      isBuilt: false,
     },
     {
       key: "substantiated-billing",
@@ -191,6 +216,7 @@ export default function ConstructionReports() {
       description: "Detailed billing substantiation",
       icon: FileBarChart,
       route: "/construction/reports/substantiated-billing",
+      isBuilt: false,
     },
     {
       key: "bonding",
@@ -198,6 +224,7 @@ export default function ConstructionReports() {
       description: "Bonding requirements and status",
       icon: FileText,
       route: "/construction/reports/bonding",
+      isBuilt: false,
     },
     {
       key: "substantiated-consolidated",
@@ -205,6 +232,7 @@ export default function ConstructionReports() {
       description: "Consolidated substantiated billing report",
       icon: FileBarChart,
       route: "/construction/reports/substantiated-consolidated",
+      isBuilt: false,
     },
     {
       key: "pl-by-month",
@@ -212,6 +240,7 @@ export default function ConstructionReports() {
       description: "Monthly P&L analysis by project",
       icon: TrendingUp,
       route: "/construction/reports/pl-by-month",
+      isBuilt: false,
     },
   ];
 
@@ -235,6 +264,12 @@ export default function ConstructionReports() {
     if (!aFav && bFav) return 1;
     return 0;
   });
+
+  const handleReportClick = (report: Report) => {
+    if (report.isBuilt !== false) {
+      navigate(report.route);
+    }
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto space-y-6">
@@ -269,11 +304,13 @@ export default function ConstructionReports() {
           <Card 
             key={report.key}
             className={cn(
-              "cursor-pointer hover:border-primary/50 transition-colors group relative",
+              "transition-colors group relative overflow-hidden",
+              report.isBuilt !== false && "cursor-pointer hover:border-primary/50",
               isFavorite(report.key) && "border-yellow-500/30"
             )}
-            onClick={() => navigate(report.route)}
+            onClick={() => handleReportClick(report)}
           >
+            {report.isBuilt === false && <ComingSoonBadge />}
             <CardHeader className="pb-3">
               <div className="flex items-center gap-3">
                 <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
