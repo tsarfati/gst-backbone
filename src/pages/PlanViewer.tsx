@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -14,7 +14,7 @@ import { toast } from "sonner";
 import { ArrowLeft, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler, ZoomIn, ZoomOut, Maximize2, Move } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
-import FullPagePdfViewer from "@/components/FullPagePdfViewer";
+import SinglePagePdfViewer from "@/components/SinglePagePdfViewer";
 import { format } from "date-fns";
 
 interface PlanPage {
@@ -75,12 +75,12 @@ export default function PlanViewer() {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [sidebarOpen, setSidebarOpen] = useState(false);
-  const [contentSize, setContentSize] = useState({ width: 0, height: 0 });
+  
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
-  const planFile = useMemo(() => (plan ? { name: plan.file_name, url: plan.file_url } : null), [plan?.file_name, plan?.file_url]);
+  
 
   useEffect(() => {
     if (planId) {
@@ -206,33 +206,6 @@ export default function PlanViewer() {
       fabricCanvasRef.current = null;
     };
   }, [plan]);
-
-  // Compute PDF content size to enable scroll when zoomed
-  const computeContentSize = () => {
-    const container = pdfContainerRef.current;
-    if (!container) return;
-    const canvases = container.querySelectorAll('canvas');
-    if (canvases.length === 0) return;
-    let maxW = 0;
-    let totalH = 0;
-    canvases.forEach((c) => {
-      const el = c as HTMLCanvasElement;
-      const w = el.width || 0;
-      const h = el.height || 0;
-      if (w > maxW) maxW = w;
-      totalH += h + 50; // approximate header/padding per page
-    });
-    setContentSize({ width: maxW, height: totalH });
-  };
-
-  useEffect(() => {
-    computeContentSize();
-    const container = pdfContainerRef.current;
-    if (!container) return;
-    const observer = new MutationObserver(() => computeContentSize());
-    observer.observe(container, { childList: true, subtree: true });
-    return () => observer.disconnect();
-  }, []);
 
   // Handle markup tool changes (update canvas settings without recreating)
   useEffect(() => {
@@ -741,46 +714,32 @@ export default function PlanViewer() {
         {/* Main Content */}
         <div className="flex flex-1 overflow-hidden">
           {/* PDF Viewer with Markup Canvas */}
-          <div className="flex-1 relative overflow-auto bg-muted/30" ref={pdfContainerRef}>
-            {/* Spacer to enable scroll area when zoomed */}
-            <div
-              aria-hidden="true"
-              style={{
-                width: `${Math.max(1, contentSize.width * zoomLevel)}px`,
-                height: `${Math.max(1, contentSize.height * zoomLevel)}px`,
-              }}
-            />
-
+          <div className="flex-1 relative overflow-hidden bg-muted/30" ref={pdfContainerRef}>
             {/* Canvas overlay for markups and interactions */}
             <div
-              className="absolute inset-0 z-10"
+              className="absolute inset-0 z-10 pointer-events-none"
               style={{
-                pointerEvents: activeTool === "select" && !panMode ? "none" : "auto",
-                transform: `scale(${zoomLevel})`,
-                transformOrigin: "top left",
+                pointerEvents: activeTool !== "select" || panMode ? "auto" : "none",
               }}
             >
               <canvas ref={canvasRef} />
             </div>
 
-            {/* PDF viewer */}
-            <div
-              className="absolute inset-0"
-              style={{
-                transform: `scale(${zoomLevel})`,
-                transformOrigin: "top left",
-                transition: "transform 0.2s ease-out",
-              }}
-            >
-              {planFile && (
-                <FullPagePdfViewer
-                  file={planFile}
-                  onBack={() => navigate(-1)}
-                  hideBackButton={true}
-                  selectedPage={currentPage}
-                />
-              )}
-            </div>
+            {/* Single-page PDF viewer with built-in pan/drag */}
+            {plan?.file_url && (
+              <SinglePagePdfViewer
+                url={plan.file_url}
+                pageNumber={currentPage}
+                totalPages={pages.length}
+                zoomLevel={zoomLevel}
+                onTotalPagesChange={(total) => {
+                  // If no pages exist yet and we get a total, we could trigger analysis
+                  if (pages.length === 0 && total > 0 && !analyzing) {
+                    // Optionally auto-analyze
+                  }
+                }}
+              />
+            )}
           </div>
 
           {/* Right Sidebar */}
