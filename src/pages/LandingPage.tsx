@@ -516,7 +516,7 @@ export default function LandingPage() {
                   <Phone className="h-8 w-8 text-[#E88A2D] group-hover:text-white transition-colors" />
                 </div>
                 <h3 className="font-bold text-white mb-2 text-xl">Call Us</h3>
-                <p className="text-gray-400 text-lg">(555) 123-4567</p>
+                <p className="text-gray-400 text-lg">(267) 625-4866</p>
               </div>
             </AnimatedSection>
           </div>
