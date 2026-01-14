@@ -9,7 +9,7 @@ export function ComingSoonBadge({ className }: ComingSoonBadgeProps) {
   return (
     <div 
       className={cn(
-        "absolute inset-0 z-10 flex items-center justify-center bg-background/80 backdrop-blur-sm rounded-lg",
+        "absolute bottom-0 left-0 right-0 z-10 flex items-center justify-center gap-2 bg-muted/90 backdrop-blur-sm rounded-b-lg py-2 px-3",
         className
       )}
       onClick={(e) => {
@@ -17,10 +17,8 @@ export function ComingSoonBadge({ className }: ComingSoonBadgeProps) {
         e.preventDefault();
       }}
     >
-      <div className="flex flex-col items-center gap-2 text-muted-foreground">
-        <Clock className="h-6 w-6" />
-        <span className="text-sm font-medium">Coming Soon</span>
-      </div>
+      <Clock className="h-4 w-4 text-muted-foreground" />
+      <span className="text-sm font-medium text-muted-foreground">Coming Soon</span>
     </div>
   );
 }
