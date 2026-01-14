@@ -160,6 +160,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signOut = async () => {
+    // Clear local state first to prevent race conditions with LandingPage redirect
+    setUser(null);
+    setSession(null);
+    setProfile(null);
     await supabase.auth.signOut();
     // Navigate to landing page after logout
     navigate('/', { replace: true });
