@@ -738,6 +738,9 @@ export default function PlanViewer() {
                     // Optionally auto-analyze
                   }
                 }}
+                onZoomChange={(newZoom) => {
+                  setZoomLevel(Math.round(newZoom * 100) / 100);
+                }}
               />
             )}
           </div>

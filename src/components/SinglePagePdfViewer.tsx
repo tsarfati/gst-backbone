@@ -7,11 +7,12 @@ interface SinglePagePdfViewerProps {
   totalPages: number;
   zoomLevel: number;
   onTotalPagesChange?: (total: number) => void;
+  onZoomChange?: (zoom: number) => void;
 }
 
 /**
  * Renders a single page of a PDF with high-resolution support for zooming.
- * Supports pan/drag when zoomed in.
+ * Supports pan/drag when zoomed in and pinch-to-zoom on trackpad/touch.
  */
 export default function SinglePagePdfViewer({
   url,
@@ -19,6 +20,7 @@ export default function SinglePagePdfViewer({
   totalPages,
   zoomLevel,
   onTotalPagesChange,
+  onZoomChange,
 }: SinglePagePdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -29,8 +31,16 @@ export default function SinglePagePdfViewer({
   // Pan state
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
-  const [panOffset, setPanOffset] = useState({ x: 0, y: 0 });
   const [scrollStart, setScrollStart] = useState({ x: 0, y: 0 });
+
+  // Pinch zoom state for touch
+  const lastTouchDistance = useRef<number | null>(null);
+  const lastZoomLevel = useRef<number>(zoomLevel);
+
+  // Update ref when zoomLevel prop changes
+  useEffect(() => {
+    lastZoomLevel.current = zoomLevel;
+  }, [zoomLevel]);
 
   // Load PDF document once
   useEffect(() => {
@@ -130,8 +140,6 @@ export default function SinglePagePdfViewer({
     }
 
     renderPage();
-    // Reset pan offset when page changes
-    setPanOffset({ x: 0, y: 0 });
 
     return () => {
       cancelled = true;
@@ -181,9 +189,21 @@ export default function SinglePagePdfViewer({
     setIsPanning(false);
   }, []);
 
-  // Touch handlers for mobile
+  // Touch handlers for mobile pan
   const handleTouchStart = useCallback(
     (e: React.TouchEvent) => {
+      if (e.touches.length === 2) {
+        // Pinch gesture start
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const distance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        );
+        lastTouchDistance.current = distance;
+        return;
+      }
+      
       if (zoomLevel <= 1 || e.touches.length !== 1) return;
       
       setIsPanning(true);
@@ -199,6 +219,23 @@ export default function SinglePagePdfViewer({
 
   const handleTouchMove = useCallback(
     (e: React.TouchEvent) => {
+      if (e.touches.length === 2 && lastTouchDistance.current !== null && onZoomChange) {
+        // Pinch gesture
+        e.preventDefault();
+        const touch1 = e.touches[0];
+        const touch2 = e.touches[1];
+        const distance = Math.hypot(
+          touch2.clientX - touch1.clientX,
+          touch2.clientY - touch1.clientY
+        );
+        
+        const scale = distance / lastTouchDistance.current;
+        const newZoom = Math.min(Math.max(lastZoomLevel.current * scale, 0.5), 4);
+        
+        onZoomChange(newZoom);
+        return;
+      }
+      
       if (!isPanning || e.touches.length !== 1) return;
 
       const container = containerRef.current;
@@ -210,12 +247,33 @@ export default function SinglePagePdfViewer({
       container.scrollLeft = scrollStart.x + dx;
       container.scrollTop = scrollStart.y + dy;
     },
-    [isPanning, panStart, scrollStart]
+    [isPanning, panStart, scrollStart, onZoomChange]
   );
 
-  const handleTouchEnd = useCallback(() => {
-    setIsPanning(false);
-  }, []);
+  const handleTouchEnd = useCallback((e: React.TouchEvent) => {
+    if (e.touches.length < 2) {
+      // Pinch ended, update base zoom level
+      lastTouchDistance.current = null;
+      lastZoomLevel.current = zoomLevel;
+    }
+    if (e.touches.length === 0) {
+      setIsPanning(false);
+    }
+  }, [zoomLevel]);
+
+  // Trackpad pinch-to-zoom (wheel event with ctrlKey)
+  const handleWheel = useCallback(
+    (e: React.WheelEvent) => {
+      // Trackpad pinch gesture fires as wheel event with ctrlKey
+      if (e.ctrlKey && onZoomChange) {
+        e.preventDefault();
+        const delta = -e.deltaY * 0.01;
+        const newZoom = Math.min(Math.max(zoomLevel + delta, 0.5), 4);
+        onZoomChange(newZoom);
+      }
+    },
+    [zoomLevel, onZoomChange]
+  );
 
   const cursorStyle = zoomLevel > 1 ? (isPanning ? "grabbing" : "grab") : "default";
 
@@ -231,6 +289,7 @@ export default function SinglePagePdfViewer({
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
+      onWheel={handleWheel}
     >
       <div className="flex items-center justify-center min-h-full p-4">
         {loading && (
