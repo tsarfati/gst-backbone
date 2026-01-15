@@ -61,7 +61,6 @@ export function AppRouter({ queryClient }: AppRouterProps) {
         <ThemeProvider attribute="class" defaultTheme="light">
           <TooltipProvider>
             <Toaster />
-            <PWAInstallPrompt />
             <AuthProvider>
               <PunchClockAuthProvider>
                 <TenantProvider>
