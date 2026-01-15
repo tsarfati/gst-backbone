@@ -96,14 +96,31 @@ function PunchClockApp() {
 
   // Load login settings for background styling and punch clock settings
   useEffect(() => {
-    loadLoginSettings();
+    // For PIN auth, we can load settings immediately from localStorage
+    // For regular auth, wait for profile to be available
+    if (isPinAuthenticated || profile) {
+      loadLoginSettings();
+    }
     if (profile) {
       loadPunchSettings();
+    } else if (isPinAuthenticated) {
+      // For PIN auth, try to load punch settings from localStorage company_id
+      const pinUser = localStorage.getItem('punch_clock_user');
+      if (pinUser) {
+        try {
+          const parsed = JSON.parse(pinUser);
+          if (parsed.current_company_id) {
+            loadPunchSettings(parsed.current_company_id);
+          }
+        } catch (e) {
+          console.error('Error parsing PIN user for punch settings:', e);
+        }
+      }
     } else {
       // If profile not yet available, keep settings as not loaded to avoid wrong UI
       setPunchSettingsLoaded(false);
     }
-  }, [profile]);
+  }, [profile, isPinAuthenticated]);
 
   // Redirect if not authenticated (after loading completes)
   useEffect(() => {
@@ -1338,7 +1355,7 @@ Este trabajo requiere seguimiento de ubicación. Para habilitar, vaya a la confi
         <Card className="w-full max-w-md">
           <CardContent className="p-6 text-center space-y-4">
             <Clock className="h-12 w-12 mx-auto mb-2 text-primary" />
-            <h2 className="text-xl font-semibold">GST Punch Clock</h2>
+            <h2 className="text-xl font-semibold">BuilderLYNK Punch Clock</h2>
             <p className="text-muted-foreground">This punch clock supports public PIN login.</p>
             <div className="space-y-2">
               <Button onClick={() => navigate('/punch-clock-login')} className="w-full">
