@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 import { useDynamicManifest } from '@/hooks/useDynamicManifest';
+import builderlynkLogo from '@/assets/builderlynk-hero-logo.png';
 
 interface LoginSettings {
   header_image_url?: string;
@@ -38,16 +39,18 @@ export default function PunchClockLogin() {
     try {
       console.log('Loading punch clock login settings for company:', companyId);
       
-      let query = supabase.from('punch_clock_login_settings').select('*');
-      
-      if (companyId) {
-        // Load settings for specific company
-        query = query.eq('company_id', companyId);
+      // Only load settings if we have a specific company ID
+      // This ensures we show default BuilderLYNK branding when accessed from landing page
+      if (!companyId) {
+        console.log('No company ID provided, using default BuilderLYNK branding');
+        setLoginSettings({});
+        return;
       }
       
-      const { data, error } = await query
-        .order('created_at', { ascending: false })
-        .limit(1)
+      const { data, error } = await supabase
+        .from('punch_clock_login_settings')
+        .select('*')
+        .eq('company_id', companyId)
         .maybeSingle();
 
       console.log('Login settings response:', { data, error });
@@ -61,8 +64,7 @@ export default function PunchClockLogin() {
         console.log('Loaded login settings:', data);
         setLoginSettings(data);
       } else {
-        console.log('No login settings found, using defaults');
-        // Reset to defaults if no settings for this company
+        console.log('No login settings found for company, using defaults');
         setLoginSettings({});
       }
     } catch (error) {
@@ -152,11 +154,11 @@ export default function PunchClockLogin() {
     setPin(digitsOnly);
   };
 
-  const backgroundColor = loginSettings.background_color || '#f8fafc';
+  const backgroundColor = loginSettings.background_color || '#0f1419';
   
   // Handle HSL color values from design system
   const getPrimaryColor = (color: string) => {
-    if (!color) return '#3b82f6';
+    if (!color) return '#E88A2D'; // Default to BuilderLYNK orange
     // If it's already a hex color, return as is
     if (color.startsWith('#')) return color;
     // If it's HSL values like "120 60% 45%", convert to hsl()
@@ -164,7 +166,7 @@ export default function PunchClockLogin() {
     return color;
   };
   
-  const primaryColor = getPrimaryColor(loginSettings.primary_color || '#3b82f6');
+  const primaryColor = getPrimaryColor(loginSettings.primary_color || '#E88A2D');
 
   // Create background style - prefer image over color
   const backgroundStyle = loginSettings.background_image_url
@@ -176,14 +178,32 @@ export default function PunchClockLogin() {
       }
     : { backgroundColor };
 
+  // Check if using default (no company-specific settings loaded)
+  const isDefaultBranding = !loginSettings.logo_url && !loginSettings.header_image_url && !loginSettings.background_color;
+
   return (
     <div 
       className="min-h-screen flex items-center justify-center p-4"
-      style={backgroundStyle}
+      style={isDefaultBranding ? { background: 'linear-gradient(135deg, #0f1419 0%, #1a1f2e 100%)' } : backgroundStyle}
     >
       <div className="w-full max-w-md space-y-6">
-        {/* Header Image */}
-        {loginSettings.header_image_url && (
+        {/* Default BuilderLYNK branding when no company settings */}
+        {isDefaultBranding && (
+          <div className="text-center">
+            <img 
+              src={builderlynkLogo} 
+              alt="BuilderLYNK" 
+              className="mx-auto h-24 object-contain mb-2"
+            />
+            <h1 className="text-3xl font-black">
+              <span className="text-white">Builder</span><span className="text-[#E88A2D]">LYNK</span>
+            </h1>
+            <p className="text-white/70 text-sm mt-1">Employee Punch Clock</p>
+          </div>
+        )}
+
+        {/* Header Image - company specific */}
+        {!isDefaultBranding && loginSettings.header_image_url && (
           <div className="text-center">
             <img 
               src={loginSettings.header_image_url} 
@@ -193,8 +213,8 @@ export default function PunchClockLogin() {
           </div>
         )}
 
-        {/* Logo */}
-        {loginSettings.logo_url && (
+        {/* Logo - company specific */}
+        {!isDefaultBranding && loginSettings.logo_url && (
           <div className="text-center">
             <img 
               src={loginSettings.logo_url} 
