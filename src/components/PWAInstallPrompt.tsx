@@ -95,6 +95,13 @@ export default function PWAInstallPrompt({ showButton = false }: PWAInstallPromp
     }
 
     // Listen for the beforeinstallprompt event
+    // Only set up handler if this is the punchclock app type
+    const appType = import.meta.env.VITE_APP_TYPE || 'main';
+    if (appType !== 'punchclock') {
+      console.log('PWA install prompt disabled for non-punchclock app');
+      return;
+    }
+
     const handler = (e: Event) => {
       e.preventDefault();
       console.log('beforeinstallprompt event fired');

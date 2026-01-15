@@ -7,7 +7,7 @@ import { Loader2, LogIn } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
-import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+
 import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 import builderlynkLogo from '@/assets/builderlynk-hero-logo.png';
 
@@ -284,9 +284,6 @@ export default function PunchClockLogin() {
                 )}
                 {loading ? 'Logging in...' : 'Login'}
               </Button>
-
-              {/* Install App Button */}
-              <PWAInstallPrompt showButton={true} />
             </form>
 
             {/* Customizable bottom text */}
