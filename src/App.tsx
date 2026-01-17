@@ -122,6 +122,12 @@ import AddCreditCard from "./pages/AddCreditCard";
 import NewJournalEntry from "./pages/NewJournalEntry";
 import ConstructionDashboard from "./pages/ConstructionDashboard";
 import ConstructionReports from "./pages/ConstructionReports";
+import RFPs from "./pages/RFPs";
+import AddRFP from "./pages/AddRFP";
+import RFPDetails from "./pages/RFPDetails";
+import BidComparison from "./pages/BidComparison";
+import AddBid from "./pages/AddBid";
+import AddScoringCriterion from "./pages/AddScoringCriterion";
 import ProjectCostTransactionHistory from "./pages/reports/ProjectCostTransactionHistory";
 import ProjectTransactionReport from "./pages/reports/ProjectTransactionReport";
 import SubcontractSummaryReport from "./pages/reports/SubcontractSummaryReport";
@@ -270,6 +276,13 @@ function AuthenticatedRoutes() {
                 <Route path="construction/reports/subcontract-summary" element={<SubcontractSummaryReport />} />
                 <Route path="construction/reports/subcontract-details" element={<SubcontractDetailsByVendor />} />
                 <Route path="construction/reports/budget-status" element={<ProjectCostBudgetStatus />} />
+                <Route path="construction/rfps" element={<RFPs />} />
+                <Route path="construction/rfps/add" element={<AddRFP />} />
+                <Route path="construction/rfps/:id" element={<RFPDetails />} />
+                <Route path="construction/rfps/:id/edit" element={<AddRFP />} />
+                <Route path="construction/rfps/:id/compare" element={<BidComparison />} />
+                <Route path="construction/rfps/:rfpId/bids/add" element={<AddBid />} />
+                <Route path="construction/rfps/:rfpId/criteria/add" element={<AddScoringCriterion />} />
                 <Route path="reports/project-cost-transaction-history" element={<ProjectCostTransactionHistory />} />
                 <Route path="jobs" element={<Jobs />} />
                 <Route path="jobs/add" element={<AddJob />} />

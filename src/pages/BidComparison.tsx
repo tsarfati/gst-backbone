@@ -18,7 +18,6 @@ interface RFP {
   title: string;
   job?: {
     name: string;
-    number: string;
   };
 }
 
@@ -79,7 +78,7 @@ export default function BidComparison() {
         .from('rfps')
         .select(`
           id, rfp_number, title,
-          job:jobs(name, number)
+          job:jobs(name)
         `)
         .eq('id', id)
         .single();
