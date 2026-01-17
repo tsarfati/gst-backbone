@@ -122,17 +122,40 @@ export default function TeamChat() {
   }, [user, currentUserName]);
 
   const fetchAllUsers = async () => {
-    if (!user) return;
+    if (!user || !profile?.current_company_id) return;
 
     try {
+      // Query only users who have active access to the current company
+      const { data: companyUsers, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('user_id, is_active')
+        .eq('company_id', profile.current_company_id)
+        .eq('is_active', true);
+
+      if (accessError) throw accessError;
+
+      const userIds = (companyUsers || []).map((u: any) => u.user_id);
+      
+      if (userIds.length === 0) {
+        // Only show current user if no other users found
+        setAllUsers([{
+          id: user.id,
+          name: currentUserName || 'You',
+          role: (profile?.role as unknown as string) || 'employee',
+          status: 'offline' as const,
+        }]);
+        return;
+      }
+
+      // Fetch profile details for those users
       const { data, error } = await supabase
         .from('profiles')
         .select('user_id, display_name, role, status')
-        .limit(50);
+        .in('user_id', userIds);
 
       if (error) throw error;
 
-      // Hide deleted/inactive profiles (best-effort; status is a free-form string)
+      // Hide deleted/inactive profiles
       const activeProfiles = (data || []).filter((p: any) => {
         const s = String(p?.status || '').toLowerCase();
         return s !== 'deleted' && s !== 'inactive' && s !== 'disabled';
@@ -145,7 +168,7 @@ export default function TeamChat() {
         status: 'offline' as const,
       }));
 
-      // Ensure current user is included in the list (so you can see your own status)
+      // Ensure current user is included in the list
       const me: OnlineUser = {
         id: user.id,
         name: currentUserName || 'You',
