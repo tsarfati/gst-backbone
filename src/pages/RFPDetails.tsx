@@ -88,6 +88,7 @@ export default function RFPDetails() {
   const [inviting, setInviting] = useState(false);
   const [vendorSearch, setVendorSearch] = useState('');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
+  const [resendingInvite, setResendingInvite] = useState<string | null>(null);
 
   useEffect(() => {
     if (id && currentCompany?.id) {
@@ -305,6 +306,45 @@ export default function RFPDetails() {
     }
     
     return filtered;
+  };
+
+  const handleResendInvite = async (inv: InvitedVendor) => {
+    if (!inv.vendor?.email || !rfp) return;
+
+    try {
+      setResendingInvite(inv.id);
+
+      const { error: emailError } = await supabase.functions.invoke('send-rfp-invite', {
+        body: {
+          rfpId: id,
+          rfpTitle: rfp.title,
+          rfpNumber: rfp.rfp_number,
+          dueDate: rfp.due_date,
+          vendorId: inv.vendor.id,
+          vendorName: inv.vendor.name,
+          vendorEmail: inv.vendor.email,
+          companyId: currentCompany!.id,
+          companyName: currentCompany!.name,
+          scopeOfWork: rfp.scope_of_work
+        }
+      });
+
+      if (emailError) throw emailError;
+
+      toast({
+        title: 'Invitation Resent',
+        description: `Bid invitation resent to ${inv.vendor.name}`
+      });
+    } catch (error: any) {
+      console.error('Error resending invite:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to resend invitation',
+        variant: 'destructive'
+      });
+    } finally {
+      setResendingInvite(null);
+    }
   };
 
   const getAvailableLetters = () => {
@@ -667,6 +707,7 @@ export default function RFPDetails() {
                     <TableHead>Email</TableHead>
                     <TableHead>Invited</TableHead>
                     <TableHead>Status</TableHead>
+                    <TableHead className="text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -679,6 +720,19 @@ export default function RFPDetails() {
                         <Badge variant={inv.response_status === 'bid_submitted' ? 'default' : 'secondary'}>
                           {inv.response_status === 'pending' || !inv.response_status ? 'Pending' : inv.response_status === 'bid_submitted' ? 'Bid Submitted' : inv.response_status}
                         </Badge>
+                      </TableCell>
+                      <TableCell className="text-right">
+                        {inv.vendor?.email && inv.response_status !== 'bid_submitted' && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleResendInvite(inv)}
+                            disabled={resendingInvite === inv.id}
+                          >
+                            <Send className="h-4 w-4 mr-1" />
+                            {resendingInvite === inv.id ? 'Sending...' : 'Resend'}
+                          </Button>
+                        )}
                       </TableCell>
                     </TableRow>
                   ))}
