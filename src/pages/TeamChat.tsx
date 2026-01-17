@@ -10,6 +10,7 @@ import { Send, MessageCircle, Users, Search, Plus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { RealtimeChannel } from '@supabase/supabase-js';
 
 interface ChatMessage {
   id: string;
@@ -26,6 +27,13 @@ interface Channel {
   description?: string;
   member_count: number;
   is_general?: boolean;
+}
+
+interface OnlineUser {
+  id: string;
+  name: string;
+  role: string;
+  status: 'online' | 'offline';
 }
 
 export default function TeamChat() {
@@ -50,8 +58,10 @@ export default function TeamChat() {
     }
   ]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [onlineUsers, setOnlineUsers] = useState<any[]>([]);
+  const [allUsers, setAllUsers] = useState<OnlineUser[]>([]);
+  const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [currentUserName, setCurrentUserName] = useState('');
+  const presenceChannelRef = useRef<RealtimeChannel | null>(null);
 
   useEffect(() => {
     if (profile) {
@@ -60,13 +70,51 @@ export default function TeamChat() {
     }
   }, [profile]);
 
+  // Fetch all users from the database
   useEffect(() => {
     if (user) {
-      fetchOnlineUsers();
+      fetchAllUsers();
     }
   }, [user]);
 
-  const fetchOnlineUsers = async () => {
+  // Set up presence tracking
+  useEffect(() => {
+    if (!user || !currentUserName) return;
+
+    const presenceChannel = supabase.channel('team-chat-presence');
+    presenceChannelRef.current = presenceChannel;
+
+    presenceChannel
+      .on('presence', { event: 'sync' }, () => {
+        const state = presenceChannel.presenceState();
+        const onlineIds = new Set<string>();
+        
+        Object.values(state).forEach((presences: any[]) => {
+          presences.forEach((presence) => {
+            if (presence.user_id) {
+              onlineIds.add(presence.user_id);
+            }
+          });
+        });
+        
+        setOnlineUserIds(onlineIds);
+      })
+      .subscribe(async (status) => {
+        if (status === 'SUBSCRIBED') {
+          await presenceChannel.track({
+            user_id: user.id,
+            user_name: currentUserName,
+            online_at: new Date().toISOString(),
+          });
+        }
+      });
+
+    return () => {
+      presenceChannel.unsubscribe();
+    };
+  }, [user, currentUserName]);
+
+  const fetchAllUsers = async () => {
     if (!user) return;
 
     try {
@@ -74,22 +122,28 @@ export default function TeamChat() {
         .from('profiles')
         .select('user_id, display_name, role')
         .neq('user_id', user.id)
-        .limit(10);
+        .limit(20);
 
       if (error) throw error;
 
-      const users = (data || []).map(profile => ({
+      const users: OnlineUser[] = (data || []).map(profile => ({
         id: profile.user_id,
         name: profile.display_name || 'Unknown User',
         role: profile.role || 'employee',
-        status: 'online'
+        status: 'offline' as const
       }));
 
-      setOnlineUsers(users);
+      setAllUsers(users);
     } catch (error) {
       console.error('Error fetching users:', error);
     }
   };
+
+  // Compute online users based on presence tracking
+  const onlineUsers = allUsers.map(u => ({
+    ...u,
+    status: onlineUserIds.has(u.id) ? 'online' as const : 'offline' as const
+  }));
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
@@ -205,25 +259,35 @@ export default function TeamChat() {
 
           <Separator />
 
-          {/* Online Users */}
+          {/* Team Members */}
           <div className="p-4">
             <h3 className="text-sm font-medium text-muted-foreground mb-3">
-              ONLINE USERS ({onlineUsers.filter(u => u.status === 'online').length})
+              TEAM MEMBERS ({onlineUsers.filter(u => u.status === 'online').length} online)
             </h3>
             <div className="space-y-2">
-              {onlineUsers.map((user) => (
-                <div key={user.id} className="flex items-center p-2 rounded-lg hover:bg-primary/10 hover:border-primary cursor-pointer">
+              {/* Show online users first, then offline */}
+              {[...onlineUsers]
+                .sort((a, b) => {
+                  if (a.status === 'online' && b.status !== 'online') return -1;
+                  if (a.status !== 'online' && b.status === 'online') return 1;
+                  return a.name.localeCompare(b.name);
+                })
+                .map((teamUser) => (
+                <div key={teamUser.id} className="flex items-center p-2 rounded-lg hover:bg-primary/10 hover:border-primary cursor-pointer">
                   <div className="relative">
                     <Avatar className="h-8 w-8">
                       <AvatarFallback className="text-xs">
-                        {user.name.split(' ').map(n => n[0]).join('')}
+                        {teamUser.name.split(' ').map((n: string) => n[0]).join('')}
                       </AvatarFallback>
                     </Avatar>
-                    <div className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(user.status)}`} />
+                    <div className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(teamUser.status)}`} />
                   </div>
-                  <span className="ml-3 text-sm">{user.name}</span>
+                  <span className={`ml-3 text-sm ${teamUser.status === 'offline' ? 'text-muted-foreground' : ''}`}>{teamUser.name}</span>
                 </div>
               ))}
+              {onlineUsers.length === 0 && (
+                <p className="text-sm text-muted-foreground">No team members found</p>
+              )}
             </div>
           </div>
         </ScrollArea>
