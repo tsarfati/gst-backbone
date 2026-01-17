@@ -2634,17 +2634,25 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
         </Card>
 
         {/* Form Actions */}
-        <div className="flex gap-3">
-          <Button type="submit" disabled={!isFormValid}>
-            <FileText className="h-4 w-4 mr-2" />
-            {formData.request_pm_help ? "Add Bill & Request Help" : "Add Bill"}
-          </Button>
-          <Button type="button" variant="secondary" onClick={handleSaveAsDraft}>
-            Save as Draft
-          </Button>
-          <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
-            Cancel
-          </Button>
+        <div className="flex flex-col gap-2">
+          <div className="flex gap-3">
+            <Button type="submit" disabled={!isFormValid || !!duplicateInvoiceWarning}>
+              <FileText className="h-4 w-4 mr-2" />
+              {formData.request_pm_help ? "Add Bill & Request Help" : "Add Bill"}
+            </Button>
+            <Button type="button" variant="secondary" onClick={handleSaveAsDraft} disabled={!!duplicateInvoiceWarning}>
+              Save as Draft
+            </Button>
+            <Button type="button" variant="outline" onClick={() => navigate("/invoices")}>
+              Cancel
+            </Button>
+          </div>
+          {duplicateInvoiceWarning && (
+            <p className="text-sm text-destructive flex items-center gap-1">
+              <AlertTriangle className="h-4 w-4" />
+              This invoice number already exists for this vendor. Please use a different invoice number.
+            </p>
+          )}
         </div>
       </form>
     </div>
