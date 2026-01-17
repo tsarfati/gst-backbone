@@ -1030,6 +1030,16 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       return;
     }
     
+    // Block submission if duplicate invoice exists
+    if (duplicateInvoiceWarning) {
+      toast({
+        title: "Duplicate Invoice",
+        description: "An invoice with this number already exists for this vendor. Please use a different invoice number.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     // Check if documents are required by payables settings
     const requireDocuments = payablesSettings?.require_bill_documents ?? false;
     
