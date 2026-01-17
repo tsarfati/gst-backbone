@@ -33,6 +33,10 @@ interface NotificationSettings {
   credit_card_coding_request?: boolean;
   financial_overview_enabled?: boolean;
   financial_overview_interval?: string;
+  // Chat notification settings
+  chat_mention_notifications?: boolean;
+  chat_channel_notifications?: boolean;
+  chat_direct_message_notifications?: boolean;
 }
 
 interface EmailTemplate {
@@ -68,6 +72,9 @@ export default function NotificationSettings() {
     vendor_invitations: true,
     job_assignments: true,
     receipt_uploaded: true,
+    chat_mention_notifications: true,
+    chat_channel_notifications: true,
+    chat_direct_message_notifications: true,
   });
   const [templates, setTemplates] = useState<EmailTemplate[]>([]);
   const [emailHistory, setEmailHistory] = useState<EmailHistory[]>([]);
@@ -486,6 +493,51 @@ export default function NotificationSettings() {
                       id="credit-card-coding"
                       checked={settings.credit_card_coding_request || false}
                       onCheckedChange={(checked) => updateSetting("credit_card_coding_request" as any, checked)}
+                    />
+                  </div>
+                </div>
+              </div>
+              
+              <Separator />
+              
+              {/* Team Chat Notifications */}
+              <div className="space-y-4">
+                <h3 className="text-lg font-medium flex items-center gap-2">
+                  <MessageSquare className="h-5 w-5" />
+                  Team Chat Notifications
+                </h3>
+                <div className="space-y-4">
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="chat-mentions">@Mention Notifications</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when someone @mentions you in team chat</p>
+                    </div>
+                    <Switch
+                      id="chat-mentions"
+                      checked={settings.chat_mention_notifications !== false}
+                      onCheckedChange={(checked) => updateSetting("chat_mention_notifications" as any, checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="chat-channels">Channel Messages</Label>
+                      <p className="text-sm text-muted-foreground">Get notified about new messages in channels you're subscribed to</p>
+                    </div>
+                    <Switch
+                      id="chat-channels"
+                      checked={settings.chat_channel_notifications !== false}
+                      onCheckedChange={(checked) => updateSetting("chat_channel_notifications" as any, checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="chat-direct">Direct Messages</Label>
+                      <p className="text-sm text-muted-foreground">Get notified about new direct messages</p>
+                    </div>
+                    <Switch
+                      id="chat-direct"
+                      checked={settings.chat_direct_message_notifications !== false}
+                      onCheckedChange={(checked) => updateSetting("chat_direct_message_notifications" as any, checked)}
                     />
                   </div>
                 </div>
