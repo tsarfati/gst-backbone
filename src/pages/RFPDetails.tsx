@@ -6,14 +6,16 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, DollarSign, Send, Award, Trash2 } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, DollarSign, Send, Award, Trash2, Mail, Check } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from '@/components/ui/alert-dialog';
-
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Checkbox } from '@/components/ui/checkbox';
+import { ScrollArea } from '@/components/ui/scroll-area';
 interface RFP {
   id: string;
   rfp_number: string;
@@ -53,6 +55,20 @@ interface ScoringCriterion {
   sort_order: number;
 }
 
+interface Vendor {
+  id: string;
+  name: string;
+  email: string | null;
+}
+
+interface InvitedVendor {
+  id: string;
+  vendor_id: string;
+  invited_at: string;
+  response_status: string | null;
+  vendor: Vendor;
+}
+
 export default function RFPDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
@@ -64,12 +80,19 @@ export default function RFPDetails() {
   const [bids, setBids] = useState<Bid[]>([]);
   const [criteria, setCriteria] = useState<ScoringCriterion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [invitedVendors, setInvitedVendors] = useState<InvitedVendor[]>([]);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
+  const [inviting, setInviting] = useState(false);
 
   useEffect(() => {
     if (id && currentCompany?.id) {
       loadRFP();
       loadBids();
       loadCriteria();
+      loadVendors();
+      loadInvitedVendors();
     }
   }, [id, currentCompany?.id]);
 
@@ -129,6 +152,101 @@ export default function RFPDetails() {
     } catch (error) {
       console.error('Error loading criteria:', error);
     }
+  };
+
+  const loadVendors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('id, name, email')
+        .eq('company_id', currentCompany!.id)
+        .eq('is_active', true)
+        .order('name');
+
+      if (error) throw error;
+      setVendors(data || []);
+    } catch (error) {
+      console.error('Error loading vendors:', error);
+    }
+  };
+
+  const loadInvitedVendors = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rfp_invited_vendors')
+        .select(`
+          id,
+          vendor_id,
+          invited_at,
+          response_status,
+          vendor:vendors(id, name, email)
+        `)
+        .eq('rfp_id', id);
+
+      if (error) throw error;
+      setInvitedVendors(data || []);
+    } catch (error) {
+      console.error('Error loading invited vendors:', error);
+    }
+  };
+
+  const handleInviteVendors = async () => {
+    if (selectedVendors.length === 0) {
+      toast({
+        title: 'No vendors selected',
+        description: 'Please select at least one vendor to invite',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    try {
+      setInviting(true);
+
+      const invitations = selectedVendors.map(vendorId => ({
+        rfp_id: id,
+        vendor_id: vendorId,
+        company_id: currentCompany!.id,
+        response_status: 'pending'
+      }));
+
+      const { error } = await supabase
+        .from('rfp_invited_vendors')
+        .insert(invitations);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Success',
+        description: `${selectedVendors.length} vendor(s) invited to bid`
+      });
+
+      setInviteDialogOpen(false);
+      setSelectedVendors([]);
+      loadInvitedVendors();
+    } catch (error: any) {
+      console.error('Error inviting vendors:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to invite vendors',
+        variant: 'destructive'
+      });
+    } finally {
+      setInviting(false);
+    }
+  };
+
+  const toggleVendorSelection = (vendorId: string) => {
+    setSelectedVendors(prev => 
+      prev.includes(vendorId) 
+        ? prev.filter(id => id !== vendorId)
+        : [...prev, vendorId]
+    );
+  };
+
+  const getAvailableVendors = () => {
+    const invitedIds = invitedVendors.map(iv => iv.vendor_id);
+    return vendors.filter(v => !invitedIds.includes(v.id));
   };
 
   const updateStatus = async (newStatus: string) => {
@@ -227,12 +345,75 @@ export default function RFPDetails() {
             <Edit className="h-4 w-4 mr-2" />
             Edit
           </Button>
+          <Button variant="outline" onClick={() => setInviteDialogOpen(true)}>
+            <Mail className="h-4 w-4 mr-2" />
+            Invite Vendors
+          </Button>
           <Button onClick={() => navigate(`/construction/rfps/${id}/compare`)}>
             <BarChart3 className="h-4 w-4 mr-2" />
             Compare Bids
           </Button>
         </div>
       </div>
+
+      {/* Invite Vendors Dialog */}
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite Vendors to Bid</DialogTitle>
+            <DialogDescription>
+              Select vendors to invite to submit bids for this RFP
+            </DialogDescription>
+          </DialogHeader>
+          
+          {getAvailableVendors().length === 0 ? (
+            <div className="py-8 text-center">
+              <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+              <p className="text-muted-foreground">
+                {vendors.length === 0 
+                  ? "No vendors found. Add vendors first."
+                  : "All vendors have already been invited."}
+              </p>
+            </div>
+          ) : (
+            <ScrollArea className="max-h-[300px] pr-4">
+              <div className="space-y-2">
+                {getAvailableVendors().map(vendor => (
+                  <div 
+                    key={vendor.id}
+                    className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
+                    onClick={() => toggleVendorSelection(vendor.id)}
+                  >
+                    <Checkbox 
+                      checked={selectedVendors.includes(vendor.id)}
+                      onCheckedChange={() => toggleVendorSelection(vendor.id)}
+                    />
+                    <div className="flex-1 min-w-0">
+                      <p className="font-medium truncate">{vendor.name}</p>
+                      {vendor.email && (
+                        <p className="text-sm text-muted-foreground truncate">{vendor.email}</p>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </ScrollArea>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleInviteVendors} 
+              disabled={selectedVendors.length === 0 || inviting}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {inviting ? 'Inviting...' : `Invite ${selectedVendors.length > 0 ? `(${selectedVendors.length})` : ''}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Info Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -292,6 +473,7 @@ export default function RFPDetails() {
       <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="invited">Invited ({invitedVendors.length})</TabsTrigger>
           <TabsTrigger value="bids">Bids ({bids.length})</TabsTrigger>
           <TabsTrigger value="scoring">Scoring Criteria</TabsTrigger>
         </TabsList>
@@ -316,6 +498,57 @@ export default function RFPDetails() {
               <CardContent>
                 <p className="whitespace-pre-wrap">{rfp.scope_of_work}</p>
               </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        <TabsContent value="invited" className="space-y-4">
+          <div className="flex justify-between items-center">
+            <h3 className="text-lg font-semibold">Invited Vendors</h3>
+            <Button onClick={() => setInviteDialogOpen(true)}>
+              <Plus className="h-4 w-4 mr-2" />
+              Invite More
+            </Button>
+          </div>
+          
+          {invitedVendors.length === 0 ? (
+            <Card>
+              <CardContent className="py-12 text-center">
+                <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                <h3 className="text-lg font-medium">No Vendors Invited</h3>
+                <p className="text-muted-foreground mb-4">Invite vendors to submit bids for this RFP</p>
+                <Button onClick={() => setInviteDialogOpen(true)}>
+                  <Send className="h-4 w-4 mr-2" />
+                  Invite Vendors
+                </Button>
+              </CardContent>
+            </Card>
+          ) : (
+            <Card>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Vendor</TableHead>
+                    <TableHead>Email</TableHead>
+                    <TableHead>Invited</TableHead>
+                    <TableHead>Status</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {invitedVendors.map(inv => (
+                    <TableRow key={inv.id}>
+                      <TableCell className="font-medium">{inv.vendor?.name}</TableCell>
+                      <TableCell>{inv.vendor?.email || '-'}</TableCell>
+                      <TableCell>{format(new Date(inv.invited_at), 'MMM d, yyyy')}</TableCell>
+                      <TableCell>
+                        <Badge variant={inv.response_status === 'bid_submitted' ? 'default' : 'secondary'}>
+                          {inv.response_status === 'pending' || !inv.response_status ? 'Pending' : inv.response_status === 'bid_submitted' ? 'Bid Submitted' : inv.response_status}
+                        </Badge>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
             </Card>
           )}
         </TabsContent>
