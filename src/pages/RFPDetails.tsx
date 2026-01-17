@@ -219,6 +219,39 @@ export default function RFPDetails() {
 
       if (error) throw error;
 
+      // Send email invitations to each vendor
+      const emailPromises = selectedVendors.map(async (vendorId) => {
+        const vendor = vendors.find(v => v.id === vendorId);
+        if (!vendor?.email) return null;
+
+        try {
+          const { error: emailError } = await supabase.functions.invoke('send-rfp-invite', {
+            body: {
+              rfpId: id,
+              rfpTitle: rfp?.title || '',
+              rfpNumber: rfp?.rfp_number || '',
+              dueDate: rfp?.due_date,
+              vendorId: vendor.id,
+              vendorName: vendor.name,
+              vendorEmail: vendor.email,
+              companyId: currentCompany!.id,
+              companyName: currentCompany!.name,
+              scopeOfWork: rfp?.scope_of_work
+            }
+          });
+          
+          if (emailError) {
+            console.error(`Failed to send email to ${vendor.email}:`, emailError);
+          }
+          return { vendorId, success: !emailError };
+        } catch (err) {
+          console.error(`Failed to send email to ${vendor.email}:`, err);
+          return { vendorId, success: false };
+        }
+      });
+
+      await Promise.all(emailPromises);
+
       toast({
         title: 'Success',
         description: `${selectedVendors.length} vendor(s) invited to bid`

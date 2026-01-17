@@ -14,3 +14,9 @@ verify_jwt = false
 
 [functions.get-user-email]
 verify_jwt = false
+
+[functions.send-rfp-invite]
+verify_jwt = false
+
+[functions.send-vendor-invite]
+verify_jwt = false
