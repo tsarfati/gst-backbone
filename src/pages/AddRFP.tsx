@@ -163,14 +163,14 @@ export default function AddRFP() {
               <div className="space-y-2">
                 <Label htmlFor="job_id">Job (Optional)</Label>
                 <Select 
-                  value={formData.job_id} 
-                  onValueChange={(value) => setFormData(prev => ({ ...prev, job_id: value }))}
+                  value={formData.job_id || "none"} 
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, job_id: value === "none" ? "" : value }))}
                 >
                   <SelectTrigger>
                     <SelectValue placeholder="Select a job" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">No Job</SelectItem>
+                    <SelectItem value="none">No Job</SelectItem>
                     {jobs.map(job => (
                       <SelectItem key={job.id} value={job.id}>
                         {job.name}
