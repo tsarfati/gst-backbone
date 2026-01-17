@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef } from 'react';
+import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -6,8 +6,11 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
-import { Send, MessageCircle, Users, Search, Plus } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Send, MessageCircle, Users, Search, Plus, AtSign, Hash } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
@@ -19,6 +22,7 @@ interface ChatMessage {
   from_user_name: string;
   created_at: string;
   channel?: string;
+  mentions?: string[]; // user IDs that were mentioned
 }
 
 interface Channel {
@@ -36,8 +40,59 @@ interface OnlineUser {
   status: 'online' | 'offline';
 }
 
+// Parse @mentions and #hashtags from message content
+const parseMessageContent = (content: string) => {
+  const mentionRegex = /@(\w+(?:\s\w+)?)/g;
+  const hashtagRegex = /#(\w+)/g;
+  
+  const mentions = [...content.matchAll(mentionRegex)].map(m => m[1]);
+  const hashtags = [...content.matchAll(hashtagRegex)].map(m => m[1]);
+  
+  return { mentions, hashtags };
+};
+
+// Render message content with highlighted @mentions and #hashtags
+const RenderMessageContent = ({ content, allUsers }: { content: string; allUsers: OnlineUser[] }) => {
+  const parts = content.split(/(@\w+(?:\s\w+)?|#\w+)/g);
+  
+  return (
+    <span>
+      {parts.map((part, index) => {
+        if (part.startsWith('@')) {
+          const userName = part.slice(1);
+          const mentionedUser = allUsers.find(u => 
+            u.name.toLowerCase() === userName.toLowerCase() ||
+            u.name.toLowerCase().startsWith(userName.toLowerCase())
+          );
+          return (
+            <span 
+              key={index} 
+              className="bg-primary/20 text-primary rounded px-1 font-medium cursor-pointer hover:bg-primary/30"
+              title={mentionedUser ? mentionedUser.name : userName}
+            >
+              {part}
+            </span>
+          );
+        }
+        if (part.startsWith('#')) {
+          return (
+            <span 
+              key={index} 
+              className="bg-blue-500/20 text-blue-600 dark:text-blue-400 rounded px-1 font-medium cursor-pointer hover:bg-blue-500/30"
+            >
+              {part}
+            </span>
+          );
+        }
+        return <span key={index}>{part}</span>;
+      })}
+    </span>
+  );
+};
+
 export default function TeamChat() {
   const { user, profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState('');
@@ -62,6 +117,18 @@ export default function TeamChat() {
   const [onlineUserIds, setOnlineUserIds] = useState<Set<string>>(new Set());
   const [currentUserName, setCurrentUserName] = useState('');
   const presenceChannelRef = useRef<RealtimeChannel | null>(null);
+  
+  // Mention/hashtag autocomplete state
+  const [showMentionPopover, setShowMentionPopover] = useState(false);
+  const [showHashtagPopover, setShowHashtagPopover] = useState(false);
+  const [mentionSearch, setMentionSearch] = useState('');
+  const [hashtagSearch, setHashtagSearch] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  
+  // Common hashtags for quick access
+  const commonHashtags = useMemo(() => [
+    'urgent', 'followup', 'question', 'update', 'meeting', 'deadline', 'review', 'help', 'fyi', 'important'
+  ], []);
 
   useEffect(() => {
     if (profile) {
@@ -216,23 +283,116 @@ export default function TeamChat() {
   const handleSendMessage = async () => {
     if (!newMessage.trim() || !user || !selectedChannel) return;
 
+    const { mentions, hashtags } = parseMessageContent(newMessage);
+    
+    // Find mentioned user IDs
+    const mentionedUserIds: string[] = [];
+    mentions.forEach(mentionName => {
+      const mentionedUser = allUsers.find(u => 
+        u.name.toLowerCase() === mentionName.toLowerCase() ||
+        u.name.toLowerCase().startsWith(mentionName.toLowerCase())
+      );
+      if (mentionedUser && mentionedUser.id !== user.id) {
+        mentionedUserIds.push(mentionedUser.id);
+      }
+    });
+
     const message: ChatMessage = {
       id: Date.now().toString(),
       content: newMessage,
       from_user_id: user.id,
       from_user_name: currentUserName || 'User',
       created_at: new Date().toISOString(),
-      channel: selectedChannel.id
+      channel: selectedChannel.id,
+      mentions: mentionedUserIds
     };
 
     setMessages(prev => [...prev, message]);
     setNewMessage('');
+    setShowMentionPopover(false);
+    setShowHashtagPopover(false);
+
+    // Create notifications for mentioned users
+    if (mentionedUserIds.length > 0 && currentCompany) {
+      for (const mentionedUserId of mentionedUserIds) {
+        try {
+          await supabase.from('notifications').insert({
+            user_id: mentionedUserId,
+            title: 'You were mentioned in Team Chat',
+            message: `${currentUserName} mentioned you in #${selectedChannel.name}: "${newMessage.substring(0, 100)}${newMessage.length > 100 ? '...' : ''}"`,
+            type: 'chat_mention',
+            read: false
+          });
+        } catch (error) {
+          console.error('Error creating mention notification:', error);
+        }
+      }
+    }
 
     toast({
       title: 'Message Sent',
-      description: `Message sent to #${selectedChannel.name}`,
+      description: `Message sent to #${selectedChannel.name}${mentionedUserIds.length > 0 ? ` (${mentionedUserIds.length} mentioned)` : ''}`,
     });
   };
+
+  // Handle input change with @mention and #hashtag detection
+  const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value;
+    setNewMessage(value);
+    
+    // Check for @mention trigger
+    const lastAtIndex = value.lastIndexOf('@');
+    const lastHashIndex = value.lastIndexOf('#');
+    const lastSpaceIndex = Math.max(value.lastIndexOf(' '), value.lastIndexOf('\n'));
+    
+    if (lastAtIndex > lastSpaceIndex) {
+      const searchText = value.substring(lastAtIndex + 1);
+      setMentionSearch(searchText);
+      setShowMentionPopover(true);
+      setShowHashtagPopover(false);
+    } else if (lastHashIndex > lastSpaceIndex) {
+      const searchText = value.substring(lastHashIndex + 1);
+      setHashtagSearch(searchText);
+      setShowHashtagPopover(true);
+      setShowMentionPopover(false);
+    } else {
+      setShowMentionPopover(false);
+      setShowHashtagPopover(false);
+    }
+  };
+
+  // Insert mention into message
+  const insertMention = (userName: string) => {
+    const lastAtIndex = newMessage.lastIndexOf('@');
+    const beforeMention = newMessage.substring(0, lastAtIndex);
+    setNewMessage(`${beforeMention}@${userName} `);
+    setShowMentionPopover(false);
+    inputRef.current?.focus();
+  };
+
+  // Insert hashtag into message
+  const insertHashtag = (hashtag: string) => {
+    const lastHashIndex = newMessage.lastIndexOf('#');
+    const beforeHashtag = newMessage.substring(0, lastHashIndex);
+    setNewMessage(`${beforeHashtag}#${hashtag} `);
+    setShowHashtagPopover(false);
+    inputRef.current?.focus();
+  };
+
+  // Filter users for mention autocomplete
+  const filteredMentionUsers = useMemo(() => {
+    return allUsers.filter(u => 
+      u.id !== user?.id && 
+      u.name.toLowerCase().includes(mentionSearch.toLowerCase())
+    ).slice(0, 5);
+  }, [allUsers, mentionSearch, user?.id]);
+
+  // Filter hashtags for autocomplete
+  const filteredHashtags = useMemo(() => {
+    return commonHashtags.filter(h => 
+      h.toLowerCase().includes(hashtagSearch.toLowerCase())
+    ).slice(0, 5);
+  }, [commonHashtags, hashtagSearch]);
 
   const formatTime = (dateString: string) => {
     const date = new Date(dateString);
@@ -386,7 +546,9 @@ export default function TeamChat() {
                             {formatTime(message.created_at)}
                           </span>
                         </div>
-                        <p className="text-sm mt-1">{message.content}</p>
+                        <p className="text-sm mt-1">
+                          <RenderMessageContent content={message.content} allUsers={allUsers} />
+                        </p>
                       </div>
                     </div>
                   ))}
@@ -396,17 +558,81 @@ export default function TeamChat() {
 
             {/* Message Input */}
             <div className="p-4 border-t border-border bg-card">
-              <div className="flex items-center space-x-2">
-                <Input
-                  placeholder={`Message #${selectedChannel.name}`}
-                  value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
-                  onKeyPress={(e) => e.key === 'Enter' && handleSendMessage()}
-                  className="flex-1"
-                />
-                <Button onClick={handleSendMessage} disabled={!newMessage.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
+              <div className="space-y-2">
+                {/* Quick action hints */}
+                <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                  <span className="flex items-center gap-1">
+                    <AtSign className="h-3 w-3" /> @mention users
+                  </span>
+                  <span className="flex items-center gap-1">
+                    <Hash className="h-3 w-3" /> #hashtag topics
+                  </span>
+                </div>
+                
+                <div className="relative">
+                  <div className="flex items-center space-x-2">
+                    <div className="relative flex-1">
+                      <Input
+                        ref={inputRef}
+                        placeholder={`Message #${selectedChannel.name} - Use @ to mention, # for topics`}
+                        value={newMessage}
+                        onChange={handleInputChange}
+                        onKeyPress={(e) => {
+                          if (e.key === 'Enter' && !showMentionPopover && !showHashtagPopover) {
+                            handleSendMessage();
+                          }
+                        }}
+                        className="flex-1"
+                      />
+                      
+                      {/* Mention Autocomplete Popover */}
+                      {showMentionPopover && filteredMentionUsers.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-1 w-64 bg-popover border rounded-md shadow-lg z-50">
+                          <div className="p-2">
+                            <p className="text-xs text-muted-foreground mb-2">Mention a team member</p>
+                            {filteredMentionUsers.map((u) => (
+                              <div
+                                key={u.id}
+                                className="flex items-center gap-2 p-2 hover:bg-accent rounded cursor-pointer"
+                                onClick={() => insertMention(u.name)}
+                              >
+                                <Avatar className="h-6 w-6">
+                                  <AvatarFallback className="text-xs">
+                                    {u.name.split(' ').map(n => n[0]).join('')}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="text-sm">{u.name}</span>
+                                <div className={`ml-auto h-2 w-2 rounded-full ${getStatusColor(u.status)}`} />
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Hashtag Autocomplete Popover */}
+                      {showHashtagPopover && filteredHashtags.length > 0 && (
+                        <div className="absolute bottom-full left-0 mb-1 w-48 bg-popover border rounded-md shadow-lg z-50">
+                          <div className="p-2">
+                            <p className="text-xs text-muted-foreground mb-2">Add a topic tag</p>
+                            {filteredHashtags.map((hashtag) => (
+                              <div
+                                key={hashtag}
+                                className="flex items-center gap-2 p-2 hover:bg-accent rounded cursor-pointer"
+                                onClick={() => insertHashtag(hashtag)}
+                              >
+                                <Hash className="h-4 w-4 text-blue-500" />
+                                <span className="text-sm">{hashtag}</span>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                    <Button onClick={handleSendMessage} disabled={!newMessage.trim()}>
+                      <Send className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
               </div>
             </div>
           </>

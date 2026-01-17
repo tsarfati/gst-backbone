@@ -4137,6 +4137,9 @@ export type Database = {
       }
       notification_settings: {
         Row: {
+          chat_channel_notifications: boolean | null
+          chat_direct_message_notifications: boolean | null
+          chat_mention_notifications: boolean | null
           company_id: string
           created_at: string
           email_enabled: boolean
@@ -4153,6 +4156,9 @@ export type Database = {
           vendor_invitations: boolean
         }
         Insert: {
+          chat_channel_notifications?: boolean | null
+          chat_direct_message_notifications?: boolean | null
+          chat_mention_notifications?: boolean | null
           company_id: string
           created_at?: string
           email_enabled?: boolean
@@ -4169,6 +4175,9 @@ export type Database = {
           vendor_invitations?: boolean
         }
         Update: {
+          chat_channel_notifications?: boolean | null
+          chat_direct_message_notifications?: boolean | null
+          chat_mention_notifications?: boolean | null
           company_id?: string
           created_at?: string
           email_enabled?: boolean
