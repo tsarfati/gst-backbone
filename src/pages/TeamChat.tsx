@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Separator } from '@/components/ui/separator';
@@ -38,6 +38,7 @@ interface OnlineUser {
   name: string;
   role: string;
   status: 'online' | 'offline';
+  avatar_url?: string | null;
 }
 
 // Parse @mentions and #hashtags from message content
@@ -217,7 +218,7 @@ export default function TeamChat() {
       // Fetch profile details for those users
       const { data, error } = await supabase
         .from('profiles')
-        .select('user_id, display_name, role, status')
+        .select('user_id, display_name, role, status, avatar_url')
         .in('user_id', userIds);
 
       if (error) throw error;
@@ -233,6 +234,7 @@ export default function TeamChat() {
         name: p.display_name || 'Unknown User',
         role: p.role || 'employee',
         status: 'offline' as const,
+        avatar_url: p.avatar_url,
       }));
 
       // Ensure current user is included in the list
@@ -241,6 +243,7 @@ export default function TeamChat() {
         name: currentUserName || 'You',
         role: (profile?.role as unknown as string) || 'employee',
         status: 'offline' as const,
+        avatar_url: profile?.avatar_url,
       };
 
       const byId = new Map<string, OnlineUser>();
@@ -482,6 +485,9 @@ export default function TeamChat() {
                 <div key={teamUser.id} className="flex items-center p-2 rounded-lg hover:bg-primary/10 hover:border-primary cursor-pointer">
                   <div className="relative">
                     <Avatar className="h-8 w-8">
+                      {teamUser.avatar_url && (
+                        <AvatarImage src={teamUser.avatar_url} alt={teamUser.name} />
+                      )}
                       <AvatarFallback className="text-xs">
                         {teamUser.name.split(' ').map((n: string) => n[0]).join('')}
                       </AvatarFallback>
