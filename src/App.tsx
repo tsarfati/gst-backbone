@@ -157,6 +157,7 @@ import VisitorCheckout from "./pages/VisitorCheckout";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
+import VendorRegister from "./pages/VendorRegister";
 
 const queryClient = new QueryClient();
 
@@ -196,6 +197,7 @@ function PublicRoutes() {
                   <Route path="/pm-mobile-app" element={<PMobileApp />} />
                   <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
                   <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
+                  <Route path="/vendor-register" element={<VendorRegister />} />
                   <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
                 </Routes>
               </ReceiptProvider>

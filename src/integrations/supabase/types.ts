@@ -6866,6 +6866,69 @@ export type Database = {
           },
         ]
       }
+      vendor_invitations: {
+        Row: {
+          accepted_at: string | null
+          company_id: string
+          created_at: string
+          created_user_id: string | null
+          email: string
+          expires_at: string
+          id: string
+          invited_at: string
+          invited_by: string
+          status: string
+          token: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          company_id: string
+          created_at?: string
+          created_user_id?: string | null
+          email: string
+          expires_at?: string
+          id?: string
+          invited_at?: string
+          invited_by: string
+          status?: string
+          token?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          accepted_at?: string | null
+          company_id?: string
+          created_at?: string
+          created_user_id?: string | null
+          email?: string
+          expires_at?: string
+          id?: string
+          invited_at?: string
+          invited_by?: string
+          status?: string
+          token?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_invitations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_invitations_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_payment_methods: {
         Row: {
           account_number: string | null

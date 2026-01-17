@@ -3,10 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle, Eye, EyeOff, Plus } from "lucide-react";
+import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle, Eye, EyeOff, Plus, Send, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 import {
@@ -15,6 +16,7 @@ import {
   DialogHeader,
   DialogTitle,
   DialogDescription,
+  DialogFooter,
 } from "@/components/ui/dialog";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 
@@ -22,7 +24,8 @@ export default function VendorDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
+  const { currentCompany } = useCompany();
   const [vendor, setVendor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -32,6 +35,9 @@ export default function VendorDetails() {
   const [unmaskedMethods, setUnmaskedMethods] = useState<Set<string>>(new Set());
   const [viewingVoidedCheck, setViewingVoidedCheck] = useState<any>(null);
   const { hasElevatedAccess } = useActionPermissions();
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [pendingInvite, setPendingInvite] = useState<any>(null);
 
   useEffect(() => {
     const fetchVendor = async () => {
@@ -62,6 +68,7 @@ export default function VendorDetails() {
             fetchPaymentMethods(data.id);
             fetchComplianceDocuments(data.id);
             fetchSubcontracts(data.id);
+            fetchPendingInvite(data.id);
           }
         }
       } catch (err) {
@@ -207,6 +214,26 @@ export default function VendorDetails() {
       }
     };
 
+    const fetchPendingInvite = async (vendorId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('vendor_invitations')
+          .select('*')
+          .eq('vendor_id', vendorId)
+          .eq('status', 'pending')
+          .gt('expires_at', new Date().toISOString())
+          .order('invited_at', { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (!error && data) {
+          setPendingInvite(data);
+        }
+      } catch (error) {
+        console.error('Error loading pending invite:', error);
+      }
+    };
+
     fetchVendor();
   }, [id, toast]);
 
@@ -224,6 +251,75 @@ export default function VendorDetails() {
       }
       return newSet;
     });
+  };
+
+  const handleSendInvite = async () => {
+    if (!vendor?.email) {
+      toast({
+        title: "No email",
+        description: "This vendor does not have an email address configured",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSendingInvite(true);
+      
+      const { data, error } = await supabase.functions.invoke('send-vendor-invite', {
+        body: {
+          vendorId: vendor.id,
+          vendorName: vendor.name,
+          vendorEmail: vendor.email,
+          companyId: currentCompany?.id,
+          companyName: currentCompany?.name,
+          invitedBy: user?.id,
+          baseUrl: window.location.origin
+        }
+      });
+
+      if (error) throw error;
+      
+      if (data?.error) {
+        toast({
+          title: "Error",
+          description: data.error,
+          variant: "destructive",
+        });
+        return;
+      }
+
+      toast({
+        title: "Invitation Sent",
+        description: `An invitation has been sent to ${vendor.email}`,
+      });
+      
+      setInviteDialogOpen(false);
+      
+      // Refresh pending invite status
+      const { data: inviteData } = await supabase
+        .from('vendor_invitations')
+        .select('*')
+        .eq('vendor_id', vendor.id)
+        .eq('status', 'pending')
+        .gt('expires_at', new Date().toISOString())
+        .order('invited_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      
+      if (inviteData) {
+        setPendingInvite(inviteData);
+      }
+    } catch (err: any) {
+      console.error('Error sending invite:', err);
+      toast({
+        title: "Error",
+        description: err.message || "Failed to send invitation",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingInvite(false);
+    }
   };
 
   const maskAccountNumber = (accountNumber: string, methodId: string) => {
@@ -302,12 +398,59 @@ export default function VendorDetails() {
           </div>
         </div>
         <div className="flex gap-2">
+          {vendor.email && (
+            <Button 
+              variant="outline" 
+              onClick={() => setInviteDialogOpen(true)}
+              disabled={!!pendingInvite}
+            >
+              <Send className="h-4 w-4 mr-2" />
+              {pendingInvite ? 'Invitation Pending' : 'Invite to Portal'}
+            </Button>
+          )}
           <Button variant="outline" onClick={() => navigate(`/vendors/${id}/edit`)}>
             <Edit className="h-4 w-4 mr-2" />
             Edit Vendor
           </Button>
         </div>
       </div>
+
+      {/* Invite Vendor Dialog */}
+      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Invite Vendor to Portal</DialogTitle>
+            <DialogDescription>
+              Send an invitation to {vendor.name} to create their own vendor portal account. 
+              They will be able to view projects, submit bids, and manage their documents.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            <p className="text-sm text-muted-foreground mb-2">Invitation will be sent to:</p>
+            <p className="font-medium">{vendor.email}</p>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleSendInvite} disabled={sendingInvite}>
+              {sendingInvite ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="h-4 w-4 mr-2" />
+                  Send Invitation
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Single Scrollable Content */}
       <div className="space-y-8">
