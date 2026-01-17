@@ -27,7 +27,6 @@ interface RFP {
   created_at: string;
   job?: {
     name: string;
-    number: string;
   };
 }
 
@@ -80,7 +79,7 @@ export default function RFPDetails() {
         .from('rfps')
         .select(`
           *,
-          job:jobs(name, number)
+          job:jobs(name)
         `)
         .eq('id', id)
         .single();
@@ -244,7 +243,7 @@ export default function RFPDetails() {
                 <Building2 className="h-5 w-5 text-muted-foreground" />
               <div>
                   <p className="text-sm text-muted-foreground">Job</p>
-                  <p className="font-medium">{rfp.job.number} - {rfp.job.name}</p>
+                  <p className="font-medium">{rfp.job.name}</p>
                 </div>
               </div>
             </CardContent>

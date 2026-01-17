@@ -15,7 +15,6 @@ import { useToast } from '@/hooks/use-toast';
 interface Job {
   id: string;
   name: string;
-  number: string;
 }
 
 export default function AddRFP() {
@@ -51,10 +50,10 @@ export default function AddRFP() {
     try {
       const { data, error } = await supabase
         .from('jobs')
-        .select('id, name, number')
+        .select('id, name')
         .eq('company_id', currentCompany!.id)
         .eq('is_active', true)
-        .order('number');
+        .order('name');
 
       if (error) throw error;
       setJobs(data || []);
@@ -174,7 +173,7 @@ export default function AddRFP() {
                     <SelectItem value="">No Job</SelectItem>
                     {jobs.map(job => (
                       <SelectItem key={job.id} value={job.id}>
-                        {job.number} - {job.name}
+                        {job.name}
                       </SelectItem>
                     ))}
                   </SelectContent>

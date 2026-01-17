@@ -25,7 +25,6 @@ interface RFP {
   created_at: string;
   job?: {
     name: string;
-    number: string;
   };
   bid_count?: number;
 }
@@ -57,7 +56,7 @@ export default function RFPs() {
         .from('rfps')
         .select(`
           *,
-          job:jobs(name, number),
+          job:jobs(name),
           bids(id)
         `)
         .eq('company_id', currentCompany!.id)
@@ -267,7 +266,7 @@ export default function RFPs() {
                     <TableCell>
                       {rfp.job ? (
                         <span className="text-sm">
-                          {rfp.job.number} - {rfp.job.name}
+                          {rfp.job.name}
                         </span>
                       ) : (
                         <span className="text-muted-foreground">-</span>
