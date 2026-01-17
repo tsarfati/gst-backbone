@@ -33,8 +33,8 @@ const navigationCategories = [
       items: [
         { name: "Dashboard", href: "/construction/dashboard", menuKey: "jobs" },
         { name: "Jobs", href: "/jobs", menuKey: "jobs" },
-        { name: "RFPs & Bids", href: "/construction/rfps", menuKey: "jobs" },
         { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors" },
+        { name: "RFPs & Bids", href: "/construction/rfps", menuKey: "jobs" },
         { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors" },
         { name: "Reports", href: "/construction/reports", menuKey: "jobs" },
       ],
