@@ -75,28 +75,35 @@ export default function TeamChat() {
     if (user) {
       fetchAllUsers();
     }
-  }, [user]);
+  }, [user, currentUserName]);
 
   // Set up presence tracking
   useEffect(() => {
     if (!user || !currentUserName) return;
 
-    const presenceChannel = supabase.channel('team-chat-presence');
+    const presenceChannel = supabase.channel('team-chat-presence', {
+      config: {
+        presence: {
+          key: user.id,
+        },
+      },
+    });
     presenceChannelRef.current = presenceChannel;
 
     presenceChannel
       .on('presence', { event: 'sync' }, () => {
         const state = presenceChannel.presenceState();
-        const onlineIds = new Set<string>();
-        
+
+        // With presence.key set to user.id, the keys of this object are the online user_ids.
+        const onlineIds = new Set<string>(Object.keys(state));
+
+        // Fallback: also scan payloads for user_id if present (older sessions / mixed keys)
         Object.values(state).forEach((presences: any[]) => {
           presences.forEach((presence) => {
-            if (presence.user_id) {
-              onlineIds.add(presence.user_id);
-            }
+            if (presence?.user_id) onlineIds.add(presence.user_id);
           });
         });
-        
+
         setOnlineUserIds(onlineIds);
       })
       .subscribe(async (status) => {
@@ -120,29 +127,45 @@ export default function TeamChat() {
     try {
       const { data, error } = await supabase
         .from('profiles')
-        .select('user_id, display_name, role')
-        .neq('user_id', user.id)
-        .limit(20);
+        .select('user_id, display_name, role, status')
+        .limit(50);
 
       if (error) throw error;
 
-      const users: OnlineUser[] = (data || []).map(profile => ({
-        id: profile.user_id,
-        name: profile.display_name || 'Unknown User',
-        role: profile.role || 'employee',
-        status: 'offline' as const
+      // Hide deleted/inactive profiles (best-effort; status is a free-form string)
+      const activeProfiles = (data || []).filter((p: any) => {
+        const s = String(p?.status || '').toLowerCase();
+        return s !== 'deleted' && s !== 'inactive' && s !== 'disabled';
+      });
+
+      const usersFromDb: OnlineUser[] = activeProfiles.map((p: any) => ({
+        id: p.user_id,
+        name: p.display_name || 'Unknown User',
+        role: p.role || 'employee',
+        status: 'offline' as const,
       }));
 
-      setAllUsers(users);
+      // Ensure current user is included in the list (so you can see your own status)
+      const me: OnlineUser = {
+        id: user.id,
+        name: currentUserName || 'You',
+        role: (profile?.role as unknown as string) || 'employee',
+        status: 'offline' as const,
+      };
+
+      const byId = new Map<string, OnlineUser>();
+      [...usersFromDb, me].forEach((u) => byId.set(u.id, u));
+
+      setAllUsers(Array.from(byId.values()));
     } catch (error) {
       console.error('Error fetching users:', error);
     }
   };
 
   // Compute online users based on presence tracking
-  const onlineUsers = allUsers.map(u => ({
+  const onlineUsers = allUsers.map((u) => ({
     ...u,
-    status: onlineUserIds.has(u.id) ? 'online' as const : 'offline' as const
+    status: onlineUserIds.has(u.id) ? ('online' as const) : ('offline' as const),
   }));
   
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -282,7 +305,9 @@ export default function TeamChat() {
                     </Avatar>
                     <div className={`absolute -bottom-1 -right-1 h-3 w-3 rounded-full border-2 border-background ${getStatusColor(teamUser.status)}`} />
                   </div>
-                  <span className={`ml-3 text-sm ${teamUser.status === 'offline' ? 'text-muted-foreground' : ''}`}>{teamUser.name}</span>
+                  <span className={`ml-3 text-sm ${teamUser.status === 'offline' ? 'text-muted-foreground' : ''}`}>
+                    {teamUser.name}{teamUser.id === user?.id ? ' (You)' : ''}
+                  </span>
                 </div>
               ))}
               {onlineUsers.length === 0 && (
