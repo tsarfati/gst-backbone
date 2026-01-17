@@ -703,6 +703,224 @@ export type Database = {
           },
         ]
       }
+      bid_attachments: {
+        Row: {
+          bid_id: string
+          company_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          bid_id: string
+          company_id: string
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          bid_id?: string
+          company_id?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bid_attachments_bid_id_fkey"
+            columns: ["bid_id"]
+            isOneToOne: false
+            referencedRelation: "bids"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bid_scores: {
+        Row: {
+          bid_id: string
+          company_id: string
+          criterion_id: string
+          id: string
+          notes: string | null
+          score: number
+          scored_at: string
+          scored_by: string
+        }
+        Insert: {
+          bid_id: string
+          company_id: string
+          criterion_id: string
+          id?: string
+          notes?: string | null
+          score: number
+          scored_at?: string
+          scored_by: string
+        }
+        Update: {
+          bid_id?: string
+          company_id?: string
+          criterion_id?: string
+          id?: string
+          notes?: string | null
+          score?: number
+          scored_at?: string
+          scored_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bid_scores_bid_id_fkey"
+            columns: ["bid_id"]
+            isOneToOne: false
+            referencedRelation: "bids"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_scores_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_scores_criterion_id_fkey"
+            columns: ["criterion_id"]
+            isOneToOne: false
+            referencedRelation: "bid_scoring_criteria"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bid_scoring_criteria: {
+        Row: {
+          company_id: string
+          created_at: string
+          criterion_name: string
+          description: string | null
+          id: string
+          max_score: number
+          rfp_id: string
+          sort_order: number
+          weight: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          criterion_name: string
+          description?: string | null
+          id?: string
+          max_score?: number
+          rfp_id: string
+          sort_order?: number
+          weight?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          criterion_name?: string
+          description?: string | null
+          id?: string
+          max_score?: number
+          rfp_id?: string
+          sort_order?: number
+          weight?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bid_scoring_criteria_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_scoring_criteria_rfp_id_fkey"
+            columns: ["rfp_id"]
+            isOneToOne: false
+            referencedRelation: "rfps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bids: {
+        Row: {
+          bid_amount: number
+          company_id: string
+          id: string
+          notes: string | null
+          proposed_timeline: string | null
+          rfp_id: string
+          status: string
+          submitted_at: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          bid_amount: number
+          company_id: string
+          id?: string
+          notes?: string | null
+          proposed_timeline?: string | null
+          rfp_id: string
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          bid_amount?: number
+          company_id?: string
+          id?: string
+          notes?: string | null
+          proposed_timeline?: string | null
+          rfp_id?: string
+          status?: string
+          submitted_at?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bids_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bids_rfp_id_fkey"
+            columns: ["rfp_id"]
+            isOneToOne: false
+            referencedRelation: "rfps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bids_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bill_communications: {
         Row: {
           bill_id: string
@@ -5558,6 +5776,176 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      rfp_attachments: {
+        Row: {
+          company_id: string
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          id: string
+          rfp_id: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          company_id: string
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          id?: string
+          rfp_id: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          company_id?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          id?: string
+          rfp_id?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfp_attachments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_attachments_rfp_id_fkey"
+            columns: ["rfp_id"]
+            isOneToOne: false
+            referencedRelation: "rfps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfp_invited_vendors: {
+        Row: {
+          company_id: string
+          id: string
+          invited_at: string
+          response_status: string | null
+          rfp_id: string
+          vendor_id: string
+        }
+        Insert: {
+          company_id: string
+          id?: string
+          invited_at?: string
+          response_status?: string | null
+          rfp_id: string
+          vendor_id: string
+        }
+        Update: {
+          company_id?: string
+          id?: string
+          invited_at?: string
+          response_status?: string | null
+          rfp_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfp_invited_vendors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_invited_vendors_rfp_id_fkey"
+            columns: ["rfp_id"]
+            isOneToOne: false
+            referencedRelation: "rfps"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_invited_vendors_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfps: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          description: string | null
+          due_date: string | null
+          id: string
+          issue_date: string | null
+          job_id: string | null
+          rfp_number: string
+          scope_of_work: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          issue_date?: string | null
+          job_id?: string | null
+          rfp_number: string
+          scope_of_work?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          issue_date?: string | null
+          job_id?: string | null
+          rfp_number?: string
+          scope_of_work?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfps_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfps_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "rfps_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       role_default_pages: {
         Row: {
