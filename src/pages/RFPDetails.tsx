@@ -6,7 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, DollarSign, Send, Award, Trash2, Mail, Check } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, DollarSign, Send, Award, Trash2, Mail, Check, Search } from 'lucide-react';
+import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -85,6 +86,8 @@ export default function RFPDetails() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [selectedVendors, setSelectedVendors] = useState<string[]>([]);
   const [inviting, setInviting] = useState(false);
+  const [vendorSearch, setVendorSearch] = useState('');
+  const [activeLetter, setActiveLetter] = useState<string | null>(null);
 
   useEffect(() => {
     if (id && currentCompany?.id) {
@@ -249,6 +252,42 @@ export default function RFPDetails() {
     return vendors.filter(v => !invitedIds.includes(v.id));
   };
 
+  const getFilteredVendors = () => {
+    let filtered = getAvailableVendors();
+    
+    // Apply search filter
+    if (vendorSearch.trim()) {
+      const searchLower = vendorSearch.toLowerCase();
+      filtered = filtered.filter(v => 
+        v.name.toLowerCase().includes(searchLower) ||
+        (v.email && v.email.toLowerCase().includes(searchLower))
+      );
+    }
+    
+    // Apply alphabet filter
+    if (activeLetter) {
+      filtered = filtered.filter(v => 
+        v.name.toUpperCase().startsWith(activeLetter)
+      );
+    }
+    
+    return filtered;
+  };
+
+  const getAvailableLetters = () => {
+    const available = getAvailableVendors();
+    const letters = new Set<string>();
+    available.forEach(v => {
+      const firstLetter = v.name.charAt(0).toUpperCase();
+      if (/[A-Z]/.test(firstLetter)) {
+        letters.add(firstLetter);
+      }
+    });
+    return Array.from(letters).sort();
+  };
+
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+
   const updateStatus = async (newStatus: string) => {
     try {
       const { error } = await supabase
@@ -357,8 +396,14 @@ export default function RFPDetails() {
       </div>
 
       {/* Invite Vendors Dialog */}
-      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
-        <DialogContent className="max-w-md">
+      <Dialog open={inviteDialogOpen} onOpenChange={(open) => {
+        setInviteDialogOpen(open);
+        if (!open) {
+          setVendorSearch('');
+          setActiveLetter(null);
+        }
+      }}>
+        <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Invite Vendors to Bid</DialogTitle>
             <DialogDescription>
@@ -376,28 +421,85 @@ export default function RFPDetails() {
               </p>
             </div>
           ) : (
-            <ScrollArea className="max-h-[300px] pr-4">
-              <div className="space-y-2">
-                {getAvailableVendors().map(vendor => (
-                  <div 
-                    key={vendor.id}
-                    className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
-                    onClick={() => toggleVendorSelection(vendor.id)}
-                  >
-                    <Checkbox 
-                      checked={selectedVendors.includes(vendor.id)}
-                      onCheckedChange={() => toggleVendorSelection(vendor.id)}
-                    />
-                    <div className="flex-1 min-w-0">
-                      <p className="font-medium truncate">{vendor.name}</p>
-                      {vendor.email && (
-                        <p className="text-sm text-muted-foreground truncate">{vendor.email}</p>
-                      )}
-                    </div>
-                  </div>
-                ))}
+            <div className="space-y-4">
+              {/* Search Input */}
+              <div className="relative">
+                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                <Input
+                  placeholder="Search vendors..."
+                  value={vendorSearch}
+                  onChange={(e) => {
+                    setVendorSearch(e.target.value);
+                    setActiveLetter(null); // Clear letter filter when searching
+                  }}
+                  className="pl-9"
+                />
               </div>
-            </ScrollArea>
+
+              {/* Alphabet Filter */}
+              <div className="flex flex-wrap gap-1">
+                <Button
+                  variant={activeLetter === null ? "default" : "ghost"}
+                  size="sm"
+                  className="h-7 w-7 p-0 text-xs"
+                  onClick={() => {
+                    setActiveLetter(null);
+                    setVendorSearch('');
+                  }}
+                >
+                  All
+                </Button>
+                {alphabet.map(letter => {
+                  const availableLetters = getAvailableLetters();
+                  const hasVendors = availableLetters.includes(letter);
+                  return (
+                    <Button
+                      key={letter}
+                      variant={activeLetter === letter ? "default" : "ghost"}
+                      size="sm"
+                      className="h-7 w-7 p-0 text-xs"
+                      disabled={!hasVendors}
+                      onClick={() => {
+                        setActiveLetter(letter);
+                        setVendorSearch('');
+                      }}
+                    >
+                      {letter}
+                    </Button>
+                  );
+                })}
+              </div>
+
+              {/* Vendor List */}
+              <ScrollArea className="max-h-[250px] pr-4">
+                <div className="space-y-2">
+                  {getFilteredVendors().length === 0 ? (
+                    <div className="py-4 text-center text-muted-foreground">
+                      No vendors found matching your filters
+                    </div>
+                  ) : (
+                    getFilteredVendors().map(vendor => (
+                      <div 
+                        key={vendor.id}
+                        className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
+                        onClick={() => toggleVendorSelection(vendor.id)}
+                      >
+                        <Checkbox 
+                          checked={selectedVendors.includes(vendor.id)}
+                          onCheckedChange={() => toggleVendorSelection(vendor.id)}
+                        />
+                        <div className="flex-1 min-w-0">
+                          <p className="font-medium truncate">{vendor.name}</p>
+                          {vendor.email && (
+                            <p className="text-sm text-muted-foreground truncate">{vendor.email}</p>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </div>
+              </ScrollArea>
+            </div>
           )}
 
           <DialogFooter>
