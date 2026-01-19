@@ -3,7 +3,7 @@ import { Loader2, FileText } from 'lucide-react';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 
 // Use CDN worker to avoid bundling issues in Vite
-GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
 
 interface PdfPreviewProps {
   url: string;
@@ -44,7 +44,7 @@ const PdfPreview: React.FC<PdfPreviewProps> = ({ url, height = 720 }) => {
         canvas.width = Math.floor(scaledViewport.width);
         canvas.height = Math.floor(scaledViewport.height);
 
-        await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+        await page.render({ canvasContext: ctx, viewport: scaledViewport, canvas }).promise;
       } catch (e: any) {
         console.error('PdfPreview error:', e);
         setError(e?.message || 'Failed to render PDF');
