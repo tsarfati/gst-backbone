@@ -17,8 +17,7 @@ import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { loadPdfTemplate, hexToRgb, loadImageAsDataUrl, PdfTemplateSettings } from "@/utils/pdfTemplateLoader";
-import * as XLSX from "xlsx";
-import { autoFitColumns } from "@/utils/excelAutoFit";
+import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { CreditCardTransactionModal } from "@/components/CreditCardTransactionModal";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
@@ -775,7 +774,7 @@ export default function ProjectCostTransactionHistory() {
     toast({ title: "Success", description: "PDF exported successfully" });
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const worksheetData: any[][] = [
       ["Project Cost Transaction History"],
       [],
@@ -784,14 +783,22 @@ export default function ProjectCostTransactionHistory() {
       [],
     ];
 
-    groupedTransactions.forEach(group => {
-      worksheetData.push([`${group.costCode} - ${group.costCodeDescription}`, "", "", "", "", "", `$${formatNumber(group.costCodeTotal)}`]);
-      
-      group.categories.forEach(cat => {
+    groupedTransactions.forEach((group) => {
+      worksheetData.push([
+        `${group.costCode} - ${group.costCodeDescription}`,
+        "",
+        "",
+        "",
+        "",
+        "",
+        `$${formatNumber(group.costCodeTotal)}`,
+      ]);
+
+      group.categories.forEach((cat) => {
         worksheetData.push(["", cat.category, "", "", "", "", `$${formatNumber(cat.total)}`]);
         worksheetData.push(["", "Date", "Type", "Vendor", "Reference", "Description", "Amount"]);
-        
-        cat.transactions.forEach(t => {
+
+        cat.transactions.forEach((t) => {
           // Determine the type label - use credit card name if available
           let typeLabel = "Posted";
           if (t.type === "bill") typeLabel = "Bill";
@@ -817,7 +824,7 @@ export default function ProjectCostTransactionHistory() {
     // Add category summary with new columns
     worksheetData.push(["COST SUMMARY BY CATEGORY"]);
     worksheetData.push(["Category", "Previous Cost", "Current Cost", "Cost to Date", "Budget", "Difference", "% Used"]);
-    categorySummary.forEach(s => {
+    categorySummary.forEach((s) => {
       worksheetData.push([
         s.category,
         s.previousCost,
@@ -828,13 +835,16 @@ export default function ProjectCostTransactionHistory() {
         `${s.percent.toFixed(1)}%`,
       ]);
     });
-    const summaryTotals = categorySummary.reduce((acc, s) => ({
-      previousCost: acc.previousCost + s.previousCost,
-      currentCost: acc.currentCost + s.currentCost,
-      costToDate: acc.costToDate + s.costToDate,
-      budget: acc.budget + s.budget,
-      difference: acc.difference + s.difference,
-    }), { previousCost: 0, currentCost: 0, costToDate: 0, budget: 0, difference: 0 });
+    const summaryTotals = categorySummary.reduce(
+      (acc, s) => ({
+        previousCost: acc.previousCost + s.previousCost,
+        currentCost: acc.currentCost + s.currentCost,
+        costToDate: acc.costToDate + s.costToDate,
+        budget: acc.budget + s.budget,
+        difference: acc.difference + s.difference,
+      }),
+      { previousCost: 0, currentCost: 0, costToDate: 0, budget: 0, difference: 0 }
+    );
     const totalPercent = summaryTotals.budget > 0 ? (summaryTotals.costToDate / summaryTotals.budget) * 100 : 0;
     worksheetData.push([
       "TOTAL",
@@ -845,15 +855,18 @@ export default function ProjectCostTransactionHistory() {
       summaryTotals.difference,
       `${totalPercent.toFixed(1)}%`,
     ]);
-    
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    autoFitColumns(worksheet, worksheetData);
-    
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
-    
-    XLSX.writeFile(workbook, `project-cost-transactions-${new Date().toISOString().split("T")[0]}.xlsx`);
-    toast({ title: "Success", description: "Excel file exported successfully" });
+
+    try {
+      await exportAoAToXlsx({
+        data: worksheetData,
+        sheetName: "Transactions",
+        fileName: `project-cost-transactions-${new Date().toISOString().split("T")[0]}.xlsx`,
+      });
+      toast({ title: "Success", description: "Excel file exported successfully" });
+    } catch (e) {
+      console.error("Excel export failed:", e);
+      toast({ title: "Error", description: "Failed to export Excel file", variant: "destructive" });
+    }
   };
 
   const activeFilterCount = [

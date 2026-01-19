@@ -11,8 +11,7 @@ import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
-import { autoFitColumns } from "@/utils/excelAutoFit";
+import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { format } from "date-fns";
 
 interface SubcontractSummary {
@@ -194,14 +193,26 @@ export default function SubcontractSummaryReport() {
     toast({ title: "Success", description: "PDF exported successfully" });
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const worksheetData = [
       ["Subcontract Summary Report"],
       [`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`],
       [`Company: ${currentCompany?.name || ""}`],
       [],
-      ["Subcontract", "Vendor", "Project", "Status", "Start Date", "End Date", "Contract Amount", "Invoiced", "Paid", "Retainage Held", "Remaining"],
-      ...subcontracts.map(sub => [
+      [
+        "Subcontract",
+        "Vendor",
+        "Project",
+        "Status",
+        "Start Date",
+        "End Date",
+        "Contract Amount",
+        "Invoiced",
+        "Paid",
+        "Retainage Held",
+        "Remaining",
+      ],
+      ...subcontracts.map((sub) => [
         sub.name,
         sub.vendor_name,
         sub.job_name,
@@ -215,15 +226,32 @@ export default function SubcontractSummaryReport() {
         sub.contract_amount - sub.invoiced_amount,
       ]),
       [],
-      ["", "", "", "Totals:", "", "", totals.contract, totals.invoiced, totals.paid, totals.retainage, totals.contract - totals.invoiced],
+      [
+        "",
+        "",
+        "",
+        "Totals:",
+        "",
+        "",
+        totals.contract,
+        totals.invoiced,
+        totals.paid,
+        totals.retainage,
+        totals.contract - totals.invoiced,
+      ],
     ];
-    
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    autoFitColumns(worksheet, worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Subcontracts");
-    XLSX.writeFile(workbook, `subcontract-summary-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    toast({ title: "Success", description: "Excel file exported successfully" });
+
+    try {
+      await exportAoAToXlsx({
+        data: worksheetData,
+        sheetName: "Subcontracts",
+        fileName: `subcontract-summary-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
+      });
+      toast({ title: "Success", description: "Excel file exported successfully" });
+    } catch (e) {
+      console.error("Excel export failed:", e);
+      toast({ title: "Error", description: "Failed to export Excel file", variant: "destructive" });
+    }
   };
 
   return (
