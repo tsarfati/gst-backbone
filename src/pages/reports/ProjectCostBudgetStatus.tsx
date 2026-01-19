@@ -12,8 +12,7 @@ import { ArrowLeft, Download, FileSpreadsheet, Filter, AlertTriangle } from "luc
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
-import { autoFitColumns } from "@/utils/excelAutoFit";
+import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -477,7 +476,7 @@ export default function ProjectCostBudgetStatus() {
     toast({ title: "Success", description: "PDF exported successfully" });
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const worksheetData = [
       ["Project Cost Budget Status"],
       [`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`],
@@ -500,17 +499,31 @@ export default function ProjectCostBudgetStatus() {
         ];
       }),
       [],
-      ["", "", "Totals:", totals.budgeted, totals.actual, totals.committed, totals.remaining, 
-        totals.budgeted > 0 ? `${(((totals.actual + totals.committed) / totals.budgeted) * 100).toFixed(1)}%` : "0%"
+      [
+        "",
+        "",
+        "Totals:",
+        totals.budgeted,
+        totals.actual,
+        totals.committed,
+        totals.remaining,
+        totals.budgeted > 0
+          ? `${(((totals.actual + totals.committed) / totals.budgeted) * 100).toFixed(1)}%`
+          : "0%",
       ],
     ];
-    
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    autoFitColumns(worksheet, worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Budget Status");
-    XLSX.writeFile(workbook, `project-budget-status-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    toast({ title: "Success", description: "Excel file exported successfully" });
+
+    try {
+      await exportAoAToXlsx({
+        data: worksheetData,
+        sheetName: "Budget Status",
+        fileName: `project-budget-status-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
+      });
+      toast({ title: "Success", description: "Excel file exported successfully" });
+    } catch (e) {
+      console.error("Excel export failed:", e);
+      toast({ title: "Error", description: "Failed to export Excel file", variant: "destructive" });
+    }
   };
 
   return (

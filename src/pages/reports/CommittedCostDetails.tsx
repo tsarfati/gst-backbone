@@ -13,8 +13,7 @@ import { Download, FileSpreadsheet, Filter, X } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
-import { autoFitColumns } from "@/utils/excelAutoFit";
+import { exportAoAToXlsx } from "@/utils/exceljsExport";
 
 interface CommittedItem {
   id: string;
@@ -321,7 +320,7 @@ export default function CommittedCostDetails() {
     toast({ title: "Success", description: "PDF exported successfully" });
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const worksheetData = [
       ["Committed Cost Details"],
       [],
@@ -330,8 +329,8 @@ export default function CommittedCostDetails() {
       ["Total Committed:", `$${formatNumber(totalAmount)}`],
       [],
       ["Date", "Type", "Name", "Vendor", "Cost Code", "Status", "Amount"],
-      ...filteredItems.map(item => {
-        const costCodeDisplay = item.cost_code 
+      ...filteredItems.map((item) => {
+        const costCodeDisplay = item.cost_code
           ? `${item.cost_code} - ${item.cost_code_description || ""}`
           : "-";
         return [
@@ -347,14 +346,18 @@ export default function CommittedCostDetails() {
       [],
       ["", "", "", "", "", "Total:", totalAmount],
     ];
-    
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    autoFitColumns(worksheet, worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Committed Costs");
-    
-    XLSX.writeFile(workbook, `committed-cost-details-${new Date().toISOString().split("T")[0]}.xlsx`);
-    toast({ title: "Success", description: "Excel file exported successfully" });
+
+    try {
+      await exportAoAToXlsx({
+        data: worksheetData,
+        sheetName: "Committed Costs",
+        fileName: `committed-cost-details-${new Date().toISOString().split("T")[0]}.xlsx`,
+      });
+      toast({ title: "Success", description: "Excel file exported successfully" });
+    } catch (e) {
+      console.error("Excel export failed:", e);
+      toast({ title: "Error", description: "Failed to export Excel file", variant: "destructive" });
+    }
   };
 
   const activeFilterCount = [selectedType !== "all"].filter(Boolean).length;

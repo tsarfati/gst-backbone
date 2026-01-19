@@ -12,8 +12,7 @@ import { ArrowLeft, Download, FileSpreadsheet, ChevronDown, ChevronRight } from 
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
-import { autoFitColumns } from "@/utils/excelAutoFit";
+import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { format } from "date-fns";
 
 interface Subcontract {
@@ -213,19 +212,19 @@ export default function SubcontractDetailsByVendor() {
     toast({ title: "Success", description: "PDF exported successfully" });
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const worksheetData: any[][] = [
       ["Subcontract Details by Vendor"],
       [`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`],
       [`Company: ${currentCompany?.name || ""}`],
       [],
     ];
-    
+
     vendorGroups.forEach((group) => {
       worksheetData.push([group.vendor_name]);
       worksheetData.push(["Subcontract", "Project", "Status", "Contract", "Invoiced", "Remaining"]);
-      
-      group.subcontracts.forEach(sub => {
+
+      group.subcontracts.forEach((sub) => {
         worksheetData.push([
           sub.name,
           sub.job_name,
@@ -235,19 +234,38 @@ export default function SubcontractDetailsByVendor() {
           sub.contract_amount - sub.invoiced_amount,
         ]);
       });
-      
-      worksheetData.push(["", "", "Subtotal:", group.totals.contract, group.totals.invoiced, group.totals.contract - group.totals.invoiced]);
+
+      worksheetData.push([
+        "",
+        "",
+        "Subtotal:",
+        group.totals.contract,
+        group.totals.invoiced,
+        group.totals.contract - group.totals.invoiced,
+      ]);
       worksheetData.push([]);
     });
-    
-    worksheetData.push(["", "", "Grand Total:", grandTotals.contract, grandTotals.invoiced, grandTotals.contract - grandTotals.invoiced]);
-    
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    autoFitColumns(worksheet, worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "By Vendor");
-    XLSX.writeFile(workbook, `subcontract-details-by-vendor-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    toast({ title: "Success", description: "Excel file exported successfully" });
+
+    worksheetData.push([
+      "",
+      "",
+      "Grand Total:",
+      grandTotals.contract,
+      grandTotals.invoiced,
+      grandTotals.contract - grandTotals.invoiced,
+    ]);
+
+    try {
+      await exportAoAToXlsx({
+        data: worksheetData,
+        sheetName: "By Vendor",
+        fileName: `subcontract-details-by-vendor-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
+      });
+      toast({ title: "Success", description: "Excel file exported successfully" });
+    } catch (e) {
+      console.error("Excel export failed:", e);
+      toast({ title: "Error", description: "Failed to export Excel file", variant: "destructive" });
+    }
   };
 
   return (

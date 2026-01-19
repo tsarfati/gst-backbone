@@ -11,8 +11,7 @@ import { ArrowLeft, Download, FileSpreadsheet, Filter } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
-import * as XLSX from "xlsx";
-import { autoFitColumns } from "@/utils/excelAutoFit";
+import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { format } from "date-fns";
 
 interface Transaction {
@@ -215,14 +214,14 @@ export default function ProjectTransactionReport() {
     toast({ title: "Success", description: "PDF exported successfully" });
   };
 
-  const exportToExcel = () => {
+  const exportToExcel = async () => {
     const worksheetData = [
       ["Project Transaction Report"],
       [`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`],
       [`Company: ${currentCompany?.name || ""}`],
       [],
       ["Date", "Type", "Reference", "Vendor", "Project", "Cost Code", "Description", "Amount"],
-      ...transactions.map(t => [
+      ...transactions.map((t) => [
         t.date ? format(new Date(t.date), "MM/dd/yyyy") : "-",
         t.type,
         t.reference,
@@ -235,13 +234,18 @@ export default function ProjectTransactionReport() {
       [],
       ["", "", "", "", "", "", "Total:", totalAmount],
     ];
-    
-    const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
-    autoFitColumns(worksheet, worksheetData);
-    const workbook = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(workbook, worksheet, "Transactions");
-    XLSX.writeFile(workbook, `project-transactions-${format(new Date(), "yyyy-MM-dd")}.xlsx`);
-    toast({ title: "Success", description: "Excel file exported successfully" });
+
+    try {
+      await exportAoAToXlsx({
+        data: worksheetData,
+        sheetName: "Transactions",
+        fileName: `project-transactions-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
+      });
+      toast({ title: "Success", description: "Excel file exported successfully" });
+    } catch (e) {
+      console.error("Excel export failed:", e);
+      toast({ title: "Error", description: "Failed to export Excel file", variant: "destructive" });
+    }
   };
 
   return (
