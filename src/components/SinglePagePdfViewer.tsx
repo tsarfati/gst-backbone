@@ -81,7 +81,7 @@ export default function SinglePagePdfViewer({
 
         const pdfjs = await import("pdfjs-dist");
         (pdfjs as any).GlobalWorkerOptions.workerSrc =
-          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
 
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();
@@ -158,7 +158,7 @@ export default function SinglePagePdfViewer({
         const offscreenCtx = offscreen.getContext("2d");
         if (!offscreenCtx) return;
 
-        await pdfPage.render({ canvasContext: offscreenCtx, viewport: renderViewport }).promise;
+        await pdfPage.render({ canvasContext: offscreenCtx, viewport: renderViewport, canvas: offscreen }).promise;
 
         const ctx = displayCanvas.getContext("2d");
         if (!ctx) return;

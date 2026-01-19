@@ -384,7 +384,7 @@ export default function PlanViewer() {
       
       // Load PDF
       const pdfjs: any = await import("pdfjs-dist");
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js`;
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs`;
       
       const resp = await fetch(plan.file_url);
       const buf = await resp.arrayBuffer();
@@ -410,6 +410,7 @@ export default function PlanViewer() {
           await page.render({
             canvasContext: context!,
             viewport: viewport,
+            canvas,
           }).promise;
 
           // Convert canvas to base64

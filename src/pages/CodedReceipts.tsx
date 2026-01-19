@@ -20,7 +20,7 @@ import jsPDF from 'jspdf';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 
 // Use CDN worker to avoid bundling issues in Vite
-GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs';
 
 
 export default function CodedReceipts() {
@@ -229,7 +229,7 @@ export default function CodedReceipts() {
                 canvas.height = scaledViewport.height;
                 
                 // Render the page
-                await page.render({ canvasContext: ctx, viewport: scaledViewport }).promise;
+                await page.render({ canvasContext: ctx, viewport: scaledViewport, canvas }).promise;
 
                 // Add a new page for each PDF page
                 if (!(pageNumber === 1 && p === 1)) {
