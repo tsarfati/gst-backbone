@@ -7533,6 +7533,14 @@ export type Database = {
           user_id: string
         }[]
       }
+      validate_property_qr: {
+        Args: { input_qr: string }
+        Returns: {
+          property_address: string
+          property_id: string
+          property_name: string
+        }[]
+      }
     }
     Enums: {
       cost_code_type:
