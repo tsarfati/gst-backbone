@@ -116,13 +116,13 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
       if (userIds.length > 0) {
         const { data: profiles, error: profileError } = await supabase
           .from('profiles')
-          .select('id, first_name, last_name, display_name, phone')
-          .in('id', userIds);
+          .select('user_id, first_name, last_name, display_name, phone')
+          .in('user_id', userIds);
         
         if (profileError) throw profileError;
         
         users = (profiles || []).map(p => ({
-          id: p.id,
+          id: p.user_id,
           display_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.display_name || 'Unknown',
           email: null, // Email not stored in profiles table
           phone: p.phone,
