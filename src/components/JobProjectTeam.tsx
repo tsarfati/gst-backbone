@@ -6,8 +6,8 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, UserCheck, Star } from 'lucide-react';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, Star, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -24,10 +24,12 @@ interface DirectoryMember {
   email: string | null;
   phone: string | null;
   company_name: string | null;
+  avatar_url: string | null;
   project_role_id: string | null;
   project_role?: ProjectRole | null;
   is_primary_contact: boolean;
   is_project_team_member: boolean;
+  source?: 'directory' | 'pm' | 'assistant_pm' | 'pin_employee';
 }
 
 interface JobProjectTeamProps {
@@ -59,7 +61,8 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     try {
       setLoading(true);
       
-      const [allMembersRes, rolesRes] = await Promise.all([
+      // Load directory members, roles, job details, and PIN employees in parallel
+      const [allMembersRes, rolesRes, jobRes, assistantPMsRes] = await Promise.all([
         supabase
           .from('job_project_directory')
           .select(`
@@ -76,15 +79,137 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           .eq('company_id', currentCompany?.id)
           .eq('is_active', true)
           .order('sort_order'),
+        supabase
+          .from('jobs')
+          .select('project_manager_user_id')
+          .eq('id', jobId)
+          .single(),
+        supabase
+          .from('job_assistant_managers')
+          .select('user_id')
+          .eq('job_id', jobId),
       ]);
 
       if (allMembersRes.error) throw allMembersRes.error;
       if (rolesRes.error) throw rolesRes.error;
 
-      const allMembers = allMembersRes.data || [];
-      setTeamMembers(allMembers.filter(m => m.is_project_team_member));
-      setAvailableMembers(allMembers.filter(m => !m.is_project_team_member));
+      const allMembers = (allMembersRes.data || []).map(m => ({ ...m, avatar_url: null, source: 'directory' as const }));
+      const directoryTeamMembers = allMembers.filter(m => m.is_project_team_member);
+      const directoryAvailable = allMembers.filter(m => !m.is_project_team_member);
+      
       setRoles(rolesRes.data || []);
+
+      // Find PM and Assistant PM roles
+      const pmRole = rolesRes.data?.find(r => r.name.toLowerCase().includes('project manager') && !r.name.toLowerCase().includes('assistant'));
+      const assistantPMRole = rolesRes.data?.find(r => r.name.toLowerCase().includes('assistant') && r.name.toLowerCase().includes('project manager'));
+      const employeeRole = rolesRes.data?.find(r => r.name.toLowerCase() === 'employee');
+
+      // Build auto-populated team members
+      const autoMembers: DirectoryMember[] = [];
+      const pmUserId = jobRes.data?.project_manager_user_id;
+      const assistantPMUserIds = (assistantPMsRes.data || []).map(a => a.user_id);
+      const allManagerIds = [pmUserId, ...assistantPMUserIds].filter(Boolean) as string[];
+
+      // Fetch PM and Assistant PM profile data
+      if (allManagerIds.length > 0) {
+        const { data: managerProfiles } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name, display_name, phone, avatar_url')
+          .in('user_id', allManagerIds);
+
+        // Fetch emails for managers
+        const { data: emailData } = await supabase.functions.invoke('get-user-email', {
+          body: { user_ids: allManagerIds }
+        });
+        
+        const emailMap = new Map<string, string>();
+        if (emailData?.users) {
+          emailData.users.forEach((u: { id: string; email: string }) => {
+            emailMap.set(u.id, u.email);
+          });
+        }
+
+        // Add Project Manager
+        if (pmUserId) {
+          const pmProfile = managerProfiles?.find(p => p.user_id === pmUserId);
+          if (pmProfile) {
+            autoMembers.push({
+              id: `pm-${pmUserId}`,
+              name: [pmProfile.first_name, pmProfile.last_name].filter(Boolean).join(' ') || pmProfile.display_name || 'Unknown',
+              email: emailMap.get(pmUserId) || null,
+              phone: pmProfile.phone,
+              company_name: currentCompany?.name || null,
+              avatar_url: pmProfile.avatar_url,
+              project_role_id: pmRole?.id || null,
+              project_role: pmRole || { id: '', name: 'Project Manager' },
+              is_primary_contact: false,
+              is_project_team_member: true,
+              source: 'pm'
+            });
+          }
+        }
+
+        // Add Assistant PMs
+        for (const apmId of assistantPMUserIds) {
+          const apmProfile = managerProfiles?.find(p => p.user_id === apmId);
+          if (apmProfile) {
+            autoMembers.push({
+              id: `apm-${apmId}`,
+              name: [apmProfile.first_name, apmProfile.last_name].filter(Boolean).join(' ') || apmProfile.display_name || 'Unknown',
+              email: emailMap.get(apmId) || null,
+              phone: apmProfile.phone,
+              company_name: currentCompany?.name || null,
+              avatar_url: apmProfile.avatar_url,
+              project_role_id: assistantPMRole?.id || null,
+              project_role: assistantPMRole || { id: '', name: 'Assistant Project Manager' },
+              is_primary_contact: false,
+              is_project_team_member: true,
+              source: 'assistant_pm'
+            });
+          }
+        }
+      }
+
+      // Fetch PIN employees assigned to this job
+      const { data: pinSettings } = await supabase
+        .from('pin_employee_timecard_settings')
+        .select('pin_employee_id, assigned_jobs')
+        .eq('company_id', currentCompany?.id);
+
+      const pinEmployeeIdsForJob = (pinSettings || [])
+        .filter(s => (s.assigned_jobs || []).includes(jobId))
+        .map(s => s.pin_employee_id);
+
+      if (pinEmployeeIdsForJob.length > 0) {
+        const { data: pinEmployees } = await supabase
+          .from('pin_employees')
+          .select('id, first_name, last_name, email, phone, avatar_url')
+          .in('id', pinEmployeeIdsForJob)
+          .eq('is_active', true);
+
+        for (const pin of pinEmployees || []) {
+          autoMembers.push({
+            id: `pin-${pin.id}`,
+            name: [pin.first_name, pin.last_name].filter(Boolean).join(' ') || 'Unknown',
+            email: pin.email,
+            phone: pin.phone,
+            company_name: currentCompany?.name || null,
+            avatar_url: pin.avatar_url,
+            project_role_id: employeeRole?.id || null,
+            project_role: employeeRole || { id: '', name: 'Employee' },
+            is_primary_contact: false,
+            is_project_team_member: true,
+            source: 'pin_employee'
+          });
+        }
+      }
+
+      // Combine auto-populated and directory team members (remove duplicates by name)
+      const existingNames = new Set(directoryTeamMembers.map(m => m.name.toLowerCase()));
+      const uniqueAutoMembers = autoMembers.filter(m => !existingNames.has(m.name.toLowerCase()));
+      
+      setTeamMembers([...uniqueAutoMembers, ...directoryTeamMembers]);
+      setAvailableMembers(directoryAvailable);
     } catch (error) {
       console.error('Error loading project team:', error);
       toast({
@@ -110,6 +235,15 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
   };
 
   const openEditDialog = (member: DirectoryMember) => {
+    // Don't allow editing auto-populated members
+    if (member.source && member.source !== 'directory') {
+      toast({
+        title: "Cannot edit",
+        description: "This team member is auto-populated from job settings. Edit in Job Settings instead.",
+        variant: "default",
+      });
+      return;
+    }
     setEditingMember(member);
     setSelectedMemberId(member.id);
     setSelectedRoleId(member.project_role_id || '');
@@ -151,8 +285,18 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     }
   };
 
-  const removeMember = async (memberId: string, memberName: string) => {
-    if (!confirm(`Remove "${memberName}" from the project team?`)) return;
+  const removeMember = async (member: DirectoryMember) => {
+    // Don't allow removing auto-populated members
+    if (member.source && member.source !== 'directory') {
+      toast({
+        title: "Cannot remove",
+        description: "This team member is auto-populated. Remove their job assignment in Job Settings instead.",
+        variant: "default",
+      });
+      return;
+    }
+
+    if (!confirm(`Remove "${member.name}" from the project team?`)) return;
 
     try {
       const { error } = await supabase
@@ -162,7 +306,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           project_role_id: null,
           is_primary_contact: false,
         })
-        .eq('id', memberId);
+        .eq('id', member.id);
 
       if (error) throw error;
 
@@ -180,6 +324,19 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
 
   const getInitials = (name: string) => {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
+  };
+
+  const getSourceBadge = (source?: string) => {
+    switch (source) {
+      case 'pm':
+        return <Badge variant="secondary" className="text-xs">PM</Badge>;
+      case 'assistant_pm':
+        return <Badge variant="secondary" className="text-xs">Asst PM</Badge>;
+      case 'pin_employee':
+        return <Badge variant="outline" className="text-xs">Employee</Badge>;
+      default:
+        return null;
+    }
   };
 
   if (loading) {
@@ -303,7 +460,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
             <p className="text-sm">
               {availableMembers.length > 0 
                 ? 'Click "Add Member" to assign from the job directory.'
-                : 'Use "Manage Directory" to add people, then assign them here.'}
+                : 'Use the Job Directory on the Edit Job page to add people first.'}
             </p>
           </div>
         ) : (
@@ -314,17 +471,21 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                 className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:bg-muted/30 transition-colors"
               >
                 <Avatar className="h-10 w-10 shrink-0">
+                  {member.avatar_url && (
+                    <AvatarImage src={member.avatar_url} alt={member.name} />
+                  )}
                   <AvatarFallback className="bg-primary/10 text-primary">
                     {getInitials(member.name)}
                   </AvatarFallback>
                 </Avatar>
 
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="font-medium truncate">{member.name}</span>
                     {member.is_primary_contact && (
                       <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" fill="currentColor" />
                     )}
+                    {getSourceBadge(member.source)}
                   </div>
                   <div className="text-sm text-muted-foreground truncate">
                     {member.project_role?.name || 'No role assigned'}
@@ -333,6 +494,23 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                     <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
                       <Building2 className="h-3 w-3 shrink-0" />
                       {member.company_name}
+                    </div>
+                  )}
+                  {/* Show email and phone inline for auto-populated members */}
+                  {member.source && member.source !== 'directory' && (member.email || member.phone) && (
+                    <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
+                      {member.email && (
+                        <div className="flex items-center gap-1">
+                          <Mail className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{member.email}</span>
+                        </div>
+                      )}
+                      {member.phone && (
+                        <div className="flex items-center gap-1">
+                          <Phone className="h-3 w-3 shrink-0" />
+                          <span>{member.phone}</span>
+                        </div>
+                      )}
                     </div>
                   )}
                 </div>
@@ -348,12 +526,16 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                       <Phone className="h-4 w-4" />
                     </a>
                   )}
-                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(member)}>
-                    <Edit className="h-4 w-4" />
-                  </Button>
-                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => removeMember(member.id, member.name)}>
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+                  {(!member.source || member.source === 'directory') && (
+                    <>
+                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(member)}>
+                        <Edit className="h-4 w-4" />
+                      </Button>
+                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => removeMember(member)}>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
