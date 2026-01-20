@@ -28,6 +28,8 @@ interface CompanyUser {
   display_name: string;
   email: string | null;
   phone: string | null;
+  company_name: string | null;
+  avatar_url: string | null;
   type: 'user' | 'pin_employee';
 }
 
@@ -116,16 +118,30 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
       if (userIds.length > 0) {
         const { data: profiles, error: profileError } = await supabase
           .from('profiles')
-          .select('user_id, first_name, last_name, display_name, phone')
+          .select('user_id, first_name, last_name, display_name, phone, avatar_url')
           .in('user_id', userIds);
         
         if (profileError) throw profileError;
         
+        // Fetch user emails from auth.users via edge function
+        const { data: emailData } = await supabase.functions.invoke('get-user-email', {
+          body: { user_ids: userIds }
+        });
+        
+        const emailMap = new Map<string, string>();
+        if (emailData?.users) {
+          emailData.users.forEach((u: { id: string; email: string }) => {
+            emailMap.set(u.id, u.email);
+          });
+        }
+        
         users = (profiles || []).map(p => ({
           id: p.user_id,
           display_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.display_name || 'Unknown',
-          email: null, // Email not stored in profiles table
+          email: emailMap.get(p.user_id) || null,
           phone: p.phone,
+          company_name: currentCompany.name,
+          avatar_url: p.avatar_url,
           type: 'user' as const
         }));
       }
@@ -133,7 +149,7 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
       // Fetch PIN employees
       const { data: pinEmployees, error: pinError } = await supabase
         .from('pin_employees')
-        .select('id, first_name, last_name, email, phone')
+        .select('id, first_name, last_name, email, phone, avatar_url')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true);
       
@@ -144,6 +160,8 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
         display_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown',
         email: p.email,
         phone: p.phone,
+        company_name: currentCompany.name,
+        avatar_url: p.avatar_url,
         type: 'pin_employee' as const
       }));
       
@@ -159,6 +177,7 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
       name: companyUser.display_name,
       email: companyUser.email || '',
       phone: companyUser.phone || '',
+      company_name: companyUser.company_name || '',
     });
     setNamePopoverOpen(false);
     setNameSearch('');
