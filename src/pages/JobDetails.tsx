@@ -234,13 +234,6 @@ export default function JobDetails() {
               </TabsTrigger>
             )}
             <TabsTrigger 
-              value="project-team"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Project Team
-            </TabsTrigger>
-            <TabsTrigger 
               value="visitor-logs"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
@@ -348,6 +341,11 @@ export default function JobDetails() {
               {/* Location Map */}
               <JobLocationMap address={job.address} />
             </div>
+
+            {/* Project Team Section */}
+            <div className="mt-6">
+              <JobProjectTeam jobId={id!} />
+            </div>
           </TabsContent>
           
           <TabsContent value="committed-costs" className="p-6">
@@ -378,9 +376,6 @@ export default function JobDetails() {
             <JobFilingCabinet jobId={id!} />
           </TabsContent>
 
-          <TabsContent value="project-team" className="p-6">
-            <JobProjectTeam jobId={id!} />
-          </TabsContent>
 
           <TabsContent value="visitor-logs" className="p-6">
             <JobVisitorLogsView />
