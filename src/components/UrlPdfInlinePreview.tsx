@@ -25,7 +25,7 @@ export default function UrlPdfInlinePreview({ url, className }: UrlPdfInlinePrev
         // Lazy import pdf.js
         const pdfjs = await import('pdfjs-dist');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs`;
+        (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs`;
 
         const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) throw new Error(`Failed to fetch PDF: ${res.status}`);

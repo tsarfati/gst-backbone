@@ -384,7 +384,7 @@ export default function PlanViewer() {
       
       // Load PDF
       const pdfjs: any = await import("pdfjs-dist");
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs`;
+      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs`;
       
       const resp = await fetch(plan.file_url);
       const buf = await resp.arrayBuffer();

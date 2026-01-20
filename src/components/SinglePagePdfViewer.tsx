@@ -81,7 +81,7 @@ export default function SinglePagePdfViewer({
 
         const pdfjs = await import("pdfjs-dist");
         (pdfjs as any).GlobalWorkerOptions.workerSrc =
-          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs";
+          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs";
 
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();

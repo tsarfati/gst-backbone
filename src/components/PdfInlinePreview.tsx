@@ -34,7 +34,7 @@ export default function PdfInlinePreview({ file, className }: PdfInlinePreviewPr
         // Set worker to CDN for reliability in this environment
         // Version must match the installed version to avoid warnings
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs`;
+        (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs`;
 
         const arrayBuffer = await file.arrayBuffer();
         const loadingTask = (pdfjs as any).getDocument({ data: arrayBuffer });
