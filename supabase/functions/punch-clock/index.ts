@@ -858,7 +858,57 @@ serve(async (req) => {
         // Enforce requirement when timing is punch_out
         if (timingOut === 'punch_out' && !costCodeToUse) {
           console.log(`ERROR: Cost code required but not provided for punch out`);
-          return errorResponse("Missing cost_code_id for punch out", 400);
+          
+          // Fetch available labor cost codes for this job to show in error message
+          let costCodesQuery = supabaseAdmin
+            .from('cost_codes')
+            .select('id, code, description')
+            .eq('job_id', currentPunch.job_id)
+            .eq('is_active', true)
+            .eq('type', 'labor')
+            .order('code');
+          
+          // For PIN employees, filter by their assignments if they have any
+          if (userRow.is_pin_employee) {
+            const { data: pinSettings } = await supabaseAdmin
+              .from('pin_employee_timecard_settings')
+              .select('assigned_cost_codes')
+              .eq('pin_employee_id', userRow.user_id);
+            
+            const assignedCostCodes = new Set<string>();
+            (pinSettings || []).forEach((s: any) => {
+              (s.assigned_cost_codes || []).forEach((c: string) => assignedCostCodes.add(c));
+            });
+            
+            if (assignedCostCodes.size > 0) {
+              costCodesQuery = costCodesQuery.in('id', Array.from(assignedCostCodes));
+            }
+          }
+          
+          const { data: availableCostCodes } = await costCodesQuery;
+          
+          // Build user-friendly message with available options
+          let message = "Please select a cost code to complete your punch out.";
+          if (availableCostCodes && availableCostCodes.length > 0) {
+            const codesList = availableCostCodes
+              .map((cc: any) => `${cc.code} - ${cc.description}`)
+              .join(', ');
+            message = `Please select a cost code to punch out. Available options: ${codesList}`;
+          } else {
+            message = "A cost code is required to punch out, but no cost codes are available for this job. Please contact your supervisor.";
+          }
+          
+          return new Response(
+            JSON.stringify({
+              error: message,
+              code: 'COST_CODE_REQUIRED',
+              available_cost_codes: availableCostCodes || []
+            }),
+            { 
+              status: 400, 
+              headers: { "Content-Type": "application/json", ...corsHeaders } 
+            }
+          );
         }
 
         console.log(`Final costCodeToUse for punch out:`, costCodeToUse);
