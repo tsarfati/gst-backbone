@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Building, Users, Calculator, FileText, Clock } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Building, Users, Calculator, FileText, Clock, FolderOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -16,6 +16,7 @@ import { DevelopmentFreezeGuard } from "@/components/DevelopmentFreezeGuard";
 import { geocodeAddress } from "@/utils/geocoding";
 import { formatCurrency } from "@/utils/formatNumber";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
+import JobDirectoryModal from "@/components/JobDirectoryModal";
 
 export default function JobEdit() {
   const { id } = useParams();
@@ -737,6 +738,22 @@ export default function JobEdit() {
                 </Select>
               </div>
             </div>
+          </CardContent>
+        </Card>
+
+        {/* Job Directory */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FolderOpen className="h-5 w-5" />
+              Job Directory
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <p className="text-sm text-muted-foreground">
+              Manage the contact directory for this job. Add people here before assigning them to the project team.
+            </p>
+            <JobDirectoryModal jobId={id!} onDirectoryChange={() => {}} variant="section" />
           </CardContent>
         </Card>
 
