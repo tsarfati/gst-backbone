@@ -98,8 +98,8 @@ export default function PlanViewer() {
     }
   }, [searchParams]);
 
-  // Prevent browser page zoom on trackpad pinch (ctrl+wheel) so only the plan zooms.
-  // Bind to the PDF viewport (not window) so the toolbar never scales.
+  // Prevent browser page zoom on trackpad pinch (ctrl+wheel) so only the PDF zooms.
+  // We bind to the PDF container wrapper so the header/toolbar is never affected.
   useEffect(() => {
     const el = pdfContainerRef.current;
     if (!el) return;
@@ -117,7 +117,7 @@ export default function PlanViewer() {
     };
 
     // Safari: pinch gesture events
-    let gestureBase = 1;
+    let gestureBase = zoomLevel;
     const handleGestureStart = (e: Event) => {
       const ge = e as any;
       gestureBase = zoomLevel;
@@ -683,9 +683,9 @@ export default function PlanViewer() {
 
   return (
     <SidebarProvider defaultOpen={true}>
-      <div className="flex flex-col h-screen bg-background w-full">
-        {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b bg-background sticky top-0 z-40">
+      <div className="flex flex-col h-screen bg-background w-full overflow-hidden">
+        {/* Header - completely separated from PDF, never affected by zoom */}
+        <header className="flex items-center justify-between px-4 py-3 border-b bg-background shrink-0 z-40">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -699,78 +699,85 @@ export default function PlanViewer() {
             </div>
           </div>
 
-        {/* Page Navigation + Tools */}
-        <div className="flex items-center gap-2">
-          {analyzing && (
-            <div className="flex items-center gap-2 text-sm text-muted-foreground">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              Analyzing plan...
+          {/* Page Navigation + Tools */}
+          <div className="flex items-center gap-2">
+            {analyzing && (
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Analyzing plan...
+              </div>
+            )}
+            {pages.length > 0 && (
+              <Select
+                value={currentPage.toString()}
+                onValueChange={(value) => {
+                  setCurrentPage(parseInt(value));
+                  setSearchParams({ page: value });
+                }}
+              >
+                <SelectTrigger className="w-[260px] bg-background z-50">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent className="bg-background z-50">
+                  {pages.map((page) => (
+                    <SelectItem key={page.id} value={page.page_number.toString()}>
+                      {(page.sheet_number || `Page ${page.page_number}`)}
+                      {page.page_title ? ` - ${page.page_title}` : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+            {/* Tools in header */}
+            <div className="flex items-center gap-1 ml-2">
+              <Button variant="outline" size="sm" onClick={handleZoomOut} title="Zoom Out">
+                <ZoomOut className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleZoomIn} title="Zoom In">
+                <ZoomIn className="h-4 w-4" />
+              </Button>
+              <Button variant="outline" size="sm" onClick={handleResetZoom} title="Reset Zoom">
+                <Maximize2 className="h-4 w-4" />
+              </Button>
+              <Button
+                variant={panMode ? "default" : "outline"}
+                size="sm"
+                onClick={() => setPanMode(!panMode)}
+                title="Pan Mode"
+              >
+                <Move className="h-4 w-4" />
+              </Button>
+              <div className="text-xs px-2 text-muted-foreground w-10 text-right">
+                {Math.round(zoomLevel * 100)}%
+              </div>
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                title="Toggle details panel"
+              >
+                {sidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
+              </Button>
             </div>
-          )}
-          {pages.length > 0 && (
-            <Select
-              value={currentPage.toString()}
-              onValueChange={(value) => {
-                setCurrentPage(parseInt(value));
-                setSearchParams({ page: value });
-              }}
-            >
-              <SelectTrigger className="w-[260px] bg-background z-50">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent className="bg-background z-50">
-                {pages.map((page) => (
-                  <SelectItem key={page.id} value={page.page_number.toString()}>
-                    {(page.sheet_number || `Page ${page.page_number}`)}
-                    {page.page_title ? ` - ${page.page_title}` : ""}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          )}
-          {/* Tools in header */}
-          <div className="flex items-center gap-1 ml-2">
-            <Button variant="outline" size="sm" onClick={handleZoomOut} title="Zoom Out">
-              <ZoomOut className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleZoomIn} title="Zoom In">
-              <ZoomIn className="h-4 w-4" />
-            </Button>
-            <Button variant="outline" size="sm" onClick={handleResetZoom} title="Reset Zoom">
-              <Maximize2 className="h-4 w-4" />
-            </Button>
-            <Button
-              variant={panMode ? "default" : "outline"}
-              size="sm"
-              onClick={() => setPanMode(!panMode)}
-              title="Pan Mode"
-            >
-              <Move className="h-4 w-4" />
-            </Button>
-            <div className="text-xs px-2 text-muted-foreground w-10 text-right">
-              {Math.round(zoomLevel * 100)}%
-            </div>
-            <Button 
-              variant="outline" 
-              size="sm" 
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              title="Toggle details panel"
-            >
-              {sidebarOpen ? <PanelRightClose className="h-4 w-4" /> : <PanelRightOpen className="h-4 w-4" />}
-            </Button>
           </div>
-        </div>
-        </div>
+        </header>
 
-        {/* Main Content */}
-        <div className="flex flex-1 overflow-hidden min-h-0 min-w-0">
-          {/* PDF Viewer with Markup Canvas */}
-          <div className="flex-1 relative overflow-hidden bg-muted/30 min-h-0 min-w-0" ref={pdfContainerRef}>
+        {/* Main Content - PDF + sidebar row */}
+        <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
+          {/* PDF Viewer wrapper - this is the only element that zooms/pans */}
+          <div
+            ref={pdfContainerRef}
+            className="flex-1 relative min-h-0 min-w-0 overflow-auto bg-muted/30"
+            style={{
+              touchAction: "none",
+              overscrollBehavior: "contain",
+            }}
+          >
             {/* Canvas overlay for markups and interactions */}
             <div
               className="absolute inset-0 z-10 pointer-events-none"
               style={{
-                // IMPORTANT: When panMode is on, let the PDF viewer receive pointer events so
+                // When panMode is on, let the PDF viewer receive pointer events so
                 // drag-pan works in BOTH directions. The overlay only needs events for markups.
                 pointerEvents: panMode ? "none" : activeTool !== "select" ? "auto" : "none",
               }}
