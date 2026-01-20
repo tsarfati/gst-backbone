@@ -30,7 +30,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
       try {
         const pdfjs = await import('pdfjs-dist');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/4.10.38/pdf.worker.min.mjs`;
+        (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs`;
 
         // Handle both File objects and URL objects
         let arrayBuffer: ArrayBuffer;
