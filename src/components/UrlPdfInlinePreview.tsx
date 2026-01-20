@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { FileText } from "lucide-react";
 
+// Bundle worker locally (avoids relying on external CDNs that may be blocked)
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
 interface UrlPdfInlinePreviewProps {
   url: string;
   className?: string;
@@ -25,7 +28,7 @@ export default function UrlPdfInlinePreview({ url, className }: UrlPdfInlinePrev
         // Lazy import pdf.js
         const pdfjs = await import('pdfjs-dist');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs`;
+        (pdfjs as any).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
         const res = await fetch(url, { cache: 'no-store' });
         if (!res.ok) throw new Error(`Failed to fetch PDF: ${res.status}`);

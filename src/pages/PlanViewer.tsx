@@ -17,6 +17,9 @@ import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import SinglePagePdfViewer from "@/components/SinglePagePdfViewer";
 import { format } from "date-fns";
 
+// Bundle worker locally (avoids relying on external CDNs that may be blocked)
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
 interface PlanPage {
   id: string;
   page_number: number;
@@ -384,7 +387,7 @@ export default function PlanViewer() {
       
       // Load PDF
       const pdfjs: any = await import("pdfjs-dist");
-      pdfjs.GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs`;
+      pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
       
       const resp = await fetch(plan.file_url);
       const buf = await resp.arrayBuffer();

@@ -3,6 +3,9 @@ import { Button } from "@/components/ui/button";
 import { ArrowLeft, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 
+// Bundle worker locally (avoids relying on external CDNs that may be blocked)
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
 interface FullPagePdfViewerProps {
   file: File | { name: string; url: string };
   onBack: () => void;
@@ -30,7 +33,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
       try {
         const pdfjs = await import('pdfjs-dist');
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs`;
+        (pdfjs as any).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
         // Handle both File objects and URL objects
         let arrayBuffer: ArrayBuffer;
