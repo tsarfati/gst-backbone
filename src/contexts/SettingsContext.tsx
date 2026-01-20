@@ -235,17 +235,36 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           });
 
         // If admin/company_admin, also persist company-wide defaults (user_id = null)
+        // Use explicit check + insert/update since PostgreSQL UNIQUE treats NULL as distinct
         if (isCompanyAdmin) {
           const companySettingsForStorage: Partial<AppSettings> = {
             customColors: settings.customColors,
           };
-          await supabase
+          
+          // Check if company-wide row exists
+          const { data: existingCompanyRow } = await supabase
             .from('company_ui_settings')
-            .upsert({
-              company_id: currentCompany.id,
-              user_id: null,
-              settings: companySettingsForStorage
-            }, { onConflict: 'company_id,user_id' });
+            .select('id')
+            .eq('company_id', currentCompany.id)
+            .is('user_id', null)
+            .maybeSingle();
+          
+          if (existingCompanyRow?.id) {
+            // Update existing row
+            await supabase
+              .from('company_ui_settings')
+              .update({ settings: companySettingsForStorage })
+              .eq('id', existingCompanyRow.id);
+          } else {
+            // Insert new company-wide row
+            await supabase
+              .from('company_ui_settings')
+              .insert({
+                company_id: currentCompany.id,
+                user_id: null,
+                settings: companySettingsForStorage
+              });
+          }
         }
 
         if (error) {
