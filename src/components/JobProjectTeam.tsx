@@ -11,7 +11,7 @@ import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, UserCheck, Star } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
-import JobDirectoryModal from './JobDirectoryModal';
+
 
 interface ProjectRole {
   id: string;
@@ -205,7 +205,6 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           </CardDescription>
         </div>
         <div className="flex items-center gap-2">
-          <JobDirectoryModal jobId={jobId} onDirectoryChange={handleDirectoryChange} />
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openAddDialog} size="sm" disabled={availableMembers.length === 0 && !editingMember}>

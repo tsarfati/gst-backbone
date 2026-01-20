@@ -35,6 +35,7 @@ interface JobDirectoryModalProps {
   jobId: string;
   onDirectoryChange?: () => void;
   trigger?: React.ReactNode;
+  variant?: 'modal' | 'section';
 }
 
 const emptyMember = {
@@ -45,7 +46,7 @@ const emptyMember = {
   notes: '',
 };
 
-export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger }: JobDirectoryModalProps) {
+export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, variant = 'modal' }: JobDirectoryModalProps) {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -60,12 +61,16 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger }:
   const [namePopoverOpen, setNamePopoverOpen] = useState(false);
   const [nameSearch, setNameSearch] = useState('');
 
+  // For section variant, load data immediately. For modal variant, load when opened.
   useEffect(() => {
-    if (open && currentCompany?.id && jobId) {
+    if (variant === 'section' && currentCompany?.id && jobId) {
+      loadDirectory();
+      loadCompanyUsers();
+    } else if (variant === 'modal' && open && currentCompany?.id && jobId) {
       loadDirectory();
       loadCompanyUsers();
     }
-  }, [open, currentCompany?.id, jobId]);
+  }, [variant, open, currentCompany?.id, jobId]);
 
   const loadDirectory = async () => {
     try {
@@ -259,6 +264,231 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger }:
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  // Reusable form content for Add/Edit dialog
+  const AddEditForm = () => (
+    <div className="space-y-4 py-4">
+      <div className="space-y-2">
+        <Label htmlFor="name">Name *</Label>
+        {editingMember ? (
+          <Input
+            id="name"
+            placeholder="John Smith"
+            value={formData.name}
+            onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+          />
+        ) : (
+          <Popover open={namePopoverOpen} onOpenChange={setNamePopoverOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={namePopoverOpen}
+                className="w-full justify-start font-normal"
+              >
+                {formData.name || (
+                  <span className="text-muted-foreground">Search or enter a name...</span>
+                )}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-[300px] p-0" align="start">
+              <Command shouldFilter={false}>
+                <CommandInput 
+                  placeholder="Search existing users..." 
+                  value={nameSearch}
+                  onValueChange={setNameSearch}
+                />
+                <CommandList>
+                  {nameSearch && !filteredCompanyUsers.some(u => 
+                    u.display_name.toLowerCase() === nameSearch.toLowerCase()
+                  ) && (
+                    <CommandItem
+                      onSelect={() => {
+                        setFormData({ ...formData, name: nameSearch });
+                        setNamePopoverOpen(false);
+                        setNameSearch('');
+                      }}
+                      className="flex items-center gap-2"
+                    >
+                      <Plus className="h-4 w-4" />
+                      Add "{nameSearch}" as new contact
+                    </CommandItem>
+                  )}
+                  {filteredCompanyUsers.length > 0 && (
+                    <CommandGroup heading="Company Users">
+                      {filteredCompanyUsers.map((companyUser) => (
+                        <CommandItem
+                          key={companyUser.id}
+                          value={companyUser.id}
+                          onSelect={() => selectCompanyUser(companyUser)}
+                          className="flex items-center gap-2"
+                        >
+                          <User className="h-4 w-4 text-muted-foreground" />
+                          <div className="flex flex-col">
+                            <span>{companyUser.display_name}</span>
+                            {companyUser.email && (
+                              <span className="text-xs text-muted-foreground">{companyUser.email}</span>
+                            )}
+                          </div>
+                          {formData.name === companyUser.display_name && (
+                            <Check className="ml-auto h-4 w-4" />
+                          )}
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  )}
+                  {!nameSearch && filteredCompanyUsers.length === 0 && (
+                    <CommandEmpty>No users found. Type to add a new contact.</CommandEmpty>
+                  )}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+        )}
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="company">Company/Firm</Label>
+        <Input
+          id="company"
+          placeholder="ABC Architecture"
+          value={formData.company_name}
+          onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
+        />
+      </div>
+
+      <div className="grid grid-cols-2 gap-4">
+        <div className="space-y-2">
+          <Label htmlFor="email">Email</Label>
+          <Input
+            id="email"
+            type="email"
+            placeholder="john@example.com"
+            value={formData.email}
+            onChange={(e) => setFormData({ ...formData, email: e.target.value })}
+          />
+        </div>
+        <div className="space-y-2">
+          <Label htmlFor="phone">Phone</Label>
+          <Input
+            id="phone"
+            type="tel"
+            placeholder="(555) 123-4567"
+            value={formData.phone}
+            onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
+          />
+        </div>
+      </div>
+
+      <div className="space-y-2">
+        <Label htmlFor="notes">Notes</Label>
+        <Textarea
+          id="notes"
+          placeholder="Additional notes..."
+          value={formData.notes}
+          onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+          rows={2}
+        />
+      </div>
+    </div>
+  );
+
+  // Shared directory list content
+  const DirectoryContent = () => (
+    <>
+      {loading ? (
+        <div className="text-center text-muted-foreground py-8">Loading...</div>
+      ) : members.length === 0 ? (
+        <div className="text-center py-8 text-muted-foreground">
+          <FolderOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
+          <p>No one in the directory yet.</p>
+        </div>
+      ) : (
+        <div className="space-y-2">
+          {members.map((member) => (
+            <div
+              key={member.id}
+              className="flex items-center gap-3 p-2.5 border rounded-lg bg-background hover:bg-muted/30 transition-colors"
+            >
+              <Avatar className="h-8 w-8">
+                <AvatarFallback className="bg-muted text-muted-foreground text-xs">
+                  {getInitials(member.name)}
+                </AvatarFallback>
+              </Avatar>
+
+              <div className="flex-1 min-w-0">
+                <span className="font-medium text-sm truncate block">{member.name}</span>
+                {member.company_name && (
+                  <span className="text-xs text-muted-foreground flex items-center gap-1">
+                    <Building2 className="h-3 w-3" />
+                    {member.company_name}
+                  </span>
+                )}
+              </div>
+
+              <div className="flex items-center gap-1">
+                {member.email && (
+                  <a href={`mailto:${member.email}`} className="p-1.5 text-muted-foreground hover:text-primary" title={member.email}>
+                    <Mail className="h-3.5 w-3.5" />
+                  </a>
+                )}
+                {member.phone && (
+                  <a href={`tel:${member.phone}`} className="p-1.5 text-muted-foreground hover:text-primary" title={member.phone}>
+                    <Phone className="h-3.5 w-3.5" />
+                  </a>
+                )}
+                <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(member)}>
+                  <Edit className="h-3.5 w-3.5" />
+                </Button>
+                <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => removeMember(member.id, member.name)}>
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
+  );
+
+  // Section variant - render inline
+  if (variant === 'section') {
+    return (
+      <>
+        <div className="space-y-4">
+          <DirectoryContent />
+          <Button onClick={openAddDialog} size="sm">
+            <Plus className="h-4 w-4 mr-2" />
+            Add Person
+          </Button>
+        </div>
+
+        {/* Add/Edit Member Dialog */}
+        <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>
+                {editingMember ? 'Edit Directory Entry' : 'Add to Job Directory'}
+              </DialogTitle>
+              <DialogDescription>
+                {editingMember ? 'Update contact information' : 'Add a person to this job\'s directory'}
+              </DialogDescription>
+            </DialogHeader>
+            <AddEditForm />
+            <DialogFooter>
+              <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
+                Cancel
+              </Button>
+              <Button onClick={saveMember} disabled={saving || !formData.name.trim()}>
+                {saving ? 'Saving...' : editingMember ? 'Update' : 'Add to Directory'}
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
+    );
+  }
+
+  // Modal variant - original behavior
   return (
     <>
       <Dialog open={open} onOpenChange={setOpen}>
@@ -282,58 +512,7 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger }:
           </DialogHeader>
           
           <div className="flex-1 overflow-y-auto py-4">
-            {loading ? (
-              <div className="text-center text-muted-foreground py-8">Loading...</div>
-            ) : members.length === 0 ? (
-              <div className="text-center py-8 text-muted-foreground">
-                <FolderOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />
-                <p>No one in the directory yet.</p>
-              </div>
-            ) : (
-              <div className="space-y-2">
-                {members.map((member) => (
-                  <div
-                    key={member.id}
-                    className="flex items-center gap-3 p-2.5 border rounded-lg bg-background hover:bg-muted/30 transition-colors"
-                  >
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback className="bg-muted text-muted-foreground text-xs">
-                        {getInitials(member.name)}
-                      </AvatarFallback>
-                    </Avatar>
-
-                    <div className="flex-1 min-w-0">
-                      <span className="font-medium text-sm truncate block">{member.name}</span>
-                      {member.company_name && (
-                        <span className="text-xs text-muted-foreground flex items-center gap-1">
-                          <Building2 className="h-3 w-3" />
-                          {member.company_name}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="flex items-center gap-1">
-                      {member.email && (
-                        <a href={`mailto:${member.email}`} className="p-1.5 text-muted-foreground hover:text-primary" title={member.email}>
-                          <Mail className="h-3.5 w-3.5" />
-                        </a>
-                      )}
-                      {member.phone && (
-                        <a href={`tel:${member.phone}`} className="p-1.5 text-muted-foreground hover:text-primary" title={member.phone}>
-                          <Phone className="h-3.5 w-3.5" />
-                        </a>
-                      )}
-                      <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(member)}>
-                        <Edit className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => removeMember(member.id, member.name)}>
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
+            <DirectoryContent />
           </div>
 
           <DialogFooter>
@@ -356,130 +535,7 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger }:
               {editingMember ? 'Update contact information' : 'Add a person to this job\'s directory'}
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="name">Name *</Label>
-              {editingMember ? (
-                <Input
-                  id="name"
-                  placeholder="John Smith"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              ) : (
-                <Popover open={namePopoverOpen} onOpenChange={setNamePopoverOpen}>
-                  <PopoverTrigger asChild>
-                    <Button
-                      variant="outline"
-                      role="combobox"
-                      aria-expanded={namePopoverOpen}
-                      className="w-full justify-start font-normal"
-                    >
-                      {formData.name || (
-                        <span className="text-muted-foreground">Search or enter a name...</span>
-                      )}
-                    </Button>
-                  </PopoverTrigger>
-                  <PopoverContent className="w-[300px] p-0" align="start">
-                    <Command shouldFilter={false}>
-                      <CommandInput 
-                        placeholder="Search existing users..." 
-                        value={nameSearch}
-                        onValueChange={setNameSearch}
-                      />
-                      <CommandList>
-                        {nameSearch && !filteredCompanyUsers.some(u => 
-                          u.display_name.toLowerCase() === nameSearch.toLowerCase()
-                        ) && (
-                          <CommandItem
-                            onSelect={() => {
-                              setFormData({ ...formData, name: nameSearch });
-                              setNamePopoverOpen(false);
-                              setNameSearch('');
-                            }}
-                            className="flex items-center gap-2"
-                          >
-                            <Plus className="h-4 w-4" />
-                            Add "{nameSearch}" as new contact
-                          </CommandItem>
-                        )}
-                        {filteredCompanyUsers.length > 0 && (
-                          <CommandGroup heading="Company Users">
-                            {filteredCompanyUsers.map((companyUser) => (
-                              <CommandItem
-                                key={companyUser.id}
-                                value={companyUser.id}
-                                onSelect={() => selectCompanyUser(companyUser)}
-                                className="flex items-center gap-2"
-                              >
-                                <User className="h-4 w-4 text-muted-foreground" />
-                                <div className="flex flex-col">
-                                  <span>{companyUser.display_name}</span>
-                                  {companyUser.email && (
-                                    <span className="text-xs text-muted-foreground">{companyUser.email}</span>
-                                  )}
-                                </div>
-                                {formData.name === companyUser.display_name && (
-                                  <Check className="ml-auto h-4 w-4" />
-                                )}
-                              </CommandItem>
-                            ))}
-                          </CommandGroup>
-                        )}
-                        {!nameSearch && filteredCompanyUsers.length === 0 && (
-                          <CommandEmpty>No users found. Type to add a new contact.</CommandEmpty>
-                        )}
-                      </CommandList>
-                    </Command>
-                  </PopoverContent>
-                </Popover>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="company">Company/Firm</Label>
-              <Input
-                id="company"
-                placeholder="ABC Architecture"
-                value={formData.company_name}
-                onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-              />
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="email">Email</Label>
-                <Input
-                  id="email"
-                  type="email"
-                  placeholder="john@example.com"
-                  value={formData.email}
-                  onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone</Label>
-                <Input
-                  id="phone"
-                  type="tel"
-                  placeholder="(555) 123-4567"
-                  value={formData.phone}
-                  onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                />
-              </div>
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="notes">Notes</Label>
-              <Textarea
-                id="notes"
-                placeholder="Additional notes..."
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                rows={2}
-              />
-            </div>
-          </div>
+          <AddEditForm />
           <DialogFooter>
             <Button variant="outline" onClick={() => setAddDialogOpen(false)}>
               Cancel
