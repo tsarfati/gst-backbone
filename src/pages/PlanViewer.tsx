@@ -655,7 +655,7 @@ export default function PlanViewer() {
     <SidebarProvider defaultOpen={true}>
       <div className="flex flex-col h-screen bg-background w-full">
         {/* Header */}
-        <div className="flex items-center justify-between px-4 py-3 border-b">
+        <div className="flex items-center justify-between px-4 py-3 border-b bg-background sticky top-0 z-40">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
               <ArrowLeft className="h-4 w-4 mr-2" />
@@ -733,14 +733,16 @@ export default function PlanViewer() {
         </div>
 
         {/* Main Content */}
-        <div className="flex flex-1 overflow-hidden">
+        <div className="flex flex-1 overflow-hidden min-h-0 min-w-0">
           {/* PDF Viewer with Markup Canvas */}
-          <div className="flex-1 relative overflow-hidden bg-muted/30" ref={pdfContainerRef}>
+          <div className="flex-1 relative overflow-hidden bg-muted/30 min-h-0 min-w-0" ref={pdfContainerRef}>
             {/* Canvas overlay for markups and interactions */}
             <div
               className="absolute inset-0 z-10 pointer-events-none"
               style={{
-                pointerEvents: activeTool !== "select" || panMode ? "auto" : "none",
+                // IMPORTANT: When panMode is on, let the PDF viewer receive pointer events so
+                // drag-pan works in BOTH directions. The overlay only needs events for markups.
+                pointerEvents: panMode ? "none" : activeTool !== "select" ? "auto" : "none",
               }}
             >
               <canvas ref={canvasRef} />
@@ -768,7 +770,7 @@ export default function PlanViewer() {
 
           {/* Right Sidebar */}
           {sidebarOpen && (
-          <div className="w-96 border-l bg-background flex flex-col">
+          <div className="w-96 border-l bg-background flex flex-col min-h-0">
             <Tabs defaultValue="index" className="h-full flex flex-col p-2">
               <TabsList className="grid w-full grid-cols-3">
                 <TabsTrigger value="index">Index</TabsTrigger>

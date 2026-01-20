@@ -328,7 +328,7 @@ export default function SinglePagePdfViewer({
   return (
     <div
       ref={containerRef}
-      className="w-full h-full overflow-auto bg-muted/30"
+      className="w-full h-full min-w-0 min-h-0 overflow-auto bg-muted/30"
       style={{
         cursor: cursorStyle,
         touchAction: "none",
