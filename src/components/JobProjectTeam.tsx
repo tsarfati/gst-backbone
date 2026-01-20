@@ -464,81 +464,106 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
             </p>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-            {teamMembers.map((member) => (
-              <div
-                key={member.id}
-                className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:bg-muted/30 transition-colors"
-              >
-                <Avatar className="h-10 w-10 shrink-0">
-                  {member.avatar_url && (
-                    <AvatarImage src={member.avatar_url} alt={member.name} />
-                  )}
-                  <AvatarFallback className="bg-primary/10 text-primary">
-                    {getInitials(member.name)}
-                  </AvatarFallback>
-                </Avatar>
+          <div className="space-y-6">
+            {/* Group and render by type */}
+            {(() => {
+              const pmMembers = teamMembers.filter(m => m.source === 'pm');
+              const apmMembers = teamMembers.filter(m => m.source === 'assistant_pm');
+              const employeeMembers = teamMembers.filter(m => m.source === 'pin_employee');
+              const directoryMembers = teamMembers.filter(m => !m.source || m.source === 'directory');
 
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2 flex-wrap">
-                    <span className="font-medium truncate">{member.name}</span>
-                    {member.is_primary_contact && (
-                      <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" fill="currentColor" />
+              const renderMemberRow = (member: DirectoryMember) => (
+                <div
+                  key={member.id}
+                  className="flex items-center gap-3 py-2 border-b last:border-b-0 hover:bg-muted/30 px-2 -mx-2 rounded transition-colors"
+                >
+                  <Avatar className="h-9 w-9 shrink-0">
+                    {member.avatar_url && (
+                      <AvatarImage src={member.avatar_url} alt={member.name} />
                     )}
-                    {getSourceBadge(member.source)}
-                  </div>
-                  <div className="text-sm text-muted-foreground truncate">
-                    {member.project_role?.name || 'No role assigned'}
-                  </div>
-                  {member.company_name && (
-                    <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
-                      <Building2 className="h-3 w-3 shrink-0" />
-                      {member.company_name}
-                    </div>
-                  )}
-                  {/* Show email and phone inline for auto-populated members */}
-                  {member.source && member.source !== 'directory' && (member.email || member.phone) && (
-                    <div className="text-xs text-muted-foreground mt-0.5 space-y-0.5">
-                      {member.email && (
-                        <div className="flex items-center gap-1">
-                          <Mail className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{member.email}</span>
-                        </div>
-                      )}
-                      {member.phone && (
-                        <div className="flex items-center gap-1">
-                          <Phone className="h-3 w-3 shrink-0" />
-                          <span>{member.phone}</span>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
+                    <AvatarFallback className="bg-primary/10 text-primary text-sm">
+                      {getInitials(member.name)}
+                    </AvatarFallback>
+                  </Avatar>
 
-                <div className="flex items-center gap-1 shrink-0">
-                  {member.email && (
-                    <a href={`mailto:${member.email}`} className="p-1.5 text-muted-foreground hover:text-primary" title={member.email}>
-                      <Mail className="h-4 w-4" />
-                    </a>
-                  )}
-                  {member.phone && (
-                    <a href={`tel:${member.phone}`} className="p-1.5 text-muted-foreground hover:text-primary" title={member.phone}>
-                      <Phone className="h-4 w-4" />
-                    </a>
-                  )}
-                  {(!member.source || member.source === 'directory') && (
-                    <>
-                      <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(member)}>
-                        <Edit className="h-4 w-4" />
-                      </Button>
-                      <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => removeMember(member)}>
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </>
-                  )}
+                  <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-4 gap-1 sm:gap-4 items-center">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium truncate">{member.name}</span>
+                      {member.is_primary_contact && (
+                        <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" fill="currentColor" />
+                      )}
+                    </div>
+                    <div className="text-sm text-muted-foreground truncate flex items-center gap-1">
+                      <Building2 className="h-3 w-3 shrink-0 sm:hidden" />
+                      {member.company_name || '-'}
+                    </div>
+                    <div className="text-sm text-muted-foreground truncate">
+                      {member.email ? (
+                        <a href={`mailto:${member.email}`} className="hover:text-primary flex items-center gap-1">
+                          <Mail className="h-3 w-3 shrink-0 sm:hidden" />
+                          {member.email}
+                        </a>
+                      ) : '-'}
+                    </div>
+                    <div className="text-sm text-muted-foreground truncate">
+                      {member.phone ? (
+                        <a href={`tel:${member.phone}`} className="hover:text-primary flex items-center gap-1">
+                          <Phone className="h-3 w-3 shrink-0 sm:hidden" />
+                          {member.phone}
+                        </a>
+                      ) : '-'}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-1 shrink-0">
+                    {(!member.source || member.source === 'directory') && (
+                      <>
+                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(member)}>
+                          <Edit className="h-4 w-4" />
+                        </Button>
+                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => removeMember(member)}>
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </>
+                    )}
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+
+              const renderGroup = (title: string, members: DirectoryMember[], badgeVariant: 'default' | 'secondary' | 'outline' = 'secondary') => {
+                if (members.length === 0) return null;
+                return (
+                  <div key={title}>
+                    <div className="flex items-center gap-2 mb-2">
+                      <Badge variant={badgeVariant} className="text-xs">{title}</Badge>
+                      <span className="text-xs text-muted-foreground">({members.length})</span>
+                    </div>
+                    {/* Header row - hidden on mobile */}
+                    <div className="hidden sm:grid grid-cols-[40px_1fr] gap-3 mb-1 px-2 text-xs text-muted-foreground uppercase tracking-wide">
+                      <div></div>
+                      <div className="grid grid-cols-4 gap-4">
+                        <div>Name</div>
+                        <div>Company</div>
+                        <div>Email</div>
+                        <div>Phone</div>
+                      </div>
+                    </div>
+                    <div className="divide-y">
+                      {members.map(renderMemberRow)}
+                    </div>
+                  </div>
+                );
+              };
+
+              return (
+                <>
+                  {renderGroup('Project Managers', pmMembers, 'default')}
+                  {renderGroup('Assistant Project Managers', apmMembers, 'secondary')}
+                  {renderGroup('Employees', employeeMembers, 'outline')}
+                  {renderGroup('Team Members', directoryMembers, 'secondary')}
+                </>
+              );
+            })()}
           </div>
         )}
       </CardContent>
