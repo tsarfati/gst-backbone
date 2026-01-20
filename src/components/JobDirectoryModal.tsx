@@ -1,15 +1,18 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { Plus, Trash2, Edit, FolderOpen, Mail, Phone, Building2 } from 'lucide-react';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Plus, Trash2, Edit, FolderOpen, Mail, Phone, Building2, Check, User } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { cn } from '@/lib/utils';
 
 interface DirectoryMember {
   id: string;
@@ -18,6 +21,14 @@ interface DirectoryMember {
   phone: string | null;
   company_name: string | null;
   notes: string | null;
+}
+
+interface CompanyUser {
+  id: string;
+  display_name: string;
+  email: string | null;
+  phone: string | null;
+  type: 'user' | 'pin_employee';
 }
 
 interface JobDirectoryModalProps {
@@ -45,10 +56,14 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger }:
   const [editingMember, setEditingMember] = useState<DirectoryMember | null>(null);
   const [formData, setFormData] = useState(emptyMember);
   const [saving, setSaving] = useState(false);
+  const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
+  const [namePopoverOpen, setNamePopoverOpen] = useState(false);
+  const [nameSearch, setNameSearch] = useState('');
 
   useEffect(() => {
     if (open && currentCompany?.id && jobId) {
       loadDirectory();
+      loadCompanyUsers();
     }
   }, [open, currentCompany?.id, jobId]);
 
@@ -75,6 +90,79 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger }:
       setLoading(false);
     }
   };
+
+  const loadCompanyUsers = async () => {
+    if (!currentCompany?.id) return;
+    
+    try {
+      // Fetch regular users with access to this company
+      const { data: userAccess, error: userError } = await supabase
+        .from('user_company_access')
+        .select('user_id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      
+      if (userError) throw userError;
+      
+      const userIds = userAccess?.map(u => u.user_id) || [];
+      
+      let users: CompanyUser[] = [];
+      
+      if (userIds.length > 0) {
+        const { data: profiles, error: profileError } = await supabase
+          .from('profiles')
+          .select('id, first_name, last_name, display_name, phone')
+          .in('id', userIds);
+        
+        if (profileError) throw profileError;
+        
+        users = (profiles || []).map(p => ({
+          id: p.id,
+          display_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.display_name || 'Unknown',
+          email: null, // Email not stored in profiles table
+          phone: p.phone,
+          type: 'user' as const
+        }));
+      }
+      
+      // Fetch PIN employees
+      const { data: pinEmployees, error: pinError } = await supabase
+        .from('pin_employees')
+        .select('id, first_name, last_name, email, phone')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+      
+      if (pinError) throw pinError;
+      
+      const pinUsers: CompanyUser[] = (pinEmployees || []).map(p => ({
+        id: p.id,
+        display_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown',
+        email: p.email,
+        phone: p.phone,
+        type: 'pin_employee' as const
+      }));
+      
+      setCompanyUsers([...users, ...pinUsers].sort((a, b) => a.display_name.localeCompare(b.display_name)));
+    } catch (error) {
+      console.error('Error loading company users:', error);
+    }
+  };
+
+  const selectCompanyUser = (companyUser: CompanyUser) => {
+    setFormData({
+      ...formData,
+      name: companyUser.display_name,
+      email: companyUser.email || '',
+      phone: companyUser.phone || '',
+    });
+    setNamePopoverOpen(false);
+    setNameSearch('');
+  };
+
+  const filteredCompanyUsers = companyUsers.filter(u => 
+    u.display_name.toLowerCase().includes(nameSearch.toLowerCase()) ||
+    (u.email && u.email.toLowerCase().includes(nameSearch.toLowerCase()))
+  );
 
   const openAddDialog = () => {
     setEditingMember(null);
@@ -271,12 +359,81 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger }:
           <div className="space-y-4 py-4">
             <div className="space-y-2">
               <Label htmlFor="name">Name *</Label>
-              <Input
-                id="name"
-                placeholder="John Smith"
-                value={formData.name}
-                onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-              />
+              {editingMember ? (
+                <Input
+                  id="name"
+                  placeholder="John Smith"
+                  value={formData.name}
+                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+                />
+              ) : (
+                <Popover open={namePopoverOpen} onOpenChange={setNamePopoverOpen}>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      role="combobox"
+                      aria-expanded={namePopoverOpen}
+                      className="w-full justify-start font-normal"
+                    >
+                      {formData.name || (
+                        <span className="text-muted-foreground">Search or enter a name...</span>
+                      )}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-[300px] p-0" align="start">
+                    <Command shouldFilter={false}>
+                      <CommandInput 
+                        placeholder="Search existing users..." 
+                        value={nameSearch}
+                        onValueChange={setNameSearch}
+                      />
+                      <CommandList>
+                        {nameSearch && !filteredCompanyUsers.some(u => 
+                          u.display_name.toLowerCase() === nameSearch.toLowerCase()
+                        ) && (
+                          <CommandItem
+                            onSelect={() => {
+                              setFormData({ ...formData, name: nameSearch });
+                              setNamePopoverOpen(false);
+                              setNameSearch('');
+                            }}
+                            className="flex items-center gap-2"
+                          >
+                            <Plus className="h-4 w-4" />
+                            Add "{nameSearch}" as new contact
+                          </CommandItem>
+                        )}
+                        {filteredCompanyUsers.length > 0 && (
+                          <CommandGroup heading="Company Users">
+                            {filteredCompanyUsers.map((companyUser) => (
+                              <CommandItem
+                                key={companyUser.id}
+                                value={companyUser.id}
+                                onSelect={() => selectCompanyUser(companyUser)}
+                                className="flex items-center gap-2"
+                              >
+                                <User className="h-4 w-4 text-muted-foreground" />
+                                <div className="flex flex-col">
+                                  <span>{companyUser.display_name}</span>
+                                  {companyUser.email && (
+                                    <span className="text-xs text-muted-foreground">{companyUser.email}</span>
+                                  )}
+                                </div>
+                                {formData.name === companyUser.display_name && (
+                                  <Check className="ml-auto h-4 w-4" />
+                                )}
+                              </CommandItem>
+                            ))}
+                          </CommandGroup>
+                        )}
+                        {!nameSearch && filteredCompanyUsers.length === 0 && (
+                          <CommandEmpty>No users found. Type to add a new contact.</CommandEmpty>
+                        )}
+                      </CommandList>
+                    </Command>
+                  </PopoverContent>
+                </Popover>
+              )}
             </div>
 
             <div className="space-y-2">
