@@ -3423,6 +3423,7 @@ export type Database = {
           id: string
           is_active: boolean | null
           is_primary_contact: boolean | null
+          is_project_team_member: boolean | null
           job_id: string
           linked_user_id: string | null
           linked_vendor_id: string | null
@@ -3441,6 +3442,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_primary_contact?: boolean | null
+          is_project_team_member?: boolean | null
           job_id: string
           linked_user_id?: string | null
           linked_vendor_id?: string | null
@@ -3459,6 +3461,7 @@ export type Database = {
           id?: string
           is_active?: boolean | null
           is_primary_contact?: boolean | null
+          is_project_team_member?: boolean | null
           job_id?: string
           linked_user_id?: string | null
           linked_vendor_id?: string | null
