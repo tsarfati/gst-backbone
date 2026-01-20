@@ -1073,9 +1073,49 @@ serve(async (req) => {
           const flagOver12 = flagSettings?.flag_timecards_over_12hrs ?? true;
           const flagOver24 = flagSettings?.flag_timecards_over_24hrs ?? true;
 
-          // Determine status - flag if over threshold
-          const shouldFlag = (flagOver24 && totalHours > 24) || (flagOver12 && totalHours > 12);
+          // Check if punch-out location differs from punch-in location
+          // Uses Haversine formula to calculate distance in meters
+          const calculateDistanceMeters = (
+            lat1: number | null, lng1: number | null,
+            lat2: number | null, lng2: number | null
+          ): number | null => {
+            if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) {
+              return null; // Cannot compare if either location is missing
+            }
+            const R = 6371000; // Earth's radius in meters
+            const dLat = (lat2 - lat1) * Math.PI / 180;
+            const dLng = (lng2 - lng1) * Math.PI / 180;
+            const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+                      Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+                      Math.sin(dLng / 2) * Math.sin(dLng / 2);
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+            return R * c;
+          };
+
+          const punchInLat = currentPunch.punch_in_location_lat ?? null;
+          const punchInLng = currentPunch.punch_in_location_lng ?? null;
+          const punchOutLat = latitude ?? null;
+          const punchOutLng = longitude ?? null;
+          
+          const distanceMeters = calculateDistanceMeters(punchInLat, punchInLng, punchOutLat, punchOutLng);
+          // Consider locations different if more than 500 meters apart (approximately 0.3 miles)
+          const LOCATION_THRESHOLD_METERS = 500;
+          const locationsDiffer = distanceMeters !== null && distanceMeters > LOCATION_THRESHOLD_METERS;
+          
+          if (locationsDiffer) {
+            console.log(`Location mismatch detected: punch-in (${punchInLat}, ${punchInLng}) vs punch-out (${punchOutLat}, ${punchOutLng}), distance: ${distanceMeters?.toFixed(0)}m`);
+          }
+
+          // Determine status - flag if over threshold OR if locations differ
+          const shouldFlagHours = (flagOver24 && totalHours > 24) || (flagOver12 && totalHours > 12);
+          const shouldFlag = shouldFlagHours || locationsDiffer;
           const timecardStatus = shouldFlag ? 'pending' : 'approved';
+          
+          const flagReason = locationsDiffer 
+            ? `Punch-out location differs from punch-in (${distanceMeters?.toFixed(0)}m apart)`
+            : shouldFlagHours 
+              ? `Time card exceeds ${totalHours > 24 ? '24' : '12'} hours`
+              : null;
 
           const { error: tcErr } = await supabaseAdmin
             .from('time_cards')
@@ -1089,17 +1129,17 @@ serve(async (req) => {
               total_hours: totalHours,
               overtime_hours: overtimeHours,
               break_minutes: breakMinutes,
-              punch_in_location_lat: currentPunch.punch_in_location_lat ?? null,
-              punch_in_location_lng: currentPunch.punch_in_location_lng ?? null,
-              punch_out_location_lat: latitude ?? null,
-              punch_out_location_lng: longitude ?? null,
+              punch_in_location_lat: punchInLat,
+              punch_in_location_lng: punchInLng,
+              punch_out_location_lat: punchOutLat,
+              punch_out_location_lng: punchOutLng,
               punch_in_photo_url: currentPunch.punch_in_photo_url ?? null,
               punch_out_photo_url: photo_url ?? null,
-              notes: body?.notes ?? null,
+              notes: locationsDiffer ? (body?.notes ? `${body.notes} | ${flagReason}` : flagReason) : (body?.notes ?? null),
               status: timecardStatus,
               created_via_punch_clock: true,
               requires_approval: shouldFlag,
-              distance_warning: false
+              distance_warning: locationsDiffer
             });
 
           if (tcErr) {
