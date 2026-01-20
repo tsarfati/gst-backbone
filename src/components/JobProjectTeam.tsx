@@ -1,18 +1,15 @@
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
-import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, UserCheck, Star } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 
 interface ProjectRole {
@@ -20,7 +17,7 @@ interface ProjectRole {
   name: string;
 }
 
-interface TeamMember {
+interface DirectoryMember {
   id: string;
   name: string;
   email: string | null;
@@ -28,55 +25,44 @@ interface TeamMember {
   company_name: string | null;
   project_role_id: string | null;
   project_role?: ProjectRole | null;
-  linked_user_id: string | null;
-  linked_vendor_id: string | null;
-  notes: string | null;
   is_primary_contact: boolean;
-  is_active: boolean;
+  is_project_team_member: boolean;
 }
 
 interface JobProjectTeamProps {
   jobId: string;
+  refreshKey?: number;
 }
 
-const emptyMember = {
-  name: '',
-  email: '',
-  phone: '',
-  company_name: '',
-  project_role_id: '',
-  notes: '',
-  is_primary_contact: false,
-};
-
-export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
+export default function JobProjectTeam({ jobId, refreshKey }: JobProjectTeamProps) {
   const { currentCompany } = useCompany();
-  const { user } = useAuth();
   const { toast } = useToast();
-  const [teamMembers, setTeamMembers] = useState<TeamMember[]>([]);
+  const [teamMembers, setTeamMembers] = useState<DirectoryMember[]>([]);
+  const [availableMembers, setAvailableMembers] = useState<DirectoryMember[]>([]);
   const [roles, setRoles] = useState<ProjectRole[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const [editingMember, setEditingMember] = useState<TeamMember | null>(null);
-  const [formData, setFormData] = useState(emptyMember);
+  const [editingMember, setEditingMember] = useState<DirectoryMember | null>(null);
+  const [selectedMemberId, setSelectedMemberId] = useState('');
+  const [selectedRoleId, setSelectedRoleId] = useState('');
+  const [isPrimaryContact, setIsPrimaryContact] = useState(false);
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
     if (currentCompany?.id && jobId) {
       loadData();
     }
-  }, [currentCompany?.id, jobId]);
+  }, [currentCompany?.id, jobId, refreshKey]);
 
   const loadData = async () => {
     try {
       setLoading(true);
       
-      // Load team members and roles in parallel
-      const [membersRes, rolesRes] = await Promise.all([
+      const [allMembersRes, rolesRes] = await Promise.all([
         supabase
           .from('job_project_directory')
           .select(`
-            *,
+            id, name, email, phone, company_name, project_role_id, is_primary_contact, is_project_team_member,
             project_role:project_roles(id, name)
           `)
           .eq('job_id', jobId)
@@ -91,10 +77,12 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           .order('sort_order'),
       ]);
 
-      if (membersRes.error) throw membersRes.error;
+      if (allMembersRes.error) throw allMembersRes.error;
       if (rolesRes.error) throw rolesRes.error;
 
-      setTeamMembers(membersRes.data || []);
+      const allMembers = allMembersRes.data || [];
+      setTeamMembers(allMembers.filter(m => m.is_project_team_member));
+      setAvailableMembers(allMembers.filter(m => !m.is_project_team_member));
       setRoles(rolesRes.data || []);
     } catch (error) {
       console.error('Error loading project team:', error);
@@ -110,62 +98,40 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
 
   const openAddDialog = () => {
     setEditingMember(null);
-    setFormData(emptyMember);
+    setSelectedMemberId('');
+    setSelectedRoleId('');
+    setIsPrimaryContact(false);
     setDialogOpen(true);
   };
 
-  const openEditDialog = (member: TeamMember) => {
+  const openEditDialog = (member: DirectoryMember) => {
     setEditingMember(member);
-    setFormData({
-      name: member.name,
-      email: member.email || '',
-      phone: member.phone || '',
-      company_name: member.company_name || '',
-      project_role_id: member.project_role_id || '',
-      notes: member.notes || '',
-      is_primary_contact: member.is_primary_contact,
-    });
+    setSelectedMemberId(member.id);
+    setSelectedRoleId(member.project_role_id || '');
+    setIsPrimaryContact(member.is_primary_contact);
     setDialogOpen(true);
   };
 
   const saveMember = async () => {
-    if (!formData.name.trim() || !currentCompany?.id || !user?.id) return;
+    if (!selectedMemberId && !editingMember) return;
 
     try {
       setSaving(true);
 
-      const memberData = {
-        job_id: jobId,
-        company_id: currentCompany.id,
-        name: formData.name.trim(),
-        email: formData.email.trim() || null,
-        phone: formData.phone.trim() || null,
-        company_name: formData.company_name.trim() || null,
-        project_role_id: formData.project_role_id || null,
-        notes: formData.notes.trim() || null,
-        is_primary_contact: formData.is_primary_contact,
-        created_by: user.id,
-      };
+      const memberId = editingMember ? editingMember.id : selectedMemberId;
 
-      if (editingMember) {
-        // Update existing
-        const { error } = await supabase
-          .from('job_project_directory')
-          .update(memberData)
-          .eq('id', editingMember.id);
+      const { error } = await supabase
+        .from('job_project_directory')
+        .update({
+          is_project_team_member: true,
+          project_role_id: selectedRoleId || null,
+          is_primary_contact: isPrimaryContact,
+        })
+        .eq('id', memberId);
 
-        if (error) throw error;
-        toast({ title: "Team member updated" });
-      } else {
-        // Create new
-        const { error } = await supabase
-          .from('job_project_directory')
-          .insert(memberData);
+      if (error) throw error;
 
-        if (error) throw error;
-        toast({ title: "Team member added" });
-      }
-
+      toast({ title: editingMember ? "Team member updated" : "Added to project team" });
       setDialogOpen(false);
       loadData();
     } catch (error) {
@@ -186,13 +152,17 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     try {
       const { error } = await supabase
         .from('job_project_directory')
-        .update({ is_active: false })
+        .update({ 
+          is_project_team_member: false,
+          project_role_id: null,
+          is_primary_contact: false,
+        })
         .eq('id', memberId);
 
       if (error) throw error;
 
-      setTeamMembers(teamMembers.filter(m => m.id !== memberId));
-      toast({ title: "Team member removed" });
+      toast({ title: "Removed from project team" });
+      loadData();
     } catch (error) {
       console.error('Error removing team member:', error);
       toast({
@@ -236,7 +206,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
         </div>
         <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
           <DialogTrigger asChild>
-            <Button onClick={openAddDialog} size="sm">
+            <Button onClick={openAddDialog} size="sm" disabled={availableMembers.length === 0 && !editingMember}>
               <Plus className="h-4 w-4 mr-2" />
               Add Member
             </Button>
@@ -244,29 +214,49 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           <DialogContent className="max-w-md">
             <DialogHeader>
               <DialogTitle>
-                {editingMember ? 'Edit Team Member' : 'Add Team Member'}
+                {editingMember ? 'Edit Team Member' : 'Add to Project Team'}
               </DialogTitle>
               <DialogDescription>
-                {editingMember ? 'Update team member information' : 'Add a new member to the project team'}
+                {editingMember ? 'Update role and settings' : 'Select a person from the job directory'}
               </DialogDescription>
             </DialogHeader>
             <div className="space-y-4 py-4">
+              {!editingMember && (
+                <div className="space-y-2">
+                  <Label>Select Person *</Label>
+                  {availableMembers.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">
+                      No one available. Add people to the Job Directory first.
+                    </p>
+                  ) : (
+                    <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Choose from directory..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableMembers.map((member) => (
+                          <SelectItem key={member.id} value={member.id}>
+                            {member.name} {member.company_name ? `(${member.company_name})` : ''}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                </div>
+              )}
+
+              {editingMember && (
+                <div className="p-3 bg-muted rounded-lg">
+                  <p className="font-medium">{editingMember.name}</p>
+                  {editingMember.company_name && (
+                    <p className="text-sm text-muted-foreground">{editingMember.company_name}</p>
+                  )}
+                </div>
+              )}
+
               <div className="space-y-2">
-                <Label htmlFor="name">Name *</Label>
-                <Input
-                  id="name"
-                  placeholder="John Smith"
-                  value={formData.name}
-                  onChange={(e) => setFormData({ ...formData, name: e.target.value })}
-                />
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="role">Project Role</Label>
-                <Select
-                  value={formData.project_role_id}
-                  onValueChange={(value) => setFormData({ ...formData, project_role_id: value })}
-                >
+                <Label>Project Role</Label>
+                <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
                   <SelectTrigger>
                     <SelectValue placeholder="Select a role..." />
                   </SelectTrigger>
@@ -280,55 +270,11 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                 </Select>
               </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="company">Company/Firm</Label>
-                <Input
-                  id="company"
-                  placeholder="ABC Architecture"
-                  value={formData.company_name}
-                  onChange={(e) => setFormData({ ...formData, company_name: e.target.value })}
-                />
-              </div>
-
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="email">Email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    placeholder="john@example.com"
-                    value={formData.email}
-                    onChange={(e) => setFormData({ ...formData, email: e.target.value })}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="phone">Phone</Label>
-                  <Input
-                    id="phone"
-                    type="tel"
-                    placeholder="(555) 123-4567"
-                    value={formData.phone}
-                    onChange={(e) => setFormData({ ...formData, phone: e.target.value })}
-                  />
-                </div>
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="notes">Notes</Label>
-                <Textarea
-                  id="notes"
-                  placeholder="Additional notes about this team member..."
-                  value={formData.notes}
-                  onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                  rows={2}
-                />
-              </div>
-
               <div className="flex items-center gap-2">
                 <Switch
                   id="primary"
-                  checked={formData.is_primary_contact}
-                  onCheckedChange={(checked) => setFormData({ ...formData, is_primary_contact: checked })}
+                  checked={isPrimaryContact}
+                  onCheckedChange={setIsPrimaryContact}
                 />
                 <Label htmlFor="primary">Primary Contact</Label>
               </div>
@@ -337,8 +283,11 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
               </Button>
-              <Button onClick={saveMember} disabled={saving || !formData.name.trim()}>
-                {saving ? 'Saving...' : editingMember ? 'Update' : 'Add Member'}
+              <Button 
+                onClick={saveMember} 
+                disabled={saving || (!editingMember && !selectedMemberId)}
+              >
+                {saving ? 'Saving...' : editingMember ? 'Update' : 'Add to Team'}
               </Button>
             </DialogFooter>
           </DialogContent>
@@ -349,7 +298,11 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           <div className="text-center py-8 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p>No team members assigned yet.</p>
-            <p className="text-sm">Click "Add Member" to build your project team.</p>
+            <p className="text-sm">
+              {availableMembers.length > 0 
+                ? 'Click "Add Member" to assign from the job directory.'
+                : 'Add people to the Job Directory first, then assign them here.'}
+            </p>
           </div>
         ) : (
           <div className="space-y-3">
@@ -392,37 +345,19 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
 
                 <div className="flex items-center gap-2 text-muted-foreground">
                   {member.email && (
-                    <a
-                      href={`mailto:${member.email}`}
-                      className="p-2 hover:text-primary transition-colors"
-                      title={member.email}
-                    >
+                    <a href={`mailto:${member.email}`} className="p-2 hover:text-primary" title={member.email}>
                       <Mail className="h-4 w-4" />
                     </a>
                   )}
                   {member.phone && (
-                    <a
-                      href={`tel:${member.phone}`}
-                      className="p-2 hover:text-primary transition-colors"
-                      title={member.phone}
-                    >
+                    <a href={`tel:${member.phone}`} className="p-2 hover:text-primary" title={member.phone}>
                       <Phone className="h-4 w-4" />
                     </a>
                   )}
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => openEditDialog(member)}
-                    className="text-muted-foreground hover:text-foreground"
-                  >
+                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(member)}>
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    onClick={() => removeMember(member.id, member.name)}
-                    className="text-muted-foreground hover:text-destructive"
-                  >
+                  <Button variant="ghost" size="icon" className="hover:text-destructive" onClick={() => removeMember(member.id, member.name)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>

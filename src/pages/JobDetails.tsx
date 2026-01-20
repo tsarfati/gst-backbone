@@ -21,7 +21,7 @@ import JobPlans from "@/components/JobPlans";
 import JobBillingSetup from "@/components/JobBillingSetup";
 import JobRFIs from "@/components/JobRFIs";
 import JobProjectTeam from "@/components/JobProjectTeam";
-
+import JobDirectory from "@/components/JobDirectory";
 
 interface Job {
   id: string;
@@ -342,8 +342,9 @@ export default function JobDetails() {
               <JobLocationMap address={job.address} />
             </div>
 
-            {/* Project Team Section */}
-            <div className="mt-6">
+            {/* Job Directory & Project Team Section */}
+            <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
+              <JobDirectory jobId={id!} />
               <JobProjectTeam jobId={id!} />
             </div>
           </TabsContent>
