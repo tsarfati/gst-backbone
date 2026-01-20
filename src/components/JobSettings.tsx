@@ -16,6 +16,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import SubcontractRequiredFields from './SubcontractRequiredFields';
+import ProjectRolesManager from './ProjectRolesManager';
 
 const jobSettingsSchema = z.object({
   budget_require_approval: z.boolean(),
@@ -667,6 +668,9 @@ export default function JobSettings() {
       </div>
         </CardContent>
       </Card>
+
+      {/* Project Roles Manager */}
+      <ProjectRolesManager />
     </div>
   );
 }
