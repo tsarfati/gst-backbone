@@ -3413,6 +3413,106 @@ export type Database = {
         }
         Relationships: []
       }
+      job_project_directory: {
+        Row: {
+          company_id: string
+          company_name: string | null
+          created_at: string
+          created_by: string
+          email: string | null
+          id: string
+          is_active: boolean | null
+          is_primary_contact: boolean | null
+          job_id: string
+          linked_user_id: string | null
+          linked_vendor_id: string | null
+          name: string
+          notes: string | null
+          phone: string | null
+          project_role_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          company_name?: string | null
+          created_at?: string
+          created_by: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_primary_contact?: boolean | null
+          job_id: string
+          linked_user_id?: string | null
+          linked_vendor_id?: string | null
+          name: string
+          notes?: string | null
+          phone?: string | null
+          project_role_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          company_name?: string | null
+          created_at?: string
+          created_by?: string
+          email?: string | null
+          id?: string
+          is_active?: boolean | null
+          is_primary_contact?: boolean | null
+          job_id?: string
+          linked_user_id?: string | null
+          linked_vendor_id?: string | null
+          name?: string
+          notes?: string | null
+          phone?: string | null
+          project_role_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_project_directory_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_project_directory_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_project_directory_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_project_directory_linked_user_id_fkey"
+            columns: ["linked_user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+          {
+            foreignKeyName: "job_project_directory_linked_vendor_id_fkey"
+            columns: ["linked_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_project_directory_project_role_id_fkey"
+            columns: ["project_role_id"]
+            isOneToOne: false
+            referencedRelation: "project_roles"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_punch_clock_settings: {
         Row: {
           allow_early_punch_in: boolean | null
@@ -5003,6 +5103,47 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      project_roles: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean | null
+          name: string
+          sort_order: number | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean | null
+          name?: string
+          sort_order?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_roles_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]

@@ -20,6 +20,7 @@ import BillsNeedingCoding from "@/components/BillsNeedingCoding";
 import JobPlans from "@/components/JobPlans";
 import JobBillingSetup from "@/components/JobBillingSetup";
 import JobRFIs from "@/components/JobRFIs";
+import JobProjectTeam from "@/components/JobProjectTeam";
 
 
 interface Job {
@@ -233,6 +234,13 @@ export default function JobDetails() {
               </TabsTrigger>
             )}
             <TabsTrigger 
+              value="project-team"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Project Team
+            </TabsTrigger>
+            <TabsTrigger 
               value="visitor-logs"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
@@ -368,6 +376,10 @@ export default function JobDetails() {
 
           <TabsContent value="filing-cabinet" className="p-6">
             <JobFilingCabinet jobId={id!} />
+          </TabsContent>
+
+          <TabsContent value="project-team" className="p-6">
+            <JobProjectTeam jobId={id!} />
           </TabsContent>
 
           <TabsContent value="visitor-logs" className="p-6">
