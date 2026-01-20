@@ -99,10 +99,15 @@ export default function PlanViewer() {
   }, [searchParams]);
 
   // Prevent browser page zoom on trackpad pinch (ctrl+wheel) so only the plan zooms.
+  // Bind to the PDF viewport (not window) so the toolbar never scales.
   useEffect(() => {
+    const el = pdfContainerRef.current;
+    if (!el) return;
+
     const handleWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       e.preventDefault();
+      e.stopPropagation();
 
       const delta = -e.deltaY * 0.01;
       setZoomLevel((prev) => {
@@ -111,9 +116,34 @@ export default function PlanViewer() {
       });
     };
 
-    window.addEventListener("wheel", handleWheel, { passive: false });
-    return () => window.removeEventListener("wheel", handleWheel);
-  }, []);
+    // Safari: pinch gesture events
+    let gestureBase = 1;
+    const handleGestureStart = (e: Event) => {
+      const ge = e as any;
+      gestureBase = zoomLevel;
+      ge.preventDefault?.();
+    };
+    const handleGestureChange = (e: Event) => {
+      const ge = e as any;
+      ge.preventDefault?.();
+      if (typeof ge.scale === "number") {
+        setZoomLevel((_) => {
+          const next = Math.min(Math.max(gestureBase * ge.scale, 0.5), 4);
+          return Math.round(next * 100) / 100;
+        });
+      }
+    };
+
+    el.addEventListener("wheel", handleWheel, { passive: false });
+    el.addEventListener("gesturestart", handleGestureStart as any, { passive: false } as any);
+    el.addEventListener("gesturechange", handleGestureChange as any, { passive: false } as any);
+
+    return () => {
+      el.removeEventListener("wheel", handleWheel as any);
+      el.removeEventListener("gesturestart", handleGestureStart as any);
+      el.removeEventListener("gesturechange", handleGestureChange as any);
+    };
+  }, [zoomLevel]);
 
   useEffect(() => {
     if (plan && pages.length === 0 && !analyzing) {
