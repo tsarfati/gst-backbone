@@ -2,6 +2,9 @@ import React, { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/utils";
 import { FileText } from "lucide-react";
 
+// Bundle worker locally (avoids relying on external CDNs that may be blocked)
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
 // Enhanced inline PDF preview using pdfjs-dist. Renders all pages.
 // Uses ArrayBuffer from File to avoid blob URL navigation issues in sandboxed iframes.
 
@@ -31,10 +34,8 @@ export default function PdfInlinePreview({ file, className }: PdfInlinePreviewPr
 
         // Lazy import to keep main bundle smaller
         const pdfjs = await import('pdfjs-dist');
-        // Set worker to CDN for reliability in this environment
-        // Version must match the installed version to avoid warnings
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        (pdfjs as any).GlobalWorkerOptions.workerSrc = `https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs`;
+        (pdfjs as any).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
         const arrayBuffer = await file.arrayBuffer();
         const loadingTask = (pdfjs as any).getDocument({ data: arrayBuffer });

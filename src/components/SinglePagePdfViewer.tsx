@@ -2,6 +2,9 @@ import React, { useCallback, useEffect, useMemo, useRef, useState } from "react"
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
 
+// Bundle worker locally (avoids relying on external CDNs that may be blocked)
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+
 interface SinglePagePdfViewerProps {
   url: string;
   pageNumber: number;
@@ -80,8 +83,7 @@ export default function SinglePagePdfViewer({
         layoutRef.current = null;
 
         const pdfjs = await import("pdfjs-dist");
-        (pdfjs as any).GlobalWorkerOptions.workerSrc =
-          "https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs";
+        (pdfjs as any).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
         const response = await fetch(url);
         const arrayBuffer = await response.arrayBuffer();

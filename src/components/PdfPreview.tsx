@@ -2,8 +2,11 @@ import React, { useEffect, useRef, useState } from 'react';
 import { Loader2, FileText } from 'lucide-react';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 
-// Use CDN worker to avoid bundling issues in Vite
-GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/5.4.530/pdf.worker.min.mjs';
+// Bundle worker locally (avoids relying on external CDNs that may be blocked)
+import pdfWorkerUrl from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
+
+// Use bundled worker for reliability
+GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
 interface PdfPreviewProps {
   url: string;
