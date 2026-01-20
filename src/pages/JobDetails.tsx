@@ -21,7 +21,7 @@ import JobPlans from "@/components/JobPlans";
 import JobBillingSetup from "@/components/JobBillingSetup";
 import JobRFIs from "@/components/JobRFIs";
 import JobProjectTeam from "@/components/JobProjectTeam";
-import JobDirectory from "@/components/JobDirectory";
+
 
 interface Job {
   id: string;
@@ -250,6 +250,11 @@ export default function JobDetails() {
           </TabsList>
           
           <TabsContent value="details" className="p-6">
+            {/* Project Team Section - Full Width at Top */}
+            <div className="mb-6">
+              <JobProjectTeam jobId={id!} />
+            </div>
+
             {/* Bills Needing Approval or Coding for this Job */}
             {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
               <div className="mb-6">
@@ -342,11 +347,6 @@ export default function JobDetails() {
               <JobLocationMap address={job.address} />
             </div>
 
-            {/* Job Directory & Project Team Section */}
-            <div className="mt-6 grid grid-cols-1 lg:grid-cols-2 gap-6">
-              <JobDirectory jobId={id!} />
-              <JobProjectTeam jobId={id!} />
-            </div>
           </TabsContent>
           
           <TabsContent value="committed-costs" className="p-6">

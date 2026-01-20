@@ -11,6 +11,7 @@ import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, UserCheck, Star } fr
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
+import JobDirectoryModal from './JobDirectoryModal';
 
 interface ProjectRole {
   id: string;
@@ -31,10 +32,9 @@ interface DirectoryMember {
 
 interface JobProjectTeamProps {
   jobId: string;
-  refreshKey?: number;
 }
 
-export default function JobProjectTeam({ jobId, refreshKey }: JobProjectTeamProps) {
+export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [teamMembers, setTeamMembers] = useState<DirectoryMember[]>([]);
@@ -47,6 +47,7 @@ export default function JobProjectTeam({ jobId, refreshKey }: JobProjectTeamProp
   const [selectedRoleId, setSelectedRoleId] = useState('');
   const [isPrimaryContact, setIsPrimaryContact] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
 
   useEffect(() => {
     if (currentCompany?.id && jobId) {
@@ -94,6 +95,10 @@ export default function JobProjectTeam({ jobId, refreshKey }: JobProjectTeamProp
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleDirectoryChange = () => {
+    setRefreshKey(prev => prev + 1);
   };
 
   const openAddDialog = () => {
@@ -174,12 +179,7 @@ export default function JobProjectTeam({ jobId, refreshKey }: JobProjectTeamProp
   };
 
   const getInitials = (name: string) => {
-    return name
-      .split(' ')
-      .map(n => n[0])
-      .join('')
-      .toUpperCase()
-      .slice(0, 2);
+    return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
   if (loading) {
@@ -194,7 +194,7 @@ export default function JobProjectTeam({ jobId, refreshKey }: JobProjectTeamProp
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader className="flex flex-row items-center justify-between pb-4">
         <div>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
@@ -204,94 +204,97 @@ export default function JobProjectTeam({ jobId, refreshKey }: JobProjectTeamProp
             Team members assigned to this project
           </CardDescription>
         </div>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button onClick={openAddDialog} size="sm" disabled={availableMembers.length === 0 && !editingMember}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Member
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-md">
-            <DialogHeader>
-              <DialogTitle>
-                {editingMember ? 'Edit Team Member' : 'Add to Project Team'}
-              </DialogTitle>
-              <DialogDescription>
-                {editingMember ? 'Update role and settings' : 'Select a person from the job directory'}
-              </DialogDescription>
-            </DialogHeader>
-            <div className="space-y-4 py-4">
-              {!editingMember && (
+        <div className="flex items-center gap-2">
+          <JobDirectoryModal jobId={jobId} onDirectoryChange={handleDirectoryChange} />
+          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+            <DialogTrigger asChild>
+              <Button onClick={openAddDialog} size="sm" disabled={availableMembers.length === 0 && !editingMember}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Member
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>
+                  {editingMember ? 'Edit Team Member' : 'Add to Project Team'}
+                </DialogTitle>
+                <DialogDescription>
+                  {editingMember ? 'Update role and settings' : 'Select a person from the job directory'}
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                {!editingMember && (
+                  <div className="space-y-2">
+                    <Label>Select Person *</Label>
+                    {availableMembers.length === 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        No one available. Add people to the Job Directory first.
+                      </p>
+                    ) : (
+                      <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
+                        <SelectTrigger>
+                          <SelectValue placeholder="Choose from directory..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {availableMembers.map((member) => (
+                            <SelectItem key={member.id} value={member.id}>
+                              {member.name} {member.company_name ? `(${member.company_name})` : ''}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
+                  </div>
+                )}
+
+                {editingMember && (
+                  <div className="p-3 bg-muted rounded-lg">
+                    <p className="font-medium">{editingMember.name}</p>
+                    {editingMember.company_name && (
+                      <p className="text-sm text-muted-foreground">{editingMember.company_name}</p>
+                    )}
+                  </div>
+                )}
+
                 <div className="space-y-2">
-                  <Label>Select Person *</Label>
-                  {availableMembers.length === 0 ? (
-                    <p className="text-sm text-muted-foreground">
-                      No one available. Add people to the Job Directory first.
-                    </p>
-                  ) : (
-                    <Select value={selectedMemberId} onValueChange={setSelectedMemberId}>
-                      <SelectTrigger>
-                        <SelectValue placeholder="Choose from directory..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableMembers.map((member) => (
-                          <SelectItem key={member.id} value={member.id}>
-                            {member.name} {member.company_name ? `(${member.company_name})` : ''}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
-                  )}
+                  <Label>Project Role</Label>
+                  <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select a role..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {roles.map((role) => (
+                        <SelectItem key={role.id} value={role.id}>
+                          {role.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
-              )}
 
-              {editingMember && (
-                <div className="p-3 bg-muted rounded-lg">
-                  <p className="font-medium">{editingMember.name}</p>
-                  {editingMember.company_name && (
-                    <p className="text-sm text-muted-foreground">{editingMember.company_name}</p>
-                  )}
+                <div className="flex items-center gap-2">
+                  <Switch
+                    id="primary"
+                    checked={isPrimaryContact}
+                    onCheckedChange={setIsPrimaryContact}
+                  />
+                  <Label htmlFor="primary">Primary Contact</Label>
                 </div>
-              )}
-
-              <div className="space-y-2">
-                <Label>Project Role</Label>
-                <Select value={selectedRoleId} onValueChange={setSelectedRoleId}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a role..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {roles.map((role) => (
-                      <SelectItem key={role.id} value={role.id}>
-                        {role.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
               </div>
-
-              <div className="flex items-center gap-2">
-                <Switch
-                  id="primary"
-                  checked={isPrimaryContact}
-                  onCheckedChange={setIsPrimaryContact}
-                />
-                <Label htmlFor="primary">Primary Contact</Label>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setDialogOpen(false)}>
-                Cancel
-              </Button>
-              <Button 
-                onClick={saveMember} 
-                disabled={saving || (!editingMember && !selectedMemberId)}
-              >
-                {saving ? 'Saving...' : editingMember ? 'Update' : 'Add to Team'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                  Cancel
+                </Button>
+                <Button 
+                  onClick={saveMember} 
+                  disabled={saving || (!editingMember && !selectedMemberId)}
+                >
+                  {saving ? 'Saving...' : editingMember ? 'Update' : 'Add to Team'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
       </CardHeader>
       <CardContent>
         {teamMembers.length === 0 ? (
@@ -301,17 +304,17 @@ export default function JobProjectTeam({ jobId, refreshKey }: JobProjectTeamProp
             <p className="text-sm">
               {availableMembers.length > 0 
                 ? 'Click "Add Member" to assign from the job directory.'
-                : 'Add people to the Job Directory first, then assign them here.'}
+                : 'Use "Manage Directory" to add people, then assign them here.'}
             </p>
           </div>
         ) : (
-          <div className="space-y-3">
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
             {teamMembers.map((member) => (
               <div
                 key={member.id}
-                className="flex items-center gap-4 p-3 border rounded-lg bg-background hover:bg-muted/30 transition-colors"
+                className="flex items-center gap-3 p-3 border rounded-lg bg-background hover:bg-muted/30 transition-colors"
               >
-                <Avatar className="h-10 w-10">
+                <Avatar className="h-10 w-10 shrink-0">
                   <AvatarFallback className="bg-primary/10 text-primary">
                     {getInitials(member.name)}
                   </AvatarFallback>
@@ -321,43 +324,35 @@ export default function JobProjectTeam({ jobId, refreshKey }: JobProjectTeamProp
                   <div className="flex items-center gap-2">
                     <span className="font-medium truncate">{member.name}</span>
                     {member.is_primary_contact && (
-                      <Badge variant="default" className="text-xs gap-1">
-                        <Star className="h-3 w-3" />
-                        Primary
-                      </Badge>
+                      <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" fill="currentColor" />
                     )}
                   </div>
-                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
-                    {member.project_role?.name && (
-                      <span className="flex items-center gap-1">
-                        <UserCheck className="h-3 w-3" />
-                        {member.project_role.name}
-                      </span>
-                    )}
-                    {member.company_name && (
-                      <span className="flex items-center gap-1">
-                        <Building2 className="h-3 w-3" />
-                        {member.company_name}
-                      </span>
-                    )}
+                  <div className="text-sm text-muted-foreground truncate">
+                    {member.project_role?.name || 'No role assigned'}
                   </div>
+                  {member.company_name && (
+                    <div className="text-xs text-muted-foreground truncate flex items-center gap-1">
+                      <Building2 className="h-3 w-3 shrink-0" />
+                      {member.company_name}
+                    </div>
+                  )}
                 </div>
 
-                <div className="flex items-center gap-2 text-muted-foreground">
+                <div className="flex items-center gap-1 shrink-0">
                   {member.email && (
-                    <a href={`mailto:${member.email}`} className="p-2 hover:text-primary" title={member.email}>
+                    <a href={`mailto:${member.email}`} className="p-1.5 text-muted-foreground hover:text-primary" title={member.email}>
                       <Mail className="h-4 w-4" />
                     </a>
                   )}
                   {member.phone && (
-                    <a href={`tel:${member.phone}`} className="p-2 hover:text-primary" title={member.phone}>
+                    <a href={`tel:${member.phone}`} className="p-1.5 text-muted-foreground hover:text-primary" title={member.phone}>
                       <Phone className="h-4 w-4" />
                     </a>
                   )}
-                  <Button variant="ghost" size="icon" onClick={() => openEditDialog(member)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(member)}>
                     <Edit className="h-4 w-4" />
                   </Button>
-                  <Button variant="ghost" size="icon" className="hover:text-destructive" onClick={() => removeMember(member.id, member.name)}>
+                  <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => removeMember(member.id, member.name)}>
                     <Trash2 className="h-4 w-4" />
                   </Button>
                 </div>
