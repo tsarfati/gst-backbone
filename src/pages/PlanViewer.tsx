@@ -16,6 +16,7 @@ import { Label } from "@/components/ui/label";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import SinglePagePdfViewer from "@/components/SinglePagePdfViewer";
 import { format } from "date-fns";
+import { usePreventBrowserZoom } from "@/hooks/usePreventBrowserZoom";
 
 // Bundle worker locally (avoids relying on external CDNs that may be blocked)
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -98,52 +99,17 @@ export default function PlanViewer() {
     }
   }, [searchParams]);
 
-  // Prevent browser page zoom on trackpad pinch (ctrl+wheel) so only the PDF zooms.
-  // We bind to the PDF container wrapper so the header/toolbar is never affected.
-  useEffect(() => {
-    const el = pdfContainerRef.current;
-    if (!el) return;
-
-    const handleWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey) return;
-      e.preventDefault();
-      e.stopPropagation();
-
-      const delta = -e.deltaY * 0.01;
-      setZoomLevel((prev) => {
-        const next = Math.min(Math.max(prev + delta, 0.5), 4);
-        return Math.round(next * 100) / 100;
-      });
-    };
-
-    // Safari: pinch gesture events
-    let gestureBase = zoomLevel;
-    const handleGestureStart = (e: Event) => {
-      const ge = e as any;
-      gestureBase = zoomLevel;
-      ge.preventDefault?.();
-    };
-    const handleGestureChange = (e: Event) => {
-      const ge = e as any;
-      ge.preventDefault?.();
-      if (typeof ge.scale === "number") {
-        setZoomLevel((_) => {
-          const next = Math.min(Math.max(gestureBase * ge.scale, 0.5), 4);
-          return Math.round(next * 100) / 100;
-        });
-      }
-    };
-
-    el.addEventListener("wheel", handleWheel, { passive: false });
-    el.addEventListener("gesturestart", handleGestureStart as any, { passive: false } as any);
-    el.addEventListener("gesturechange", handleGestureChange as any, { passive: false } as any);
-
-    return () => {
-      el.removeEventListener("wheel", handleWheel as any);
-      el.removeEventListener("gesturestart", handleGestureStart as any);
-      el.removeEventListener("gesturechange", handleGestureChange as any);
-    };
-  }, [zoomLevel]);
+  // Prevent browser/page zoom (Ctrl+wheel / pinch) within the PDF area only.
+  // This keeps the toolbar crisp while the PDF zooms via our own zoom state.
+  usePreventBrowserZoom({
+    containerRef: pdfContainerRef,
+    zoom: zoomLevel,
+    setZoom: (updater) => setZoomLevel((prev) => {
+      const next = updater(prev);
+      return Math.min(Math.max(next, 0.5), 4);
+    }),
+    clamp: (z) => Math.min(Math.max(z, 0.5), 4),
+  });
 
   useEffect(() => {
     if (plan && pages.length === 0 && !analyzing) {

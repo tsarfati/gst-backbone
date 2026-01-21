@@ -221,15 +221,23 @@ export default function SinglePagePdfViewer({
   }, [zoomLevel, pageNumber, pdfDoc, requestRender, updateCanvasCssSize]);
 
   // Pan/drag
-  const handleMouseDown = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerDown = useCallback(
+    (e: React.PointerEvent) => {
       if (zoomLevel <= 1) return;
-      setIsPanning(true);
-      panStartRef.current = { x: e.clientX, y: e.clientY };
+      if (e.pointerType === "mouse" && e.button !== 0) return;
 
       const container = containerRef.current;
-      if (container) {
-        scrollStartRef.current = { x: container.scrollLeft, y: container.scrollTop };
+      if (!container) return;
+
+      setIsPanning(true);
+      panStartRef.current = { x: e.clientX, y: e.clientY };
+      scrollStartRef.current = { x: container.scrollLeft, y: container.scrollTop };
+
+      // Keep receiving move events even if pointer leaves the container.
+      try {
+        (e.currentTarget as HTMLElement).setPointerCapture(e.pointerId);
+      } catch {
+        // ignore
       }
 
       e.preventDefault();
@@ -237,8 +245,8 @@ export default function SinglePagePdfViewer({
     [zoomLevel]
   );
 
-  const handleMouseMove = useCallback(
-    (e: React.MouseEvent) => {
+  const handlePointerMove = useCallback(
+    (e: React.PointerEvent) => {
       if (!isPanning) return;
       const container = containerRef.current;
       if (!container) return;
@@ -248,11 +256,21 @@ export default function SinglePagePdfViewer({
 
       container.scrollLeft = scrollStartRef.current.x + dx;
       container.scrollTop = scrollStartRef.current.y + dy;
+
+      e.preventDefault();
     },
     [isPanning]
   );
 
-  const endPan = useCallback(() => setIsPanning(false), []);
+  const handlePointerUp = useCallback((e: React.PointerEvent) => {
+    if (!isPanning) return;
+    setIsPanning(false);
+    try {
+      (e.currentTarget as HTMLElement).releasePointerCapture(e.pointerId);
+    } catch {
+      // ignore
+    }
+  }, [isPanning]);
 
   // Touch handlers
   const handleTouchStart = useCallback(
@@ -333,11 +351,12 @@ export default function SinglePagePdfViewer({
         cursor: cursorStyle,
         touchAction: "none",
         overscrollBehavior: "contain",
+        userSelect: isPanning ? "none" : undefined,
       }}
-      onMouseDown={handleMouseDown}
-      onMouseMove={handleMouseMove}
-      onMouseUp={endPan}
-      onMouseLeave={endPan}
+      onPointerDown={handlePointerDown}
+      onPointerMove={handlePointerMove}
+      onPointerUp={handlePointerUp}
+      onPointerCancel={handlePointerUp}
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
