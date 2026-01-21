@@ -733,7 +733,7 @@ export default function PlanViewer() {
           {/* PDF Viewer wrapper - this is the only element that zooms/pans */}
           <div
             ref={pdfContainerRef}
-            className="flex-1 relative min-h-0 min-w-0 overflow-auto bg-muted/30"
+              className="flex-1 relative min-h-0 min-w-0 overflow-hidden bg-muted/30"
             style={{
               touchAction: "none",
               overscrollBehavior: "contain",
