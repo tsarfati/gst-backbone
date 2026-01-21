@@ -720,14 +720,10 @@ export default function PlanViewer() {
 
         {/* Main Content - PDF + sidebar row */}
         <div className="flex flex-1 min-h-0 min-w-0 overflow-hidden">
-          {/* PDF Viewer wrapper - this is the only element that zooms/pans */}
+          {/* PDF Viewer wrapper - purely a layout container; SinglePagePdfViewer handles scroll internally */}
           <div
             ref={pdfContainerRef}
-              className="flex-1 relative min-h-0 min-w-0 overflow-hidden bg-muted/30"
-            style={{
-              touchAction: "none",
-              overscrollBehavior: "contain",
-            }}
+            className="flex-1 relative min-h-0 min-w-0 bg-muted/30"
           >
             {/* Canvas overlay for markups and interactions */}
             <div
