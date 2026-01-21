@@ -24,8 +24,43 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
 
+  const LOGIN_AUDIT_DEDUPE_MS = 5 * 60 * 1000; // 5 minutes
+
+  const getNowMs = () => Date.now();
+
+  const safeLocalStorage = {
+    get(key: string) {
+      try {
+        return window.localStorage.getItem(key);
+      } catch {
+        return null;
+      }
+    },
+    set(key: string, value: string) {
+      try {
+        window.localStorage.setItem(key, value);
+      } catch {
+        // ignore
+      }
+    },
+    remove(key: string) {
+      try {
+        window.localStorage.removeItem(key);
+      } catch {
+        // ignore
+      }
+    },
+  };
+
   const logLoginAttempt = async (userId: string, success: boolean, method: string) => {
     try {
+      // Client-side de-dupe to prevent accidental spam from session refreshes, remounts, multi-tabs, etc.
+      const dedupeKey = `login_audit:last:${userId}:${method}:${success ? 1 : 0}`;
+      const lastMs = Number(safeLocalStorage.get(dedupeKey) || 0);
+      const nowMs = getNowMs();
+      if (lastMs && nowMs - lastMs < LOGIN_AUDIT_DEDUPE_MS) return;
+      safeLocalStorage.set(dedupeKey, String(nowMs));
+
       await supabase.from('user_login_audit').insert({
         user_id: userId,
         login_time: new Date().toISOString(),
@@ -38,10 +73,25 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const consumePendingOAuthLogin = () => {
+    // One-time flag set right before redirecting to the OAuth provider.
+    // This prevents logging on every session restore.
+    const raw = safeLocalStorage.get('oauth_login_pending');
+    if (!raw) return null;
+    safeLocalStorage.remove('oauth_login_pending');
+
+    try {
+      const parsed = JSON.parse(raw) as { provider?: string; startedAt?: number };
+      const startedAt = typeof parsed.startedAt === 'number' ? parsed.startedAt : 0;
+      // Ignore stale flags (e.g., tab left open overnight)
+      if (startedAt && getNowMs() - startedAt > 10 * 60 * 1000) return null;
+      return parsed.provider || 'google';
+    } catch {
+      return 'google';
+    }
+  };
+
   useEffect(() => {
-    // Check if this is an OAuth redirect (user just logged in via Google)
-    const isOAuthRedirect = window.location.search.includes('oauth_login=true');
-    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -53,14 +103,12 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Defer Supabase calls with setTimeout to avoid deadlock
           setTimeout(async () => {
             try {
-              // Log OAuth login only on actual OAuth redirect, not session refresh
-              if (event === 'SIGNED_IN' && isOAuthRedirect) {
-                const method = session.user.app_metadata?.provider || 'google';
-                await logLoginAttempt(session.user.id, true, method);
-                // Clean up the URL parameter
-                const url = new URL(window.location.href);
-                url.searchParams.delete('oauth_login');
-                window.history.replaceState({}, '', url.toString());
+              // Log OAuth sign-in once (only if we initiated an OAuth flow in this tab)
+              if (event === 'SIGNED_IN') {
+                const provider = consumePendingOAuthLogin();
+                if (provider) {
+                  await logLoginAttempt(session.user.id, true, provider);
+                }
               }
               
               const { data: profileData } = await supabase
@@ -117,10 +165,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     
     // Log login attempt only on actual sign-in action
     if (data?.user) {
-      await logLoginAttempt(data.user.id, true, 'password');
-    } else if (error) {
-      // Log failed attempt if we have any identifier
-      console.error('Login failed:', error.message);
+      await logLoginAttempt(data.user.id, true, 'email');
     }
     
     return { error };
@@ -145,10 +190,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signInWithGoogle = async () => {
+    // Mark OAuth as pending before leaving the site so we can log it exactly once upon return.
+    safeLocalStorage.set('oauth_login_pending', JSON.stringify({ provider: 'google', startedAt: getNowMs() }));
+
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/?oauth_login=true`,
+        redirectTo: `${window.location.origin}/`,
         skipBrowserRedirect: true
       }
     });
