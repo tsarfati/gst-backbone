@@ -120,6 +120,13 @@ export default function SinglePagePdfViewer({
       }
     };
 
+    const handlePointerEnter = () => {
+      activeRef.current = true;
+    };
+    const handlePointerLeave = () => {
+      activeRef.current = false;
+    };
+
     const handleTouchStartCapture = (e: TouchEvent) => {
       // Mark active when touch originates inside the container.
       if (containsTarget(e.target)) activeRef.current = true;
@@ -221,6 +228,9 @@ export default function SinglePagePdfViewer({
 
     // Prefer an element-level wheel listener (capture + non-passive) so Chrome reliably treats
     // the ctrl+wheel pinch gesture as cancelable and doesn't apply page zoom.
+    container.addEventListener("pointerenter", handlePointerEnter);
+    container.addEventListener("pointerleave", handlePointerLeave);
+
     container.addEventListener("wheel", handleWheel, { passive: false, capture: true } as any);
 
     // In Chromium, trackpad pinch => wheel+ctrlKey. Some contexts (iframes) behave better
@@ -235,6 +245,9 @@ export default function SinglePagePdfViewer({
     document.addEventListener("touchcancel", handleTouchEndCapture, { passive: false, capture: true });
 
     return () => {
+      container.removeEventListener("pointerenter", handlePointerEnter as any);
+      container.removeEventListener("pointerleave", handlePointerLeave as any);
+
       container.removeEventListener("wheel", handleWheel as any, true as any);
 
       window.removeEventListener("wheel", handleWheel as any, true as any);
