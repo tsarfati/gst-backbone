@@ -139,10 +139,13 @@ export default function SinglePagePdfViewer({
       if (!e.ctrlKey) return;
 
       // Only intercept when the gesture originates within the PDF viewer.
-      if (!containsTarget(e.target) && !activeRef.current) return;
+      const isInside = containsTarget(e.target) || activeRef.current;
+      console.log("[PDF Viewer] wheel ctrlKey detected, isInside:", isInside, "target:", e.target);
+      if (!isInside) return;
 
       e.preventDefault();
       e.stopPropagation();
+      console.log("[PDF Viewer] preventDefault called, applying zoom");
 
       const prevZoom = zoomRef.current;
       const delta = -e.deltaY * 0.01;
@@ -151,6 +154,7 @@ export default function SinglePagePdfViewer({
       const rect = container.getBoundingClientRect();
       const focusX = Math.min(Math.max(e.clientX - rect.left, 0), rect.width);
       const focusY = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+      console.log("[PDF Viewer] zoom:", prevZoom, "->", nextZoom, "focusX:", focusX, "focusY:", focusY);
       applyZoom(nextZoom, focusX, focusY);
     };
 
