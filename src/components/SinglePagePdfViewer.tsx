@@ -33,6 +33,16 @@ export default function SinglePagePdfViewer({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
+  // Keep latest values for native event listeners (avoid re-binding on every render).
+  const zoomRef = useRef(zoomLevel);
+  const onZoomChangeRef = useRef(onZoomChange);
+  useEffect(() => {
+    zoomRef.current = zoomLevel;
+  }, [zoomLevel]);
+  useEffect(() => {
+    onZoomChangeRef.current = onZoomChange;
+  }, [onZoomChange]);
+
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
@@ -71,6 +81,86 @@ export default function SinglePagePdfViewer({
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
   }, []);
+
+  // Prevent browser/page zoom + implement zoom-to-cursor (trackpad ctrl+wheel) at the PDF level.
+  // This is deliberately attached to the PDF scroll container (not the page) so the toolbar never scales.
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container) return;
+
+    const applyZoom = (nextZoom: number, focusX: number, focusY: number) => {
+      const prevZoom = zoomRef.current || 1;
+      if (!Number.isFinite(nextZoom) || nextZoom <= 0) return;
+      const ratio = nextZoom / prevZoom;
+
+      // Resize immediately so scroll dimensions update before we adjust scroll offsets.
+      updateCanvasCssSize(nextZoom);
+
+      // Keep the point under the cursor stable during zoom.
+      const prevLeft = container.scrollLeft;
+      const prevTop = container.scrollTop;
+      container.scrollLeft = (prevLeft + focusX) * ratio - focusX;
+      container.scrollTop = (prevTop + focusY) * ratio - focusY;
+
+      onZoomChangeRef.current?.(nextZoom);
+    };
+
+    const handleWheel = (e: WheelEvent) => {
+      // Trackpad pinch in Chromium => wheel with ctrlKey=true.
+      if (!e.ctrlKey) return;
+
+      e.preventDefault();
+      e.stopPropagation();
+
+      const prevZoom = zoomRef.current;
+      const delta = -e.deltaY * 0.01;
+      const nextZoom = clampZoom(Math.round((prevZoom + delta) * 100) / 100);
+
+      const rect = container.getBoundingClientRect();
+      const focusX = Math.min(Math.max(e.clientX - rect.left, 0), rect.width);
+      const focusY = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
+      applyZoom(nextZoom, focusX, focusY);
+    };
+
+    // Safari desktop pinch produces gesture events.
+    const gestureBaseRef = { current: zoomRef.current };
+    const handleGestureStart = (e: Event) => {
+      gestureBaseRef.current = zoomRef.current;
+      (e as any).preventDefault?.();
+      e.preventDefault?.();
+    };
+    const handleGestureChange = (e: Event) => {
+      const ge = e as any;
+      ge.preventDefault?.();
+      e.preventDefault?.();
+
+      if (typeof ge.scale !== "number") return;
+      const nextZoom = clampZoom(Math.round(gestureBaseRef.current * ge.scale * 100) / 100);
+      // No cursor location for gesture events; zoom around center of viewport.
+      const focusX = container.clientWidth / 2;
+      const focusY = container.clientHeight / 2;
+      applyZoom(nextZoom, focusX, focusY);
+    };
+
+    // iOS Safari can ignore preventDefault on React touch handlers; block browser pinch here.
+    const handleTouchMove = (e: TouchEvent) => {
+      if (e.touches.length >= 2) {
+        e.preventDefault();
+      }
+    };
+
+    container.addEventListener("wheel", handleWheel, { passive: false, capture: true });
+    container.addEventListener("gesturestart", handleGestureStart as any, { passive: false, capture: true } as any);
+    container.addEventListener("gesturechange", handleGestureChange as any, { passive: false, capture: true } as any);
+    container.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
+
+    return () => {
+      container.removeEventListener("wheel", handleWheel as any, true as any);
+      container.removeEventListener("gesturestart", handleGestureStart as any, true as any);
+      container.removeEventListener("gesturechange", handleGestureChange as any, true as any);
+      container.removeEventListener("touchmove", handleTouchMove as any, true as any);
+    };
+  }, [clampZoom, updateCanvasCssSize]);
 
   // Load PDF document once per URL
   useEffect(() => {
@@ -137,7 +227,11 @@ export default function SinglePagePdfViewer({
 
         const containerWidth = container.clientWidth || window.innerWidth;
         const baseViewport = pdfPage.getViewport({ scale: 1 });
-        const fitScale = (containerWidth * 0.95) / baseViewport.width;
+        // Keep page fitted at 100% but allow *any* zoom > 1 to overflow horizontally.
+        // Inner wrapper uses p-4, so subtract its horizontal padding (16px * 2).
+        const horizontalPadding = 32;
+        const availableWidth = Math.max(1, containerWidth - horizontalPadding);
+        const fitScale = availableWidth / baseViewport.width;
 
         layoutRef.current = {
           fitScale,
