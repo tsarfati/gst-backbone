@@ -98,8 +98,18 @@ export default function PlanViewer() {
     }
   }, [searchParams]);
 
-  // NOTE: Browser zoom prevention + zoom-to-cursor is handled inside SinglePagePdfViewer
-  // so it can operate on the actual scroll container.
+  // IMPORTANT (Chrome macOS): trackpad pinch can trigger *page* zoom (which scales the header/toolbar).
+  // We disable browser zoom while this viewer is mounted so zoom only affects the PDF.
+  useEffect(() => {
+    const onWheel = (e: WheelEvent) => {
+      if (!e.ctrlKey) return;
+      // Prevent Chrome page zoom (Cmd +/- is still available if the user wants it).
+      if (e.cancelable) e.preventDefault();
+    };
+
+    window.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    return () => window.removeEventListener("wheel", onWheel as any, true as any);
+  }, []);
 
   useEffect(() => {
     if (plan && pages.length === 0 && !analyzing) {
