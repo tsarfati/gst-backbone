@@ -214,6 +214,10 @@ export default function SinglePagePdfViewer({
     container.addEventListener("pointerenter", handlePointerEnter);
     container.addEventListener("pointerleave", handlePointerLeave);
 
+    // Prefer an element-level wheel listener (capture + non-passive) so Chrome reliably treats
+    // the ctrl+wheel pinch gesture as cancelable and doesn't apply page zoom.
+    container.addEventListener("wheel", handleWheel, { passive: false, capture: true } as any);
+
     // In Chromium, trackpad pinch => wheel+ctrlKey. Some contexts (iframes) behave better
     // when we also listen on window.
     window.addEventListener("wheel", handleWheel, { passive: false, capture: true } as any);
@@ -228,6 +232,8 @@ export default function SinglePagePdfViewer({
     return () => {
       container.removeEventListener("pointerenter", handlePointerEnter as any);
       container.removeEventListener("pointerleave", handlePointerLeave as any);
+
+      container.removeEventListener("wheel", handleWheel as any, true as any);
 
       window.removeEventListener("wheel", handleWheel as any, true as any);
       document.removeEventListener("wheel", handleWheel as any, true as any);
@@ -395,11 +401,14 @@ export default function SinglePagePdfViewer({
   // Pan/drag
   const handlePointerDown = useCallback(
     (e: React.PointerEvent) => {
-      if (zoomLevel <= 1) return;
       if (e.pointerType === "mouse" && e.button !== 0) return;
 
       const container = containerRef.current;
       if (!container) return;
+
+      // Only enable drag-pan when the content actually overflows in any direction.
+      const canPan = container.scrollWidth > container.clientWidth || container.scrollHeight > container.clientHeight;
+      if (!canPan) return;
 
       setIsPanning(true);
       panStartRef.current = { x: e.clientX, y: e.clientY };
