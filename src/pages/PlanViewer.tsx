@@ -16,7 +16,6 @@ import { Label } from "@/components/ui/label";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import SinglePagePdfViewer from "@/components/SinglePagePdfViewer";
 import { format } from "date-fns";
-import { usePreventBrowserZoom } from "@/hooks/usePreventBrowserZoom";
 
 // Bundle worker locally (avoids relying on external CDNs that may be blocked)
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -99,17 +98,8 @@ export default function PlanViewer() {
     }
   }, [searchParams]);
 
-  // Prevent browser/page zoom (Ctrl+wheel / pinch) within the PDF area only.
-  // This keeps the toolbar crisp while the PDF zooms via our own zoom state.
-  usePreventBrowserZoom({
-    containerRef: pdfContainerRef,
-    zoom: zoomLevel,
-    setZoom: (updater) => setZoomLevel((prev) => {
-      const next = updater(prev);
-      return Math.min(Math.max(next, 0.5), 4);
-    }),
-    clamp: (z) => Math.min(Math.max(z, 0.5), 4),
-  });
+  // NOTE: Browser zoom prevention + zoom-to-cursor is handled inside SinglePagePdfViewer
+  // so it can operate on the actual scroll container.
 
   useEffect(() => {
     if (plan && pages.length === 0 && !analyzing) {
