@@ -101,10 +101,28 @@ export default function PlanViewer() {
   // IMPORTANT (Chrome macOS): trackpad pinch can trigger *page* zoom (which scales the header/toolbar).
   // We disable browser zoom while this viewer is mounted so zoom only affects the PDF.
   useEffect(() => {
+    // Some Safari/embedded WebViews still page-zoom even when gesture events are prevented.
+    // This tiny "zoom nudge" is a known workaround to force WebKit to cancel the page zoom.
+    const body = document.body;
+    const originalBodyZoom = body?.style.zoom;
+    const nudgeBodyZoom = () => {
+      try {
+        if (!document.body) return;
+        document.body.style.zoom = "0.999";
+        requestAnimationFrame(() => {
+          // Restore previous explicit zoom style (usually empty)
+          document.body.style.zoom = originalBodyZoom || "";
+        });
+      } catch {
+        // ignore
+      }
+    };
+
     const onWheel = (e: WheelEvent) => {
       if (!e.ctrlKey) return;
       // Prevent Chrome page zoom (Cmd +/- is still available if the user wants it).
       if (e.cancelable) e.preventDefault();
+      nudgeBodyZoom();
     };
 
     // Safari pinch zoom emits gesture events that can zoom the whole page.
@@ -112,25 +130,43 @@ export default function PlanViewer() {
       // Don't stop propagation; the PDF viewer still needs to receive this to apply its own zoom.
       (e as any).preventDefault?.();
       e.preventDefault?.();
+      nudgeBodyZoom();
+    };
+
+    const onGestureEnd = (e: Event) => {
+      (e as any).preventDefault?.();
+      e.preventDefault?.();
+      nudgeBodyZoom();
     };
 
     window.addEventListener("wheel", onWheel, { passive: false, capture: true });
     window.addEventListener("gesturestart", onGesture as any, { passive: false, capture: true } as any);
     window.addEventListener("gesturechange", onGesture as any, { passive: false, capture: true } as any);
+    window.addEventListener("gestureend", onGestureEnd as any, { passive: false, capture: true } as any);
 
     // Some WebKit builds dispatch gesture events on `document` rather than `window`.
     document.addEventListener("gesturestart", onGesture as any, { passive: false, capture: true } as any);
     document.addEventListener("gesturechange", onGesture as any, { passive: false, capture: true } as any);
+    document.addEventListener("gestureend", onGestureEnd as any, { passive: false, capture: true } as any);
     document.addEventListener("wheel", onWheel, { passive: false, capture: true } as any);
 
     return () => {
       window.removeEventListener("wheel", onWheel as any, true as any);
       window.removeEventListener("gesturestart", onGesture as any, true as any);
       window.removeEventListener("gesturechange", onGesture as any, true as any);
+      window.removeEventListener("gestureend", onGestureEnd as any, true as any);
 
       document.removeEventListener("gesturestart", onGesture as any, true as any);
       document.removeEventListener("gesturechange", onGesture as any, true as any);
+      document.removeEventListener("gestureend", onGestureEnd as any, true as any);
       document.removeEventListener("wheel", onWheel as any, true as any);
+
+      // Restore any previous zoom style
+      try {
+        if (document.body) document.body.style.zoom = originalBodyZoom || "";
+      } catch {
+        // ignore
+      }
     };
   }, []);
 
