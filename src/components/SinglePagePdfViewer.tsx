@@ -83,10 +83,39 @@ export default function SinglePagePdfViewer({
   }, []);
 
   // Prevent browser/page zoom + implement zoom-to-cursor (trackpad ctrl+wheel) at the PDF level.
-  // This is deliberately attached to the PDF scroll container (not the page) so the toolbar never scales.
+  // We attach document-level capture listeners because Safari gesture events often target `document`,
+  // but we only act when the interaction is within (or started within) this PDF container.
   useEffect(() => {
     const container = containerRef.current;
     if (!container) return;
+
+    const activeRef = { current: false };
+    const containsTarget = (target: EventTarget | null) => {
+      if (!target) return false;
+      try {
+        return container.contains(target as Node);
+      } catch {
+        return false;
+      }
+    };
+
+    const handlePointerEnter = () => {
+      activeRef.current = true;
+    };
+    const handlePointerLeave = () => {
+      activeRef.current = false;
+    };
+    const handleTouchStartCapture = (e: TouchEvent) => {
+      // Mark active when touch originates inside the container.
+      if (containsTarget(e.target)) activeRef.current = true;
+      // Prevent browser pinch zoom from starting.
+      if (activeRef.current && e.touches.length >= 2) {
+        e.preventDefault();
+      }
+    };
+    const handleTouchEndCapture = (e: TouchEvent) => {
+      if (e.touches.length === 0) activeRef.current = false;
+    };
 
     const applyZoom = (nextZoom: number, focusX: number, focusY: number) => {
       const prevZoom = zoomRef.current || 1;
@@ -109,6 +138,9 @@ export default function SinglePagePdfViewer({
       // Trackpad pinch in Chromium => wheel with ctrlKey=true.
       if (!e.ctrlKey) return;
 
+      // Only intercept when the gesture originates within the PDF viewer.
+      if (!containsTarget(e.target) && !activeRef.current) return;
+
       e.preventDefault();
       e.stopPropagation();
 
@@ -125,11 +157,13 @@ export default function SinglePagePdfViewer({
     // Safari desktop pinch produces gesture events.
     const gestureBaseRef = { current: zoomRef.current };
     const handleGestureStart = (e: Event) => {
+      if (!containsTarget(e.target) && !activeRef.current) return;
       gestureBaseRef.current = zoomRef.current;
       (e as any).preventDefault?.();
       e.preventDefault?.();
     };
     const handleGestureChange = (e: Event) => {
+      if (!containsTarget(e.target) && !activeRef.current) return;
       const ge = e as any;
       ge.preventDefault?.();
       e.preventDefault?.();
@@ -143,22 +177,35 @@ export default function SinglePagePdfViewer({
     };
 
     // iOS Safari can ignore preventDefault on React touch handlers; block browser pinch here.
-    const handleTouchMove = (e: TouchEvent) => {
+    const handleTouchMoveCapture = (e: TouchEvent) => {
+      if (!activeRef.current) return;
       if (e.touches.length >= 2) {
         e.preventDefault();
       }
     };
 
-    container.addEventListener("wheel", handleWheel, { passive: false, capture: true });
-    container.addEventListener("gesturestart", handleGestureStart as any, { passive: false, capture: true } as any);
-    container.addEventListener("gesturechange", handleGestureChange as any, { passive: false, capture: true } as any);
-    container.addEventListener("touchmove", handleTouchMove, { passive: false, capture: true });
+    container.addEventListener("pointerenter", handlePointerEnter);
+    container.addEventListener("pointerleave", handlePointerLeave);
+
+    document.addEventListener("wheel", handleWheel, { passive: false, capture: true });
+    document.addEventListener("gesturestart", handleGestureStart as any, { passive: false, capture: true } as any);
+    document.addEventListener("gesturechange", handleGestureChange as any, { passive: false, capture: true } as any);
+    document.addEventListener("touchstart", handleTouchStartCapture, { passive: false, capture: true });
+    document.addEventListener("touchmove", handleTouchMoveCapture, { passive: false, capture: true });
+    document.addEventListener("touchend", handleTouchEndCapture, { passive: false, capture: true });
+    document.addEventListener("touchcancel", handleTouchEndCapture, { passive: false, capture: true });
 
     return () => {
-      container.removeEventListener("wheel", handleWheel as any, true as any);
-      container.removeEventListener("gesturestart", handleGestureStart as any, true as any);
-      container.removeEventListener("gesturechange", handleGestureChange as any, true as any);
-      container.removeEventListener("touchmove", handleTouchMove as any, true as any);
+      container.removeEventListener("pointerenter", handlePointerEnter as any);
+      container.removeEventListener("pointerleave", handlePointerLeave as any);
+
+      document.removeEventListener("wheel", handleWheel as any, true as any);
+      document.removeEventListener("gesturestart", handleGestureStart as any, true as any);
+      document.removeEventListener("gesturechange", handleGestureChange as any, true as any);
+      document.removeEventListener("touchstart", handleTouchStartCapture as any, true as any);
+      document.removeEventListener("touchmove", handleTouchMoveCapture as any, true as any);
+      document.removeEventListener("touchend", handleTouchEndCapture as any, true as any);
+      document.removeEventListener("touchcancel", handleTouchEndCapture as any, true as any);
     };
   }, [clampZoom, updateCanvasCssSize]);
 
