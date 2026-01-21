@@ -32,6 +32,7 @@ export default function SinglePagePdfViewer({
 }: SinglePagePdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const contentRef = useRef<HTMLDivElement>(null);
 
   // Keep latest values for native event listeners (avoid re-binding on every render).
   const zoomRef = useRef(zoomLevel);
@@ -82,6 +83,15 @@ export default function SinglePagePdfViewer({
     canvas.style.height = `${h}px`;
   }, []);
 
+  const getContentPadding = useCallback(() => {
+    const el = contentRef.current;
+    if (!el) return { left: 0, top: 0 };
+    const s = window.getComputedStyle(el);
+    const left = Number.parseFloat(s.paddingLeft || "0") || 0;
+    const top = Number.parseFloat(s.paddingTop || "0") || 0;
+    return { left, top };
+  }, []);
+
   // Prevent browser/page zoom + implement zoom-to-cursor (trackpad ctrl+wheel) at the PDF level.
   // We attach document-level capture listeners because Safari gesture events often target `document`,
   // but we only act when the interaction is within (or started within) this PDF container.
@@ -122,14 +132,27 @@ export default function SinglePagePdfViewer({
       if (!Number.isFinite(nextZoom) || nextZoom <= 0) return;
       const ratio = nextZoom / prevZoom;
 
+      // Our scroll content has padding (p-4). Padding does NOT scale with zoom,
+      // so zoom-to-cursor must be computed relative to the canvas origin inside that padding.
+      const { left: padLeft, top: padTop } = getContentPadding();
+
       // Resize immediately so scroll dimensions update before we adjust scroll offsets.
       updateCanvasCssSize(nextZoom);
 
       // Keep the point under the cursor stable during zoom.
       const prevLeft = container.scrollLeft;
       const prevTop = container.scrollTop;
-      container.scrollLeft = (prevLeft + focusX) * ratio - focusX;
-      container.scrollTop = (prevTop + focusY) * ratio - focusY;
+
+      // Cursor position in scroll-content coords
+      const contentX = prevLeft + focusX;
+      const contentY = prevTop + focusY;
+
+      // Cursor position in *canvas* coords (exclude the constant padding)
+      const canvasX = Math.max(0, contentX - padLeft);
+      const canvasY = Math.max(0, contentY - padTop);
+
+      container.scrollLeft = padLeft + canvasX * ratio - focusX;
+      container.scrollTop = padTop + canvasY * ratio - focusY;
 
       onZoomChangeRef.current?.(nextZoom);
     };
@@ -191,6 +214,9 @@ export default function SinglePagePdfViewer({
     container.addEventListener("pointerenter", handlePointerEnter);
     container.addEventListener("pointerleave", handlePointerLeave);
 
+    // In Chromium, trackpad pinch => wheel+ctrlKey. Some contexts (iframes) behave better
+    // when we also listen on window.
+    window.addEventListener("wheel", handleWheel, { passive: false, capture: true } as any);
     document.addEventListener("wheel", handleWheel, { passive: false, capture: true });
     document.addEventListener("gesturestart", handleGestureStart as any, { passive: false, capture: true } as any);
     document.addEventListener("gesturechange", handleGestureChange as any, { passive: false, capture: true } as any);
@@ -203,6 +229,7 @@ export default function SinglePagePdfViewer({
       container.removeEventListener("pointerenter", handlePointerEnter as any);
       container.removeEventListener("pointerleave", handlePointerLeave as any);
 
+      window.removeEventListener("wheel", handleWheel as any, true as any);
       document.removeEventListener("wheel", handleWheel as any, true as any);
       document.removeEventListener("gesturestart", handleGestureStart as any, true as any);
       document.removeEventListener("gesturechange", handleGestureChange as any, true as any);
@@ -211,7 +238,7 @@ export default function SinglePagePdfViewer({
       document.removeEventListener("touchend", handleTouchEndCapture as any, true as any);
       document.removeEventListener("touchcancel", handleTouchEndCapture as any, true as any);
     };
-  }, [clampZoom, updateCanvasCssSize]);
+  }, [clampZoom, getContentPadding, updateCanvasCssSize]);
 
   // Load PDF document once per URL
   useEffect(() => {
@@ -508,10 +535,8 @@ export default function SinglePagePdfViewer({
       aria-label={`PDF page ${pageNumber} of ${totalPages}`}
     >
       <div
-        className={cn(
-          "relative min-h-full p-4 flex",
-          zoomLevel <= 1 ? "w-full items-center justify-center" : "w-max items-start justify-start"
-        )}
+        ref={contentRef}
+        className={cn("relative min-h-full min-w-full p-4", zoomLevel > 1 && "w-max")}
       >
         <div className="relative shrink-0">
           {loading && (
