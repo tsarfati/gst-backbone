@@ -109,12 +109,17 @@ export default function SinglePagePdfViewer({
       }
     };
 
-    const handlePointerEnter = () => {
-      activeRef.current = true;
+    const containsPoint = (clientX: number, clientY: number) => {
+      // Some browsers report `target=document` for trackpad pinch wheel events.
+      // elementFromPoint gives us the element actually under the cursor.
+      try {
+        const el = document.elementFromPoint(clientX, clientY);
+        return !!el && container.contains(el);
+      } catch {
+        return false;
+      }
     };
-    const handlePointerLeave = () => {
-      activeRef.current = false;
-    };
+
     const handleTouchStartCapture = (e: TouchEvent) => {
       // Mark active when touch originates inside the container.
       if (containsTarget(e.target)) activeRef.current = true;
@@ -162,11 +167,14 @@ export default function SinglePagePdfViewer({
       if (!e.ctrlKey) return;
 
       // Only intercept when the gesture originates within the PDF viewer.
-      const isInside = containsTarget(e.target) || activeRef.current;
+      const isInside =
+        containsTarget(e.target) ||
+        activeRef.current ||
+        containsPoint(e.clientX, e.clientY);
       console.log("[PDF Viewer] wheel ctrlKey detected, isInside:", isInside, "target:", e.target);
       if (!isInside) return;
 
-      e.preventDefault();
+      if (e.cancelable) e.preventDefault();
       e.stopPropagation();
       console.log("[PDF Viewer] preventDefault called, applying zoom");
 
@@ -211,9 +219,6 @@ export default function SinglePagePdfViewer({
       }
     };
 
-    container.addEventListener("pointerenter", handlePointerEnter);
-    container.addEventListener("pointerleave", handlePointerLeave);
-
     // Prefer an element-level wheel listener (capture + non-passive) so Chrome reliably treats
     // the ctrl+wheel pinch gesture as cancelable and doesn't apply page zoom.
     container.addEventListener("wheel", handleWheel, { passive: false, capture: true } as any);
@@ -230,9 +235,6 @@ export default function SinglePagePdfViewer({
     document.addEventListener("touchcancel", handleTouchEndCapture, { passive: false, capture: true });
 
     return () => {
-      container.removeEventListener("pointerenter", handlePointerEnter as any);
-      container.removeEventListener("pointerleave", handlePointerLeave as any);
-
       container.removeEventListener("wheel", handleWheel as any, true as any);
 
       window.removeEventListener("wheel", handleWheel as any, true as any);
