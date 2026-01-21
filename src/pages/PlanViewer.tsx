@@ -118,10 +118,19 @@ export default function PlanViewer() {
     window.addEventListener("gesturestart", onGesture as any, { passive: false, capture: true } as any);
     window.addEventListener("gesturechange", onGesture as any, { passive: false, capture: true } as any);
 
+    // Some WebKit builds dispatch gesture events on `document` rather than `window`.
+    document.addEventListener("gesturestart", onGesture as any, { passive: false, capture: true } as any);
+    document.addEventListener("gesturechange", onGesture as any, { passive: false, capture: true } as any);
+    document.addEventListener("wheel", onWheel, { passive: false, capture: true } as any);
+
     return () => {
       window.removeEventListener("wheel", onWheel as any, true as any);
       window.removeEventListener("gesturestart", onGesture as any, true as any);
       window.removeEventListener("gesturechange", onGesture as any, true as any);
+
+      document.removeEventListener("gesturestart", onGesture as any, true as any);
+      document.removeEventListener("gesturechange", onGesture as any, true as any);
+      document.removeEventListener("wheel", onWheel as any, true as any);
     };
   }, []);
 
