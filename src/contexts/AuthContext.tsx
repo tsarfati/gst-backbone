@@ -39,6 +39,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   useEffect(() => {
+    // Check if this is an OAuth redirect (user just logged in via Google)
+    const isOAuthRedirect = window.location.search.includes('oauth_login=true');
+    
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
@@ -50,10 +53,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
           // Defer Supabase calls with setTimeout to avoid deadlock
           setTimeout(async () => {
             try {
-              // Log login for OAuth and other sign-in events
-              if (event === 'SIGNED_IN') {
-                const method = session.user.app_metadata?.provider || 'unknown';
+              // Log OAuth login only on actual OAuth redirect, not session refresh
+              if (event === 'SIGNED_IN' && isOAuthRedirect) {
+                const method = session.user.app_metadata?.provider || 'google';
                 await logLoginAttempt(session.user.id, true, method);
+                // Clean up the URL parameter
+                const url = new URL(window.location.href);
+                url.searchParams.delete('oauth_login');
+                window.history.replaceState({}, '', url.toString());
               }
               
               const { data: profileData } = await supabase
@@ -108,6 +115,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       password,
     });
     
+    // Log login attempt only on actual sign-in action
+    if (data?.user) {
+      await logLoginAttempt(data.user.id, true, 'password');
+    } else if (error) {
+      // Log failed attempt if we have any identifier
+      console.error('Login failed:', error.message);
+    }
+    
     return { error };
   };
 
@@ -133,7 +148,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/`,
+        redirectTo: `${window.location.origin}/?oauth_login=true`,
         skipBrowserRedirect: true
       }
     });
