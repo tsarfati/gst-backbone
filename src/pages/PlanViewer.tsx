@@ -107,8 +107,22 @@ export default function PlanViewer() {
       if (e.cancelable) e.preventDefault();
     };
 
+    // Safari pinch zoom emits gesture events that can zoom the whole page.
+    const onGesture = (e: Event) => {
+      // Don't stop propagation; the PDF viewer still needs to receive this to apply its own zoom.
+      (e as any).preventDefault?.();
+      e.preventDefault?.();
+    };
+
     window.addEventListener("wheel", onWheel, { passive: false, capture: true });
-    return () => window.removeEventListener("wheel", onWheel as any, true as any);
+    window.addEventListener("gesturestart", onGesture as any, { passive: false, capture: true } as any);
+    window.addEventListener("gesturechange", onGesture as any, { passive: false, capture: true } as any);
+
+    return () => {
+      window.removeEventListener("wheel", onWheel as any, true as any);
+      window.removeEventListener("gesturestart", onGesture as any, true as any);
+      window.removeEventListener("gesturechange", onGesture as any, true as any);
+    };
   }, []);
 
   useEffect(() => {
