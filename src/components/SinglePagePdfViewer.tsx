@@ -132,7 +132,16 @@ export default function SinglePagePdfViewer({
       if (containsTarget(e.target)) activeRef.current = true;
       // Prevent browser pinch zoom from starting.
       if (activeRef.current && e.touches.length >= 2) {
-        e.preventDefault();
+        try {
+          e.preventDefault();
+        } catch {
+          // ignore
+        }
+        try {
+          (e as any).stopImmediatePropagation?.();
+        } catch {
+          // ignore
+        }
       }
     };
     const handleTouchEndCapture = (e: TouchEvent) => {
@@ -181,7 +190,18 @@ export default function SinglePagePdfViewer({
       console.log("[PDF Viewer] wheel ctrlKey detected, isInside:", isInside, "target:", e.target);
       if (!isInside) return;
 
-      if (e.cancelable) e.preventDefault();
+      // Cancel browser page-zoom and keep this event from reaching higher-level listeners.
+      // (Some WebKit builds only reliably stop page zoom when we also stopImmediatePropagation.)
+      try {
+        e.preventDefault();
+      } catch {
+        // ignore
+      }
+      try {
+        (e as any).stopImmediatePropagation?.();
+      } catch {
+        // ignore
+      }
       e.stopPropagation();
       console.log("[PDF Viewer] preventDefault called, applying zoom");
 
@@ -203,12 +223,22 @@ export default function SinglePagePdfViewer({
       gestureBaseRef.current = zoomRef.current;
       (e as any).preventDefault?.();
       e.preventDefault?.();
+      try {
+        (e as any).stopImmediatePropagation?.();
+      } catch {
+        // ignore
+      }
     };
     const handleGestureChange = (e: Event) => {
       if (!containsTarget(e.target) && !activeRef.current) return;
       const ge = e as any;
       ge.preventDefault?.();
       e.preventDefault?.();
+      try {
+        (e as any).stopImmediatePropagation?.();
+      } catch {
+        // ignore
+      }
 
       if (typeof ge.scale !== "number") return;
       const nextZoom = clampZoom(Math.round(gestureBaseRef.current * ge.scale * 100) / 100);
@@ -222,7 +252,16 @@ export default function SinglePagePdfViewer({
     const handleTouchMoveCapture = (e: TouchEvent) => {
       if (!activeRef.current) return;
       if (e.touches.length >= 2) {
-        e.preventDefault();
+        try {
+          e.preventDefault();
+        } catch {
+          // ignore
+        }
+        try {
+          (e as any).stopImmediatePropagation?.();
+        } catch {
+          // ignore
+        }
       }
     };
 
@@ -560,9 +599,15 @@ export default function SinglePagePdfViewer({
     >
       <div
         ref={contentRef}
-        className={cn("relative min-h-full min-w-full p-4", zoomLevel > 1 && "w-max")}
+        className={cn(
+          "relative min-h-full p-4",
+          // At 100% fill the viewport; when zoomed, expand to the canvas' CSS width so
+          // horizontal scrolling/panning is possible.
+          zoomLevel > 1 ? "w-max" : "w-full"
+        )}
       >
-        <div className="relative shrink-0">
+        {/* Inline-block ensures wrapper width matches the canvas CSS width (enables horizontal scroll). */}
+        <div className="relative inline-block">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 pointer-events-none">
               <div className="flex flex-col items-center gap-2">
