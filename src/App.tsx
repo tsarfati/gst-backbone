@@ -18,6 +18,7 @@ import TenantRequest from "@/pages/TenantRequest";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import TenantDetails from "@/pages/TenantDetails";
 import LandingPage from "@/pages/LandingPage";
+import TaskDetails from "@/pages/TaskDetails";
 import { AppRouter } from "./AppRouter";
 
 
