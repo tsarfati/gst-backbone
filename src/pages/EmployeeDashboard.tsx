@@ -10,7 +10,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Clock, User, Mail, Phone, MessageSquare, FileText, ArrowLeft, Send, Edit2, CalendarClock, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Clock, User, Mail, Phone, MessageSquare, FileText, ArrowLeft, Send, Edit2, CalendarClock, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -43,6 +43,254 @@ interface ChangeRequest {
   proposed_punch_out_time?: string;
   proposed_job_id?: string;
   proposed_cost_code_id?: string;
+}
+
+interface ManualEntryFormProps {
+  allJobs: Array<{id: string, name: string}>;
+  allCostCodes: Array<{id: string, code: string, description: string}>;
+  isPinAuthenticated: boolean;
+  onSuccess: () => void;
+}
+
+function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess }: ManualEntryFormProps) {
+  const { user } = usePunchClockAuth();
+  const { toast } = useToast();
+  const [submitting, setSubmitting] = useState(false);
+  const [formData, setFormData] = useState({
+    date: '',
+    punch_in_time: '',
+    punch_out_time: '',
+    job_id: '',
+    cost_code_id: '',
+    reason: ''
+  });
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.date || !formData.punch_in_time || !formData.punch_out_time || !formData.job_id || !formData.reason) {
+      toast({
+        title: 'Missing Fields',
+        description: 'Please fill in all required fields.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Validate times
+    const punchInDateTime = new Date(`${formData.date}T${formData.punch_in_time}`);
+    const punchOutDateTime = new Date(`${formData.date}T${formData.punch_out_time}`);
+    
+    if (punchOutDateTime <= punchInDateTime) {
+      toast({
+        title: 'Invalid Times',
+        description: 'Punch out time must be after punch in time.',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    // Calculate total hours
+    const totalHours = (punchOutDateTime.getTime() - punchInDateTime.getTime()) / (1000 * 60 * 60);
+
+    setSubmitting(true);
+    try {
+      // Get user ID
+      const storedPunchUserStr = localStorage.getItem('punch_clock_user');
+      let userId: string | null = null;
+      let companyId: string | null = null;
+      
+      if (isPinAuthenticated && storedPunchUserStr) {
+        const parsed = JSON.parse(storedPunchUserStr);
+        userId = parsed.id;
+        companyId = parsed.company_id;
+      } else if (user) {
+        userId = (user as any)?.user_id || (user as any)?.id;
+        // Get company from profile
+        const { data: profileData } = await supabase
+          .from('profiles')
+          .select('current_company_id')
+          .eq('user_id', userId)
+          .maybeSingle();
+        companyId = profileData?.current_company_id;
+      }
+
+      if (!userId || !companyId) {
+        throw new Error('Unable to determine user or company');
+      }
+
+      // Get job's company_id if not already set
+      if (!companyId) {
+        const { data: jobData } = await supabase
+          .from('jobs')
+          .select('company_id')
+          .eq('id', formData.job_id)
+          .single();
+        companyId = jobData?.company_id;
+      }
+
+      // Create time card with pending status (requires approval)
+      const { data: timeCard, error: tcError } = await supabase
+        .from('time_cards')
+        .insert({
+          user_id: userId,
+          job_id: formData.job_id,
+          cost_code_id: formData.cost_code_id || null,
+          punch_in_time: punchInDateTime.toISOString(),
+          punch_out_time: punchOutDateTime.toISOString(),
+          total_hours: totalHours,
+          status: 'pending', // Requires approval
+          company_id: companyId,
+          is_manual_entry: true
+        })
+        .select()
+        .single();
+
+      if (tcError) throw tcError;
+
+      // Create a change request to track the manual entry approval
+      const { error: crError } = await supabase
+        .from('time_card_change_requests')
+        .insert({
+          time_card_id: timeCard.id,
+          user_id: userId,
+          company_id: companyId,
+          reason: `Manual Entry: ${formData.reason}`,
+          status: 'pending',
+          proposed_punch_in_time: punchInDateTime.toISOString(),
+          proposed_punch_out_time: punchOutDateTime.toISOString(),
+          proposed_job_id: formData.job_id,
+          proposed_cost_code_id: formData.cost_code_id || null
+        });
+
+      if (crError) throw crError;
+
+      // Reset form
+      setFormData({
+        date: '',
+        punch_in_time: '',
+        punch_out_time: '',
+        job_id: '',
+        cost_code_id: '',
+        reason: ''
+      });
+      
+      onSuccess();
+    } catch (error: any) {
+      console.error('Manual entry error:', error);
+      toast({
+        title: 'Submission Failed',
+        description: error.message || 'Failed to submit manual entry.',
+        variant: 'destructive'
+      });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  // Get max date (today)
+  const today = new Date().toISOString().split('T')[0];
+
+  return (
+    <form onSubmit={handleSubmit} className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="manual-date">Date *</Label>
+          <Input
+            id="manual-date"
+            type="date"
+            max={today}
+            value={formData.date}
+            onChange={(e) => setFormData(prev => ({ ...prev, date: e.target.value }))}
+            required
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="manual-job">Job *</Label>
+          <Select
+            value={formData.job_id}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, job_id: value }))}
+          >
+            <SelectTrigger id="manual-job">
+              <SelectValue placeholder="Select job" />
+            </SelectTrigger>
+            <SelectContent>
+              {allJobs.map(job => (
+                <SelectItem key={job.id} value={job.id}>{job.name}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      </div>
+
+      <div className="grid gap-4 sm:grid-cols-2">
+        <div className="space-y-2">
+          <Label htmlFor="manual-punch-in">Punch In Time *</Label>
+          <Input
+            id="manual-punch-in"
+            type="time"
+            value={formData.punch_in_time}
+            onChange={(e) => setFormData(prev => ({ ...prev, punch_in_time: e.target.value }))}
+            required
+          />
+        </div>
+        
+        <div className="space-y-2">
+          <Label htmlFor="manual-punch-out">Punch Out Time *</Label>
+          <Input
+            id="manual-punch-out"
+            type="time"
+            value={formData.punch_out_time}
+            onChange={(e) => setFormData(prev => ({ ...prev, punch_out_time: e.target.value }))}
+            required
+          />
+        </div>
+      </div>
+
+      {allCostCodes.length > 0 && (
+        <div className="space-y-2">
+          <Label htmlFor="manual-cost-code">Cost Code (Optional)</Label>
+          <Select
+            value={formData.cost_code_id}
+            onValueChange={(value) => setFormData(prev => ({ ...prev, cost_code_id: value }))}
+          >
+            <SelectTrigger id="manual-cost-code">
+              <SelectValue placeholder="Select cost code" />
+            </SelectTrigger>
+            <SelectContent>
+              {allCostCodes.map(cc => (
+                <SelectItem key={cc.id} value={cc.id}>
+                  {cc.code} - {cc.description}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        </div>
+      )}
+
+      <div className="space-y-2">
+        <Label htmlFor="manual-reason">Reason for Manual Entry *</Label>
+        <Textarea
+          id="manual-reason"
+          placeholder="Explain why this entry is being submitted manually (e.g., forgot to punch in/out, phone was dead, etc.)"
+          value={formData.reason}
+          onChange={(e) => setFormData(prev => ({ ...prev, reason: e.target.value }))}
+          required
+          rows={3}
+        />
+      </div>
+
+      <div className="bg-muted/50 rounded-lg p-3 text-sm text-muted-foreground">
+        <p>⚠️ Manual entries require supervisor approval before they are counted in your timesheet.</p>
+      </div>
+
+      <Button type="submit" disabled={submitting} className="w-full sm:w-auto">
+        {submitting && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+        Submit for Approval
+      </Button>
+    </form>
+  );
 }
 
 export default function EmployeeDashboard() {
@@ -1079,11 +1327,23 @@ export default function EmployeeDashboard() {
             <Card>
               <CardHeader className="p-4">
                 <CardTitle className="text-base sm:text-xl">Manual Time Entry</CardTitle>
+                <p className="text-sm text-muted-foreground">
+                  Submit a manual time entry for a past date. Entries require supervisor approval.
+                </p>
               </CardHeader>
               <CardContent className="p-4">
-                <Button onClick={() => navigate('/manual-time-entry')} className="w-full sm:w-auto">
-                  Go to Manual Entry Form
-                </Button>
+                <ManualEntryForm
+                  allJobs={allJobs}
+                  allCostCodes={allCostCodes}
+                  isPinAuthenticated={isPinAuthenticated}
+                  onSuccess={() => {
+                    loadData();
+                    toast({
+                      title: 'Entry Submitted',
+                      description: 'Your manual time entry has been submitted for approval.',
+                    });
+                  }}
+                />
               </CardContent>
             </Card>
           </TabsContent>
