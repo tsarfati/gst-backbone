@@ -1,89 +1,83 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Target, Plus, Search, Calendar, Users, BarChart3 } from 'lucide-react';
+import { Target, Search, Calendar, Users, BarChart3 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
+import { supabase } from '@/integrations/supabase/client';
+import { AddTaskDialog } from '@/components/AddTaskDialog';
 
-interface ProjectTask {
+interface Task {
   id: string;
   title: string;
-  description: string;
-  project_id: string;
-  project_name: string;
-  assignees: string[];
-  status: 'not_started' | 'in_progress' | 'completed' | 'on_hold';
-  priority: 'low' | 'normal' | 'high' | 'urgent';
-  start_date: string;
-  due_date: string;
+  description: string | null;
+  status: string;
+  priority: string;
+  start_date: string | null;
+  due_date: string | null;
   completion_percentage: number;
-  dependencies: string[];
+  job_id: string | null;
+  jobs?: { name: string } | null;
+  task_assignees?: { user_id: string }[];
 }
 
-// Mock data - in a real app, this would come from your database
-const mockProjectTasks: ProjectTask[] = [
-  {
-    id: '1',
-    title: 'Foundation Inspection',
-    description: 'Complete foundation inspection and obtain approval from city inspector',
-    project_id: 'proj-1',
-    project_name: 'Downtown Office Building',
-    assignees: ['John Smith', 'Mike Brown'],
-    status: 'in_progress',
-    priority: 'high',
-    start_date: '2024-01-10',
-    due_date: '2024-01-15',
-    completion_percentage: 65,
-    dependencies: []
-  },
-  {
-    id: '2',
-    title: 'Electrical Rough-in',
-    description: 'Install electrical wiring throughout the building',
-    project_id: 'proj-1',
-    project_name: 'Downtown Office Building',
-    assignees: ['Lisa Wilson'],
-    status: 'not_started',
-    priority: 'normal',
-    start_date: '2024-01-16',
-    due_date: '2024-01-25',
-    completion_percentage: 0,
-    dependencies: ['1']
-  },
-  {
-    id: '3',
-    title: 'Material Delivery Coordination',
-    description: 'Coordinate delivery of steel beams and concrete',
-    project_id: 'proj-2',
-    project_name: 'Residential Complex',
-    assignees: ['Sarah Johnson', 'David Chen'],
-    status: 'completed',
-    priority: 'high',
-    start_date: '2024-01-05',
-    due_date: '2024-01-12',
-    completion_percentage: 100,
-    dependencies: []
-  }
-];
-
 export default function ProjectTasks() {
-  const [tasks, setTasks] = useState<ProjectTask[]>(mockProjectTasks);
-  const [loading, setLoading] = useState(false);
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { currentCompany } = useCompany();
+  const [tasks, setTasks] = useState<Task[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedProject, setSelectedProject] = useState<string>('all');
   const [statusFilter, setStatusFilter] = useState<string>('all');
-  const { user } = useAuth();
+  const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
 
-  // Get unique projects
-  const projects = Array.from(new Set(tasks.map(task => task.project_name)));
+  useEffect(() => {
+    if (currentCompany) {
+      loadTasks();
+      loadProjects();
+    }
+  }, [currentCompany]);
+
+  const loadTasks = async () => {
+    if (!currentCompany) return;
+    setLoading(true);
+    try {
+      const { data, error } = await supabase
+        .from('tasks')
+        .select('*, jobs(name), task_assignees(user_id)')
+        .eq('company_id', currentCompany.id)
+        .order('created_at', { ascending: false });
+
+      if (error) throw error;
+      setTasks(data || []);
+    } catch (error) {
+      console.error('Error loading tasks:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const loadProjects = async () => {
+    if (!currentCompany) return;
+    const { data } = await supabase
+      .from('jobs')
+      .select('id, name')
+      .eq('company_id', currentCompany.id)
+      .eq('is_active', true);
+    setProjects(data || []);
+  };
 
   const filteredTasks = tasks.filter(task => {
+    const projectName = task.jobs?.name || '';
     const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.project_name.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesProject = selectedProject === 'all' || task.project_name === selectedProject;
+                         (task.description || '').toLowerCase().includes(searchTerm.toLowerCase()) ||
+                         projectName.toLowerCase().includes(searchTerm.toLowerCase());
+    const matchesProject = selectedProject === 'all' || task.job_id === selectedProject;
     const matchesStatus = statusFilter === 'all' || task.status === statusFilter;
     return matchesSearch && matchesProject && matchesStatus;
   });
@@ -127,10 +121,7 @@ export default function ProjectTasks() {
             Manage tasks organized by project
           </p>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Project Task
-        </Button>
+        <AddTaskDialog onTaskCreated={loadTasks} />
       </div>
 
       {/* Filters and Search */}
@@ -153,8 +144,8 @@ export default function ProjectTasks() {
               <SelectContent>
                 <SelectItem value="all">All Projects</SelectItem>
                 {projects.map(project => (
-                  <SelectItem key={project} value={project}>
-                    {project}
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
                   </SelectItem>
                 ))}
               </SelectContent>
@@ -265,15 +256,14 @@ export default function ProjectTasks() {
                       <p className="text-sm text-muted-foreground mb-2">
                         {task.description}
                       </p>
-                      <p className="text-sm font-medium text-blue-600 mb-2">
-                        {task.project_name}
-                      </p>
+                      {task.jobs?.name && (
+                        <p className="text-sm font-medium text-blue-600 mb-2">
+                          {task.jobs.name}
+                        </p>
+                      )}
                     </div>
                     <div className="flex gap-1 ml-2">
-                      <Button size="sm" variant="outline">
-                        Edit
-                      </Button>
-                      <Button size="sm" variant="outline">
+                      <Button size="sm" variant="outline" onClick={() => navigate(`/tasks/${task.id}`)}>
                         View
                       </Button>
                     </div>
@@ -295,20 +285,16 @@ export default function ProjectTasks() {
 
                   {/* Task Details */}
                   <div className="flex flex-wrap items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-4 w-4" />
-                      <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Users className="h-4 w-4" />
-                      <span>{task.assignees.length} assignee{task.assignees.length > 1 ? 's' : ''}</span>
-                    </div>
-                    {task.dependencies.length > 0 && (
+                    {task.due_date && (
                       <div className="flex items-center gap-1">
-                        <Target className="h-4 w-4" />
-                        <span>{task.dependencies.length} dependencies</span>
+                        <Calendar className="h-4 w-4" />
+                        <span>Due: {new Date(task.due_date).toLocaleDateString()}</span>
                       </div>
                     )}
+                    <div className="flex items-center gap-1">
+                      <Users className="h-4 w-4" />
+                      <span>{task.task_assignees?.length || 0} assignee{(task.task_assignees?.length || 0) !== 1 ? 's' : ''}</span>
+                    </div>
                   </div>
                 </div>
               ))}
