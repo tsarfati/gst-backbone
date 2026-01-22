@@ -125,7 +125,15 @@ export default function EmployeeDashboard() {
     // Allow PIN-only mode when no Supabase session (e.g., mobile webview)
     const storedPunchUserStr = localStorage.getItem('punch_clock_user');
     let fallbackPin: string | null = null;
-    try { fallbackPin = storedPunchUserStr ? JSON.parse(storedPunchUserStr).pin : null; } catch { fallbackPin = null; }
+    let fallbackUserId: string | null = null;
+    try { 
+      const parsed = storedPunchUserStr ? JSON.parse(storedPunchUserStr) : null;
+      fallbackPin = parsed?.pin || null;
+      fallbackUserId = parsed?.id || null;
+    } catch { 
+      fallbackPin = null; 
+      fallbackUserId = null;
+    }
     if (!user && !fallbackPin) {
       setLoading(false);
       return;
@@ -133,7 +141,8 @@ export default function EmployeeDashboard() {
     
     setLoading(true);
     try {
-      const userId = (user as any)?.user_id || (user as any)?.id;
+      // Safely extract userId - prefer user object, fallback to localStorage
+      const userId = (user as any)?.user_id || (user as any)?.id || fallbackUserId;
 
       // Use different endpoints for PIN vs regular users
       if (isPinAuthenticated) {
