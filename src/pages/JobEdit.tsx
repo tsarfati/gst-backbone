@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, type ChangeEvent } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -28,6 +28,7 @@ export default function JobEdit() {
   const { currentCompany } = useCompany();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
+  const [bannerUploading, setBannerUploading] = useState(false);
   const [customers, setCustomers] = useState<{ id: string; name: string; display_name: string | null }[]>([]);
   const permissions = useActionPermissions();
 
@@ -254,6 +255,104 @@ export default function JobEdit() {
     }
   };
 
+  const handleBannerUpload = async (event: ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    // allow re-selecting same file later
+    event.target.value = "";
+
+    if (!file) return;
+    if (!id) return;
+    if (!currentCompany?.id) {
+      toast({
+        title: "No company selected",
+        description: "Please select a company before uploading a banner.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Keep in sync with UI copy
+    const maxBytes = 5 * 1024 * 1024;
+    if (file.size > maxBytes) {
+      toast({
+        title: "File too large",
+        description: "Please choose an image under 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Invalid file type",
+        description: "Please choose an image file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setBannerUploading(true);
+
+      const fileExt = file.name.split(".").pop() || "png";
+      const fileName = `banner-${Date.now()}.${fileExt}`;
+      const filePath = `${currentCompany.id}/jobs/${id}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("job-banners")
+        .upload(filePath, file, {
+          upsert: true,
+          contentType: file.type,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from("job-banners").getPublicUrl(filePath);
+      const publicUrl = data.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from("jobs")
+        .update({ banner_url: publicUrl })
+        .eq("id", id);
+
+      if (updateError) throw updateError;
+
+      setJob((prev: any) => (prev ? { ...prev, banner_url: publicUrl } : prev));
+      toast({ title: "Banner uploaded", description: "Job banner saved successfully." });
+    } catch (err: any) {
+      console.error("Error uploading job banner:", err);
+      toast({
+        title: "Upload failed",
+        description: err?.message || "Failed to upload job banner.",
+        variant: "destructive",
+      });
+    } finally {
+      setBannerUploading(false);
+    }
+  };
+
+  const handleRemoveBanner = async () => {
+    if (!id) return;
+    if (!permissions.canEditJobs()) {
+      toast({ title: "Permission Denied", description: "You do not have permission to edit jobs.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      const { error } = await supabase.from("jobs").update({ banner_url: null }).eq("id", id);
+      if (error) throw error;
+      setJob((prev: any) => (prev ? { ...prev, banner_url: null } : prev));
+      toast({ title: "Banner removed", description: "Job banner has been cleared." });
+    } catch (err: any) {
+      console.error("Error removing job banner:", err);
+      toast({
+        title: "Remove failed",
+        description: err?.message || "Failed to remove job banner.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDelete = async () => {
     if (!id) return;
     if (!permissions.canDelete('jobs')) {
@@ -323,8 +422,17 @@ export default function JobEdit() {
             <div className="space-y-2">
               <Label htmlFor="banner">Banner Image</Label>
               <div className="flex items-center gap-4">
-                <div className="h-20 w-32 border border-border rounded-lg flex items-center justify-center bg-muted">
-                  <Building className="h-8 w-8 text-muted-foreground" />
+                <div className="h-20 w-32 border border-border rounded-lg flex items-center justify-center bg-muted overflow-hidden">
+                  {job?.banner_url ? (
+                    <img
+                      src={job.banner_url}
+                      alt="Job banner preview"
+                      className="h-full w-full object-cover"
+                      loading="lazy"
+                    />
+                  ) : (
+                    <Building className="h-8 w-8 text-muted-foreground" />
+                  )}
                 </div>
                 <div>
                   <input
@@ -332,14 +440,29 @@ export default function JobEdit() {
                     accept="image/*"
                     className="hidden"
                     id="banner-upload"
+                    onChange={handleBannerUpload}
+                    disabled={bannerUploading || !permissions.canEditJobs()}
                   />
                   <Label htmlFor="banner-upload" className="cursor-pointer">
                     <Button type="button" variant="outline" asChild>
                       <span>
-                        Upload Banner
+                        {bannerUploading ? "Uploading…" : "Upload Banner"}
                       </span>
                     </Button>
                   </Label>
+                  {job?.banner_url && (
+                    <div className="mt-2">
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={handleRemoveBanner}
+                        disabled={bannerUploading || !permissions.canEditJobs()}
+                      >
+                        Remove
+                      </Button>
+                    </div>
+                  )}
                   <p className="text-xs text-muted-foreground mt-1">
                     Recommended: 1200x400px, max 5MB
                   </p>
