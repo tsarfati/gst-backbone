@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Building, Users, Calculator, FileText, Clock, FolderOpen } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Building, Calculator, FileText, Clock, FolderOpen } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -28,8 +28,6 @@ export default function JobEdit() {
   const { currentCompany } = useCompany();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [projectManagers, setProjectManagers] = useState<any[]>([]);
-  const [assistantManagers, setAssistantManagers] = useState<any[]>([]);
   const [customers, setCustomers] = useState<{ id: string; name: string; display_name: string | null }[]>([]);
   const permissions = useActionPermissions();
 
@@ -59,46 +57,10 @@ export default function JobEdit() {
     zip: "",
     client: "",
     customer_id: "",
-    job_type: "residential" as any,
-    project_manager_user_id: ""
+    job_type: "residential" as any
   });
 
   useEffect(() => {
-    const fetchProjectManagers = async () => {
-      if (!currentCompany?.id) return;
-      
-      try {
-        // Get user IDs for this company
-        const { data: accessData, error: accessError } = await supabase
-          .from('user_company_access')
-          .select('user_id')
-          .eq('company_id', currentCompany.id)
-          .eq('is_active', true);
-
-        if (accessError) {
-          console.error('Error fetching company access:', accessError);
-          return;
-        }
-
-        const userIds = (accessData || []).map(a => a.user_id);
-
-        // Fetch profiles for users in this company with manager roles
-        const { data, error } = await supabase
-          .from('profiles')
-          .select('user_id, first_name, last_name, display_name, role, status')
-          .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
-          .in('role', ['admin', 'controller', 'project_manager']);
-
-        if (error) {
-          console.error('Error fetching project managers:', error);
-        } else {
-          setProjectManagers(data || []);
-        }
-      } catch (err) {
-        console.error('Error:', err);
-      }
-    };
-
     const fetchCustomers = async () => {
       if (!currentCompany?.id) return;
       
@@ -155,28 +117,8 @@ export default function JobEdit() {
             zip: zip || "",
             client: data.client || "",
             customer_id: data.customer_id || "",
-            job_type: data.job_type || "residential" as any,
-            project_manager_user_id: data.project_manager_user_id || ""
+            job_type: data.job_type || "residential" as any
           });
-
-          // Fetch assistant managers for this job
-          const { data: assistants, error: assistantsError } = await supabase
-            .from('job_assistant_managers')
-            .select(`
-              id,
-              user_id,
-              profiles!user_id (
-                id,
-                display_name,
-                first_name,
-                last_name
-              )
-            `)
-            .eq('job_id', id);
-
-          if (!assistantsError && assistants) {
-            setAssistantManagers(assistants);
-          }
         }
       } catch (err) {
         console.error('Error:', err);
@@ -190,7 +132,6 @@ export default function JobEdit() {
       }
     };
 
-    fetchProjectManagers();
     fetchCustomers();
     fetchJob();
   }, [id, toast, currentCompany?.id]);
@@ -284,8 +225,7 @@ export default function JobEdit() {
           longitude,
           client: formData.client,
           customer_id: formData.customer_id || null,
-          job_type: formData.job_type,
-          project_manager_user_id: formData.project_manager_user_id || null
+          job_type: formData.job_type
         })
         .eq('id', id);
 
@@ -311,83 +251,6 @@ export default function JobEdit() {
         description: "An unexpected error occurred",
         variant: "destructive",
       });
-    }
-  };
-
-  const handleAddAssistantManager = async (userId: string) => {
-    if (!id) return;
-
-    try {
-      const { data: user } = await supabase.auth.getUser();
-      
-      const { error } = await supabase
-        .from('job_assistant_managers')
-        .insert({
-          job_id: id,
-          user_id: userId,
-          assigned_by: user.user?.id
-        });
-
-      if (error) {
-        console.error('Error adding assistant manager:', error);
-        toast({
-          title: "Error",
-          description: "Failed to add assistant manager",
-          variant: "destructive",
-        });
-      } else {
-        // Refresh assistant managers list
-        const { data: assistants } = await supabase
-          .from('job_assistant_managers')
-          .select(`
-            id,
-            user_id,
-            profiles!user_id (
-              id,
-              display_name,
-              first_name,
-              last_name
-            )
-          `)
-          .eq('job_id', id);
-
-        if (assistants) {
-          setAssistantManagers(assistants);
-        }
-
-        toast({
-          title: "Assistant Manager Added",
-          description: "Assistant manager has been added to the job.",
-        });
-      }
-    } catch (err) {
-      console.error('Error:', err);
-    }
-  };
-
-  const handleRemoveAssistantManager = async (assistantId: string) => {
-    try {
-      const { error } = await supabase
-        .from('job_assistant_managers')
-        .delete()
-        .eq('id', assistantId);
-
-      if (error) {
-        console.error('Error removing assistant manager:', error);
-        toast({
-          title: "Error",
-          description: "Failed to remove assistant manager",
-          variant: "destructive",
-        });
-      } else {
-        setAssistantManagers(assistantManagers.filter(am => am.id !== assistantId));
-        toast({
-          title: "Assistant Manager Removed",
-          description: "Assistant manager has been removed from the job.",
-        });
-      }
-    } catch (err) {
-      console.error('Error:', err);
     }
   };
 
@@ -664,79 +527,6 @@ export default function JobEdit() {
                   </p>
                 </div>
               )}
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Project Management */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Project Management
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label htmlFor="projectManager">Lead Project Manager</Label>
-              <Select 
-                value={formData.project_manager_user_id} 
-                onValueChange={(value) => handleInputChange("project_manager_user_id", value)}
-              >
-                <SelectTrigger className="bg-background">
-                  <SelectValue placeholder="Select a project manager" />
-                </SelectTrigger>
-                <SelectContent className="bg-background border-border backdrop-blur-sm z-50">
-                  {projectManagers.map((manager) => (
-                    <SelectItem key={manager.user_id} value={manager.user_id}>
-                      {manager.display_name || `${manager.first_name} ${manager.last_name}`} ({manager.role})
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            <div className="space-y-2">
-              <Label>Assistant Project Managers</Label>
-              <div className="space-y-2">
-                {assistantManagers.length > 0 ? (
-                  assistantManagers.map((assistant) => (
-                    <div key={assistant.id} className="flex items-center justify-between p-2 border rounded-lg">
-                      <span className="text-sm">
-                        {assistant.profiles?.display_name || 
-                         `${assistant.profiles?.first_name} ${assistant.profiles?.last_name}`}
-                      </span>
-                      <Button
-                        size="sm"
-                        variant="ghost"
-                        onClick={() => handleRemoveAssistantManager(assistant.id)}
-                      >
-                        Remove
-                      </Button>
-                    </div>
-                  ))
-                ) : (
-                  <p className="text-sm text-muted-foreground">No assistant managers assigned</p>
-                )}
-                
-                <Select onValueChange={handleAddAssistantManager}>
-                  <SelectTrigger className="bg-background">
-                    <SelectValue placeholder="Add assistant manager" />
-                  </SelectTrigger>
-                  <SelectContent className="bg-background border-border backdrop-blur-sm z-50">
-                    {projectManagers
-                      .filter(manager => 
-                        manager.user_id !== formData.project_manager_user_id &&
-                        !assistantManagers.some(am => am.user_id === manager.user_id)
-                      )
-                      .map((manager) => (
-                        <SelectItem key={manager.user_id} value={manager.user_id}>
-                          {manager.display_name || `${manager.first_name} ${manager.last_name}`} ({manager.role})
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </CardContent>
         </Card>
