@@ -159,6 +159,7 @@ export default function Jobs() {
           startDate: j.start_date || "-",
           status: j.status || "planning",
           company_id: j.company_id, // Keep company_id for debugging
+          banner_url: j.banner_url || null,
         };
       });
       

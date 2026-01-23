@@ -11,6 +11,7 @@ interface Job {
   receipts: number;
   startDate: string;
   status: string;
+  banner_url?: string | null;
 }
 
 interface JobCardProps {
@@ -24,8 +25,24 @@ export default function JobCard({ job, onClick }: JobCardProps) {
   const budgetUsage = budgetValue > 0 ? Math.round((spentValue / budgetValue) * 100) : 0;
 
   return (
-    <Card className="hover-card cursor-pointer animate-fade-in" onClick={onClick}>
-      <CardHeader>
+    <Card className="hover-card cursor-pointer animate-fade-in overflow-hidden" onClick={onClick}>
+      {/* Banner Image */}
+      {job.banner_url ? (
+        <div className="h-32 w-full overflow-hidden">
+          <img
+            src={job.banner_url}
+            alt={`${job.name} banner`}
+            className="h-full w-full object-cover"
+            loading="lazy"
+          />
+        </div>
+      ) : (
+        <div className="h-32 w-full bg-gradient-to-br from-primary/20 to-primary/5 flex items-center justify-center">
+          <FolderOpen className="h-12 w-12 text-primary/40" />
+        </div>
+      )}
+
+      <CardHeader className="pb-2">
         <div className="flex items-center justify-between">
           <CardTitle className="flex items-center text-lg">
             <FolderOpen className="h-5 w-5 mr-2 text-primary" />
