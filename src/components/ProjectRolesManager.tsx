@@ -32,6 +32,18 @@ export default function ProjectRolesManager() {
     }
   }, [currentCompany?.id]);
 
+  const DEFAULT_ROLES = [
+    { name: 'Project Manager', description: 'Manages overall project execution and team coordination' },
+    { name: 'Assistant Project Manager', description: 'Supports the project manager with daily operations' },
+    { name: 'Superintendent', description: 'Oversees on-site construction activities' },
+    { name: 'Employee', description: 'Company employee assigned to the project' },
+    { name: 'Design Professional', description: 'Handles design and planning aspects' },
+    { name: 'Architect', description: 'Provides architectural design and oversight' },
+    { name: 'Engineer', description: 'Provides engineering expertise and oversight' },
+    { name: 'Vendor', description: 'External vendor or supplier' },
+    { name: 'Subcontractor', description: 'Contracted company for specialized work' },
+  ];
+
   const loadRoles = async () => {
     try {
       setLoading(true);
@@ -42,12 +54,55 @@ export default function ProjectRolesManager() {
         .order('sort_order');
 
       if (error) throw error;
+      
+      // If no roles exist, create default roles
+      if (!data || data.length === 0) {
+        await createDefaultRoles();
+        return; // createDefaultRoles will reload
+      }
+      
       setRoles(data || []);
     } catch (error) {
       console.error('Error loading project roles:', error);
       toast({
         title: "Error",
         description: "Failed to load project roles",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const createDefaultRoles = async () => {
+    if (!currentCompany?.id) return;
+    
+    try {
+      const rolesToInsert = DEFAULT_ROLES.map((role, index) => ({
+        company_id: currentCompany.id,
+        name: role.name,
+        description: role.description,
+        sort_order: index + 1,
+        is_active: true,
+      }));
+
+      const { data, error } = await supabase
+        .from('project_roles')
+        .insert(rolesToInsert)
+        .select();
+
+      if (error) throw error;
+
+      setRoles(data || []);
+      toast({
+        title: "Default roles created",
+        description: "Standard project roles have been added to your company",
+      });
+    } catch (error) {
+      console.error('Error creating default roles:', error);
+      toast({
+        title: "Error",
+        description: "Failed to create default project roles",
         variant: "destructive",
       });
     } finally {
