@@ -200,6 +200,20 @@ export default function JobEdit() {
     }
 
     try {
+      // Check if trying to set status to "active" - require a Project Manager
+      if (formData.status === 'active' && job.status !== 'active') {
+        const hasPM = !!job.project_manager_user_id;
+        
+        if (!hasPM) {
+          toast({
+            title: "Project Manager Required",
+            description: "A Project Manager must be assigned before setting the job to Active status. Assign a PM in the Project Team section.",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+
       // Geocode the address to get coordinates if address changed
       let latitude: number | null = job.latitude;
       let longitude: number | null = job.longitude;
