@@ -274,7 +274,7 @@ export default function LandingPage() {
             <img 
               src={builderlynkIcon} 
               alt="BuilderLYNK Icon" 
-              className="h-56 sm:h-72 lg:h-96 w-auto mx-auto mb-6 drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]" 
+              className="h-52 sm:h-64 lg:h-80 w-auto mx-auto mb-6 drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]" 
             />
             <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black mb-4 tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]" style={{ textShadow: '4px 4px 16px rgba(0,0,0,0.6)' }}>
               <span className="text-white">Builder</span><span className="text-[#E88A2D]">LYNK</span>
