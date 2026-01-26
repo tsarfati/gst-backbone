@@ -31,6 +31,7 @@ import {
   Target,
   TrendingUp
 } from 'lucide-react';
+import { CountUpStat } from '@/components/CountUpStat';
 
 const heroVideos = [heroVideo1, heroVideo2, heroVideo3, heroVideo4, heroVideo5];
 
@@ -319,11 +320,12 @@ export default function LandingPage() {
           <div className="grid grid-cols-2 md:grid-cols-4 gap-8">
             {stats.map((stat, index) => (
               <AnimatedSection key={index} animation="zoom-in" delay={index * 150}>
-                <div className="text-center group">
-                  <stat.icon className="h-10 w-10 text-white mx-auto mb-3 group-hover:scale-110 transition-transform duration-300" />
-                  <div className="text-4xl sm:text-5xl font-black text-[#E88A2D] mb-1">{stat.value}</div>
-                  <div className="text-white/80 font-medium">{stat.label}</div>
-                </div>
+                <CountUpStat 
+                  icon={stat.icon} 
+                  value={stat.value} 
+                  label={stat.label}
+                  duration={1200}
+                />
               </AnimatedSection>
             ))}
           </div>
