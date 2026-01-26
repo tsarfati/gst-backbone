@@ -185,23 +185,21 @@ export default function LandingPage() {
       className="min-h-screen overflow-x-hidden"
       style={{ backgroundColor: darkBg }}
     >
-      {/* Navigation - Fixed with backdrop blur */}
+      {/* Navigation - Hidden until scroll, then fixed with backdrop blur */}
       <nav 
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-300 ${
+        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
           scrollY > 50 
-            ? 'backdrop-blur-lg shadow-lg border-b border-white/10' 
-            : 'bg-transparent'
+            ? 'backdrop-blur-lg shadow-lg border-b border-white/10 opacity-100 translate-y-0' 
+            : 'opacity-0 -translate-y-full pointer-events-none'
         }`}
-        style={{ backgroundColor: scrollY > 50 ? 'rgba(15, 20, 25, 0.9)' : 'transparent' }}
+        style={{ backgroundColor: scrollY > 50 ? 'rgba(15, 20, 25, 0.95)' : 'transparent' }}
       >
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-        <div className="flex justify-between items-center h-20">
+          <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-2">
-              {scrollY > 50 && (
-                <div className="bg-white rounded-lg p-1.5">
-                  <img src={headerLogo} alt="BuilderLYNK" className="h-12 w-auto" />
-                </div>
-              )}
+              <div className="bg-white rounded-lg p-1.5">
+                <img src={headerLogo} alt="BuilderLYNK" className="h-12 w-auto" />
+              </div>
             </div>
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-white/80 hover:text-white transition-colors font-medium">Features</a>
