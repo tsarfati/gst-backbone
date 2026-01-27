@@ -161,6 +161,26 @@ function PunchClockApp() {
     }
   }, [selectedJob, user, isPinAuthenticated, punchSettingsLoaded, jobs]);
 
+  // When already punched in, ensure the active job is the punched-in job.
+  // This is critical for punch-out mode, where the user won't re-select a job,
+  // but we still need a job context to populate the Daily Task dropdown.
+  useEffect(() => {
+    if (!currentPunch?.job_id) return;
+    if (selectedJob !== currentPunch.job_id) {
+      setSelectedJob(currentPunch.job_id);
+    }
+  }, [currentPunch?.job_id, selectedJob]);
+
+  // PIN mode: keep cost codes synced when edge data arrives/refreshes.
+  useEffect(() => {
+    if (!isPinAuthenticated) return;
+    if (!selectedJob) {
+      setCostCodes([]);
+      return;
+    }
+    setCostCodes(pinAllCostCodes.filter(cc => cc.job_id === selectedJob));
+  }, [isPinAuthenticated, selectedJob, pinAllCostCodes]);
+
   // Ensure selections stay valid when lists change
   useEffect(() => {
     if (selectedJob && !jobs.some(j => j.id === selectedJob)) {
