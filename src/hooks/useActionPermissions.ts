@@ -75,7 +75,7 @@ export function useActionPermissions() {
 
     canCreateJobs: (): boolean => {
       if (!isSuperAdmin && isViewOnly) return false;
-      if (isAdmin) return true;
+      if (hasElevatedAccess) return true;
       return hasAccess('jobs-add');
     },
 
@@ -136,7 +136,7 @@ export function useActionPermissions() {
 
     canCreateEmployees: (): boolean => {
       if (!isSuperAdmin && isViewOnly) return false;
-      if (isAdmin) return true;
+      if (hasElevatedAccess) return true;
       return hasAccess('employees-add');
     },
 

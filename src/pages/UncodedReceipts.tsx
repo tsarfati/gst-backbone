@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { useReceipts } from "@/contexts/ReceiptContext";
-import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, FileText, UserCheck, MessageSquare, Trash2 } from "lucide-react";
+import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, FileText, UserCheck, MessageSquare, Trash2, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import UserAssignmentPanel from "@/components/UserAssignmentPanel";
 import ReceiptMessagingPanel from "@/components/ReceiptMessagingPanel";
@@ -19,6 +19,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import ReceiptCostDistribution from "@/components/ReceiptCostDistribution";
+import { usePreventBrowserZoom } from "@/hooks/usePreventBrowserZoom";
+import { cn } from "@/lib/utils";
 
 interface JobOption { id: string; name: string }
 interface CostCodeOption { id: string; code: string; description: string; type: string }
@@ -46,6 +48,25 @@ export default function UncodedReceipts() {
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  
+  // Zoom state for image previews
+  const [zoomLevel, setZoomLevel] = useState(100);
+  const [isPanning, setIsPanning] = useState(false);
+  const [panStart, setPanStart] = useState({ x: 0, y: 0 });
+  const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
+  const imagePreviewRef = useRef<HTMLDivElement>(null);
+  
+  // Clamp zoom between 50% and 300%
+  const clampZoom = useCallback((z: number) => Math.max(50, Math.min(300, z)), []);
+  
+  // Use the hook to prevent browser zoom and route to app-level zoom for images
+  usePreventBrowserZoom({
+    containerRef: imagePreviewRef,
+    enabled: Boolean(selectedReceipt && selectedReceipt.type !== 'pdf' && selectedReceipt.previewUrl),
+    zoom: zoomLevel,
+    setZoom: setZoomLevel,
+    clamp: clampZoom,
+  });
   
   // View preference management
   const { 
@@ -736,6 +757,37 @@ export default function UncodedReceipts() {
                     </p>
                   </div>
                   <div className="flex items-center gap-2">
+                    {/* Zoom controls for images */}
+                    {selectedReceipt.type !== 'pdf' && selectedReceipt.previewUrl && (
+                      <div className="flex items-center gap-2 mr-4">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setZoomLevel((prev) => clampZoom(prev - 25))}
+                          disabled={zoomLevel <= 50}
+                        >
+                          <ZoomOut className="h-4 w-4" />
+                        </Button>
+                        <span className="text-sm font-medium min-w-[60px] text-center">
+                          {Math.round(zoomLevel)}%
+                        </span>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setZoomLevel((prev) => clampZoom(prev + 25))}
+                          disabled={zoomLevel >= 300}
+                        >
+                          <ZoomIn className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => setZoomLevel(100)}
+                        >
+                          <RotateCcw className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    )}
                     {selectedReceipt.previewUrl && (
                       <>
                         <Button 
@@ -812,21 +864,63 @@ export default function UncodedReceipts() {
                     </div>
                   )
                 ) : (
-                  <div className="bg-white rounded-lg shadow-lg overflow-auto h-full flex items-center justify-center p-6 m-6">
+                  <div 
+                    ref={imagePreviewRef}
+                    className={cn(
+                      "bg-white rounded-lg shadow-lg overflow-auto h-full m-6",
+                      zoomLevel > 100 && "cursor-grab active:cursor-grabbing"
+                    )}
+                    onMouseDown={(e) => {
+                      if (zoomLevel > 100 && imagePreviewRef.current) {
+                        setIsPanning(true);
+                        setPanStart({ x: e.clientX, y: e.clientY });
+                        setScrollStart({
+                          left: imagePreviewRef.current.scrollLeft,
+                          top: imagePreviewRef.current.scrollTop
+                        });
+                        e.preventDefault();
+                      }
+                    }}
+                    onMouseMove={(e) => {
+                      if (isPanning && imagePreviewRef.current) {
+                        const deltaX = panStart.x - e.clientX;
+                        const deltaY = panStart.y - e.clientY;
+                        imagePreviewRef.current.scrollLeft = scrollStart.left + deltaX;
+                        imagePreviewRef.current.scrollTop = scrollStart.top + deltaY;
+                      }
+                    }}
+                    onMouseUp={() => setIsPanning(false)}
+                    onMouseLeave={() => setIsPanning(false)}
+                  >
                     {selectedReceipt.previewUrl ? (
-                      <img
-                        src={selectedReceipt.previewUrl}
-                        alt={`Receipt ${selectedReceipt.filename}`}
-                        className="max-w-full max-h-full object-contain"
-                        onError={(e) => {
-                          e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14' fill='%236b7280'%3EImage not available%3C/text%3E%3C/svg%3E";
-                        }}
-                      />
+                      <div className="p-4">
+                        <div
+                          className="inline-block select-none"
+                          style={{
+                            width: `${zoomLevel}%`,
+                            minWidth: "100%",
+                            transformOrigin: "top left",
+                            pointerEvents: isPanning ? "none" : "auto",
+                          }}
+                        >
+                          <img
+                            src={selectedReceipt.previewUrl}
+                            alt={`Receipt ${selectedReceipt.filename}`}
+                            className="w-full h-auto"
+                            draggable={false}
+                            onError={(e) => {
+                              e.currentTarget.src = "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='200' height='200' viewBox='0 0 200 200'%3E%3Crect width='200' height='200' fill='%23f3f4f6'/%3E%3Ctext x='50%25' y='50%25' dominant-baseline='middle' text-anchor='middle' font-family='sans-serif' font-size='14' fill='%236b7280'%3EImage not available%3C/text%3E%3C/svg%3E";
+                            }}
+                          />
+                        </div>
+                      </div>
                     ) : (
-                      <div className="text-center">
-                        <FileImage className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
-                        <p className="text-lg font-medium">Image Receipt</p>
-                        <p className="text-sm text-muted-foreground">Preview not available</p>
+                      <div className="h-full flex items-center justify-center text-center">
+                        <div>
+                          <FileImage className="h-16 w-16 text-muted-foreground mx-auto mb-4" />
+                          <p className="text-lg font-medium">Image Receipt</p>
+                          <p className="text-sm text-muted-foreground">Preview not available</p>
+                        </div>
                       </div>
                     )}
                   </div>

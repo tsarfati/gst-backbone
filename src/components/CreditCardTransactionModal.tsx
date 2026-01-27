@@ -1,4 +1,5 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
+import { usePreventBrowserZoom } from "@/hooks/usePreventBrowserZoom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -79,6 +80,18 @@ export function CreditCardTransactionModal({
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
   const previewScrollRef = useRef<HTMLDivElement>(null);
+  
+  // Clamp zoom between 50% and 300%
+  const clampZoom = useCallback((z: number) => Math.max(50, Math.min(300, z)), []);
+  
+  // Use the hook to prevent browser zoom and route to app-level zoom
+  usePreventBrowserZoom({
+    containerRef: previewScrollRef,
+    enabled: open && Boolean(transaction?.attachment_url || attachmentPreview),
+    zoom: zoomLevel,
+    setZoom: setZoomLevel,
+    clamp: clampZoom,
+  });
   
   // Immediate persist for distribution changes triggered from UI
   const persistDistribution = async (dist: any[]) => {
@@ -1728,8 +1741,8 @@ const resolveAttachmentRequirement = (): boolean => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setZoomLevel(prev => Math.min(200, prev + 25))}
-                    disabled={zoomLevel >= 200}
+                    onClick={() => setZoomLevel(prev => Math.min(300, prev + 25))}
+                    disabled={zoomLevel >= 300}
                   >
                     +
                   </Button>
