@@ -198,9 +198,7 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-20">
             <div className="flex items-center gap-2">
-              <div className="bg-white rounded-lg p-1.5">
-                <img src={headerLogo} alt="BuilderLYNK" className="h-12 w-auto" />
-              </div>
+              <img src={builderlynkIcon} alt="BuilderLYNK" className="h-14 w-auto" />
             </div>
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-white/80 hover:text-white transition-colors font-medium">Features</a>
@@ -538,8 +536,9 @@ export default function LandingPage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="grid md:grid-cols-4 gap-12">
             <div>
-              <div className="flex items-center gap-2 mb-6">
-                <img src={logoImage} alt="BuilderLYNK" className="h-10 w-auto" />
+              <div className="flex items-center gap-3 mb-6">
+                <img src={builderlynkIcon} alt="BuilderLYNK" className="h-12 w-auto" />
+                <span className="text-xl font-bold text-white">BuilderLYNK</span>
               </div>
               <p className="text-gray-400 text-sm leading-relaxed">
                 The complete construction management platform for modern builders.
