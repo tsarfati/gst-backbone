@@ -17,6 +17,7 @@ import EmployeeViews from '@/components/EmployeeViews';
 import EmployeeGroupManager from '@/components/EmployeeGroupManager';
 import RolePermissionsManager from '@/components/RolePermissionsManager';
 import EmployeeDetailDialog from '@/components/EmployeeDetailDialog';
+import { useActionPermissions } from '@/hooks/useActionPermissions';
 
 interface Employee {
   id: string;
@@ -53,8 +54,9 @@ export default function AllEmployees() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('employees-view');
+  const { canCreateEmployees, hasElevatedAccess } = useActionPermissions();
 
-  const canManageEmployees = profile?.role === 'admin' || profile?.role === 'controller';
+  const canManageEmployees = hasElevatedAccess();
 
   useEffect(() => {
     if (currentCompany?.id) {
@@ -208,7 +210,7 @@ export default function AllEmployees() {
             Manage your team members, approvals, and permissions
           </p>
         </div>
-        {canManageEmployees && (
+        {canCreateEmployees() && (
           <Link to="/add-employee">
             <Button>
               <Plus className="h-4 w-4 mr-2" />
