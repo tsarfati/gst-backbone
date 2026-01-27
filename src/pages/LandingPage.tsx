@@ -563,8 +563,8 @@ export default function LandingPage() {
             <div>
               <h4 className="font-bold text-white mb-4 text-lg">LYNK Family</h4>
               <ul className="space-y-3 text-sm text-gray-400">
-                <li><a href="https://www.jobsitelynk.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">JobSiteLYNK</a></li>
-                <li><a href="https://www.residentlynk.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">ResidentLYNK</a></li>
+                <li><a href="https://jobsitelynk.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">JobSiteLYNK</a></li>
+                <li><a href="https://residentlynk.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">ResidentLYNK</a></li>
               </ul>
             </div>
             <div>
