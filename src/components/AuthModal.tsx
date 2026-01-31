@@ -14,7 +14,7 @@ interface AuthModalProps {
 }
 
 export function AuthModal({ open, onOpenChange }: AuthModalProps) {
-  const [isSignUp, setIsSignUp] = useState(false);
+  const [isSignUp, setIsSignUp] = useState(true);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -262,7 +262,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
 
           {/* Toggle Sign In / Sign Up */}
           <p className="text-center mt-8 text-gray-600">
-            {isSignUp ? "Already have an account? " : "Don't have an account? "}
+            {isSignUp ? "Already a member? " : "Don't have an account? "}
             <button
               type="button"
               onClick={toggleMode}
