@@ -208,7 +208,7 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
             {/* Sign In / Sign Up Button */}
             <Button 
               type="submit" 
-              className="w-full h-12 text-lg font-bold rounded-lg transition-all duration-300 hover:scale-[1.02] hover:shadow-lg"
+              className="w-full h-12 text-lg font-bold rounded-lg shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)]"
               style={{ backgroundColor: '#E88A2D' }}
               disabled={loading}
             >
