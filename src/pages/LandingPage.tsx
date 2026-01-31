@@ -262,45 +262,68 @@ export default function LandingPage() {
           >
             <source src={heroVideos[videoBSource]} type="video/mp4" />
           </video>
-          {/* Neutral overlay (no color hue) */}
-          <div className="absolute inset-0 bg-black/45" />
         </div>
+        
+        {/* Dark overlay for text contrast */}
+        <div className="absolute inset-0 bg-black/45 z-[1]" />
 
-        {/* Hero Content */}
-        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center">
-          <AnimatedSection animation="fade-down" duration={1000}>
-            <img 
-              src={builderlynkIcon} 
-              alt="BuilderLYNK Icon" 
-              className="h-52 sm:h-64 lg:h-80 w-auto mx-auto mb-6 drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]" 
-            />
-            <h1 className="text-7xl sm:text-8xl lg:text-9xl font-black mb-4 tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)]" style={{ textShadow: '4px 4px 16px rgba(0,0,0,0.6)' }}>
-              <span className="text-white">Builder</span><span className="text-[#E88A2D]">LYNK</span>
-            </h1>
-            <h2 className="text-4xl sm:text-5xl lg:text-6xl font-black mb-6 tracking-tight drop-shadow-lg" style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.5)' }}>
-              <span className="text-white">Build </span><span className="text-[#E88A2D]">Smarter.</span>
-              <span className="text-white"> Build </span><span className="text-[#E88A2D]">Faster.</span>
-            </h2>
-          </AnimatedSection>
+        {/* Content container */}
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col justify-center h-full py-6">
+          {/* Logo */}
+          <img 
+            src={builderlynkIcon} 
+            alt="BuilderLYNK" 
+            className="h-48 sm:h-56 md:h-[26vh] lg:h-[30vh] w-auto mx-auto drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+          />
           
-          <AnimatedSection animation="fade-up" delay={300} duration={1000}>
-            <p className="text-xl sm:text-2xl text-white/90 max-w-3xl mx-auto mb-10 font-light">
-              The construction management platform that connects every link in your business. 
-              From punch clock to payables—all in one place.
-            </p>
-          </AnimatedSection>
+          {/* Brand Name / Main Title */}
+          <h1 
+            className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black mb-2 md:mb-3 tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)] leading-none"
+            style={{ textShadow: '4px 4px 16px rgba(0,0,0,0.6)' }}
+          >
+            <span className="text-white">Builder</span>
+            <span className="text-[#E88A2D]">LYNK</span>
+          </h1>
           
-          <AnimatedSection animation="zoom-in" delay={600} duration={800}>
-            <Button 
-              size="lg" 
+          {/* Tagline */}
+          <h2 
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black mb-4 md:mb-5 tracking-tight drop-shadow-lg leading-tight"
+            style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.5)' }}
+          >
+            <span className="text-white">Build </span>
+            <span className="text-[#E88A2D]">Smarter.</span>
+            <span className="text-white"> Build </span>
+            <span className="text-[#E88A2D]">Faster.</span>
+          </h2>
+          
+          {/* Description Text */}
+          <p className="text-base sm:text-lg md:text-xl text-white/90 max-w-md md:max-w-lg lg:max-w-xl mx-auto mb-5 md:mb-6 font-light leading-relaxed">
+            The construction management platform that connects every link in your business. 
+            From punch clock to payables—all in one place.
+          </p>
+          
+          {/* CTA Button */}
+          <div>
+            <button 
               onClick={() => setShowTenantRequestModal(true)}
-              className="text-lg px-10 py-7 text-white font-bold shadow-2xl hover:scale-105 transition-all duration-300 pointer-events-auto"
+              className="text-base md:text-lg px-8 py-3 md:px-10 md:py-4 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)] transition-all duration-300 rounded-lg"
               style={{ backgroundColor: '#E88A2D' }}
             >
-              Start Building Today
-              <ArrowRight className="ml-2 h-5 w-5" />
-            </Button>
-          </AnimatedSection>
+              Start Building Today <ArrowRight className="ml-2 w-5 h-5 inline" />
+            </button>
+          </div>
+          
+          {/* Trust Badges / Checkmarks */}
+          <div className="mt-4 md:mt-6 flex flex-wrap items-center justify-center gap-4 md:gap-8 text-xs md:text-sm text-white/80">
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-[#E88A2D]" />
+              No credit card required
+            </div>
+            <div className="flex items-center gap-2">
+              <CheckCircle className="w-4 h-4 text-[#E88A2D]" />
+              14-day free trial
+            </div>
+          </div>
         </div>
 
         {/* Scroll indicator */}
