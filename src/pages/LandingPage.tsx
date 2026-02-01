@@ -37,6 +37,7 @@ const heroVideos = [heroVideo1, heroVideo2, heroVideo3, heroVideo4, heroVideo5];
 
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'signUp'>('signUp');
   const [showTenantRequestModal, setShowTenantRequestModal] = useState(false);
   const { user, loading } = useAuth();
   const navigate = useNavigate();
@@ -215,7 +216,10 @@ export default function LandingPage() {
                 Employee Login
               </Button>
               <Button 
-                onClick={() => setShowAuthModal(true)} 
+                onClick={() => {
+                  setAuthModalMode('signIn');
+                  setShowAuthModal(true);
+                }} 
                 variant="outline"
                 className="border-white/50 text-gray-900 bg-white hover:bg-white/90"
               >
@@ -305,7 +309,10 @@ export default function LandingPage() {
           {/* CTA Button */}
           <div>
             <button 
-              onClick={() => setShowTenantRequestModal(true)}
+              onClick={() => {
+                setAuthModalMode('signUp');
+                setShowAuthModal(true);
+              }}
               className="text-base md:text-lg px-8 py-3 md:px-10 md:py-4 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)] transition-all duration-300 rounded-lg"
               style={{ backgroundColor: '#E88A2D' }}
             >
@@ -605,7 +612,7 @@ export default function LandingPage() {
       </footer>
 
       {/* Modals */}
-      <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} />
+      <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} initialMode={authModalMode} />
       <TenantRequestModal open={showTenantRequestModal} onOpenChange={setShowTenantRequestModal} />
     </div>
   );
