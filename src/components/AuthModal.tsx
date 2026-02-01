@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -12,12 +12,13 @@ import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 interface AuthModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  initialMode?: 'signIn' | 'signUp';
 }
 
 type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
 
-export function AuthModal({ open, onOpenChange }: AuthModalProps) {
-  const [mode, setMode] = useState<AuthMode>('signUp');
+export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthModalProps) {
+  const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
@@ -26,6 +27,13 @@ export function AuthModal({ open, onOpenChange }: AuthModalProps) {
   
   const { signIn, signUp, signInWithGoogle } = useAuth();
   const { toast } = useToast();
+
+  // Reset mode when modal opens with a new initialMode
+  useEffect(() => {
+    if (open) {
+      setMode(initialMode);
+    }
+  }, [open, initialMode]);
 
   const resetForm = () => {
     setEmail('');
