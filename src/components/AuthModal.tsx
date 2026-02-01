@@ -141,21 +141,21 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
       case 'signUp':
         return (
           <>
-            <span className="text-gray-800">Create Your </span>
+            <span className="text-foreground">Create Your </span>
             <span className="text-[#E88A2D]">BuilderLYNK</span>
           </>
         );
       case 'signIn':
         return (
           <>
-            <span className="text-gray-800">Welcome Back to </span>
+            <span className="text-foreground">Welcome Back to </span>
             <span className="text-[#E88A2D]">BuilderLYNK</span>
           </>
         );
       case 'forgotPassword':
         return (
           <>
-            <span className="text-gray-800">Reset Your </span>
+            <span className="text-foreground">Reset Your </span>
             <span className="text-[#E88A2D]">Password</span>
           </>
         );
@@ -176,20 +176,12 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-md p-0 overflow-hidden border-0 shadow-2xl"
+        className="sm:max-w-md p-0 overflow-hidden border-0 shadow-2xl [&>button]:hidden"
         style={{ 
           borderRadius: '16px',
           boxShadow: '0 0 0 3px rgba(232, 138, 45, 0.3), 0 25px 50px -12px rgba(0, 0, 0, 0.25)'
         }}
       >
-        {/* Close button */}
-        <button
-          onClick={() => onOpenChange(false)}
-          className="absolute right-4 top-4 z-10 rounded-sm opacity-70 ring-offset-background transition-opacity hover:opacity-100 focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
-        >
-          <X className="h-5 w-5" />
-          <span className="sr-only">Close</span>
-        </button>
 
         <div className="p-8 pt-6">
           {/* Back button for forgot password */}
@@ -226,7 +218,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
           {mode === 'forgotPassword' && (
             <form onSubmit={handleForgotPassword} className="space-y-5 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.35s' }}>
               <div className="space-y-2">
-                <Label htmlFor="auth-email" className="text-gray-700 font-semibold">
+              <Label htmlFor="auth-email" className="text-foreground font-semibold">
                   Email
                 </Label>
                 <Input
@@ -256,7 +248,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
           {mode !== 'forgotPassword' && (
             <form onSubmit={mode === 'signUp' ? handleSignUp : handleSignIn} className="space-y-5">
               <div className="space-y-2 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.35s' }}>
-                <Label htmlFor="auth-email" className="text-gray-700 font-semibold">
+              <Label htmlFor="auth-email" className="text-foreground font-semibold">
                   Email
                 </Label>
                 <Input
@@ -271,7 +263,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
               </div>
               
               <div className="space-y-2 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.4s' }}>
-                <Label htmlFor="auth-password" className="text-gray-700 font-semibold">
+              <Label htmlFor="auth-password" className="text-foreground font-semibold">
                   Password
                 </Label>
                 <div className="relative">
@@ -313,7 +305,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
 
               {mode === 'signUp' && (
                 <div className="space-y-2 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.45s' }}>
-                  <Label htmlFor="auth-confirm-password" className="text-gray-700 font-semibold">
+                  <Label htmlFor="auth-confirm-password" className="text-foreground font-semibold">
                     Confirm Password
                   </Label>
                   <Input
@@ -356,7 +348,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
                 <Button 
                   type="button" 
                   variant="outline" 
-                  className="w-full h-12 text-base font-medium rounded-lg border-gray-300 hover:bg-gray-50" 
+                  className="w-full h-12 text-base font-medium rounded-lg border-border hover:bg-accent hover:text-accent-foreground"
                   onClick={handleGoogleSignIn}
                   disabled={loading}
                 >
@@ -390,7 +382,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
 
           {/* Toggle Sign In / Sign Up */}
           {mode !== 'forgotPassword' && (
-            <p className="text-center mt-8 text-gray-600 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.65s' }}>
+            <p className="text-center mt-8 text-muted-foreground animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.65s' }}>
               {mode === 'signUp' ? "Already a member? " : "Don't have an account? "}
               <button
                 type="button"
