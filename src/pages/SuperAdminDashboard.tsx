@@ -20,8 +20,10 @@ import {
   Search,
   Shield,
   ArrowLeft,
-  LogOut
+  LogOut,
+  CreditCard
 } from 'lucide-react';
+import SubscriptionStatusDisplay from '@/components/SubscriptionStatusDisplay';
 
 interface TenantAccessRequest {
   id: string;
@@ -385,6 +387,10 @@ export default function SuperAdminDashboard() {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="subscriptions">
+              <CreditCard className="h-4 w-4 mr-1" />
+              Subscriptions
+            </TabsTrigger>
             <TabsTrigger value="tenants">Organizations</TabsTrigger>
             <TabsTrigger value="users">All Users</TabsTrigger>
             <TabsTrigger value="history">Request History</TabsTrigger>
@@ -460,6 +466,10 @@ export default function SuperAdminDashboard() {
                 )}
               </CardContent>
             </Card>
+          </TabsContent>
+
+          <TabsContent value="subscriptions" className="space-y-4">
+            <SubscriptionStatusDisplay />
           </TabsContent>
 
           <TabsContent value="tenants" className="space-y-4">
