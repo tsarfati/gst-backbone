@@ -119,6 +119,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadSettings = async () => {
       setIsLoaded(false);
+      // Clear company defaults immediately when company changes to prevent stale colors
+      setCompanyDefaults(null);
 
       if (!currentCompany?.id || !user?.id) {
         // No scope → reset to defaults and REMOVE custom properties so CSS root variables take over
@@ -134,7 +136,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
       const cacheKey = `ui_settings_cache_${currentCompany.id}_${user.id}`;
 
-      // Hydrate from cache immediately to minimize flash
+      // Hydrate from cache immediately to minimize flash - but ONLY for the correct company
       const cachedRaw = localStorage.getItem(cacheKey);
       if (cachedRaw) {
         try {
@@ -148,8 +150,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             root.style.setProperty(`--${key}`, hsl);
           });
         } catch (_) {
-          // ignore cache parse errors
+          // ignore cache parse errors - apply defaults
+          const root = document.documentElement;
+          Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
+            const hsl = toHslToken(value as string);
+            root.style.setProperty(`--${key}`, hsl);
+          });
         }
+      } else {
+        // No cache for this company - reset to defaults immediately to clear previous company colors
+        const root = document.documentElement;
+        Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
+          const hsl = toHslToken(value as string);
+          root.style.setProperty(`--${key}`, hsl);
+        });
       }
 
       try {
@@ -343,7 +357,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (isLoaded) {
       applyCustomColors();
     }
-  }, [settings.customColors, isLoaded]);
+  }, [settings.customColors, companyDefaults, isLoaded]);
 
   return (
     <SettingsContext.Provider value={{ settings, updateSettings, resetSettings, applyCustomColors }}>
