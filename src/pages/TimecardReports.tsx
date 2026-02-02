@@ -629,6 +629,7 @@ export default function TimecardReports() {
         .select('id, status')
         .eq('company_id', currentCompany.id) // Filter by current company
         .neq('status', 'approved')
+        .neq('status', 'approved-edited') // Approved but later edited still counts as approved
         .neq('status', 'deleted') // Exclude deleted time cards from validation
         .is('deleted_at', null); // Exclude soft-deleted records
 
