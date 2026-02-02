@@ -517,27 +517,18 @@ export default function TimecardReports() {
           ((profile?.first_name && profile?.last_name) ? `${profile.first_name} ${profile.last_name}` :
            (pinEmp?.first_name && pinEmp?.last_name) ? `${pinEmp.first_name} ${pinEmp.last_name}` : 'Unknown Employee');
         
-        // Recalculate hours based on current settings
+        // Use the stored total_hours from the database - it already has break time subtracted
+        // and respects shift time adjustments applied at punch-out time
         let totalHours = record.total_hours || 0;
-        let overtimeHours = 0;
+        let overtimeHours = record.overtime_hours || 0;
 
-        if (record.punch_in_time && record.punch_out_time) {
-          const punchIn = new Date(record.punch_in_time);
-          const punchOut = new Date(record.punch_out_time);
-          const rawHours = (punchOut.getTime() - punchIn.getTime()) / (1000 * 60 * 60);
-          
-          // Apply auto break if applicable
-          let adjustedHours = rawHours;
-          if (rawHours > autoBreakWaitHours) {
-            adjustedHours = rawHours - (autoBreakDuration / 60);
-          }
-
-          totalHours = adjustedHours;
-
-          // Calculate overtime only if enabled
-          if (calculateOvertime) {
-            overtimeHours = Math.max(0, adjustedHours - overtimeThreshold);
-          }
+        // Only recalculate overtime if the setting has changed from what was used at punch time
+        if (record.punch_in_time && record.punch_out_time && calculateOvertime) {
+          // Recalculate overtime based on current settings (totalHours already has break deducted)
+          overtimeHours = Math.max(0, totalHours - overtimeThreshold);
+        } else if (!calculateOvertime) {
+          // If overtime calculation is disabled, don't show any overtime
+          overtimeHours = 0;
         }
         
         // Check if time card should be flagged
