@@ -253,7 +253,10 @@ export default function TimecardReportViews({
               <Button 
                 variant="outline" 
                 size="sm"
-                onClick={() => onExportPDF('detailed', records)}
+                onClick={() => onExportPDF(selectedView, selectedView === 'detailed' ? records : 
+                  selectedView === 'employee' ? Object.values(employeeSummary) :
+                  selectedView === 'job' ? Object.values(jobSummary) :
+                  Object.values(dateRangeSummary))}
               >
                 <Download className="h-4 w-4 mr-2" />
                 Export PDF

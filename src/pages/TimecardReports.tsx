@@ -915,7 +915,7 @@ export default function TimecardReports() {
         filters: filterDetails
       };
 
-      await exportTimecardToPDF(reportData, company, currentCompany?.id);
+      await exportTimecardToPDF(reportData, company, currentCompany?.id, reportType as 'detailed' | 'employee' | 'job' | 'date');
       
       toast({
         title: "Export Complete",
