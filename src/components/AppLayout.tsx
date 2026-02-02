@@ -93,7 +93,7 @@ const navigationCategories = [
     icon: Users,
     items: [
       { name: "All Employees", href: "/employees", menuKey: "employees" },
-      { name: "Time Tracking", href: "/punch-clock/dashboard", menuKey: "punch-clock-dashboard" },
+      { name: "Punch Clock", href: "/punch-clock/dashboard", menuKey: "punch-clock-dashboard" },
       { name: "Payroll", href: "/employees/payroll", menuKey: "employees" },
       { name: "Performance", href: "/employees/performance", menuKey: "employees" },
       { name: "Reports", href: "/employees/reports", menuKey: "employees" },
