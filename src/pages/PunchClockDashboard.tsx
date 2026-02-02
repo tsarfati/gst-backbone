@@ -4,7 +4,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
-import { MapPin, Clock, Users, FileText, BarChart3 } from 'lucide-react';
+import { MapPin, Clock, Users, FileText } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
@@ -710,12 +710,6 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                 <Link to="/time-sheets">
                   <FileText className="h-4 w-4 mr-2" />
                   Time Sheets
-                </Link>
-              </Button>
-              <Button asChild variant="outline">
-                <Link to="/punch-clock/reports">
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Time Card Reports
                 </Link>
               </Button>
             </div>
