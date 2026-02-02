@@ -708,6 +708,274 @@ export class PDFExporter {
 
     doc.save(`timecard-report-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
   }
+
+  async exportTimecardSummaryReport(reportData: ReportData, summaryType: 'employee' | 'job' | 'date'): Promise<void> {
+    const doc = new jsPDF({ orientation: 'landscape', unit: 'pt' });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const fontFamily = this.template?.font_family || 'helvetica';
+    doc.setFont(fontFamily, 'normal');
+
+    let yPos = 32;
+
+    // Header images
+    if (this.template?.header_images && this.template.header_images.length > 0) {
+      for (const img of this.template.header_images) {
+        try {
+          const { dataUrl } = await this.loadImageWithDimensions(img.url);
+          doc.addImage(dataUrl, 'PNG', img.x, img.y, img.width, img.height);
+        } catch (e) {
+          console.error('Failed to load header image:', e);
+        }
+      }
+    }
+
+    // Default header
+    doc.setFillColor(248, 250, 252);
+    doc.roundedRect(20, 20, pageWidth - 40, 80, 8, 8, 'F');
+
+    const logoX = 36;
+    const logoY = 32;
+
+    if (this.company.logo_url) {
+      try {
+        let logoUrl = this.company.logo_url;
+        if (/^https?:\/\//i.test(logoUrl)) {
+          // as-is
+        } else if (logoUrl.startsWith('/')) {
+          logoUrl = window.location.origin + logoUrl;
+        } else {
+          const [bucket, ...rest] = logoUrl.split('/');
+          const objectPath = rest.join('/');
+          if (bucket && objectPath) {
+            const { data } = supabase.storage.from(bucket).getPublicUrl(objectPath);
+            if (data?.publicUrl) logoUrl = data.publicUrl;
+          }
+        }
+        const sep = logoUrl.includes('?') ? '&' : '?';
+        logoUrl = `${logoUrl}${sep}t=${Date.now()}`;
+        const { dataUrl, width, height } = await this.loadImageWithDimensions(logoUrl);
+        const maxLogoHeight = 56;
+        const maxLogoWidth = 120;
+        const aspectRatio = width / height;
+        let logoWidth = Math.min(maxLogoWidth, width);
+        let logoHeight = logoWidth / aspectRatio;
+        if (logoHeight > maxLogoHeight) {
+          logoHeight = maxLogoHeight;
+          logoWidth = logoHeight * aspectRatio;
+        }
+        doc.addImage(dataUrl, 'PNG', logoX, logoY, logoWidth, logoHeight);
+      } catch (e) {
+        console.error('Logo failed to load:', e);
+      }
+    }
+
+    // Company name centered
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(20);
+    doc.setFont('helvetica', 'bold');
+    const companyNameWidth = doc.getTextWidth(this.company.name);
+    doc.text(this.company.name, (pageWidth - companyNameWidth) / 2, logoY + 12);
+
+    doc.setFontSize(9);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    const addressLine = [
+      this.company.address,
+      [this.company.city, this.company.state, this.company.zip_code].filter(Boolean).join(', ')
+    ].filter(Boolean).join(', ');
+    if (addressLine) {
+      const addressWidth = doc.getTextWidth(addressLine);
+      doc.text(addressLine, (pageWidth - addressWidth) / 2, logoY + 30);
+    }
+
+    const contactLine = [this.company.phone, this.company.email].filter(Boolean).join(' • ');
+    if (contactLine) {
+      const contactWidth = doc.getTextWidth(contactLine);
+      doc.text(contactLine, (pageWidth - contactWidth) / 2, logoY + 44);
+    }
+
+    // Report title based on summary type
+    const summaryTitles = {
+      employee: 'Timecard Report by Employee',
+      job: 'Timecard Report by Job',
+      date: 'Timecard Report by Date'
+    };
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(16);
+    doc.setTextColor(15, 23, 42);
+    const titleText = summaryTitles[summaryType];
+    const titleWidth = doc.getTextWidth(titleText);
+    doc.text(titleText, pageWidth - 36 - titleWidth, logoY + 12);
+
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    doc.setTextColor(71, 85, 105);
+    const rangeText = `Period: ${reportData.dateRange}`;
+    doc.text(rangeText, pageWidth - 36 - doc.getTextWidth(rangeText), logoY + 30);
+    const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy hh:mm a')}`;
+    doc.text(genText, pageWidth - 36 - doc.getTextWidth(genText), logoY + 44);
+
+    yPos = 120;
+
+    // Active Filters Section
+    if (reportData.filters) {
+      const filters = reportData.filters;
+      const filterLines: string[] = [];
+      
+      if (filters.employeeNames && filters.employeeNames.length > 0) {
+        filterLines.push(`Employees: ${filters.employeeNames.join(', ')}`);
+      }
+      if (filters.groupNames && filters.groupNames.length > 0) {
+        filterLines.push(`Groups: ${filters.groupNames.join(', ')}`);
+      }
+      if (filters.jobNames && filters.jobNames.length > 0) {
+        filterLines.push(`Jobs: ${filters.jobNames.join(', ')}`);
+      }
+      if (filters.statuses && filters.statuses.length > 0) {
+        filterLines.push(`Status: ${filters.statuses.join(', ')}`);
+      }
+
+      if (filterLines.length > 0) {
+        const lineHeight = 14;
+        const boxHeight = 28 + (filterLines.length - 1) * lineHeight;
+        
+        doc.setFillColor(241, 245, 249);
+        doc.roundedRect(20, yPos, pageWidth - 40, boxHeight, 6, 6, 'F');
+        doc.setTextColor(15, 23, 42);
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Active Filters:', 32, yPos + 18);
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(9);
+        doc.setTextColor(71, 85, 105);
+        filterLines.forEach((line, index) => {
+          doc.text(line, 32, yPos + 32 + (index * lineHeight));
+        });
+        
+        yPos += boxHeight + 12;
+      }
+    }
+
+    // Get colors from template or use defaults
+    const headerBgColor = this.hexToRgb(this.template?.table_header_bg || '#f1f5f9');
+    const borderColor = this.hexToRgb(this.template?.table_border_color || '#e2e8f0');
+    const stripeColor = this.hexToRgb(this.template?.table_stripe_color || '#f8fafc');
+
+    // Determine column headers based on summary type
+    let headRow: string[];
+    let tableData: any[][];
+    
+    if (summaryType === 'employee') {
+      headRow = ['Employee', 'Records', 'Total Hours', 'Overtime Hours', 'Avg Hours/Day'];
+      tableData = (reportData.data || []).map((row: any) => [
+        row.employee_name || '-',
+        (row.total_records || 0).toString(),
+        (row.total_hours || 0).toFixed(2),
+        (row.overtime_hours || 0).toFixed(2),
+        row.total_records > 0 ? ((row.total_hours || 0) / row.total_records).toFixed(2) : '0.00'
+      ]);
+    } else if (summaryType === 'job') {
+      headRow = ['Job', 'Records', 'Total Hours', 'Overtime Hours', 'Avg Hours/Day'];
+      tableData = (reportData.data || []).map((row: any) => [
+        row.job_name || '-',
+        (row.total_records || 0).toString(),
+        (row.total_hours || 0).toFixed(2),
+        (row.overtime_hours || 0).toFixed(2),
+        row.total_records > 0 ? ((row.total_hours || 0) / row.total_records).toFixed(2) : '0.00'
+      ]);
+    } else {
+      headRow = ['Date', 'Records', 'Total Hours', 'Overtime Hours', 'Avg Hours/Record'];
+      tableData = (reportData.data || []).map((row: any) => [
+        row.date ? format(new Date(row.date), 'EEEE, MMMM d, yyyy') : '-',
+        (row.total_records || 0).toString(),
+        (row.total_hours || 0).toFixed(2),
+        (row.overtime_hours || 0).toFixed(2),
+        row.total_records > 0 ? ((row.total_hours || 0) / row.total_records).toFixed(2) : '0.00'
+      ]);
+    }
+
+    // Table configuration
+    const tableConfig: any = {
+      startY: yPos,
+      head: [headRow],
+      body: tableData,
+      theme: 'plain',
+      headStyles: {
+        fillColor: headerBgColor,
+        textColor: [15, 23, 42],
+        fontSize: 10,
+        fontStyle: 'bold',
+        halign: 'left',
+        cellPadding: { top: 8, bottom: 8, left: 6, right: 6 }
+      },
+      bodyStyles: {
+        fontSize: 9,
+        cellPadding: { top: 6, bottom: 6, left: 6, right: 6 },
+        textColor: [51, 65, 85],
+        lineColor: borderColor,
+        lineWidth: 0.5
+      },
+      alternateRowStyles: {
+        fillColor: stripeColor
+      },
+      styles: {
+        overflow: 'ellipsize',
+        font: fontFamily
+      },
+      columnStyles: {
+        0: { cellWidth: 'auto' },
+        1: { cellWidth: 'auto', halign: 'right' },
+        2: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' },
+        3: { cellWidth: 'auto', halign: 'right' },
+        4: { cellWidth: 'auto', halign: 'right' }
+      },
+      didDrawPage: () => {
+        doc.setFontSize(8);
+        doc.setTextColor(148, 163, 184);
+        doc.text(
+          `Page ${doc.getCurrentPageInfo().pageNumber}`,
+          pageWidth / 2,
+          pageHeight - 10,
+          { align: 'center' }
+        );
+      }
+    };
+
+    autoTable(doc, tableConfig);
+
+    // Summary section
+    const finalY = (doc as any).lastAutoTable.finalY + 16;
+    
+    doc.setFillColor(241, 245, 249);
+    doc.roundedRect(20, finalY, pageWidth - 40, 56, 8, 8, 'F');
+    
+    doc.setTextColor(15, 23, 42);
+    doc.setFontSize(13);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Summary Totals', 36, finalY + 20);
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.setTextColor(71, 85, 105);
+    doc.text(`Total Records: ${reportData.summary.totalRecords}`, 36, finalY + 38);
+    doc.text(`Regular Hours: ${reportData.summary.regularHours.toFixed(2)}`, 240, finalY + 38);
+    doc.text(`Overtime Hours: ${reportData.summary.overtimeHours.toFixed(2)}`, 440, finalY + 38);
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setTextColor(15, 23, 42);
+    const totalText = `Total Hours: ${reportData.summary.totalHours.toFixed(2)}`;
+    doc.text(totalText, pageWidth - 36 - doc.getTextWidth(totalText), finalY + 38);
+
+    const filePrefix = {
+      employee: 'timecard-by-employee',
+      job: 'timecard-by-job',
+      date: 'timecard-by-date'
+    };
+    doc.save(`${filePrefix[summaryType]}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+  }
+
  
    private async renderHtmlHeader(doc: jsPDF, html: string, reportData: ReportData, startY: number, pageWidth: number): Promise<number> {
     // Simple HTML to PDF rendering for headers
@@ -843,7 +1111,12 @@ export class PDFExporter {
   }
 }
 
-export const exportTimecardToPDF = async (reportData: ReportData, company: CompanyBranding, companyId?: string) => {
+export const exportTimecardToPDF = async (
+  reportData: ReportData, 
+  company: CompanyBranding, 
+  companyId?: string,
+  reportType: 'detailed' | 'employee' | 'job' | 'date' = 'detailed'
+) => {
   // Load template from database if company ID is provided
   let template: PdfTemplate | undefined;
   
@@ -869,7 +1142,13 @@ export const exportTimecardToPDF = async (reportData: ReportData, company: Compa
   
   const exporter = new PDFExporter(company, template);
 
-  // If multiple employees are present in detailed rows, group by employee
+  // Handle summary views (employee, job, date)
+  if (reportType === 'employee' || reportType === 'job' || reportType === 'date') {
+    await exporter.exportTimecardSummaryReport(reportData, reportType);
+    return;
+  }
+
+  // Detailed view: If multiple employees are present, group by employee
   const hasDetailedRows = (reportData.data || []).some((r: any) => r.punch_in_time || r.punch_out_time);
   const uniqueEmployees = new Set((reportData.data || []).map((r: any) => r.employee_name || r.employee).filter(Boolean));
   if (hasDetailedRows && uniqueEmployees.size > 1) {
