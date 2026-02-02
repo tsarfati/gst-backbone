@@ -20,6 +20,14 @@ interface Report {
 
 const reports: Report[] = [
   {
+    key: "timecard-reports",
+    title: "Time Card Reports",
+    description: "Generate comprehensive time card reports with filtering and export options",
+    icon: FileText,
+    path: "/punch-clock/reports",
+    isBuilt: true,
+  },
+  {
     key: "pin-list",
     title: "PIN Employee Master List",
     description: "Complete list of all PIN employees with their credentials",
