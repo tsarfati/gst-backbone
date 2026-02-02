@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useMemo, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -84,6 +84,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
   const [companyDefaults, setCompanyDefaults] = useState<Partial<AppSettings> | null>(null);
+  // Prevent saving settings for a newly-selected company before we've actually loaded that company's settings.
+  // (Otherwise we can accidentally persist the previous company's colors into the new company.)
+  const loadedScopeKeyRef = useRef<string | null>(null);
+
+  const currentScopeKey = useMemo(() => {
+    if (!currentCompany?.id || !user?.id) return null;
+    return `${currentCompany.id}:${user.id}`;
+  }, [currentCompany?.id, user?.id]);
 
   // Get the user's role for the CURRENT company from user_company_access
   const activeCompanyRole = useMemo(() => {
@@ -119,8 +127,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const loadSettings = async () => {
       setIsLoaded(false);
+      loadedScopeKeyRef.current = null;
       // Clear company defaults immediately when company changes to prevent stale colors
       setCompanyDefaults(null);
+
+      let didLoadFromDb = false;
 
       if (!currentCompany?.id || !user?.id) {
         // No scope → reset to defaults and REMOVE custom properties so CSS root variables take over
@@ -131,6 +142,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           root.style.removeProperty(`--${key}`);
         });
         setIsLoaded(true);
+        loadedScopeKeyRef.current = null;
         return;
       }
 
@@ -203,10 +215,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
         // Refresh cache
         localStorage.setItem(cacheKey, JSON.stringify(merged));
+
+        didLoadFromDb = true;
       } catch (error) {
         console.warn('Error loading settings:', error);
       } finally {
         setIsLoaded(true);
+        // Only allow future saves once we've loaded this company's settings from DB.
+        // If the fetch fails, keep writes blocked to avoid persisting stale/cached colors into the company.
+        loadedScopeKeyRef.current = didLoadFromDb ? currentScopeKey : null;
       }
     };
 
@@ -216,7 +233,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   // Save settings to database
   useEffect(() => {
     const saveSettings = async () => {
+      // IMPORTANT: block writes during company switch until that company's settings have loaded.
       if (!currentCompany?.id || !user?.id || !isLoaded) {
+        return;
+      }
+
+      if (!currentScopeKey || loadedScopeKeyRef.current !== currentScopeKey) {
         return;
       }
 
@@ -299,7 +321,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     // Debounce saving to avoid too many requests - increase to 1 second
     const timeoutId = setTimeout(saveSettings, 1000);
     return () => clearTimeout(timeoutId);
-  }, [settings, currentCompany?.id, user?.id, isLoaded, activeCompanyRole]);
+  }, [settings, currentCompany?.id, user?.id, isLoaded, activeCompanyRole, currentScopeKey]);
 
 
   const updateSettings = (updates: Partial<AppSettings>) => {
