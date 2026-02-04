@@ -189,13 +189,8 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
       // Complete progress animation
       setUploadProgress(100);
       await new Promise(resolve => setTimeout(resolve, 300));
-
-      toast({ 
-        title: 'Success', 
-        description: 'Photo uploaded to job album! You can take another photo.',
-      });
       
-      // Clear photo and restart camera so user can take another photo
+      // Clear photo and restart camera so user can take another photo (no toast needed)
       setPhotoPreview(null);
       setPhotoBlob(null);
       setNote('');
