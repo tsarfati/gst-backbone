@@ -31,13 +31,19 @@ interface VisitorSettings {
   primary_color: string;
   button_color: string;
   text_color?: string;
-  confirmation_title: string;
-  confirmation_message: string;
   require_company_name: boolean;
   require_purpose_visit: boolean;
   enable_checkout: boolean;
   theme?: 'light' | 'dark';
   require_photo: boolean;
+}
+
+interface JobVisitorSettings {
+  confirmation_title: string;
+  confirmation_message: string;
+  checkout_title: string;
+  checkout_message: string;
+  checkout_show_duration: boolean;
 }
 
 export default function VisitorLogin() {
@@ -48,6 +54,13 @@ export default function VisitorLogin() {
   const [job, setJob] = useState<Job | null>(null);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
   const [settings, setSettings] = useState<VisitorSettings | null>(null);
+  const [jobSettings, setJobSettings] = useState<JobVisitorSettings>({
+    confirmation_title: 'Welcome to the Job Site!',
+    confirmation_message: 'Thank you for checking in. Please follow all safety protocols.',
+    checkout_title: 'Successfully Checked Out',
+    checkout_message: 'Thank you for visiting. Have a safe trip!',
+    checkout_show_duration: true,
+  });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
@@ -136,7 +149,7 @@ export default function VisitorLogin() {
         }
       })();
 
-      // Load visitor login settings
+      // Load visitor login settings (company-wide appearance)
       if (jobData.company_id) {
         const { data: settingsData } = await supabase
           .from('visitor_login_settings')
@@ -156,14 +169,23 @@ export default function VisitorLogin() {
             primary_color: '#3b82f6',
             button_color: '#10b981',
             text_color: '#000000',
-            confirmation_title: 'Welcome to the Job Site!',
-            confirmation_message: 'Thank you for checking in. Please follow all safety protocols.',
             require_company_name: true,
             require_purpose_visit: false,
             enable_checkout: true,
             theme: 'light',
             require_photo: false,
           });
+        }
+
+        // Load job-specific visitor settings (confirmation/checkout messages)
+        const { data: jobSettingsData } = await supabase
+          .from('job_visitor_settings')
+          .select('*')
+          .eq('job_id', jobData.id)
+          .maybeSingle();
+
+        if (jobSettingsData) {
+          setJobSettings(jobSettingsData);
         }
       }
 
@@ -728,10 +750,10 @@ export default function VisitorLogin() {
         <AlertDialogContent className="max-w-md">
           <AlertDialogHeader className="text-center">
             <AlertDialogTitle className="text-xl text-green-600">
-              {settings?.confirmation_title}
+              {jobSettings.confirmation_title}
             </AlertDialogTitle>
             <AlertDialogDescription className="text-base">
-              {settings?.confirmation_message}
+              {jobSettings.confirmation_message}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <div className="flex flex-col items-center space-y-4 pt-4">

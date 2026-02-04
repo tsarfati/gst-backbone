@@ -3813,6 +3813,67 @@ export type Database = {
         }
         Relationships: []
       }
+      job_visitor_settings: {
+        Row: {
+          checkout_message: string | null
+          checkout_show_duration: boolean | null
+          checkout_title: string | null
+          company_id: string
+          confirmation_message: string | null
+          confirmation_title: string | null
+          created_at: string
+          id: string
+          job_id: string
+          updated_at: string
+        }
+        Insert: {
+          checkout_message?: string | null
+          checkout_show_duration?: boolean | null
+          checkout_title?: string | null
+          company_id: string
+          confirmation_message?: string | null
+          confirmation_title?: string | null
+          created_at?: string
+          id?: string
+          job_id: string
+          updated_at?: string
+        }
+        Update: {
+          checkout_message?: string | null
+          checkout_show_duration?: boolean | null
+          checkout_title?: string | null
+          company_id?: string
+          confirmation_message?: string | null
+          confirmation_title?: string | null
+          created_at?: string
+          id?: string
+          job_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_visitor_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_visitor_settings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_visitor_settings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: true
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           address: string | null
