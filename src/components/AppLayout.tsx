@@ -15,7 +15,7 @@ import { useNavigate } from 'react-router-dom';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { CompanySwitcher } from '@/components/CompanySwitcher';
-import { useDynamicManifest } from '@/hooks/useDynamicManifest';
+// useDynamicManifest is only used in Punch Clock and PM Mobile pages, not in main app
 import { supabase } from '@/integrations/supabase/client';
 
 const navigationCategories = [
@@ -442,9 +442,8 @@ export default function Layout() {
 
   // NOTE: Super admins can access both the Super Admin Dashboard and company dashboards.
   // No automatic redirect – they navigate manually via Settings > Super Admin Dashboard.
-
-  // Ensure dynamic manifest/icons are updated under CompanyProvider
-  useDynamicManifest();
+  // Note: useDynamicManifest is NOT used here - it only runs on Punch Clock/PM Mobile routes
+  // to prevent the main app favicon from being replaced
 
   return (
     <SidebarProvider>

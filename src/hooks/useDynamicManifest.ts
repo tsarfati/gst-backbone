@@ -2,10 +2,25 @@ import { useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 
+/**
+ * Dynamic manifest hook for PWA icons - ONLY runs on Punch Clock and PM Mobile routes.
+ * This prevents the main BuilderLynk app favicon from being replaced.
+ */
 export const useDynamicManifest = () => {
   const { currentCompany } = useCompany();
 
   useEffect(() => {
+    // Only run on Punch Clock and PM Mobile routes
+    const pathname = window.location.pathname;
+    const isMobileRoute = pathname.startsWith('/punch-clock') || 
+                          pathname.startsWith('/pm-mobile') ||
+                          pathname.startsWith('/employee-dashboard');
+    
+    if (!isMobileRoute) {
+      console.log('[useDynamicManifest] Skipping - not a mobile route');
+      return;
+    }
+
     const updateManifest = async () => {
       if (!currentCompany?.id) return;
 
