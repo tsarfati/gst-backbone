@@ -1,8 +1,9 @@
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Camera, X } from 'lucide-react';
+import { Progress } from '@/components/ui/progress';
+import { Camera, X, HardHat } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
@@ -18,9 +19,28 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [note, setNote] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
+
+  // Animate progress during upload
+  useEffect(() => {
+    if (!uploading) {
+      setUploadProgress(0);
+      return;
+    }
+    
+    // Simulate progress animation (since Supabase doesn't provide real progress)
+    const interval = setInterval(() => {
+      setUploadProgress(prev => {
+        if (prev >= 90) return prev; // Cap at 90% until complete
+        return prev + Math.random() * 15;
+      });
+    }, 200);
+    
+    return () => clearInterval(interval);
+  }, [uploading]);
 
   const startCamera = async () => {
     try {
@@ -166,6 +186,10 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
         }
       }
 
+      // Complete progress animation
+      setUploadProgress(100);
+      await new Promise(resolve => setTimeout(resolve, 300));
+
       toast({ 
         title: 'Success', 
         description: 'Photo uploaded to job album! You can take another photo.',
@@ -185,6 +209,7 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
       });
     } finally {
       setUploading(false);
+      setUploadProgress(0);
     }
   };
 
@@ -213,10 +238,63 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
 
       <Dialog open={showDialog} onOpenChange={(open) => !open && handleClose()}>
         <DialogContent className="w-screen h-screen max-w-none max-h-none m-0 p-0 rounded-none sm:max-w-2xl sm:max-h-[90vh] sm:m-auto sm:p-6 sm:rounded-lg flex flex-col">
-          <DialogHeader className="p-4 sm:p-0 flex-shrink-0">
+          {/* Exit button */}
+          <Button
+            variant="ghost"
+            size="icon"
+            onClick={handleClose}
+            className="absolute top-3 right-3 z-50 h-10 w-10 rounded-full bg-black/50 hover:bg-black/70 text-white"
+          >
+            <X className="h-6 w-6" />
+          </Button>
+
+          <DialogHeader className="p-4 sm:p-0 flex-shrink-0 pr-14">
             <DialogTitle>Add Photo to Job Album</DialogTitle>
           </DialogHeader>
-          <div className="flex-1 flex flex-col min-h-0 p-4 pt-0 sm:p-0 space-y-4">
+          
+          <div className="flex-1 flex flex-col min-h-0 p-4 pt-0 sm:p-0 space-y-4 relative">
+            {/* Upload Progress Overlay */}
+            {uploading && (
+              <div className="absolute inset-0 z-40 bg-background/95 flex flex-col items-center justify-center rounded-lg">
+                <div className="flex flex-col items-center space-y-6 p-8">
+                  {/* Animated hard hat icon */}
+                  <div className="relative">
+                    <div className="w-24 h-24 rounded-full bg-[#E88A2D]/20 flex items-center justify-center animate-pulse">
+                      <HardHat className="h-12 w-12 text-[#E88A2D] animate-bounce" />
+                    </div>
+                    {/* Building blocks animation */}
+                    <div className="absolute -bottom-2 left-1/2 -translate-x-1/2 flex gap-1">
+                      <div 
+                        className="w-3 h-3 bg-[#E88A2D] rounded-sm animate-bounce" 
+                        style={{ animationDelay: '0ms' }}
+                      />
+                      <div 
+                        className="w-3 h-3 bg-[#E88A2D]/80 rounded-sm animate-bounce" 
+                        style={{ animationDelay: '150ms' }}
+                      />
+                      <div 
+                        className="w-3 h-3 bg-[#E88A2D]/60 rounded-sm animate-bounce" 
+                        style={{ animationDelay: '300ms' }}
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="text-center space-y-2">
+                    <p className="text-lg font-semibold text-foreground">Uploading Photo...</p>
+                    <p className="text-sm text-muted-foreground">Building your job album</p>
+                  </div>
+                  
+                  {/* Progress bar */}
+                  <div className="w-64 space-y-2">
+                    <Progress value={uploadProgress} className="h-3" />
+                    <p className="text-center text-sm text-muted-foreground">
+                      {Math.round(uploadProgress)}%
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
+
             {!photoPreview ? (
               <div className="flex-1 flex flex-col min-h-0 space-y-4">
                 <div className="relative flex-1 min-h-0 bg-black rounded-lg overflow-hidden">
@@ -267,7 +345,7 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
                     className="flex-1"
                     size="lg"
                   >
-                    {uploading ? 'Uploading...' : 'Upload to Job Album'}
+                    Upload to Job Album
                   </Button>
                 </div>
               </div>
