@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import AvatarUploader from '@/components/AvatarUploader';
+import PWAInstallPrompt from '@/components/PWAInstallPrompt';
 
 // Edge function headers for PIN users (same project as app)
 const FUNCTION_BASE = 'https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock';
@@ -1419,6 +1420,15 @@ export default function EmployeeDashboard() {
                     disabled={!editingProfile}
                     className="text-sm"
                   />
+                </div>
+                
+                {/* Install App Section */}
+                <div className="border-t pt-4 mt-4">
+                  <Label className="text-sm font-medium mb-2 block">Install App</Label>
+                  <p className="text-xs text-muted-foreground mb-3">
+                    Add this app to your home screen for quick access and a better experience.
+                  </p>
+                  <PWAInstallPrompt showButton={true} />
                 </div>
               </CardContent>
             </Card>
