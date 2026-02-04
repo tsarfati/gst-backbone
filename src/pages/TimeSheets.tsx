@@ -725,8 +725,10 @@ export default function TimeSheets() {
     };
   }, [currentCompany?.id]);
 
-  // Calculate summary statistics
-  const thisWeekCards = timeCards.filter(tc => {
+  // Calculate summary statistics based on filtered data
+  const filteredTimeCards = getFilteredAndSortedTimeCards();
+  
+  const thisWeekCards = filteredTimeCards.filter(tc => {
     const cardDate = new Date(tc.punch_in_time);
     const now = new Date();
     const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
@@ -735,9 +737,9 @@ export default function TimeSheets() {
 
   const totalHoursThisWeek = thisWeekCards.reduce((sum, tc) => sum + tc.total_hours, 0);
   const approvedHoursThisWeek = thisWeekCards
-    .filter(tc => tc.status === 'approved')
+    .filter(tc => tc.status === 'approved' || tc.status === 'approved-edited')
     .reduce((sum, tc) => sum + tc.total_hours, 0);
-  const pendingCards = timeCards.filter(tc => 
+  const pendingCards = filteredTimeCards.filter(tc => 
     pendingChangeRequestTimeCardIds.includes(tc.id) && 
     tc.status !== 'approved' && 
     tc.status !== 'approved-edited'
