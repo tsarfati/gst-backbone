@@ -236,18 +236,6 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
               <div className="space-y-4">
                 <div className="relative aspect-video rounded-lg overflow-hidden">
                   <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
-                  <Button
-                    variant="destructive"
-                    size="icon"
-                    className="absolute top-2 right-2"
-                    onClick={() => {
-                      setPhotoPreview(null);
-                      setPhotoBlob(null);
-                      startCamera();
-                    }}
-                  >
-                    <X className="h-4 w-4" />
-                  </Button>
                 </div>
                 <div>
                   <label className="text-sm font-medium mb-2 block">Add a note (optional)</label>
@@ -258,9 +246,28 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
                     rows={3}
                   />
                 </div>
-                <Button onClick={handleUpload} disabled={uploading} className="w-full">
-                  {uploading ? 'Uploading...' : 'Upload to Job Album'}
-                </Button>
+                <div className="flex gap-3">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setPhotoPreview(null);
+                      setPhotoBlob(null);
+                      setNote('');
+                      startCamera();
+                    }}
+                    disabled={uploading}
+                    className="flex-1"
+                  >
+                    Retake
+                  </Button>
+                  <Button 
+                    onClick={handleUpload} 
+                    disabled={uploading} 
+                    className="flex-1"
+                  >
+                    {uploading ? 'Uploading...' : 'Upload to Job Album'}
+                  </Button>
+                </div>
               </div>
             )}
           </div>
