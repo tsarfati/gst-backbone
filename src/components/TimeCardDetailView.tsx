@@ -80,12 +80,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   // Get user's role for the current company
   const currentUserRole = userCompanies.find(uc => uc.company_id === currentCompany?.id)?.role;
   const isManager = currentUserRole === 'admin' || currentUserRole === 'controller' || currentUserRole === 'project_manager';
-  const canEdit = currentUserRole === 'admin' || currentUserRole === 'controller';
-  
-  console.log('TimeCardDetailView - Current user role:', currentUserRole);
-  console.log('TimeCardDetailView - isManager:', isManager);
-  console.log('TimeCardDetailView - Company ID:', currentCompany?.id);
-  console.log('TimeCardDetailView - User companies:', userCompanies);
+  // canEdit: admins/controllers can edit, or user can edit their own time card
+  const canEdit = currentUserRole === 'admin' || currentUserRole === 'controller' || (user?.id && timeCard?.user_id === user.id);
   
   // Extract nested data for easier use
   const job = timeCard?.jobs;
@@ -983,9 +979,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
               </TabsTrigger>
             </TabsList>
             
-            {isManager && (
+            {canEdit && (
               <Button 
-                variant="outline" 
                 onClick={() => setEditDialogOpen(true)}
                 className="gap-2"
               >
