@@ -1,5 +1,11 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { Resend } from "npm:resend@4.0.0";
+import { renderAsync } from "npm:@react-email/components@0.0.22";
+import React from "npm:react@18.3.1";
+import { PasswordResetEmail } from "./_templates/password-reset.tsx";
+
+const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -65,21 +71,54 @@ serve(async (req) => {
       });
     }
 
-    // Send password reset email using Supabase Auth
-    const { error: resetError } = await supabaseAdmin.auth.resetPasswordForEmail(email, {
-      redirectTo: redirectTo || `${req.headers.get("origin")}/auth`,
+    // Generate password reset link using Supabase Auth Admin API
+    const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
+      type: 'recovery',
+      email: email,
+      options: {
+        redirectTo: redirectTo || `${req.headers.get("origin")}/auth`,
+      }
     });
 
-    if (resetError) {
-      console.error("Password reset error:", resetError);
+    if (linkError) {
+      console.error("Error generating reset link:", linkError);
       return new Response(
-        JSON.stringify({ error: resetError.message }),
+        JSON.stringify({ error: linkError.message }),
         {
           status: 400,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
         }
       );
     }
+
+    // Render the branded email template
+    const html = await renderAsync(
+      React.createElement(PasswordResetEmail, {
+        resetUrl: linkData.properties.action_link,
+        userEmail: email,
+      })
+    );
+
+    // Send branded email via Resend
+    const { error: emailError } = await resend.emails.send({
+      from: "BuilderLynk <noreply@greenstarteam.com>",
+      to: [email],
+      subject: "Reset Your BuilderLynk Password",
+      html,
+    });
+
+    if (emailError) {
+      console.error("Email send error:", emailError);
+      return new Response(
+        JSON.stringify({ error: emailError.message }),
+        {
+          status: 500,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        }
+      );
+    }
+
+    console.log("Branded password reset email sent successfully to:", email);
 
     return new Response(
       JSON.stringify({ success: true, message: "Password reset email sent" }),
