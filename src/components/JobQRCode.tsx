@@ -8,6 +8,7 @@ import { QrCode, Download, Copy, Smartphone, Users, RefreshCw } from 'lucide-rea
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import QRCode from 'qrcode';
+import { JobPosterGenerator } from '@/components/JobPosterGenerator';
 
 interface JobQRCodeProps {
   jobId: string;
@@ -273,11 +274,18 @@ export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: Job
         </div>
 
         {/* Actions */}
-        <div className="flex space-x-2">
+        <div className="grid grid-cols-2 gap-2">
           <Button variant="outline" onClick={downloadQrCode} className="flex-1">
             <Download className="mr-2 h-4 w-4" />
-            Download
+            Download QR
           </Button>
+          <JobPosterGenerator 
+            jobId={jobId}
+            jobName={jobName}
+            qrCode={qrCode}
+          />
+        </div>
+        <div className="flex space-x-2">
           <Button 
             variant="outline" 
             onClick={generateNewQrCode} 
@@ -292,7 +300,7 @@ export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: Job
             ) : (
               <>
                 <RefreshCw className="mr-2 h-4 w-4" />
-                Regenerate
+                Regenerate QR Code
               </>
             )}
           </Button>
