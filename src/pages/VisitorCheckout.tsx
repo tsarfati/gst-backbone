@@ -58,7 +58,27 @@ export default function VisitorCheckout() {
 
       setVisitorLog({ ...data, jobs: jobData });
 
-      // Load checkout settings from company
+      // Load job-specific checkout settings first
+      if (data.job_id) {
+        const { data: jobSettings } = await supabase
+          .from('job_visitor_settings')
+          .select('checkout_title, checkout_message, checkout_show_duration')
+          .eq('job_id', data.job_id)
+          .maybeSingle();
+
+        if (jobSettings) {
+          setCheckoutSettings({
+            checkout_title: jobSettings.checkout_title || 'Successfully Checked Out',
+            checkout_message: jobSettings.checkout_message || 'Thank you for visiting. Have a safe trip!',
+            checkout_show_duration: jobSettings.checkout_show_duration ?? true,
+          });
+          // Skip company fallback if job settings exist
+          setLoading(false);
+          return;
+        }
+      }
+
+      // Fallback to company-wide settings if no job-specific settings
       if (jobData?.company_id) {
         const { data: settings } = await supabase
           .from('visitor_login_settings')

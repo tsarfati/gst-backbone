@@ -40,16 +40,22 @@ interface VisitorLoginSettings {
   primary_color: string;
   button_color: string;
   text_color?: string;
-  confirmation_title: string;
-  confirmation_message: string;
-  checkout_title: string;
-  checkout_message: string;
-  checkout_show_duration: boolean;
   require_company_name: boolean;
   require_purpose_visit: boolean;
   enable_checkout: boolean;
   theme: 'light' | 'dark';
   require_photo: boolean;
+}
+
+interface JobVisitorSettings {
+  id?: string;
+  job_id: string;
+  company_id: string;
+  confirmation_title: string;
+  confirmation_message: string;
+  checkout_title: string;
+  checkout_message: string;
+  checkout_show_duration: boolean;
 }
 
 interface VisitorLogSettingsEnhancedProps {
@@ -82,16 +88,21 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     primary_color: '#3b82f6',
     button_color: '#10b981',
     text_color: '#000000',
-    confirmation_title: 'Welcome to the Job Site!',
-    confirmation_message: 'Thank you for checking in. Please follow all safety protocols.',
-    checkout_title: 'Successfully Checked Out',
-    checkout_message: 'Thank you for visiting. Have a safe trip!',
-    checkout_show_duration: true,
     require_company_name: true,
     require_purpose_visit: false,
     enable_checkout: true,
     theme: 'light',
     require_photo: false,
+  });
+
+  const [jobVisitorSettings, setJobVisitorSettings] = useState<JobVisitorSettings>({
+    job_id: jobId,
+    company_id: currentCompany?.id || '',
+    confirmation_title: 'Welcome to the Job Site!',
+    confirmation_message: 'Thank you for checking in. Please follow all safety protocols.',
+    checkout_title: 'Successfully Checked Out',
+    checkout_message: 'Thank you for visiting. Have a safe trip!',
+    checkout_show_duration: true,
   });
 
   const [loading, setLoading] = useState(true);
@@ -140,7 +151,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
         }));
       }
 
-      // Load visitor login settings
+      // Load visitor login settings (company-wide appearance settings)
       const { data: loginData, error: loginError } = await supabase
         .from('visitor_login_settings')
         .select('*')
@@ -154,10 +165,31 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
       if (loginData) {
         setLoginSettings({
           ...loginData,
-          theme: (loginData as any).theme || 'light', // Default to light if theme is not set
+          theme: (loginData as any).theme || 'light',
         });
       } else {
         setLoginSettings(prev => ({ ...prev, company_id: currentCompany.id }));
+      }
+
+      // Load job-specific visitor settings (confirmation/checkout messages)
+      const { data: jobSettings, error: jobSettingsError } = await supabase
+        .from('job_visitor_settings')
+        .select('*')
+        .eq('job_id', jobId)
+        .maybeSingle();
+
+      if (jobSettingsError && jobSettingsError.code !== 'PGRST116') {
+        throw jobSettingsError;
+      }
+
+      if (jobSettings) {
+        setJobVisitorSettings(jobSettings);
+      } else {
+        setJobVisitorSettings(prev => ({ 
+          ...prev, 
+          job_id: jobId,
+          company_id: currentCompany.id 
+        }));
       }
     } catch (error) {
       console.error('Error loading settings:', error);
@@ -235,11 +267,11 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
 
       if (autoError) throw autoError;
 
-      // Save visitor login settings
+      // Save visitor login settings (company-wide appearance)
       const loginSettingsData = {
         ...loginSettings,
         company_id: currentCompany.id,
-        created_by: currentCompany.id, // Using company_id as created_by
+        created_by: currentCompany.id,
       };
 
       const { error: loginError } = await supabase
@@ -250,6 +282,22 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
         });
 
       if (loginError) throw loginError;
+
+      // Save job-specific visitor settings (confirmation/checkout messages)
+      const jobVisitorSettingsData = {
+        ...jobVisitorSettings,
+        job_id: jobId,
+        company_id: currentCompany.id,
+      };
+
+      const { error: jobSettingsError } = await supabase
+        .from('job_visitor_settings')
+        .upsert([jobVisitorSettingsData], { 
+          onConflict: 'job_id',
+          ignoreDuplicates: false 
+        });
+
+      if (jobSettingsError) throw jobSettingsError;
 
       toast({
         title: "Settings Saved",
@@ -628,16 +676,19 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
 
           <Separator />
 
-          {/* Confirmation Message */}
+          {/* Confirmation Message - Job Specific */}
           <div className="space-y-4">
-            <Label className="text-base font-medium">Confirmation Screen</Label>
+            <Label className="text-base font-medium">Confirmation Screen (Job Specific)</Label>
+            <p className="text-sm text-muted-foreground">
+              These messages are specific to this job site.
+            </p>
             
             <div className="space-y-2">
               <Label htmlFor="confirmation-title">Title</Label>
               <Input
                 id="confirmation-title"
-                value={loginSettings.confirmation_title}
-                onChange={(e) => setLoginSettings(prev => ({ ...prev, confirmation_title: e.target.value }))}
+                value={jobVisitorSettings.confirmation_title}
+                onChange={(e) => setJobVisitorSettings(prev => ({ ...prev, confirmation_title: e.target.value }))}
                 placeholder="Welcome to the Job Site!"
               />
             </div>
@@ -646,8 +697,8 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
               <Label htmlFor="confirmation-message">Message</Label>
               <Textarea
                 id="confirmation-message"
-                value={loginSettings.confirmation_message}
-                onChange={(e) => setLoginSettings(prev => ({ ...prev, confirmation_message: e.target.value }))}
+                value={jobVisitorSettings.confirmation_message}
+                onChange={(e) => setJobVisitorSettings(prev => ({ ...prev, confirmation_message: e.target.value }))}
                 placeholder="Thank you for checking in. Please follow all safety protocols."
                 rows={3}
               />
@@ -668,7 +719,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
             </CardHeader>
             <CardContent className="space-y-6">
               <p className="text-sm text-muted-foreground">
-                Customize the confirmation page visitors see when they click the checkout link from their text message.
+                Customize the confirmation page visitors see when they click the checkout link. These settings are specific to this job.
               </p>
 
               <div className="space-y-4">
@@ -676,8 +727,8 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                   <Label htmlFor="checkout-title">Checkout Title</Label>
                   <Input
                     id="checkout-title"
-                    value={loginSettings.checkout_title}
-                    onChange={(e) => setLoginSettings(prev => ({ ...prev, checkout_title: e.target.value }))}
+                    value={jobVisitorSettings.checkout_title}
+                    onChange={(e) => setJobVisitorSettings(prev => ({ ...prev, checkout_title: e.target.value }))}
                     placeholder="Successfully Checked Out"
                   />
                   <p className="text-xs text-muted-foreground">
@@ -689,8 +740,8 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                   <Label htmlFor="checkout-message">Checkout Message</Label>
                   <Textarea
                     id="checkout-message"
-                    value={loginSettings.checkout_message}
-                    onChange={(e) => setLoginSettings(prev => ({ ...prev, checkout_message: e.target.value }))}
+                    value={jobVisitorSettings.checkout_message}
+                    onChange={(e) => setJobVisitorSettings(prev => ({ ...prev, checkout_message: e.target.value }))}
                     placeholder="Thank you for visiting. Have a safe trip!"
                     rows={4}
                   />
@@ -709,9 +760,9 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                     </p>
                   </div>
                   <Switch
-                    checked={loginSettings.checkout_show_duration}
+                    checked={jobVisitorSettings.checkout_show_duration}
                     onCheckedChange={(checked) => 
-                      setLoginSettings(prev => ({ ...prev, checkout_show_duration: checked }))
+                      setJobVisitorSettings(prev => ({ ...prev, checkout_show_duration: checked }))
                     }
                   />
                 </div>
@@ -722,9 +773,9 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                 <div className="bg-background rounded-lg p-4 border">
                   <div className="text-center space-y-3">
                     <div className="text-green-600 text-2xl">✓</div>
-                    <h3 className="font-semibold text-lg">{loginSettings.checkout_title}</h3>
-                    <p className="text-muted-foreground">{loginSettings.checkout_message}</p>
-                    {loginSettings.checkout_show_duration && (
+                    <h3 className="font-semibold text-lg">{jobVisitorSettings.checkout_title}</h3>
+                    <p className="text-muted-foreground">{jobVisitorSettings.checkout_message}</p>
+                    {jobVisitorSettings.checkout_show_duration && (
                       <p className="text-sm text-muted-foreground">
                         Time on site: <span className="font-medium">2 hours 34 minutes</span>
                       </p>
