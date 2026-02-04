@@ -148,8 +148,10 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
 
       if (insertError) {
         const msg = String(insertError.message || '').toLowerCase();
-        // Foreign key violation means uploaded_by is not a profiles.user_id (likely PIN mode). Use server-side helper.
-        if (msg.includes('foreign key') || msg.includes('job_photos_uploaded_by_fkey')) {
+        // Foreign key violation OR RLS violation means PIN mode. Use server-side helper.
+        if (msg.includes('foreign key') || msg.includes('job_photos_uploaded_by_fkey') || 
+            msg.includes('row-level security') || msg.includes('row level security') ||
+            msg.includes('violates row-level security policy')) {
           const { error: rpcError } = await supabase.rpc('pin_insert_job_photo', {
             p_job_id: jobId,
             p_uploader_hint: uploadedByUserId,
