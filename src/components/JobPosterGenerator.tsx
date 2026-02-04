@@ -63,7 +63,12 @@ export function JobPosterGenerator({ jobId, jobName, qrCode }: JobPosterGenerato
       let primaryColor = '#10b981'; // Default green
       let logoUrl: string | null = null;
 
-      // Try to get visitor login settings for brand color
+      // First, use company logo as the primary source
+      if (currentCompany.logo_url) {
+        logoUrl = currentCompany.logo_url;
+      }
+
+      // Try to get visitor login settings for brand color and override logo if available
       const { data: loginSettings } = await supabase
         .from('visitor_login_settings')
         .select('primary_color, button_color, header_logo_url')
@@ -72,12 +77,10 @@ export function JobPosterGenerator({ jobId, jobName, qrCode }: JobPosterGenerato
 
       if (loginSettings) {
         primaryColor = loginSettings.button_color || loginSettings.primary_color || primaryColor;
-        logoUrl = loginSettings.header_logo_url || null;
-      }
-
-      // Fallback to company logo if no header logo in settings
-      if (!logoUrl && currentCompany.logo_url) {
-        logoUrl = currentCompany.logo_url;
+        // Override with header logo if available in visitor settings
+        if (loginSettings.header_logo_url) {
+          logoUrl = loginSettings.header_logo_url;
+        }
       }
 
       // Generate QR code
