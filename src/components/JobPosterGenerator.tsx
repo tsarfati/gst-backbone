@@ -170,48 +170,49 @@ export function JobPosterGenerator({ jobId, jobName, qrCode }: JobPosterGenerato
       yPos += 1.2;
 
       // Draw phone icon with arrow (simplified)
-      const phoneX = centerX - 2.5;
+      const phoneX = centerX - 3.2;
       const phoneY = yPos;
-      const phoneWidth = 1.2;
-      const phoneHeight = 2;
+      const phoneWidth = 1.0;
+      const phoneHeight = 1.8;
 
       // Phone outline
       pdf.setDrawColor(0, 0, 0);
-      pdf.setLineWidth(0.05);
+      pdf.setLineWidth(0.04);
       pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(phoneX, phoneY, phoneWidth, phoneHeight, 0.1, 0.1, 'FD');
+      pdf.roundedRect(phoneX, phoneY, phoneWidth, phoneHeight, 0.08, 0.08, 'FD');
       
       // Phone screen
-      pdf.setFillColor(200, 200, 200);
-      pdf.rect(phoneX + 0.1, phoneY + 0.2, phoneWidth - 0.2, phoneHeight - 0.4, 'F');
+      pdf.setFillColor(220, 220, 220);
+      pdf.rect(phoneX + 0.08, phoneY + 0.15, phoneWidth - 0.16, phoneHeight - 0.35, 'F');
       
       // Home button
       pdf.setFillColor(0, 0, 0);
-      pdf.circle(phoneX + phoneWidth / 2, phoneY + phoneHeight - 0.12, 0.06, 'F');
+      pdf.circle(phoneX + phoneWidth / 2, phoneY + phoneHeight - 0.1, 0.05, 'F');
 
-      // Arrow
-      const arrowStartX = phoneX + phoneWidth + 0.15;
-      const arrowEndX = arrowStartX + 0.8;
+      // Arrow - positioned between phone and QR code
+      const arrowStartX = phoneX + phoneWidth + 0.2;
+      const arrowEndX = arrowStartX + 0.5;
       const arrowY = phoneY + phoneHeight / 2;
       
-      pdf.setLineWidth(0.08);
+      pdf.setLineWidth(0.06);
+      pdf.setDrawColor(0, 0, 0);
       pdf.line(arrowStartX, arrowY, arrowEndX, arrowY);
       
       // Arrow head
       pdf.setFillColor(0, 0, 0);
       pdf.triangle(
-        arrowEndX + 0.2, arrowY,
-        arrowEndX, arrowY - 0.12,
-        arrowEndX, arrowY + 0.12,
+        arrowEndX + 0.15, arrowY,
+        arrowEndX, arrowY - 0.1,
+        arrowEndX, arrowY + 0.1,
         'F'
       );
 
-      // QR Code
-      const qrSize = 2.5;
-      const qrX = centerX - 0.3;
-      const qrY = phoneY - 0.25;
+      // QR Code - positioned to the right of the arrow with proper spacing
+      const qrSize = 2.2;
+      const qrX = arrowEndX + 0.4;
+      const qrY = phoneY + (phoneHeight / 2) - (qrSize / 2);
       pdf.addImage(qrCodeDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
-      yPos += 2.7;
+      yPos += Math.max(phoneHeight, qrSize) + 0.3;
 
       // "SCAN HERE" text in brand color
       pdf.setFontSize(48);
