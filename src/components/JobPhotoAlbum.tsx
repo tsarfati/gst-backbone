@@ -478,6 +478,9 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       if (error) throw error;
 
+      // Immediately update local state
+      setPhotos(prev => prev.filter(p => p.id !== photoId));
+
       toast({
         title: 'Success',
         description: 'Photo deleted successfully',
@@ -503,6 +506,9 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         .in('id', Array.from(selectedPhotos));
 
       if (error) throw error;
+
+      // Immediately update local state
+      setPhotos(prev => prev.filter(p => !selectedPhotos.has(p.id)));
 
       toast({
         title: 'Success',
