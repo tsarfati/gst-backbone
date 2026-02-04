@@ -110,15 +110,15 @@ export function JobPosterGenerator({ jobId, jobName, qrCode }: JobPosterGenerato
       pdf.setFillColor(255, 255, 255);
       pdf.rect(0, 0, pageWidth, pageHeight, 'F');
 
-      let yPos = 0.5;
+      let yPos = 0.25; // Reduced top margin
 
       // Load and add company logo if available
       if (logoUrl) {
         try {
           const logoDataUrl = await loadImageAsDataUrl(logoUrl);
           if (logoDataUrl) {
-            const logoMaxWidth = 3;
-            const logoMaxHeight = 1.5;
+            const logoMaxWidth = 5.5; // Larger logo
+            const logoMaxHeight = 2.2;
             
             // Get image dimensions
             const img = new Image();
@@ -138,103 +138,103 @@ export function JobPosterGenerator({ jobId, jobName, qrCode }: JobPosterGenerato
             
             const logoX = centerX - logoWidth / 2;
             pdf.addImage(logoDataUrl, 'PNG', logoX, yPos, logoWidth, logoHeight);
-            yPos += logoHeight + 0.3;
+            yPos += logoHeight + 0.15;
           }
         } catch (error) {
           console.error('Error loading logo:', error);
         }
       } else {
         // Add company name as fallback
-        pdf.setFontSize(36);
+        pdf.setFontSize(48);
         pdf.setFont('helvetica', 'bold');
         pdf.setTextColor(0, 0, 0);
-        pdf.text(currentCompany.name || 'Company', centerX, yPos + 0.5, { align: 'center' });
-        yPos += 1;
+        pdf.text(currentCompany.name || 'Company', centerX, yPos + 0.6, { align: 'center' });
+        yPos += 0.9;
       }
 
-      // "VISITORS &" text
-      pdf.setFontSize(52);
+      // "VISITORS &" text - larger font
+      pdf.setFontSize(62);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(0, 0, 0);
-      pdf.text('VISITORS &', centerX, yPos + 0.7, { align: 'center' });
+      pdf.text('VISITORS &', centerX, yPos + 0.75, { align: 'center' });
       yPos += 0.85;
 
       // "CONTRACTORS" text
-      pdf.text('CONTRACTORS', centerX, yPos + 0.7, { align: 'center' });
+      pdf.text('CONTRACTORS', centerX, yPos + 0.75, { align: 'center' });
       yPos += 0.9;
 
       // "MUST SIGN IN" text in brand color
       const [r, g, b] = hexToRgb(primaryColor);
       pdf.setTextColor(r, g, b);
-      pdf.text('MUST SIGN IN', centerX, yPos + 0.7, { align: 'center' });
-      yPos += 1.0;
+      pdf.text('MUST SIGN IN', centerX, yPos + 0.75, { align: 'center' });
+      yPos += 0.9;
 
-      // Phone icon - large, on the left side
-      const phoneWidth = 1.6;
-      const phoneHeight = 2.8;
-      const phoneX = centerX - 3.0;
+      // Phone icon - larger, on the left side
+      const phoneWidth = 1.9;
+      const phoneHeight = 3.3;
+      const phoneX = centerX - 3.5;
       const phoneY = yPos;
 
       // Phone body (rounded rectangle)
       pdf.setDrawColor(0, 0, 0);
       pdf.setFillColor(40, 40, 40);
       pdf.setLineWidth(0.02);
-      pdf.roundedRect(phoneX, phoneY, phoneWidth, phoneHeight, 0.15, 0.15, 'F');
+      pdf.roundedRect(phoneX, phoneY, phoneWidth, phoneHeight, 0.18, 0.18, 'F');
       
       // Phone screen (white inner rectangle)
-      const screenMargin = 0.12;
-      const screenTop = 0.25;
-      const screenBottom = 0.4;
+      const screenMargin = 0.14;
+      const screenTop = 0.3;
+      const screenBottom = 0.5;
       pdf.setFillColor(255, 255, 255);
       pdf.roundedRect(
         phoneX + screenMargin, 
         phoneY + screenTop, 
         phoneWidth - screenMargin * 2, 
         phoneHeight - screenTop - screenBottom, 
-        0.08, 0.08, 'F'
+        0.1, 0.1, 'F'
       );
       
       // Home button (circle at bottom)
       pdf.setFillColor(80, 80, 80);
-      pdf.circle(phoneX + phoneWidth / 2, phoneY + phoneHeight - 0.18, 0.1, 'F');
+      pdf.circle(phoneX + phoneWidth / 2, phoneY + phoneHeight - 0.22, 0.12, 'F');
 
       // Arrow pointing from phone to QR code
-      const arrowStartX = phoneX + phoneWidth + 0.15;
-      const arrowEndX = arrowStartX + 0.55;
+      const arrowStartX = phoneX + phoneWidth + 0.1;
+      const arrowEndX = arrowStartX + 0.5;
       const arrowY = phoneY + phoneHeight / 2;
       
       // Arrow shaft
       pdf.setFillColor(0, 0, 0);
-      pdf.rect(arrowStartX, arrowY - 0.08, arrowEndX - arrowStartX, 0.16, 'F');
+      pdf.rect(arrowStartX, arrowY - 0.1, arrowEndX - arrowStartX, 0.2, 'F');
       
       // Arrow head (triangle)
       pdf.triangle(
-        arrowEndX + 0.25, arrowY,
-        arrowEndX - 0.05, arrowY - 0.2,
-        arrowEndX - 0.05, arrowY + 0.2,
+        arrowEndX + 0.28, arrowY,
+        arrowEndX - 0.05, arrowY - 0.24,
+        arrowEndX - 0.05, arrowY + 0.24,
         'F'
       );
 
-      // QR Code - large, positioned to the right
-      const qrSize = 2.8;
-      const qrX = arrowEndX + 0.35;
+      // QR Code - larger, positioned to the right
+      const qrSize = 3.3;
+      const qrX = arrowEndX + 0.4;
       const qrY = phoneY + (phoneHeight / 2) - (qrSize / 2);
       pdf.addImage(qrCodeDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
       
-      yPos = phoneY + phoneHeight + 0.3;
+      yPos = phoneY + phoneHeight + 0.15;
 
-      // "SCAN HERE" text in BLACK
-      pdf.setFontSize(52);
+      // "SCAN HERE" text in BLACK - larger
+      pdf.setFontSize(62);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(0, 0, 0);
-      pdf.text('SCAN HERE', centerX, yPos + 0.6, { align: 'center' });
-      yPos += 1.0;
+      pdf.text('SCAN HERE', centerX, yPos + 0.7, { align: 'center' });
+      yPos += 0.95;
 
-      // Job name at the bottom in brand color
-      pdf.setFontSize(36);
+      // Job name at the bottom in brand color - larger
+      pdf.setFontSize(42);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(r, g, b);
-      pdf.text(jobName, centerX, yPos + 0.5, { align: 'center' });
+      pdf.text(jobName, centerX, yPos + 0.55, { align: 'center' });
 
       // Save the PDF
       const fileName = `visitor-poster-${jobName.replace(/\s+/g, '-')}.pdf`;
