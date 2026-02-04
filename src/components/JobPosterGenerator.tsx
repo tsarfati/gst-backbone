@@ -153,79 +153,88 @@ export function JobPosterGenerator({ jobId, jobName, qrCode }: JobPosterGenerato
       }
 
       // "VISITORS &" text
-      pdf.setFontSize(48);
+      pdf.setFontSize(52);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(0, 0, 0);
-      pdf.text('VISITORS &', centerX, yPos + 0.8, { align: 'center' });
-      yPos += 0.9;
+      pdf.text('VISITORS &', centerX, yPos + 0.7, { align: 'center' });
+      yPos += 0.85;
 
       // "CONTRACTORS" text
-      pdf.text('CONTRACTORS', centerX, yPos + 0.6, { align: 'center' });
-      yPos += 0.7;
+      pdf.text('CONTRACTORS', centerX, yPos + 0.7, { align: 'center' });
+      yPos += 0.9;
 
       // "MUST SIGN IN" text in brand color
       const [r, g, b] = hexToRgb(primaryColor);
       pdf.setTextColor(r, g, b);
       pdf.text('MUST SIGN IN', centerX, yPos + 0.7, { align: 'center' });
-      yPos += 1.2;
+      yPos += 1.0;
 
-      // Draw phone icon with arrow (simplified)
-      const phoneX = centerX - 3.2;
+      // Phone icon - large, on the left side
+      const phoneWidth = 1.6;
+      const phoneHeight = 2.8;
+      const phoneX = centerX - 3.0;
       const phoneY = yPos;
-      const phoneWidth = 1.0;
-      const phoneHeight = 1.8;
 
-      // Phone outline
+      // Phone body (rounded rectangle)
       pdf.setDrawColor(0, 0, 0);
-      pdf.setLineWidth(0.04);
+      pdf.setFillColor(40, 40, 40);
+      pdf.setLineWidth(0.02);
+      pdf.roundedRect(phoneX, phoneY, phoneWidth, phoneHeight, 0.15, 0.15, 'F');
+      
+      // Phone screen (white inner rectangle)
+      const screenMargin = 0.12;
+      const screenTop = 0.25;
+      const screenBottom = 0.4;
       pdf.setFillColor(255, 255, 255);
-      pdf.roundedRect(phoneX, phoneY, phoneWidth, phoneHeight, 0.08, 0.08, 'FD');
+      pdf.roundedRect(
+        phoneX + screenMargin, 
+        phoneY + screenTop, 
+        phoneWidth - screenMargin * 2, 
+        phoneHeight - screenTop - screenBottom, 
+        0.08, 0.08, 'F'
+      );
       
-      // Phone screen
-      pdf.setFillColor(220, 220, 220);
-      pdf.rect(phoneX + 0.08, phoneY + 0.15, phoneWidth - 0.16, phoneHeight - 0.35, 'F');
-      
-      // Home button
-      pdf.setFillColor(0, 0, 0);
-      pdf.circle(phoneX + phoneWidth / 2, phoneY + phoneHeight - 0.1, 0.05, 'F');
+      // Home button (circle at bottom)
+      pdf.setFillColor(80, 80, 80);
+      pdf.circle(phoneX + phoneWidth / 2, phoneY + phoneHeight - 0.18, 0.1, 'F');
 
-      // Arrow - positioned between phone and QR code
-      const arrowStartX = phoneX + phoneWidth + 0.2;
-      const arrowEndX = arrowStartX + 0.5;
+      // Arrow pointing from phone to QR code
+      const arrowStartX = phoneX + phoneWidth + 0.15;
+      const arrowEndX = arrowStartX + 0.55;
       const arrowY = phoneY + phoneHeight / 2;
       
-      pdf.setLineWidth(0.06);
-      pdf.setDrawColor(0, 0, 0);
-      pdf.line(arrowStartX, arrowY, arrowEndX, arrowY);
-      
-      // Arrow head
+      // Arrow shaft
       pdf.setFillColor(0, 0, 0);
+      pdf.rect(arrowStartX, arrowY - 0.08, arrowEndX - arrowStartX, 0.16, 'F');
+      
+      // Arrow head (triangle)
       pdf.triangle(
-        arrowEndX + 0.15, arrowY,
-        arrowEndX, arrowY - 0.1,
-        arrowEndX, arrowY + 0.1,
+        arrowEndX + 0.25, arrowY,
+        arrowEndX - 0.05, arrowY - 0.2,
+        arrowEndX - 0.05, arrowY + 0.2,
         'F'
       );
 
-      // QR Code - positioned to the right of the arrow with proper spacing
-      const qrSize = 2.2;
-      const qrX = arrowEndX + 0.4;
+      // QR Code - large, positioned to the right
+      const qrSize = 2.8;
+      const qrX = arrowEndX + 0.35;
       const qrY = phoneY + (phoneHeight / 2) - (qrSize / 2);
       pdf.addImage(qrCodeDataURL, 'PNG', qrX, qrY, qrSize, qrSize);
-      yPos += Math.max(phoneHeight, qrSize) + 0.3;
+      
+      yPos = phoneY + phoneHeight + 0.3;
 
-      // "SCAN HERE" text in brand color
-      pdf.setFontSize(48);
+      // "SCAN HERE" text in BLACK
+      pdf.setFontSize(52);
       pdf.setFont('helvetica', 'bold');
-      pdf.setTextColor(r, g, b);
+      pdf.setTextColor(0, 0, 0);
       pdf.text('SCAN HERE', centerX, yPos + 0.6, { align: 'center' });
-      yPos += 1.3;
+      yPos += 1.0;
 
-      // Job name at the bottom
-      pdf.setFontSize(32);
+      // Job name at the bottom in brand color
+      pdf.setFontSize(36);
       pdf.setFont('helvetica', 'bold');
       pdf.setTextColor(r, g, b);
-      pdf.text(jobName, centerX, yPos + 0.4, { align: 'center' });
+      pdf.text(jobName, centerX, yPos + 0.5, { align: 'center' });
 
       // Save the PDF
       const fileName = `visitor-poster-${jobName.replace(/\s+/g, '-')}.pdf`;
