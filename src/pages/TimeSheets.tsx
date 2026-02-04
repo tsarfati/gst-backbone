@@ -725,23 +725,29 @@ export default function TimeSheets() {
     };
   }, [currentCompany?.id]);
 
-  // Calculate summary statistics based on filtered data
+  // Calculate summary statistics based on the currently filtered dataset
   const filteredTimeCards = getFilteredAndSortedTimeCards();
-  
-  const thisWeekCards = filteredTimeCards.filter(tc => {
-    const cardDate = new Date(tc.punch_in_time);
-    const now = new Date();
-    const startOfWeek = new Date(now.setDate(now.getDate() - now.getDay()));
-    return cardDate >= startOfWeek;
-  });
 
-  const totalHoursThisWeek = thisWeekCards.reduce((sum, tc) => sum + tc.total_hours, 0);
-  const approvedHoursThisWeek = thisWeekCards
+  const totalHoursFiltered = filteredTimeCards.reduce((sum, tc) => sum + (tc.total_hours || 0), 0);
+
+  const approvedHoursFiltered = filteredTimeCards
     .filter(tc => tc.status === 'approved' || tc.status === 'approved-edited')
-    .reduce((sum, tc) => sum + tc.total_hours, 0);
-  const pendingCards = filteredTimeCards.filter(tc => 
-    pendingChangeRequestTimeCardIds.includes(tc.id) && 
-    tc.status !== 'approved' && 
+    .reduce((sum, tc) => sum + (tc.total_hours || 0), 0);
+
+  const uniqueDaysInFiltered = new Set(
+    filteredTimeCards.map(tc => {
+      const d = new Date(tc.punch_in_time);
+      return `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
+    })
+  );
+
+  const averageDailyFiltered = uniqueDaysInFiltered.size > 0
+    ? totalHoursFiltered / uniqueDaysInFiltered.size
+    : 0;
+
+  const pendingCards = filteredTimeCards.filter(tc =>
+    pendingChangeRequestTimeCardIds.includes(tc.id) &&
+    tc.status !== 'approved' &&
     tc.status !== 'approved-edited'
   ).length;
 
@@ -855,25 +861,25 @@ export default function TimeSheets() {
         
         <Card className="shadow-elevation-md">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">This Week Total</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Total Hours</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-primary">
-              {totalHoursThisWeek.toFixed(1)} hrs
+              {totalHoursFiltered.toFixed(1)} hrs
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Current week</p>
+            <p className="text-xs text-muted-foreground mt-1">Filtered results</p>
           </CardContent>
         </Card>
         
         <Card className="shadow-elevation-md">
           <CardHeader className="pb-3">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Approved This Week</CardTitle>
+            <CardTitle className="text-sm font-medium text-muted-foreground">Approved Hours</CardTitle>
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-success">
-              {approvedHoursThisWeek.toFixed(1)} hrs
+              {approvedHoursFiltered.toFixed(1)} hrs
             </div>
-            <p className="text-xs text-muted-foreground mt-1">Ready for payroll</p>
+            <p className="text-xs text-muted-foreground mt-1">Filtered results</p>
           </CardContent>
         </Card>
         
@@ -883,9 +889,9 @@ export default function TimeSheets() {
           </CardHeader>
           <CardContent>
             <div className="text-3xl font-bold text-foreground">
-              {thisWeekCards.length > 0 ? (totalHoursThisWeek / thisWeekCards.length).toFixed(1) : '0'} hrs
+              {averageDailyFiltered.toFixed(1)} hrs
             </div>
-            <p className="text-xs text-muted-foreground mt-1">This week</p>
+            <p className="text-xs text-muted-foreground mt-1">Avg per day (filtered)</p>
           </CardContent>
         </Card>
       </div>
