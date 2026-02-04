@@ -212,41 +212,41 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
       </Button>
 
       <Dialog open={showDialog} onOpenChange={(open) => !open && handleClose()}>
-        <DialogContent className="max-w-lg">
-          <DialogHeader>
+        <DialogContent className="w-screen h-screen max-w-none max-h-none m-0 p-0 rounded-none sm:max-w-2xl sm:max-h-[90vh] sm:m-auto sm:p-6 sm:rounded-lg flex flex-col">
+          <DialogHeader className="p-4 sm:p-0 flex-shrink-0">
             <DialogTitle>Add Photo to Job Album</DialogTitle>
           </DialogHeader>
-          <div className="space-y-4">
+          <div className="flex-1 flex flex-col min-h-0 p-4 pt-0 sm:p-0 space-y-4">
             {!photoPreview ? (
-              <div className="space-y-4">
-                <div className="relative aspect-video bg-black rounded-lg overflow-hidden">
+              <div className="flex-1 flex flex-col min-h-0 space-y-4">
+                <div className="relative flex-1 min-h-0 bg-black rounded-lg overflow-hidden">
                   <video
                     ref={videoRef}
                     autoPlay
                     playsInline
-                    className="w-full h-full object-cover"
+                    className="absolute inset-0 w-full h-full object-cover"
                   />
                 </div>
-                <Button onClick={capturePhoto} className="w-full">
-                  <Camera className="h-4 w-4 mr-2" />
+                <Button onClick={capturePhoto} className="w-full flex-shrink-0" size="lg">
+                  <Camera className="h-5 w-5 mr-2" />
                   Take Photo
                 </Button>
               </div>
             ) : (
-              <div className="space-y-4">
-                <div className="relative aspect-video rounded-lg overflow-hidden">
-                  <img src={photoPreview} alt="Preview" className="w-full h-full object-cover" />
+              <div className="flex-1 flex flex-col min-h-0 space-y-4">
+                <div className="relative flex-1 min-h-0 rounded-lg overflow-hidden">
+                  <img src={photoPreview} alt="Preview" className="absolute inset-0 w-full h-full object-cover" />
                 </div>
-                <div>
+                <div className="flex-shrink-0">
                   <label className="text-sm font-medium mb-2 block">Add a note (optional)</label>
                   <Textarea
                     value={note}
                     onChange={(e) => setNote(e.target.value)}
                     placeholder="Describe what's in this photo..."
-                    rows={3}
+                    rows={2}
                   />
                 </div>
-                <div className="flex gap-3">
+                <div className="flex gap-3 flex-shrink-0">
                   <Button 
                     variant="outline" 
                     onClick={() => {
@@ -257,6 +257,7 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
                     }}
                     disabled={uploading}
                     className="flex-1"
+                    size="lg"
                   >
                     Retake
                   </Button>
@@ -264,6 +265,7 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
                     onClick={handleUpload} 
                     disabled={uploading} 
                     className="flex-1"
+                    size="lg"
                   >
                     {uploading ? 'Uploading...' : 'Upload to Job Album'}
                   </Button>
