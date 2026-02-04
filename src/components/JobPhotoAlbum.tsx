@@ -3,7 +3,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil } from 'lucide-react';
+import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil, ExternalLink } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
 import { format } from 'date-fns';
+import PhotoLocationMap from './PhotoLocationMap';
 
 interface JobPhoto {
   id: string;
@@ -255,8 +256,9 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          // Request maximum resolution (4K) for highest quality photos
+          width: { ideal: 4096 },
+          height: { ideal: 2160 }
         }
       });
       if (videoRef.current) {
@@ -902,29 +904,57 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       {/* Photo Detail Dialog */}
       <Dialog open={!!selectedPhoto} onOpenChange={() => setSelectedPhoto(null)}>
-        <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
-            <DialogTitle>Photo Details</DialogTitle>
+            <DialogTitle className="flex items-center justify-between">
+              <span>Photo Details</span>
+              {selectedPhoto && (
+                <a
+                  href={selectedPhoto.photo_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm font-normal text-primary hover:underline flex items-center gap-1"
+                >
+                  <ExternalLink className="h-4 w-4" />
+                  View Full Resolution
+                </a>
+              )}
+            </DialogTitle>
           </DialogHeader>
           {selectedPhoto && (
             <div className="space-y-6">
-              <img
-                src={selectedPhoto.photo_url}
-                alt="Job photo"
-                className="w-full rounded-lg"
-              />
+              {/* Full resolution image - no max constraints, natural size up to container */}
+              <a 
+                href={selectedPhoto.photo_url} 
+                target="_blank" 
+                rel="noopener noreferrer"
+                className="block cursor-zoom-in"
+              >
+                <img
+                  src={selectedPhoto.photo_url}
+                  alt="Job photo"
+                  className="w-full rounded-lg"
+                  style={{ maxHeight: '60vh', objectFit: 'contain' }}
+                />
+              </a>
               
               {/* Uploader Info */}
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={selectedPhoto.profiles?.avatar_url} />
+                  <AvatarImage src={selectedPhoto.pin_employee_id && selectedPhoto.pin_employees?.avatar_url ? selectedPhoto.pin_employees.avatar_url : selectedPhoto.profiles?.avatar_url} />
                   <AvatarFallback>
-                    {selectedPhoto.profiles?.first_name?.[0]}{selectedPhoto.profiles?.last_name?.[0]}
+                    {selectedPhoto.pin_employee_id && selectedPhoto.pin_employees 
+                      ? `${selectedPhoto.pin_employees.first_name?.[0] || ''}${selectedPhoto.pin_employees.last_name?.[0] || ''}`
+                      : `${selectedPhoto.profiles?.first_name?.[0] || ''}${selectedPhoto.profiles?.last_name?.[0] || ''}`
+                    }
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="font-medium">
-                    {selectedPhoto.profiles?.first_name} {selectedPhoto.profiles?.last_name}
+                    {selectedPhoto.pin_employee_id && selectedPhoto.pin_employees 
+                      ? (selectedPhoto.pin_employees.display_name || `${selectedPhoto.pin_employees.first_name} ${selectedPhoto.pin_employees.last_name}`)
+                      : `${selectedPhoto.profiles?.first_name || ''} ${selectedPhoto.profiles?.last_name || ''}`
+                    }
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {format(new Date(selectedPhoto.created_at), 'MMM d, yyyy h:mm a')}
@@ -932,16 +962,32 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                 </div>
               </div>
 
-              {/* Location */}
+              {/* Location with Map */}
               {selectedPhoto.location_lat && selectedPhoto.location_lng && (
-                <div className="flex items-start gap-2">
-                  <MapPin className="h-4 w-4 mt-0.5 text-muted-foreground" />
-                  <div>
-                    <p className="text-sm font-medium">Location</p>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedPhoto.location_address || `${selectedPhoto.location_lat.toFixed(6)}, ${selectedPhoto.location_lng.toFixed(6)}`}
-                    </p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-primary" />
+                      <p className="text-sm font-medium">Photo Location</p>
+                    </div>
+                    <a
+                      href={`https://www.google.com/maps?q=${selectedPhoto.location_lat},${selectedPhoto.location_lng}`}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-primary hover:underline flex items-center gap-1"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Open in Google Maps
+                    </a>
                   </div>
+                  <PhotoLocationMap 
+                    latitude={selectedPhoto.location_lat} 
+                    longitude={selectedPhoto.location_lng}
+                    className="h-48 w-full"
+                  />
+                  <p className="text-xs text-muted-foreground text-center">
+                    {selectedPhoto.location_address || `${selectedPhoto.location_lat.toFixed(6)}, ${selectedPhoto.location_lng.toFixed(6)}`}
+                  </p>
                 </div>
               )}
 

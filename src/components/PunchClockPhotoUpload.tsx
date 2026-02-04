@@ -47,8 +47,9 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
       const stream = await navigator.mediaDevices.getUserMedia({
         video: { 
           facingMode: 'environment',
-          width: { ideal: 1920 },
-          height: { ideal: 1080 }
+          // Request maximum resolution (4K) for highest quality photos
+          width: { ideal: 4096 },
+          height: { ideal: 2160 }
         }
       });
       if (videoRef.current) {
