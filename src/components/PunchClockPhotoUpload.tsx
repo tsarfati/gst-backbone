@@ -2,11 +2,10 @@ import { useState, useRef, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Textarea } from '@/components/ui/textarea';
-import { Progress } from '@/components/ui/progress';
 import { Camera, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import builderlynkLogo from '@/assets/builderlynk-logo.png';
+import builderlynkShield from '@/assets/builderlynk-icon-shield.png';
 
 interface PunchClockPhotoUploadProps {
   jobId: string;
@@ -259,28 +258,57 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
             {uploading && (
               <div className="absolute inset-0 z-40 bg-background/95 flex flex-col items-center justify-center rounded-lg">
                 <div className="flex flex-col items-center space-y-6 p-8">
-                  {/* Bouncing BuilderLynk logo */}
-                  <div className="relative">
-                    <div className="w-28 h-28 rounded-full bg-[#E88A2D]/10 flex items-center justify-center">
+                  {/* Circular progress with BuilderLynk shield logo */}
+                  <div className="relative w-36 h-36">
+                    {/* SVG Circular Progress */}
+                    <svg className="w-full h-full -rotate-90" viewBox="0 0 100 100">
+                      {/* Background circle */}
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="45"
+                        fill="none"
+                        stroke="currentColor"
+                        strokeWidth="6"
+                        className="text-muted/30"
+                      />
+                      {/* Progress circle with gradient */}
+                      <circle
+                        cx="50"
+                        cy="50"
+                        r="45"
+                        fill="none"
+                        stroke="url(#progressGradient)"
+                        strokeWidth="6"
+                        strokeLinecap="round"
+                        strokeDasharray={2 * Math.PI * 45}
+                        strokeDashoffset={2 * Math.PI * 45 * (1 - uploadProgress / 100)}
+                        className="transition-all duration-300 ease-out"
+                      />
+                      {/* Gradient definition */}
+                      <defs>
+                        <linearGradient id="progressGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+                          <stop offset="0%" stopColor="#E88A2D" />
+                          <stop offset="50%" stopColor="#F5A623" />
+                          <stop offset="100%" stopColor="#3B82F6" />
+                        </linearGradient>
+                      </defs>
+                    </svg>
+                    {/* Logo in center with pulse animation */}
+                    <div className="absolute inset-0 flex items-center justify-center">
                       <img 
-                        src={builderlynkLogo} 
+                        src={builderlynkShield} 
                         alt="BuilderLynk" 
-                        className="h-16 w-16 object-contain animate-bounce"
+                        className="h-20 w-20 object-contain animate-pulse"
                       />
                     </div>
                   </div>
                   
                   <div className="text-center space-y-2">
-                    <p className="text-lg font-semibold text-foreground">Uploading Photo...</p>
-                    <p className="text-sm text-muted-foreground">Building your job album</p>
-                  </div>
-                  
-                  {/* Progress bar */}
-                  <div className="w-64 space-y-2">
-                    <Progress value={uploadProgress} className="h-3" />
-                    <p className="text-center text-sm text-muted-foreground">
-                      {Math.round(uploadProgress)}%
+                    <p className="text-lg font-semibold text-foreground">
+                      Uploading Photo... {Math.round(uploadProgress)}%
                     </p>
+                    <p className="text-sm text-muted-foreground">Building your job album</p>
                   </div>
                 </div>
               </div>
