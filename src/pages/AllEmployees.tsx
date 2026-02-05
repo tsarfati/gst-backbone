@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Plus, Search, Mail, Phone, Building, Settings, Shield } from 'lucide-react';
+import { Users, Plus, Search } from 'lucide-react';
 import UnifiedViewSelector from '@/components/ui/unified-view-selector';
 import { useUnifiedViewPreference } from '@/hooks/useUnifiedViewPreference';
 import { useAuth } from '@/contexts/AuthContext';
@@ -82,17 +82,7 @@ export default function AllEmployees() {
 
       // Auto-grant logic removed to prevent cross-company leakage of PIN employees
 
-
-      // Fetch regular employees from profiles
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, role, avatar_url, created_at, group_id')
-        .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
-        .order('created_at', { ascending: false });
-
-      if (profileError) throw profileError;
-
-      // Fetch PIN employees that have access to this company (their IDs are in user_company_access)
+      // Fetch only PIN employees that have access to this company (their IDs are in user_company_access)
       const { data: pinEmployeeData, error: pinError } = await supabase
         .from('pin_employees')
         .select('*')
@@ -136,21 +126,8 @@ export default function AllEmployees() {
         ])
       );
 
-      // Combine both datasets
+      // Only include PIN employees - system users are managed in Settings > User Management
       const allEmployees: Employee[] = [
-        ...(profileData || []).map(profile => ({
-          id: profile.id,
-          user_id: profile.user_id || undefined,
-          first_name: profile.first_name || '',
-          last_name: profile.last_name || '',
-          display_name: profile.display_name || `${profile.first_name || ''} ${profile.last_name || ''}`,
-          role: roleMap.get(profile.user_id) || 'employee',
-          avatar_url: profile.avatar_url || undefined,
-          created_at: profile.created_at,
-          is_pin_employee: false,
-          group_id: profile.group_id || undefined,
-          assigned_jobs: regularJobsMap.get(profile.user_id) || []
-        })),
         ...(pinEmployeeData || []).map((pinEmployee: any) => ({
           id: pinEmployee.id,
           user_id: undefined,
@@ -204,17 +181,17 @@ export default function AllEmployees() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Users className="h-7 w-7" />
-            Employee Management
+            PIN Employee Management
           </h1>
           <p className="text-muted-foreground">
-            Manage your team members, approvals, and permissions
+            Manage PIN-only employees for punch clock access
           </p>
         </div>
         {canCreateEmployees() && (
           <Link to="/add-employee">
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Add Employee
+              Add PIN Employee
             </Button>
           </Link>
         )}
@@ -222,7 +199,7 @@ export default function AllEmployees() {
 
       <Tabs defaultValue="employees" className="space-y-6">
         <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-          <TabsTrigger value="employees" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">All Employees</TabsTrigger>
+          <TabsTrigger value="employees" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">PIN Employees</TabsTrigger>
           <TabsTrigger value="groups" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Groups</TabsTrigger>
           {canManageEmployees && (
             <TabsTrigger value="permissions" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Role Permissions</TabsTrigger>
@@ -267,9 +244,9 @@ export default function AllEmployees() {
           {filteredEmployees.length === 0 && !loading && (
             <div className="text-center py-8">
               <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No employees found</h3>
+              <h3 className="text-lg font-semibold mb-2">No PIN employees found</h3>
               <p className="text-muted-foreground">
-                {searchTerm ? 'Try adjusting your search criteria' : 'Get started by adding your first employee'}
+                {searchTerm ? 'Try adjusting your search criteria' : 'Get started by adding your first PIN employee'}
               </p>
             </div>
           )}

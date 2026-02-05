@@ -5,8 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
-import { Switch } from '@/components/ui/switch';
-import { UserPlus, ArrowLeft, Clock } from 'lucide-react';
+import { ArrowLeft, Clock } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -15,15 +14,12 @@ import { supabase } from '@/integrations/supabase/client';
 
 export default function AddEmployee() {
   const [formData, setFormData] = useState({
-    email: '',
     firstName: '',
     lastName: '',
     displayName: '',
-    role: 'employee',
     department: '',
     phone: '',
     notes: '',
-    punchClockOnly: false,
     pinCode: '',
     groupId: ''
   });
@@ -40,6 +36,9 @@ export default function AddEmployee() {
 
   useEffect(() => {
     loadGroups();
+    // Auto-generate PIN on mount
+    const newPin = Math.floor(100000 + Math.random() * 900000).toString();
+    setFormData(prev => ({ ...prev, pinCode: newPin }));
   }, []);
 
   const loadGroups = async () => {
@@ -107,15 +106,8 @@ export default function AddEmployee() {
     );
   }
 
-  const handleInputChange = (field: string, value: string | boolean) => {
-    setFormData(prev => ({ 
-      ...prev, 
-      [field]: value,
-      // Auto-generate 6-digit PIN when enabling punch clock only mode
-      ...(field === 'punchClockOnly' && value === true && !prev.pinCode ? 
-        { pinCode: Math.floor(100000 + Math.random() * 900000).toString() } : {}
-      )
-    }));
+  const handleInputChange = (field: string, value: string) => {
+    setFormData(prev => ({ ...prev, [field]: value }));
   };
 
   const generateNewPin = () => {
@@ -128,87 +120,79 @@ export default function AddEmployee() {
     setLoading(true);
 
     try {
-      if (formData.punchClockOnly) {
-        // Validate required fields for PIN employee
-        if (!formData.firstName || !formData.lastName || !formData.pinCode) {
-          toast({
-            title: 'Validation Error',
-            description: 'First name, last name, and PIN code are required',
-            variant: 'destructive',
-          });
-          setLoading(false);
-          return;
-        }
-
-        if (!profile?.user_id) {
-          toast({
-            title: 'Error',
-            description: 'User information is missing',
-            variant: 'destructive',
-          });
-          setLoading(false);
-          return;
-        }
-
-        // Create PIN-only employee in pin_employees table
-        const { data: newEmployee, error: insertError } = await supabase
-          .from('pin_employees')
-          .insert({
-            first_name: formData.firstName.trim(),
-            last_name: formData.lastName.trim(),
-            display_name: formData.displayName?.trim() || `${formData.firstName.trim()} ${formData.lastName.trim()}`,
-            pin_code: formData.pinCode.trim(),
-            department: formData.department?.trim() || null,
-            phone: formData.phone?.trim() || null,
-            email: null, // PIN employees don't have email
-            notes: formData.notes?.trim() || null,
-            group_id: formData.groupId || null,
-            created_by: profile.user_id,
-            is_active: true
-          })
-          .select()
-          .single();
-
-        if (insertError) {
-          console.error('Supabase error:', insertError);
-          throw insertError;
-        }
-
-        // Grant company access for the PIN employee using secure function
-        if (newEmployee && currentCompany?.id) {
-          const { error: accessError } = await supabase
-            .rpc('admin_grant_company_access', {
-              p_user_id: newEmployee.id,
-              p_company_id: currentCompany.id,
-              p_role: 'employee',
-              p_granted_by: profile.user_id,
-              p_is_active: true
-            });
-
-          if (accessError) {
-            console.error('Error granting company access:', accessError);
-            throw new Error('Failed to grant company access to employee');
-          }
-        }
-
+      // Validate required fields for PIN employee
+      if (!formData.firstName || !formData.lastName || !formData.pinCode) {
         toast({
-          title: 'PIN Employee Created',
-          description: `${formData.displayName || formData.firstName} created with PIN: ${formData.pinCode}`,
+          title: 'Validation Error',
+          description: 'First name, last name, and PIN code are required',
+          variant: 'destructive',
         });
-      } else {
-        // Send invitation for full account access
-        toast({
-          title: 'Employee Invitation Sent',
-          description: `Invitation email sent to ${formData.email}`,
-        });
+        setLoading(false);
+        return;
       }
+
+      if (!profile?.user_id) {
+        toast({
+          title: 'Error',
+          description: 'User information is missing',
+          variant: 'destructive',
+        });
+        setLoading(false);
+        return;
+      }
+
+      // Create PIN-only employee in pin_employees table
+      const { data: newEmployee, error: insertError } = await supabase
+        .from('pin_employees')
+        .insert({
+          first_name: formData.firstName.trim(),
+          last_name: formData.lastName.trim(),
+          display_name: formData.displayName?.trim() || `${formData.firstName.trim()} ${formData.lastName.trim()}`,
+          pin_code: formData.pinCode.trim(),
+          department: formData.department?.trim() || null,
+          phone: formData.phone?.trim() || null,
+          email: null,
+          notes: formData.notes?.trim() || null,
+          group_id: formData.groupId || null,
+          created_by: profile.user_id,
+          is_active: true
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error('Supabase error:', insertError);
+        throw insertError;
+      }
+
+      // Grant company access for the PIN employee using secure function
+      if (newEmployee && currentCompany?.id) {
+        const { error: accessError } = await supabase
+          .rpc('admin_grant_company_access', {
+            p_user_id: newEmployee.id,
+            p_company_id: currentCompany.id,
+            p_role: 'employee',
+            p_granted_by: profile.user_id,
+            p_is_active: true
+          });
+
+        if (accessError) {
+          console.error('Error granting company access:', accessError);
+          throw new Error('Failed to grant company access to employee');
+        }
+      }
+
+      toast({
+        title: 'PIN Employee Created',
+        description: `${formData.displayName || formData.firstName} created with PIN: ${formData.pinCode}`,
+      });
       
       navigate('/employees');
     } catch (error) {
       console.error('Error adding employee:', error);
       toast({
         title: 'Error',
-        description: formData.punchClockOnly ? 'Failed to create PIN employee' : 'Failed to send employee invitation',
+        description: 'Failed to create PIN employee',
         variant: 'destructive',
       });
     } finally {
@@ -221,118 +205,64 @@ export default function AddEmployee() {
       <div className="mb-6">
         <Link to="/employees" className="inline-flex items-center gap-2 text-muted-foreground hover:text-foreground mb-4">
           <ArrowLeft className="h-4 w-4" />
-          Back to Employees
+          Back to PIN Employees
         </Link>
         <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
-          <UserPlus className="h-7 w-7" />
-          Add New Employee
+          <Clock className="h-7 w-7" />
+          Add PIN Employee
         </h1>
         <p className="text-muted-foreground">
-          Send an invitation or create a PIN-only employee for punch clock access
+          Create a PIN-only employee for punch clock access
         </p>
       </div>
 
       <Card className="max-w-2xl">
         <CardHeader>
-          <CardTitle>Employee Information</CardTitle>
+          <CardTitle>PIN Employee Information</CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Punch Clock Only Toggle */}
-            <div className="space-y-4">
-              <div className="flex items-center justify-between p-4 border rounded-lg">
-                <div className="flex items-center gap-3">
-                  <Clock className="h-5 w-5 text-primary" />
-                  <div>
-                    <Label className="text-base font-medium">Punch Clock Only Employee</Label>
-                    <p className="text-sm text-muted-foreground">
-                      Create employee with PIN access for punch clock only (no email invitation)
-                    </p>
-                  </div>
-                </div>
-                <Switch
-                  checked={formData.punchClockOnly}
-                  onCheckedChange={(checked) => handleInputChange('punchClockOnly', checked)}
-                />
-              </div>
-            </div>
-
             {/* PIN Code Section */}
-            {formData.punchClockOnly && (
-              <div className="space-y-2">
-                <Label htmlFor="pinCode">PIN Code *</Label>
-                <div className="flex gap-2">
-                  <Input
-                    id="pinCode"
-                    value={formData.pinCode}
-                    onChange={(e) => handleInputChange('pinCode', e.target.value)}
-                    placeholder="6-digit PIN"
-                    maxLength={6}
-                    pattern="[0-9]{6}"
-                    required
-                  />
-                  <Button type="button" variant="outline" onClick={generateNewPin}>
-                    Generate
-                  </Button>
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Employee will use this 6-digit PIN to access the punch clock
-                </p>
-              </div>
-            )}
-
-            {/* Email field - only show if not punch clock only */}
-            {!formData.punchClockOnly && (
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address *</Label>
+            <div className="space-y-2">
+              <Label htmlFor="pinCode">PIN Code *</Label>
+              <div className="flex gap-2">
                 <Input
-                  id="email"
-                  type="email"
-                  value={formData.email}
-                  onChange={(e) => handleInputChange('email', e.target.value)}
-                  placeholder="john.doe@company.com"
+                  id="pinCode"
+                  value={formData.pinCode}
+                  onChange={(e) => handleInputChange('pinCode', e.target.value)}
+                  placeholder="6-digit PIN"
+                  maxLength={6}
+                  pattern="[0-9]{6}"
                   required
                 />
+                <Button type="button" variant="outline" onClick={generateNewPin}>
+                  Generate
+                </Button>
               </div>
-            )}
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {!formData.punchClockOnly && (
-                <div className="space-y-2">
-                  <Label htmlFor="role">Role *</Label>
-                  <Select value={formData.role} onValueChange={(value) => handleInputChange('role', value)}>
-                    <SelectTrigger>
-                      <SelectValue />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="admin">Administrator</SelectItem>
-                      <SelectItem value="controller">Controller</SelectItem>
-                      <SelectItem value="project_manager">Project Manager</SelectItem>
-                      <SelectItem value="employee">Employee</SelectItem>
-                      <SelectItem value="view_only">View Only</SelectItem>
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
+              <p className="text-sm text-muted-foreground">
+                Employee will use this 6-digit PIN to access the punch clock
+              </p>
             </div>
 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="firstName">First Name</Label>
+                <Label htmlFor="firstName">First Name *</Label>
                 <Input
                   id="firstName"
                   value={formData.firstName}
                   onChange={(e) => handleInputChange('firstName', e.target.value)}
                   placeholder="John"
+                  required
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="lastName">Last Name</Label>
+                <Label htmlFor="lastName">Last Name *</Label>
                 <Input
                   id="lastName"
                   value={formData.lastName}
                   onChange={(e) => handleInputChange('lastName', e.target.value)}
                   placeholder="Doe"
+                  required
                 />
               </div>
             </div>
@@ -439,12 +369,9 @@ export default function AddEmployee() {
             <div className="flex gap-3">
               <Button 
                 type="submit" 
-                disabled={loading || (formData.punchClockOnly && (!formData.pinCode || formData.pinCode.length !== 6))}
+                disabled={loading || !formData.pinCode || formData.pinCode.length !== 6 || !formData.firstName || !formData.lastName}
               >
-                {loading ? 
-                  (formData.punchClockOnly ? 'Creating Employee...' : 'Sending Invitation...') : 
-                  (formData.punchClockOnly ? 'Create PIN Employee' : 'Send Invitation')
-                }
+                {loading ? 'Creating Employee...' : 'Create PIN Employee'}
               </Button>
               <Button type="button" variant="outline" onClick={() => navigate('/employees')}>
                 Cancel

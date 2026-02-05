@@ -2,13 +2,15 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, User, Mail, UserPlus } from "lucide-react";
+import { CheckCircle, XCircle, User, Mail, UserPlus, ChevronDown, ChevronRight } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useNavigate } from "react-router-dom";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import AddSystemUserDialog from "@/components/AddSystemUserDialog";
 
 interface UserProfile {
   user_id: string;
@@ -39,6 +41,9 @@ export default function UserManagement() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
+  const [systemUsersOpen, setSystemUsersOpen] = useState(true);
+  const [pinEmployeesOpen, setPinEmployeesOpen] = useState(true);
+  const [showAddUserDialog, setShowAddUserDialog] = useState(false);
 
   // Use company-specific role for permission checks
   const activeCompanyRole = useActiveCompanyRole();
@@ -245,9 +250,9 @@ export default function UserManagement() {
           </p>
         </div>
         {isAdmin && (
-          <Button onClick={() => navigate('/employees/add')}>
+            <Button onClick={() => setShowAddUserDialog(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
-            Add User
+              Add System User
           </Button>
         )}
       </div>
@@ -303,99 +308,131 @@ export default function UserManagement() {
       )}
 
       {/* System Users */}
-      <Card>
-        <CardHeader>
-          <CardTitle>System Users</CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid gap-4">
-            {users.filter(u => !(u as any).isPinEmployee).map((user) => (
-              <div 
-                key={user.user_id} 
-                onClick={() => navigate(`/settings/users/${user.user_id}`, { state: { fromCompanyManagement: false } })}
-                className="flex items-center gap-4 p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
-              >
-                <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                  {user.avatar_url ? (
-                    <img src={user.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                  ) : (
-                    <span className="text-lg font-semibold text-primary">
-                      {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U'}
-                    </span>
-                  )}
-                </div>
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User'}</h3>
-                    <Badge variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'destructive'}>
-                      {user.status || 'pending'}
-                    </Badge>
-                    <Badge variant="outline" className={roleColors[user.role] || 'bg-gray-500'}>
-                      {user.role}
-                    </Badge>
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                    <span className="flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      {user.user_id}
-                    </span>
-                    <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                    {user.approved_at && (
-                      <span>Approved: {new Date(user.approved_at).toLocaleDateString()}</span>
-                    )}
-                  </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                    <span>Global Job Access: {user.has_global_job_access ? 'Yes' : 'No'}</span>
-                    {user.status === 'approved' && (
-                      <span className="text-green-600">✓ Active</span>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* PIN Employees */}
-      {users.filter(u => (u as any).isPinEmployee).length > 0 && (
+      <Collapsible open={systemUsersOpen} onOpenChange={setSystemUsersOpen}>
         <Card>
-          <CardHeader>
-            <CardTitle>PIN Employees</CardTitle>
+          <CardHeader className="cursor-pointer" onClick={() => setSystemUsersOpen(!systemUsersOpen)}>
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between w-full">
+                <CardTitle className="flex items-center gap-2">
+                  {systemUsersOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                  System Users ({users.filter(u => !(u as any).isPinEmployee).length})
+                </CardTitle>
+              </div>
+            </CollapsibleTrigger>
           </CardHeader>
-          <CardContent>
-            <div className="grid gap-4">
-              {users.filter(u => (u as any).isPinEmployee).map((user) => (
-                <div 
-                  key={user.user_id} 
-                  onClick={() => navigate(`/settings/users/${user.user_id}`, { state: { fromCompanyManagement: false } })}
-                  className="flex items-center gap-4 p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
-                >
-                  <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                    <span className="text-lg font-semibold text-primary">
-                      {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'P'}
-                    </span>
-                  </div>
-                  <div className="flex-1">
-                    <div className="flex items-center gap-2">
-                      <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed Employee'}</h3>
-                      <Badge variant="outline" className="bg-purple-500">
-                        PIN Employee
-                      </Badge>
-                    </div>
-                    <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                      <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                      {user.status === 'approved' && (
-                        <span className="text-green-600">✓ Active</span>
+          <CollapsibleContent>
+            <CardContent>
+              <div className="grid gap-4">
+                {users.filter(u => !(u as any).isPinEmployee).map((user) => (
+                  <div 
+                    key={user.user_id} 
+                    onClick={() => navigate(`/settings/users/${user.user_id}`, { state: { fromCompanyManagement: false } })}
+                    className="flex items-center gap-4 p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                  >
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      {user.avatar_url ? (
+                        <img src={user.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
+                      ) : (
+                        <span className="text-lg font-semibold text-primary">
+                          {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U'}
+                        </span>
                       )}
                     </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User'}</h3>
+                        <Badge variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'destructive'}>
+                          {user.status || 'pending'}
+                        </Badge>
+                        <Badge variant="outline" className={roleColors[user.role] || 'bg-gray-500'}>
+                          {user.role}
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                        <span className="flex items-center gap-1">
+                          <Mail className="h-3 w-3" />
+                          {user.user_id}
+                        </span>
+                        <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
+                        {user.approved_at && (
+                          <span>Approved: {new Date(user.approved_at).toLocaleDateString()}</span>
+                        )}
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                        <span>Global Job Access: {user.has_global_job_access ? 'Yes' : 'No'}</span>
+                        {user.status === 'approved' && (
+                          <span className="text-green-600">✓ Active</span>
+                        )}
+                      </div>
+                    </div>
                   </div>
-                </div>
-              ))}
-            </div>
-          </CardContent>
+                ))}
+                {users.filter(u => !(u as any).isPinEmployee).length === 0 && (
+                  <p className="text-muted-foreground text-center py-4">No system users found</p>
+                )}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
         </Card>
-      )}
+      </Collapsible>
+
+      {/* PIN Employees */}
+      <Collapsible open={pinEmployeesOpen} onOpenChange={setPinEmployeesOpen}>
+        <Card>
+          <CardHeader className="cursor-pointer" onClick={() => setPinEmployeesOpen(!pinEmployeesOpen)}>
+            <CollapsibleTrigger asChild>
+              <div className="flex items-center justify-between w-full">
+                <CardTitle className="flex items-center gap-2">
+                  {pinEmployeesOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                  PIN Employees ({users.filter(u => (u as any).isPinEmployee).length})
+                </CardTitle>
+              </div>
+            </CollapsibleTrigger>
+          </CardHeader>
+          <CollapsibleContent>
+            <CardContent>
+              <div className="grid gap-4">
+                {users.filter(u => (u as any).isPinEmployee).map((user) => (
+                  <div 
+                    key={user.user_id} 
+                    onClick={() => navigate(`/employees/pin/${user.user_id}/edit`)}
+                    className="flex items-center gap-4 p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                  >
+                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-lg font-semibold text-primary">
+                        {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'P'}
+                      </span>
+                    </div>
+                    <div className="flex-1">
+                      <div className="flex items-center gap-2">
+                        <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed Employee'}</h3>
+                        <Badge variant="outline" className="bg-purple-500 text-white">
+                          PIN Employee
+                        </Badge>
+                      </div>
+                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+                        <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
+                        {user.status === 'approved' && (
+                          <span className="text-green-600">✓ Active</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                ))}
+                {users.filter(u => (u as any).isPinEmployee).length === 0 && (
+                  <p className="text-muted-foreground text-center py-4">No PIN employees found</p>
+                )}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
+
+      <AddSystemUserDialog
+        open={showAddUserDialog}
+        onOpenChange={setShowAddUserDialog}
+        onUserAdded={fetchUsers}
+      />
     </div>
   );
 }
