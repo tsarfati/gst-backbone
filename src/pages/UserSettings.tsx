@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
- import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight, Mail, MailCheck, MailOpen, MailX, Clock, RefreshCw, Loader2 } from 'lucide-react';
+import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight, Mail, MailCheck, MailOpen, MailX, Clock, RefreshCw, Loader2, X } from 'lucide-react';
 import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
 import CompanyAccessRequests from "@/components/CompanyAccessRequests";
@@ -20,6 +20,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import AddSystemUserDialog from "@/components/AddSystemUserDialog";
 import { useTenant } from "@/contexts/TenantContext";
  import { useSettings } from "@/contexts/SettingsContext";
+import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 
 interface UserProfile {
   id: string;
@@ -98,6 +99,7 @@ export default function UserSettings() {
    const [invitations, setInvitations] = useState<Invitation[]>([]);
    const [pinEmployees, setPinEmployees] = useState<PinEmployee[]>([]);
    const [resendingId, setResendingId] = useState<string | null>(null);
+  const [cancellingId, setCancellingId] = useState<string | null>(null);
 
   // Use company-specific role, fallback to profile role
   const effectiveRole = activeCompanyRole || profile?.role;
@@ -169,7 +171,8 @@ export default function UserSettings() {
      setResendingId(invitation.id);
  
      try {
-       const companyLogo = settings.customLogo || settings.headerLogo || currentCompany.logo_url;
+        const companyLogoRaw = settings.customLogo || settings.headerLogo || currentCompany.logo_url;
+        const companyLogo = resolveCompanyLogoUrl(companyLogoRaw);
        const primaryColor = settings.customColors?.primary;
  
        const { error } = await supabase.functions.invoke('send-user-invite', {
@@ -206,6 +209,42 @@ export default function UserSettings() {
        setResendingId(null);
      }
    };
+
+    const cancelInvitation = async (invitation: Invitation) => {
+      if (!currentCompany || !profile) return;
+
+      const confirmed = window.confirm(`Cancel the invitation for ${invitation.email}?`);
+      if (!confirmed) return;
+
+      setCancellingId(invitation.id);
+
+      try {
+        const { error } = await supabase.functions.invoke('cancel-user-invite', {
+          body: {
+            invitationId: invitation.id,
+            companyId: currentCompany.id,
+          },
+        });
+
+        if (error) throw error;
+
+        toast({
+          title: 'Invitation Cancelled',
+          description: `The invitation for ${invitation.email} has been cancelled.`,
+        });
+
+        fetchInvitations();
+      } catch (error: any) {
+        console.error('Error cancelling invitation:', error);
+        toast({
+          title: 'Error',
+          description: error.message || 'Failed to cancel invitation',
+          variant: 'destructive',
+        });
+      } finally {
+        setCancellingId(null);
+      }
+    };
  
    const getEmailStatusBadge = (invitation: Invitation) => {
      const isExpired = new Date(invitation.expires_at) < new Date();
@@ -230,7 +269,7 @@ export default function UserSettings() {
  
      if (invitation.email_opened_at) {
        return (
-         <Badge variant="default" className="flex items-center gap-1 bg-green-600">
+          <Badge variant="secondary" className="flex items-center gap-1">
            <MailOpen className="h-3 w-3" />
            Opened
          </Badge>
@@ -473,10 +512,15 @@ export default function UserSettings() {
                       <CardContent>
                         <div className="space-y-4">
                            {/* Pending Invitations */}
+                              {invitations.length === 0 && (
+                                <p className="text-muted-foreground text-center py-4">
+                                  No pending invitations
+                                </p>
+                              )}
                            {invitations.map((invitation) => (
                              <div
                                key={invitation.id}
-                               className="flex items-center justify-between p-6 bg-gradient-to-r from-amber-500/5 to-muted/20 rounded-lg border border-amber-500/30"
+                                className="flex items-center justify-between p-6 bg-muted/30 rounded-lg border border-border"
                              >
                                <div className="flex-1">
                                  <div className="flex items-center gap-3">
@@ -495,7 +539,7 @@ export default function UserSettings() {
                                        Expires: {new Date(invitation.expires_at).toLocaleDateString()}
                                      </p>
                                      <div className="flex flex-wrap gap-2 mt-2">
-                                       <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                                        <Badge variant="secondary">
                                          Pending Invitation
                                        </Badge>
                                        <Badge variant={roleColors[invitation.role as keyof typeof roleColors] || 'outline'}>
@@ -506,24 +550,45 @@ export default function UserSettings() {
                                    </div>
                                  </div>
                                </div>
-                               <Button
-                                 variant="outline"
-                                 size="sm"
-                                 onClick={(e) => {
-                                   e.stopPropagation();
-                                   resendInvitation(invitation);
-                                 }}
-                                 disabled={resendingId === invitation.id}
-                               >
-                                 {resendingId === invitation.id ? (
-                                   <Loader2 className="h-4 w-4 animate-spin" />
-                                 ) : (
-                                   <>
-                                     <RefreshCw className="h-4 w-4 mr-2" />
-                                     Resend
-                                   </>
-                                 )}
-                               </Button>
+                                <div className="flex items-center gap-2">
+                                  <Button
+                                    variant="outline"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      resendInvitation(invitation);
+                                    }}
+                                    disabled={resendingId === invitation.id}
+                                  >
+                                    {resendingId === invitation.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <RefreshCw className="h-4 w-4 mr-2" />
+                                        Resend
+                                      </>
+                                    )}
+                                  </Button>
+
+                                  <Button
+                                    variant="destructive"
+                                    size="sm"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      cancelInvitation(invitation);
+                                    }}
+                                    disabled={cancellingId === invitation.id}
+                                  >
+                                    {cancellingId === invitation.id ? (
+                                      <Loader2 className="h-4 w-4 animate-spin" />
+                                    ) : (
+                                      <>
+                                        <X className="h-4 w-4 mr-2" />
+                                        Cancel
+                                      </>
+                                    )}
+                                  </Button>
+                                </div>
                              </div>
                            ))}
  
@@ -602,7 +667,7 @@ export default function UserSettings() {
                                        Created: {new Date(employee.created_at).toLocaleDateString()}
                                     </p>
                                     <div className="flex flex-wrap gap-2 mt-2">
-                                      <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/30">
+                                      <Badge variant="secondary">
                                         PIN Employee
                                       </Badge>
                                        {employee.pin_code && (
@@ -680,7 +745,10 @@ export default function UserSettings() {
       <AddSystemUserDialog
         open={showAddUserDialog}
         onOpenChange={setShowAddUserDialog}
-        onUserAdded={fetchUsers}
+        onUserAdded={() => {
+          fetchUsers();
+          fetchInvitations();
+        }}
       />
 
       {/* PIN Settings Modal */}

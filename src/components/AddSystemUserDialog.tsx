@@ -9,6 +9,7 @@
  import { useAuth } from '@/contexts/AuthContext';
 import { useSettings } from '@/contexts/SettingsContext';
  import { supabase } from '@/integrations/supabase/client';
+import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
  import { Mail, UserPlus, Loader2 } from 'lucide-react';
  
  interface AddSystemUserDialogProps {
@@ -50,8 +51,10 @@ import { useSettings } from '@/contexts/SettingsContext';
      setLoading(true);
  
      try {
-      // Use the company's custom logo from settings, or fall back to company.logo_url
-      const companyLogo = settings.customLogo || settings.headerLogo || currentCompany.logo_url;
+       // Email clients can only render publicly reachable image URLs.
+       // Normalize any stored storage paths (e.g. "company-logos/...jpg") to a public URL.
+       const companyLogoRaw = settings.customLogo || settings.headerLogo || currentCompany.logo_url;
+       const companyLogo = resolveCompanyLogoUrl(companyLogoRaw);
       
       // Get the primary color from settings
       const primaryColor = settings.customColors?.primary;
