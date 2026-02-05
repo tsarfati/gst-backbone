@@ -18,9 +18,35 @@
    companyId: string;
    companyName: string;
    companyLogo?: string;
+  primaryColor?: string;
    invitedBy: string;
  }
  
+// Convert HSL string "H S% L%" to hex color
+function hslToHex(hsl: string): string {
+  if (!hsl) return "#E88A2D"; // default orange
+  
+  try {
+    const parts = hsl.trim().split(/\s+/);
+    if (parts.length !== 3) return "#E88A2D";
+    
+    const h = parseFloat(parts[0]);
+    const s = parseFloat(parts[1].replace('%', '')) / 100;
+    const l = parseFloat(parts[2].replace('%', '')) / 100;
+    
+    const a = s * Math.min(l, 1 - l);
+    const f = (n: number) => {
+      const k = (n + h / 30) % 12;
+      const color = l - a * Math.max(Math.min(k - 3, 9 - k, 1), -1);
+      return Math.round(255 * color).toString(16).padStart(2, '0');
+    };
+    
+    return `#${f(0)}${f(8)}${f(4)}`;
+  } catch {
+    return "#E88A2D";
+  }
+}
+
  const handler = async (req: Request): Promise<Response> => {
    if (req.method === "OPTIONS") {
      return new Response(null, { headers: corsHeaders });
@@ -31,7 +57,7 @@
      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
      const supabase = createClient(supabaseUrl, supabaseServiceKey);
  
-     const { email, firstName, lastName, role, companyId, companyName, companyLogo, invitedBy }: InviteRequest = await req.json();
+    const { email, firstName, lastName, role, companyId, companyName, companyLogo, primaryColor, invitedBy }: InviteRequest = await req.json();
  
      if (!email || !companyId || !companyName) {
        throw new Error("Missing required fields: email, companyId, companyName");
@@ -64,10 +90,13 @@
      const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.lovable.app";
      const inviteUrl = `${baseUrl}/auth?invite=${inviteToken}`;
  
-     // BuilderLynk branding colors
-     const brandOrange = "#E88A2D";
+    // Use company's primary color or fallback to BuilderLynk orange
+    const brandPrimary = primaryColor ? hslToHex(primaryColor) : "#E88A2D";
      const brandNavy = "#1e3a5f";
  
+    // BuilderLynk logo URL
+    const builderLynkLogo = "https://builderlynk.lovable.app/email-assets/builderlynk-logo.png?v=2";
+
      // Build branded email HTML
      const emailHtml = `
        <!DOCTYPE html>
@@ -84,7 +113,7 @@
                  <!-- Header with BuilderLynk branding -->
                  <tr>
                    <td style="background-color: ${brandNavy}; padding: 30px; text-align: center;">
-                     <img src="https://builderlynk.lovable.app/email-assets/builderlynk-logo.png?v=1" alt="BuilderLYNK" style="height: 50px; width: auto;" />
+                    <img src="${builderLynkLogo}" alt="BuilderLYNK" style="height: 50px; width: auto;" />
                    </td>
                  </tr>
                  
@@ -93,7 +122,7 @@
                    <td style="padding: 40px 30px;">
                      ${companyLogo ? `
                        <div style="text-align: center; margin-bottom: 30px;">
-                         <img src="${companyLogo}" alt="${companyName}" style="max-height: 60px; max-width: 200px;" />
+                        <img src="${companyLogo}" alt="${companyName}" style="max-height: 80px; max-width: 250px; object-fit: contain;" />
                        </div>
                      ` : ''}
                      
@@ -110,14 +139,14 @@
                      </p>
                      
                      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
-                       You've been assigned the role of <strong style="color: ${brandOrange};">${role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>.
+                      You've been assigned the role of <strong style="color: ${brandPrimary};">${role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>.
                      </p>
                      
                      <!-- CTA Button -->
                      <table width="100%" cellpadding="0" cellspacing="0">
                        <tr>
                          <td align="center">
-                           <a href="${inviteUrl}" style="display: inline-block; background-color: ${brandOrange}; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
+                          <a href="${inviteUrl}" style="display: inline-block; background-color: ${brandPrimary}; color: #ffffff; font-size: 16px; font-weight: 600; text-decoration: none; padding: 14px 32px; border-radius: 8px;">
                              Accept Invitation & Create Account
                            </a>
                          </td>
@@ -130,7 +159,7 @@
                      
                      <p style="color: #6b7280; font-size: 12px; line-height: 1.6; margin: 20px 0 0 0; text-align: center;">
                        If the button doesn't work, copy and paste this link:<br/>
-                       <a href="${inviteUrl}" style="color: ${brandOrange}; word-break: break-all;">${inviteUrl}</a>
+                      <a href="${inviteUrl}" style="color: ${brandPrimary}; word-break: break-all;">${inviteUrl}</a>
                      </p>
                    </td>
                  </tr>

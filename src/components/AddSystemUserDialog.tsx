@@ -7,6 +7,7 @@
  import { useToast } from '@/hooks/use-toast';
  import { useCompany } from '@/contexts/CompanyContext';
  import { useAuth } from '@/contexts/AuthContext';
+import { useSettings } from '@/contexts/SettingsContext';
  import { supabase } from '@/integrations/supabase/client';
  import { Mail, UserPlus, Loader2 } from 'lucide-react';
  
@@ -25,6 +26,7 @@
    const { toast } = useToast();
    const { currentCompany } = useCompany();
    const { user } = useAuth();
+  const { settings } = useSettings();
  
    const resetForm = () => {
      setEmail('');
@@ -48,6 +50,12 @@
      setLoading(true);
  
      try {
+      // Use the company's custom logo from settings, or fall back to company.logo_url
+      const companyLogo = settings.customLogo || settings.headerLogo || currentCompany.logo_url;
+      
+      // Get the primary color from settings
+      const primaryColor = settings.customColors?.primary;
+
        // Call edge function to send invitation email
        const { data, error } = await supabase.functions.invoke('send-user-invite', {
          body: {
@@ -57,7 +65,8 @@
            role,
            companyId: currentCompany.id,
            companyName: currentCompany.display_name || currentCompany.name,
-           companyLogo: currentCompany.logo_url,
+          companyLogo,
+          primaryColor,
            invitedBy: user.id,
          },
        });
