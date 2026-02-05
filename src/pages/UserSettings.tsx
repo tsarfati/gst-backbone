@@ -1,8 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
@@ -10,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, UserPlus, Shield } from 'lucide-react';
+import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight } from 'lucide-react';
 import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
 import CompanyAccessRequests from "@/components/CompanyAccessRequests";
@@ -18,6 +16,9 @@ import { useNavigate } from 'react-router-dom';
 import UserRoleManagement from "@/components/UserRoleManagement";
 import RolePermissionsManager from "@/components/RolePermissionsManager";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import AddSystemUserDialog from "@/components/AddSystemUserDialog";
+import { useTenant } from "@/contexts/TenantContext";
 
 interface UserProfile {
   id: string;
@@ -64,10 +65,14 @@ export default function UserSettings() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const activeCompanyRole = useActiveCompanyRole();
+  const { isSuperAdmin } = useTenant();
+  const [systemUsersOpen, setSystemUsersOpen] = useState(true);
+  const [pinEmployeesOpen, setPinEmployeesOpen] = useState(true);
+  const [showAddUserDialog, setShowAddUserDialog] = useState(false);
 
   // Use company-specific role, fallback to profile role
   const effectiveRole = activeCompanyRole || profile?.role;
-  const isAdmin = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner';
+  const isAdmin = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner' || isSuperAdmin;
   const isController = effectiveRole === 'controller';
   const canManageUsers = isAdmin || isController;
 
@@ -220,11 +225,19 @@ export default function UserSettings() {
 
   return (
     <div className="p-6">
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-foreground">User Management</h1>
-        <p className="text-muted-foreground">
-          Manage user roles and permissions for {currentCompany?.display_name || currentCompany?.name || 'your company'}
-        </p>
+      <div className="flex items-center justify-between mb-6">
+        <div>
+          <h1 className="text-2xl font-bold text-foreground">User Management</h1>
+          <p className="text-muted-foreground">
+            Manage user roles and permissions for {currentCompany?.display_name || currentCompany?.name || 'your company'}
+          </p>
+        </div>
+        {isAdmin && (
+          <Button onClick={() => setShowAddUserDialog(true)}>
+            <UserPlus className="h-4 w-4 mr-2" />
+            Add System User
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue="users" className="space-y-6">
@@ -266,55 +279,121 @@ export default function UserSettings() {
         </TabsList>
 
         <TabsContent value="users">
-          <Card>
-            <CardHeader>
-              <CardTitle>System Users</CardTitle>
-            </CardHeader>
-            <CardContent>
-              {loading ? (
-                <div className="text-center py-8">Loading users...</div>
-              ) : (
-                <div className="space-y-4">
-                  {users.map((user) => (
-                    <div
-                      key={user.id}
-                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
-                      className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
-                    >
-                      <div className="flex-1">
-                        <div className="flex items-center gap-3">
-                          <div className="flex-1">
-                            <h3 className="font-semibold">
-                              {user.display_name || `${user.first_name} ${user.last_name}`}
-                            </h3>
-                            <p className="text-sm text-muted-foreground">
-                              Created: {new Date(user.created_at).toLocaleDateString()}
-                            </p>
-                            <div className="flex flex-wrap gap-2 mt-2">
-                              <Badge 
-                                variant={roleColors[user.role as keyof typeof roleColors]}
-                              >
-                                {roleLabels[user.role as keyof typeof roleLabels]}
-                              </Badge>
-                              {user.is_pin_employee && (
-                                <Badge variant="outline">PIN Employee</Badge>
-                              )}
-                              {user.has_global_job_access && (
-                                <Badge variant="outline">All Jobs Access</Badge>
-                              )}
-                              {!user.has_global_job_access && user.jobs && user.jobs.length > 0 && (
-                                <Badge variant="secondary">{user.jobs.length} Job{user.jobs.length !== 1 ? 's' : ''}</Badge>
-                              )}
-                            </div>
-                          </div>
+          <div className="space-y-6">
+            {loading ? (
+              <div className="text-center py-8">Loading users...</div>
+            ) : (
+              <>
+                {/* System Users - Collapsible */}
+                <Collapsible open={systemUsersOpen} onOpenChange={setSystemUsersOpen}>
+                  <Card>
+                    <CardHeader className="cursor-pointer" onClick={() => setSystemUsersOpen(!systemUsersOpen)}>
+                      <CollapsibleTrigger asChild>
+                        <div className="flex items-center justify-between w-full">
+                          <CardTitle className="flex items-center gap-2">
+                            {systemUsersOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                            System Users ({users.filter(u => !u.is_pin_employee).length})
+                          </CardTitle>
                         </div>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+                      </CollapsibleTrigger>
+                    </CardHeader>
+                    <CollapsibleContent>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {users.filter(u => !u.is_pin_employee).map((user) => (
+                            <div
+                              key={user.id}
+                              onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                              className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1">
+                                    <h3 className="font-semibold">
+                                      {user.display_name || `${user.first_name} ${user.last_name}`}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      Created: {new Date(user.created_at).toLocaleDateString()}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                      <Badge 
+                                        variant={roleColors[user.role as keyof typeof roleColors]}
+                                      >
+                                        {roleLabels[user.role as keyof typeof roleLabels]}
+                                      </Badge>
+                                      {user.has_global_job_access && (
+                                        <Badge variant="outline">All Jobs Access</Badge>
+                                      )}
+                                      {!user.has_global_job_access && user.jobs && user.jobs.length > 0 && (
+                                        <Badge variant="secondary">{user.jobs.length} Job{user.jobs.length !== 1 ? 's' : ''}</Badge>
+                                      )}
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {users.filter(u => !u.is_pin_employee).length === 0 && (
+                            <p className="text-muted-foreground text-center py-4">No system users found</p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+
+                {/* PIN Employees - Collapsible */}
+                <Collapsible open={pinEmployeesOpen} onOpenChange={setPinEmployeesOpen}>
+                  <Card>
+                    <CardHeader className="cursor-pointer" onClick={() => setPinEmployeesOpen(!pinEmployeesOpen)}>
+                      <CollapsibleTrigger asChild>
+                        <div className="flex items-center justify-between w-full">
+                          <CardTitle className="flex items-center gap-2">
+                            {pinEmployeesOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                            PIN Employees ({users.filter(u => u.is_pin_employee).length})
+                          </CardTitle>
+                        </div>
+                      </CollapsibleTrigger>
+                    </CardHeader>
+                    <CollapsibleContent>
+                      <CardContent>
+                        <div className="space-y-4">
+                          {users.filter(u => u.is_pin_employee).map((user) => (
+                            <div
+                              key={user.id}
+                              onClick={() => navigate(`/employees/pin/${user.user_id}/edit`)}
+                              className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                            >
+                              <div className="flex-1">
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1">
+                                    <h3 className="font-semibold">
+                                      {user.display_name || `${user.first_name} ${user.last_name}`}
+                                    </h3>
+                                    <p className="text-sm text-muted-foreground">
+                                      Created: {new Date(user.created_at).toLocaleDateString()}
+                                    </p>
+                                    <div className="flex flex-wrap gap-2 mt-2">
+                                      <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/30">
+                                        PIN Employee
+                                      </Badge>
+                                    </div>
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                          ))}
+                          {users.filter(u => u.is_pin_employee).length === 0 && (
+                            <p className="text-muted-foreground text-center py-4">No PIN employees found</p>
+                          )}
+                        </div>
+                      </CardContent>
+                    </CollapsibleContent>
+                  </Card>
+                </Collapsible>
+              </>
+            )}
+          </div>
         </TabsContent>
 
         <TabsContent value="user-roles">
@@ -364,6 +443,12 @@ export default function UserSettings() {
           </div>
         </TabsContent>
       </Tabs>
+
+      <AddSystemUserDialog
+        open={showAddUserDialog}
+        onOpenChange={setShowAddUserDialog}
+        onUserAdded={fetchUsers}
+      />
 
       {/* PIN Settings Modal */}
       {editingUser && (
