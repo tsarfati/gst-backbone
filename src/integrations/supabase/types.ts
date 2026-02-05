@@ -4713,6 +4713,59 @@ export type Database = {
           },
         ]
       }
+      pending_user_invites: {
+        Row: {
+          accepted_at: string | null
+          company_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          first_name: string | null
+          id: string
+          invite_token: string
+          invited_by: string
+          last_name: string | null
+          role: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          company_id: string
+          created_at?: string
+          email: string
+          expires_at: string
+          first_name?: string | null
+          id?: string
+          invite_token: string
+          invited_by: string
+          last_name?: string | null
+          role?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          company_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          first_name?: string | null
+          id?: string
+          invite_token?: string
+          invited_by?: string
+          last_name?: string | null
+          role?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pending_user_invites_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       photo_albums: {
         Row: {
           created_at: string
