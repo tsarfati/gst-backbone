@@ -18,8 +18,9 @@
    companyId: string;
    companyName: string;
    companyLogo?: string;
-  primaryColor?: string;
+   primaryColor?: string;
    invitedBy: string;
+   resendInvitationId?: string; // If provided, this is a resend
  }
  
 // Convert HSL string "H S% L%" to hex color
@@ -47,7 +48,7 @@ function hslToHex(hsl: string): string {
   }
 }
 
- const handler = async (req: Request): Promise<Response> => {
+  const handler = async (req: Request): Promise<Response> => {
    if (req.method === "OPTIONS") {
      return new Response(null, { headers: corsHeaders });
    }
@@ -57,7 +58,7 @@ function hslToHex(hsl: string): string {
      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
      const supabase = createClient(supabaseUrl, supabaseServiceKey);
  
-    const { email, firstName, lastName, role, companyId, companyName, companyLogo, primaryColor, invitedBy }: InviteRequest = await req.json();
+     const { email, firstName, lastName, role, companyId, companyName, companyLogo, primaryColor, invitedBy, resendInvitationId }: InviteRequest = await req.json();
  
      if (!email || !companyId || !companyName) {
        throw new Error("Missing required fields: email, companyId, companyName");
@@ -66,25 +67,6 @@ function hslToHex(hsl: string): string {
      // Generate a unique invite token
      const inviteToken = crypto.randomUUID();
      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
- 
-     // Store the pending invitation
-     const { error: insertError } = await supabase
-       .from('pending_user_invites')
-       .insert({
-         email,
-         first_name: firstName || null,
-         last_name: lastName || null,
-         role,
-         company_id: companyId,
-         invite_token: inviteToken,
-         expires_at: expiresAt.toISOString(),
-         invited_by: invitedBy,
-       });
- 
-     if (insertError) {
-       console.error("Error storing invitation:", insertError);
-       throw new Error("Failed to create invitation");
-     }
  
      // Build the invitation URL
      const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.lovable.app";
@@ -189,6 +171,69 @@ function hslToHex(hsl: string): string {
      });
  
      console.log("Invitation email sent successfully:", emailResponse);
+ 
+     // Get Resend message ID
+     const resendMessageId = emailResponse?.data?.id || null;
+ 
+     // If this is a resend, update the existing invitation
+     if (resendInvitationId) {
+       const { error: updateError } = await supabase
+         .from('user_invitations')
+         .update({
+           expires_at: expiresAt.toISOString(),
+           email_status: 'sent',
+           email_delivered_at: null,
+           email_opened_at: null,
+           email_bounced_at: null,
+           resend_message_id: resendMessageId,
+           updated_at: new Date().toISOString(),
+         })
+         .eq('id', resendInvitationId);
+ 
+       if (updateError) {
+         console.error("Error updating invitation:", updateError);
+         // Don't throw - email was already sent successfully
+       }
+     } else {
+       // Store new invitation in user_invitations table
+       const { error: insertError } = await supabase
+         .from('user_invitations')
+         .insert({
+           email,
+           first_name: firstName || null,
+           last_name: lastName || null,
+           role,
+           company_id: companyId,
+           invited_by: invitedBy,
+           expires_at: expiresAt.toISOString(),
+           status: 'pending',
+           email_status: 'sent',
+           resend_message_id: resendMessageId,
+         });
+ 
+       if (insertError) {
+         console.error("Error storing invitation:", insertError);
+         // Don't throw - email was already sent successfully
+       }
+ 
+       // Also store in pending_user_invites for the auth flow
+       const { error: pendingError } = await supabase
+         .from('pending_user_invites')
+         .insert({
+           email,
+           first_name: firstName || null,
+           last_name: lastName || null,
+           role,
+           company_id: companyId,
+           invite_token: inviteToken,
+           expires_at: expiresAt.toISOString(),
+           invited_by: invitedBy,
+         });
+ 
+       if (pendingError) {
+         console.error("Error storing pending invite:", pendingError);
+       }
+     }
  
      return new Response(JSON.stringify({ success: true, inviteToken }), {
        status: 200,

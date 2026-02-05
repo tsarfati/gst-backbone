@@ -7105,6 +7105,80 @@ export type Database = {
           },
         ]
       }
+      user_invitations: {
+        Row: {
+          accepted_at: string | null
+          accepted_by: string | null
+          company_id: string
+          created_at: string
+          email: string
+          email_bounced_at: string | null
+          email_delivered_at: string | null
+          email_opened_at: string | null
+          email_status: string | null
+          expires_at: string
+          first_name: string | null
+          id: string
+          invited_at: string
+          invited_by: string
+          last_name: string | null
+          resend_message_id: string | null
+          role: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          company_id: string
+          created_at?: string
+          email: string
+          email_bounced_at?: string | null
+          email_delivered_at?: string | null
+          email_opened_at?: string | null
+          email_status?: string | null
+          expires_at?: string
+          first_name?: string | null
+          id?: string
+          invited_at?: string
+          invited_by: string
+          last_name?: string | null
+          resend_message_id?: string | null
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by?: string | null
+          company_id?: string
+          created_at?: string
+          email?: string
+          email_bounced_at?: string | null
+          email_delivered_at?: string | null
+          email_opened_at?: string | null
+          email_status?: string | null
+          expires_at?: string
+          first_name?: string | null
+          id?: string
+          invited_at?: string
+          invited_by?: string
+          last_name?: string | null
+          resend_message_id?: string | null
+          role?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_invitations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_job_access: {
         Row: {
           granted_at: string

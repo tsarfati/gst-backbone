@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight } from 'lucide-react';
+ import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight, Mail, MailCheck, MailOpen, MailX, Clock, RefreshCw, Loader2 } from 'lucide-react';
 import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
 import CompanyAccessRequests from "@/components/CompanyAccessRequests";
@@ -19,6 +19,7 @@ import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddSystemUserDialog from "@/components/AddSystemUserDialog";
 import { useTenant } from "@/contexts/TenantContext";
+ import { useSettings } from "@/contexts/SettingsContext";
 
 interface UserProfile {
   id: string;
@@ -34,6 +35,30 @@ interface UserProfile {
   is_pin_employee?: boolean;
 }
 
+ interface Invitation {
+   id: string;
+   email: string;
+   first_name: string | null;
+   last_name: string | null;
+   role: string;
+   invited_at: string;
+   expires_at: string;
+   status: string;
+   email_status: string | null;
+   email_delivered_at: string | null;
+   email_opened_at: string | null;
+   email_bounced_at: string | null;
+ }
+ 
+ interface PinEmployee {
+   id: string;
+   first_name: string;
+   last_name: string;
+   display_name: string | null;
+   pin_code: string | null;
+   created_at: string;
+ }
+ 
 const roleColors = {
   admin: 'destructive',
   controller: 'secondary',
@@ -66,9 +91,13 @@ export default function UserSettings() {
   const navigate = useNavigate();
   const activeCompanyRole = useActiveCompanyRole();
   const { isSuperAdmin } = useTenant();
+   const { settings } = useSettings();
   const [systemUsersOpen, setSystemUsersOpen] = useState(true);
   const [pinEmployeesOpen, setPinEmployeesOpen] = useState(true);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
+   const [invitations, setInvitations] = useState<Invitation[]>([]);
+   const [pinEmployees, setPinEmployees] = useState<PinEmployee[]>([]);
+   const [resendingId, setResendingId] = useState<string | null>(null);
 
   // Use company-specific role, fallback to profile role
   const effectiveRole = activeCompanyRole || profile?.role;
@@ -79,9 +108,152 @@ export default function UserSettings() {
   useEffect(() => {
     if (currentCompany) {
       fetchUsers();
+       fetchInvitations();
+       fetchPinEmployees();
     }
   }, [currentCompany]);
 
+   const fetchInvitations = async () => {
+     if (!currentCompany) return;
+ 
+     try {
+       const { data, error } = await supabase
+         .from('user_invitations')
+         .select('*')
+         .eq('company_id', currentCompany.id)
+         .eq('status', 'pending')
+         .order('invited_at', { ascending: false });
+ 
+       if (error) throw error;
+       setInvitations(data || []);
+     } catch (error) {
+       console.error('Error fetching invitations:', error);
+     }
+   };
+ 
+   const fetchPinEmployees = async () => {
+     if (!currentCompany) return;
+ 
+     try {
+       // Get PIN employees created by users of this company
+       const { data: companyUsers } = await supabase
+         .from('user_company_access')
+         .select('user_id')
+         .eq('company_id', currentCompany.id)
+         .eq('is_active', true);
+ 
+       if (!companyUsers || companyUsers.length === 0) {
+         setPinEmployees([]);
+         return;
+       }
+ 
+       const userIds = companyUsers.map(u => u.user_id);
+ 
+       const { data, error } = await supabase
+         .from('pin_employees')
+         .select('id, first_name, last_name, display_name, pin_code, created_at')
+         .in('created_by', userIds)
+         .eq('is_active', true)
+         .order('first_name', { ascending: true });
+ 
+       if (error) throw error;
+       setPinEmployees(data || []);
+     } catch (error) {
+       console.error('Error fetching PIN employees:', error);
+     }
+   };
+ 
+   const resendInvitation = async (invitation: Invitation) => {
+     if (!currentCompany || !profile) return;
+ 
+     setResendingId(invitation.id);
+ 
+     try {
+       const companyLogo = settings.customLogo || settings.headerLogo || currentCompany.logo_url;
+       const primaryColor = settings.customColors?.primary;
+ 
+       const { error } = await supabase.functions.invoke('send-user-invite', {
+         body: {
+           email: invitation.email,
+           firstName: invitation.first_name,
+           lastName: invitation.last_name,
+           role: invitation.role,
+           companyId: currentCompany.id,
+           companyName: currentCompany.display_name || currentCompany.name,
+           companyLogo,
+           primaryColor,
+           invitedBy: profile.user_id,
+           resendInvitationId: invitation.id,
+         },
+       });
+ 
+       if (error) throw error;
+ 
+       toast({
+         title: 'Invitation Resent',
+         description: `A new invitation email has been sent to ${invitation.email}`,
+       });
+ 
+       fetchInvitations();
+     } catch (error: any) {
+       console.error('Error resending invitation:', error);
+       toast({
+         title: 'Error',
+         description: error.message || 'Failed to resend invitation',
+         variant: 'destructive',
+       });
+     } finally {
+       setResendingId(null);
+     }
+   };
+ 
+   const getEmailStatusBadge = (invitation: Invitation) => {
+     const isExpired = new Date(invitation.expires_at) < new Date();
+ 
+     if (isExpired) {
+       return (
+         <Badge variant="destructive" className="flex items-center gap-1">
+           <Clock className="h-3 w-3" />
+           Expired
+         </Badge>
+       );
+     }
+ 
+     if (invitation.email_bounced_at) {
+       return (
+         <Badge variant="destructive" className="flex items-center gap-1">
+           <MailX className="h-3 w-3" />
+           Bounced
+         </Badge>
+       );
+     }
+ 
+     if (invitation.email_opened_at) {
+       return (
+         <Badge variant="default" className="flex items-center gap-1 bg-green-600">
+           <MailOpen className="h-3 w-3" />
+           Opened
+         </Badge>
+       );
+     }
+ 
+     if (invitation.email_delivered_at) {
+       return (
+         <Badge variant="secondary" className="flex items-center gap-1">
+           <MailCheck className="h-3 w-3" />
+           Delivered
+         </Badge>
+       );
+     }
+ 
+     return (
+       <Badge variant="outline" className="flex items-center gap-1">
+         <Mail className="h-3 w-3" />
+         Sent
+       </Badge>
+     );
+   };
+ 
   const fetchUsers = async () => {
     if (!currentCompany) {
       setLoading(false);
@@ -300,6 +472,62 @@ export default function UserSettings() {
                     <CollapsibleContent>
                       <CardContent>
                         <div className="space-y-4">
+                           {/* Pending Invitations */}
+                           {invitations.map((invitation) => (
+                             <div
+                               key={invitation.id}
+                               className="flex items-center justify-between p-6 bg-gradient-to-r from-amber-500/5 to-muted/20 rounded-lg border border-amber-500/30"
+                             >
+                               <div className="flex-1">
+                                 <div className="flex items-center gap-3">
+                                   <div className="flex-1">
+                                     <h3 className="font-semibold">
+                                       {invitation.first_name && invitation.last_name
+                                         ? `${invitation.first_name} ${invitation.last_name}`
+                                         : invitation.email}
+                                     </h3>
+                                     <p className="text-sm text-muted-foreground">
+                                       {invitation.email}
+                                     </p>
+                                     <p className="text-sm text-muted-foreground">
+                                       Invited: {new Date(invitation.invited_at).toLocaleDateString()}
+                                       {' • '}
+                                       Expires: {new Date(invitation.expires_at).toLocaleDateString()}
+                                     </p>
+                                     <div className="flex flex-wrap gap-2 mt-2">
+                                       <Badge variant="outline" className="bg-amber-500/10 text-amber-600 border-amber-500/30">
+                                         Pending Invitation
+                                       </Badge>
+                                       <Badge variant={roleColors[invitation.role as keyof typeof roleColors] || 'outline'}>
+                                         {roleLabels[invitation.role as keyof typeof roleLabels] || invitation.role}
+                                       </Badge>
+                                       {getEmailStatusBadge(invitation)}
+                                     </div>
+                                   </div>
+                                 </div>
+                               </div>
+                               <Button
+                                 variant="outline"
+                                 size="sm"
+                                 onClick={(e) => {
+                                   e.stopPropagation();
+                                   resendInvitation(invitation);
+                                 }}
+                                 disabled={resendingId === invitation.id}
+                               >
+                                 {resendingId === invitation.id ? (
+                                   <Loader2 className="h-4 w-4 animate-spin" />
+                                 ) : (
+                                   <>
+                                     <RefreshCw className="h-4 w-4 mr-2" />
+                                     Resend
+                                   </>
+                                 )}
+                               </Button>
+                             </div>
+                           ))}
+ 
+                           {/* Active System Users */}
                           {users.filter(u => !u.is_pin_employee).map((user) => (
                             <div
                               key={user.id}
@@ -358,32 +586,37 @@ export default function UserSettings() {
                     <CollapsibleContent>
                       <CardContent>
                         <div className="space-y-4">
-                          {users.filter(u => u.is_pin_employee).map((user) => (
+                           {pinEmployees.map((employee) => (
                             <div
-                              key={user.id}
-                              onClick={() => navigate(`/employees/pin/${user.user_id}/edit`)}
+                               key={employee.id}
+                               onClick={() => navigate(`/employees/pin/${employee.id}/edit`)}
                               className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                             >
                               <div className="flex-1">
                                 <div className="flex items-center gap-3">
                                   <div className="flex-1">
                                     <h3 className="font-semibold">
-                                      {user.display_name || `${user.first_name} ${user.last_name}`}
+                                       {employee.display_name || `${employee.first_name} ${employee.last_name}`}
                                     </h3>
                                     <p className="text-sm text-muted-foreground">
-                                      Created: {new Date(user.created_at).toLocaleDateString()}
+                                       Created: {new Date(employee.created_at).toLocaleDateString()}
                                     </p>
                                     <div className="flex flex-wrap gap-2 mt-2">
                                       <Badge variant="outline" className="bg-purple-500/10 text-purple-500 border-purple-500/30">
                                         PIN Employee
                                       </Badge>
+                                       {employee.pin_code && (
+                                         <Badge variant="secondary" className="font-mono">
+                                           PIN: {employee.pin_code}
+                                         </Badge>
+                                       )}
                                     </div>
                                   </div>
                                 </div>
                               </div>
                             </div>
                           ))}
-                          {users.filter(u => u.is_pin_employee).length === 0 && (
+                           {pinEmployees.length === 0 && (
                             <p className="text-muted-foreground text-center py-4">No PIN employees found</p>
                           )}
                         </div>
