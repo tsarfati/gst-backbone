@@ -18,6 +18,7 @@ import TenantRequest from "@/pages/TenantRequest";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import TenantDetails from "@/pages/TenantDetails";
 import LandingPage from "@/pages/LandingPage";
+import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import TaskDetails from "@/pages/TaskDetails";
 import { AppRouter } from "./AppRouter";
 
@@ -189,6 +190,7 @@ function PublicRoutes() {
               <ReceiptProvider>
                 <Routes>
                   <Route path="/" element={<LandingPage />} />
+                  <Route path="/privacy" element={<PrivacyPolicy />} />
                   <Route path="/auth" element={<Auth />} />
                   <Route path="/punch-clock-login" element={<PunchClockLogin />} />
                   <Route path="/punch-clock" element={<PunchClockLogin />} />
