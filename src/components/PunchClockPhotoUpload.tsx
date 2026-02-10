@@ -88,7 +88,7 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
         if (blob) {
           setPhotoBlob(blob);
           setPhotoPreview(URL.createObjectURL(blob));
-          stopCamera();
+          // Don't stop camera - keep stream alive for next photo
         }
       }, 'image/jpeg', 1.0);
     }
@@ -191,11 +191,10 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
       setUploadProgress(100);
       await new Promise(resolve => setTimeout(resolve, 300));
       
-      // Clear photo and restart camera so user can take another photo (no toast needed)
+      // Clear photo preview - camera stream is still alive, so just go back to camera view
       setPhotoPreview(null);
       setPhotoBlob(null);
       setNote('');
-      setTimeout(() => startCamera(), 100);
     } catch (error: any) {
       console.error('Error uploading photo:', error);
       toast({
@@ -346,7 +345,7 @@ export default function PunchClockPhotoUpload({ jobId, userId }: PunchClockPhoto
                       setPhotoPreview(null);
                       setPhotoBlob(null);
                       setNote('');
-                      startCamera();
+                      // Camera stream is still alive, no need to restart
                     }}
                     disabled={uploading}
                     className="flex-1"
