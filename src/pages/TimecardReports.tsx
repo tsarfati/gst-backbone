@@ -888,19 +888,39 @@ export default function TimecardReports() {
       const dataForExport = filters.showDeleted ? data : (data || []).filter((r: any) => r.status !== 'deleted');
 
       // Recalculate summary based on exported dataset
-      const exportTotals = (dataForExport || []).reduce((acc: any, r: any) => {
-        const th = Number(r.total_hours || 0);
-        const oh = Number(r.overtime_hours || 0);
-        acc.totalHours += th;
-        acc.overtimeHours += oh;
-        return acc;
-      }, { totalHours: 0, overtimeHours: 0 });
-      const exportSummary = {
-        totalRecords: dataForExport.length,
-        totalHours: exportTotals.totalHours,
-        overtimeHours: exportTotals.overtimeHours,
-        regularHours: exportTotals.totalHours - exportTotals.overtimeHours,
-      };
+      let exportSummary;
+      if (reportType === 'costcode') {
+        // Cost code data is nested: each item has { job_name, total_hours, total_records, cost_codes: { [key]: { total_hours, overtime_hours, ... } } }
+        const costCodeTotals = (dataForExport || []).reduce((acc: any, job: any) => {
+          acc.totalRecords += job.total_records || 0;
+          acc.totalHours += job.total_hours || 0;
+          const costCodes = Object.values(job.cost_codes || {}) as any[];
+          costCodes.forEach((cc: any) => {
+            acc.overtimeHours += cc.overtime_hours || 0;
+          });
+          return acc;
+        }, { totalRecords: 0, totalHours: 0, overtimeHours: 0 });
+        exportSummary = {
+          totalRecords: costCodeTotals.totalRecords,
+          totalHours: costCodeTotals.totalHours,
+          overtimeHours: costCodeTotals.overtimeHours,
+          regularHours: costCodeTotals.totalHours - costCodeTotals.overtimeHours,
+        };
+      } else {
+        const exportTotals = (dataForExport || []).reduce((acc: any, r: any) => {
+          const th = Number(r.total_hours || 0);
+          const oh = Number(r.overtime_hours || 0);
+          acc.totalHours += th;
+          acc.overtimeHours += oh;
+          return acc;
+        }, { totalHours: 0, overtimeHours: 0 });
+        exportSummary = {
+          totalRecords: dataForExport.length,
+          totalHours: exportTotals.totalHours,
+          overtimeHours: exportTotals.overtimeHours,
+          regularHours: exportTotals.totalHours - exportTotals.overtimeHours,
+        };
+      }
 
       const reportData: ReportData = {
         title: `${reportType.charAt(0).toUpperCase() + reportType.slice(1)} Timecard Report`,
@@ -915,7 +935,7 @@ export default function TimecardReports() {
         filters: filterDetails
       };
 
-      await exportTimecardToPDF(reportData, company, currentCompany?.id, reportType as 'detailed' | 'employee' | 'job' | 'date');
+      await exportTimecardToPDF(reportData, company, currentCompany?.id, reportType as 'detailed' | 'employee' | 'job' | 'date' | 'costcode');
       
       toast({
         title: "Export Complete",
