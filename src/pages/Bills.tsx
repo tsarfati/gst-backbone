@@ -833,11 +833,13 @@ export default function Bills() {
                      style={billIsOverdue ? { animation: 'pulse-red 2s infinite' } : undefined}
                      onClick={() => navigate(bill.status === 'draft' ? `/bills/${bill.id}/edit` : `/bills/${bill.id}`)}
                   >
-                    <div className="flex items-center gap-4 flex-1" onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={selectedBills.includes(bill.id)}
-                        onCheckedChange={() => handleSelectBill(bill.id)}
-                      />
+                    <div className="flex items-center gap-4 flex-1">
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedBills.includes(bill.id)}
+                          onCheckedChange={() => handleSelectBill(bill.id)}
+                        />
+                      </div>
                       <Receipt className="h-8 w-8 text-muted-foreground" />
                       <div className="flex-1">
                         <p className="font-semibold text-foreground">{bill.invoice_number || 'No Invoice #'}</p>
@@ -883,11 +885,13 @@ export default function Bills() {
                      style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                      onClick={() => navigate(bill.status === 'draft' ? `/bills/${bill.id}/edit` : `/bills/${bill.id}`)}
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0" onClick={(e) => e.stopPropagation()}>
-                      <Checkbox
-                        checked={selectedBills.includes(bill.id)}
-                        onCheckedChange={() => handleSelectBill(bill.id)}
-                      />
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      <div onClick={(e) => e.stopPropagation()}>
+                        <Checkbox
+                          checked={selectedBills.includes(bill.id)}
+                          onCheckedChange={() => handleSelectBill(bill.id)}
+                        />
+                      </div>
                       <Badge className={`${getJobColor(bill.job_name)} text-white flex-shrink-0 text-xs`}>
                         {bill.job_name}
                       </Badge>
