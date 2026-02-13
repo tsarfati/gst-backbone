@@ -183,42 +183,64 @@ export default function BillDetails() {
           }
           
           // Load cost distributions
-          // NOTE: invoice_cost_distributions does not have a direct jobs relationship;
-          // we derive the job via cost_codes.job_id.
-          const { data: distData } = await supabase
-            .from('invoice_cost_distributions')
-            .select(`
-              id,
-              cost_code_id,
-              amount,
-              percentage,
-              cost_codes (
-                id,
-                code,
-                description,
-                type,
-                job_id,
-                jobs (id, name)
-              )
-            `)
-            .eq('invoice_id', data.id);
-          
-          if (distData && distData.length > 0) {
-            setDistributions(distData);
-          } else if (data.job_id || data.cost_code_id) {
-            // Create a single distribution from the main job/cost code
-            setDistributions([{
-              id: 'main',
-              job_id: data.job_id,
-              cost_code_id: data.cost_code_id,
-              amount: data.amount,
-              percentage: 100,
-              jobs: data.jobs,
-              cost_codes: data.cost_codes
-            }]);
-          } else {
-            setDistributions([]);
-          }
+           // NOTE: invoice_cost_distributions does not have a direct jobs relationship;
+           // we derive the job via cost_codes.job_id.
+           const { data: distData } = await supabase
+             .from('invoice_cost_distributions')
+             .select(`
+               id,
+               cost_code_id,
+               amount,
+               percentage,
+               cost_codes (
+                 id,
+                 code,
+                 description,
+                 type,
+                 job_id,
+                 jobs (id, name)
+               )
+             `)
+             .eq('invoice_id', data.id);
+           
+           if (distData && distData.length > 0) {
+             setDistributions(distData);
+             
+             // Auto-transition pending_coding bills to pending_approval when cost distributions are found
+             if (data.status === 'pending_coding') {
+               await supabase
+                 .from('invoices')
+                 .update({ status: 'pending_approval', pending_coding: false })
+                 .eq('id', data.id);
+               
+               // Update local state to reflect the change
+               setBill(prev => prev ? { ...prev, status: 'pending_approval', pending_coding: false } : null);
+             }
+           } else if (data.job_id || data.cost_code_id) {
+             // Create a single distribution from the main job/cost code
+             setDistributions([{
+               id: 'main',
+               job_id: data.job_id,
+               cost_code_id: data.cost_code_id,
+               amount: data.amount,
+               percentage: 100,
+               jobs: data.jobs,
+               cost_codes: data.cost_codes
+             }]);
+             
+             // Auto-transition pending_coding bills to pending_approval when cost code is assigned
+             if (data.status === 'pending_coding') {
+               await supabase
+                 .from('invoices')
+                 .update({ status: 'pending_approval', pending_coding: false })
+                 .eq('id', data.id);
+               
+               // Update local state to reflect the change
+               setBill(prev => prev ? { ...prev, status: 'pending_approval', pending_coding: false } : null);
+             }
+           } else {
+             setDistributions([]);
+           }
         }
         
         // If this is a subcontract invoice, fetch commitment totals
