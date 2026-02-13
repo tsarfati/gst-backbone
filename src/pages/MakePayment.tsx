@@ -687,12 +687,42 @@ export default function MakePayment() {
 
       if (linesError) throw linesError;
 
-      // Update invoice statuses to paid (only if full payment)
+      // Update invoice statuses to paid if fully paid
       if (!isPartialPayment) {
         await supabase
           .from('invoices')
           .update({ status: 'paid' })
           .in('id', selectedInvoices);
+      } else {
+        // For partial payments, check each invoice to see if total payments now cover the full amount
+        for (const invoiceId of selectedInvoices) {
+          const { data: invoice } = await supabase
+            .from('invoices')
+            .select('amount')
+            .eq('id', invoiceId)
+            .single();
+          
+          const { data: allPaymentLines } = await supabase
+            .from('payment_invoice_lines')
+            .select('amount_paid')
+            .eq('invoice_id', invoiceId);
+          
+          if (invoice && allPaymentLines) {
+            const totalPaidForInvoice = allPaymentLines.reduce((sum, pl) => sum + (Number(pl.amount_paid) || 0), 0);
+            if (totalPaidForInvoice >= Number(invoice.amount) - 0.01) {
+              await supabase
+                .from('invoices')
+                .update({ status: 'paid' })
+                .eq('id', invoiceId);
+            } else {
+              // Mark as pending_payment if partially paid
+              await supabase
+                .from('invoices')
+                .update({ status: 'pending_payment' })
+                .eq('id', invoiceId);
+            }
+          }
+        }
       }
 
       // For credit card payments, create credit card transactions

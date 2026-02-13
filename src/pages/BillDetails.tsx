@@ -172,15 +172,25 @@ export default function BillDetails() {
             .eq('invoice_id', data.id);
           
           if (paymentLines && paymentLines.length > 0) {
-            setPaymentsReceived(paymentLines);
-            const paid = paymentLines.reduce((sum, pl) => sum + (Number(pl.amount_paid) || 0), 0);
-            setTotalPaid(paid);
-            setBalanceDue(Number(data.amount || 0) - paid);
-          } else {
-            setPaymentsReceived([]);
-            setTotalPaid(0);
-            setBalanceDue(Number(data.amount || 0));
-          }
+             setPaymentsReceived(paymentLines);
+             const paid = paymentLines.reduce((sum, pl) => sum + (Number(pl.amount_paid) || 0), 0);
+             setTotalPaid(paid);
+             const remaining = Number(data.amount || 0) - paid;
+             setBalanceDue(remaining);
+             
+             // Auto-correct status: if fully paid but status isn't 'paid', update it
+             if (remaining <= 0.01 && data.status !== 'paid') {
+               await supabase
+                 .from('invoices')
+                 .update({ status: 'paid' })
+                 .eq('id', data.id);
+               setBill(prev => prev ? { ...prev, status: 'paid' } : null);
+             }
+           } else {
+             setPaymentsReceived([]);
+             setTotalPaid(0);
+             setBalanceDue(Number(data.amount || 0));
+           }
           
           // Load cost distributions
            // NOTE: invoice_cost_distributions does not have a direct jobs relationship;
