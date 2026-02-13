@@ -3,7 +3,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
-import { FileText, Eye, Loader2 } from "lucide-react";
+import { FileText, Eye, Loader2, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import DocumentPreviewModal from "@/components/DocumentPreviewModal";
 
@@ -25,6 +25,27 @@ export default function BillAttachmentsModal({ invoiceId, open, onOpenChange }: 
   const [docs, setDocs] = useState<InvoiceDocument[]>([]);
   const [loading, setLoading] = useState(false);
   const [selectedDoc, setSelectedDoc] = useState<InvoiceDocument | null>(null);
+  const [downloading, setDownloading] = useState<string | null>(null);
+
+  const handleDownload = async (doc: InvoiceDocument) => {
+    setDownloading(doc.id);
+    try {
+      const response = await fetch(doc.file_url);
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = doc.file_name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+    } catch (e) {
+      console.error('Download failed', e);
+    } finally {
+      setDownloading(null);
+    }
+  };
 
   useEffect(() => {
     if (!open || !invoiceId) return;
@@ -75,9 +96,14 @@ export default function BillAttachmentsModal({ invoiceId, open, onOpenChange }: 
                         <div className="text-xs text-muted-foreground">Uploaded {new Date(d.uploaded_at).toLocaleString()}</div>
                       )}
                     </div>
-                    <Button size="sm" variant="outline" onClick={() => setSelectedDoc(d)}>
-                      <Eye className="h-4 w-4 mr-2" /> View
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      <Button size="sm" variant="outline" onClick={() => handleDownload(d)} disabled={downloading === d.id}>
+                        <Download className="h-4 w-4 mr-2" /> {downloading === d.id ? 'Downloading...' : 'Download'}
+                      </Button>
+                      <Button size="sm" variant="outline" onClick={() => setSelectedDoc(d)}>
+                        <Eye className="h-4 w-4 mr-2" /> View
+                      </Button>
+                    </div>
                   </CardContent>
                 </Card>
               ))}
