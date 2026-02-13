@@ -181,6 +181,29 @@ export default function TimecardReportViews({
     return acc;
   }, {} as Record<string, any>);
 
+  // Group by Job -> Cost Code
+  const costCodeByJobSummary = records.reduce((acc, record) => {
+    const jobKey = record.job_name || 'Unassigned';
+    if (!acc[jobKey]) {
+      acc[jobKey] = { job_name: jobKey, cost_codes: {} as Record<string, any>, total_hours: 0, total_records: 0 };
+    }
+    const ccKey = record.cost_code || 'No Cost Code';
+    if (!acc[jobKey].cost_codes[ccKey]) {
+      acc[jobKey].cost_codes[ccKey] = {
+        cost_code: ccKey,
+        total_hours: 0,
+        overtime_hours: 0,
+        total_records: 0,
+      };
+    }
+    acc[jobKey].cost_codes[ccKey].total_hours += record.total_hours;
+    acc[jobKey].cost_codes[ccKey].overtime_hours += record.overtime_hours;
+    acc[jobKey].cost_codes[ccKey].total_records += 1;
+    acc[jobKey].total_hours += record.total_hours;
+    acc[jobKey].total_records += 1;
+    return acc;
+  }, {} as Record<string, any>);
+
   if (loading) {
     return (
       <Card>
@@ -256,6 +279,7 @@ export default function TimecardReportViews({
                 onClick={() => onExportPDF(selectedView, selectedView === 'detailed' ? records : 
                   selectedView === 'employee' ? Object.values(employeeSummary) :
                   selectedView === 'job' ? Object.values(jobSummary) :
+                  selectedView === 'costcode' ? Object.values(costCodeByJobSummary) :
                   Object.values(dateRangeSummary))}
               >
                 <Download className="h-4 w-4 mr-2" />
@@ -268,6 +292,7 @@ export default function TimecardReportViews({
                   onClick={() => onExportExcel(selectedView, selectedView === 'detailed' ? records : 
                     selectedView === 'employee' ? Object.values(employeeSummary) :
                     selectedView === 'job' ? Object.values(jobSummary) :
+                    selectedView === 'costcode' ? Object.values(costCodeByJobSummary) :
                     Object.values(dateRangeSummary))}
                 >
                   <Download className="h-4 w-4 mr-2" />
@@ -283,6 +308,7 @@ export default function TimecardReportViews({
               <TabsTrigger value="detailed" className="flex-1">Detailed View</TabsTrigger>
               <TabsTrigger value="employee" className="flex-1">By Employee</TabsTrigger>
               <TabsTrigger value="job" className="flex-1">By Job</TabsTrigger>
+              <TabsTrigger value="costcode" className="flex-1">By Cost Code</TabsTrigger>
               <TabsTrigger value="date" className="flex-1">By Date</TabsTrigger>
             </TabsList>
 
@@ -425,6 +451,51 @@ export default function TimecardReportViews({
                     ))}
                   </TableBody>
                 </Table>
+              </div>
+            </TabsContent>
+
+            {/* Cost Code by Job Summary View */}
+            <TabsContent value="costcode">
+              <div className="space-y-4">
+                {Object.values(costCodeByJobSummary)
+                  .sort((a: any, b: any) => b.total_hours - a.total_hours)
+                  .map((job: any) => (
+                    <div key={job.job_name} className="rounded-md border">
+                      <div className="bg-muted/50 px-4 py-3 flex items-center justify-between border-b">
+                        <span className="font-semibold">{job.job_name}</span>
+                        <div className="flex items-center gap-4 text-sm text-muted-foreground">
+                          <span>{job.total_records} records</span>
+                          <span className="font-medium text-foreground">{formatDuration(job.total_hours)}</span>
+                        </div>
+                      </div>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Cost Code</TableHead>
+                            <TableHead>Records</TableHead>
+                            <TableHead>Total Hours</TableHead>
+                            <TableHead>Overtime Hours</TableHead>
+                            <TableHead>Average Hours</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {Object.values(job.cost_codes)
+                            .sort((a: any, b: any) => b.total_hours - a.total_hours)
+                            .map((cc: any) => (
+                              <TableRow key={cc.cost_code}>
+                                <TableCell className="font-medium">{cc.cost_code}</TableCell>
+                                <TableCell>{cc.total_records}</TableCell>
+                                <TableCell className="font-medium">{formatDuration(cc.total_hours)}</TableCell>
+                                <TableCell className="text-orange-600">
+                                  {cc.overtime_hours > 0 ? formatDuration(cc.overtime_hours) : "-"}
+                                </TableCell>
+                                <TableCell>{formatDuration(cc.total_hours / cc.total_records)}</TableCell>
+                              </TableRow>
+                            ))}
+                        </TableBody>
+                      </Table>
+                    </div>
+                  ))}
               </div>
             </TabsContent>
 
