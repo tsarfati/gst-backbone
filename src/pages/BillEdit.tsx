@@ -711,7 +711,7 @@ export default function BillEdit() {
     return (
       <div className="p-6 max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/invoices/${id}`); }}>
+          <Button variant="ghost" onClick={() => window.history.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -728,7 +728,7 @@ export default function BillEdit() {
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={(e) => { e.preventDefault(); e.stopPropagation(); navigate(`/invoices/${id}`); }}>
+          <Button variant="ghost" onClick={() => window.history.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
