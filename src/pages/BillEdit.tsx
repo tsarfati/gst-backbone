@@ -711,7 +711,7 @@ export default function BillEdit() {
     return (
       <div className="p-6 max-w-4xl mx-auto">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" onClick={() => navigate("/invoices")}>
+          <Button variant="ghost" onClick={() => navigate(`/invoices/${id}`)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
