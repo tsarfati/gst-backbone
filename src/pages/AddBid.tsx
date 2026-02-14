@@ -174,7 +174,7 @@ export default function AddBid() {
                 </SelectTrigger>
                 <SelectContent>
                   {availableVendors.length === 0 ? (
-                    <SelectItem value="" disabled>No available vendors</SelectItem>
+                    <SelectItem value="__none__" disabled>No available vendors</SelectItem>
                   ) : (
                     availableVendors.map(vendor => (
                       <SelectItem key={vendor.id} value={vendor.id}>
