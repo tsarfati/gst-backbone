@@ -12,6 +12,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
+import QuickAddVendor from '@/components/QuickAddVendor';
 
 interface Vendor {
   id: string;
@@ -42,6 +43,7 @@ export default function AddBid() {
   const [existingVendorIds, setExistingVendorIds] = useState<string[]>([]);
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null);
+  const [vendorSearch, setVendorSearch] = useState('');
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -90,6 +92,9 @@ export default function AddBid() {
   };
 
   const availableVendors = vendors.filter(v => !existingVendorIds.includes(v.id));
+  const filteredAvailableVendors = availableVendors.filter(v =>
+    v.name.toLowerCase().includes(vendorSearch.toLowerCase())
+  );
 
   const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
@@ -240,7 +245,17 @@ export default function AddBid() {
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="vendor_id">Vendor *</Label>
+              <div className="flex items-center justify-between">
+                <Label htmlFor="vendor_id">Vendor *</Label>
+                <QuickAddVendor
+                  onVendorAdded={(vendorId) => {
+                    loadData();
+                    setFormData(prev => ({ ...prev, vendor_id: vendorId }));
+                  }}
+                  variant="ghost"
+                  className="h-7 text-xs"
+                />
+              </div>
               <Select 
                 value={formData.vendor_id} 
                 onValueChange={(value) => setFormData(prev => ({ ...prev, vendor_id: value }))}
@@ -249,10 +264,21 @@ export default function AddBid() {
                   <SelectValue placeholder="Select a vendor" />
                 </SelectTrigger>
                 <SelectContent>
-                  {availableVendors.length === 0 ? (
-                    <SelectItem value="__none__" disabled>No available vendors</SelectItem>
+                  <div className="px-2 pb-2">
+                    <Input
+                      placeholder="Search vendors..."
+                      value={vendorSearch}
+                      onChange={(e) => setVendorSearch(e.target.value)}
+                      className="h-8"
+                      onKeyDown={(e) => e.stopPropagation()}
+                    />
+                  </div>
+                  {filteredAvailableVendors.length === 0 ? (
+                    <SelectItem value="__none__" disabled>
+                      {availableVendors.length === 0 ? 'No available vendors' : 'No matching vendors'}
+                    </SelectItem>
                   ) : (
-                    availableVendors.map(vendor => (
+                    filteredAvailableVendors.map(vendor => (
                       <SelectItem key={vendor.id} value={vendor.id}>
                         {vendor.name}
                       </SelectItem>
