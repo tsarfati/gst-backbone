@@ -5318,6 +5318,7 @@ export type Database = {
           header_image_url: string | null
           id: string
           logo_url: string | null
+          menu_transparency: number
           primary_color: string | null
           updated_at: string
           welcome_message: string | null
@@ -5332,6 +5333,7 @@ export type Database = {
           header_image_url?: string | null
           id?: string
           logo_url?: string | null
+          menu_transparency?: number
           primary_color?: string | null
           updated_at?: string
           welcome_message?: string | null
@@ -5346,6 +5348,7 @@ export type Database = {
           header_image_url?: string | null
           id?: string
           logo_url?: string | null
+          menu_transparency?: number
           primary_color?: string | null
           updated_at?: string
           welcome_message?: string | null

@@ -19,6 +19,7 @@ interface LoginSettings {
   logo_url?: string;
   welcome_message?: string;
   bottom_text?: string;
+  menu_transparency?: number;
 }
 
 export default function PunchClockLogin() {
@@ -224,7 +225,7 @@ export default function PunchClockLogin() {
           </div>
         )}
 
-        <Card className="shadow-lg">
+        <Card className="shadow-lg" style={{ opacity: (loginSettings.menu_transparency ?? 100) / 100 }}>
           <CardHeader>
             <CardTitle className="text-center text-2xl font-bold">
               {loginSettings.welcome_message || 'Welcome to Punch Clock'}
