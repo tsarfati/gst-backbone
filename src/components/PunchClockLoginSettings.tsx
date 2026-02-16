@@ -4,6 +4,7 @@ import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Slider } from '@/components/ui/slider';
 import ColorPicker from '@/components/ColorPicker';
 import { Upload, Trash2, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -19,7 +20,8 @@ const defaultSettings = {
   primary_color: '#3b82f6',
   logo_url: '',
   welcome_message: 'Welcome to Punch Clock',
-  bottom_text: ''
+  bottom_text: '',
+  menu_transparency: 100
 };
 
 export function PunchClockLoginSettings() {
@@ -64,7 +66,8 @@ export function PunchClockLoginSettings() {
           primary_color: data.primary_color || '#3b82f6',
           logo_url: data.logo_url || '',
           welcome_message: data.welcome_message || 'Welcome to Punch Clock',
-          bottom_text: data.bottom_text || ''
+          bottom_text: data.bottom_text || '',
+          menu_transparency: data.menu_transparency ?? 100
         });
       } else {
         // No settings exist for this company yet - use defaults (blank)
@@ -334,6 +337,21 @@ export function PunchClockLoginSettings() {
             value={settings.primary_color}
             onChange={(color) => setSettings(prev => ({ ...prev, primary_color: color }))}
           />
+        </div>
+
+        {/* Menu Transparency */}
+        <div className="space-y-2">
+          <Label>Menu Card Transparency ({settings.menu_transparency}%)</Label>
+          <Slider
+            value={[settings.menu_transparency]}
+            onValueChange={([value]) => setSettings(prev => ({ ...prev, menu_transparency: value }))}
+            min={0}
+            max={100}
+            step={5}
+          />
+          <p className="text-xs text-muted-foreground">
+            Controls the opacity of the login card. 0% = fully transparent, 100% = fully opaque.
+          </p>
         </div>
 
         <Button onClick={handleSave} disabled={loading} className="w-full">
