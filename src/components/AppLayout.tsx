@@ -311,10 +311,10 @@ export function AppSidebar() {
                             isActive={isActive}
                             tooltip={state === "collapsed" ? category.title : undefined}
                             style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' } : {}}
-                            className={isActive ? "hover:opacity-95" : `hover:bg-primary/10 transition-colors duration-150`}
+                            className={isActive ? "hover:opacity-95" : `hover:bg-primary/10 transition-colors duration-150 group/direct-link`}
                           >
-                            <Link to={item.href}>
-                              <category.icon className="h-4 w-4" />
+                            <Link to={item.href} className="flex items-center gap-2">
+                              <category.icon className={`h-4 w-4 transition-colors ${isActive ? '' : 'group-hover/direct-link:text-primary'}`} />
                               <span>{category.title}</span>
                             </Link>
                           </SidebarMenuButton>
@@ -333,10 +333,10 @@ export function AppSidebar() {
                     <CollapsibleTrigger asChild>
                        <Button 
                          variant="ghost" 
-                         className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-primary/10 hover:text-sidebar-foreground transition-colors duration-150 group-data-[collapsible=icon]:justify-center"
+                         className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-primary/10 hover:text-sidebar-foreground transition-colors duration-150 group-data-[collapsible=icon]:justify-center group/nav-btn"
                        >
                         <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
-                          <category.icon className={`h-4 w-4 transition-colors ${allOpenGroups.includes(category.title) ? 'text-primary' : ''}`} />
+                          <category.icon className={`h-4 w-4 transition-colors group-hover/nav-btn:text-primary ${allOpenGroups.includes(category.title) ? 'text-primary' : ''}`} />
                           <span className="group-data-[collapsible=icon]:hidden">
                             {category.title}
                           </span>
