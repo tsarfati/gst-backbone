@@ -16,6 +16,8 @@ import logoImage from '@/assets/builderlynk-logo-new.png';
 import logoTransparent from '@/assets/builderlynk-logo-new.png';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import headerLogo from '@/assets/builderlynk-header-logo.png';
+import punchClockLynkLogo from '@/assets/punchclock-lynk-logo.png';
+import pmLynkLogo from '@/assets/pm-lynk-logo.png';
 import {
   Shield,
   Users,
@@ -518,7 +520,104 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Contact Section - Dark theme */}
+      {/* Mobile Apps Section */}
+      <section className="py-24" style={{ backgroundColor: darkBg }}>
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <AnimatedSection animation="fade-up">
+            <div className="text-center mb-16">
+              <h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
+                Take BuilderLYNK <span className="text-[#E88A2D]">On the Go</span>
+              </h2>
+              <p className="text-xl text-gray-400 max-w-2xl mx-auto">
+                Download our companion mobile apps for field teams and project managers.
+              </p>
+            </div>
+          </AnimatedSection>
+
+          <div className="grid md:grid-cols-2 gap-10 max-w-4xl mx-auto">
+            {/* Punch Clock LYNK */}
+            <AnimatedSection animation="fade-right" delay={100}>
+              <div
+                className="rounded-2xl border border-white/10 p-8 hover:border-[#E88A2D]/50 hover:shadow-xl hover:shadow-[#E88A2D]/10 transition-all duration-500 group text-center"
+                style={{ backgroundColor: darkCardBg }}
+              >
+                <img
+                  src={punchClockLynkLogo}
+                  alt="Punch Clock LYNK"
+                  className="h-28 w-28 mx-auto mb-6 rounded-2xl shadow-lg group-hover:scale-105 transition-transform duration-300"
+                />
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  Punch Clock <span className="text-[#E88A2D]">LYNK</span>
+                </h3>
+                <p className="text-gray-400 mb-6 text-sm leading-relaxed">
+                  GPS-enabled time tracking with photo verification. Employees can punch in/out, select job codes, and capture photos — all from their phone.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <a
+                    href="https://apps.apple.com/app/punch-clock-lynk/id0000000000"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 bg-white text-gray-900 font-semibold rounded-lg px-5 py-3 hover:bg-gray-100 transition-colors text-sm"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                    App Store
+                  </a>
+                  <a
+                    href="https://play.google.com/store/apps/details?id=com.punchclocklynk"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 bg-white text-gray-900 font-semibold rounded-lg px-5 py-3 hover:bg-gray-100 transition-colors text-sm"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor"><path d="M3 20.5v-17c0-.59.34-1.11.84-1.35L13.69 12l-9.85 9.85c-.5-.24-.84-.76-.84-1.35zm13.81-5.38L6.05 21.34l8.49-8.49 2.27 2.27zm2.59-1.45c.44.26.6.65.6 1.33 0 .68-.42 1.04-.6 1.22l-2.17 1.28-2.5-2.5 2.5-2.5 2.17 1.17zM6.05 2.66l10.76 6.22-2.27 2.27L6.05 2.66z"/></svg>
+                    Google Play
+                  </a>
+                </div>
+              </div>
+            </AnimatedSection>
+
+            {/* PM LYNK */}
+            <AnimatedSection animation="fade-left" delay={200}>
+              <div
+                className="rounded-2xl border border-white/10 p-8 hover:border-[#E88A2D]/50 hover:shadow-xl hover:shadow-[#E88A2D]/10 transition-all duration-500 group text-center"
+                style={{ backgroundColor: darkCardBg }}
+              >
+                <img
+                  src={pmLynkLogo}
+                  alt="PM LYNK"
+                  className="h-28 w-28 mx-auto mb-6 rounded-2xl shadow-lg group-hover:scale-105 transition-transform duration-300"
+                />
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  PM <span className="text-[#E88A2D]">LYNK</span>
+                </h3>
+                <p className="text-gray-400 mb-6 text-sm leading-relaxed">
+                  The project manager's mobile companion. Scan receipts, manage delivery tickets, log visitors, and communicate with your team — anywhere on the jobsite.
+                </p>
+                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                  <a
+                    href="https://apps.apple.com/app/pm-lynk/id0000000000"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 bg-white text-gray-900 font-semibold rounded-lg px-5 py-3 hover:bg-gray-100 transition-colors text-sm"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor"><path d="M18.71 19.5c-.83 1.24-1.71 2.45-3.05 2.47-1.34.03-1.77-.79-3.29-.79-1.53 0-2 .77-3.27.82-1.31.05-2.3-1.32-3.14-2.53C4.25 17 2.94 12.45 4.7 9.39c.87-1.52 2.43-2.48 4.12-2.51 1.28-.02 2.5.87 3.29.87.78 0 2.26-1.07 3.8-.91.65.03 2.47.26 3.64 1.98-.09.06-2.17 1.28-2.15 3.81.03 3.02 2.65 4.03 2.68 4.04-.03.07-.42 1.44-1.38 2.83M13 3.5c.73-.83 1.94-1.46 2.94-1.5.13 1.17-.34 2.35-1.04 3.19-.69.85-1.83 1.51-2.95 1.42-.15-1.15.41-2.35 1.05-3.11z"/></svg>
+                    App Store
+                  </a>
+                  <a
+                    href="https://play.google.com/store/apps/details?id=com.pmlynk"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="inline-flex items-center justify-center gap-2 bg-white text-gray-900 font-semibold rounded-lg px-5 py-3 hover:bg-gray-100 transition-colors text-sm"
+                  >
+                    <svg viewBox="0 0 24 24" className="h-5 w-5" fill="currentColor"><path d="M3 20.5v-17c0-.59.34-1.11.84-1.35L13.69 12l-9.85 9.85c-.5-.24-.84-.76-.84-1.35zm13.81-5.38L6.05 21.34l8.49-8.49 2.27 2.27zm2.59-1.45c.44.26.6.65.6 1.33 0 .68-.42 1.04-.6 1.22l-2.17 1.28-2.5-2.5 2.5-2.5 2.17 1.17zM6.05 2.66l10.76 6.22-2.27 2.27L6.05 2.66z"/></svg>
+                    Google Play
+                  </a>
+                </div>
+              </div>
+            </AnimatedSection>
+          </div>
+        </div>
+      </section>
+
       <section id="contact" className="py-24" style={{ backgroundColor: darkBg }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <AnimatedSection animation="fade-up">
