@@ -538,7 +538,7 @@ export default function LandingPage() {
             {/* Punch Clock LYNK */}
             <AnimatedSection animation="fade-right" delay={100}>
               <div
-                className="rounded-2xl border border-white/10 p-8 hover:border-[#E88A2D]/50 hover:shadow-xl hover:shadow-[#E88A2D]/10 transition-all duration-500 group text-center"
+                className="rounded-2xl border border-white/10 p-8 hover:border-[#E88A2D]/50 hover:shadow-xl hover:shadow-[#E88A2D]/10 transition-all duration-500 group text-center h-full flex flex-col"
                 style={{ backgroundColor: darkCardBg }}
               >
                 <img
@@ -549,10 +549,10 @@ export default function LandingPage() {
                 <h3 className="text-2xl font-bold text-white mb-2">
                   Punch Clock <span className="text-[#E88A2D]">LYNK</span>
                 </h3>
-                <p className="text-gray-400 mb-6 text-sm leading-relaxed">
+                <p className="text-gray-400 mb-6 text-sm leading-relaxed flex-1">
                   GPS-enabled time tracking with photo verification. Employees can punch in/out, select job codes, and capture photos — all from their phone.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <div className="flex flex-col sm:flex-row gap-3 justify-center mt-auto">
                   <a
                     href="https://apps.apple.com/app/punch-clock-lynk/id0000000000"
                     target="_blank"
@@ -578,7 +578,7 @@ export default function LandingPage() {
             {/* PM LYNK */}
             <AnimatedSection animation="fade-left" delay={200}>
               <div
-                className="rounded-2xl border border-white/10 p-8 hover:border-[#E88A2D]/50 hover:shadow-xl hover:shadow-[#E88A2D]/10 transition-all duration-500 group text-center"
+                className="rounded-2xl border border-white/10 p-8 hover:border-[#E88A2D]/50 hover:shadow-xl hover:shadow-[#E88A2D]/10 transition-all duration-500 group text-center h-full flex flex-col"
                 style={{ backgroundColor: darkCardBg }}
               >
                 <img
@@ -589,10 +589,10 @@ export default function LandingPage() {
                 <h3 className="text-2xl font-bold text-white mb-2">
                   PM <span className="text-[#E88A2D]">LYNK</span>
                 </h3>
-                <p className="text-gray-400 mb-6 text-sm leading-relaxed">
+                <p className="text-gray-400 mb-6 text-sm leading-relaxed flex-1">
                   The project manager's mobile companion. Scan receipts, manage delivery tickets, log visitors, and communicate with your team — anywhere on the jobsite.
                 </p>
-                <div className="flex flex-col sm:flex-row gap-3 justify-center">
+                <div className="flex flex-col sm:flex-row gap-3 justify-center mt-auto">
                   <a
                     href="https://apps.apple.com/app/pm-lynk/id0000000000"
                     target="_blank"
