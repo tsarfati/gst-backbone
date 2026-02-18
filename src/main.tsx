@@ -9,8 +9,10 @@ if ('serviceWorker' in navigator) {
   const host = window.location.hostname;
   const isLovablePreview = host.endsWith('.lovableproject.com') || host.endsWith('.lovable.app') || host.includes('id-preview--');
 
-  if (isLovablePreview) {
-    // Ensure any previously registered SWs are removed in preview
+  const appType = import.meta.env.VITE_APP_TYPE || 'main';
+
+  if (isLovablePreview || appType !== 'punchclock') {
+    // Ensure any previously registered SWs are removed in preview or non-punchclock apps
     navigator.serviceWorker.getRegistrations?.().then(regs => regs.forEach(r => r.unregister()));
     // Clear caches that may cause stale assets/errors
     if ('caches' in window) {
