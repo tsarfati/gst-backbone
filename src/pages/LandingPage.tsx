@@ -563,7 +563,7 @@ export default function LandingPage() {
                     App Store
                   </a>
                   <a
-                    href="https://play.google.com/store/apps/details?id=com.punchclocklynk"
+                    href="https://play.google.com/store/apps/details?id=com.gst.punchclock"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="inline-flex items-center justify-center gap-2 bg-white text-gray-900 font-semibold rounded-lg px-5 py-3 hover:bg-gray-100 transition-colors text-sm"
