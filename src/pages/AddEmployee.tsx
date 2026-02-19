@@ -155,7 +155,8 @@ export default function AddEmployee() {
           notes: formData.notes?.trim() || null,
           group_id: formData.groupId || null,
           created_by: profile.user_id,
-          is_active: true
+          is_active: true,
+          company_id: currentCompany?.id || null
         })
         .select()
         .single();
