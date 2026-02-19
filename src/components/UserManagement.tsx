@@ -395,7 +395,7 @@ export default function UserManagement() {
                 {users.filter(u => (u as any).isPinEmployee).map((user) => (
                   <div 
                     key={user.user_id} 
-                    onClick={() => navigate(`/employees/pin/${user.user_id}/edit`)}
+                    onClick={() => navigate(`/pin-employees/${user.user_id}/edit`)}
                     className="flex items-center gap-4 p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                   >
                     <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">

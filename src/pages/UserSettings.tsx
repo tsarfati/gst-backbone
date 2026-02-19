@@ -654,7 +654,7 @@ export default function UserSettings() {
                            {pinEmployees.map((employee) => (
                             <div
                                key={employee.id}
-                               onClick={() => navigate(`/employees/pin/${employee.id}/edit`)}
+                               onClick={() => navigate(`/pin-employees/${employee.id}/edit`)}
                               className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                             >
                               <div className="flex-1">
