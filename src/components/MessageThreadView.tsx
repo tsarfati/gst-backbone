@@ -94,7 +94,7 @@ export default function MessageThreadView({
         });
         if (!nameError && names) {
           (names as any[]).forEach((n: any) => {
-            nameMap[n.user_id] = n.display_name || 'Unknown User';
+            nameMap[n.user_id] = n.name || n.display_name || 'Unknown User';
           });
         }
       }

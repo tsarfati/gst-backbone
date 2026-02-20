@@ -54,7 +54,8 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
+      // Fetch regular auth users with company access
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select(`
           id, user_id, display_name, role,
@@ -63,16 +64,35 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
         .eq('user_company_access.company_id', companyId)
         .neq('user_id', userId);
 
-      if (error) throw error;
+      if (profileError) throw profileError;
 
-      const users = (data || []).map(profile => ({
+      const authUsers: UserOption[] = (profileData || []).map(profile => ({
         id: profile.id,
         user_id: profile.user_id,
         name: profile.display_name || 'Unknown User',
         role: profile.role || 'employee'
       }));
 
-      setAvailableUsers(users);
+      // Fetch PIN employees for the same company
+      const { data: pinData, error: pinError } = await supabase
+        .from('pin_employees')
+        .select('id, first_name, last_name, display_name')
+        .eq('company_id', companyId)
+        .eq('is_active', true);
+
+      if (pinError) throw pinError;
+
+      const pinUsers: UserOption[] = (pinData || [])
+        .filter(pe => pe.id !== userId) // exclude self if somehow a pin employee
+        .filter(pe => !authUsers.some(u => u.user_id === pe.id)) // avoid duplicates
+        .map(pe => ({
+          id: pe.id,
+          user_id: pe.id, // PIN employees use their id as user_id for messaging
+          name: pe.display_name || `${pe.first_name || ''} ${pe.last_name || ''}`.trim() || 'Unknown',
+          role: 'field employee'
+        }));
+
+      setAvailableUsers([...authUsers, ...pinUsers]);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
