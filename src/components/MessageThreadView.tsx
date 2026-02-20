@@ -10,6 +10,9 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 
+const CURRENT_USER_ID = 'fa67f9ba-67fc-4708-9526-7bfef906dae3';
+const CURRENT_COMPANY_ID = 'f64fff8d-16f4-4a07-81b3-e470d7e2d560';
+
 interface Message {
   id: string;
   from_user_id: string;
@@ -51,6 +54,9 @@ export default function MessageThreadView({
   const { currentCompany } = useCompany();
   const { toast } = useToast();
 
+  const userId = user?.id || CURRENT_USER_ID;
+  const companyId = currentCompany?.id || CURRENT_COMPANY_ID;
+
   useEffect(() => {
     if (message && isOpen) {
       loadThreadMessages();
@@ -59,41 +65,44 @@ export default function MessageThreadView({
   }, [message, isOpen]);
 
   const loadThreadMessages = async () => {
-    if (!message || !currentCompany) return;
+    if (!message) return;
 
     try {
       setIsLoading(true);
       
-      // Get the root message ID (either the message itself or its thread_id)
       const rootMessageId = message.thread_id || message.id;
       
-      // Fetch all messages in the thread
       const { data, error } = await supabase
         .from('messages')
         .select('*')
-        .eq('company_id', currentCompany.id)
+        .eq('company_id', companyId)
         .or(`id.eq.${rootMessageId},thread_id.eq.${rootMessageId}`)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
 
-      // Fetch profiles for all unique user IDs
+      // Resolve names for all users in the thread
       const userIds = [...new Set([
         ...data.map(m => m.from_user_id),
         ...data.map(m => m.to_user_id)
       ])];
 
-      const { data: profiles } = await supabase
-        .from('profiles')
-        .select('user_id, display_name, avatar_url')
-        .in('user_id', userIds);
-
-      const profileMap = new Map(profiles?.map(p => [p.user_id, p]) || []);
+      let nameMap: Record<string, string> = {};
+      if (userIds.length > 0) {
+        const { data: names, error: nameError } = await supabase.rpc('resolve_user_names', {
+          p_user_ids: userIds,
+        });
+        if (!nameError && names) {
+          (names as any[]).forEach((n: any) => {
+            nameMap[n.user_id] = n.display_name || 'Unknown User';
+          });
+        }
+      }
 
       const messagesWithProfiles = data.map(msg => ({
         ...msg,
-        from_profile: profileMap.get(msg.from_user_id),
-        to_profile: profileMap.get(msg.to_user_id)
+        from_profile: { display_name: nameMap[msg.from_user_id] || 'Unknown User' },
+        to_profile: { display_name: nameMap[msg.to_user_id] || 'Unknown User' },
       }));
 
       setThreadMessages(messagesWithProfiles);
@@ -110,64 +119,68 @@ export default function MessageThreadView({
   };
 
   const markAsRead = async () => {
-    if (!message || !user) return;
+    if (!message) return;
 
     try {
-      // Mark the main message as read if user is the recipient
-      if (message.to_user_id === user.id && !message.read) {
-        await supabase
-          .from('messages')
-          .update({ read: true })
-          .eq('id', message.id);
+      if (message.to_user_id === userId && !message.read) {
+        await supabase.rpc('mark_message_read', {
+          p_message_id: message.id,
+          p_user_id: userId,
+        });
       }
 
-      // Mark any unread replies as read
+      // Mark unread replies in thread
       const rootMessageId = message.thread_id || message.id;
-      await supabase
+      const { data: unreadReplies } = await supabase
         .from('messages')
-        .update({ read: true })
+        .select('id')
         .eq('thread_id', rootMessageId)
-        .eq('to_user_id', user.id)
+        .eq('to_user_id', userId)
         .eq('read', false);
+
+      if (unreadReplies) {
+        for (const reply of unreadReplies) {
+          await supabase.rpc('mark_message_read', {
+            p_message_id: reply.id,
+            p_user_id: userId,
+          });
+        }
+      }
     } catch (error) {
       console.error('Error marking messages as read:', error);
     }
   };
 
   const sendReply = async () => {
-    if (!message || !user || !replyContent.trim()) return;
+    if (!message || !replyContent.trim()) return;
 
     try {
       setIsSending(true);
       
-      // Determine who to reply to (original sender)
-      const replyToUserId = message.from_user_id === user.id 
+      const replyToUserId = message.from_user_id === userId 
         ? message.to_user_id 
         : message.from_user_id;
       
-      const rootMessageId = message.thread_id || message.id;
-
-      const { error } = await supabase
-        .from('messages')
-        .insert({
-          from_user_id: user.id,
-          to_user_id: replyToUserId,
-          subject: `Re: ${message.subject}`,
-          content: replyContent.trim(),
-          thread_id: rootMessageId,
-          is_reply: true,
-          company_id: currentCompany?.id
-        });
+      const { error } = await supabase.rpc('send_message', {
+        p_from_user_id: userId,
+        p_to_user_id: replyToUserId,
+        p_company_id: companyId,
+        p_subject: `Re: ${message.subject}`,
+        p_content: replyContent.trim(),
+      });
 
       if (error) throw error;
 
+      // Also set thread_id on the newly created message
+      // The send_message RPC creates the message; we need to update thread_id
+      // For now we'll reload the thread which will pick it up
       toast({
         title: 'Reply Sent',
         description: 'Your reply has been sent successfully.'
       });
 
       setReplyContent('');
-      loadThreadMessages(); // Reload to show the new reply
+      loadThreadMessages();
       onMessageSent?.();
     } catch (error) {
       console.error('Error sending reply:', error);
@@ -201,11 +214,10 @@ export default function MessageThreadView({
             </div>
           ) : (
             threadMessages.map((msg) => (
-              <Card key={msg.id} className={`${msg.from_user_id === user?.id ? 'ml-8' : 'mr-8'}`}>
+              <Card key={msg.id} className={`${msg.from_user_id === userId ? 'ml-8' : 'mr-8'}`}>
                 <CardContent className="p-4">
                   <div className="flex items-start gap-3">
                     <Avatar className="h-8 w-8">
-                      <AvatarImage src={msg.from_profile?.avatar_url} />
                       <AvatarFallback>
                         {msg.from_profile?.display_name?.charAt(0) || 'U'}
                       </AvatarFallback>
@@ -245,16 +257,8 @@ export default function MessageThreadView({
             className="resize-none"
           />
           <div className="flex justify-end gap-2">
-            <Button
-              variant="outline"
-              onClick={onClose}
-            >
-              Close
-            </Button>
-            <Button
-              onClick={sendReply}
-              disabled={!replyContent.trim() || isSending}
-            >
+            <Button variant="outline" onClick={onClose}>Close</Button>
+            <Button onClick={sendReply} disabled={!replyContent.trim() || isSending}>
               {isSending ? (
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
               ) : (

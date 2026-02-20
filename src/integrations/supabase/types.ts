@@ -8164,9 +8164,46 @@ export type Database = {
         Args: { p_album_id: string }
         Returns: {
           created_at: string
+          employee_avatar_url: string
+          employee_first_name: string
+          employee_last_name: string
           id: string
+          job_address: string
+          job_name: string
           note: string
           photo_url: string
+        }[]
+      }
+      get_company_bills_attention_counts: {
+        Args: { p_company_id: string }
+        Returns: {
+          bill_count: number
+          job_id: string
+        }[]
+      }
+      get_company_bills_needing_attention: {
+        Args: { p_company_id: string }
+        Returns: {
+          amount: number
+          bill_category: string
+          cost_code_id: string
+          created_at: string
+          description: string
+          due_date: string
+          file_url: string
+          id: string
+          invoice_number: string
+          is_reimbursement: boolean
+          issue_date: string
+          job_id: string
+          job_name: string
+          payment_terms: string
+          pending_coding: boolean
+          retainage_amount: number
+          retainage_percentage: number
+          status: string
+          vendor_id: string
+          vendor_name: string
         }[]
       }
       get_company_directory: {
@@ -8180,6 +8217,17 @@ export type Database = {
           phone: string
           role: string
           user_id: string
+        }[]
+      }
+      get_invoice_distributions: {
+        Args: { p_invoice_id: string }
+        Returns: {
+          amount: number
+          cost_code: string
+          cost_code_description: string
+          cost_code_id: string
+          id: string
+          percentage: number
         }[]
       }
       get_job_albums: {
@@ -8315,6 +8363,48 @@ export type Database = {
           p_uploader_hint: string
         }
         Returns: string
+      }
+      pm_add_bill_distribution: {
+        Args: {
+          p_amount: number
+          p_cost_code_id: string
+          p_invoice_id: string
+          p_percentage: number
+        }
+        Returns: string
+      }
+      pm_approve_bill: {
+        Args: { p_invoice_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      pm_code_bill: {
+        Args: {
+          p_cost_code_id: string
+          p_invoice_id: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
+      pm_delete_bill_distribution: {
+        Args: { p_distribution_id: string }
+        Returns: undefined
+      }
+      pm_update_bill: {
+        Args: {
+          p_amount?: number
+          p_bill_category?: string
+          p_cost_code_id?: string
+          p_description?: string
+          p_due_date?: string
+          p_invoice_id: string
+          p_invoice_number?: string
+          p_issue_date?: string
+          p_job_id?: string
+          p_payment_terms?: string
+          p_pending_coding?: boolean
+          p_status?: string
+        }
+        Returns: undefined
       }
       recalculate_account_balance: {
         Args: { p_account_id: string }
