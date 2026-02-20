@@ -8308,6 +8308,7 @@ export type Database = {
           created_at: string
           from_user_id: string
           id: string
+          is_reply: boolean
           read: boolean
           subject: string
           thread_id: string
