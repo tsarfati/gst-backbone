@@ -2,3 +2,6 @@ project_id = "watxvzoolmfjfijrgcvq"
 
 [functions.cancel-user-invite]
 verify_jwt = false
+
+[functions.daily-message]
+verify_jwt = false

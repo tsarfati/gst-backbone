@@ -2235,6 +2235,44 @@ export type Database = {
           },
         ]
       }
+      daily_messages: {
+        Row: {
+          answer: string | null
+          company_id: string
+          created_at: string
+          id: string
+          message_date: string
+          message_type: string
+          question: string
+        }
+        Insert: {
+          answer?: string | null
+          company_id: string
+          created_at?: string
+          id?: string
+          message_date?: string
+          message_type: string
+          question: string
+        }
+        Update: {
+          answer?: string | null
+          company_id?: string
+          created_at?: string
+          id?: string
+          message_date?: string
+          message_type?: string
+          question?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "daily_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       dashboard_settings: {
         Row: {
           company_id: string
@@ -5251,7 +5289,9 @@ export type Database = {
       }
       pm_mobile_settings: {
         Row: {
+          background_image_url: string | null
           company_id: string
+          container_opacity: number | null
           created_at: string
           dark_mode_default: boolean | null
           default_dashboard_style: string | null
@@ -5261,7 +5301,9 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          background_image_url?: string | null
           company_id: string
+          container_opacity?: number | null
           created_at?: string
           dark_mode_default?: boolean | null
           default_dashboard_style?: string | null
@@ -5271,7 +5313,9 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          background_image_url?: string | null
           company_id?: string
+          container_opacity?: number | null
           created_at?: string
           dark_mode_default?: boolean | null
           default_dashboard_style?: string | null
@@ -5482,12 +5526,14 @@ export type Database = {
       }
       punch_clock_login_settings: {
         Row: {
+          auto_logout_minutes: number | null
           background_color: string | null
           background_image_url: string | null
           bottom_text: string | null
           company_id: string
           created_at: string
           created_by: string
+          daily_message_type: string | null
           header_image_url: string | null
           id: string
           logo_url: string | null
@@ -5497,12 +5543,14 @@ export type Database = {
           welcome_message: string | null
         }
         Insert: {
+          auto_logout_minutes?: number | null
           background_color?: string | null
           background_image_url?: string | null
           bottom_text?: string | null
           company_id: string
           created_at?: string
           created_by: string
+          daily_message_type?: string | null
           header_image_url?: string | null
           id?: string
           logo_url?: string | null
@@ -5512,12 +5560,14 @@ export type Database = {
           welcome_message?: string | null
         }
         Update: {
+          auto_logout_minutes?: number | null
           background_color?: string | null
           background_image_url?: string | null
           bottom_text?: string | null
           company_id?: string
           created_at?: string
           created_by?: string
+          daily_message_type?: string | null
           header_image_url?: string | null
           id?: string
           logo_url?: string | null
@@ -8119,6 +8169,19 @@ export type Database = {
           photo_url: string
         }[]
       }
+      get_company_directory: {
+        Args: { p_company_id: string }
+        Returns: {
+          avatar_url: string
+          display_name: string
+          first_name: string
+          is_pin_employee: boolean
+          last_name: string
+          phone: string
+          role: string
+          user_id: string
+        }[]
+      }
       get_job_albums: {
         Args: { p_job_id: string }
         Returns: {
@@ -8157,6 +8220,17 @@ export type Database = {
         Args: { p_job_id: string; p_user_id: string }
         Returns: string
       }
+      get_pm_mobile_settings: {
+        Args: { p_company_id: string }
+        Returns: {
+          background_image_url: string
+          container_opacity: number
+          dark_mode_default: boolean
+          default_dashboard_style: string
+          mobile_logo_url: string
+          primary_color: string
+        }[]
+      }
       get_profile_by_user_id: {
         Args: { p_user_id: string }
         Returns: {
@@ -8170,12 +8244,26 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_unread_message_count: { Args: { p_user_id: string }; Returns: number }
       get_user_companies: {
         Args: { _user_id: string }
         Returns: {
           company_id: string
           company_name: string
           role: Database["public"]["Enums"]["user_role"]
+        }[]
+      }
+      get_user_messages: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: {
+          content: string
+          created_at: string
+          from_user_id: string
+          id: string
+          read: boolean
+          subject: string
+          thread_id: string
+          to_user_id: string
         }[]
       }
       get_user_role: {
@@ -8213,6 +8301,10 @@ export type Database = {
         Returns: boolean
       }
       is_vendor_user: { Args: { _user_id: string }; Returns: boolean }
+      mark_message_read: {
+        Args: { p_message_id: string; p_user_id: string }
+        Returns: undefined
+      }
       pin_insert_job_photo: {
         Args: {
           p_job_id: string
@@ -8227,6 +8319,23 @@ export type Database = {
       recalculate_account_balance: {
         Args: { p_account_id: string }
         Returns: undefined
+      }
+      resolve_user_names: {
+        Args: { p_user_ids: string[] }
+        Returns: {
+          name: string
+          user_id: string
+        }[]
+      }
+      send_message: {
+        Args: {
+          p_company_id: string
+          p_content: string
+          p_from_user_id: string
+          p_subject: string
+          p_to_user_id: string
+        }
+        Returns: string
       }
       set_role_permission: {
         Args: {
