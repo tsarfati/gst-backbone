@@ -5,6 +5,9 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Slider } from '@/components/ui/slider';
+import { Switch } from '@/components/ui/switch';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
 import ColorPicker from '@/components/ColorPicker';
 import { Upload, Trash2, Eye } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -21,7 +24,9 @@ const defaultSettings = {
   logo_url: '',
   welcome_message: 'Welcome to Punch Clock',
   bottom_text: '',
-  menu_transparency: 100
+  menu_transparency: 100,
+  auto_logout_minutes: null as number | null,
+  daily_message_type: 'none',
 };
 
 export function PunchClockLoginSettings() {
@@ -67,7 +72,9 @@ export function PunchClockLoginSettings() {
           logo_url: data.logo_url || '',
           welcome_message: data.welcome_message || 'Welcome to Punch Clock',
           bottom_text: data.bottom_text || '',
-          menu_transparency: data.menu_transparency ?? 100
+          menu_transparency: data.menu_transparency ?? 100,
+          auto_logout_minutes: data.auto_logout_minutes ?? null,
+          daily_message_type: data.daily_message_type || 'none',
         });
       } else {
         // No settings exist for this company yet - use defaults (blank)
@@ -352,6 +359,81 @@ export function PunchClockLoginSettings() {
           <p className="text-xs text-muted-foreground">
             Controls the opacity of the login card. 0% = fully transparent, 100% = fully opaque.
           </p>
+        </div>
+
+        <Separator />
+
+        {/* Punch Clock Behavior Section */}
+        <div className="space-y-1">
+          <h3 className="text-lg font-semibold">Punch Clock Behavior</h3>
+          <p className="text-sm text-muted-foreground">Configure auto-logout and daily messages</p>
+        </div>
+
+        {/* Auto-Logout Timer */}
+        <div className="space-y-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <Label>Enable Auto-Logout</Label>
+              <p className="text-xs text-muted-foreground">
+                Automatically log out users after a period of inactivity
+              </p>
+            </div>
+            <Switch
+              checked={settings.auto_logout_minutes !== null}
+              onCheckedChange={(checked) =>
+                setSettings(prev => ({
+                  ...prev,
+                  auto_logout_minutes: checked ? 15 : null,
+                }))
+              }
+            />
+          </div>
+          {settings.auto_logout_minutes !== null && (
+            <div className="flex items-center gap-3">
+              <Label className="whitespace-nowrap">Timeout (minutes)</Label>
+              <Select
+                value={String(settings.auto_logout_minutes)}
+                onValueChange={(val) =>
+                  setSettings(prev => ({ ...prev, auto_logout_minutes: parseInt(val) }))
+                }
+              >
+                <SelectTrigger className="w-32">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="5">5 min</SelectItem>
+                  <SelectItem value="10">10 min</SelectItem>
+                  <SelectItem value="15">15 min</SelectItem>
+                  <SelectItem value="30">30 min</SelectItem>
+                  <SelectItem value="60">60 min</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+        </div>
+
+        {/* Daily Message */}
+        <div className="space-y-2">
+          <Label>Daily Message</Label>
+          <p className="text-xs text-muted-foreground">
+            Show a daily message on the punch clock screen
+          </p>
+          <Select
+            value={settings.daily_message_type}
+            onValueChange={(val) =>
+              setSettings(prev => ({ ...prev, daily_message_type: val }))
+            }
+          >
+            <SelectTrigger>
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="none">None</SelectItem>
+              <SelectItem value="joke">Daily Joke – Setup on punch-in, punchline on punch-out</SelectItem>
+              <SelectItem value="riddle">Daily Riddle – Riddle on punch-in, answer on punch-out</SelectItem>
+              <SelectItem value="quote">Daily Quote – Inspirational quote on each load</SelectItem>
+            </SelectContent>
+          </Select>
         </div>
 
         <Button onClick={handleSave} disabled={loading} className="w-full">
