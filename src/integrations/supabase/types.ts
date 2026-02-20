@@ -3214,6 +3214,138 @@ export type Database = {
           },
         ]
       }
+      job_filing_documents: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          folder_id: string
+          id: string
+          job_id: string
+          updated_at: string
+          uploaded_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          folder_id: string
+          id?: string
+          job_id: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          folder_id?: string
+          id?: string
+          job_id?: string
+          updated_at?: string
+          uploaded_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_filing_documents_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_filing_documents_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "job_filing_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_filing_documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_filing_documents_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_filing_folders: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          job_id: string
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          job_id: string
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          job_id?: string
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_filing_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_filing_folders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_filing_folders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_permits: {
         Row: {
           company_id: string
@@ -5113,6 +5245,47 @@ export type Database = {
             columns: ["plan_id"]
             isOneToOne: false
             referencedRelation: "job_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pm_mobile_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          dark_mode_default: boolean | null
+          default_dashboard_style: string | null
+          id: string
+          mobile_logo_url: string | null
+          primary_color: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          dark_mode_default?: boolean | null
+          default_dashboard_style?: string | null
+          id?: string
+          mobile_logo_url?: string | null
+          primary_color?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          dark_mode_default?: boolean | null
+          default_dashboard_style?: string | null
+          id?: string
+          mobile_logo_url?: string | null
+          primary_color?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pm_mobile_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
             referencedColumns: ["id"]
           },
         ]
@@ -7931,8 +8104,32 @@ export type Database = {
           logged_out_count: number
         }[]
       }
+      create_default_filing_folders: {
+        Args: { p_company_id: string; p_created_by: string; p_job_id: string }
+        Returns: undefined
+      }
       generate_qr_code: { Args: never; Returns: string }
       generate_visitor_qr_code: { Args: never; Returns: string }
+      get_album_photos: {
+        Args: { p_album_id: string }
+        Returns: {
+          created_at: string
+          id: string
+          note: string
+          photo_url: string
+        }[]
+      }
+      get_job_albums: {
+        Args: { p_job_id: string }
+        Returns: {
+          cover_url: string
+          description: string
+          id: string
+          is_auto_employee_album: boolean
+          name: string
+          photo_count: number
+        }[]
+      }
       get_job_subcontractors: {
         Args: { p_job_id: string }
         Returns: {
@@ -7941,11 +8138,37 @@ export type Database = {
           vendor_name: string
         }[]
       }
+      get_jobs_for_company: {
+        Args: { p_company_id: string }
+        Returns: {
+          address: string
+          client: string
+          end_date: string
+          id: string
+          name: string
+          project_manager_user_id: string
+          start_date: string
+          status: string
+        }[]
+      }
       get_mapbox_token: { Args: never; Returns: string }
       get_next_cash_account_number: { Args: never; Returns: string }
       get_or_create_employee_album: {
         Args: { p_job_id: string; p_user_id: string }
         Returns: string
+      }
+      get_profile_by_user_id: {
+        Args: { p_user_id: string }
+        Returns: {
+          avatar_url: string
+          current_company_id: string
+          display_name: string
+          first_name: string
+          last_name: string
+          phone: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
+        }[]
       }
       get_user_companies: {
         Args: { _user_id: string }

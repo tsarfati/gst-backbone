@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import ColorPicker from '@/components/ColorPicker';
 import { Palette, Smartphone, Users } from 'lucide-react';
+import PMMobileSettings from '@/components/PMMobileSettings';
 
 export default function ThemeSettings({ embedded = false }: { embedded?: boolean }) {
   const { settings, updateSettings } = useSettings();
@@ -131,6 +132,10 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
             <TabsTrigger value="punch-clock" className="flex items-center gap-2">
               <Smartphone className="h-4 w-4" />
               Punch Clock Login
+            </TabsTrigger>
+            <TabsTrigger value="pm-mobile" className="flex items-center gap-2">
+              <Smartphone className="h-4 w-4" />
+              PM LYNK Mobile
             </TabsTrigger>
           </TabsList>
 
@@ -325,6 +330,10 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
 
           <TabsContent value="punch-clock">
             <PunchClockLoginSettings />
+          </TabsContent>
+
+          <TabsContent value="pm-mobile">
+            <PMMobileSettings />
           </TabsContent>
 
         </Tabs>
