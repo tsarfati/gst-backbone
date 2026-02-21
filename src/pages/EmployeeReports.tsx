@@ -29,8 +29,8 @@ const reports: Report[] = [
   },
   {
     key: "pin-list",
-    title: "PIN Employee Master List",
-    description: "Complete list of all PIN employees with their credentials",
+    title: "Employee PIN Access Report",
+    description: "All employees with PIN access for punch clock and mobile apps",
     icon: Users,
     path: "/employees/reports/pin-list",
     isBuilt: true,
@@ -41,14 +41,6 @@ const reports: Report[] = [
     description: "Generate customized QR code cards for employees to access punch clock",
     icon: QrCode,
     path: "/employees/reports/qr-cards",
-    isBuilt: true,
-  },
-  {
-    key: "all-pins",
-    title: "All Employees with PIN Access",
-    description: "Both regular employees and PIN employees with punch clock access",
-    icon: UserCircle,
-    path: "/employees/reports/all-pins",
     isBuilt: true,
   },
 ];

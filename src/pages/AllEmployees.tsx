@@ -1,9 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Users, Plus, Search } from 'lucide-react';
 import UnifiedViewSelector from '@/components/ui/unified-view-selector';
@@ -21,18 +19,18 @@ import { useActionPermissions } from '@/hooks/useActionPermissions';
 
 interface Employee {
   id: string;
-  user_id?: string; // Optional for PIN employees
+  user_id: string;
   first_name: string;
   last_name: string;
   display_name: string;
   role: string;
   avatar_url?: string;
   created_at: string;
-  is_pin_employee?: boolean;
+  has_pin: boolean;
   pin_code?: string;
-  department?: string;
   phone?: string;
-  group_id?: string;
+  punch_clock_access?: boolean;
+  pm_lynk_access?: boolean;
   assigned_jobs?: Array<{ id: string; name: string }>;
 }
 
@@ -68,83 +66,64 @@ export default function AllEmployees() {
     if (!currentCompany?.id) return;
 
     try {
-      // Get user IDs for this company (includes both regular users and PIN employees)
+      // Get all users with employee role for this company
       const { data: accessData, error: accessError } = await supabase
         .from('user_company_access')
         .select('user_id, role')
         .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .eq('role', 'employee');
 
       if (accessError) throw accessError;
 
-      let userIds = (accessData || []).map(a => a.user_id);
-      const roleMap = new Map((accessData || []).map((a: any) => [a.user_id, a.role]));
+      const userIds = (accessData || []).map(a => a.user_id);
 
-      // Auto-grant logic removed to prevent cross-company leakage of PIN employees
+      if (userIds.length === 0) {
+        setEmployees([]);
+        setLoading(false);
+        return;
+      }
 
-      // Fetch only PIN employees that have access to this company (their IDs are in user_company_access)
-      const { data: pinEmployeeData, error: pinError } = await supabase
-        .from('pin_employees')
-        .select('*')
-        .eq('is_active', true)
-        .in('id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
+      // Fetch profiles for these users
+      const { data: profilesData, error: profilesError } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, display_name, avatar_url, role, pin_code, phone, punch_clock_access, pm_lynk_access, created_at')
+        .in('user_id', userIds);
 
-      if (pinError) throw pinError;
+      if (profilesError) throw profilesError;
 
-      // Fetch all jobs for this company
-      const { data: jobsData } = await supabase
-        .from('jobs')
-        .select('id, name')
-        .eq('company_id', currentCompany.id);
+      // Fetch job assignments
+      const { data: jobAccessData } = await supabase
+        .from('user_job_access')
+        .select('user_id, job_id, jobs(name)')
+        .in('user_id', userIds);
 
-      const jobsMap = new Map((jobsData || []).map(job => [job.id, job]));
+      const jobsMap = new Map<string, Array<{ id: string; name: string }>>();
+      (jobAccessData || []).forEach((ja: any) => {
+        const existing = jobsMap.get(ja.user_id) || [];
+        existing.push({ id: ja.job_id, name: ja.jobs?.name || 'Unknown' });
+        jobsMap.set(ja.user_id, existing);
+      });
 
-      // Fetch job assignments for regular employees
-      const { data: regularSettings } = await supabase
-        .from('employee_timecard_settings')
-        .select('user_id, assigned_jobs')
-        .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
+      const allEmployees: Employee[] = (profilesData || []).map((p: any) => ({
+        id: p.user_id,
+        user_id: p.user_id,
+        first_name: p.first_name || '',
+        last_name: p.last_name || '',
+        display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+        role: 'employee',
+        avatar_url: p.avatar_url,
+        created_at: p.created_at,
+        has_pin: !!p.pin_code,
+        pin_code: p.pin_code,
+        phone: p.phone,
+        punch_clock_access: p.punch_clock_access,
+        pm_lynk_access: p.pm_lynk_access,
+        assigned_jobs: jobsMap.get(p.user_id) || []
+      }));
 
-      // Fetch job assignments for PIN employees
-      const { data: pinSettings } = await supabase
-        .from('pin_employee_timecard_settings')
-        .select('pin_employee_id, assigned_jobs')
-        .in('pin_employee_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
-
-      // Create maps for quick lookup
-      const regularJobsMap = new Map(
-        (regularSettings || []).map(s => [
-          s.user_id,
-          (s.assigned_jobs || []).map((jobId: string) => jobsMap.get(jobId)).filter(Boolean)
-        ])
-      );
-
-      const pinJobsMap = new Map(
-        (pinSettings || []).map(s => [
-          s.pin_employee_id,
-          (s.assigned_jobs || []).map((jobId: string) => jobsMap.get(jobId)).filter(Boolean)
-        ])
-      );
-
-      // Only include PIN employees - system users are managed in Settings > User Management
-      const allEmployees: Employee[] = [
-        ...(pinEmployeeData || []).map((pinEmployee: any) => ({
-          id: pinEmployee.id,
-          user_id: undefined,
-          first_name: pinEmployee.first_name,
-          last_name: pinEmployee.last_name,
-          display_name: pinEmployee.display_name,
-          role: 'employee' as const,
-          avatar_url: pinEmployee.avatar_url,
-          created_at: pinEmployee.created_at,
-          is_pin_employee: true,
-          pin_code: pinEmployee.pin_code,
-          department: pinEmployee.department,
-          phone: pinEmployee.phone,
-          group_id: pinEmployee.group_id,
-          assigned_jobs: pinJobsMap.get(pinEmployee.id) || []
-        }))
-      ];
+      // Sort by last name
+      allEmployees.sort((a, b) => a.last_name.localeCompare(b.last_name));
 
       setEmployees(allEmployees);
     } catch (error) {
@@ -164,13 +143,12 @@ export default function AllEmployees() {
     return (
       `${employee.first_name} ${employee.last_name}`.toLowerCase().includes(searchLower) ||
       employee.display_name?.toLowerCase().includes(searchLower) ||
-      employee.role.toLowerCase().includes(searchLower) ||
-      employee.department?.toLowerCase().includes(searchLower) ||
-      (employee.is_pin_employee && employee.pin_code?.includes(searchTerm))
+      employee.phone?.toLowerCase().includes(searchLower) ||
+      (employee.has_pin && employee.pin_code?.includes(searchTerm))
     );
   });
 
-  const handleEmployeeClick = (employee: Employee) => {
+  const handleEmployeeClick = (employee: any) => {
     setSelectedEmployee(employee);
     setShowEmployeeDetail(true);
   };
@@ -181,17 +159,17 @@ export default function AllEmployees() {
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Users className="h-7 w-7" />
-            PIN Employee Management
+            Employee Management
           </h1>
           <p className="text-muted-foreground">
-            Manage PIN-only employees for punch clock access
+            Manage all employees with punch clock and mobile app access
           </p>
         </div>
         {canCreateEmployees() && (
           <Link to="/add-employee">
             <Button>
               <Plus className="h-4 w-4 mr-2" />
-              Add PIN Employee
+              Add Employee
             </Button>
           </Link>
         )}
@@ -199,7 +177,7 @@ export default function AllEmployees() {
 
       <Tabs defaultValue="employees" className="space-y-6">
         <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-          <TabsTrigger value="employees" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">PIN Employees</TabsTrigger>
+          <TabsTrigger value="employees" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Employees</TabsTrigger>
           <TabsTrigger value="groups" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Groups</TabsTrigger>
           {canManageEmployees && (
             <TabsTrigger value="permissions" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Role Permissions</TabsTrigger>
@@ -213,7 +191,7 @@ export default function AllEmployees() {
                 <div className="relative flex-1">
                   <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
-                    placeholder="Search employees by name or role..."
+                    placeholder="Search employees by name, phone, or PIN..."
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="pl-9"
@@ -233,7 +211,10 @@ export default function AllEmployees() {
             <div className="text-center py-8">Loading employees...</div>
           ) : (
             <EmployeeViews 
-              employees={filteredEmployees}
+              employees={filteredEmployees.map(e => ({
+                ...e,
+                is_pin_employee: e.has_pin,
+              }))}
               currentView={currentView}
               canManageEmployees={canManageEmployees}
               loading={loading}
@@ -244,9 +225,9 @@ export default function AllEmployees() {
           {filteredEmployees.length === 0 && !loading && (
             <div className="text-center py-8">
               <Users className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No PIN employees found</h3>
+              <h3 className="text-lg font-semibold mb-2">No employees found</h3>
               <p className="text-muted-foreground">
-                {searchTerm ? 'Try adjusting your search criteria' : 'Get started by adding your first PIN employee'}
+                {searchTerm ? 'Try adjusting your search criteria' : 'Get started by adding your first employee'}
               </p>
             </div>
           )}
