@@ -7702,6 +7702,62 @@ export type Database = {
           },
         ]
       }
+      user_job_cost_codes: {
+        Row: {
+          cost_code_id: string
+          created_at: string
+          granted_by: string | null
+          id: string
+          job_id: string
+          user_id: string
+        }
+        Insert: {
+          cost_code_id: string
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          job_id: string
+          user_id: string
+        }
+        Update: {
+          cost_code_id?: string
+          created_at?: string
+          granted_by?: string | null
+          id?: string
+          job_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_job_cost_codes_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_job_cost_codes_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "user_job_cost_codes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "user_job_cost_codes_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_login_audit: {
         Row: {
           created_at: string
