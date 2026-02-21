@@ -5560,6 +5560,7 @@ export type Database = {
           created_at: string
           current_company_id: string | null
           custom_role_id: string | null
+          default_company_id: string | null
           display_name: string | null
           first_name: string | null
           group_id: string | null
@@ -5587,6 +5588,7 @@ export type Database = {
           created_at?: string
           current_company_id?: string | null
           custom_role_id?: string | null
+          default_company_id?: string | null
           display_name?: string | null
           first_name?: string | null
           group_id?: string | null
@@ -5614,6 +5616,7 @@ export type Database = {
           created_at?: string
           current_company_id?: string | null
           custom_role_id?: string | null
+          default_company_id?: string | null
           display_name?: string | null
           first_name?: string | null
           group_id?: string | null
@@ -7760,6 +7763,7 @@ export type Database = {
       }
       user_login_audit: {
         Row: {
+          app_source: string | null
           created_at: string
           id: string
           ip_address: string | null
@@ -7771,6 +7775,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          app_source?: string | null
           created_at?: string
           id?: string
           ip_address?: string | null
@@ -7782,6 +7787,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          app_source?: string | null
           created_at?: string
           id?: string
           ip_address?: string | null
@@ -8599,6 +8605,14 @@ export type Database = {
           photo_url: string
         }[]
       }
+      get_companies_for_user: {
+        Args: { p_user_id: string }
+        Returns: {
+          company_id: string
+          company_name: string
+          role: Database["public"]["Enums"]["user_role"]
+        }[]
+      }
       get_company_bills_attention_counts: {
         Args: { p_company_id: string }
         Returns: {
@@ -8905,6 +8919,10 @@ export type Database = {
         }
         Returns: string
       }
+      set_default_company: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: undefined
+      }
       set_pm_mobile_push_enabled: {
         Args: { p_enabled: boolean; p_token?: string; p_user_id: string }
         Returns: undefined
@@ -8915,6 +8933,10 @@ export type Database = {
           p_menu_item: string
           p_role: Database["public"]["Enums"]["user_role"]
         }
+        Returns: undefined
+      }
+      switch_user_company: {
+        Args: { p_company_id: string; p_user_id: string }
         Returns: undefined
       }
       update_pin_user_profile: {

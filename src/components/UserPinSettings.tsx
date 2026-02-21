@@ -85,8 +85,8 @@ export function UserPinSettings({ userId, currentPin, userName }: UserPinSetting
       <CardHeader>
         <CardTitle className="flex items-center justify-between">
           Set PIN for {userName}
-          {currentPin && (
-            <Badge variant="secondary">PIN Set</Badge>
+        {currentPin && (
+            <Badge variant="secondary">Current PIN: {currentPin}</Badge>
           )}
         </CardTitle>
       </CardHeader>
