@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings, ChevronDown, ChevronRight, Shield, Plus, Trash2, LayoutDashboard, HardHat, Receipt, HandCoins, CreditCard, FolderArchive, Users, MessageSquare, CheckSquare, Building, Cog } from "lucide-react";
+import { Settings, ChevronDown, ChevronRight, Shield, Plus, Trash2, LayoutDashboard, HardHat, Receipt, HandCoins, CreditCard, FolderArchive, Users, MessageSquare, CheckSquare, Building, Cog, Smartphone } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -601,6 +601,70 @@ const menuCategories: MenuCategory[] = [
         description: 'Banking and financial reports',
         actions: [
           { key: 'banking-reports-view', label: 'View Reports', description: 'Access banking reports' },
+        ]
+      },
+    ],
+  },
+  {
+    key: 'pm-lynk',
+    label: 'PM Lynk (Mobile App)',
+    icon: Smartphone,
+    description: 'PM Lynk mobile app feature access',
+    items: [
+      {
+        key: 'pm-lynk-messages',
+        label: 'Messages',
+        description: 'Messaging in PM Lynk',
+        actions: [
+          { key: 'pm-lynk-messages-access', label: 'Access Messages', description: 'Use messaging in PM Lynk' },
+        ]
+      },
+      {
+        key: 'pm-lynk-delivery-tickets',
+        label: 'Delivery Tickets',
+        description: 'Delivery tickets in PM Lynk',
+        actions: [
+          { key: 'pm-lynk-delivery-tickets-access', label: 'Access Delivery Tickets', description: 'View and manage delivery tickets' },
+        ]
+      },
+      {
+        key: 'pm-lynk-receipt-scanner',
+        label: 'Receipt Scanner',
+        description: 'Receipt scanning in PM Lynk',
+        actions: [
+          { key: 'pm-lynk-receipt-scanner-access', label: 'Access Receipt Scanner', description: 'Scan and upload receipts' },
+        ]
+      },
+      {
+        key: 'pm-lynk-tasks',
+        label: 'Tasks',
+        description: 'Task management in PM Lynk',
+        actions: [
+          { key: 'pm-lynk-tasks-access', label: 'Access Tasks', description: 'View and manage tasks' },
+        ]
+      },
+      {
+        key: 'pm-lynk-safety',
+        label: 'Safety',
+        description: 'Safety documents in PM Lynk',
+        actions: [
+          { key: 'pm-lynk-safety-access', label: 'Access Safety', description: 'View safety documents and checklists' },
+        ]
+      },
+      {
+        key: 'pm-lynk-directory',
+        label: 'Directory',
+        description: 'Project team directory in PM Lynk',
+        actions: [
+          { key: 'pm-lynk-directory-access', label: 'Access Directory', description: 'View project team directory' },
+        ]
+      },
+      {
+        key: 'pm-lynk-bill-coding',
+        label: 'Bill Coding',
+        description: 'Bill coding in PM Lynk (typically PM only)',
+        actions: [
+          { key: 'pm-lynk-bill-coding-access', label: 'Access Bill Coding', description: 'Code and manage bills in PM Lynk' },
         ]
       },
     ],
