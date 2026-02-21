@@ -919,6 +919,13 @@ export type Database = {
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "bids_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       bill_communications: {
@@ -1920,6 +1927,13 @@ export type Database = {
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "credit_card_transactions_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       credit_cards: {
@@ -2475,6 +2489,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      device_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          platform?: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       email_history: {
         Row: {
@@ -3041,6 +3082,13 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -3675,6 +3723,13 @@ export type Database = {
             columns: ["linked_vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_project_directory_linked_vendor_id_fkey"
+            columns: ["linked_vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
             referencedColumns: ["id"]
           },
           {
@@ -4370,6 +4425,8 @@ export type Database = {
       }
       messages: {
         Row: {
+          attachment_type: string | null
+          attachment_url: string | null
           company_id: string | null
           content: string
           created_at: string
@@ -4382,6 +4439,8 @@ export type Database = {
           to_user_id: string
         }
         Insert: {
+          attachment_type?: string | null
+          attachment_url?: string | null
           company_id?: string | null
           content: string
           created_at?: string
@@ -4394,6 +4453,8 @@ export type Database = {
           to_user_id: string
         }
         Update: {
+          attachment_type?: string | null
+          attachment_url?: string | null
           company_id?: string | null
           content?: string
           created_at?: string
@@ -4783,6 +4844,13 @@ export type Database = {
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "payments_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       pdf_templates: {
@@ -5103,7 +5171,9 @@ export type Database = {
           notes: string | null
           phone: string | null
           pin_code: string
+          profile_avatar_url: string | null
           updated_at: string
+          zodiac_sign: string | null
         }
         Insert: {
           avatar_url?: string | null
@@ -5121,7 +5191,9 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           pin_code: string
+          profile_avatar_url?: string | null
           updated_at?: string
+          zodiac_sign?: string | null
         }
         Update: {
           avatar_url?: string | null
@@ -5139,7 +5211,9 @@ export type Database = {
           notes?: string | null
           phone?: string | null
           pin_code?: string
+          profile_avatar_url?: string | null
           updated_at?: string
+          zodiac_sign?: string | null
         }
         Relationships: [
           {
@@ -5157,6 +5231,54 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      pin_login_attempts: {
+        Row: {
+          attempted_at: string
+          id: string
+          pin_hash: string
+          success: boolean
+        }
+        Insert: {
+          attempted_at?: string
+          id?: string
+          pin_hash: string
+          success?: boolean
+        }
+        Update: {
+          attempted_at?: string
+          id?: string
+          pin_hash?: string
+          success?: boolean
+        }
+        Relationships: []
+      }
+      pin_sessions: {
+        Row: {
+          created_at: string
+          expires_at: string
+          id: string
+          is_active: boolean
+          session_token: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_active?: boolean
+          session_token?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          expires_at?: string
+          id?: string
+          is_active?: boolean
+          session_token?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       plan_comments: {
         Row: {
@@ -5287,6 +5409,101 @@ export type Database = {
           },
         ]
       }
+      pm_mobile_push_queue: {
+        Row: {
+          attempt_count: number
+          body: string
+          company_id: string
+          created_at: string
+          from_user_id: string
+          id: string
+          last_error: string | null
+          message_id: string
+          payload: Json
+          sent_at: string | null
+          status: string
+          title: string
+          to_user_id: string
+        }
+        Insert: {
+          attempt_count?: number
+          body: string
+          company_id: string
+          created_at?: string
+          from_user_id: string
+          id?: string
+          last_error?: string | null
+          message_id: string
+          payload?: Json
+          sent_at?: string | null
+          status?: string
+          title: string
+          to_user_id: string
+        }
+        Update: {
+          attempt_count?: number
+          body?: string
+          company_id?: string
+          created_at?: string
+          from_user_id?: string
+          id?: string
+          last_error?: string | null
+          message_id?: string
+          payload?: Json
+          sent_at?: string | null
+          status?: string
+          title?: string
+          to_user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "pm_mobile_push_queue_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: true
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      pm_mobile_push_tokens: {
+        Row: {
+          app_name: string
+          company_id: string
+          created_at: string
+          id: string
+          last_seen_at: string
+          notifications_enabled: boolean
+          platform: string
+          token: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          app_name?: string
+          company_id: string
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          notifications_enabled?: boolean
+          platform?: string
+          token: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          app_name?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          last_seen_at?: string
+          notifications_enabled?: boolean
+          platform?: string
+          token?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       pm_mobile_settings: {
         Row: {
           background_image_url: string | null
@@ -5352,6 +5569,7 @@ export type Database = {
           nickname: string | null
           phone: string | null
           pin_code: string | null
+          profile_avatar_url: string | null
           profile_completed: boolean | null
           profile_completed_at: string | null
           role: Database["public"]["Enums"]["user_role"]
@@ -5359,6 +5577,7 @@ export type Database = {
           updated_at: string
           user_id: string
           vendor_id: string | null
+          zodiac_sign: string | null
         }
         Insert: {
           approved_at?: string | null
@@ -5377,6 +5596,7 @@ export type Database = {
           nickname?: string | null
           phone?: string | null
           pin_code?: string | null
+          profile_avatar_url?: string | null
           profile_completed?: boolean | null
           profile_completed_at?: string | null
           role?: Database["public"]["Enums"]["user_role"]
@@ -5384,6 +5604,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           vendor_id?: string | null
+          zodiac_sign?: string | null
         }
         Update: {
           approved_at?: string | null
@@ -5402,6 +5623,7 @@ export type Database = {
           nickname?: string | null
           phone?: string | null
           pin_code?: string | null
+          profile_avatar_url?: string | null
           profile_completed?: boolean | null
           profile_completed_at?: string | null
           role?: Database["public"]["Enums"]["user_role"]
@@ -5409,6 +5631,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           vendor_id?: string | null
+          zodiac_sign?: string | null
         }
         Relationships: [
           {
@@ -5437,6 +5660,13 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "profiles_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -5841,6 +6071,13 @@ export type Database = {
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "purchase_orders_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       qr_card_customization: {
@@ -6062,6 +6299,13 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -6368,6 +6612,13 @@ export type Database = {
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "rfp_invited_vendors_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       rfps: {
@@ -6656,6 +6907,13 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "subcontracts_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -7609,6 +7867,13 @@ export type Database = {
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "vendor_compliance_documents_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       vendor_invitations: {
@@ -7672,6 +7937,13 @@ export type Database = {
             referencedRelation: "vendors"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "vendor_invitations_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
         ]
       }
       vendor_payment_methods: {
@@ -7732,6 +8004,13 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_payment_methods_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -8119,6 +8398,84 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "vendor_compliance_documents_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendors_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      vendors_safe: {
+        Row: {
+          address: string | null
+          city: string | null
+          company_id: string | null
+          contact_person: string | null
+          created_at: string | null
+          email: string | null
+          id: string | null
+          is_active: boolean | null
+          logo_url: string | null
+          name: string | null
+          notes: string | null
+          payment_terms: string | null
+          phone: string | null
+          require_invoice_number: boolean | null
+          state: string | null
+          updated_at: string | null
+          vendor_type: string | null
+          zip_code: string | null
+        }
+        Insert: {
+          address?: string | null
+          city?: string | null
+          company_id?: string | null
+          contact_person?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string | null
+          notes?: string | null
+          payment_terms?: string | null
+          phone?: string | null
+          require_invoice_number?: boolean | null
+          state?: string | null
+          updated_at?: string | null
+          vendor_type?: string | null
+          zip_code?: string | null
+        }
+        Update: {
+          address?: string | null
+          city?: string | null
+          company_id?: string | null
+          contact_person?: string | null
+          created_at?: string | null
+          email?: string | null
+          id?: string | null
+          is_active?: boolean | null
+          logo_url?: string | null
+          name?: string | null
+          notes?: string | null
+          payment_terms?: string | null
+          phone?: string | null
+          require_invoice_number?: boolean | null
+          state?: string | null
+          updated_at?: string | null
+          vendor_type?: string | null
+          zip_code?: string | null
+        }
+        Relationships: [
+          {
             foreignKeyName: "vendors_company_id_fkey"
             columns: ["company_id"]
             isOneToOne: false
@@ -8147,6 +8504,17 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: undefined
       }
+      audit_duplicate_pin_codes: {
+        Args: never
+        Returns: {
+          pin_code: string
+          pin_employee_ids: string[]
+          pin_employees_count: number
+          profile_user_ids: string[]
+          profiles_count: number
+          total_count: number
+        }[]
+      }
       auto_logout_visitors: {
         Args: never
         Returns: {
@@ -8154,6 +8522,7 @@ export type Database = {
           logged_out_count: number
         }[]
       }
+      cleanup_pin_data: { Args: never; Returns: undefined }
       create_default_filing_folders: {
         Args: { p_company_id: string; p_created_by: string; p_job_id: string }
         Returns: undefined
@@ -8268,6 +8637,15 @@ export type Database = {
         Args: { p_job_id: string; p_user_id: string }
         Returns: string
       }
+      get_pin_avatar_snapshot: {
+        Args: { p_pin: string }
+        Returns: {
+          avatar_url: string
+          is_pin_employee: boolean
+          latest_punch_photo_url: string
+          user_id: string
+        }[]
+      }
       get_pm_mobile_settings: {
         Args: { p_company_id: string }
         Returns: {
@@ -8290,6 +8668,26 @@ export type Database = {
           phone: string
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
+        }[]
+      }
+      get_thread_messages: {
+        Args: {
+          p_company_id: string
+          p_other_user_id: string
+          p_user_id: string
+        }
+        Returns: {
+          attachment_type: string
+          attachment_url: string
+          content: string
+          created_at: string
+          from_user_id: string
+          id: string
+          is_reply: boolean
+          read: boolean
+          subject: string
+          thread_id: string
+          to_user_id: string
         }[]
       }
       get_unread_message_count: { Args: { p_user_id: string }; Returns: number }
@@ -8336,6 +8734,10 @@ export type Database = {
         }
         Returns: boolean
       }
+      invalidate_pin_session: {
+        Args: { p_session_token: string }
+        Returns: undefined
+      }
       is_company_admin_or_controller: {
         Args: { _company: string; _user: string }
         Returns: boolean
@@ -8352,6 +8754,10 @@ export type Database = {
       is_vendor_user: { Args: { _user_id: string }; Returns: boolean }
       mark_message_read: {
         Args: { p_message_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      mark_thread_read: {
+        Args: { p_other_user_id: string; p_user_id: string }
         Returns: undefined
       }
       pin_insert_job_photo: {
@@ -8411,22 +8817,41 @@ export type Database = {
         Args: { p_account_id: string }
         Returns: undefined
       }
+      register_pm_mobile_push_token: {
+        Args: {
+          p_company_id: string
+          p_enabled?: boolean
+          p_platform: string
+          p_token: string
+          p_user_id: string
+        }
+        Returns: undefined
+      }
       resolve_user_names: {
         Args: { p_user_ids: string[] }
         Returns: {
+          avatar_url: string
           name: string
           user_id: string
         }[]
       }
       send_message: {
         Args: {
+          p_attachment_type?: string
+          p_attachment_url?: string
           p_company_id: string
           p_content: string
           p_from_user_id: string
+          p_is_reply?: boolean
           p_subject: string
+          p_thread_id?: string
           p_to_user_id: string
         }
         Returns: string
+      }
+      set_pm_mobile_push_enabled: {
+        Args: { p_enabled: boolean; p_token?: string; p_user_id: string }
+        Returns: undefined
       }
       set_role_permission: {
         Args: {
@@ -8435,6 +8860,23 @@ export type Database = {
           p_role: Database["public"]["Enums"]["user_role"]
         }
         Returns: undefined
+      }
+      update_pin_user_profile: {
+        Args: {
+          p_avatar_url?: string
+          p_email?: string
+          p_phone?: string
+          p_pin: string
+          p_zodiac_sign?: string
+        }
+        Returns: {
+          avatar_url: string
+          email: string
+          is_pin_employee: boolean
+          phone: string
+          user_id: string
+          zodiac_sign: string
+        }[]
       }
       user_in_company_tenant: {
         Args: { _company_id: string; _user_id: string }
@@ -8466,6 +8908,7 @@ export type Database = {
           is_pin_employee: boolean
           last_name: string
           role: Database["public"]["Enums"]["user_role"]
+          session_token: string
           user_id: string
         }[]
       }
@@ -8475,6 +8918,16 @@ export type Database = {
           property_address: string
           property_id: string
           property_name: string
+        }[]
+      }
+      verify_pin_session: {
+        Args: { p_session_token: string }
+        Returns: {
+          current_company_id: string
+          first_name: string
+          last_name: string
+          role: Database["public"]["Enums"]["user_role"]
+          user_id: string
         }[]
       }
     }

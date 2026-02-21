@@ -7,7 +7,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useLocation } from "react-router-dom";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddSystemUserDialog from "@/components/AddSystemUserDialog";
@@ -38,6 +38,7 @@ export default function UserManagement() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const location = useLocation();
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,7 +65,7 @@ export default function UserManagement() {
       fetchUsers();
       fetchJobs();
     }
-  }, [currentCompany]);
+  }, [currentCompany, location.key]);
 
   const fetchUsers = async () => {
     if (!currentCompany) {
