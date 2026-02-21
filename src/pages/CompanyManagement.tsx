@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Users, UserPlus, Shield, Eye, Trash2, Edit, Plus, Upload, Camera, Share2, FileText } from 'lucide-react';
+import { Building2, Users, UserPlus, Shield, Trash2, Edit, Plus, Upload, Camera, Share2, FileText, AlertTriangle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompanyAccessApproval from '@/components/CompanyAccessApproval';
@@ -44,6 +44,9 @@ export default function CompanyManagement() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [users, setUsers] = useState<CompanyUser[]>([]);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [deleteTargetUser, setDeleteTargetUser] = useState<CompanyUser | null>(null);
+  const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [loading, setLoading] = useState(true);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [showEditCompanyDialog, setShowEditCompanyDialog] = useState(false);
@@ -79,6 +82,7 @@ export default function CompanyManagement() {
   // Get current user's role in this company
   const currentUserCompany = userCompanies.find(uc => uc.company_id === currentCompany?.id);
   const isCompanyAdmin = currentUserCompany?.role === 'admin' || currentUserCompany?.role === 'controller';
+  const isOwnerOrAdmin = currentUserCompany?.role === 'admin';
 
   // Helper function to get user IDs that have access to a company
   const getCompanyUserIds = async (companyId: string): Promise<string[]> => {
@@ -881,27 +885,15 @@ export default function CompanyManagement() {
                     {isCompanyAdmin && (
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
-                          <Button
-                            variant="outline"
-                            size="sm"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (companyUser.is_pin_employee) {
-                                navigate(`/pin-employees/${companyUser.user_id}/edit`);
-                              } else {
-                                navigate(`/settings/users/${companyUser.user_id}`, { state: { fromCompanyManagement: true } });
-                              }
-                            }}
-                          >
-                            <Eye className="h-4 w-4" />
-                          </Button>
-                          {!companyUser.is_pin_employee && companyUser.user_id !== user?.id && (
+                          {isOwnerOrAdmin && !companyUser.is_pin_employee && companyUser.user_id !== user?.id && (
                             <Button
                               variant="destructive"
                               size="sm"
                               onClick={(e) => {
                                 e.stopPropagation();
-                                handleRemoveUser(companyUser.user_id);
+                                setDeleteTargetUser(companyUser);
+                                setDeleteConfirmName('');
+                                setShowDeleteDialog(true);
                               }}
                             >
                               <Trash2 className="h-4 w-4" />
@@ -1212,6 +1204,62 @@ export default function CompanyManagement() {
               Cancel
             </Button>
             <Button onClick={handleUpdateCompany}>Save Changes</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete User Confirmation Dialog */}
+      <Dialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-destructive">
+              <AlertTriangle className="h-5 w-5" />
+              Remove User from Company
+            </DialogTitle>
+            <DialogDescription>
+              This is a permanent action. The user will lose all access to this company's data, jobs, and settings.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="p-4 border border-destructive/30 rounded-lg bg-destructive/5">
+              <p className="text-sm font-medium mb-2">
+                To confirm, type the user's name: <strong>{
+                  deleteTargetUser?.profile?.display_name ||
+                  `${deleteTargetUser?.profile?.first_name || ''} ${deleteTargetUser?.profile?.last_name || ''}`.trim() ||
+                  'Unknown User'
+                }</strong>
+              </p>
+              <Input
+                value={deleteConfirmName}
+                onChange={(e) => setDeleteConfirmName(e.target.value)}
+                placeholder="Type the user's name to confirm"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowDeleteDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              disabled={
+                deleteConfirmName.toLowerCase().trim() !== (
+                  deleteTargetUser?.profile?.display_name ||
+                  `${deleteTargetUser?.profile?.first_name || ''} ${deleteTargetUser?.profile?.last_name || ''}`.trim() ||
+                  ''
+                ).toLowerCase().trim()
+              }
+              onClick={() => {
+                if (deleteTargetUser) {
+                  handleRemoveUser(deleteTargetUser.user_id);
+                  setShowDeleteDialog(false);
+                  setDeleteTargetUser(null);
+                  setDeleteConfirmName('');
+                }
+              }}
+            >
+              Remove User
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
