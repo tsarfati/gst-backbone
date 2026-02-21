@@ -32,7 +32,9 @@ function PMobileApp() {
   const [receiptCount, setReceiptCount] = useState(0);
   const [ticketCount, setTicketCount] = useState(0);
   const [mobileSettings, setMobileSettings] = useState<PMobileSettings>({});
-  const companyId = (profile as any)?.current_company_id;
+  // Get companyId from profile or fallback to pm_mobile_user localStorage
+  const pmLocalUser = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('pm_mobile_user') || 'null') : null;
+  const companyId = (profile as any)?.current_company_id || pmLocalUser?.current_company_id;
 
   // Load dynamic manifest for PWA icons
   useDynamicManifest();
