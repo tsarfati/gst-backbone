@@ -5,6 +5,9 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   User, 
   Mail, 
@@ -21,14 +24,19 @@ import {
   KeyRound,
   Loader2,
   CheckCircle,
-  XCircle
+  XCircle,
+  Save,
+  X,
+  Key
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useTenant } from "@/contexts/TenantContext";
+import { useAuth } from "@/contexts/AuthContext";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
+import { UserPinSettings } from "@/components/UserPinSettings";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -57,6 +65,7 @@ interface UserProfile {
   department?: string;
   notes?: string;
   vendor_id?: string;
+  pin_code?: string;
 }
 
 interface Vendor {
@@ -77,7 +86,18 @@ interface LoginAudit {
   user_agent?: string;
   login_method?: string;
   success?: boolean;
+  app_source?: string;
 }
+
+const roleLabels: Record<string, string> = {
+  admin: 'Administrator',
+  controller: 'Controller',
+  project_manager: 'Project Manager',
+  employee: 'Employee',
+  view_only: 'View Only',
+  company_admin: 'Company Admin',
+  vendor: 'Vendor'
+};
 
 export default function UserDetails() {
   const { userId } = useParams();
@@ -85,6 +105,7 @@ export default function UserDetails() {
   const location = useLocation();
   const { currentCompany } = useCompany();
   const { isSuperAdmin } = useTenant();
+  const { profile } = useAuth();
   const { toast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -93,8 +114,15 @@ export default function UserDetails() {
   const [associatedVendor, setAssociatedVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
   const [sendingReset, setSendingReset] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', display_name: '', role: '', status: '' });
+  const [companyRole, setCompanyRole] = useState<string | null>(null);
   
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
+  const isAdmin = profile?.role === 'admin';
+  const isController = profile?.role === 'controller';
+  const canManage = isAdmin || isController;
 
   const roleColors: Record<string, string> = {
     admin: 'bg-destructive',
@@ -113,7 +141,6 @@ export default function UserDetails() {
   };
 
   useEffect(() => {
-    // Super admins can view any user without company context
     if (userId && (currentCompany || isSuperAdmin)) {
       fetchUserDetails();
       fetchUserJobs();
@@ -124,45 +151,40 @@ export default function UserDetails() {
 
   const fetchUserDetails = async () => {
     try {
-      // First try to fetch from profiles table (regular users)
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('*')
-        .eq('user_id', userId)
-        .maybeSingle();
+      const [profileRes, accessRes] = await Promise.all([
+        supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
+        currentCompany ? supabase.from('user_company_access').select('role').eq('user_id', userId!).eq('company_id', currentCompany.id).eq('is_active', true).maybeSingle() : Promise.resolve({ data: null, error: null })
+      ]);
 
-      if (profileData) {
-        setUser(profileData);
+      if (profileRes.data) {
+        const role = accessRes.data?.role || profileRes.data.role;
+        setCompanyRole(accessRes.data?.role || null);
+        const userData = { ...profileRes.data, role };
+        setUser(userData);
+        setEditForm({
+          first_name: userData.first_name || '',
+          last_name: userData.last_name || '',
+          display_name: userData.display_name || '',
+          role: role,
+          status: userData.status || 'approved',
+        });
         
-        // Fetch associated vendor if user is a vendor
-        if (profileData.vendor_id) {
-          const { data: vendorData } = await supabase
-            .from('vendors')
-            .select('id, name')
-            .eq('id', profileData.vendor_id)
-            .single();
-          
-          if (vendorData) {
-            setAssociatedVendor(vendorData);
-          }
+        if (profileRes.data.vendor_id) {
+          const { data: vendorData } = await supabase.from('vendors').select('id, name').eq('id', profileRes.data.vendor_id).single();
+          if (vendorData) setAssociatedVendor(vendorData);
         }
         
         setLoading(false);
         return;
       }
 
-      // If not found in profiles, try pin_employees table
+      // PIN employee fallback
       const { data: pinData, error: pinError } = await (supabase as any)
-        .from('pin_employees')
-        .select('*')
-        .eq('id', userId)
-        .maybeSingle();
-
+        .from('pin_employees').select('*').eq('id', userId).maybeSingle();
       if (pinError) throw pinError;
 
       if (pinData) {
-        // Transform PIN employee data to match UserProfile interface
-        setUser({
+        const userData: UserProfile = {
           user_id: pinData.id,
           display_name: pinData.display_name || `${pinData.first_name} ${pinData.last_name}`,
           first_name: pinData.first_name,
@@ -175,18 +197,23 @@ export default function UserDetails() {
           avatar_url: pinData.avatar_url,
           created_at: pinData.created_at,
           department: pinData.department,
-          notes: pinData.notes
+          notes: pinData.notes,
+          pin_code: pinData.pin_code,
+        };
+        setUser(userData);
+        setEditForm({
+          first_name: userData.first_name || '',
+          last_name: userData.last_name || '',
+          display_name: userData.display_name || '',
+          role: 'employee',
+          status: 'approved',
         });
       } else {
         throw new Error('User not found');
       }
     } catch (error) {
       console.error('Error fetching user:', error);
-      toast({
-        title: "Error",
-        description: "Failed to fetch user details",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to fetch user details", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -194,37 +221,16 @@ export default function UserDetails() {
 
   const fetchUserJobs = async () => {
     if (!currentCompany) return;
-
     try {
-      // Try to fetch jobs from user_job_access (regular users)
-      const { data: userJobsData, error: userJobsError } = await supabase
-        .from('user_job_access')
-        .select('job_id, jobs(id, name)')
-        .eq('user_id', userId);
-
+      const { data: userJobsData } = await supabase.from('user_job_access').select('job_id, jobs(id, name)').eq('user_id', userId);
       if (userJobsData && userJobsData.length > 0) {
-        const jobs = userJobsData.map((item: any) => item.jobs).filter(Boolean) || [];
-        setUserJobs(jobs);
+        setUserJobs(userJobsData.map((item: any) => item.jobs).filter(Boolean));
         return;
       }
-
-      // If no jobs found, try pin_employee_timecard_settings
-      const { data: pinSettingsData } = await (supabase as any)
-        .from('pin_employee_timecard_settings')
-        .select('assigned_jobs')
-        .eq('pin_employee_id', userId)
-        .maybeSingle();
-
-      if (pinSettingsData?.assigned_jobs && pinSettingsData.assigned_jobs.length > 0) {
-        // Fetch job details for the assigned job IDs
-        const { data: jobsData } = await supabase
-          .from('jobs')
-          .select('id, name')
-          .in('id', pinSettingsData.assigned_jobs);
-
-        if (jobsData) {
-          setUserJobs(jobsData);
-        }
+      const { data: pinSettingsData } = await (supabase as any).from('pin_employee_timecard_settings').select('assigned_jobs').eq('pin_employee_id', userId).maybeSingle();
+      if (pinSettingsData?.assigned_jobs?.length > 0) {
+        const { data: jobsData } = await supabase.from('jobs').select('id, name').in('id', pinSettingsData.assigned_jobs);
+        if (jobsData) setUserJobs(jobsData);
       }
     } catch (error) {
       console.error('Error fetching user jobs:', error);
@@ -233,19 +239,8 @@ export default function UserDetails() {
 
   const fetchLoginAudit = async () => {
     try {
-      const { data, error } = await supabase
-        .from('user_login_audit')
-        .select('*')
-        .eq('user_id', userId)
-        .order('login_time', { ascending: false })
-        .limit(20);
-
-      if (error) {
-        console.error('Error fetching login audit:', error);
-        return;
-      }
-
-      setLoginAudit(data || []);
+      const { data, error } = await supabase.from('user_login_audit').select('*').eq('user_id', userId).order('login_time', { ascending: false }).limit(20);
+      if (!error) setLoginAudit(data || []);
     } catch (error) {
       console.error('Error fetching login audit:', error);
     }
@@ -255,22 +250,8 @@ export default function UserDetails() {
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) return;
-
-      const response = await supabase.functions.invoke('get-user-email', {
-        body: {
-          userId,
-          companyId: currentCompany?.id,
-        },
-      });
-
-      if (response.error) {
-        console.error('Error fetching user email:', response.error);
-        return;
-      }
-
-      if (response.data?.email) {
-        setUserEmail(response.data.email);
-      }
+      const response = await supabase.functions.invoke('get-user-email', { body: { userId, companyId: currentCompany?.id } });
+      if (response.data?.email) setUserEmail(response.data.email);
     } catch (error) {
       console.error('Error fetching user email:', error);
     }
@@ -279,53 +260,89 @@ export default function UserDetails() {
   const handleSendPasswordReset = async () => {
     const email = userEmail || user?.email;
     if (!email) {
-      toast({
-        title: "Error",
-        description: "No email address found for this user",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "No email address found for this user", variant: "destructive" });
       return;
     }
-
     setSendingReset(true);
     try {
-      const response = await supabase.functions.invoke('send-password-reset', {
-        body: { 
-          email,
-          redirectTo: `${window.location.origin}/auth`
-        },
-      });
-
-      if (response.error) {
-        throw new Error(response.error.message || 'Failed to send password reset');
-      }
-
-      toast({
-        title: "Success",
-        description: `Password reset email sent to ${email}`,
-      });
+      const response = await supabase.functions.invoke('send-password-reset', { body: { email, redirectTo: `${window.location.origin}/auth` } });
+      if (response.error) throw new Error(response.error.message || 'Failed to send password reset');
+      toast({ title: "Success", description: `Password reset email sent to ${email}` });
     } catch (error: any) {
-      console.error('Error sending password reset:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to send password reset email",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: error.message || "Failed to send password reset email", variant: "destructive" });
     } finally {
       setSendingReset(false);
     }
   };
 
-  if (loading) {
-    return <div className="p-6 text-center">Loading user details...</div>;
-  }
+  const handleStartEdit = () => {
+    if (!user) return;
+    setEditForm({
+      first_name: user.first_name || '',
+      last_name: user.last_name || '',
+      display_name: user.display_name || '',
+      role: user.role,
+      status: user.status || 'approved',
+    });
+    setEditing(true);
+  };
 
-  if (!user) {
-    return <div className="p-6 text-center">User not found</div>;
-  }
+  const handleCancelEdit = () => {
+    setEditing(false);
+  };
+
+  const handleSaveEdit = async () => {
+    if (!user || !currentCompany) return;
+    setSaving(true);
+    try {
+      // Update profile
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          first_name: editForm.first_name,
+          last_name: editForm.last_name,
+          display_name: editForm.display_name,
+          status: editForm.status,
+        })
+        .eq('user_id', user.user_id);
+      if (profileError) throw profileError;
+
+      // Update company-specific role
+      const { error: roleError } = await supabase
+        .from('user_company_access')
+        .update({ role: editForm.role as any })
+        .eq('user_id', user.user_id)
+        .eq('company_id', currentCompany.id);
+      if (roleError) throw roleError;
+
+      setUser(prev => prev ? { ...prev, ...editForm } : null);
+      setEditing(false);
+      toast({ title: "Success", description: "User updated successfully" });
+    } catch (error) {
+      console.error('Error saving user:', error);
+      toast({ title: "Error", description: "Failed to update user", variant: "destructive" });
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  if (loading) return <div className="p-6 text-center">Loading user details...</div>;
+  if (!user) return <div className="p-6 text-center">User not found</div>;
 
   const displayName = user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User';
   const initials = user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U';
+
+  const getAppLabel = (source?: string) => {
+    if (source === 'punch_clock') return 'Punch Clock';
+    if (source === 'pmlynk') return 'PM Lynk';
+    return 'BuilderLynk Web';
+  };
+
+  const getAppBadgeVariant = (source?: string) => {
+    if (source === 'punch_clock') return 'secondary';
+    if (source === 'pmlynk') return 'default';
+    return 'outline';
+  };
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -339,19 +356,32 @@ export default function UserDetails() {
           <ArrowLeft className="h-4 w-4" />
           {fromCompanyManagement ? 'Back to Company Management' : 'Back to Users'}
         </Button>
-        <Button
-          onClick={() => navigate(`/settings/users/${userId}/edit`)}
-          className="flex items-center gap-2"
-        >
-          <Edit className="h-4 w-4" />
-          Edit User
-        </Button>
       </div>
 
       {/* User Profile Card */}
       <Card>
         <CardHeader>
-          <CardTitle>User Profile</CardTitle>
+          <div className="flex items-center justify-between">
+            <CardTitle>User Profile</CardTitle>
+            {canManage && !editing && (
+              <Button variant="outline" size="sm" onClick={handleStartEdit}>
+                <Edit className="h-4 w-4 mr-2" />
+                Edit
+              </Button>
+            )}
+            {editing && (
+              <div className="flex gap-2">
+                <Button variant="outline" size="sm" onClick={handleCancelEdit}>
+                  <X className="h-4 w-4 mr-2" />
+                  Cancel
+                </Button>
+                <Button size="sm" onClick={handleSaveEdit} disabled={saving}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {saving ? 'Saving...' : 'Save'}
+                </Button>
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           <div className="flex items-start gap-6">
@@ -360,54 +390,106 @@ export default function UserDetails() {
               <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
             </Avatar>
             <div className="flex-1 space-y-4">
-              <div>
-                <h2 className="text-3xl font-bold">{displayName}</h2>
-                <div className="flex items-center gap-2 mt-2">
-                  <Badge className={roleColors[user.role] || 'bg-muted'}>
-                    {user.role}
-                  </Badge>
-                  <Badge className={statusColors[user.status] || 'bg-muted'}>
-                    {user.status}
-                  </Badge>
+              {editing ? (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label htmlFor="edit_first_name">First Name</Label>
+                      <Input id="edit_first_name" value={editForm.first_name} onChange={(e) => setEditForm(f => ({ ...f, first_name: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit_last_name">Last Name</Label>
+                      <Input id="edit_last_name" value={editForm.last_name} onChange={(e) => setEditForm(f => ({ ...f, last_name: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div>
+                    <Label htmlFor="edit_display_name">Display Name</Label>
+                    <Input id="edit_display_name" value={editForm.display_name} onChange={(e) => setEditForm(f => ({ ...f, display_name: e.target.value }))} />
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <Label>Role</Label>
+                      <Select value={editForm.role} onValueChange={(v) => setEditForm(f => ({ ...f, role: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="admin">Administrator</SelectItem>
+                          <SelectItem value="controller">Controller</SelectItem>
+                          <SelectItem value="project_manager">Project Manager</SelectItem>
+                          <SelectItem value="employee">Employee</SelectItem>
+                          <SelectItem value="view_only">View Only</SelectItem>
+                          <SelectItem value="company_admin">Company Admin</SelectItem>
+                          <SelectItem value="vendor">Vendor</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div>
+                      <Label>Status</Label>
+                      <Select value={editForm.status} onValueChange={(v) => setEditForm(f => ({ ...f, status: v }))}>
+                        <SelectTrigger><SelectValue /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="approved">Approved</SelectItem>
+                          <SelectItem value="pending">Pending</SelectItem>
+                          <SelectItem value="suspended">Suspended</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
                 </div>
-              </div>
+              ) : (
+                <>
+                  <div>
+                    <h2 className="text-3xl font-bold">{displayName}</h2>
+                    <div className="flex items-center gap-2 mt-2">
+                      <Badge className={roleColors[user.role] || 'bg-muted'}>
+                        {roleLabels[user.role] || user.role}
+                      </Badge>
+                      <Badge className={statusColors[user.status] || 'bg-muted'}>
+                        {user.status}
+                      </Badge>
+                    </div>
+                  </div>
 
-              <Separator />
+                  <Separator />
 
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* Show email from auth.users or profile */}
-                {(userEmail || user.email) && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Mail className="h-4 w-4" />
-                    <span>{userEmail || user.email}</span>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {(userEmail || user.email) && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Mail className="h-4 w-4" />
+                        <span>{userEmail || user.email}</span>
+                      </div>
+                    )}
+                    {user.phone && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Phone className="h-4 w-4" />
+                        <span>{user.phone}</span>
+                      </div>
+                    )}
+                    {user.department && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <MapPin className="h-4 w-4" />
+                        <span>{user.department}</span>
+                      </div>
+                    )}
+                    {associatedVendor && (
+                      <div className="flex items-center gap-2 text-muted-foreground">
+                        <Store className="h-4 w-4" />
+                        <span>Associated Vendor: {associatedVendor.name}</span>
+                      </div>
+                    )}
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>Joined {new Date(user.created_at).toLocaleDateString()}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <User className="h-4 w-4" />
+                      <span className="text-xs font-mono break-all">ID: {user.user_id}</span>
+                    </div>
                   </div>
-                )}
-                {user.phone && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Phone className="h-4 w-4" />
-                    <span>{user.phone}</span>
-                  </div>
-                )}
-                {user.department && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <MapPin className="h-4 w-4" />
-                    <span>{user.department}</span>
-                  </div>
-                )}
-                {associatedVendor && (
-                  <div className="flex items-center gap-2 text-muted-foreground">
-                    <Store className="h-4 w-4" />
-                    <span>Associated Vendor: {associatedVendor.name}</span>
-                  </div>
-                )}
-                <div className="flex items-center gap-2 text-muted-foreground">
-                  <Calendar className="h-4 w-4" />
-                  <span>Joined {new Date(user.created_at).toLocaleDateString()}</span>
-                </div>
-              </div>
+                </>
+              )}
 
               {/* Password Reset Action */}
-              {(userEmail || user.email) && (
+              {!editing && (userEmail || user.email) && (
                 <div className="pt-2">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
@@ -426,18 +508,8 @@ export default function UserDetails() {
                       </AlertDialogHeader>
                       <AlertDialogFooter>
                         <AlertDialogCancel>Cancel</AlertDialogCancel>
-                        <AlertDialogAction 
-                          onClick={handleSendPasswordReset}
-                          disabled={sendingReset}
-                        >
-                          {sendingReset ? (
-                            <>
-                              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                              Sending...
-                            </>
-                          ) : (
-                            'Send Reset Email'
-                          )}
+                        <AlertDialogAction onClick={handleSendPasswordReset} disabled={sendingReset}>
+                          {sendingReset ? (<><Loader2 className="h-4 w-4 mr-2 animate-spin" />Sending...</>) : 'Send Reset Email'}
                         </AlertDialogAction>
                       </AlertDialogFooter>
                     </AlertDialogContent>
@@ -445,7 +517,7 @@ export default function UserDetails() {
                 </div>
               )}
 
-              {user.notes && (
+              {!editing && user.notes && (
                 <>
                   <Separator />
                   <div>
@@ -458,6 +530,35 @@ export default function UserDetails() {
           </div>
         </CardContent>
       </Card>
+
+      {/* PIN Settings for Mobile Access */}
+      {canManage && ['admin', 'controller', 'project_manager', 'employee'].includes(user.role) && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Key className="h-5 w-5" />
+              PIN Settings for Mobile Access
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              {['admin', 'controller', 'project_manager'].includes(user.role) && (
+                <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-900 p-3">
+                  <p className="text-sm text-blue-700 dark:text-blue-300">
+                    <Shield className="h-4 w-4 inline mr-2" />
+                    Set a PIN to enable access to the PM Mobile App
+                  </p>
+                </div>
+              )}
+              <UserPinSettings
+                userId={user.user_id}
+                currentPin={user.pin_code}
+                userName={displayName}
+              />
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Company Access - Only show when accessed from Company Management */}
       {fromCompanyManagement && (
@@ -486,7 +587,6 @@ export default function UserDetails() {
           <UserJobAccess userId={userId!} userRole={user.role} />
         </CardContent>
       </Card>
-
 
       {/* Login Audit Trail */}
       <Card>
@@ -525,6 +625,9 @@ export default function UserDetails() {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
+                    <Badge variant={getAppBadgeVariant(audit.app_source) as any}>
+                      {getAppLabel(audit.app_source)}
+                    </Badge>
                     {audit.user_agent && (
                       <Badge variant="outline" className="text-xs max-w-32 truncate" title={audit.user_agent}>
                         {audit.user_agent.includes('Mobile') ? 'Mobile' : 'Desktop'}
