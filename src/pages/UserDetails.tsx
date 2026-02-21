@@ -359,6 +359,16 @@ export default function UserDetails() {
           <ArrowLeft className="h-4 w-4" />
           {fromCompanyManagement ? 'Back to Company Management' : 'Back to Users'}
         </Button>
+        <Button onClick={() => {
+          const jobAccessEl = document.getElementById('job-access-section');
+          if (jobAccessEl) {
+            const saveBtn = jobAccessEl.querySelector<HTMLButtonElement>('[data-save-jobs]');
+            saveBtn?.click();
+          }
+        }} size="sm">
+          <Save className="h-4 w-4 mr-2" />
+          Save
+        </Button>
       </div>
 
       {/* User Profile Card */}
@@ -544,18 +554,28 @@ export default function UserDetails() {
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+              {/* PIN Settings */}
+              <div className="space-y-4 p-4 border rounded-lg">
+                <h3 className="text-sm font-semibold">Set PIN</h3>
+                <UserPinSettings
+                  userId={user.user_id}
+                  currentPin={user.pin_code}
+                  userName={displayName}
+                />
+              </div>
+
               {/* App Access Toggles */}
-              <div className="space-y-4">
+              <div className="space-y-4 p-4 border rounded-lg">
                 <h3 className="text-sm font-semibold">App Access</h3>
-                <p className="text-sm text-muted-foreground">
-                  Control which mobile apps this user's PIN grants access to. One PIN is shared across all apps.
+                <p className="text-xs text-muted-foreground">
+                  One PIN is shared across all apps.
                 </p>
                 <div className="space-y-3">
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="space-y-0.5">
                       <Label className="font-medium">Punch Clock</Label>
-                      <p className="text-xs text-muted-foreground">Allow this user to punch in/out via the Punch Clock app</p>
+                      <p className="text-xs text-muted-foreground">Punch in/out access</p>
                     </div>
                     <Switch
                       checked={user.punch_clock_access !== false}
@@ -571,7 +591,7 @@ export default function UserDetails() {
                   <div className="flex items-center justify-between p-3 border rounded-lg">
                     <div className="space-y-0.5">
                       <Label className="font-medium">PM Lynk</Label>
-                      <p className="text-xs text-muted-foreground">Allow this user to access the PM Lynk mobile app</p>
+                      <p className="text-xs text-muted-foreground">PM Lynk mobile access</p>
                     </div>
                     <Switch
                       checked={user.pm_lynk_access === true}
@@ -585,18 +605,6 @@ export default function UserDetails() {
                     />
                   </div>
                 </div>
-              </div>
-
-              <Separator />
-
-              {/* PIN Settings */}
-              <div className="space-y-4">
-                <h3 className="text-sm font-semibold">PIN Settings</h3>
-                <UserPinSettings
-                  userId={user.user_id}
-                  currentPin={user.pin_code}
-                  userName={displayName}
-                />
               </div>
             </div>
           </CardContent>
@@ -619,17 +627,9 @@ export default function UserDetails() {
       )}
 
       {/* Punch Clock Job Access */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <Shield className="h-5 w-5" />
-            Punch Clock Job Access
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <UserJobAccess userId={userId!} userRole={user.role} />
-        </CardContent>
-      </Card>
+      <div id="job-access-section">
+        <UserJobAccess userId={userId!} userRole={user.role} />
+      </div>
 
       {/* Login Audit Trail */}
       <Card>
