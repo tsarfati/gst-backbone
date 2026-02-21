@@ -8722,6 +8722,13 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_pm_lynk_permissions: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: {
+          can_access: boolean
+          menu_item: string
+        }[]
+      }
       get_pm_mobile_settings: {
         Args: { p_company_id: string }
         Returns: {
@@ -8768,6 +8775,19 @@ export type Database = {
         }[]
       }
       get_unread_message_count: { Args: { p_user_id: string }; Returns: number }
+      get_user_accessible_jobs: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: {
+          address: string
+          client: string
+          end_date: string
+          id: string
+          name: string
+          project_manager_user_id: string
+          start_date: string
+          status: string
+        }[]
+      }
       get_user_companies: {
         Args: { _user_id: string }
         Returns: {
