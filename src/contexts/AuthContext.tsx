@@ -67,6 +67,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         login_method: method,
         success,
         user_agent: navigator.userAgent,
+        app_source: 'builderlynk_web',
       });
     } catch (err) {
       console.error('Failed to log login attempt:', err);

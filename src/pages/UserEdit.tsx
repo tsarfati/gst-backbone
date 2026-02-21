@@ -262,25 +262,16 @@ export default function UserEdit() {
     if (!userId) return;
 
     try {
-      // For now, just show account creation
-      // In a production system, you would query auth audit logs
-      const { data: profileData, error } = await supabase
-        .from('profiles')
-        .select('created_at, updated_at')
+      const { data, error } = await supabase
+        .from('user_login_audit')
+        .select('*')
         .eq('user_id', userId)
-        .single();
+        .order('login_time', { ascending: false })
+        .limit(50);
 
       if (error) throw error;
       
-      if (profileData) {
-        const history = [
-          {
-            timestamp: profileData.created_at,
-            event_type: 'user_created'
-          }
-        ];
-        setLoginHistory(history);
-      }
+      setLoginHistory(data || []);
     } catch (error) {
       console.error('Error fetching login history:', error);
       setLoginHistory([]);
@@ -328,8 +319,6 @@ export default function UserEdit() {
         title: 'Success',
         description: 'User updated successfully',
       });
-      
-      navigate('/settings/users');
     } catch (error) {
       console.error('Error updating user:', error);
       toast({
@@ -878,20 +867,35 @@ export default function UserEdit() {
                   <TableHeader>
                     <TableRow>
                       <TableHead>Date & Time</TableHead>
-                      <TableHead>Event</TableHead>
+                      <TableHead>App</TableHead>
+                      <TableHead>Method</TableHead>
+                      <TableHead>Status</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {loginHistory.slice(0, 10).map((entry, index) => (
-                      <TableRow key={index}>
-                        <TableCell>{new Date(entry.timestamp).toLocaleString()}</TableCell>
-                        <TableCell>
-                          <Badge variant="outline">
-                            {entry.event_type === 'sign_in' ? 'Sign In' : 'Account Created'}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                    {loginHistory.slice(0, 20).map((entry, index) => {
+                      const appSource = (entry as any).app_source || 'builderlynk_web';
+                      const appLabel = appSource === 'punch_clock' ? 'Punch Clock' 
+                        : appSource === 'pmlynk' ? 'PM Lynk' 
+                        : 'BuilderLynk Web';
+                      const appVariant = appSource === 'punch_clock' ? 'secondary' 
+                        : appSource === 'pmlynk' ? 'default' 
+                        : 'outline';
+                      return (
+                        <TableRow key={index}>
+                          <TableCell>{new Date(entry.login_time).toLocaleString()}</TableCell>
+                          <TableCell>
+                            <Badge variant={appVariant as any}>{appLabel}</Badge>
+                          </TableCell>
+                          <TableCell className="capitalize">{entry.login_method || 'email'}</TableCell>
+                          <TableCell>
+                            <Badge variant={entry.success ? 'default' : 'destructive'}>
+                              {entry.success ? 'Success' : 'Failed'}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      );
+                    })}
                   </TableBody>
                 </Table>
               ) : (
