@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Avatar, AvatarImage, AvatarFallback } from "@/components/ui/avatar";
 import { Separator } from "@/components/ui/separator";
+import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -66,6 +67,8 @@ interface UserProfile {
   notes?: string;
   vendor_id?: string;
   pin_code?: string;
+  punch_clock_access?: boolean;
+  pm_lynk_access?: boolean;
 }
 
 interface Vendor {
@@ -531,30 +534,70 @@ export default function UserDetails() {
         </CardContent>
       </Card>
 
-      {/* PIN Settings for Mobile Access */}
+      {/* Mobile Apps */}
       {canManage && ['admin', 'controller', 'project_manager', 'employee'].includes(user.role) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Key className="h-5 w-5" />
-              PIN Settings for Mobile Access
+              Mobile Apps
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-4">
-              {['admin', 'controller', 'project_manager'].includes(user.role) && (
-                <div className="rounded-lg border border-blue-200 bg-blue-50 dark:bg-blue-950 dark:border-blue-900 p-3">
-                  <p className="text-sm text-blue-700 dark:text-blue-300">
-                    <Shield className="h-4 w-4 inline mr-2" />
-                    Set a PIN to enable access to the PM Mobile App
-                  </p>
+            <div className="space-y-6">
+              {/* App Access Toggles */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">App Access</h3>
+                <p className="text-sm text-muted-foreground">
+                  Control which mobile apps this user's PIN grants access to. One PIN is shared across all apps.
+                </p>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="space-y-0.5">
+                      <Label className="font-medium">Punch Clock</Label>
+                      <p className="text-xs text-muted-foreground">Allow this user to punch in/out via the Punch Clock app</p>
+                    </div>
+                    <Switch
+                      checked={user.punch_clock_access !== false}
+                      onCheckedChange={async (checked) => {
+                        const { error } = await supabase.from('profiles').update({ punch_clock_access: checked }).eq('user_id', user.user_id);
+                        if (!error) {
+                          setUser(prev => prev ? { ...prev, punch_clock_access: checked } : null);
+                          toast({ title: "Updated", description: `Punch Clock access ${checked ? 'enabled' : 'disabled'}` });
+                        }
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between p-3 border rounded-lg">
+                    <div className="space-y-0.5">
+                      <Label className="font-medium">PM Lynk</Label>
+                      <p className="text-xs text-muted-foreground">Allow this user to access the PM Lynk mobile app</p>
+                    </div>
+                    <Switch
+                      checked={user.pm_lynk_access === true}
+                      onCheckedChange={async (checked) => {
+                        const { error } = await supabase.from('profiles').update({ pm_lynk_access: checked }).eq('user_id', user.user_id);
+                        if (!error) {
+                          setUser(prev => prev ? { ...prev, pm_lynk_access: checked } : null);
+                          toast({ title: "Updated", description: `PM Lynk access ${checked ? 'enabled' : 'disabled'}` });
+                        }
+                      }}
+                    />
+                  </div>
                 </div>
-              )}
-              <UserPinSettings
-                userId={user.user_id}
-                currentPin={user.pin_code}
-                userName={displayName}
-              />
+              </div>
+
+              <Separator />
+
+              {/* PIN Settings */}
+              <div className="space-y-4">
+                <h3 className="text-sm font-semibold">PIN Settings</h3>
+                <UserPinSettings
+                  userId={user.user_id}
+                  currentPin={user.pin_code}
+                  userName={displayName}
+                />
+              </div>
             </div>
           </CardContent>
         </Card>
