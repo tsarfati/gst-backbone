@@ -86,40 +86,7 @@ serve(async (req) => {
       });
     }
 
-    const { data: pinEmp, error: pinErr } = await service
-      .from("pin_employees")
-      .select("id")
-      .eq("id", employee_user_id)
-      .maybeSingle();
-    if (pinErr) throw pinErr;
-
-    const is_pin = !!pinEmp;
-
-    if (is_pin) {
-      const { data: pinSettings, error: pinSettingsErr } = await service
-        .from("pin_employee_timecard_settings")
-        .select("assigned_jobs, assigned_cost_codes")
-        .eq("company_id", company_id)
-        .eq("pin_employee_id", employee_user_id)
-        .maybeSingle();
-      if (pinSettingsErr) throw pinSettingsErr;
-
-      const assigned_jobs = pinSettings?.assigned_jobs ?? [];
-      const assigned_cost_codes = pinSettings?.assigned_cost_codes ?? [];
-
-      return new Response(
-        JSON.stringify({
-          access: {
-            is_pin: true,
-            assigned_jobs,
-            assigned_cost_codes,
-            has_global_job_access: false,
-          },
-        }),
-        { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
-      );
-    }
-
+    // All employees now use profiles + employee_timecard_settings
     const [{ data: settings, error: settingsErr }, { data: prof, error: profErr }] = await Promise.all([
       service
         .from("employee_timecard_settings")
@@ -137,12 +104,30 @@ serve(async (req) => {
     if (settingsErr) throw settingsErr;
     if (profErr) throw profErr;
 
+    // Also check pin_employee_timecard_settings as fallback during migration
+    let assignedJobs = settings?.assigned_jobs ?? [];
+    let assignedCostCodes = settings?.assigned_cost_codes ?? [];
+
+    if (assignedJobs.length === 0) {
+      const { data: pinSettings } = await service
+        .from("pin_employee_timecard_settings")
+        .select("assigned_jobs, assigned_cost_codes")
+        .eq("pin_employee_id", employee_user_id)
+        .eq("company_id", company_id)
+        .maybeSingle();
+      
+      if (pinSettings) {
+        assignedJobs = pinSettings.assigned_jobs ?? [];
+        assignedCostCodes = pinSettings.assigned_cost_codes ?? [];
+      }
+    }
+
     return new Response(
       JSON.stringify({
         access: {
           is_pin: false,
-          assigned_jobs: settings?.assigned_jobs ?? [],
-          assigned_cost_codes: settings?.assigned_cost_codes ?? [],
+          assigned_jobs: assignedJobs,
+          assigned_cost_codes: assignedCostCodes,
           has_global_job_access: prof?.has_global_job_access ?? false,
         },
       }),

@@ -30,14 +30,19 @@ async function validatePin(supabaseAdmin: any, pin: string) {
   // Normalize PIN to ensure consistent format
   pin = pin.trim();
   
-  // First check regular profiles table
+  // Check profiles table (all employees now live here)
   const { data: profileData, error: profileError } = await supabaseAdmin
     .from('profiles')
-    .select('user_id, first_name, last_name, role, current_company_id')
+    .select('user_id, first_name, last_name, role, current_company_id, avatar_url, punch_clock_access')
     .eq('pin_code', pin)
     .maybeSingle();
 
   if (profileData && !profileError) {
+    // Check punch_clock_access
+    if (profileData.punch_clock_access === false) {
+      return null; // User does not have punch clock access
+    }
+    
     // Get tenant_id from their current company for tenant isolation
     let tenant_id: string | null = null;
     if (profileData.current_company_id) {
@@ -55,39 +60,8 @@ async function validatePin(supabaseAdmin: any, pin: string) {
       last_name: profileData.last_name,
       role: profileData.role,
       is_pin_employee: false,
+      existing_avatar: profileData.avatar_url,
       company_id: profileData.current_company_id,
-      tenant_id
-    };
-  }
-
-  // Then check PIN employees table - include company_id for tenant isolation
-  const { data: pinEmployeeData, error: pinError } = await supabaseAdmin
-    .from('pin_employees')
-    .select('id, first_name, last_name, display_name, avatar_url, company_id')
-    .eq('pin_code', pin)
-    .eq('is_active', true)
-    .maybeSingle();
-
-  if (pinEmployeeData && !pinError) {
-    // Fetch the tenant_id from the company for tenant isolation
-    let tenant_id: string | null = null;
-    if (pinEmployeeData.company_id) {
-      const { data: companyData } = await supabaseAdmin
-        .from('companies')
-        .select('tenant_id')
-        .eq('id', pinEmployeeData.company_id)
-        .maybeSingle();
-      tenant_id = companyData?.tenant_id || null;
-    }
-    
-    return {
-      user_id: pinEmployeeData.id,
-      first_name: pinEmployeeData.first_name,
-      last_name: pinEmployeeData.last_name,
-      role: 'employee',
-      is_pin_employee: true,
-      existing_avatar: pinEmployeeData.avatar_url,
-      company_id: pinEmployeeData.company_id,
       tenant_id
     };
   }
@@ -120,61 +94,70 @@ serve(async (req) => {
           .eq('tenant_id', userRow.tenant_id);
         tenantCompanyIds = (tenantCompanies || []).map((c: any) => c.id);
       } else if (userRow.company_id) {
-        // Fallback: if no tenant, at least scope to user's company
         tenantCompanyIds = [userRow.company_id];
       }
 
-      // Load user's assigned jobs and cost codes within tenant
+      // Load user's assigned jobs and cost codes - use employee_timecard_settings for all users
       let assignedJobs: string[] = [];
       let assignedCostCodes: string[] = [];
       
-      if (userRow.is_pin_employee) {
-        // For PIN employees, get assigned jobs and cost codes from their tenant's companies
-        let settingsQuery = supabaseAdmin
+      // Check employee_timecard_settings first
+      let settingsQuery = supabaseAdmin
+        .from('employee_timecard_settings')
+        .select('assigned_jobs, assigned_cost_codes')
+        .eq('user_id', userRow.user_id);
+      
+      if (tenantCompanyIds.length > 0) {
+        settingsQuery = settingsQuery.in('company_id', tenantCompanyIds);
+      }
+      
+      const { data: empSettings } = await settingsQuery;
+      
+      if (empSettings && empSettings.length > 0) {
+        const allJobs = new Set<string>();
+        const allCostCodes = new Set<string>();
+        
+        for (const setting of empSettings) {
+          (setting.assigned_jobs || []).forEach((j: string) => allJobs.add(j));
+          (setting.assigned_cost_codes || []).forEach((c: string) => allCostCodes.add(c));
+        }
+        
+        assignedJobs = Array.from(allJobs);
+        assignedCostCodes = Array.from(allCostCodes);
+      }
+
+      // Also check pin_employee_timecard_settings as fallback during migration
+      if (assignedJobs.length === 0) {
+        const { data: pinSettings } = await supabaseAdmin
           .from('pin_employee_timecard_settings')
           .select('assigned_jobs, assigned_cost_codes')
           .eq('pin_employee_id', userRow.user_id);
         
-        // Filter by tenant companies if available
-        if (tenantCompanyIds.length > 0) {
-          settingsQuery = settingsQuery.in('company_id', tenantCompanyIds);
-        }
-        
-        const { data: allSettings } = await settingsQuery;
-        
-        // Merge all assigned jobs and cost codes from tenant companies
-        if (allSettings && allSettings.length > 0) {
+        if (pinSettings && pinSettings.length > 0) {
           const allJobs = new Set<string>();
           const allCostCodes = new Set<string>();
-          
-          for (const setting of allSettings) {
+          for (const setting of pinSettings) {
             (setting.assigned_jobs || []).forEach((j: string) => allJobs.add(j));
             (setting.assigned_cost_codes || []).forEach((c: string) => allCostCodes.add(c));
           }
-          
           assignedJobs = Array.from(allJobs);
           assignedCostCodes = Array.from(allCostCodes);
         }
       }
 
+      // Check global job access
+      const { data: profileAccess } = await supabaseAdmin
+        .from('profiles')
+        .select('has_global_job_access')
+        .eq('user_id', userRow.user_id)
+        .maybeSingle();
+      
+      const hasGlobalAccess = profileAccess?.has_global_job_access ?? false;
+
       // Load jobs - filter by tenant and assignments
       let jobs: any[] = [];
-      if (userRow.is_pin_employee) {
-        if (assignedJobs.length > 0) {
-          const { data: j, error: jobsErr } = await supabaseAdmin
-            .from("jobs")
-            .select("id, name, address, status, company_id")
-            .in("status", ["active", "planning"]) 
-            .in("id", assignedJobs)
-            .order("name");
-          if (jobsErr) return errorResponse(jobsErr.message, 500);
-          jobs = j || [];
-        } else {
-          // No assignments for PIN employee -> return no jobs
-          jobs = [];
-        }
-      } else {
-        // Regular users: filter by tenant companies
+      if (hasGlobalAccess || userRow.role === 'admin' || userRow.role === 'controller' || userRow.role === 'project_manager') {
+        // Users with global access or elevated roles see all tenant jobs
         let jobsQuery = supabaseAdmin
           .from("jobs")
           .select("id, name, address, status, company_id")
@@ -187,6 +170,15 @@ serve(async (req) => {
         const { data: j, error: jobsErr } = await jobsQuery.order("name");
         if (jobsErr) return errorResponse(jobsErr.message, 500);
         jobs = j || [];
+      } else if (assignedJobs.length > 0) {
+        const { data: j, error: jobsErr } = await supabaseAdmin
+          .from("jobs")
+          .select("id, name, address, status, company_id")
+          .in("status", ["active", "planning"]) 
+          .in("id", assignedJobs)
+          .order("name");
+        if (jobsErr) return errorResponse(jobsErr.message, 500);
+        jobs = j || [];
       }
 
       // Load cost codes - filter by tenant, assignments and type=labor only
@@ -196,13 +188,11 @@ serve(async (req) => {
         .eq("is_active", true)
         .eq("type", "labor");
       
-      // Apply tenant filtering for cost codes
       if (tenantCompanyIds.length > 0) {
         costCodesQuery = costCodesQuery.in("company_id", tenantCompanyIds);
       }
       
-      // For PIN employees with specific assignments, further filter
-      if (userRow.is_pin_employee && assignedCostCodes.length > 0) {
+      if (assignedCostCodes.length > 0 && !hasGlobalAccess) {
         costCodesQuery = costCodesQuery.in("id", assignedCostCodes);
       }
       
@@ -249,16 +239,27 @@ serve(async (req) => {
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
-      // Collect assigned jobs for PIN employees
+      // Collect assigned jobs
       let assignedJobs: string[] = [];
-      if (userRow.is_pin_employee) {
-        const { data: allSettings } = await supabaseAdmin
+      const { data: allSettings } = await supabaseAdmin
+        .from('employee_timecard_settings')
+        .select('assigned_jobs')
+        .eq('user_id', userRow.user_id);
+      if (allSettings?.length) {
+        const set = new Set<string>();
+        for (const s of allSettings) (s.assigned_jobs || []).forEach((j: string) => set.add(j));
+        assignedJobs = Array.from(set);
+      }
+
+      // Fallback to pin_employee_timecard_settings during migration
+      if (assignedJobs.length === 0) {
+        const { data: pinSettings } = await supabaseAdmin
           .from('pin_employee_timecard_settings')
           .select('assigned_jobs')
           .eq('pin_employee_id', userRow.user_id);
-        if (allSettings?.length) {
+        if (pinSettings?.length) {
           const set = new Set<string>();
-          for (const s of allSettings) (s.assigned_jobs || []).forEach((j: string) => set.add(j));
+          for (const s of pinSettings) (s.assigned_jobs || []).forEach((j: string) => set.add(j));
           assignedJobs = Array.from(set);
         }
       }
@@ -295,8 +296,6 @@ serve(async (req) => {
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
-      // Company scope not required; return all requests across companies
-
       const { data, error } = await supabaseAdmin
         .from('time_card_change_requests')
         .select('*')
@@ -315,14 +314,12 @@ serve(async (req) => {
     }
     
     if (req.method === "POST" && body?.action === "review-change-request") {
-      // Handle approval/denial of change requests
       const { request_id, status, review_notes } = body;
       
       if (!request_id || !status || !['approved', 'rejected'].includes(status)) {
         return errorResponse("Invalid request parameters", 400);
       }
 
-      // Get the authenticated user ID from JWT
       const authHeader = req.headers.get('Authorization');
       if (!authHeader) return errorResponse("Unauthorized", 401);
       
@@ -330,7 +327,6 @@ serve(async (req) => {
       const { data: { user: authUser }, error: authError } = await supabaseAdmin.auth.getUser(token);
       if (authError || !authUser) return errorResponse("Unauthorized", 401);
 
-      // Fetch the change request
       const { data: changeRequest, error: fetchError } = await supabaseAdmin
         .from('time_card_change_requests')
         .select('*, time_cards(*)')
@@ -341,7 +337,6 @@ serve(async (req) => {
         return errorResponse("Change request not found", 404);
       }
 
-      // Update the change request
       const { error: updateError } = await supabaseAdmin
         .from('time_card_change_requests')
         .update({
@@ -356,7 +351,6 @@ serve(async (req) => {
         return errorResponse(updateError.message, 500);
       }
 
-      // Log to audit trail
       const { error: auditError } = await supabaseAdmin
         .from('time_card_audit_trail')
         .insert({
@@ -380,7 +374,6 @@ serve(async (req) => {
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
-      // Determine company id from the time card to satisfy NOT NULL constraint
       const { data: tc, error: tcErr } = await supabaseAdmin
         .from('time_cards')
         .select('company_id, user_id')
@@ -413,28 +406,16 @@ serve(async (req) => {
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
-      if (userRow.is_pin_employee) {
-        const { error: updErr } = await supabaseAdmin
-          .from('pin_employees')
-          .update({
-            email: email ?? null,
-            phone: phone ?? null,
-            avatar_url: avatar_url ?? null,
-          })
-          .eq('id', userRow.user_id);
-        if (updErr) return errorResponse(updErr.message, 500);
-      } else {
-        // Regular users: allow updating profile avatar/phone via profiles table
-        const updates: Record<string, any> = {};
-        if (avatar_url !== undefined) updates.avatar_url = avatar_url ?? null;
-        if (phone !== undefined) updates.phone = phone ?? null;
-        if (Object.keys(updates).length > 0) {
-          const { error: profErr } = await supabaseAdmin
-            .from('profiles')
-            .update(updates)
-            .eq('user_id', userRow.user_id);
-          if (profErr) return errorResponse(profErr.message, 500);
-        }
+      // All users now use profiles table
+      const updates: Record<string, any> = {};
+      if (avatar_url !== undefined) updates.avatar_url = avatar_url ?? null;
+      if (phone !== undefined) updates.phone = phone ?? null;
+      if (Object.keys(updates).length > 0) {
+        const { error: profErr } = await supabaseAdmin
+          .from('profiles')
+          .update(updates)
+          .eq('user_id', userRow.user_id);
+        if (profErr) return errorResponse(profErr.message, 500);
       }
 
       return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
@@ -448,7 +429,6 @@ serve(async (req) => {
         const userRow = await validatePin(supabaseAdmin, pin);
         if (!userRow) return errorResponse("Invalid PIN", 401);
 
-        // Decode base64 image (no data URL prefix expected; strip if present)
         const base64 = (typeof image === 'string' && image.includes(',')) ? image.split(',')[1] : image;
         let bytes: Uint8Array;
         try {
@@ -462,8 +442,6 @@ serve(async (req) => {
 
         const fileName = `${userRow.user_id}-${Date.now()}.jpg`;
         const filePath = `punch-photos/${fileName}`;
-
-        // Use Blob for better compatibility with storage API in Edge runtime
         const fileBlob = new Blob([bytes], { type: 'image/jpeg' });
 
         const { error: uploadErr } = await supabaseAdmin.storage
@@ -487,17 +465,15 @@ serve(async (req) => {
       }
     } else if (req.method === "POST" && url.pathname.endsWith("/punch")) {
       let { pin, action, job_id, cost_code_id, latitude, longitude, photo_url, image, timezone_offset_minutes } = body || {};
-      // Normalize empty strings to null for UUID fields
       if (typeof cost_code_id === 'string' && cost_code_id.trim() === '') {
         cost_code_id = null;
       }
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
 
-      // If a base64 image is provided but no photo_url, upload it now and set photo_url
+      // If a base64 image is provided but no photo_url, upload it now
       try {
         if (!photo_url && image) {
-          // Normalize base64 (strip data URL prefix if present)
           const base64 = (typeof image === 'string' && image.includes(',')) ? image.split(',')[1] : image;
           const binary = atob(base64);
           const bytes = new Uint8Array(binary.length);
@@ -526,10 +502,8 @@ serve(async (req) => {
       const now = new Date().toISOString();
 
       if (action === "in") {
-        // Require job_id always; cost code requirement depends on settings
         if (!job_id) return errorResponse("Missing job_id");
 
-        // Get company_id from the job
         const { data: jobData, error: jobError } = await supabaseAdmin
           .from('jobs')
           .select('company_id')
@@ -539,7 +513,6 @@ serve(async (req) => {
         if (jobError || !jobData) return errorResponse("Unable to find job", 400);
         const companyId = jobData.company_id;
 
-        // Validate that cost_code_id belongs to the selected job if provided
         if (cost_code_id) {
           const { data: costCodeData, error: ccError } = await supabaseAdmin
             .from('cost_codes')
@@ -551,13 +524,12 @@ serve(async (req) => {
             return errorResponse("Invalid cost code", 400);
           }
           
-          // Cost code must belong to the selected job
           if (costCodeData.job_id !== job_id) {
             return errorResponse("Cost code does not belong to the selected job", 400);
           }
         }
 
-        // Resolve timing setting (job overrides company). Default to 'punch_out' so cost code is not required at punch in unless explicitly configured.
+        // Resolve timing setting
         const { data: jobTiming } = await supabaseAdmin
           .from('job_punch_clock_settings')
           .select('cost_code_selection_timing')
@@ -575,44 +547,36 @@ serve(async (req) => {
         const timing = jobTiming?.cost_code_selection_timing ?? companyTiming?.cost_code_selection_timing ?? 'punch_out';
         console.log(`Punch IN timing=${timing} company=${companyId} job=${job_id} hasCostCode=${Boolean(cost_code_id)}`);
 
-        // Do not hard-fail on missing cost code at punch in; UI may enforce when required
         if (timing === 'punch_in' && !cost_code_id) {
           console.log('Punch IN without cost code (timing=punch_in). Proceeding; will require at punch out.');
         }
 
-        // Load punch clock settings for this job to check photo requirements and early punch in
+        // Load punch clock settings
         const { data: jobSettings, error: settingsErr } = await supabaseAdmin
           .from("job_punch_clock_settings")
           .select("require_photo, require_location, allow_early_punch_in, scheduled_start_time, early_punch_in_buffer_minutes")
           .eq("job_id", job_id)
           .maybeSingle();
 
-        // Also load company-wide punch clock settings as fallback
         const { data: companySettings, error: companySettingsErr } = await supabaseAdmin
           .from("punch_clock_settings")
           .select("require_photo, require_location, company_id")
           .limit(1)
           .maybeSingle();
 
-        if (settingsErr) {
-          console.error("Error loading job settings:", settingsErr);
-        }
-        if (companySettingsErr) {
-          console.error("Error loading company settings:", companySettingsErr);
-        }
+        if (settingsErr) console.error("Error loading job settings:", settingsErr);
+        if (companySettingsErr) console.error("Error loading company settings:", companySettingsErr);
 
-        // Use job-specific settings first, fall back to company settings
         const photoRequired = jobSettings?.require_photo ?? companySettings?.require_photo ?? false;
         const locationRequired = jobSettings?.require_location ?? companySettings?.require_location ?? false;
 
-        // Check location requirement (warn but do not block)
         let locationWarning: string | null = null;
         if (locationRequired && (!latitude || !longitude)) {
-          console.log("Location required by settings but missing; proceeding without location for punch in");
+          console.log("Location required but missing; proceeding for punch in");
           locationWarning = "Location missing (required by settings)";
         }
 
-        // Check if user is already punched in
+        // Check if already punched in
         const { data: existingPunch, error: checkErr } = await supabaseAdmin
           .from("current_punch_status")
           .select("*")
@@ -631,14 +595,12 @@ serve(async (req) => {
           const nowUtc = new Date();
           const [startHour, startMinute] = jobSettings.scheduled_start_time.split(':').map(Number);
 
-          // Prefer client-provided timezone offset (in minutes, Date.getTimezoneOffset format)
           const tzOffset = typeof timezone_offset_minutes === 'number' ? timezone_offset_minutes : null;
 
           let minutesUntilStart = 0;
-          let scheduledForBuffer: Date; // date representing the scheduled start corresponding to the comparison window
+          let scheduledForBuffer: Date;
 
           if (tzOffset !== null) {
-            // Compute in client's local time and choose the next scheduled occurrence (today or tomorrow)
             const nowLocal = new Date(nowUtc.getTime() - tzOffset * 60000);
             const scheduledToday = new Date(nowLocal);
             scheduledToday.setHours(startHour, startMinute, 0, 0);
@@ -649,12 +611,7 @@ serve(async (req) => {
 
             scheduledForBuffer = nextScheduledLocal;
             minutesUntilStart = Math.floor((nextScheduledLocal.getTime() - nowLocal.getTime()) / 60000);
-
-            console.log(
-              `Client tzOffset=${tzOffset} | nowLocal=${nowLocal.toISOString()} | nextScheduledLocal=${nextScheduledLocal.toISOString()} | minutesUntilStart=${minutesUntilStart}`
-            );
           } else {
-            // Fallback: compute using server UTC and choose next scheduled occurrence
             const scheduledToday = new Date(nowUtc);
             scheduledToday.setHours(startHour, startMinute, 0, 0);
             const nextScheduled = (scheduledToday.getTime() > nowUtc.getTime())
@@ -662,10 +619,6 @@ serve(async (req) => {
               : new Date(scheduledToday.getTime() + 24 * 60 * 60000);
             scheduledForBuffer = nextScheduled;
             minutesUntilStart = Math.floor((nextScheduled.getTime() - nowUtc.getTime()) / 60000);
-
-            console.log(
-              `Server tz | now=${nowUtc.toISOString()} | nextScheduled=${nextScheduled.toISOString()} | minutesUntilStart=${minutesUntilStart}`
-            );
           }
 
           if (minutesUntilStart > 0) {
@@ -674,7 +627,6 @@ serve(async (req) => {
               return errorResponse(`Cannot punch in more than ${bufferMinutes} minutes before scheduled start time (${jobSettings.scheduled_start_time}). You are ${minutesUntilStart} minutes early.`, 400);
             }
 
-            // Within buffer: set actual punch time to the scheduled time (convert back to UTC when using client tz)
             if (tzOffset !== null) {
               const scheduledUtc = new Date(scheduledForBuffer.getTime() + tzOffset * 60000);
               actualPunchTime = scheduledUtc.toISOString();
@@ -686,12 +638,8 @@ serve(async (req) => {
           }
         }
 
-        // Capture device and network information
         const userAgent = req.headers.get('user-agent') || null;
-        const ipAddress = req.headers.get('x-forwarded-for') || 
-                         req.headers.get('x-real-ip') || 
-                         req.headers.get('cf-connecting-ip') || 
-                         null;
+        const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip') || null;
 
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
@@ -721,24 +669,15 @@ serve(async (req) => {
             is_active: true,
           }, { onConflict: 'user_id' });
           
-        // Update PIN employee avatar if they don't have one but took a photo
-        if (userRow.is_pin_employee && photo_url && !userRow.existing_avatar) {
+        // Update avatar if they don't have one but took a photo
+        if (photo_url && !userRow.existing_avatar) {
           await supabaseAdmin
-            .from('pin_employees')
+            .from('profiles')
             .update({ avatar_url: photo_url })
-            .eq('id', userRow.user_id);
+            .eq('user_id', userRow.user_id);
         }
         if (statusErr) return errorResponse(statusErr.message, 500);
 
-        // Update PIN employee avatar with punch photo if applicable
-        if (userRow.is_pin_employee && photo_url) {
-          await supabaseAdmin
-            .from('pin_employees')
-            .update({ avatar_url: photo_url })
-            .eq('id', userRow.user_id);
-        }
-
-        // Return the updated current punch status
         const { data: updatedPunch } = await supabaseAdmin
           .from("current_punch_status")
           .select("*")
@@ -759,7 +698,6 @@ serve(async (req) => {
       if (action === "out") {
         console.log(`Punch out attempt for user ${userRow.user_id}`);
         
-        // Load current status
         const { data: currentPunch, error: curErr } = await supabaseAdmin
           .from("current_punch_status")
           .select("*")
@@ -767,18 +705,9 @@ serve(async (req) => {
           .eq("is_active", true)
           .maybeSingle();
           
-        if (curErr) {
-          console.error("Error loading current punch status:", curErr);
-          return errorResponse(curErr.message, 500);
-        }
-        if (!currentPunch) {
-          console.log(`No active punch found for user ${userRow.user_id}`);
-          return errorResponse("User is not currently punched in", 400);
-        }
+        if (curErr) return errorResponse(curErr.message, 500);
+        if (!currentPunch) return errorResponse("User is not currently punched in", 400);
 
-        console.log(`Found active punch for user ${userRow.user_id}, job: ${currentPunch.job_id}`);
-
-        // Get company_id from the job
         const { data: jobData, error: jobError } = await supabaseAdmin
           .from('jobs')
           .select('company_id')
@@ -788,32 +717,25 @@ serve(async (req) => {
         if (jobError || !jobData) return errorResponse("Unable to find job", 400);
         const companyId = jobData.company_id;
 
-        // Load punch clock settings for this job to check photo requirements
         const { data: jobSettings, error: settingsErr } = await supabaseAdmin
           .from("job_punch_clock_settings")
           .select("require_photo, require_location")
           .eq("job_id", currentPunch.job_id)
           .maybeSingle();
 
-        // Also load company-wide punch clock settings as fallback
         const { data: companySettings, error: companySettingsErr } = await supabaseAdmin
           .from("punch_clock_settings")
           .select("require_photo, require_location, company_id")
           .limit(1)
           .maybeSingle();
 
-        if (settingsErr) {
-          console.error("Error loading job settings:", settingsErr);
-        }
-        if (companySettingsErr) {
-          console.error("Error loading company settings:", companySettingsErr);
-        }
+        if (settingsErr) console.error("Error loading job settings:", settingsErr);
+        if (companySettingsErr) console.error("Error loading company settings:", companySettingsErr);
 
-        // Use job-specific settings first, fall back to company settings
         const photoRequired = jobSettings?.require_photo ?? companySettings?.require_photo ?? false;
         const locationRequired = jobSettings?.require_location ?? companySettings?.require_location ?? false;
 
-        // Resolve timing to determine cost code requirement at punch out (job overrides company)
+        // Resolve timing for cost code
         const { data: jobTimingOut } = await supabaseAdmin
           .from('job_punch_clock_settings')
           .select('cost_code_selection_timing')
@@ -829,37 +751,23 @@ serve(async (req) => {
           .maybeSingle();
 
         const timingOut = jobTimingOut?.cost_code_selection_timing ?? companyTimingOut?.cost_code_selection_timing ?? 'punch_out';
-        console.log(`Punch OUT timing=${timingOut} company=${companyId} job=${currentPunch.job_id} hasCostCodeInBody=${Boolean(cost_code_id)} hasCostCodeCurrent=${Boolean(currentPunch?.cost_code_id)}`);
-        console.log(`Received cost_code_id from client:`, cost_code_id);
-        console.log(`Current punch cost_code_id:`, currentPunch?.cost_code_id);
 
-        // Determine cost code to use for punch out
         let costCodeToUse = currentPunch?.cost_code_id ?? null;
-        // If a cost code is provided at punch out, prefer it regardless of timing
         if (cost_code_id) {
-          // Validate that cost code belongs to the current punch's job
           const { data: costCodeData, error: ccError } = await supabaseAdmin
             .from('cost_codes')
             .select('id, job_id')
             .eq('id', cost_code_id)
             .maybeSingle();
           
-          if (ccError || !costCodeData) {
-            return errorResponse("Invalid cost code", 400);
-          }
-          
-          if (costCodeData.job_id !== currentPunch.job_id) {
-            return errorResponse("Cost code does not belong to the current job", 400);
-          }
+          if (ccError || !costCodeData) return errorResponse("Invalid cost code", 400);
+          if (costCodeData.job_id !== currentPunch.job_id) return errorResponse("Cost code does not belong to the current job", 400);
           
           costCodeToUse = cost_code_id;
-          console.log(`Using cost code from client:`, costCodeToUse);
         }
-        // Enforce requirement when timing is punch_out
+
         if (timingOut === 'punch_out' && !costCodeToUse) {
-          console.log(`ERROR: Cost code required but not provided for punch out`);
-          
-          // Fetch available labor cost codes for this job to show in error message
+          // Fetch available cost codes for error message
           let costCodesQuery = supabaseAdmin
             .from('cost_codes')
             .select('id, code, description')
@@ -868,26 +776,23 @@ serve(async (req) => {
             .eq('type', 'labor')
             .order('code');
           
-          // For PIN employees, filter by their assignments if they have any
-          if (userRow.is_pin_employee) {
-            const { data: pinSettings } = await supabaseAdmin
-              .from('pin_employee_timecard_settings')
-              .select('assigned_cost_codes')
-              .eq('pin_employee_id', userRow.user_id);
-            
-            const assignedCostCodes = new Set<string>();
-            (pinSettings || []).forEach((s: any) => {
-              (s.assigned_cost_codes || []).forEach((c: string) => assignedCostCodes.add(c));
-            });
-            
-            if (assignedCostCodes.size > 0) {
-              costCodesQuery = costCodesQuery.in('id', Array.from(assignedCostCodes));
-            }
+          // Check employee assignments for filtering
+          const { data: empSettings } = await supabaseAdmin
+            .from('employee_timecard_settings')
+            .select('assigned_cost_codes')
+            .eq('user_id', userRow.user_id);
+          
+          const assignedCostCodes = new Set<string>();
+          (empSettings || []).forEach((s: any) => {
+            (s.assigned_cost_codes || []).forEach((c: string) => assignedCostCodes.add(c));
+          });
+          
+          if (assignedCostCodes.size > 0) {
+            costCodesQuery = costCodesQuery.in('id', Array.from(assignedCostCodes));
           }
           
           const { data: availableCostCodes } = await costCodesQuery;
           
-          // Build user-friendly message with available options
           let message = "Please select a cost code to complete your punch out.";
           if (availableCostCodes && availableCostCodes.length > 0) {
             const codesList = availableCostCodes
@@ -904,33 +809,20 @@ serve(async (req) => {
               code: 'COST_CODE_REQUIRED',
               available_cost_codes: availableCostCodes || []
             }),
-            { 
-              status: 400, 
-              headers: { "Content-Type": "application/json", ...corsHeaders } 
-            }
+            { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
           );
         }
 
-        console.log(`Final costCodeToUse for punch out:`, costCodeToUse);
-
-        // If cost code was provided and the punch in had none, backfill it on the punch-in record
+        // Backfill cost code on punch-in record if needed
         if (cost_code_id && !currentPunch?.cost_code_id) {
-          console.log(`Backfilling punch in record with cost_code_id: ${cost_code_id}`);
-          
-          // Update the current_punch_status with the cost code
           const { error: statusUpdateErr } = await supabaseAdmin
             .from('current_punch_status')
             .update({ cost_code_id: cost_code_id })
             .eq('user_id', userRow.user_id)
             .eq('is_active', true);
           
-          if (statusUpdateErr) {
-            console.error('Error updating current_punch_status:', statusUpdateErr);
-          } else {
-            console.log('Successfully updated current_punch_status with cost code');
-          }
+          if (statusUpdateErr) console.error('Error updating current_punch_status:', statusUpdateErr);
           
-          // Also update the punch in record in punch_records
           const punchInUpdateStart = new Date(new Date(currentPunch.punch_in_time).getTime() - 60000).toISOString();
           const punchInUpdateEnd = new Date(new Date(currentPunch.punch_in_time).getTime() + 60000).toISOString();
           const { error: punchUpdateErr } = await supabaseAdmin
@@ -942,35 +834,21 @@ serve(async (req) => {
             .gte('punch_time', punchInUpdateStart)
             .lte('punch_time', punchInUpdateEnd);
           
-          if (punchUpdateErr) {
-            console.error('Error updating punch_in record:', punchUpdateErr);
-          } else {
-            console.log('Successfully updated punch_in record with cost code');
-          }
+          if (punchUpdateErr) console.error('Error updating punch_in record:', punchUpdateErr);
         }
 
-        // Check photo requirement for punch out
         if (photoRequired && !photo_url) {
           return errorResponse("Photo is required for punch out on this job", 400);
         }
 
-        // Check location requirement for punch out (warn but do not block)
         let locationWarningOut: string | null = null;
         if (locationRequired && (!latitude || !longitude)) {
-          console.log("Location required by settings but missing; proceeding without location for punch out");
           locationWarningOut = "Location missing (required by settings)";
         }
 
-        // Capture device and network information
         const userAgent = req.headers.get('user-agent') || null;
-        const ipAddress = req.headers.get('x-forwarded-for') || 
-                         req.headers.get('x-real-ip') || 
-                         req.headers.get('cf-connecting-ip') || 
-                         null;
+        const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip') || null;
 
-        console.log(`Creating punch_out record with cost_code_id:`, costCodeToUse);
-        
-        // Insert punch out record
         const { error: punchErr } = await supabaseAdmin.from("punch_records").insert({
           user_id: userRow.user_id,
           company_id: companyId,
@@ -985,44 +863,29 @@ serve(async (req) => {
           ip_address: ipAddress,
         });
         
-        if (punchErr) {
-          console.error("Error inserting punch out record:", punchErr);
-          return errorResponse(punchErr.message, 500);
-        }
+        if (punchErr) return errorResponse(punchErr.message, 500);
 
-        console.log(`Punch out record created successfully with cost_code_id: ${costCodeToUse}`);
-
-        // Update current status to inactive
         const { error: statusErr } = await supabaseAdmin
           .from("current_punch_status")
           .update({ is_active: false })
           .eq("user_id", userRow.user_id)
           .eq("is_active", true);
           
-        if (statusErr) {
-          console.error("Error updating punch status:", statusErr);
-          return errorResponse(statusErr.message, 500);
-        }
+        if (statusErr) return errorResponse(statusErr.message, 500);
 
-        console.log(`Punch out completed successfully for user ${userRow.user_id}`);
-
-        // Create corresponding time card entry
+        // Create time card
         try {
           let punchInDate = new Date(currentPunch.punch_in_time);
           let punchOutDate = new Date(now);
 
-          // Load job shift time settings
           const { data: jobShiftSettings } = await supabaseAdmin
             .from('jobs')
             .select('shift_start_time, shift_end_time, count_early_punch_in, early_punch_in_grace_minutes, count_late_punch_out, late_punch_out_grace_minutes')
             .eq('id', currentPunch.job_id)
             .maybeSingle();
 
-          // Apply shift time adjustments if configured
           if (jobShiftSettings?.shift_start_time && jobShiftSettings?.shift_end_time) {
-            // FIXED: Convert UTC punch times to local date for shift comparison
-            // The punch times are stored as UTC but represent local times (EST = UTC-5)
-            const TIMEZONE_OFFSET_HOURS = 5 // EST offset from UTC
+            const TIMEZONE_OFFSET_HOURS = 5;
             
             const localPunchIn = new Date(punchInDate.getTime() - TIMEZONE_OFFSET_HOURS * 3600000);
             const localPunchOut = new Date(punchOutDate.getTime() - TIMEZONE_OFFSET_HOURS * 3600000);
@@ -1035,7 +898,6 @@ serve(async (req) => {
             const [endHours, endMinutes] = jobShiftSettings.shift_end_time.split(':').map(Number);
             shiftEnd.setHours(endHours, endMinutes, 0, 0);
 
-            // Handle overnight shifts
             if (shiftEnd < shiftStart) {
               shiftEnd.setDate(shiftEnd.getDate() + 1);
             }
@@ -1045,41 +907,29 @@ serve(async (req) => {
             const countEarly = jobShiftSettings.count_early_punch_in === true;
             const countLate = jobShiftSettings.count_late_punch_out === true;
 
-            // Early punch-in handling:
-            // - If early time should NOT be counted, always start at shift start.
-            // - If it SHOULD be counted, only allow up to earlyGrace minutes before shift start.
             if (localPunchIn < shiftStart) {
               const earliestCountedStart = countEarly
                 ? new Date(shiftStart.getTime() - earlyGrace * 60000)
                 : shiftStart;
 
               if (localPunchIn < earliestCountedStart) {
-                // Convert back to UTC for storage
                 punchInDate = new Date(earliestCountedStart.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
               } else if (!countEarly) {
-                // Within window but early time shouldn't be counted
                 punchInDate = new Date(shiftStart.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
               }
             }
 
-             // Late punch-out handling:
-             // - If late time should NOT be counted, always end at shift end.
-             // - If it SHOULD be counted, ignore up to lateGrace minutes after shift end;
-             //   only time beyond the grace window is counted.
-             if (localPunchOut > shiftEnd) {
-               const graceEnd = new Date(shiftEnd.getTime() + lateGrace * 60000);
- 
-               if (!countLate) {
-                 punchOutDate = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
-               } else if (localPunchOut < graceEnd) {
-                 // Within grace window (less than graceEnd): treat as ending at shift end
-                 punchOutDate = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
-               }
-               // If localPunchOut >= graceEnd and countLate is true, keep actual punchOutDate
-             }
+            if (localPunchOut > shiftEnd) {
+              const graceEnd = new Date(shiftEnd.getTime() + lateGrace * 60000);
+
+              if (!countLate) {
+                punchOutDate = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
+              } else if (localPunchOut < graceEnd) {
+                punchOutDate = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
+              }
+            }
           }
 
-          // Load punch clock settings for overtime calculation
           const { data: jobOvertimeSettings } = await supabaseAdmin
             .from('job_punch_clock_settings')
             .select('calculate_overtime, overtime_threshold, auto_break_duration, auto_break_wait_hours')
@@ -1100,19 +950,11 @@ serve(async (req) => {
           const autoBreakDuration = overtimeSettings.auto_break_duration || 30;
           const autoBreakWaitHours = overtimeSettings.auto_break_wait_hours || 6;
 
-          // Calculate total hours
           let totalHours = Math.max(0, (punchOutDate.getTime() - punchInDate.getTime()) / (1000 * 60 * 60));
-
-          // Apply auto break deduction if over threshold
           const breakMinutes = totalHours > autoBreakWaitHours ? autoBreakDuration : 0;
           totalHours = totalHours - breakMinutes / 60;
-
-          // Calculate overtime only if enabled
           const overtimeHours = calculateOvertime ? Math.max(0, totalHours - overtimeThreshold) : 0;
 
-          console.log(`Creating time card with cost_code_id: ${costCodeToUse}, total_hours: ${totalHours}, overtime: ${overtimeHours}, calculateOvertime: ${calculateOvertime}`);
-
-          // Load punch clock settings to check if time card should be flagged
           const { data: flagSettings } = await supabaseAdmin
             .from("job_punch_clock_settings")
             .select("flag_timecards_over_12hrs, flag_timecards_over_24hrs")
@@ -1123,16 +965,12 @@ serve(async (req) => {
           const flagOver12 = flagSettings?.flag_timecards_over_12hrs ?? true;
           const flagOver24 = flagSettings?.flag_timecards_over_24hrs ?? true;
 
-          // Check if punch-out location differs from punch-in location
-          // Uses Haversine formula to calculate distance in meters
           const calculateDistanceMeters = (
             lat1: number | null, lng1: number | null,
             lat2: number | null, lng2: number | null
           ): number | null => {
-            if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) {
-              return null; // Cannot compare if either location is missing
-            }
-            const R = 6371000; // Earth's radius in meters
+            if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
+            const R = 6371000;
             const dLat = (lat2 - lat1) * Math.PI / 180;
             const dLng = (lng2 - lng1) * Math.PI / 180;
             const a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
@@ -1148,15 +986,9 @@ serve(async (req) => {
           const punchOutLng = longitude ?? null;
           
           const distanceMeters = calculateDistanceMeters(punchInLat, punchInLng, punchOutLat, punchOutLng);
-          // Consider locations different if more than 500 meters apart (approximately 0.3 miles)
           const LOCATION_THRESHOLD_METERS = 500;
           const locationsDiffer = distanceMeters !== null && distanceMeters > LOCATION_THRESHOLD_METERS;
           
-          if (locationsDiffer) {
-            console.log(`Location mismatch detected: punch-in (${punchInLat}, ${punchInLng}) vs punch-out (${punchOutLat}, ${punchOutLng}), distance: ${distanceMeters?.toFixed(0)}m`);
-          }
-
-          // Determine status - flag if over threshold OR if locations differ
           const shouldFlagHours = (flagOver24 && totalHours > 24) || (flagOver12 && totalHours > 12);
           const shouldFlag = shouldFlagHours || locationsDiffer;
           const timecardStatus = shouldFlag ? 'pending' : 'approved';
@@ -1194,8 +1026,6 @@ serve(async (req) => {
 
           if (tcErr) {
             console.error('Error creating time card:', tcErr);
-          } else {
-            console.log(`Time card created with status: ${timecardStatus}, cost_code_id: ${costCodeToUse}`);
           }
         } catch (tcCatchErr) {
           console.error('Exception while creating time card:', tcCatchErr);
@@ -1213,50 +1043,51 @@ serve(async (req) => {
       const { action, pin } = body;
       
       if (action === 'init') {
-        // Return jobs and cost codes for PIN user
         const userRow = await validatePin(supabaseAdmin, pin);
         if (!userRow) return errorResponse("Invalid PIN", 401);
         
         let assignedJobs: string[] = [];
         let assignedCostCodes: string[] = [];
         
-        if (userRow.is_pin_employee) {
-          const { data: allSettings } = await supabaseAdmin
+        // Use employee_timecard_settings for all users
+        const { data: settings } = await supabaseAdmin
+          .from('employee_timecard_settings')
+          .select('assigned_jobs, assigned_cost_codes')
+          .eq('user_id', userRow.user_id)
+          .maybeSingle();
+        
+        if (settings) {
+          assignedJobs = settings.assigned_jobs || [];
+          assignedCostCodes = settings.assigned_cost_codes || [];
+        }
+
+        // Fallback to pin_employee_timecard_settings during migration
+        if (assignedJobs.length === 0) {
+          const { data: pinSettings } = await supabaseAdmin
             .from('pin_employee_timecard_settings')
             .select('assigned_jobs, assigned_cost_codes')
             .eq('pin_employee_id', userRow.user_id);
           
-          if (allSettings && allSettings.length > 0) {
-            allSettings.forEach(s => {
+          if (pinSettings && pinSettings.length > 0) {
+            pinSettings.forEach(s => {
               if (s.assigned_jobs) assignedJobs.push(...s.assigned_jobs);
               if (s.assigned_cost_codes) assignedCostCodes.push(...s.assigned_cost_codes);
             });
             assignedJobs = [...new Set(assignedJobs)];
             assignedCostCodes = [...new Set(assignedCostCodes)];
           }
-        } else {
-          const { data: settings } = await supabaseAdmin
-            .from('employee_timecard_settings')
-            .select('assigned_jobs, assigned_cost_codes')
-            .eq('user_id', userRow.user_id)
-            .maybeSingle();
-          
-          if (settings) {
-            assignedJobs = settings.assigned_jobs || [];
-            assignedCostCodes = settings.assigned_cost_codes || [];
-          }
         }
         
         const { data: jobs } = await supabaseAdmin
           .from('jobs')
           .select('id, name')
-          .in('id', assignedJobs)
+          .in('id', assignedJobs.length > 0 ? assignedJobs : ['00000000-0000-0000-0000-000000000000'])
           .eq('is_active', true);
         
         const { data: costCodes } = await supabaseAdmin
           .from('cost_codes')
           .select('id, code, description')
-          .in('id', assignedCostCodes)
+          .in('id', assignedCostCodes.length > 0 ? assignedCostCodes : ['00000000-0000-0000-0000-000000000000'])
           .eq('is_active', true);
         
         return new Response(JSON.stringify({ jobs: jobs || [], cost_codes: costCodes || [] }), {
@@ -1285,30 +1116,30 @@ serve(async (req) => {
         const userRow = await validatePin(supabaseAdmin, pin);
         if (!userRow) return errorResponse("Invalid PIN", 401);
         
-        // Get job assignments
         let assignedJobs: string[] = [];
         
-        if (userRow.is_pin_employee) {
-          const { data: allSettings } = await supabaseAdmin
+        const { data: settings } = await supabaseAdmin
+          .from('employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('user_id', userRow.user_id)
+          .maybeSingle();
+        
+        if (settings?.assigned_jobs) {
+          assignedJobs = settings.assigned_jobs;
+        }
+
+        // Fallback during migration
+        if (assignedJobs.length === 0) {
+          const { data: pinSettings } = await supabaseAdmin
             .from('pin_employee_timecard_settings')
             .select('assigned_jobs')
             .eq('pin_employee_id', userRow.user_id);
           
-          if (allSettings && allSettings.length > 0) {
-            allSettings.forEach(s => {
+          if (pinSettings && pinSettings.length > 0) {
+            pinSettings.forEach(s => {
               if (s.assigned_jobs) assignedJobs.push(...s.assigned_jobs);
             });
             assignedJobs = [...new Set(assignedJobs)];
-          }
-        } else {
-          const { data: settings } = await supabaseAdmin
-            .from('employee_timecard_settings')
-            .select('assigned_jobs')
-            .eq('user_id', userRow.user_id)
-            .maybeSingle();
-          
-          if (settings?.assigned_jobs) {
-            assignedJobs = settings.assigned_jobs;
           }
         }
         
@@ -1318,7 +1149,6 @@ serve(async (req) => {
           });
         }
         
-        // Get job managers
         const { data: jobManagers } = await supabaseAdmin
           .from('jobs')
           .select(`

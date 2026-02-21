@@ -63,10 +63,7 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
       let nameMap: Record<string, { display_name: string; first_name?: string; last_name?: string; avatar_url?: string }> = {};
 
       if (changedByIds.length > 0) {
-        const [profilesRes, pinRes] = await Promise.all([
-          supabase.from('profiles').select('user_id, display_name, first_name, last_name, avatar_url').in('user_id', changedByIds),
-          supabase.from('pin_employees').select('id, display_name, first_name, last_name, avatar_url').in('id', changedByIds)
-        ]);
+        const profilesRes = await supabase.from('profiles').select('user_id, display_name, first_name, last_name, avatar_url').in('user_id', changedByIds);
 
         if (profilesRes.data) {
           profilesRes.data.forEach((p) => {
@@ -76,18 +73,6 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
               last_name: p.last_name,
               avatar_url: p.avatar_url
             };
-          });
-        }
-        if (pinRes.data) {
-          pinRes.data.forEach((p) => {
-            if (!nameMap[p.id]) {
-              nameMap[p.id] = { 
-                display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Unknown User',
-                first_name: p.first_name,
-                last_name: p.last_name,
-                avatar_url: p.avatar_url
-              };
-            }
           });
         }
       }

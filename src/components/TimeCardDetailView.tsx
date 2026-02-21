@@ -128,17 +128,12 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
       if (error) throw error;
 
-      // Fetch related data separately - check both profiles and pin_employees
-      const [profileData, pinEmployeeData, jobData, costCodeData, punchData, roleData] = await Promise.all([
+      // Fetch related data separately
+      const [profileData, jobData, costCodeData, punchData, roleData] = await Promise.all([
         supabase
           .from('profiles')
           .select('first_name, last_name, display_name')
           .eq('user_id', timeCardData.user_id)
-          .single(),
-        supabase
-          .from('pin_employees')
-          .select('first_name, last_name, display_name')
-          .eq('id', timeCardData.user_id)
           .single(),
         timeCardData.job_id ? supabase
           .from('jobs')
@@ -217,8 +212,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         return publicData?.publicUrl || null;
       };
 
-      // Use profile data from either profiles or pin_employees
-      const employeeProfile = profileData.data || pinEmployeeData.data;
+      // Use profile data
+      const employeeProfile = profileData.data;
 
       // Use company-specific role from the parallel fetch
       const employeeRole = roleData.data?.role || 'employee';
