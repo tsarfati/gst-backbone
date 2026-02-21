@@ -57,19 +57,18 @@ serve(async (req) => {
 
     // Handle batch lookup (user_ids array)
     if (userIds && Array.isArray(userIds) && userIds.length > 0) {
-      // For batch lookups, get requesting user's profile to check role
-      const { data: requesterProfile } = await supabaseAdmin
-        .from("profiles")
-        .select("role, current_company_id")
+      // Check requester's company role via user_company_access (not profiles)
+      const { data: requesterAccesses } = await supabaseAdmin
+        .from("user_company_access")
+        .select("role, company_id")
         .eq("user_id", requestingUserId)
-        .maybeSingle();
+        .eq("is_active", true);
 
-      const requesterRole = requesterProfile?.role;
-      const requesterCompanyId = requesterProfile?.current_company_id;
       const allowedRoles = new Set(["admin", "controller", "company_admin", "project_manager"]);
+      const hasElevatedRole = (requesterAccesses || []).some((a: any) => allowedRoles.has(a.role));
 
-      // Allow if user has elevated role or is requesting their own email
-      if (!allowedRoles.has(requesterRole) && !userIds.includes(requestingUserId)) {
+      // Allow if user has elevated role in any company or is requesting their own email
+      if (!hasElevatedRole && !userIds.includes(requestingUserId)) {
         return new Response(JSON.stringify({ error: "Insufficient permissions" }), {
           status: 403,
           headers: { ...corsHeaders, "Content-Type": "application/json" },
