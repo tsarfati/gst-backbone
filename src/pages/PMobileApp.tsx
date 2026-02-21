@@ -16,6 +16,13 @@ import { PushNotificationService } from '@/utils/pushNotifications';
 import { useDynamicManifest } from '@/hooks/useDynamicManifest';
 import PMVisitorLogs from '@/components/PMVisitorLogs';
 
+interface PMobileSettings {
+  background_image_url?: string;
+  container_opacity?: number;
+  primary_color?: string;
+  logo_url?: string;
+}
+
 function PMobileApp() {
   const { user, profile, signOut } = usePunchClockAuth();
   const { toast } = useToast();
@@ -24,12 +31,33 @@ function PMobileApp() {
   const [unreadMessageCount, setUnreadMessageCount] = useState(0);
   const [receiptCount, setReceiptCount] = useState(0);
   const [ticketCount, setTicketCount] = useState(0);
+  const [mobileSettings, setMobileSettings] = useState<PMobileSettings>({});
   const companyId = (profile as any)?.current_company_id;
 
   // Load dynamic manifest for PWA icons
   useDynamicManifest();
 
-  // Update time every second
+  // Load PM mobile settings (background image, opacity)
+  useEffect(() => {
+    if (!companyId) return;
+    const loadSettings = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('pm_mobile_settings')
+          .select('background_image_url, container_opacity, primary_color')
+          .eq('company_id', companyId)
+          .maybeSingle();
+        if (!error && data) {
+          setMobileSettings(data);
+        }
+      } catch (e) {
+        console.error('Error loading PM mobile settings:', e);
+      }
+    };
+    loadSettings();
+  }, [companyId]);
+
+
   useEffect(() => {
     const timer = setInterval(() => setCurrentTime(new Date()), 1000);
     return () => clearInterval(timer);
@@ -172,6 +200,16 @@ function PMobileApp() {
     }
   };
 
+  const containerOpacity = mobileSettings.container_opacity ?? 1;
+  const backgroundStyle: React.CSSProperties = mobileSettings.background_image_url
+    ? {
+        backgroundImage: `url(${mobileSettings.background_image_url})`,
+        backgroundSize: 'cover',
+        backgroundPosition: 'center',
+        backgroundRepeat: 'no-repeat',
+      }
+    : {};
+
   if (!user || !profile) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/20 via-background to-accent/20">
@@ -184,10 +222,13 @@ function PMobileApp() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-primary/20 via-background to-accent/20 p-4">
+    <div 
+      className={`min-h-screen p-4 ${!mobileSettings.background_image_url ? 'bg-gradient-to-br from-primary/20 via-background to-accent/20' : ''}`}
+      style={backgroundStyle}
+    >
       <div className="max-w-md mx-auto space-y-4">
         {/* Header */}
-        <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
+        <Card className="border-0 shadow-lg backdrop-blur" style={{ backgroundColor: `hsl(var(--card) / ${containerOpacity})` }}>
           <CardHeader className="text-center pb-4">
             <div className="flex items-center justify-between mb-2">
               <Badge variant="secondary" className="text-xs">
@@ -228,7 +269,7 @@ function PMobileApp() {
         </Card>
 
         {/* Scanner */}
-        <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
+        <Card className="border-0 shadow-lg backdrop-blur" style={{ backgroundColor: `hsl(var(--card) / ${containerOpacity})` }}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base text-center">Receipt & Delivery Management</CardTitle>
           </CardHeader>
@@ -252,7 +293,7 @@ function PMobileApp() {
 
         {/* Quick Stats */}
         <div className="grid grid-cols-2 gap-4">
-          <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
+          <Card className="border-0 shadow-lg backdrop-blur" style={{ backgroundColor: `hsl(var(--card) / ${containerOpacity})` }}>
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-primary">{receiptCount}</div>
               <div className="text-xs text-muted-foreground">
@@ -260,7 +301,7 @@ function PMobileApp() {
               </div>
             </CardContent>
           </Card>
-          <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
+          <Card className="border-0 shadow-lg backdrop-blur" style={{ backgroundColor: `hsl(var(--card) / ${containerOpacity})` }}>
             <CardContent className="p-4 text-center">
               <div className="text-2xl font-bold text-primary">{ticketCount}</div>
               <div className="text-xs text-muted-foreground">
@@ -274,7 +315,7 @@ function PMobileApp() {
         {companyId && <PMVisitorLogs companyId={companyId} />}
 
         {/* Quick Access */}
-        <Card className="border-0 shadow-lg bg-card/95 backdrop-blur">
+        <Card className="border-0 shadow-lg backdrop-blur" style={{ backgroundColor: `hsl(var(--card) / ${containerOpacity})` }}>
           <CardHeader>
             <CardTitle className="text-sm font-medium">Quick Access</CardTitle>
           </CardHeader>
