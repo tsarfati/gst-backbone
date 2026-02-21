@@ -13,7 +13,7 @@ import { supabase } from '@/integrations/supabase/client';
 
 interface Employee {
   id: string;
-  user_id?: string; // Optional for PIN employees
+  user_id?: string;
   first_name: string;
   last_name: string;
   display_name: string;
@@ -21,10 +21,13 @@ interface Employee {
   avatar_url?: string;
   created_at: string;
   is_pin_employee?: boolean;
+  has_pin?: boolean;
   pin_code?: string;
   department?: string;
   phone?: string;
   group_id?: string;
+  punch_clock_access?: boolean;
+  pm_lynk_access?: boolean;
 }
 
 interface EmployeeDetailDialogProps {
@@ -75,50 +78,13 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
     try {
       const userId = employee.user_id || employee.id;
       
-      // Check timecard settings for job assignments first
-      let settings: { assigned_jobs?: string[] } | null = null;
-      
-      if (employee.is_pin_employee) {
-        const { data, error } = await supabase
-          .from('pin_employee_timecard_settings')
-          .select('assigned_jobs')
-          .eq('pin_employee_id', userId)
-          .maybeSingle();
-        if (error && error.code !== 'PGRST116') throw error;
-        settings = data;
-      } else {
-        const { data, error } = await supabase
-          .from('employee_timecard_settings')
-          .select('assigned_jobs')
-          .eq('user_id', userId)
-          .maybeSingle();
-        if (error && error.code !== 'PGRST116') throw error;
-        settings = data;
-      }
-      
-      // If we have assigned jobs in settings, fetch those job details
-      if (settings?.assigned_jobs && settings.assigned_jobs.length > 0) {
-        const { data: jobsData, error: jobsError } = await supabase
-          .from('jobs')
-          .select('id, name')
-          .in('id', settings.assigned_jobs);
-        
-        if (jobsError) throw jobsError;
-        setAssignedJobs(jobsData?.map(j => ({ job_id: j.id, jobs: { name: j.name } })) || []);
-      } else {
-        // Fallback to user_job_access table for regular users
-        if (employee.user_id) {
-          const { data, error } = await supabase
-            .from('user_job_access')
-            .select('job_id, jobs(name)')
-            .eq('user_id', userId);
+      const { data, error } = await supabase
+        .from('user_job_access')
+        .select('job_id, jobs(name)')
+        .eq('user_id', userId);
 
-          if (error) throw error;
-          setAssignedJobs(data || []);
-        } else {
-          setAssignedJobs([]);
-        }
-      }
+      if (error) throw error;
+      setAssignedJobs(data || []);
     } catch (error) {
       console.error('Error fetching assigned jobs:', error);
       setAssignedJobs([]);
@@ -129,14 +95,12 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
 
   if (!employee) return null;
 
+  const hasPinAccess = employee.has_pin || employee.is_pin_employee || !!employee.pin_code;
+
   const handleEdit = () => {
     onOpenChange(false);
-    if (employee.user_id) {
-      navigate(`/settings/users/${employee.user_id}/edit`);
-    } else {
-      // Navigate to PIN employee edit page
-      navigate(`/pin-employees/${employee.id}/edit`);
-    }
+    const userId = employee.user_id || employee.id;
+    navigate(`/settings/users/${userId}`);
   };
 
   return (
@@ -176,10 +140,10 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
                     <Badge variant={roleColors[employee.role as keyof typeof roleColors]}>
                       {roleLabels[employee.role as keyof typeof roleLabels] || employee.role.replace('_', ' ').toUpperCase()}
                     </Badge>
-                    {employee.is_pin_employee && (
+                    {hasPinAccess && (
                       <Badge variant="secondary" className="flex items-center gap-1">
                         <Key className="h-3 w-3" />
-                        PIN Only Employee
+                        PIN Access
                       </Badge>
                     )}
                   </div>
@@ -215,39 +179,22 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
                 <p className="font-medium">{employee.display_name}</p>
               </div>
 
-              {employee.is_pin_employee ? (
-                <>
-                  <Separator />
-                  <div className="space-y-3">
-                    <div className="flex items-center gap-2">
-                      <Key className="h-4 w-4 text-muted-foreground" />
-                      <span className="text-sm text-muted-foreground">PIN Code: {employee.pin_code}</span>
-                    </div>
-                    {employee.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">{employee.phone}</span>
-                      </div>
-                    )}
-                    {employee.department && (
-                      <div className="flex items-center gap-2">
-                        <Building className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm text-muted-foreground">{employee.department}</span>
-                      </div>
-                    )}
-                  </div>
-                </>
-              ) : (
-                <>
-                  <Separator />
+              <Separator />
+              
+              <div className="space-y-3">
+                {hasPinAccess && employee.pin_code && (
                   <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">
-                      Email and additional details available in full profile
-                    </span>
+                    <Key className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">PIN Code: {employee.pin_code}</span>
                   </div>
-                </>
-              )}
+                )}
+                {employee.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm text-muted-foreground">{employee.phone}</span>
+                  </div>
+                )}
+              </div>
             </CardContent>
           </Card>
 
@@ -264,7 +211,7 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
                 <p className="text-sm text-muted-foreground">Loading job assignments...</p>
               ) : assignedJobs.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
-                  {assignedJobs.map((access) => (
+                  {assignedJobs.map((access: any) => (
                     <Badge key={access.job_id} variant="secondary">
                       {access.jobs?.name || 'Unknown Job'}
                     </Badge>
@@ -287,20 +234,20 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
             <CardContent className="space-y-2 text-sm">
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Employee Type:</span>
-                <span className="font-medium">
-                  {employee.is_pin_employee ? 'PIN Only Employee' : 'Full System User'}
-                </span>
+                <span className="font-medium">System User</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">Punch Clock Access:</span>
+                <span className="font-medium">{employee.punch_clock_access ? 'Yes' : 'No'}</span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-muted-foreground">PM Lynk Access:</span>
+                <span className="font-medium">{employee.pm_lynk_access ? 'Yes' : 'No'}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Added to System:</span>
                 <span className="font-medium">{new Date(employee.created_at).toLocaleDateString()}</span>
               </div>
-              {employee.user_id && (
-                <div className="flex justify-between">
-                  <span className="text-muted-foreground">User ID:</span>
-                  <span className="font-mono text-xs">{employee.user_id}</span>
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
