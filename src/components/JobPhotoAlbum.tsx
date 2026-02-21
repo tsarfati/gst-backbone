@@ -30,12 +30,7 @@ interface JobPhoto {
     first_name?: string;
     last_name?: string;
     avatar_url?: string;
-  };
-  pin_employees?: {
-    first_name?: string;
-    last_name?: string;
     display_name?: string;
-    avatar_url?: string;
   };
 }
 
@@ -152,8 +147,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         .from('job_photos')
         .select(`
           *,
-          profiles(first_name, last_name, avatar_url),
-          pin_employees(first_name, last_name, display_name, avatar_url)
+          profiles(first_name, last_name, display_name, avatar_url)
         `)
         .eq('job_id', jobId);
 
@@ -807,20 +801,14 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               <CardContent className="p-3 space-y-2">
                 <div className="flex items-center gap-2">
                   <Avatar className="h-6 w-6">
-                    <AvatarImage src={photo.pin_employee_id && photo.pin_employees?.avatar_url ? photo.pin_employees.avatar_url : photo.profiles?.avatar_url} />
+                    <AvatarImage src={photo.profiles?.avatar_url} />
                     <AvatarFallback>
-                      {photo.pin_employee_id && photo.pin_employees 
-                        ? `${photo.pin_employees.first_name?.[0] || ''}${photo.pin_employees.last_name?.[0] || ''}`
-                        : `${photo.profiles?.first_name?.[0] || ''}${photo.profiles?.last_name?.[0] || ''}`
-                      }
+                      {`${photo.profiles?.first_name?.[0] || ''}${photo.profiles?.last_name?.[0] || ''}`}
                     </AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
                     <p className="text-sm font-medium truncate">
-                      {photo.pin_employee_id && photo.pin_employees 
-                        ? (photo.pin_employees.display_name || `${photo.pin_employees.first_name} ${photo.pin_employees.last_name}`)
-                        : `${photo.profiles?.first_name || ''} ${photo.profiles?.last_name || ''}`
-                      }
+                      {photo.profiles?.display_name || `${photo.profiles?.first_name || ''} ${photo.profiles?.last_name || ''}`}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {format(new Date(photo.created_at), 'MMM d, yyyy h:mm a')}
@@ -941,20 +929,14 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               {/* Uploader Info */}
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={selectedPhoto.pin_employee_id && selectedPhoto.pin_employees?.avatar_url ? selectedPhoto.pin_employees.avatar_url : selectedPhoto.profiles?.avatar_url} />
+                  <AvatarImage src={selectedPhoto.profiles?.avatar_url} />
                   <AvatarFallback>
-                    {selectedPhoto.pin_employee_id && selectedPhoto.pin_employees 
-                      ? `${selectedPhoto.pin_employees.first_name?.[0] || ''}${selectedPhoto.pin_employees.last_name?.[0] || ''}`
-                      : `${selectedPhoto.profiles?.first_name?.[0] || ''}${selectedPhoto.profiles?.last_name?.[0] || ''}`
-                    }
+                    {`${selectedPhoto.profiles?.first_name?.[0] || ''}${selectedPhoto.profiles?.last_name?.[0] || ''}`}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="font-medium">
-                    {selectedPhoto.pin_employee_id && selectedPhoto.pin_employees 
-                      ? (selectedPhoto.pin_employees.display_name || `${selectedPhoto.pin_employees.first_name} ${selectedPhoto.pin_employees.last_name}`)
-                      : `${selectedPhoto.profiles?.first_name || ''} ${selectedPhoto.profiles?.last_name || ''}`
-                    }
+                    {selectedPhoto.profiles?.display_name || `${selectedPhoto.profiles?.first_name || ''} ${selectedPhoto.profiles?.last_name || ''}`}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {format(new Date(selectedPhoto.created_at), 'MMM d, yyyy h:mm a')}

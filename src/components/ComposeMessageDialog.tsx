@@ -73,26 +73,7 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
         role: profile.role || 'employee'
       }));
 
-      // Fetch PIN employees for the same company
-      const { data: pinData, error: pinError } = await supabase
-        .from('pin_employees')
-        .select('id, first_name, last_name, display_name')
-        .eq('company_id', companyId)
-        .eq('is_active', true);
-
-      if (pinError) throw pinError;
-
-      const pinUsers: UserOption[] = (pinData || [])
-        .filter(pe => pe.id !== userId) // exclude self if somehow a pin employee
-        .filter(pe => !authUsers.some(u => u.user_id === pe.id)) // avoid duplicates
-        .map(pe => ({
-          id: pe.id,
-          user_id: pe.id, // PIN employees use their id as user_id for messaging
-          name: pe.display_name || `${pe.first_name || ''} ${pe.last_name || ''}`.trim() || 'Unknown',
-          role: 'field employee'
-        }));
-
-      setAvailableUsers([...authUsers, ...pinUsers]);
+      setAvailableUsers(authUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({

@@ -1330,16 +1330,8 @@ Este trabajo requiere seguimiento de ubicación. Para habilitar, vaya a la confi
     if (!isPinAuthenticated || !user) return;
     
     try {
+      // Update profile avatar
       const { error } = await supabase
-        .from('pin_employees')
-        .update({ avatar_url: photoUrl })
-        .eq('id', (user as any).user_id)
-        .is('avatar_url', null); // Only update if no avatar exists yet
-        
-      if (error) throw error;
-      
-      // Also try to update regular profile if it exists
-      await supabase
         .from('profiles')
         .update({ avatar_url: photoUrl })
         .eq('user_id', (user as any).user_id);

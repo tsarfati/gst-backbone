@@ -170,36 +170,35 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
         }
       }
 
-      // Fetch PIN employees assigned to this job
-      const { data: pinSettings } = await supabase
-        .from('pin_employee_timecard_settings')
-        .select('pin_employee_id, assigned_jobs')
+      // Load employees with timecard settings assigned to this job
+      const { data: empSettings } = await supabase
+        .from('employee_timecard_settings')
+        .select('user_id, assigned_jobs')
         .eq('company_id', currentCompany?.id);
 
-      const pinEmployeeIdsForJob = (pinSettings || [])
+      const empIdsForJob = (empSettings || [])
         .filter(s => (s.assigned_jobs || []).includes(jobId))
-        .map(s => s.pin_employee_id);
+        .map(s => s.user_id);
 
-      if (pinEmployeeIdsForJob.length > 0) {
-        const { data: pinEmployees } = await supabase
-          .from('pin_employees')
-          .select('id, first_name, last_name, email, phone, avatar_url')
-          .in('id', pinEmployeeIdsForJob)
-          .eq('is_active', true);
+      if (empIdsForJob.length > 0) {
+        const { data: empProfiles } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name, phone, avatar_url')
+          .in('user_id', empIdsForJob);
 
-        for (const pin of pinEmployees || []) {
+        for (const emp of (empProfiles || []) as any[]) {
           autoMembers.push({
-            id: `pin-${pin.id}`,
-            name: [pin.first_name, pin.last_name].filter(Boolean).join(' ') || 'Unknown',
-            email: pin.email,
-            phone: pin.phone,
+            id: `emp-${emp.user_id}`,
+            name: [emp.first_name, emp.last_name].filter(Boolean).join(' ') || 'Unknown',
+            email: null,
+            phone: emp.phone,
             company_name: currentCompany?.name || null,
-            avatar_url: pin.avatar_url,
+            avatar_url: emp.avatar_url,
             project_role_id: employeeRole?.id || null,
             project_role: employeeRole || { id: '', name: 'Employee' },
             is_primary_contact: false,
             is_project_team_member: true,
-            source: 'pin_employee'
+            source: 'pin_employee' as const
           });
         }
       }

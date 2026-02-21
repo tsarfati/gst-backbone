@@ -33,7 +33,7 @@ interface UserProfile {
   pin_code?: string;
   jobs?: { id: string; name: string; }[];
   has_global_job_access?: boolean;
-  is_pin_employee?: boolean;
+  has_pin?: boolean;
 }
 
  interface Invitation {
@@ -321,35 +321,13 @@ export default function UserSettings() {
 
       if (profilesError) throw profilesError;
 
-      // Fetch PIN employees that match the company user IDs
-      // Note: pin_employees table doesn't have company_id, so we filter by the IDs we got from user_company_access
-      const { data: pinEmployees, error: pinError } = await (supabase as any)
-        .from('pin_employees')
-        .select('id, first_name, last_name, display_name, created_at, is_active')
-        .in('id', userIds)
-        .eq('is_active', true)
-        .order('created_at', { ascending: false });
-
-      if (pinError) throw pinError;
-
-      // Convert PIN employees to UserProfile format
-      const pinEmployeeProfiles: UserProfile[] = (pinEmployees || []).map(emp => ({
-        id: emp.id,
-        user_id: emp.id,
-        first_name: emp.first_name,
-        last_name: emp.last_name,
-        display_name: emp.display_name || `${emp.first_name} ${emp.last_name}`,
-        role: 'employee' as const,
-        created_at: emp.created_at,
-        jobs: [],
-        has_global_job_access: false,
-        is_pin_employee: true
-      }));
-      
-      // Fetch jobs for regular users
-      const regularUsersWithJobs = await Promise.all((regularUsers || []).map(async (user) => {
+      // Fetch jobs for regular users and determine PIN status
+      const usersWithJobs = await Promise.all((regularUsers || []).map(async (user) => {
+        const userRole = roleMap.get(user.user_id) || 'employee';
+        const hasPin = !!user.pin_code;
+        
         if (user.has_global_job_access) {
-          return { ...user, role: roleMap.get(user.user_id) || 'employee', jobs: [], is_pin_employee: false };
+          return { ...user, role: userRole, jobs: [], has_pin: hasPin };
         }
         
         const { data: userJobs } = await supabase
@@ -358,20 +336,17 @@ export default function UserSettings() {
           .eq('user_id', user.user_id);
         
         const jobs = userJobs?.map((item: any) => item.jobs).filter(Boolean) || [];
-        return { ...user, role: roleMap.get(user.user_id) || 'employee', jobs, is_pin_employee: false };
+        return { ...user, role: userRole, jobs, has_pin: hasPin };
       }));
 
-      // Combine regular users and PIN employees
-      const allUsers = [...regularUsersWithJobs, ...pinEmployeeProfiles];
-      
       // Sort by name
-      allUsers.sort((a, b) => {
+      usersWithJobs.sort((a, b) => {
         const nameA = a.display_name || `${a.first_name} ${a.last_name}`;
         const nameB = b.display_name || `${b.first_name} ${b.last_name}`;
         return nameA.localeCompare(nameB);
       });
       
-      setUsers(allUsers);
+      setUsers(usersWithJobs);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -503,7 +478,7 @@ export default function UserSettings() {
                         <div className="flex items-center justify-between w-full">
                           <CardTitle className="flex items-center gap-2">
                             {systemUsersOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                            System Users ({users.filter(u => !u.is_pin_employee).length})
+                            System Users ({users.filter(u => !u.has_pin).length})
                           </CardTitle>
                         </div>
                       </CollapsibleTrigger>
@@ -593,7 +568,7 @@ export default function UserSettings() {
                            ))}
  
                            {/* Active System Users */}
-                          {users.filter(u => !u.is_pin_employee).map((user) => (
+                          {users.filter(u => !u.has_pin).map((user) => (
                             <div
                               key={user.id}
                               onClick={() => navigate(`/settings/users/${user.user_id}`)}
@@ -626,7 +601,7 @@ export default function UserSettings() {
                               </div>
                             </div>
                           ))}
-                          {users.filter(u => !u.is_pin_employee).length === 0 && (
+                          {users.filter(u => !u.has_pin).length === 0 && (
                             <p className="text-muted-foreground text-center py-4">No system users found</p>
                           )}
                         </div>
@@ -643,7 +618,7 @@ export default function UserSettings() {
                         <div className="flex items-center justify-between w-full">
                           <CardTitle className="flex items-center gap-2">
                             {pinEmployeesOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                            PIN Employees ({users.filter(u => u.is_pin_employee).length})
+                            PIN Employees ({users.filter(u => u.has_pin).length})
                           </CardTitle>
                         </div>
                       </CollapsibleTrigger>

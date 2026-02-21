@@ -181,39 +181,8 @@ export default function UserDetails() {
         return;
       }
 
-      // PIN employee fallback
-      const { data: pinData, error: pinError } = await (supabase as any)
-        .from('pin_employees').select('*').eq('id', userId).maybeSingle();
-      if (pinError) throw pinError;
-
-      if (pinData) {
-        const userData: UserProfile = {
-          user_id: pinData.id,
-          display_name: pinData.display_name || `${pinData.first_name} ${pinData.last_name}`,
-          first_name: pinData.first_name,
-          last_name: pinData.last_name,
-          email: pinData.email,
-          phone: pinData.phone,
-          role: 'employee',
-          status: 'approved',
-          has_global_job_access: false,
-          avatar_url: pinData.avatar_url,
-          created_at: pinData.created_at,
-          department: pinData.department,
-          notes: pinData.notes,
-          pin_code: pinData.pin_code,
-        };
-        setUser(userData);
-        setEditForm({
-          first_name: userData.first_name || '',
-          last_name: userData.last_name || '',
-          display_name: userData.display_name || '',
-          role: 'employee',
-          status: 'approved',
-        });
-      } else {
-        throw new Error('User not found');
-      }
+      // No user found
+      throw new Error('User not found');
     } catch (error) {
       console.error('Error fetching user:', error);
       toast({ title: "Error", description: "Failed to fetch user details", variant: "destructive" });
