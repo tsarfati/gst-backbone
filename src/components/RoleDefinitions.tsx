@@ -263,6 +263,18 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
     ]
   },
   {
+    category: 'PM Lynk (Mobile App)',
+    permissions: [
+      { key: 'pm_lynk.messages', label: 'Messages', description: 'Access messaging in PM Lynk' },
+      { key: 'pm_lynk.delivery_tickets', label: 'Delivery Tickets', description: 'View and manage delivery tickets in PM Lynk' },
+      { key: 'pm_lynk.receipt_scanner', label: 'Receipt Scanner', description: 'Scan and upload receipts in PM Lynk' },
+      { key: 'pm_lynk.tasks', label: 'Tasks', description: 'View and manage tasks in PM Lynk' },
+      { key: 'pm_lynk.safety', label: 'Safety', description: 'Access safety documents and checklists in PM Lynk' },
+      { key: 'pm_lynk.directory', label: 'Directory', description: 'Access project team directory in PM Lynk' },
+      { key: 'pm_lynk.bill_coding', label: 'Bill Coding', description: 'Code and manage bills in PM Lynk (typically project managers only)' },
+    ]
+  },
+  {
     category: 'Dashboard Sections',
     permissions: [
       { key: 'dashboard.stats', label: 'Stats Overview', description: 'Show key metrics and statistics' },
@@ -427,6 +439,15 @@ const defaultRoleDefinitions: RoleDefinition[] = [
       'reports.export': true,
       'reports.print': true,
       
+      // PM Lynk - Full access
+      'pm_lynk.messages': true,
+      'pm_lynk.delivery_tickets': true,
+      'pm_lynk.receipt_scanner': true,
+      'pm_lynk.tasks': true,
+      'pm_lynk.safety': true,
+      'pm_lynk.directory': true,
+      'pm_lynk.bill_coding': true,
+
       // Admin - User management only
       'admin.access': true,
       'admin.view_users': true,
@@ -564,6 +585,15 @@ const defaultRoleDefinitions: RoleDefinition[] = [
       'reports.export': true,
       'reports.print': true,
       
+      // PM Lynk - Full access (project managers get bill coding)
+      'pm_lynk.messages': true,
+      'pm_lynk.delivery_tickets': true,
+      'pm_lynk.receipt_scanner': true,
+      'pm_lynk.tasks': true,
+      'pm_lynk.safety': true,
+      'pm_lynk.directory': true,
+      'pm_lynk.bill_coding': true,
+
       // Dashboard
       'dashboard.stats': true,
       'dashboard.notifications': true,
@@ -591,6 +621,14 @@ const defaultRoleDefinitions: RoleDefinition[] = [
       
       // Timecards - View own timecards only
       'timecards.view': true,
+
+      // PM Lynk - Access all except bill coding
+      'pm_lynk.messages': true,
+      'pm_lynk.delivery_tickets': true,
+      'pm_lynk.receipt_scanner': true,
+      'pm_lynk.tasks': true,
+      'pm_lynk.safety': true,
+      'pm_lynk.directory': true,
       
       // Dashboard - Limited view
       'dashboard.notifications': true,
