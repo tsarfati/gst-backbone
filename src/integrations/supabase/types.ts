@@ -5570,9 +5570,11 @@ export type Database = {
           nickname: string | null
           phone: string | null
           pin_code: string | null
+          pm_lynk_access: boolean | null
           profile_avatar_url: string | null
           profile_completed: boolean | null
           profile_completed_at: string | null
+          punch_clock_access: boolean | null
           role: Database["public"]["Enums"]["user_role"]
           status: string | null
           updated_at: string
@@ -5598,9 +5600,11 @@ export type Database = {
           nickname?: string | null
           phone?: string | null
           pin_code?: string | null
+          pm_lynk_access?: boolean | null
           profile_avatar_url?: string | null
           profile_completed?: boolean | null
           profile_completed_at?: string | null
+          punch_clock_access?: boolean | null
           role?: Database["public"]["Enums"]["user_role"]
           status?: string | null
           updated_at?: string
@@ -5626,9 +5630,11 @@ export type Database = {
           nickname?: string | null
           phone?: string | null
           pin_code?: string | null
+          pm_lynk_access?: boolean | null
           profile_avatar_url?: string | null
           profile_completed?: boolean | null
           profile_completed_at?: string | null
+          punch_clock_access?: boolean | null
           role?: Database["public"]["Enums"]["user_role"]
           status?: string | null
           updated_at?: string

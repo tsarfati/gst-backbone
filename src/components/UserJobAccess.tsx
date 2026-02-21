@@ -7,7 +7,8 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
-import { Loader2, Save, Building, CheckSquare, MapPin } from "lucide-react";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Loader2, Save, Building, CheckSquare, MapPin, ChevronRight } from "lucide-react";
 
 interface UserJobAccessProps {
   userId: string;
@@ -40,6 +41,7 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
   const [userJobAccess, setUserJobAccess] = useState<Record<string, boolean>>({});
   const [userJobCostCodes, setUserJobCostCodes] = useState<Record<string, string[]>>({});
   const [hasGlobalAccess, setHasGlobalAccess] = useState(false);
+  const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     loadJobAccess();
@@ -50,7 +52,6 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
     
     setLoading(true);
     try {
-      // Load jobs
       const { data: jobsData, error: jobsError } = await supabase
         .from('jobs')
         .select('id, name, address, client, status')
@@ -61,7 +62,6 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
       if (jobsError) throw jobsError;
       setJobs(jobsData || []);
 
-      // Load cost codes for the company
       const { data: costCodesData } = await supabase
         .from('cost_codes')
         .select('id, code, description, type, job_id')
@@ -71,7 +71,6 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
 
       setCostCodes(costCodesData || []);
 
-      // Load global access
       const { data: profileData } = await supabase
         .from('profiles')
         .select('has_global_job_access')
@@ -80,7 +79,6 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
 
       setHasGlobalAccess(profileData?.has_global_job_access || false);
 
-      // Load user's job access
       const { data: accessData, error: accessError } = await supabase
         .from('user_job_access')
         .select('job_id')
@@ -94,7 +92,6 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
       });
       setUserJobAccess(accessMap);
 
-      // Load user's cost code assignments per job
       const { data: costCodeAccessData } = await supabase
         .from('user_job_cost_codes')
         .select('job_id, cost_code_id')
@@ -148,14 +145,8 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
       setHasGlobalAccess(globalAccess);
       
       if (globalAccess) {
-        await supabase
-          .from('user_job_access')
-          .delete()
-          .eq('user_id', userId);
-        await supabase
-          .from('user_job_cost_codes')
-          .delete()
-          .eq('user_id', userId);
+        await supabase.from('user_job_access').delete().eq('user_id', userId);
+        await supabase.from('user_job_cost_codes').delete().eq('user_id', userId);
         setUserJobAccess({});
         setUserJobCostCodes({});
       }
@@ -179,7 +170,6 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
       const newMap = { ...prev };
       if (newMap[jobId]) {
         delete newMap[jobId];
-        // Also remove cost codes for this job
         setUserJobCostCodes(prevCc => {
           const updated = { ...prevCc };
           delete updated[jobId];
@@ -218,11 +208,7 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
     try {
       const currentUserId = (await supabase.auth.getUser()).data.user?.id;
 
-      // Save job access
-      await supabase
-        .from('user_job_access')
-        .delete()
-        .eq('user_id', userId);
+      await supabase.from('user_job_access').delete().eq('user_id', userId);
 
       const jobEntries = Object.entries(userJobAccess)
         .filter(([_, hasAccess]) => hasAccess)
@@ -233,17 +219,11 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
         }));
 
       if (jobEntries.length > 0) {
-        const { error } = await supabase
-          .from('user_job_access')
-          .insert(jobEntries);
+        const { error } = await supabase.from('user_job_access').insert(jobEntries);
         if (error) throw error;
       }
 
-      // Save cost code assignments
-      await supabase
-        .from('user_job_cost_codes')
-        .delete()
-        .eq('user_id', userId);
+      await supabase.from('user_job_cost_codes').delete().eq('user_id', userId);
 
       const costCodeEntries: { user_id: string; job_id: string; cost_code_id: string; granted_by: string | undefined }[] = [];
       Object.entries(userJobCostCodes).forEach(([jobId, ccIds]) => {
@@ -260,9 +240,7 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
       });
 
       if (costCodeEntries.length > 0) {
-        const { error } = await supabase
-          .from('user_job_cost_codes')
-          .insert(costCodeEntries);
+        const { error } = await supabase.from('user_job_cost_codes').insert(costCodeEntries);
         if (error) throw error;
       }
 
@@ -280,6 +258,10 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
     } finally {
       setSaving(false);
     }
+  };
+
+  const toggleJobExpanded = (jobId: string) => {
+    setExpandedJobs(prev => ({ ...prev, [jobId]: !prev[jobId] }));
   };
 
   if (loading) {
@@ -310,15 +292,9 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
         {!hasGlobalAccess && (
           <Button onClick={saveJobAccess} disabled={saving}>
             {saving ? (
-              <>
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Saving...
-              </>
+              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
             ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Save Changes
-              </>
+              <><Save className="h-4 w-4 mr-2" />Save Changes</>
             )}
           </Button>
         )}
@@ -345,7 +321,7 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
           </div>
         )}
 
-        {/* Individual Job Access with nested Cost Codes */}
+        {/* Individual Job Access with nested Cost Codes - collapsed by default */}
         {(!hasGlobalAccess || userRole === 'employee') && (
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground">
@@ -358,15 +334,17 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
                 <p>No active jobs found</p>
               </div>
             ) : (
-              <div className="space-y-3">
+              <div className="space-y-2">
                 {jobs.map((job) => {
                   const isJobAssigned = userJobAccess[job.id] || false;
                   const jobCostCodesList = getJobCostCodes(job.id);
+                  const isExpanded = expandedJobs[job.id] || false;
+                  const assignedCount = (userJobCostCodes[job.id] || []).length;
 
                   return (
-                    <div key={job.id} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div className="flex items-center space-x-2">
+                    <div key={job.id} className="border rounded-lg overflow-hidden">
+                      <div className="flex items-center justify-between p-3">
+                        <div className="flex items-center space-x-3 flex-1">
                           <input
                             type="checkbox"
                             id={`job-${job.id}`}
@@ -374,65 +352,84 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
                             onChange={() => toggleJobAccess(job.id)}
                             className="rounded"
                           />
-                          <Label htmlFor={`job-${job.id}`} className="font-semibold cursor-pointer">
-                            {job.name}
-                          </Label>
+                          <button
+                            onClick={() => toggleJobExpanded(job.id)}
+                            className="flex items-center gap-2 flex-1 text-left"
+                          >
+                            <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                            <span className="font-medium">{job.name}</span>
+                            {job.client && <span className="text-xs text-muted-foreground">({job.client})</span>}
+                          </button>
                           {job.status && (
                             <Badge variant="outline" className="text-xs">
                               {job.status.replace('_', ' ')}
                             </Badge>
                           )}
+                          {isJobAssigned && assignedCount > 0 && (
+                            <Badge variant="secondary" className="text-xs">
+                              {assignedCount} code{assignedCount !== 1 ? 's' : ''}
+                            </Badge>
+                          )}
                         </div>
-                        {job.address && (
-                          <div className="text-xs text-muted-foreground flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {job.address}
-                          </div>
-                        )}
                       </div>
 
-                      {isJobAssigned && jobCostCodesList.length > 0 && (
-                        <div className="ml-6 mt-3 space-y-2">
-                          <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
-                            <CheckSquare className="h-4 w-4" />
-                            <span>Assigned Cost Codes (Labor Tasks)</span>
-                          </div>
-                          <div className="grid grid-cols-1 md:grid-cols-2 gap-2 mt-2">
-                            {jobCostCodesList.map((costCode) => {
-                              const isSelected = isCostCodeSelected(job.id, costCode.id);
-                              return (
-                                <div
-                                  key={costCode.id}
-                                  className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors ${
-                                    isSelected
-                                      ? 'bg-primary/10 border-primary'
-                                      : 'bg-card hover:bg-muted/50'
-                                  }`}
-                                  onClick={() => toggleCostCodeForJob(job.id, costCode.id)}
-                                >
-                                  <input
-                                    type="checkbox"
-                                    checked={isSelected}
-                                    onChange={() => toggleCostCodeForJob(job.id, costCode.id)}
-                                    className="rounded"
-                                    onClick={(e) => e.stopPropagation()}
-                                  />
-                                  <Label className="cursor-pointer flex-1">
-                                    <Badge variant="outline" className="mr-2">
-                                      {costCode.code}
-                                    </Badge>
-                                    <span className="text-sm">{costCode.description}</span>
-                                  </Label>
-                                </div>
-                              );
-                            })}
-                          </div>
-                        </div>
-                      )}
+                      {isExpanded && (
+                        <div className="border-t bg-muted/30 p-3">
+                          {job.address && (
+                            <div className="text-xs text-muted-foreground flex items-center gap-1 mb-3">
+                              <MapPin className="h-3 w-3" />
+                              {job.address}
+                            </div>
+                          )}
 
-                      {isJobAssigned && jobCostCodesList.length === 0 && (
-                        <div className="ml-6 text-sm text-muted-foreground italic">
-                          No labor cost codes available for this job
+                          {isJobAssigned && jobCostCodesList.length > 0 && (
+                            <div className="space-y-2">
+                              <div className="flex items-center gap-2 text-sm font-medium text-muted-foreground">
+                                <CheckSquare className="h-4 w-4" />
+                                <span>Labor Cost Codes</span>
+                              </div>
+                              <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
+                                {jobCostCodesList.map((costCode) => {
+                                  const isSelected = isCostCodeSelected(job.id, costCode.id);
+                                  return (
+                                    <div
+                                      key={costCode.id}
+                                      className={`flex items-center space-x-2 p-2 rounded border cursor-pointer transition-colors ${
+                                        isSelected
+                                          ? 'bg-primary/10 border-primary'
+                                          : 'bg-card hover:bg-muted/50'
+                                      }`}
+                                      onClick={() => toggleCostCodeForJob(job.id, costCode.id)}
+                                    >
+                                      <input
+                                        type="checkbox"
+                                        checked={isSelected}
+                                        onChange={() => toggleCostCodeForJob(job.id, costCode.id)}
+                                        className="rounded"
+                                        onClick={(e) => e.stopPropagation()}
+                                      />
+                                      <Label className="cursor-pointer flex-1">
+                                        <Badge variant="outline" className="mr-2">{costCode.code}</Badge>
+                                        <span className="text-sm">{costCode.description}</span>
+                                      </Label>
+                                    </div>
+                                  );
+                                })}
+                              </div>
+                            </div>
+                          )}
+
+                          {isJobAssigned && jobCostCodesList.length === 0 && (
+                            <div className="text-sm text-muted-foreground italic">
+                              No labor cost codes available for this job
+                            </div>
+                          )}
+
+                          {!isJobAssigned && (
+                            <div className="text-sm text-muted-foreground italic">
+                              Enable this job to assign cost codes
+                            </div>
+                          )}
                         </div>
                       )}
                     </div>
