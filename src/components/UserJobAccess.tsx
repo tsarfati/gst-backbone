@@ -279,7 +279,7 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between">
+      <CardHeader>
         <div>
           <CardTitle className="flex items-center gap-2">
             <Building className="h-5 w-5" />
@@ -289,17 +289,10 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
             Control which jobs and cost codes this {userRole === 'employee' ? 'employee' : 'user'} can access in the punch clock app
           </p>
         </div>
-        {!hasGlobalAccess && (
-          <Button onClick={saveJobAccess} disabled={saving}>
-            {saving ? (
-              <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Saving...</>
-            ) : (
-              <><Save className="h-4 w-4 mr-2" />Save Changes</>
-            )}
-          </Button>
-        )}
       </CardHeader>
       <CardContent className="space-y-6">
+        {/* Hidden save trigger for parent page */}
+        <button data-save-jobs className="hidden" onClick={saveJobAccess} />
         {/* Global Access Toggle */}
         {userRole !== 'employee' && (
           <div className="p-4 border rounded-lg bg-muted/50">
@@ -359,6 +352,9 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
                             <ChevronRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
                             <span className="font-medium">{job.name}</span>
                             {job.client && <span className="text-xs text-muted-foreground">({job.client})</span>}
+                            <Badge variant="outline" className="text-xs ml-1">
+                              {isExpanded ? 'Collapse' : 'Expand'}
+                            </Badge>
                           </button>
                           {job.status && (
                             <Badge variant="outline" className="text-xs">

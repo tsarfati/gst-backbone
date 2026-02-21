@@ -8742,6 +8742,7 @@ export type Database = {
           first_name: string
           last_name: string
           phone: string
+          pm_lynk_access: boolean
           role: Database["public"]["Enums"]["user_role"]
           user_id: string
         }[]
