@@ -34,6 +34,11 @@ interface UserProfile {
   jobs?: { id: string; name: string; }[];
   has_global_job_access?: boolean;
   has_pin?: boolean;
+  status?: string;
+  last_sign_in_at?: string;
+  phone?: string;
+  punch_clock_access?: boolean;
+  pm_lynk_access?: boolean;
 }
 
  interface Invitation {
@@ -101,7 +106,7 @@ export default function UserSettings() {
   const activeCompanyRole = useActiveCompanyRole();
   const { isSuperAdmin } = useTenant();
    const { settings } = useSettings();
-  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ admins: true, controllers: true, project_managers: true, employees: true });
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
    const [invitations, setInvitations] = useState<Invitation[]>([]);
    const [pinEmployees, setPinEmployees] = useState<any[]>([]);
@@ -292,7 +297,7 @@ export default function UserSettings() {
       // Fetch regular users
       const { data: regularUsers, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, created_at, pin_code, has_global_job_access')
+        .select('id, user_id, first_name, last_name, display_name, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access')
         .in('user_id', userIds)
         .order('created_at', { ascending: false });
 
@@ -527,20 +532,37 @@ export default function UserSettings() {
                                 <div
                                   key={user.id}
                                   onClick={() => navigate(`/settings/users/${user.user_id}`)}
-                                  className="flex items-center justify-between p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                                  className="flex items-center gap-4 p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                                 >
-                                  <div className="flex-1">
-                                    <h3 className="font-semibold">
-                                      {user.display_name || `${user.first_name} ${user.last_name}`}
-                                    </h3>
-                                    <p className="text-sm text-muted-foreground">
-                                      Created: {new Date(user.created_at).toLocaleDateString()}
-                                    </p>
+                                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                                    <span className="text-sm font-semibold text-primary">
+                                      {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
+                                    </span>
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <h3 className="font-semibold">
+                                        {user.display_name || `${user.first_name} ${user.last_name}`}
+                                      </h3>
+                                      <Badge variant={user.status === 'approved' ? 'success' : user.status === 'pending' ? 'warning' : user.status === 'rejected' ? 'destructive' : 'outline'}>
+                                        {user.status || 'pending'}
+                                      </Badge>
+                                    </div>
+                                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
+                                      {user.phone && <span>{user.phone}</span>}
+                                      <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
+                                    </div>
                                     <div className="flex flex-wrap gap-2 mt-2">
                                       <Badge variant={roleColors[user.role as keyof typeof roleColors]}>
                                         {roleLabels[user.role as keyof typeof roleLabels]}
                                       </Badge>
-                                      {user.has_pin && <Badge variant="outline">PIN Set</Badge>}
+                                      {user.has_pin ? (
+                                        <Badge variant="outline" className="text-xs">PIN: {user.pin_code}</Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-xs text-muted-foreground">No PIN</Badge>
+                                      )}
+                                      {user.punch_clock_access && <Badge variant="outline" className="text-xs">Punch Clock</Badge>}
+                                      {user.pm_lynk_access && <Badge variant="outline" className="text-xs">PM Lynk</Badge>}
                                       {user.has_global_job_access && (
                                         <Badge variant="outline">All Jobs Access</Badge>
                                       )}
