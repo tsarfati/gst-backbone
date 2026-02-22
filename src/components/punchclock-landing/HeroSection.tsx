@@ -19,9 +19,34 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
       />
 
       <div className="relative z-10 max-w-7xl mx-auto w-full py-24">
-        <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
-          {/* Left — Copy */}
+        <div className="grid lg:grid-cols-[auto_1fr] gap-16 lg:gap-20 items-stretch">
+          {/* Left — Logo, sized to match text height */}
+          <div className="hidden lg:flex items-center justify-center">
+            <div className="relative h-full flex items-center">
+              {/* Glow behind logo */}
+              <div
+                className="absolute -inset-10 rounded-full blur-3xl opacity-15"
+                style={{ background: 'radial-gradient(circle, #E88A2D, transparent 70%)' }}
+              />
+              <img
+                src={punchClockHeroLogo}
+                alt="Punch Clock LYNK"
+                className="relative h-full w-auto max-h-full object-contain drop-shadow-2xl"
+              />
+            </div>
+          </div>
+
+          {/* Right — Copy */}
           <div>
+            {/* Mobile logo — show above text on small screens */}
+            <div className="lg:hidden flex justify-center mb-10">
+              <img
+                src={punchClockHeroLogo}
+                alt="Punch Clock LYNK"
+                className="w-64 h-auto drop-shadow-2xl"
+              />
+            </div>
+
             <h1 className="text-5xl sm:text-6xl xl:text-7xl font-extrabold text-white leading-[1.08] tracking-tight mb-7">
               Track every hour.{' '}
               <span className="text-[#E88A2D]">Know every cost.</span>
@@ -68,22 +93,6 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
               <img src={builderlynkIcon} alt="" className="h-4 w-auto opacity-60" />
               A BuilderLYNK Product
             </Link>
-          </div>
-
-          {/* Right — Logo */}
-          <div className="flex justify-center lg:justify-end">
-            <div className="relative">
-              {/* Glow behind logo */}
-              <div
-                className="absolute -inset-10 rounded-full blur-3xl opacity-15"
-                style={{ background: 'radial-gradient(circle, #E88A2D, transparent 70%)' }}
-              />
-              <img
-                src={punchClockHeroLogo}
-                alt="Punch Clock LYNK"
-                className="relative w-full max-w-md lg:max-w-lg xl:max-w-xl h-auto drop-shadow-2xl"
-              />
-            </div>
           </div>
         </div>
       </div>
