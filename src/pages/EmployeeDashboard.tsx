@@ -296,7 +296,7 @@ function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess 
 
 export default function EmployeeDashboard() {
   const { user, profile, signOut } = useAuth();
-  const isPinAuthenticated = false; // PIN auth is now handled by external apps
+  const isPinAuthenticated = !!localStorage.getItem('punch_clock_user');
   const { toast } = useToast();
   const navigate = useNavigate();
   
