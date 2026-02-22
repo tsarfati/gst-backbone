@@ -11,13 +11,12 @@ import { useEffect } from 'react';
  * The embed URL format is: https://embed.tawk.to/{PROPERTY_ID}/{WIDGET_ID}
  */
 
-const TAWK_PROPERTY_ID = 'YOUR_PROPERTY_ID';
-const TAWK_WIDGET_ID = 'YOUR_WIDGET_ID';
+const TAWK_PROPERTY_ID = '699a89633614221c3644aec2';
+const TAWK_WIDGET_ID = '1i8mhvnoj';
 
 export function TawkToChat() {
   useEffect(() => {
-    // Don't load if IDs haven't been configured
-    if (TAWK_PROPERTY_ID === 'YOUR_PROPERTY_ID') return;
+    // IDs are configured
 
     const script = document.createElement('script');
     script.async = true;
