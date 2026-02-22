@@ -31,12 +31,12 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
 
       setUploading(true);
 
-      // PIN-authenticated flow: upload via Edge Function
+      // PIN-authenticated flow: upload avatar via Edge Function to public avatars bucket
       const pinUserStr = localStorage.getItem('punch_clock_user');
       if (pinUserStr) {
         const { pin } = JSON.parse(pinUserStr);
         const base64 = await fileToBase64(file);
-        const res = await fetch('https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/upload-photo', {
+        const res = await fetch('https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/upload-avatar', {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
