@@ -24,7 +24,7 @@ serve(async (req) => {
       return new Response(JSON.stringify({ profiles: [] }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    // Fetch from profiles
+    // Fetch from profiles - all employees are now in profiles table
     const { data: profs, error: profErr } = await supabase
       .from('profiles')
       .select('user_id, first_name, last_name, display_name, avatar_url')
@@ -34,35 +34,13 @@ serve(async (req) => {
       console.error('profiles error', profErr);
     }
 
-    const profilesMap = new Map<string, any>();
-    for (const p of profs || []) {
-      profilesMap.set(p.user_id, p);
-    }
-
-    // For missing, try pin_employees
-    const missing = user_ids.filter((id) => !profilesMap.has(id));
-    if (missing.length > 0) {
-      const { data: pins, error: pinErr } = await supabase
-        .from('pin_employees')
-        .select('id, first_name, last_name, display_name')
-        .in('id', missing);
-      if (pinErr) {
-        console.error('pin_employees error', pinErr);
-      }
-      for (const p of pins || []) {
-        profilesMap.set(p.id, {
-          user_id: p.id,
-          first_name: p.first_name || 'Unknown',
-          last_name: p.last_name || 'Employee',
-          display_name: p.display_name,
-          avatar_url: null,
-        });
-      }
-    }
-
-    const profiles = user_ids
-      .map((id) => profilesMap.get(id))
-      .filter(Boolean);
+    const profiles = (profs || []).map((p: any) => ({
+      user_id: p.user_id,
+      first_name: p.first_name || 'Unknown',
+      last_name: p.last_name || 'Employee',
+      display_name: p.display_name,
+      avatar_url: p.avatar_url,
+    }));
 
     return new Response(JSON.stringify({ profiles }), { status: 200, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
   } catch (e: any) {

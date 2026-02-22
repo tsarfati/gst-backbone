@@ -34,7 +34,6 @@ interface CompanyUser {
     first_name?: string;
     last_name?: string;
   };
-  is_pin_employee?: boolean; // Flag to identify PIN employees
 }
 
 export default function CompanyManagement() {
@@ -147,41 +146,6 @@ export default function CompanyManagement() {
         combinedUsers = [...regularUsers];
       }
 
-      // Fetch PIN employees that belong to the current company
-      // PIN employees are associated with companies through their creator's company access
-      const companyUserIds = await getCompanyUserIds(currentCompany.id);
-      
-      const { data: pinEmployeesData, error: pinError } = await supabase
-        .from('pin_employees')
-        .select('*')
-        .eq('is_active', true)
-        .in('created_by', companyUserIds);
-
-      console.log('PIN employees data:', pinEmployeesData, 'error:', pinError);
-
-      if (pinError) {
-        console.error('Error fetching PIN employees:', pinError);
-      } else if (pinEmployeesData && pinEmployeesData.length > 0) {
-        // Convert PIN employees to CompanyUser format
-        const pinEmployeeUsers = pinEmployeesData.map(pinEmployee => ({
-          id: `pin-${pinEmployee.id}`, // Prefix to distinguish from regular users
-          user_id: pinEmployee.id, // Use PIN employee ID as user_id
-          company_id: currentCompany.id,
-          role: 'employee', // PIN employees are always employees
-          is_active: pinEmployee.is_active,
-          granted_at: pinEmployee.created_at,
-          profile: {
-            display_name: pinEmployee.display_name,
-            first_name: pinEmployee.first_name,
-            last_name: pinEmployee.last_name
-          },
-          is_pin_employee: true // Flag to identify PIN employees
-        }));
-
-        combinedUsers = [...combinedUsers, ...pinEmployeeUsers];
-      }
-
-      console.log('Combined users (regular + PIN):', combinedUsers);
       setUsers(combinedUsers);
     } catch (error) {
       console.error('Error fetching company users:', error);
@@ -810,38 +774,21 @@ export default function CompanyManagement() {
                     key={companyUser.id}
                     className="cursor-pointer hover:bg-primary/10"
                     onClick={() => {
-                      if (companyUser.is_pin_employee) {
-                        navigate(`/pin-employees/${companyUser.user_id}/edit`);
-                      } else {
-                        navigate(`/settings/users/${companyUser.user_id}`, { state: { fromCompanyManagement: true } });
-                      }
+                      navigate(`/settings/users/${companyUser.user_id}`, { state: { fromCompanyManagement: true } });
                     }}
                   >
                     <TableCell>
                        <div>
                          <p className="font-medium">
-                           {companyUser.is_pin_employee ? (
-                             // For PIN employees, use their name from the profile
-                             companyUser.profile?.display_name || 
-                             `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
-                             'Unknown Employee'
-                           ) : (
-                             // For regular users
-                             companyUser.profile?.display_name || 
-                             `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
-                             'Unknown User'
-                           )}
+                           {companyUser.profile?.display_name || 
+                            `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
+                            'Unknown User'}
                          </p>
                         <p className="text-sm text-muted-foreground">
-                          {companyUser.is_pin_employee ? (
-                            <>PIN Employee ID: {companyUser.user_id.substring(0, 8)}...</>
-                          ) : (
-                            <>User ID: {companyUser.user_id.substring(0, 8)}...</>
-                          )}
+                          User ID: {companyUser.user_id.substring(0, 8)}...
                         </p>
                         <p className="text-xs text-muted-foreground">
-                          {companyUser.is_pin_employee && '(PIN Only Employee)'}
-                          {!companyUser.is_pin_employee && companyUser.user_id === user?.id && '(You)'}
+                          {companyUser.user_id === user?.id && '(You)'}
                         </p>
                       </div>
                     </TableCell>
@@ -854,27 +801,21 @@ export default function CompanyManagement() {
                           'outline'
                         }
                       >
-                        {companyUser.is_pin_employee ? (
-                          <Badge variant="secondary">
-                            PIN Employee
-                          </Badge>
-                        ) : (
-                          <Badge 
-                            variant={
-                              companyUser.role === 'admin' ? 'destructive' :
-                              companyUser.role === 'controller' ? 'secondary' :
-                              companyUser.role === 'project_manager' ? 'default' :
-                              'outline'
-                            }
-                          >
-                            {companyUser.role === 'admin' ? 'Administrator' :
-                             companyUser.role === 'controller' ? 'Controller' :
-                             companyUser.role === 'project_manager' ? 'Project Manager' :
-                             companyUser.role === 'view_only' ? 'View Only' :
-                             companyUser.role === 'company_admin' ? 'Company Admin' :
-                             'Employee'}
-                          </Badge>
-                        )}
+                        <Badge 
+                          variant={
+                            companyUser.role === 'admin' ? 'destructive' :
+                            companyUser.role === 'controller' ? 'secondary' :
+                            companyUser.role === 'project_manager' ? 'default' :
+                            'outline'
+                          }
+                        >
+                          {companyUser.role === 'admin' ? 'Administrator' :
+                           companyUser.role === 'controller' ? 'Controller' :
+                           companyUser.role === 'project_manager' ? 'Project Manager' :
+                           companyUser.role === 'view_only' ? 'View Only' :
+                           companyUser.role === 'company_admin' ? 'Company Admin' :
+                           'Employee'}
+                        </Badge>
                       </Badge>
                     </TableCell>
                     <TableCell>
@@ -885,7 +826,7 @@ export default function CompanyManagement() {
                     {isCompanyAdmin && (
                       <TableCell onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
-                          {isOwnerOrAdmin && !companyUser.is_pin_employee && companyUser.user_id !== user?.id && (
+                          {isOwnerOrAdmin && companyUser.user_id !== user?.id && (
                             <Button
                               variant="destructive"
                               size="sm"

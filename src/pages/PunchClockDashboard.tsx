@@ -39,7 +39,7 @@ interface Job { id: string; name: string; latitude?: number | null; longitude?: 
 interface PunchRecord {
   id: string;
   user_id: string | null;
-  pin_employee_id?: string | null;
+  // pin_employee_id kept for legacy data compatibility
   job_id: string | null;
   cost_code_id: string | null;
   punch_time: string;
@@ -158,7 +158,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       // First get the most recent punch record for each user in this company
       const { data: allPunchData } = await supabase
         .from('punch_records')
-        .select('id, user_id, pin_employee_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
+        .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
         .eq('company_id', currentCompany.id)
         .in('user_id', companyUserIds)
         .in('job_id', companyJobIds.length > 0 ? companyJobIds : ['00000000-0000-0000-0000-000000000000'])
@@ -183,22 +183,18 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
 
       // Preload profiles for recently punched out users and load jobs for punch outs
       const outUserIds = recentOuts.map(r => r.user_id).filter(Boolean) as string[];
-      const outPinIds = recentOuts.map(r => r.pin_employee_id).filter(Boolean) as string[];
       const outJobIds = Array.from(new Set(recentOuts.map(r => r.job_id).filter(Boolean))) as string[];
       
-      if (outUserIds.length || outPinIds.length) {
-        const ids = Array.from(new Set([...(outUserIds || []), ...(outPinIds || [])]));
-        if (ids.length) {
-          const { data: fnData, error: fnErr } = await supabase.functions.invoke('get-employee-profiles', {
-            body: { user_ids: ids }
+      if (outUserIds.length) {
+        const { data: fnData, error: fnErr } = await supabase.functions.invoke('get-employee-profiles', {
+          body: { user_ids: outUserIds }
+        });
+        if (!fnErr && fnData?.profiles) {
+          const profMap: Record<string, any> = {};
+          (fnData.profiles as any[]).forEach((p) => {
+            profMap[p.user_id] = p;
           });
-          if (!fnErr && fnData?.profiles) {
-            const profMap: Record<string, any> = {};
-            (fnData.profiles as any[]).forEach((p) => {
-              profMap[p.user_id] = p;
-            });
-            setProfiles(prev => ({ ...prev, ...profMap }));
-          }
+          setProfiles(prev => ({ ...prev, ...profMap }));
         }
       }
 
@@ -320,7 +316,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   };
 
   const openDetailForOut = (row: PunchRecord) => {
-    const prof = profiles[row.user_id || row.pin_employee_id || ''];
+    const prof = profiles[row.user_id || ''];
     const job = row.job_id ? jobs[row.job_id] : undefined;
     setSelectedDetail({
       id: row.id,
@@ -610,27 +606,13 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         ])) as string[];
         
         if (userIds.length) {
-          const [profilesResponse, pinEmployeesResponse] = await Promise.all([
-            supabase
-              .from('profiles')
-              .select('user_id, display_name, avatar_url')
-              .in('user_id', userIds),
-            supabase
-              .from('pin_employees')
-              .select('id, first_name, last_name, display_name, avatar_url')
-              .eq('company_id', currentCompany.id)
-              .in('id', userIds)
-          ]);
+          const { data: profilesData } = await supabase
+            .from('profiles')
+            .select('user_id, display_name, avatar_url')
+            .in('user_id', userIds);
           
           const profMap: Record<string, Profile> = {};
-          (profilesResponse.data || []).forEach(p => { profMap[p.user_id] = p; });
-          (pinEmployeesResponse.data || []).forEach(p => { 
-            profMap[p.id] = {
-              user_id: p.id,
-              display_name: p.display_name || `${p.first_name} ${p.last_name}`,
-              avatar_url: p.avatar_url
-            };
-          });
+          (profilesData || []).forEach(p => { profMap[p.user_id] = p; });
           setProfiles(prev => ({ ...prev, ...profMap }));
         }
         
@@ -903,7 +885,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   </div>
                 )}
                 {recentOuts.slice(0, 8).map((row) => {
-                  const prof = profiles[row.user_id || row.pin_employee_id || ''];
+                  const prof = profiles[row.user_id || ''];
                   const job = row.job_id ? jobs[row.job_id] : undefined;
                   return (
                      <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">

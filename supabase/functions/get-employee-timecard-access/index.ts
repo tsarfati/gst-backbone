@@ -104,23 +104,8 @@ serve(async (req) => {
     if (settingsErr) throw settingsErr;
     if (profErr) throw profErr;
 
-    // Also check pin_employee_timecard_settings as fallback during migration
-    let assignedJobs = settings?.assigned_jobs ?? [];
-    let assignedCostCodes = settings?.assigned_cost_codes ?? [];
-
-    if (assignedJobs.length === 0) {
-      const { data: pinSettings } = await service
-        .from("pin_employee_timecard_settings")
-        .select("assigned_jobs, assigned_cost_codes")
-        .eq("pin_employee_id", employee_user_id)
-        .eq("company_id", company_id)
-        .maybeSingle();
-      
-      if (pinSettings) {
-        assignedJobs = pinSettings.assigned_jobs ?? [];
-        assignedCostCodes = pinSettings.assigned_cost_codes ?? [];
-      }
-    }
+    const assignedJobs = settings?.assigned_jobs ?? [];
+    const assignedCostCodes = settings?.assigned_cost_codes ?? [];
 
     return new Response(
       JSON.stringify({
