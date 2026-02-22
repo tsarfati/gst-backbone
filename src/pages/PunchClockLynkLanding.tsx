@@ -167,7 +167,7 @@ export default function PunchClockLynkLanding() {
                 <img
                   src={punchClockLynkLogo}
                   alt="Punch Clock LYNK"
-                  className="h-36 w-36 mx-auto lg:mx-0 rounded-3xl shadow-2xl shadow-[#E88A2D]/30"
+                  className="h-44 w-44 mx-auto lg:mx-0 rounded-3xl shadow-2xl shadow-[#E88A2D]/30"
                 />
               </div>
               <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white mb-4 leading-[1.05] tracking-tight">
