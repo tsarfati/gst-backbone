@@ -380,8 +380,41 @@ serve(async (req) => {
 
       // All users now use profiles table
       const updates: Record<string, any> = {};
-      if (avatar_url !== undefined) updates.avatar_url = avatar_url ?? null;
       if (phone !== undefined) updates.phone = phone ?? null;
+
+      // If avatar_url points to punch-photos (private bucket), re-upload to public avatars bucket
+      if (avatar_url !== undefined) {
+        let finalAvatarUrl = avatar_url ?? null;
+        if (avatar_url && avatar_url.includes('/punch-photos/')) {
+          try {
+            // Extract the file path from the URL
+            const pathMatch = avatar_url.match(/\/punch-photos\/(.+)$/);
+            if (pathMatch) {
+              const filePath = pathMatch[1];
+              // Download from private punch-photos bucket using admin client
+              const { data: fileData, error: dlErr } = await supabaseAdmin.storage
+                .from('punch-photos')
+                .download(filePath);
+              if (!dlErr && fileData) {
+                const newFileName = `users/${userRow.user_id}/${Date.now()}.jpg`;
+                const { error: upErr } = await supabaseAdmin.storage
+                  .from('avatars')
+                  .upload(newFileName, fileData, { contentType: 'image/jpeg', upsert: true });
+                if (!upErr) {
+                  const { data: pub } = supabaseAdmin.storage.from('avatars').getPublicUrl(newFileName);
+                  finalAvatarUrl = pub.publicUrl;
+                  console.log('Re-uploaded avatar from punch-photos to avatars:', finalAvatarUrl);
+                }
+              }
+            }
+          } catch (e) {
+            console.error('Error re-uploading avatar:', e);
+            // Fall back to original URL
+          }
+        }
+        updates.avatar_url = finalAvatarUrl;
+      }
+
       if (Object.keys(updates).length > 0) {
         const { error: profErr } = await supabaseAdmin
           .from('profiles')
@@ -439,6 +472,56 @@ serve(async (req) => {
         });
       } catch (e) {
         return errorResponse((e as Error).message || 'Upload failed', 500);
+      }
+    }
+
+    // Migrate avatar from punch-photos (private) to avatars (public) bucket
+    // Called by DB trigger via pg_net when avatar_url contains punch-photos
+    if (req.method === "POST" && url.pathname.endsWith("/migrate-avatar")) {
+      try {
+        const { user_id, source_url } = body || {};
+        if (!user_id || !source_url) return errorResponse("Missing user_id or source_url", 400);
+
+        // Extract the file path from the punch-photos URL
+        const pathMatch = source_url.match(/\/punch-photos\/(.+?)(\?|$)/);
+        if (!pathMatch) return errorResponse("Invalid source URL", 400);
+
+        const filePath = decodeURIComponent(pathMatch[1]);
+
+        // Download from private punch-photos bucket
+        const { data: fileData, error: dlErr } = await supabaseAdmin.storage
+          .from('punch-photos')
+          .download(filePath);
+        if (dlErr || !fileData) {
+          console.error('migrate-avatar download error:', dlErr);
+          return errorResponse(dlErr?.message || 'Download failed', 500);
+        }
+
+        // Upload to public avatars bucket
+        const newFileName = `users/${user_id}/${Date.now()}.jpg`;
+        const { error: upErr } = await supabaseAdmin.storage
+          .from('avatars')
+          .upload(newFileName, fileData, { contentType: 'image/jpeg', upsert: true });
+        if (upErr) {
+          console.error('migrate-avatar upload error:', upErr);
+          return errorResponse(upErr.message, 500);
+        }
+
+        const { data: pub } = supabaseAdmin.storage.from('avatars').getPublicUrl(newFileName);
+
+        // Update profile with new public URL
+        await supabaseAdmin
+          .from('profiles')
+          .update({ avatar_url: pub.publicUrl, profile_avatar_url: pub.publicUrl })
+          .eq('user_id', user_id);
+
+        console.log('Migrated avatar for', user_id, ':', source_url, '->', pub.publicUrl);
+        return new Response(JSON.stringify({ ok: true, publicUrl: pub.publicUrl }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      } catch (e) {
+        console.error('migrate-avatar error:', e);
+        return errorResponse((e as Error).message || 'Migration failed', 500);
       }
     }
 
