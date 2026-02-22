@@ -12,7 +12,7 @@ import { useEffect } from 'react';
  */
 
 const TAWK_PROPERTY_ID = '699a89633614221c3644aec2';
-const TAWK_WIDGET_ID = '1i8mhvnoj';
+const TAWK_WIDGET_ID = '1ji1qhauu';
 
 export function TawkToChat() {
   useEffect(() => {
