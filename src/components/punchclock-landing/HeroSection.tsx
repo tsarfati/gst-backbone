@@ -23,21 +23,13 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
         <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
           {/* Left — Copy */}
           <div>
-            <Link
-              to="/"
-              className="inline-flex items-center gap-2 text-white/40 text-xs font-medium uppercase tracking-widest mb-10 hover:text-white/60 transition-colors"
-            >
-              <img src={builderlynkIcon} alt="" className="h-4 w-auto opacity-60" />
-              A BuilderLYNK Product
-            </Link>
-
             <div className="flex items-center gap-4 mb-8">
               <img
                 src={punchClockLynkLogo}
                 alt="Punch Clock LYNK"
-                className="h-16 w-16 rounded-xl shadow-lg shadow-[#E88A2D]/15"
+                className="h-24 w-24 rounded-2xl shadow-lg shadow-[#E88A2D]/15"
               />
-              <span className="text-white/80 text-lg font-semibold tracking-tight">Punch Clock LYNK</span>
+              <span className="text-white/80 text-xl font-semibold tracking-tight">Punch Clock LYNK</span>
             </div>
 
             <h1 className="text-4xl sm:text-5xl xl:text-[3.5rem] font-extrabold text-white leading-[1.1] tracking-tight mb-6">
@@ -49,7 +41,7 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
               GPS-verified, time-stamped, AI-powered photo presence — every punch confirmed. Assign jobs and tasks, pull custom reports, all under your brand.
             </p>
 
-            <div className="flex flex-wrap gap-3 mb-8">
+            <div className="flex flex-wrap gap-3 mb-12">
               <button
                 onClick={onGetStarted}
                 className="px-8 py-3.5 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110"
@@ -79,17 +71,21 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
               </div>
             </div>
 
-            <p className="text-white/30 text-xs">
-              Free 14-day trial · No credit card required
-            </p>
+            <Link
+              to="/"
+              className="inline-flex items-center gap-2 text-white/40 text-xs font-medium uppercase tracking-widest hover:text-white/60 transition-colors"
+            >
+              <img src={builderlynkIcon} alt="" className="h-4 w-auto opacity-60" />
+              A BuilderLYNK Product
+            </Link>
           </div>
 
-          {/* Right — Single clean mockup */}
+          {/* Right — Large mockup */}
           <div className="flex justify-center lg:justify-end">
-            <div className="relative w-72 sm:w-80">
+            <div className="relative w-80 sm:w-96">
               {/* Glow behind phone */}
               <div
-                className="absolute -inset-8 rounded-full blur-3xl opacity-20"
+                className="absolute -inset-10 rounded-full blur-3xl opacity-20"
                 style={{ background: 'radial-gradient(circle, #E88A2D, transparent 70%)' }}
               />
               <div className="relative rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl">
