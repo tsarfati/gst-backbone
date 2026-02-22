@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { CheckCircle, XCircle, User, Mail, UserPlus, ChevronDown, ChevronRight } from "lucide-react";
+import { CheckCircle, XCircle, User, Mail, UserPlus, ChevronDown, ChevronRight, Shield, Briefcase, HardHat, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -24,14 +24,27 @@ interface UserProfile {
   approved_at?: string;
   created_at: string;
   avatar_url?: string;
+  pin_code?: string;
+  punch_clock_access?: boolean;
+  pm_lynk_access?: boolean;
 }
 
-interface Job {
-  id: string;
-  name: string;
-  client: string;
-  status: string;
+interface RoleGroup {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  badgeClass: string;
+  roles: string[];
 }
+
+const roleGroups: RoleGroup[] = [
+  { key: 'admins', label: 'Administrators', icon: <Shield className="h-5 w-5" />, badgeClass: 'bg-red-500 text-white', roles: ['admin', 'company_admin', 'owner'] },
+  { key: 'controllers', label: 'Controllers', icon: <Briefcase className="h-5 w-5" />, badgeClass: 'bg-blue-500 text-white', roles: ['controller'] },
+  { key: 'project_managers', label: 'Project Managers', icon: <HardHat className="h-5 w-5" />, badgeClass: 'bg-green-500 text-white', roles: ['project_manager'] },
+  { key: 'employees', label: 'Employees', icon: <Users className="h-5 w-5" />, badgeClass: 'bg-gray-500 text-white', roles: ['employee'] },
+  { key: 'view_only', label: 'View Only', icon: <User className="h-5 w-5" />, badgeClass: 'bg-gray-400 text-white', roles: ['view_only'] },
+  { key: 'vendors', label: 'Vendors', icon: <User className="h-5 w-5" />, badgeClass: 'bg-purple-500 text-white', roles: ['vendor'] },
+];
 
 export default function UserManagement() {
   const { user } = useAuth();
@@ -40,30 +53,16 @@ export default function UserManagement() {
   const navigate = useNavigate();
   const location = useLocation();
   const [users, setUsers] = useState<UserProfile[]>([]);
-  const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
-  const [systemUsersOpen, setSystemUsersOpen] = useState(true);
-  const [pinEmployeesOpen, setPinEmployeesOpen] = useState(true);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ admins: true, controllers: true, project_managers: true, employees: true });
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
 
-  // Use company-specific role for permission checks
   const activeCompanyRole = useActiveCompanyRole();
   const isAdmin = activeCompanyRole === 'admin' || activeCompanyRole === 'company_admin' || activeCompanyRole === 'owner';
-
-  const roleColors = {
-    admin: 'bg-red-500',
-    controller: 'bg-blue-500', 
-    project_manager: 'bg-green-500',
-    employee: 'bg-gray-500',
-    view_only: 'bg-gray-400',
-    company_admin: 'bg-red-500',
-    vendor: 'bg-purple-500'
-  };
 
   useEffect(() => {
     if (currentCompany) {
       fetchUsers();
-      fetchJobs();
     }
   }, [currentCompany, location.key]);
 
@@ -74,7 +73,6 @@ export default function UserManagement() {
     }
 
     try {
-      // Fetch users that have access to the current company
       const { data: userAccessData, error: accessError } = await supabase
         .from('user_company_access')
         .select('user_id, role, is_active, granted_at')
@@ -84,32 +82,25 @@ export default function UserManagement() {
       if (accessError) throw accessError;
 
       let allUsers: UserProfile[] = [];
-      let companyUserIds: string[] = [];
 
-      // Fetch profiles for users with company access
       if (userAccessData && userAccessData.length > 0) {
         const userIds = userAccessData.map(access => access.user_id);
-        companyUserIds = userIds; // Store for PIN employee filtering
         
         const { data: profilesData, error: profilesError } = await supabase
           .from('profiles')
           .select('*')
           .in('user_id', userIds)
-          .order('created_at', { ascending: false });
+          .order('last_name', { ascending: true });
 
         if (profilesError) throw profilesError;
 
-        // Combine profile data with company access data
-        const companyUsers = profilesData?.map(profile => {
-          const access = userAccessData.find(access => access.user_id === profile.user_id);
+        allUsers = (profilesData || []).map(profile => {
+          const access = userAccessData.find(a => a.user_id === profile.user_id);
           return {
             ...profile,
-            role: access?.role || profile.role, // Use company role if available
-            granted_at: access?.granted_at
+            role: access?.role || profile.role,
           };
-        }) || [];
-
-        allUsers = [...companyUsers];
+        });
       }
 
       setUsers(allUsers);
@@ -125,50 +116,19 @@ export default function UserManagement() {
     }
   };
 
-  const fetchJobs = async () => {
-    if (!currentCompany) return;
-
-    try {
-      const { data, error } = await supabase
-        .from('jobs')
-        .select('id, name, client, status')
-        .eq('company_id', currentCompany.id)
-        .order('name');
-
-      if (error) throw error;
-      setJobs(data || []);
-    } catch (error) {
-      console.error('Error fetching jobs:', error);
-    }
-  };
-
   const approveUser = async (userId: string) => {
     if (!user) return;
-
     try {
       const { error } = await supabase
         .from('profiles')
-        .update({
-          status: 'approved',
-          approved_by: user.id,
-          approved_at: new Date().toISOString()
-        })
+        .update({ status: 'approved', approved_by: user.id, approved_at: new Date().toISOString() })
         .eq('user_id', userId);
-
       if (error) throw error;
-
-      toast({
-        title: "User Approved",
-        description: "User has been approved successfully",
-      });
+      toast({ title: "User Approved", description: "User has been approved successfully" });
       fetchUsers();
     } catch (error) {
       console.error('Error approving user:', error);
-      toast({
-        title: "Error",
-        description: "Failed to approve user",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to approve user", variant: "destructive" });
     }
   };
 
@@ -178,33 +138,58 @@ export default function UserManagement() {
         .from('profiles')
         .update({ status: 'rejected' })
         .eq('user_id', userId);
-
       if (error) throw error;
-
-      toast({
-        title: "User Rejected",
-        description: "User has been rejected",
-        variant: "destructive",
-      });
+      toast({ title: "User Rejected", description: "User has been rejected", variant: "destructive" });
       fetchUsers();
     } catch (error) {
       console.error('Error rejecting user:', error);
-      toast({
-        title: "Error",
-        description: "Failed to reject user",
-        variant: "destructive",
-      });
+      toast({ title: "Error", description: "Failed to reject user", variant: "destructive" });
     }
   };
 
-  const getRoleBadge = (role: string) => {
-    const colors = {
-      admin: 'bg-red-500',
-      controller: 'bg-blue-500',
-      employee: 'bg-gray-500'
-    };
-    return <Badge className={colors[role as keyof typeof colors] || 'bg-gray-500'}>{role}</Badge>;
+  const toggleGroup = (key: string) => {
+    setOpenGroups(prev => ({ ...prev, [key]: !prev[key] }));
   };
+
+  const getUsersForGroup = (group: RoleGroup) => {
+    return users.filter(u => u.status !== 'pending' && group.roles.includes(u.role));
+  };
+
+  const pendingUsers = users.filter(u => u.status === 'pending');
+
+  const renderUserCard = (u: UserProfile) => (
+    <div
+      key={u.user_id}
+      onClick={() => navigate(`/settings/users/${u.user_id}`, { state: { fromCompanyManagement: false } })}
+      className="flex items-center gap-4 p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+    >
+      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        {u.avatar_url ? (
+          <img src={u.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
+        ) : (
+          <span className="text-sm font-semibold text-primary">
+            {u.first_name?.[0]?.toUpperCase() || u.display_name?.[0]?.toUpperCase() || 'U'}
+          </span>
+        )}
+      </div>
+      <div className="flex-1 min-w-0">
+        <div className="flex items-center gap-2 flex-wrap">
+          <h3 className="font-semibold">{u.display_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Unnamed User'}</h3>
+          <Badge variant={u.status === 'approved' ? 'default' : u.status === 'pending' ? 'secondary' : 'destructive'}>
+            {u.status || 'pending'}
+          </Badge>
+          {u.pin_code && <Badge variant="outline">PIN Set</Badge>}
+          {u.punch_clock_access && <Badge variant="outline" className="text-xs">Punch Clock</Badge>}
+          {u.pm_lynk_access && <Badge variant="outline" className="text-xs">PM Lynk</Badge>}
+        </div>
+        <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
+          <span>{u.first_name} {u.last_name}</span>
+          <span>Created: {new Date(u.created_at).toLocaleDateString()}</span>
+          {u.has_global_job_access && <span className="text-green-600">Global Access</span>}
+        </div>
+      </div>
+    </div>
+  );
 
   if (loading) {
     return <div className="p-6 text-center">Loading users...</div>;
@@ -228,54 +213,43 @@ export default function UserManagement() {
           </p>
         </div>
         {isAdmin && (
-            <Button onClick={() => setShowAddUserDialog(true)}>
+          <Button onClick={() => setShowAddUserDialog(true)}>
             <UserPlus className="h-4 w-4 mr-2" />
-              Add System User
+            Add System User
           </Button>
         )}
       </div>
 
       {/* Pending Approvals */}
-      {users.filter(u => u.status === 'pending').length > 0 && (
+      {pendingUsers.length > 0 && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <User className="h-5 w-5" />
-              Pending Approvals ({users.filter(u => u.status === 'pending').length})
+              Pending Approvals ({pendingUsers.length})
             </CardTitle>
           </CardHeader>
           <CardContent>
             <div className="space-y-4">
-              {users.filter(u => u.status === 'pending').map((user) => (
-                <div key={user.user_id} className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border">
+              {pendingUsers.map((u) => (
+                <div key={u.user_id} className="flex items-center justify-between p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border">
                   <div className="flex items-center gap-4">
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      {user.avatar_url ? (
-                        <img src={user.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                      ) : (
-                        <span className="text-lg font-semibold text-primary">
-                          {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U'}
-                        </span>
-                      )}
+                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center">
+                      <span className="text-sm font-semibold text-primary">
+                        {u.first_name?.[0]?.toUpperCase() || 'U'}
+                      </span>
                     </div>
                     <div>
-                      <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User'}</h3>
-                      <div className="flex items-center gap-2 mt-1">
-                        <Badge variant="outline" className={roleColors[user.role] || 'bg-gray-500'}>
-                          {user.role}
-                        </Badge>
-                        <span className="text-sm text-muted-foreground">Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                      </div>
+                      <h3 className="font-semibold">{u.display_name || `${u.first_name || ''} ${u.last_name || ''}`.trim()}</h3>
+                      <span className="text-sm text-muted-foreground">Created: {new Date(u.created_at).toLocaleDateString()}</span>
                     </div>
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => approveUser(user.user_id)}>
-                      <CheckCircle className="h-4 w-4 mr-2" />
-                      Approve
+                    <Button size="sm" onClick={() => approveUser(u.user_id)}>
+                      <CheckCircle className="h-4 w-4 mr-2" /> Approve
                     </Button>
-                    <Button size="sm" variant="destructive" onClick={() => rejectUser(user.user_id)}>
-                      <XCircle className="h-4 w-4 mr-2" />
-                      Reject
+                    <Button size="sm" variant="destructive" onClick={() => rejectUser(u.user_id)}>
+                      <XCircle className="h-4 w-4 mr-2" /> Reject
                     </Button>
                   </div>
                 </div>
@@ -285,126 +259,39 @@ export default function UserManagement() {
         </Card>
       )}
 
-      {/* System Users */}
-      <Collapsible open={systemUsersOpen} onOpenChange={setSystemUsersOpen}>
-        <Card>
-          <CardHeader className="cursor-pointer" onClick={() => setSystemUsersOpen(!systemUsersOpen)}>
-            <CollapsibleTrigger asChild>
-              <div className="flex items-center justify-between w-full">
-                <CardTitle className="flex items-center gap-2">
-                  {systemUsersOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                  System Users ({users.filter(u => !(u as any).isPinEmployee).length})
-                </CardTitle>
-              </div>
-            </CollapsibleTrigger>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent>
-              <div className="grid gap-4">
-                {users.filter(u => !(u as any).isPinEmployee).map((user) => (
-                  <div 
-                    key={user.user_id} 
-                    onClick={() => navigate(`/settings/users/${user.user_id}`, { state: { fromCompanyManagement: false } })}
-                    className="flex items-center gap-4 p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
-                  >
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      {user.avatar_url ? (
-                        <img src={user.avatar_url} alt="" className="h-12 w-12 rounded-full object-cover" />
-                      ) : (
-                        <span className="text-lg font-semibold text-primary">
-                          {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U'}
-                        </span>
-                      )}
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User'}</h3>
-                        <Badge variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'destructive'}>
-                          {user.status || 'pending'}
-                        </Badge>
-                        <Badge variant="outline" className={roleColors[user.role] || 'bg-gray-500'}>
-                          {user.role}
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                        <span className="flex items-center gap-1">
-                          <Mail className="h-3 w-3" />
-                          {user.user_id}
-                        </span>
-                        <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                        {user.approved_at && (
-                          <span>Approved: {new Date(user.approved_at).toLocaleDateString()}</span>
-                        )}
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                        <span>Global Job Access: {user.has_global_job_access ? 'Yes' : 'No'}</span>
-                        {user.status === 'approved' && (
-                          <span className="text-green-600">✓ Active</span>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                ))}
-                {users.filter(u => !(u as any).isPinEmployee).length === 0 && (
-                  <p className="text-muted-foreground text-center py-4">No system users found</p>
-                )}
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+      {/* Role-based collapsible groups */}
+      {roleGroups.map(group => {
+        const groupUsers = getUsersForGroup(group);
+        if (groupUsers.length === 0) return null;
 
-      {/* PIN Employees */}
-      <Collapsible open={pinEmployeesOpen} onOpenChange={setPinEmployeesOpen}>
-        <Card>
-          <CardHeader className="cursor-pointer" onClick={() => setPinEmployeesOpen(!pinEmployeesOpen)}>
-            <CollapsibleTrigger asChild>
-              <div className="flex items-center justify-between w-full">
-                <CardTitle className="flex items-center gap-2">
-                  {pinEmployeesOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                  PIN Employees ({users.filter(u => (u as any).isPinEmployee).length})
-                </CardTitle>
-              </div>
-            </CollapsibleTrigger>
-          </CardHeader>
-          <CollapsibleContent>
-            <CardContent>
-              <div className="grid gap-4">
-                {users.filter(u => (u as any).isPinEmployee).map((user) => (
-                  <div 
-                    key={user.user_id} 
-                    onClick={() => navigate(`/pin-employees/${user.user_id}/edit`)}
-                    className="flex items-center gap-4 p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
-                  >
-                    <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-                      <span className="text-lg font-semibold text-primary">
-                        {user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'P'}
-                      </span>
-                    </div>
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2">
-                        <h3 className="font-semibold text-lg">{user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed Employee'}</h3>
-                        <Badge variant="outline" className="bg-purple-500 text-white">
-                          PIN Employee
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground mt-1">
-                        <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                        {user.status === 'approved' && (
-                          <span className="text-green-600">✓ Active</span>
-                        )}
-                      </div>
-                    </div>
+        const isOpen = openGroups[group.key] ?? false;
+
+        return (
+          <Collapsible key={group.key} open={isOpen} onOpenChange={() => toggleGroup(group.key)}>
+            <Card>
+              <CardHeader className="cursor-pointer py-4" onClick={() => toggleGroup(group.key)}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between w-full">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                      {group.icon}
+                      {group.label}
+                      <Badge className={group.badgeClass}>{groupUsers.length}</Badge>
+                    </CardTitle>
                   </div>
-                ))}
-                {users.filter(u => (u as any).isPinEmployee).length === 0 && (
-                  <p className="text-muted-foreground text-center py-4">No PIN employees found</p>
-                )}
-              </div>
-            </CardContent>
-          </CollapsibleContent>
-        </Card>
-      </Collapsible>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="pt-0">
+                  <div className="grid gap-3">
+                    {groupUsers.map(renderUserCard)}
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        );
+      })}
 
       <AddSystemUserDialog
         open={showAddUserDialog}
