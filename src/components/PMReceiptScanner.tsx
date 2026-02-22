@@ -13,7 +13,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useReceipts } from '@/contexts/ReceiptContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
-import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
 interface Job {
   id: string;
   name: string;
@@ -51,7 +50,7 @@ export function PMReceiptScanner() {
   const { addReceipts, codeReceipt } = useReceipts();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
-  const { user: punchUser } = usePunchClockAuth();
+  const { user: punchUser } = useAuth();
 
   const pmLocal = typeof window !== 'undefined' ? JSON.parse(localStorage.getItem('pm_mobile_user') || 'null') : null;
 

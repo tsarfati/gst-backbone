@@ -876,13 +876,13 @@ export default function Dashboard() {
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-2">
-              <Button onClick={() => navigate("/punch-clock-app")} variant="outline" className="flex-1">
+              <Button onClick={() => navigate("/punch-clock/dashboard")} variant="outline" className="flex-1">
                 <Clock className="h-4 w-4 mr-2" />
-                Mobile Punch Clock
+                Punch Clock Dashboard
               </Button>
-              <Button onClick={() => navigate("/punch-clock")} className="flex-1">
+              <Button onClick={() => navigate("/time-sheets")} className="flex-1">
                 <Clock className="h-4 w-4 mr-2" />
-                Desktop Punch Clock
+                Time Sheets
               </Button>
             </div>
           </CardContent>

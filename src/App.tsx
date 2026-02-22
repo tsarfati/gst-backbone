@@ -8,7 +8,6 @@ import { ReceiptProvider } from "@/contexts/ReceiptContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { TenantProvider } from "@/contexts/TenantContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
-import { PunchClockAuthProvider } from "@/contexts/PunchClockAuthContext";
 import { AccessControl } from "@/components/AccessControl";
 import { RoleGuard } from "@/components/RoleGuard";
 import Layout from "@/components/AppLayout";
@@ -20,8 +19,6 @@ import TenantDetails from "@/pages/TenantDetails";
 import LandingPage from "@/pages/LandingPage";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import TaskDetails from "@/pages/TaskDetails";
-import { AppRouter } from "./AppRouter";
-
 
 import Dashboard from "./pages/Dashboard";
 import UploadReceipts from "./pages/UploadReceipts";
@@ -49,7 +46,6 @@ import EmployeePerformance from "./pages/EmployeePerformance";
 import EmployeeReports from "./pages/EmployeeReports";
 import PinEmployeeListReport from "./pages/reports/PinEmployeeListReport";
 import EmployeeQRCardsReport from "./pages/reports/EmployeeQRCardsReport";
-
 
 import TimeSheets from "./pages/TimeSheets";
 import TimecardReports from "./pages/TimecardReports";
@@ -139,7 +135,6 @@ import CommittedCostDetails from "./pages/reports/CommittedCostDetails";
 
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
-import PunchClockApp from "./pages/PunchClockApp";
 import Customers from "./pages/Customers";
 import CustomerDetails from "./pages/CustomerDetails";
 import CustomerEdit from "./pages/CustomerEdit";
@@ -149,11 +144,6 @@ import ReceivablesReports from "./pages/ReceivablesReports";
 import ReceivablesDashboard from "./pages/ReceivablesDashboard";
 import AddARInvoice from "./pages/AddARInvoice";
 import ARInvoiceDetails from "./pages/ARInvoiceDetails";
-import PunchClockLogin from "./pages/PunchClockLogin";
-import PinEmployeeEdit from "./pages/PinEmployeeEdit";
-import PMobileApp from "./pages/PMobileApp";
-import PMobileLogin from "./pages/PMobileLogin";
-import MobileMessages from "./pages/MobileMessages";
 import VisitorLogin from "./pages/VisitorLogin";
 import VisitorCheckout from "./pages/VisitorCheckout";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
@@ -162,8 +152,6 @@ import VendorDashboard from "./pages/VendorDashboard";
 import VendorRegister from "./pages/VendorRegister";
 
 const queryClient = new QueryClient();
-
-const appType = import.meta.env.VITE_APP_TYPE || 'main';
 
 // Protected Route Component that must be inside AuthProvider
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -183,31 +171,24 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function PublicRoutes() {
   return (
     <AuthProvider>
-      <PunchClockAuthProvider>
-        <TenantProvider>
-          <CompanyProvider>
-            <SettingsProvider>
-              <ReceiptProvider>
-                <Routes>
-                  <Route path="/" element={<LandingPage />} />
-                  <Route path="/privacy" element={<PrivacyPolicy />} />
-                  <Route path="/auth" element={<Auth />} />
-                  <Route path="/punch-clock-login" element={<PunchClockLogin />} />
-                  <Route path="/punch-clock" element={<PunchClockLogin />} />
-                  <Route path="/punch-clock-app" element={<PunchClockApp />} />
-                  <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
-                  <Route path="/pm-mobile-login" element={<PMobileLogin />} />
-                  <Route path="/pm-mobile-app" element={<PMobileApp />} />
-                  <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
-                  <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
-                  <Route path="/vendor-register" element={<VendorRegister />} />
-                  <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
-                </Routes>
-              </ReceiptProvider>
-            </SettingsProvider>
-          </CompanyProvider>
-        </TenantProvider>
-      </PunchClockAuthProvider>
+      <TenantProvider>
+        <CompanyProvider>
+          <SettingsProvider>
+            <ReceiptProvider>
+              <Routes>
+                <Route path="/" element={<LandingPage />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/auth" element={<Auth />} />
+                <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
+                <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
+                <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
+                <Route path="/vendor-register" element={<VendorRegister />} />
+                <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
+              </Routes>
+            </ReceiptProvider>
+          </SettingsProvider>
+        </CompanyProvider>
+      </TenantProvider>
     </AuthProvider>
   );
 }
@@ -215,262 +196,250 @@ function PublicRoutes() {
 function AuthenticatedRoutes() {
   return (
     <AuthProvider>
-      <PunchClockAuthProvider>
-        <TenantProvider>
-          <CompanyProvider>
-            <SettingsProvider>
-              <ReceiptProvider>
-                <Routes>
-                <Route path="/profile-completion" element={
-                  <ProtectedRoute>
-                    <ProfileCompletion />
-                  </ProtectedRoute>
-                } />
-                <Route path="/tenant-request" element={
-                  <ProtectedRoute>
-                    <TenantRequest />
-                  </ProtectedRoute>
-                } />
-                <Route path="/super-admin" element={
-                  <ProtectedRoute>
-                    <SuperAdminDashboard />
-                  </ProtectedRoute>
-                } />
-                <Route path="/super-admin/tenant/:tenantId" element={
-                  <ProtectedRoute>
-                    <TenantDetails />
-                  </ProtectedRoute>
-                } />
-                <Route path="/company-request" element={
-                  <ProtectedRoute>
-                    <AccessControl>
-                      <CompanyRequest />
-                    </AccessControl>
-                  </ProtectedRoute>
-                } />
-              <Route path="/" element={
+      <TenantProvider>
+        <CompanyProvider>
+          <SettingsProvider>
+            <ReceiptProvider>
+              <Routes>
+              <Route path="/profile-completion" element={
                 <ProtectedRoute>
-                  <AccessControl>
-                    <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager', 'employee', 'view_only', 'company_admin', 'vendor']}>
-                      <Layout />
-                    </RoleGuard>
-                  </AccessControl>
-                </ProtectedRoute>
-              }>
-                <Route index element={<Dashboard />} />
-                <Route path="dashboard" element={<Dashboard />} />
-                <Route path="vendor/dashboard" element={
-                  <RoleGuard allowedRoles={['vendor']}>
-                    <VendorDashboard />
-                  </RoleGuard>
-                } />
-                <Route path="vendor/compliance" element={
-                  <RoleGuard allowedRoles={['vendor', 'admin', 'controller']}>
-                    <VendorDashboard />
-                  </RoleGuard>
-                } />
-                <Route path="upload" element={<UploadReceipts />} />
-                <Route path="uncoded" element={<UncodedReceipts />} />
-                <Route path="receipts" element={<CodedReceipts />} />
-                <Route path="receipts/reports" element={<ReceiptReports />} />
-                <Route path="construction/dashboard" element={<ConstructionDashboard />} />
-                <Route path="construction/reports" element={<ConstructionReports />} />
-                <Route path="construction/reports/cost-history" element={<ProjectCostTransactionHistory />} />
-                <Route path="construction/reports/committed-details" element={<CommittedCostDetails />} />
-                <Route path="construction/reports/transactions" element={<ProjectTransactionReport />} />
-                <Route path="construction/reports/subcontract-summary" element={<SubcontractSummaryReport />} />
-                <Route path="construction/reports/subcontract-details" element={<SubcontractDetailsByVendor />} />
-                <Route path="construction/reports/budget-status" element={<ProjectCostBudgetStatus />} />
-                <Route path="construction/rfps" element={<RFPs />} />
-                <Route path="construction/rfps/add" element={<AddRFP />} />
-                <Route path="construction/rfps/:id" element={<RFPDetails />} />
-                <Route path="construction/rfps/:id/edit" element={<AddRFP />} />
-                <Route path="construction/rfps/:id/compare" element={<BidComparison />} />
-                <Route path="construction/rfps/:rfpId/bids/add" element={<AddBid />} />
-                <Route path="construction/rfps/:rfpId/criteria/add" element={<AddScoringCriterion />} />
-                <Route path="reports/project-cost-transaction-history" element={<ProjectCostTransactionHistory />} />
-                <Route path="jobs" element={<Jobs />} />
-                <Route path="jobs/add" element={<AddJob />} />
-                <Route path="jobs/cost-codes" element={<CostCodes />} />
-                <Route path="jobs/cost-management" element={<JobCostManagement />} />
-                <Route path="jobs/cost-setup" element={<JobCostSetup />} />
-                <Route path="jobs/reports" element={<JobReports />} />
-                <Route path="jobs/:id" element={<JobDetails />} />
-                <Route path="jobs/:id/edit" element={<JobEdit />} />
-                <Route path="jobs/:id/cost-budget" element={<JobCostBudget />} />
-                <Route path="jobs/:id/budget" element={<JobBudget />} />
-                <Route path="plans/:planId" element={<PlanViewer />} />
-                <Route path="delivery-tickets" element={<DeliveryTickets />} />
-                <Route path="jobs/:jobId/delivery-tickets" element={<DeliveryTickets />} />
-                <Route path="vendors" element={<Vendors />} />
-                <Route path="vendors/add" element={<VendorEdit />} />
-                <Route path="vendors/reports" element={<VendorReports />} />
-                <Route path="vendors/:id" element={<VendorDetails />} />
-                <Route path="vendors/:id/edit" element={<VendorEdit />} />
-                <Route path="settings" element={<AppSettings />} />
-                <Route path="settings/company" element={<CompanySettingsPage />} />
-                <Route path="settings/company/chart-of-accounts" element={<ChartOfAccounts />} />
-                <Route path="settings/company/job-cost-setup" element={<JobCostSetupStandalone />} />
-                <Route path="job-cost-setup" element={<JobCostSetupStandalone />} />
-                <Route path="settings/company-management" element={<CompanyManagement />} />
-                <Route path="settings/notifications" element={<NotificationSettings />} />
-                <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
-                <Route path="settings/email-templates/:id/preview" element={<EmailTemplatePreview />} />
-                <Route path="settings/security" element={<SecuritySettings />} />
-                <Route path="theme-settings" element={<ThemeSettings />} />
-                
-                <Route path="profile-settings" element={<ProfileSettings />} />
-                <Route path="settings/users" element={<UserSettings />} />
-                <Route path="settings/users/:userId" element={<UserDetails />} />
-                <Route path="settings/users/:userId/edit" element={<UserEdit />} />
-                <Route path="employees" element={<AllEmployees />} />
-                <Route path="employees/add" element={<AddEmployee />} />
-                <Route path="employees/payroll" element={<EmployeePayroll />} />
-                <Route path="employees/performance" element={<EmployeePerformance />} />
-                <Route path="employees/reports" element={<EmployeeReports />} />
-                <Route path="employees/reports/pin-list" element={<PinEmployeeListReport />} />
-                <Route path="employees/reports/qr-cards" element={<EmployeeQRCardsReport />} />
-                
-                <Route path="pin-employees/:employeeId/edit" element={<PinEmployeeEdit />} />
-                <Route path="manual-punch-out" element={<ManualPunchOut />} />
-                <Route path="manual-time-entry" element={<ManualTimeEntry />} />
-                <Route path="add-employee" element={<AddEmployee />} />
-                <Route path="time-tracking" element={<PunchClockApp />} />
-                <Route path="punch-clock" element={<PunchClockApp />} />
-                <Route path="time-sheets" element={<TimeSheets />} />
-                <Route path="punch-clock/timesheets" element={<TimeSheets />} />
-                <Route path="punch-clock/dashboard" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                    <PunchClockDashboard />
-                  </RoleGuard>
-                } />
-                <Route path="punch-clock/reports" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                    <TimecardReports />
-                  </RoleGuard>
-                } />
-                <Route path="punch-clock/settings" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                    <PunchClockSettings />
-                  </RoleGuard>
-                } />
-                <Route path="messages" element={<AllMessages />} />
-                <Route path="team-chat" element={<TeamChat />} />
-                <Route path="announcements" element={<Announcements />} />
-                <Route path="messaging" element={<AllMessages />} />
-                <Route path="tasks" element={<AllTasks />} />
-                <Route path="tasks/projects" element={<ProjectTasks />} />
-                <Route path="tasks/deadlines" element={<TaskDeadlines />} />
-                <Route path="tasks/:id" element={<TaskDetails />} />
-                <Route path="bills" element={<Navigate to="/invoices" replace />} />
-                <Route path="bills/add" element={<Navigate to="/invoices/add" replace />} />
-                <Route path="bills/:id" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                    <BillDetails />
-                  </RoleGuard>
-                } />
-                <Route path="bills/:id/edit" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                    <BillEdit />
-                  </RoleGuard>
-                } />
-                <Route path="payables-dashboard" element={<PayablesDashboard />} />
-                <Route path="payables/make-payment" element={<MakePayment />} />
-                <Route path="payables/payment-reports" element={<PaymentReports />} />
-                <Route path="bills/payment-reports" element={<PaymentReports />} />
-                <Route path="bills/credit-card-transaction-report" element={<CreditCardTransactionReport />} />
-                <Route path="payables/payment-history" element={<PaymentHistory />} />
-                <Route path="payables/payments/:id" element={<PaymentDetails />} />
-                <Route path="payables/payments/:id/edit" element={
-                  <RoleGuard allowedRoles={['admin', 'controller']}>
-                    <PaymentEdit />
-                  </RoleGuard>
-                } />
-                <Route path="bills/payments" element={<PaymentHistory />} />
-                <Route path="bills/payments/:id" element={<PaymentDetails />} />
-                <Route path="bills/payments/:id/edit" element={
-                  <RoleGuard allowedRoles={['admin', 'controller']}>
-                    <PaymentEdit />
-                  </RoleGuard>
-                } />
-                <Route path="bills/payment-reports" element={<PaymentReports />} />
-                <Route path="subcontracts" element={<Subcontracts />} />
-                <Route path="subcontracts/add" element={<AddSubcontract />} />
-                <Route path="subcontracts/:id" element={<SubcontractDetails />} />
-                <Route path="subcontracts/:id/edit" element={<SubcontractEdit />} />
-                <Route path="subcontracts/add-change-order" element={<AddChangeOrder />} />
-                <Route path="purchase-orders" element={<PurchaseOrders />} />
-                <Route path="purchase-orders/add" element={<AddPurchaseOrder />} />
-                {/* Legacy routes for backwards compatibility */}
-                <Route path="invoices" element={<Bills />} />
-                <Route path="invoices/add" element={<AddBill />} />
-                <Route path="invoices/:id" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                    <BillDetails />
-                  </RoleGuard>
-                } />
-                <Route path="invoices/:id/edit" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                    <BillEdit />
-                  </RoleGuard>
-                } />
-                <Route path="invoices/payments" element={<PaymentHistory />} />
-                <Route path="invoices/payment-reports" element={<PaymentReports />} />
-                <Route path="company-files" element={<CompanyFiles />} />
-                <Route path="company-files/contracts" element={<CompanyContracts />} />
-                <Route path="company-files/permits" element={<CompanyPermits />} />
-                <Route path="company-files/insurance" element={<CompanyInsurance />} />
-                <Route path="company-files/vault" element={<CompanyVault />} />
-                <Route path="banking/accounts" element={<BankAccounts />} />
-                <Route path="banking/accounts/:id" element={<BankAccountDetails />} />
-                <Route path="banking/accounts/add" element={<AddBankAccount />} />
-                <Route path="banking/reconciliation/:id" element={<ReconciliationReport />} />
-                <Route path="banking/chart-of-accounts" element={<BankingChartOfAccounts />} />
-                <Route path="payables/credit-cards" element={<CreditCards />} />
-                <Route path="payables/credit-cards/add" element={<AddCreditCard />} />
-                <Route path="payables/credit-cards/:id" element={<CreditCardDetails />} />
-                <Route path="payables/credit-cards/:id/edit" element={<CreditCardEdit />} />
-                <Route path="payables/credit-cards/:id/transactions" element={<CreditCardTransactions />} />
-                <Route path="payables/credit-cards/:id/make-payment" element={<CreditCardMakePayment />} />
-                <Route path="banking/reports" element={<BankingReports />} />
-                <Route path="banking/general-ledger" element={<GeneralLedger />} />
-                <Route path="banking/journal-entries" element={<JournalEntries />} />
-                <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />
-                <Route path="banking/journal-entries/:id" element={<JournalEntryDetails />} />
-                <Route path="banking/journal-entries/:id/edit" element={<JournalEntryEdit />} />
-                <Route path="banking/deposits" element={<Deposits />} />
-                <Route path="banking/print-checks" element={<PrintChecks />} />
-                <Route path="banking/make-payment" element={<MakePayment />} />
-                <Route path="banking/reconcile" element={<Reconcile />} />
-                
-                {/* Receivables Routes */}
-                <Route path="receivables" element={<ReceivablesDashboard />} />
-                <Route path="receivables/dashboard" element={<ReceivablesDashboard />} />
-                <Route path="receivables/customers" element={<Customers />} />
-                <Route path="receivables/customers/:id" element={<CustomerDetails />} />
-                <Route path="receivables/customers/:id/edit" element={<CustomerEdit />} />
-                <Route path="receivables/customers/add" element={<CustomerEdit />} />
-                <Route path="receivables/invoices" element={<ARInvoices />} />
-                <Route path="receivables/invoices/add" element={<AddARInvoice />} />
-                <Route path="receivables/invoices/:id" element={<ARInvoiceDetails />} />
-                <Route path="receivables/invoices/:id/edit" element={<AddARInvoice />} />
-                <Route path="receivables/payments" element={<ARPayments />} />
-                <Route path="receivables/reports" element={<ReceivablesReports />} />
-              </Route>
-              <Route path="/pm-mobile" element={<Navigate to="/pm-mobile-app" replace />} />
-              <Route path="/pm-mobile-app" element={<Navigate to="/pm-mobile-login" replace />} />
-              <Route path="/mobile-messages" element={
-                <ProtectedRoute>
-                  <MobileMessages />
+                  <ProfileCompletion />
                 </ProtectedRoute>
               } />
-              <Route path="*" element={<NotFound />} />
-              </Routes>
-              </ReceiptProvider>
-            </SettingsProvider>
-          </CompanyProvider>
-        </TenantProvider>
-      </PunchClockAuthProvider>
+              <Route path="/tenant-request" element={
+                <ProtectedRoute>
+                  <TenantRequest />
+                </ProtectedRoute>
+              } />
+              <Route path="/super-admin" element={
+                <ProtectedRoute>
+                  <SuperAdminDashboard />
+                </ProtectedRoute>
+              } />
+              <Route path="/super-admin/tenant/:tenantId" element={
+                <ProtectedRoute>
+                  <TenantDetails />
+                </ProtectedRoute>
+              } />
+              <Route path="/company-request" element={
+                <ProtectedRoute>
+                  <AccessControl>
+                    <CompanyRequest />
+                  </AccessControl>
+                </ProtectedRoute>
+              } />
+            <Route path="/" element={
+              <ProtectedRoute>
+                <AccessControl>
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager', 'employee', 'view_only', 'company_admin', 'vendor']}>
+                    <Layout />
+                  </RoleGuard>
+                </AccessControl>
+              </ProtectedRoute>
+            }>
+              <Route index element={<Dashboard />} />
+              <Route path="dashboard" element={<Dashboard />} />
+              <Route path="vendor/dashboard" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorDashboard />
+                </RoleGuard>
+              } />
+              <Route path="vendor/compliance" element={
+                <RoleGuard allowedRoles={['vendor', 'admin', 'controller']}>
+                  <VendorDashboard />
+                </RoleGuard>
+              } />
+              <Route path="upload" element={<UploadReceipts />} />
+              <Route path="uncoded" element={<UncodedReceipts />} />
+              <Route path="receipts" element={<CodedReceipts />} />
+              <Route path="receipts/reports" element={<ReceiptReports />} />
+              <Route path="construction/dashboard" element={<ConstructionDashboard />} />
+              <Route path="construction/reports" element={<ConstructionReports />} />
+              <Route path="construction/reports/cost-history" element={<ProjectCostTransactionHistory />} />
+              <Route path="construction/reports/committed-details" element={<CommittedCostDetails />} />
+              <Route path="construction/reports/transactions" element={<ProjectTransactionReport />} />
+              <Route path="construction/reports/subcontract-summary" element={<SubcontractSummaryReport />} />
+              <Route path="construction/reports/subcontract-details" element={<SubcontractDetailsByVendor />} />
+              <Route path="construction/reports/budget-status" element={<ProjectCostBudgetStatus />} />
+              <Route path="construction/rfps" element={<RFPs />} />
+              <Route path="construction/rfps/add" element={<AddRFP />} />
+              <Route path="construction/rfps/:id" element={<RFPDetails />} />
+              <Route path="construction/rfps/:id/edit" element={<AddRFP />} />
+              <Route path="construction/rfps/:id/compare" element={<BidComparison />} />
+              <Route path="construction/rfps/:rfpId/bids/add" element={<AddBid />} />
+              <Route path="construction/rfps/:rfpId/criteria/add" element={<AddScoringCriterion />} />
+              <Route path="reports/project-cost-transaction-history" element={<ProjectCostTransactionHistory />} />
+              <Route path="jobs" element={<Jobs />} />
+              <Route path="jobs/add" element={<AddJob />} />
+              <Route path="jobs/cost-codes" element={<CostCodes />} />
+              <Route path="jobs/cost-management" element={<JobCostManagement />} />
+              <Route path="jobs/cost-setup" element={<JobCostSetup />} />
+              <Route path="jobs/reports" element={<JobReports />} />
+              <Route path="jobs/:id" element={<JobDetails />} />
+              <Route path="jobs/:id/edit" element={<JobEdit />} />
+              <Route path="jobs/:id/cost-budget" element={<JobCostBudget />} />
+              <Route path="jobs/:id/budget" element={<JobBudget />} />
+              <Route path="plans/:planId" element={<PlanViewer />} />
+              <Route path="delivery-tickets" element={<DeliveryTickets />} />
+              <Route path="jobs/:jobId/delivery-tickets" element={<DeliveryTickets />} />
+              <Route path="vendors" element={<Vendors />} />
+              <Route path="vendors/add" element={<VendorEdit />} />
+              <Route path="vendors/reports" element={<VendorReports />} />
+              <Route path="vendors/:id" element={<VendorDetails />} />
+              <Route path="vendors/:id/edit" element={<VendorEdit />} />
+              <Route path="settings" element={<AppSettings />} />
+              <Route path="settings/company" element={<CompanySettingsPage />} />
+              <Route path="settings/company/chart-of-accounts" element={<ChartOfAccounts />} />
+              <Route path="settings/company/job-cost-setup" element={<JobCostSetupStandalone />} />
+              <Route path="job-cost-setup" element={<JobCostSetupStandalone />} />
+              <Route path="settings/company-management" element={<CompanyManagement />} />
+              <Route path="settings/notifications" element={<NotificationSettings />} />
+              <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
+              <Route path="settings/email-templates/:id/preview" element={<EmailTemplatePreview />} />
+              <Route path="settings/security" element={<SecuritySettings />} />
+              <Route path="theme-settings" element={<ThemeSettings />} />
+              
+              <Route path="profile-settings" element={<ProfileSettings />} />
+              <Route path="settings/users" element={<UserSettings />} />
+              <Route path="settings/users/:userId" element={<UserDetails />} />
+              <Route path="settings/users/:userId/edit" element={<UserEdit />} />
+              <Route path="employees" element={<AllEmployees />} />
+              <Route path="employees/add" element={<AddEmployee />} />
+              <Route path="employees/payroll" element={<EmployeePayroll />} />
+              <Route path="employees/performance" element={<EmployeePerformance />} />
+              <Route path="employees/reports" element={<EmployeeReports />} />
+              <Route path="employees/reports/pin-list" element={<PinEmployeeListReport />} />
+              <Route path="employees/reports/qr-cards" element={<EmployeeQRCardsReport />} />
+              
+              <Route path="manual-punch-out" element={<ManualPunchOut />} />
+              <Route path="manual-time-entry" element={<ManualTimeEntry />} />
+              <Route path="add-employee" element={<AddEmployee />} />
+              <Route path="time-sheets" element={<TimeSheets />} />
+              <Route path="punch-clock/timesheets" element={<TimeSheets />} />
+              <Route path="punch-clock/dashboard" element={
+                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <PunchClockDashboard />
+                </RoleGuard>
+              } />
+              <Route path="punch-clock/reports" element={
+                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <TimecardReports />
+                </RoleGuard>
+              } />
+              <Route path="punch-clock/settings" element={
+                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <PunchClockSettings />
+                </RoleGuard>
+              } />
+              <Route path="messages" element={<AllMessages />} />
+              <Route path="team-chat" element={<TeamChat />} />
+              <Route path="announcements" element={<Announcements />} />
+              <Route path="messaging" element={<AllMessages />} />
+              <Route path="tasks" element={<AllTasks />} />
+              <Route path="tasks/projects" element={<ProjectTasks />} />
+              <Route path="tasks/deadlines" element={<TaskDeadlines />} />
+              <Route path="tasks/:id" element={<TaskDetails />} />
+              <Route path="bills" element={<Navigate to="/invoices" replace />} />
+              <Route path="bills/add" element={<Navigate to="/invoices/add" replace />} />
+              <Route path="bills/:id" element={
+                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <BillDetails />
+                </RoleGuard>
+              } />
+              <Route path="bills/:id/edit" element={
+                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <BillEdit />
+                </RoleGuard>
+              } />
+              <Route path="payables-dashboard" element={<PayablesDashboard />} />
+              <Route path="payables/make-payment" element={<MakePayment />} />
+              <Route path="payables/payment-reports" element={<PaymentReports />} />
+              <Route path="bills/payment-reports" element={<PaymentReports />} />
+              <Route path="bills/credit-card-transaction-report" element={<CreditCardTransactionReport />} />
+              <Route path="payables/payment-history" element={<PaymentHistory />} />
+              <Route path="payables/payments/:id" element={<PaymentDetails />} />
+              <Route path="payables/payments/:id/edit" element={
+                <RoleGuard allowedRoles={['admin', 'controller']}>
+                  <PaymentEdit />
+                </RoleGuard>
+              } />
+              <Route path="bills/payments" element={<PaymentHistory />} />
+              <Route path="bills/payments/:id" element={<PaymentDetails />} />
+              <Route path="bills/payments/:id/edit" element={
+                <RoleGuard allowedRoles={['admin', 'controller']}>
+                  <PaymentEdit />
+                </RoleGuard>
+              } />
+              <Route path="bills/payment-reports" element={<PaymentReports />} />
+              <Route path="subcontracts" element={<Subcontracts />} />
+              <Route path="subcontracts/add" element={<AddSubcontract />} />
+              <Route path="subcontracts/:id" element={<SubcontractDetails />} />
+              <Route path="subcontracts/:id/edit" element={<SubcontractEdit />} />
+              <Route path="subcontracts/add-change-order" element={<AddChangeOrder />} />
+              <Route path="purchase-orders" element={<PurchaseOrders />} />
+              <Route path="purchase-orders/add" element={<AddPurchaseOrder />} />
+              {/* Legacy routes for backwards compatibility */}
+              <Route path="invoices" element={<Bills />} />
+              <Route path="invoices/add" element={<AddBill />} />
+              <Route path="invoices/:id" element={
+                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <BillDetails />
+                </RoleGuard>
+              } />
+              <Route path="invoices/:id/edit" element={
+                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <BillEdit />
+                </RoleGuard>
+              } />
+              <Route path="invoices/payments" element={<PaymentHistory />} />
+              <Route path="invoices/payment-reports" element={<PaymentReports />} />
+              <Route path="company-files" element={<CompanyFiles />} />
+              <Route path="company-files/contracts" element={<CompanyContracts />} />
+              <Route path="company-files/permits" element={<CompanyPermits />} />
+              <Route path="company-files/insurance" element={<CompanyInsurance />} />
+              <Route path="company-files/vault" element={<CompanyVault />} />
+              <Route path="banking/accounts" element={<BankAccounts />} />
+              <Route path="banking/accounts/:id" element={<BankAccountDetails />} />
+              <Route path="banking/accounts/add" element={<AddBankAccount />} />
+              <Route path="banking/reconciliation/:id" element={<ReconciliationReport />} />
+              <Route path="banking/chart-of-accounts" element={<BankingChartOfAccounts />} />
+              <Route path="payables/credit-cards" element={<CreditCards />} />
+              <Route path="payables/credit-cards/add" element={<AddCreditCard />} />
+              <Route path="payables/credit-cards/:id" element={<CreditCardDetails />} />
+              <Route path="payables/credit-cards/:id/edit" element={<CreditCardEdit />} />
+              <Route path="payables/credit-cards/:id/transactions" element={<CreditCardTransactions />} />
+              <Route path="payables/credit-cards/:id/make-payment" element={<CreditCardMakePayment />} />
+              <Route path="banking/reports" element={<BankingReports />} />
+              <Route path="banking/general-ledger" element={<GeneralLedger />} />
+              <Route path="banking/journal-entries" element={<JournalEntries />} />
+              <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />
+              <Route path="banking/journal-entries/:id" element={<JournalEntryDetails />} />
+              <Route path="banking/journal-entries/:id/edit" element={<JournalEntryEdit />} />
+              <Route path="banking/deposits" element={<Deposits />} />
+              <Route path="banking/print-checks" element={<PrintChecks />} />
+              <Route path="banking/make-payment" element={<MakePayment />} />
+              <Route path="banking/reconcile" element={<Reconcile />} />
+              
+              {/* Receivables Routes */}
+              <Route path="receivables" element={<ReceivablesDashboard />} />
+              <Route path="receivables/dashboard" element={<ReceivablesDashboard />} />
+              <Route path="receivables/customers" element={<Customers />} />
+              <Route path="receivables/customers/:id" element={<CustomerDetails />} />
+              <Route path="receivables/customers/:id/edit" element={<CustomerEdit />} />
+              <Route path="receivables/customers/add" element={<CustomerEdit />} />
+              <Route path="receivables/invoices" element={<ARInvoices />} />
+              <Route path="receivables/invoices/add" element={<AddARInvoice />} />
+              <Route path="receivables/invoices/:id" element={<ARInvoiceDetails />} />
+              <Route path="receivables/invoices/:id/edit" element={<AddARInvoice />} />
+              <Route path="receivables/payments" element={<ARPayments />} />
+              <Route path="receivables/reports" element={<ReceivablesReports />} />
+            </Route>
+            <Route path="*" element={<NotFound />} />
+            </Routes>
+            </ReceiptProvider>
+          </SettingsProvider>
+        </CompanyProvider>
+      </TenantProvider>
     </AuthProvider>
   );
 }
@@ -479,7 +448,7 @@ function AppRoutes() {
   const location = useLocation();
   
   // Landing page and auth are public
-  const publicExactPaths = ['/', '/auth', '/privacy', '/punch-clock-login', '/punch-clock-app', '/employee-dashboard', '/punch-clock', '/pm-mobile-login', '/pm-mobile-app'];
+  const publicExactPaths = ['/', '/auth', '/privacy', '/employee-dashboard'];
   const isPublicRoute = publicExactPaths.includes(location.pathname)
     || location.pathname.startsWith('/visitor/')
     || location.pathname.includes('/visitor-logs')
@@ -494,12 +463,6 @@ function AppRoutes() {
 }
 
 function App() {
-  // If building for mobile, use simplified router
-  if (appType !== 'main') {
-    return <AppRouter queryClient={queryClient} />;
-  }
-  
-  // Otherwise render the full web app
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>

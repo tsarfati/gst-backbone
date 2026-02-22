@@ -17,7 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import ColorPicker from '@/components/ColorPicker';
 import { Palette, Smartphone, Users } from 'lucide-react';
-import PMMobileSettings from '@/components/PMMobileSettings';
+
 
 export default function ThemeSettings({ embedded = false }: { embedded?: boolean }) {
   const { settings, updateSettings } = useSettings();
@@ -332,9 +332,6 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
             <PunchClockLoginSettings />
           </TabsContent>
 
-          <TabsContent value="pm-mobile">
-            <PMMobileSettings />
-          </TabsContent>
 
         </Tabs>
       </div>
