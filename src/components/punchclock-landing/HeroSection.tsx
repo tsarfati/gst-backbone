@@ -23,21 +23,21 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
         <div className="grid lg:grid-cols-2 gap-16 lg:gap-20 items-center">
           {/* Left — Copy */}
           <div>
-            <div className="flex items-center gap-4 mb-8">
+            <div className="flex items-center gap-5 mb-10">
               <img
                 src={punchClockLynkLogo}
                 alt="Punch Clock LYNK"
-                className="h-24 w-24 rounded-2xl shadow-lg shadow-[#E88A2D]/15"
+                className="h-28 w-28 rounded-2xl shadow-lg shadow-[#E88A2D]/15"
               />
-              <span className="text-white/80 text-xl font-semibold tracking-tight">Punch Clock LYNK</span>
+              <span className="text-white/80 text-2xl font-semibold tracking-tight">Punch Clock LYNK</span>
             </div>
 
-            <h1 className="text-4xl sm:text-5xl xl:text-[3.5rem] font-extrabold text-white leading-[1.1] tracking-tight mb-6">
+            <h1 className="text-5xl sm:text-6xl xl:text-7xl font-extrabold text-white leading-[1.08] tracking-tight mb-7">
               Track every hour.{' '}
               <span className="text-[#E88A2D]">Know every cost.</span>
             </h1>
 
-            <p className="text-gray-400 text-lg leading-relaxed mb-10 max-w-lg">
+            <p className="text-gray-400 text-xl leading-relaxed mb-12 max-w-lg">
               GPS-verified, time-stamped, AI-powered photo presence — every punch confirmed. Assign jobs and tasks, pull custom reports, all under your brand.
             </p>
 
@@ -82,13 +82,13 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
 
           {/* Right — Large mockup */}
           <div className="flex justify-center lg:justify-end">
-            <div className="relative w-80 sm:w-96">
+            <div className="relative w-[28rem] sm:w-[32rem]">
               {/* Glow behind phone */}
               <div
                 className="absolute -inset-10 rounded-full blur-3xl opacity-20"
                 style={{ background: 'radial-gradient(circle, #E88A2D, transparent 70%)' }}
               />
-              <div className="relative rounded-[2rem] overflow-hidden border border-white/10 shadow-2xl">
+              <div className="relative rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl">
                 <img
                   src={mockupPunchIn}
                   alt="Punch Clock LYNK — GPS Punch In"
