@@ -393,6 +393,55 @@ serve(async (req) => {
       return new Response(JSON.stringify({ ok: true }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
     }
 
+    // Upload avatar to the public 'avatars' bucket and update profile
+    if (req.method === "POST" && url.pathname.endsWith("/upload-avatar")) {
+      try {
+        const { pin, image } = body || {};
+        if (!pin || !image) return errorResponse("Missing pin or image", 400);
+
+        const userRow = await validatePin(supabaseAdmin, pin);
+        if (!userRow) return errorResponse("Invalid PIN", 401);
+
+        const base64 = (typeof image === 'string' && image.includes(',')) ? image.split(',')[1] : image;
+        let bytes: Uint8Array;
+        try {
+          const binary = atob(base64);
+          bytes = new Uint8Array(binary.length);
+          for (let i = 0; i < binary.length; i++) bytes[i] = binary.charCodeAt(i);
+        } catch (_e) {
+          return errorResponse("Invalid image encoding", 400);
+        }
+
+        const fileName = `users/${userRow.user_id}/${Date.now()}.jpg`;
+        const fileBlob = new Blob([bytes], { type: 'image/jpeg' });
+
+        const { error: uploadErr } = await supabaseAdmin.storage
+          .from('avatars')
+          .upload(fileName, fileBlob, { contentType: 'image/jpeg', upsert: true });
+        if (uploadErr) {
+          console.error('Storage upload error in /upload-avatar:', uploadErr);
+          return errorResponse(uploadErr.message, 500);
+        }
+
+        const { data: pub } = supabaseAdmin.storage
+          .from('avatars')
+          .getPublicUrl(fileName);
+
+        // Update profile avatar_url immediately
+        await supabaseAdmin
+          .from('profiles')
+          .update({ avatar_url: pub.publicUrl })
+          .eq('user_id', userRow.user_id);
+
+        console.log('Avatar uploaded for', userRow.user_id, '->', pub.publicUrl);
+        return new Response(JSON.stringify({ publicUrl: pub.publicUrl }), {
+          headers: { 'Content-Type': 'application/json', ...corsHeaders },
+        });
+      } catch (e) {
+        return errorResponse((e as Error).message || 'Upload failed', 500);
+      }
+    }
+
     if (req.method === "POST" && url.pathname.endsWith("/upload-photo")) {
       try {
         const { pin, image } = body || {};
