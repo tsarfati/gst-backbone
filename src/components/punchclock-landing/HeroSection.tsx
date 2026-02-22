@@ -2,7 +2,7 @@ import { Link } from 'react-router-dom';
 import { ArrowRight } from 'lucide-react';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import punchClockLynkLogo from '@/assets/punchclock-lynk-logo.png';
-import mockupPunchIn from '@/assets/mockup-punch-in.png';
+import mockupPunchIn from '@/assets/mockup-punch-in-cropped.png';
 
 interface HeroSectionProps {
   onGetStarted: () => void;
@@ -82,19 +82,17 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
 
           {/* Right — Large mockup */}
           <div className="flex justify-center lg:justify-end">
-            <div className="relative w-[28rem] sm:w-[32rem]">
+            <div className="relative w-72 sm:w-80 lg:w-96">
               {/* Glow behind phone */}
               <div
                 className="absolute -inset-10 rounded-full blur-3xl opacity-20"
                 style={{ background: 'radial-gradient(circle, #E88A2D, transparent 70%)' }}
               />
-              <div className="relative rounded-[2.5rem] overflow-hidden border border-white/10 shadow-2xl">
-                <img
-                  src={mockupPunchIn}
-                  alt="Punch Clock LYNK — GPS Punch In"
-                  className="w-full h-auto"
-                />
-              </div>
+              <img
+                src={mockupPunchIn}
+                alt="Punch Clock LYNK — GPS Punch In"
+                className="relative w-full h-auto drop-shadow-2xl"
+              />
             </div>
           </div>
         </div>
