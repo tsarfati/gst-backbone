@@ -27,6 +27,7 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
   const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
     try {
       const file = e.target.files?.[0];
+      console.log('[AvatarUploader] File selected:', file?.name, file?.size);
       if (!file) return;
 
       setUploading(true);
@@ -46,8 +47,10 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
           body: JSON.stringify({ pin, image: base64 })
         });
         const data = await res.json();
+        console.log('[AvatarUploader] Upload response:', res.status, data);
         if (!res.ok) throw new Error(data?.error || 'Upload failed');
         onChange(data.publicUrl);
+        console.log('[AvatarUploader] Called onChange with:', data.publicUrl);
         toast({ title: 'Avatar updated', description: 'Your photo has been uploaded.' });
       } else {
         // Regular authenticated flow: upload to avatars bucket

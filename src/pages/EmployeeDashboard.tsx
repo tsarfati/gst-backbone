@@ -726,11 +726,13 @@ export default function EmployeeDashboard() {
         setChangeRequests(changeReqs);
       }
       
-      // Load profile/avatar
-      setProfileData(prev => ({
-        ...prev,
-        avatar_url: profile?.avatar_url || prev.avatar_url
-      }));
+      // Load profile/avatar only if not already loaded from DB above
+      if (!profileData.avatar_url && profile?.avatar_url) {
+        setProfileData(prev => ({
+          ...prev,
+          avatar_url: profile.avatar_url || prev.avatar_url
+        }));
+      }
       
       // Get latest punch photo for avatar fallback
       const { data: latestPunch } = await supabase
