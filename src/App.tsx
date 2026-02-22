@@ -115,7 +115,7 @@ import Deposits from "./pages/Deposits";
 import PrintChecks from "./pages/PrintChecks";
 import MakePayment from "./pages/MakePayment";
 import Reconcile from "./pages/Reconcile";
-
+import PunchClockDashboard from "./pages/PunchClockDashboard";
 import PayablesDashboard from "./pages/PayablesDashboard";
 import AddBankAccount from "./pages/AddBankAccount";
 import AddCreditCard from "./pages/AddCreditCard";
@@ -135,6 +135,8 @@ import SubcontractDetailsByVendor from "./pages/reports/SubcontractDetailsByVend
 import ProjectCostBudgetStatus from "./pages/reports/ProjectCostBudgetStatus";
 import CommittedCostDetails from "./pages/reports/CommittedCostDetails";
 
+import ManualPunchOut from "./pages/ManualPunchOut";
+import ManualTimeEntry from "./pages/ManualTimeEntry";
 import Customers from "./pages/Customers";
 import CustomerDetails from "./pages/CustomerDetails";
 import CustomerEdit from "./pages/CustomerEdit";
@@ -147,7 +149,7 @@ import ARInvoiceDetails from "./pages/ARInvoiceDetails";
 import VisitorLogin from "./pages/VisitorLogin";
 import VisitorCheckout from "./pages/VisitorCheckout";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
-
+import EmployeeDashboard from "./pages/EmployeeDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorRegister from "./pages/VendorRegister";
 
@@ -181,7 +183,7 @@ function PublicRoutes() {
                 <Route path="/pm-lynk" element={<PMLynkLanding />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="/auth" element={<Auth />} />
-                
+                <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
                 <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
                 <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
                 <Route path="/vendor-register" element={<VendorRegister />} />
@@ -313,9 +315,16 @@ function AuthenticatedRoutes() {
               <Route path="employees/reports/pin-list" element={<PinEmployeeListReport />} />
               <Route path="employees/reports/qr-cards" element={<EmployeeQRCardsReport />} />
               
+              <Route path="manual-punch-out" element={<ManualPunchOut />} />
+              <Route path="manual-time-entry" element={<ManualTimeEntry />} />
               <Route path="add-employee" element={<AddEmployee />} />
               <Route path="time-sheets" element={<TimeSheets />} />
               <Route path="punch-clock/timesheets" element={<TimeSheets />} />
+              <Route path="punch-clock/dashboard" element={
+                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <PunchClockDashboard />
+                </RoleGuard>
+              } />
               <Route path="punch-clock/reports" element={
                 <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
                   <TimecardReports />
@@ -443,7 +452,7 @@ function AppRoutes() {
   const location = useLocation();
   
   // Landing page and auth are public
-  const publicExactPaths = ['/', '/auth', '/privacy', '/punch-clock-lynk', '/pm-lynk'];
+  const publicExactPaths = ['/', '/auth', '/privacy', '/employee-dashboard', '/punch-clock-lynk', '/pm-lynk'];
   const isPublicRoute = publicExactPaths.includes(location.pathname)
     || location.pathname.startsWith('/visitor/')
     || location.pathname.includes('/visitor-logs')

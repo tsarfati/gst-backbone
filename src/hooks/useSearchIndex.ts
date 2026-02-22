@@ -161,7 +161,7 @@ export function useSearchIndex() {
         { title: 'Upload Receipts', description: 'Upload and manage receipt documents', path: '/upload', tags: ['page', 'receipts'] },
         { title: 'Uncoded Receipts', description: 'Process uncoded receipts', path: '/uncoded', tags: ['page', 'receipts'] },
         { title: 'Coded Receipts', description: 'View coded receipts', path: '/receipts', tags: ['page', 'receipts'] },
-        { title: 'Punch Clock Settings', description: 'Configure punch clock settings', path: '/punch-clock/settings', tags: ['page', 'time', 'settings'] },
+        { title: 'Punch Clock', description: 'Employee time tracking system', path: '/punch-clock/dashboard', tags: ['page', 'time'] },
         { title: 'Time Sheets', description: 'View employee time sheets', path: '/timesheets', tags: ['page', 'time'] },
         { title: 'Cost Codes', description: 'Manage project cost codes', path: '/cost-codes', tags: ['page', 'codes'] },
         { title: 'Bills', description: 'Manage vendor bills', path: '/invoices', tags: ['page', 'bills'] },
