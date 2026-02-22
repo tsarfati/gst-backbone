@@ -5,9 +5,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Loader2 } from 'lucide-react';
 import { NavBar } from '@/components/punchclock-landing/NavBar';
 import { HeroSection } from '@/components/punchclock-landing/HeroSection';
-import { WhySection } from '@/components/punchclock-landing/WhySection';
-import { BeforeAfterSection } from '@/components/punchclock-landing/BeforeAfterSection';
+import { StatsBar } from '@/components/punchclock-landing/StatsBar';
 import { FeatureShowcase } from '@/components/punchclock-landing/FeatureShowcase';
+import { WhySection } from '@/components/punchclock-landing/WhySection';
 import { TestimonialsSection } from '@/components/punchclock-landing/TestimonialsSection';
 import { CtaSection } from '@/components/punchclock-landing/CtaSection';
 import { FooterSection } from '@/components/punchclock-landing/FooterSection';
@@ -53,9 +53,9 @@ export default function PunchClockLynkLanding() {
     <div className="min-h-screen overflow-x-hidden" style={{ backgroundColor: '#0f1419' }}>
       <NavBar scrollY={scrollY} onSignIn={handleSignIn} />
       <HeroSection onGetStarted={handleGetStarted} />
-      <WhySection />
-      <BeforeAfterSection />
+      <StatsBar />
       <FeatureShowcase />
+      <WhySection />
       <TestimonialsSection />
       <CtaSection onGetStarted={handleGetStarted} />
       <FooterSection />

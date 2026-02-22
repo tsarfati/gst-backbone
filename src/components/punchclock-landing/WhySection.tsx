@@ -1,49 +1,50 @@
 import { AnimatedSection } from '@/components/AnimatedSection';
-import { Clock, Shield, Zap } from 'lucide-react';
 
 export function WhySection() {
-  const reasons = [
+  const items = [
     {
-      icon: Clock,
-      title: 'Simple time tracking',
-      description: 'Your crew clocks in with one tap. GPS verifies every punch automatically — no extra steps.',
+      before: 'Chasing paper timesheets every Friday',
+      after: 'GPS-verified punches, automatic timecards',
     },
     {
-      icon: Shield,
-      title: 'Smart accountability',
-      description: 'GPS coordinates on every punch, geofencing, and photo verification for complete confidence.',
+      before: 'No idea if your crew is on-site',
+      after: 'Real-time location on a live map',
     },
     {
-      icon: Zap,
-      title: 'Payroll in minutes',
-      description: 'Timecards calculated automatically with overtime, job codes, and cost codes — ready for export.',
+      before: 'Payroll errors and re-runs',
+      after: 'Automatic overtime and pay calculations',
+    },
+    {
+      before: 'Flying blind on project costs',
+      after: 'Every hour tracked to a job and cost code',
     },
   ];
 
   return (
-    <section className="py-24 sm:py-28" style={{ backgroundColor: '#131820' }}>
-      <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
+    <section className="py-28" style={{ backgroundColor: '#131820' }}>
+      <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
         <AnimatedSection animation="fade-up">
           <div className="text-center mb-14">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4 tracking-tight">
-              Why contractors switch to{' '}
-              <span className="text-[#E88A2D]">Punch Clock LYNK</span>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">
+              The old way vs. the <span className="text-[#E88A2D]">LYNK</span> way
             </h2>
-            <p className="text-lg text-gray-400 max-w-xl mx-auto">
-              Stop chasing paper timesheets. Get real-time visibility and payroll-ready data.
-            </p>
           </div>
         </AnimatedSection>
 
-        <div className="grid md:grid-cols-3 gap-6">
-          {reasons.map((reason, index) => (
-            <AnimatedSection key={index} animation="fade-up" delay={index * 100}>
-              <div className="rounded-2xl border border-white/[0.06] p-7 text-center" style={{ backgroundColor: '#1a1f2e' }}>
-                <div className="w-12 h-12 rounded-xl bg-[#E88A2D]/10 flex items-center justify-center mb-5 mx-auto">
-                  <reason.icon className="h-6 w-6 text-[#E88A2D]" />
+        <div className="space-y-4">
+          {items.map((item, index) => (
+            <AnimatedSection key={index} animation="fade-up" delay={index * 60}>
+              <div className="grid md:grid-cols-2 gap-px rounded-xl overflow-hidden" style={{ backgroundColor: 'rgba(255,255,255,0.04)' }}>
+                {/* Before */}
+                <div className="flex items-center gap-3 px-6 py-5" style={{ backgroundColor: '#1a1f2a' }}>
+                  <span className="w-2 h-2 rounded-full bg-red-400/60 flex-shrink-0" />
+                  <span className="text-gray-400 text-sm">{item.before}</span>
                 </div>
-                <h3 className="text-lg font-bold text-white mb-2">{reason.title}</h3>
-                <p className="text-gray-400 text-sm leading-relaxed">{reason.description}</p>
+                {/* After */}
+                <div className="flex items-center gap-3 px-6 py-5" style={{ backgroundColor: '#1c2230' }}>
+                  <span className="w-2 h-2 rounded-full bg-[#E88A2D] flex-shrink-0" />
+                  <span className="text-white text-sm font-medium">{item.after}</span>
+                </div>
               </div>
             </AnimatedSection>
           ))}
