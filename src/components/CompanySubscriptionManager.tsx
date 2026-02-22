@@ -11,6 +11,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { HelpTooltip } from '@/components/HelpTooltip';
 import {
   Plus,
   Search,
@@ -20,8 +21,7 @@ import {
   Pencil,
   Package,
   CreditCard,
-  TrendingUp,
-  Users,
+  ExternalLink,
 } from 'lucide-react';
 
 interface CompanySub {
@@ -42,6 +42,7 @@ interface SubscriptionTier {
   name: string;
   monthly_price: number;
   is_active: boolean;
+  stripe_price_id: string | null;
 }
 
 interface Company {
@@ -81,7 +82,7 @@ export default function CompanySubscriptionManager() {
           companies!company_subscriptions_company_id_fkey (name),
           subscription_tiers!company_subscriptions_tier_id_fkey (name, monthly_price)
         `).order('created_at', { ascending: false }),
-        supabase.from('subscription_tiers').select('id, name, monthly_price, is_active').eq('is_active', true).order('sort_order'),
+        supabase.from('subscription_tiers').select('id, name, monthly_price, is_active, stripe_price_id').eq('is_active', true).order('sort_order'),
         supabase.from('companies').select('id, name').eq('is_active', true).order('name'),
       ]);
 
@@ -187,6 +188,24 @@ export default function CompanySubscriptionManager() {
   const activeSubs = companySubs.filter(s => s.status === 'active').length;
   const unassignedCompanies = companies.filter(c => !companySubs.some(s => s.company_id === c.id));
 
+  const handleStripeCheckout = async (sub: CompanySub) => {
+    const tier = tiers.find(t => t.id === sub.tier_id);
+    if (!tier?.stripe_price_id) {
+      toast({ title: 'Not Synced', description: 'This tier has no Stripe price. Go to Tiers tab and click "Sync" first.', variant: 'destructive' });
+      return;
+    }
+    try {
+      const { data, error } = await supabase.functions.invoke('create-checkout', {
+        body: { priceId: tier.stripe_price_id, companyId: sub.company_id, companyName: sub.company_name },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      if (data?.url) window.open(data.url, '_blank');
+    } catch (error: any) {
+      toast({ title: 'Checkout Error', description: error.message || 'Failed to create checkout session.', variant: 'destructive' });
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -205,7 +224,10 @@ export default function CompanySubscriptionManager() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Monthly Revenue</p>
+                <p className="text-sm text-muted-foreground">
+                  Monthly Revenue
+                  <HelpTooltip text="Total monthly recurring revenue from all active subscriptions. This is calculated from the tier prices assigned to active companies." />
+                </p>
                 <p className="text-2xl font-bold text-green-600">${totalMRR.toLocaleString()}</p>
               </div>
               <DollarSign className="h-5 w-5 text-green-600" />
@@ -238,7 +260,10 @@ export default function CompanySubscriptionManager() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm text-muted-foreground">Unassigned</p>
+                <p className="text-sm text-muted-foreground">
+                  Unassigned
+                  <HelpTooltip text="Companies that haven't been assigned a subscription tier yet. Click 'Assign Subscription' to set one up." />
+                </p>
                 <p className="text-2xl font-bold text-amber-600">{unassignedCompanies.length}</p>
               </div>
               <Package className="h-5 w-5 text-amber-600" />
@@ -299,9 +324,21 @@ export default function CompanySubscriptionManager() {
                       {new Date(sub.start_date).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-right">
-                      <Button variant="ghost" size="icon" onClick={() => openAssignDialog(sub)}>
-                        <Pencil className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center justify-end gap-1">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="gap-1 text-xs"
+                          onClick={() => handleStripeCheckout(sub)}
+                          title="Send Stripe checkout link"
+                        >
+                          <ExternalLink className="h-3 w-3" />
+                          Checkout
+                        </Button>
+                        <Button variant="ghost" size="icon" onClick={() => openAssignDialog(sub)}>
+                          <Pencil className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -323,7 +360,10 @@ export default function CompanySubscriptionManager() {
 
           <div className="space-y-4 py-4">
             <div>
-              <Label>Company *</Label>
+              <Label>
+                Company *
+                <HelpTooltip text="Select the company you want to assign a subscription to. Only companies without an existing subscription are shown for new assignments." />
+              </Label>
               <Select value={formCompanyId} onValueChange={setFormCompanyId} disabled={!!editingSub}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a company" />
@@ -337,7 +377,10 @@ export default function CompanySubscriptionManager() {
             </div>
 
             <div>
-              <Label>Subscription Tier *</Label>
+              <Label>
+                Subscription Tier *
+                <HelpTooltip text="Choose which tier this company should be on. The tier determines feature access and pricing. Make sure the tier is synced to Stripe before sending a checkout link." />
+              </Label>
               <Select value={formTierId} onValueChange={setFormTierId}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select a tier" />
@@ -345,7 +388,7 @@ export default function CompanySubscriptionManager() {
                 <SelectContent>
                   {tiers.map(t => (
                     <SelectItem key={t.id} value={t.id}>
-                      {t.name} — ${t.monthly_price}/mo
+                      {t.name} — ${t.monthly_price}/mo {t.stripe_price_id ? '✓' : ''}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -354,7 +397,10 @@ export default function CompanySubscriptionManager() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label>Status</Label>
+                <Label>
+                  Status
+                  <HelpTooltip text="Active = company can use the platform. Suspended = temporarily disabled. Trial = free trial period. Cancelled = no longer subscribed." />
+                </Label>
                 <Select value={formStatus} onValueChange={setFormStatus}>
                   <SelectTrigger>
                     <SelectValue />
@@ -368,7 +414,10 @@ export default function CompanySubscriptionManager() {
                 </Select>
               </div>
               <div>
-                <Label>Billing Cycle</Label>
+                <Label>
+                  Billing Cycle
+                  <HelpTooltip text="Monthly charges the tier price each month. Annual charges once per year (if an annual price is set on the tier)." />
+                </Label>
                 <Select value={formBillingCycle} onValueChange={setFormBillingCycle}>
                   <SelectTrigger>
                     <SelectValue />
@@ -382,7 +431,10 @@ export default function CompanySubscriptionManager() {
             </div>
 
             <div>
-              <Label>Notes</Label>
+              <Label>
+                Notes
+                <HelpTooltip text="Internal notes about this subscription. Only visible to super admins." />
+              </Label>
               <Textarea value={formNotes} onChange={e => setFormNotes(e.target.value)} placeholder="Optional notes..." rows={2} />
             </div>
           </div>

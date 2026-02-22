@@ -14,6 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { HelpTooltip } from '@/components/HelpTooltip';
 import {
   Plus,
   Pencil,
@@ -23,6 +24,8 @@ import {
   DollarSign,
   ToggleLeft,
   Layers,
+  RefreshCw,
+  Zap,
 } from 'lucide-react';
 
 interface FeatureModule {
@@ -45,7 +48,9 @@ interface SubscriptionTier {
   is_default: boolean;
   sort_order: number;
   created_at: string;
-  features: string[]; // feature_module_ids
+  features: string[];
+  stripe_product_id: string | null;
+  stripe_price_id: string | null;
 }
 
 const CATEGORY_LABELS: Record<string, string> = {
@@ -69,6 +74,7 @@ export default function SubscriptionTierManager() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTier, setEditingTier] = useState<SubscriptionTier | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
+  const [syncingTierId, setSyncingTierId] = useState<string | null>(null);
 
   // Form state
   const [formName, setFormName] = useState('');
@@ -113,9 +119,11 @@ export default function SubscriptionTierManager() {
       }
 
       setTiers(
-        (tiersData || []).map(t => ({
+        (tiersData || []).map((t: any) => ({
           ...t,
           features: tierFeatureMap[t.id] || [],
+          stripe_product_id: t.stripe_product_id || null,
+          stripe_price_id: t.stripe_price_id || null,
         }))
       );
     } catch (error) {
@@ -252,6 +260,28 @@ export default function SubscriptionTierManager() {
     return acc;
   }, {} as Record<string, FeatureModule[]>);
 
+  const syncTierToStripe = async (tier: SubscriptionTier) => {
+    setSyncingTierId(tier.id);
+    try {
+      const { data, error } = await supabase.functions.invoke('sync-stripe-tier', {
+        body: {
+          tierId: tier.id,
+          tierName: tier.name,
+          monthlyPrice: tier.monthly_price,
+          annualPrice: tier.annual_price,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      toast({ title: 'Synced to Stripe', description: `"${tier.name}" product & price created in Stripe.` });
+      await fetchData();
+    } catch (error: any) {
+      toast({ title: 'Stripe Sync Error', description: error.message || 'Failed to sync to Stripe.', variant: 'destructive' });
+    } finally {
+      setSyncingTierId(null);
+    }
+  };
+
   if (loading) {
     return (
       <Card>
@@ -270,6 +300,7 @@ export default function SubscriptionTierManager() {
           <h2 className="text-lg font-semibold flex items-center gap-2">
             <Layers className="h-5 w-5" />
             Subscription Tiers
+            <HelpTooltip text="Define your pricing tiers here. Each tier controls which features a company can access. After creating a tier, click 'Sync to Stripe' to create matching products in your Stripe account for billing." />
           </h2>
           <p className="text-sm text-muted-foreground">
             Create and manage subscription tiers with custom feature access
@@ -299,6 +330,10 @@ export default function SubscriptionTierManager() {
                   <TableHead>Annual</TableHead>
                   <TableHead className="text-center">Features</TableHead>
                   <TableHead>Status</TableHead>
+                  <TableHead>
+                    Stripe
+                    <HelpTooltip text="Shows whether this tier has been synced to Stripe. Click 'Sync' to create a matching Stripe product & price for billing." />
+                  </TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
@@ -333,8 +368,36 @@ export default function SubscriptionTierManager() {
                         {tier.is_active ? 'Active' : 'Inactive'}
                       </Badge>
                     </TableCell>
+                    <TableCell>
+                      {tier.stripe_price_id ? (
+                        <Badge variant="default" className="gap-1">
+                          <Zap className="h-3 w-3" />
+                          Synced
+                        </Badge>
+                      ) : (
+                        <Badge variant="outline" className="text-amber-600 border-amber-300">
+                          Not synced
+                        </Badge>
+                      )}
+                    </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-1" onClick={e => e.stopPropagation()}>
+                        {tier.monthly_price > 0 && (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="gap-1 text-xs"
+                            disabled={syncingTierId === tier.id}
+                            onClick={() => syncTierToStripe(tier)}
+                          >
+                            {syncingTierId === tier.id ? (
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                            ) : (
+                              <RefreshCw className="h-3 w-3" />
+                            )}
+                            Sync
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" onClick={() => openEditDialog(tier)}>
                           <Pencil className="h-4 w-4" />
                         </Button>
@@ -370,19 +433,31 @@ export default function SubscriptionTierManager() {
             {/* Basic Info */}
             <div className="grid grid-cols-2 gap-4">
               <div className="col-span-2">
-                <Label htmlFor="tierName">Tier Name *</Label>
+                <Label htmlFor="tierName">
+                  Tier Name *
+                  <HelpTooltip text="A descriptive name for this subscription tier (e.g., 'Starter', 'Professional'). This name will appear in Stripe when synced." />
+                </Label>
                 <Input id="tierName" value={formName} onChange={e => setFormName(e.target.value)} placeholder="e.g., Punch Clock Only" />
               </div>
               <div className="col-span-2">
-                <Label htmlFor="tierDesc">Description</Label>
+                <Label htmlFor="tierDesc">
+                  Description
+                  <HelpTooltip text="A brief description of what's included in this tier. Helps you and your team identify tiers quickly." />
+                </Label>
                 <Textarea id="tierDesc" value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Brief description of what this tier includes..." rows={2} />
               </div>
               <div>
-                <Label htmlFor="monthlyPrice">Monthly Price ($)</Label>
+                <Label htmlFor="monthlyPrice">
+                  Monthly Price ($)
+                  <HelpTooltip text="The monthly subscription price. When you sync to Stripe, a recurring monthly price will be created with this amount." />
+                </Label>
                 <Input id="monthlyPrice" type="number" min="0" step="0.01" value={formMonthlyPrice} onChange={e => setFormMonthlyPrice(e.target.value)} />
               </div>
               <div>
-                <Label htmlFor="annualPrice">Annual Price ($)</Label>
+                <Label htmlFor="annualPrice">
+                  Annual Price ($)
+                  <HelpTooltip text="Optional annual pricing. If set, you can offer customers an annual billing option at a discount." />
+                </Label>
                 <Input id="annualPrice" type="number" min="0" step="0.01" value={formAnnualPrice} onChange={e => setFormAnnualPrice(e.target.value)} placeholder="Optional" />
               </div>
             </div>
@@ -391,11 +466,17 @@ export default function SubscriptionTierManager() {
             <div className="flex items-center gap-6">
               <div className="flex items-center gap-2">
                 <Switch checked={formIsActive} onCheckedChange={setFormIsActive} />
-                <Label>Active</Label>
+                <Label>
+                  Active
+                  <HelpTooltip text="Only active tiers can be assigned to companies. Deactivate a tier to stop offering it to new companies." />
+                </Label>
               </div>
               <div className="flex items-center gap-2">
                 <Switch checked={formIsDefault} onCheckedChange={setFormIsDefault} />
-                <Label>Default Tier</Label>
+                <Label>
+                  Default Tier
+                  <HelpTooltip text="The default tier is automatically assigned to new companies when they sign up. Only one tier can be the default." />
+                </Label>
               </div>
             </div>
 
@@ -404,6 +485,7 @@ export default function SubscriptionTierManager() {
               <Label className="text-base font-semibold flex items-center gap-2 mb-3">
                 <ToggleLeft className="h-4 w-4" />
                 Feature Access ({formFeatures.length} selected)
+                <HelpTooltip text="Check the features each tier should have access to. Companies on this tier will only see the features you enable here. Use 'Select All' within a category for convenience." />
               </Label>
               <Accordion type="multiple" className="border rounded-md">
                 {Object.entries(featuresByCategory)
