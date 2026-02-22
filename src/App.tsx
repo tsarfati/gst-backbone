@@ -17,6 +17,8 @@ import TenantRequest from "@/pages/TenantRequest";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import TenantDetails from "@/pages/TenantDetails";
 import LandingPage from "@/pages/LandingPage";
+import PunchClockLynkLanding from "@/pages/PunchClockLynkLanding";
+import PMLynkLanding from "@/pages/PMLynkLanding";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import TaskDetails from "@/pages/TaskDetails";
 
@@ -177,6 +179,8 @@ function PublicRoutes() {
             <ReceiptProvider>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/punch-clock-lynk" element={<PunchClockLynkLanding />} />
+                <Route path="/pm-lynk" element={<PMLynkLanding />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
@@ -448,7 +452,7 @@ function AppRoutes() {
   const location = useLocation();
   
   // Landing page and auth are public
-  const publicExactPaths = ['/', '/auth', '/privacy', '/employee-dashboard'];
+  const publicExactPaths = ['/', '/auth', '/privacy', '/employee-dashboard', '/punch-clock-lynk', '/pm-lynk'];
   const isPublicRoute = publicExactPaths.includes(location.pathname)
     || location.pathname.startsWith('/visitor/')
     || location.pathname.includes('/visitor-logs')
