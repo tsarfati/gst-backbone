@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Plus, Search } from 'lucide-react';
+import { Users, Plus, Search, DatabaseBackup } from 'lucide-react';
 import UnifiedViewSelector from '@/components/ui/unified-view-selector';
 import { useUnifiedViewPreference } from '@/hooks/useUnifiedViewPreference';
 import { useAuth } from '@/contexts/AuthContext';
@@ -46,6 +46,7 @@ export default function AllEmployees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
+  const [migrating, setMigrating] = useState(false);
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const { profile } = useAuth();
@@ -153,6 +154,33 @@ export default function AllEmployees() {
     setShowEmployeeDetail(true);
   };
 
+  const handleMigratePinEmployees = async (dryRun: boolean) => {
+    setMigrating(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('migrate-pin-employees', {
+        body: { email_domain: 'greenstarteam.com', dry_run: dryRun },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      
+      const summary = data.summary;
+      toast({
+        title: dryRun ? 'Dry Run Complete' : 'Migration Complete',
+        description: `Total: ${summary.total}, Migrated: ${summary.migrated}, Skipped: ${summary.skipped}, Errors: ${summary.errors}`,
+      });
+      console.log('Migration results:', JSON.stringify(data, null, 2));
+      
+      if (!dryRun) {
+        fetchEmployees();
+      }
+    } catch (err: any) {
+      console.error('Migration error:', err);
+      toast({ title: 'Migration Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setMigrating(false);
+    }
+  };
+
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -166,12 +194,22 @@ export default function AllEmployees() {
           </p>
         </div>
         {canCreateEmployees() && (
-          <Link to="/add-employee">
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Employee
+          <div className="flex gap-2">
+            <Button variant="outline" onClick={() => handleMigratePinEmployees(true)} disabled={migrating}>
+              <DatabaseBackup className="h-4 w-4 mr-2" />
+              {migrating ? 'Running...' : 'Preview Migration'}
             </Button>
-          </Link>
+            <Button variant="secondary" onClick={() => handleMigratePinEmployees(false)} disabled={migrating}>
+              <DatabaseBackup className="h-4 w-4 mr-2" />
+              Run Migration
+            </Button>
+            <Link to="/add-employee">
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Employee
+              </Button>
+            </Link>
+          </div>
         )}
       </div>
 
