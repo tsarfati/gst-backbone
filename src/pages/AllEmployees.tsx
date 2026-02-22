@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Plus, Search, DatabaseBackup, FileDown } from 'lucide-react';
+import { Users, Plus, Search } from 'lucide-react';
 import UnifiedViewSelector from '@/components/ui/unified-view-selector';
 import { useUnifiedViewPreference } from '@/hooks/useUnifiedViewPreference';
 import { useAuth } from '@/contexts/AuthContext';
@@ -48,7 +48,7 @@ export default function AllEmployees() {
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [migrating, setMigrating] = useState(false);
+  
   const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
   const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const { profile } = useAuth();
@@ -156,60 +156,6 @@ export default function AllEmployees() {
     setShowEmployeeDetail(true);
   };
 
-  const handleMigratePinEmployees = async (dryRun: boolean) => {
-    setMigrating(true);
-    try {
-      const { data, error } = await supabase.functions.invoke('migrate-pin-employees', {
-        body: { email_domain: 'greenstarteam.com', dry_run: dryRun },
-      });
-      if (error) throw error;
-      if (data?.error) throw new Error(data.error);
-      
-      const summary = data.summary;
-
-      if (dryRun) {
-        // Generate PDF preview
-        const doc = new jsPDF({ orientation: 'landscape' });
-        doc.setFontSize(18);
-        doc.text('Pin Employee Migration Preview', 14, 20);
-        doc.setFontSize(10);
-        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
-        doc.text(`Total: ${summary.total} | Would Migrate: ${summary.migrated} | Skipped: ${summary.skipped} | Errors: ${summary.errors}`, 14, 34);
-
-        const rows = (data.results || []).map((r: any) => [
-          r.name || '',
-          r.email || 'N/A',
-          r.pin_code || '',
-          r.company_id?.substring(0, 8) || 'N/A',
-          r.status || '',
-          r.reason || '',
-        ]);
-
-        autoTable(doc, {
-          startY: 40,
-          head: [['Name', 'Email (Generated)', 'PIN', 'Company ID', 'Status', 'Notes']],
-          body: rows,
-          styles: { fontSize: 9 },
-          headStyles: { fillColor: [41, 128, 185] },
-        });
-
-        doc.save('pin-employee-migration-preview.pdf');
-        toast({ title: 'PDF Downloaded', description: `Preview exported with ${summary.total} employees` });
-      } else {
-        toast({
-          title: 'Migration Complete',
-          description: `Total: ${summary.total}, Migrated: ${summary.migrated}, Skipped: ${summary.skipped}, Errors: ${summary.errors}`,
-        });
-        fetchEmployees();
-      }
-    } catch (err: any) {
-      console.error('Migration error:', err);
-      toast({ title: 'Migration Error', description: err.message, variant: 'destructive' });
-    } finally {
-      setMigrating(false);
-    }
-  };
-
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
@@ -224,14 +170,6 @@ export default function AllEmployees() {
         </div>
         {canCreateEmployees() && (
           <div className="flex gap-2">
-            <Button variant="outline" onClick={() => handleMigratePinEmployees(true)} disabled={migrating}>
-              <FileDown className="h-4 w-4 mr-2" />
-              {migrating ? 'Generating...' : 'Export Migration Preview'}
-            </Button>
-            <Button variant="secondary" onClick={() => handleMigratePinEmployees(false)} disabled={migrating}>
-              <DatabaseBackup className="h-4 w-4 mr-2" />
-              Run Migration
-            </Button>
             <Link to="/add-employee">
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
