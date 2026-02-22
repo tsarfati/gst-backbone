@@ -209,15 +209,7 @@ export default function LandingPage() {
               <a href="#contact" className="text-white/80 hover:text-white transition-colors font-medium">Contact</a>
             </div>
             <div className="flex items-center gap-3">
-              <Button 
-                onClick={() => navigate('/punch-clock-login')} 
-                variant="ghost"
-                className="text-white/80 hover:text-white hover:bg-white/10"
-              >
-                <Clock className="h-4 w-4 mr-2" />
-                Employee Login
-              </Button>
-              <Button 
+              <Button
                 onClick={() => {
                   setAuthModalMode('signIn');
                   setShowAuthModal(true);

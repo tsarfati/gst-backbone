@@ -11,12 +11,12 @@ import { Badge } from '@/components/ui/badge';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter } from '@/components/ui/dialog';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Clock, User, Mail, Phone, MessageSquare, FileText, ArrowLeft, Send, Edit2, CalendarClock, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
-import { usePunchClockAuth } from '@/contexts/PunchClockAuthContext';
+import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import AvatarUploader from '@/components/AvatarUploader';
-import PWAInstallPrompt from '@/components/PWAInstallPrompt';
+
 
 // Edge function headers for PIN users (same project as app)
 const FUNCTION_BASE = 'https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock';
@@ -54,7 +54,7 @@ interface ManualEntryFormProps {
 }
 
 function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess }: ManualEntryFormProps) {
-  const { user } = usePunchClockAuth();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -295,7 +295,8 @@ function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess 
 }
 
 export default function EmployeeDashboard() {
-  const { user, profile, signOut, isPinAuthenticated } = usePunchClockAuth();
+  const { user, profile, signOut } = useAuth();
+  const isPinAuthenticated = false; // PIN auth is now handled by external apps
   const { toast } = useToast();
   const navigate = useNavigate();
   
@@ -1422,14 +1423,6 @@ export default function EmployeeDashboard() {
                   />
                 </div>
                 
-                {/* Install App Section */}
-                <div className="border-t pt-4 mt-4">
-                  <Label className="text-sm font-medium mb-2 block">Install App</Label>
-                  <p className="text-xs text-muted-foreground mb-3">
-                    Add this app to your home screen for quick access and a better experience.
-                  </p>
-                  <PWAInstallPrompt showButton={true} />
-                </div>
               </CardContent>
             </Card>
           </TabsContent>
