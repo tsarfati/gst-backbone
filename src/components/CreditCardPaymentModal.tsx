@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -136,11 +137,7 @@ export function CreditCardPaymentModal({
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from("credit-card-attachments")
-          .getPublicUrl(fileName);
-        
-        attachmentUrl = publicUrl;
+        attachmentUrl = getStoragePathForDb('credit-card-attachments', fileName);
       }
 
       const { data: journalEntry, error: jeError } = await supabase

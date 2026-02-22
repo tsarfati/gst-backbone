@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -171,11 +172,7 @@ export default function PaymentMethodEdit({
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('receipts')
-          .getPublicUrl(filePath);
-
-        handleInputChange('voided_check_url', publicUrl);
+        handleInputChange('voided_check_url', getStoragePathForDb('receipts', filePath));
       } catch (error) {
         console.error('Error uploading voided check:', error);
       }

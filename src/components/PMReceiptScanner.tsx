@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -350,9 +351,7 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
 
         if (uploadError) throw uploadError;
 
-        const { data: publicUrlData } = supabase.storage
-          .from('receipts')
-          .getPublicUrl(fileName);
+        const fileUrl = getStoragePathForDb('receipts', fileName);
 
         const { error: insertError } = await supabase
           .from('receipts')
@@ -360,7 +359,7 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
             company_id: currentCompany?.id || user?.id,
             created_by: user?.id,
             file_name: file.name,
-            file_url: publicUrlData.publicUrl,
+            file_url: fileUrl,
             file_size: file.size,
             status: 'uncoded',
             vendor_name: vendorName || null,

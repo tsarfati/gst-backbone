@@ -832,15 +832,13 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                      >
                        <div className="flex items-center gap-3 min-w-0 flex-1">
                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={(
-                              () => {
+                            <AvatarImage src={(() => {
                                 const url = (prof?.avatar_url || row.punch_in_photo_url || undefined) as string | undefined;
                                 if (!url) return undefined;
-                                if (url.startsWith('http')) return url;
-                                const { data } = supabase.storage.from('punch-photos').getPublicUrl(url);
-                                return data.publicUrl || undefined;
-                              }
-                            )()} />
+                                if (url.startsWith('http') && !url.includes('supabase.co/storage')) return url;
+                                // For private bucket, use createSignedUrl synchronously won't work - fall back to avatar
+                                return prof?.avatar_url?.startsWith('http') ? prof.avatar_url : undefined;
+                              })()} />
                            <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                          </Avatar>
                            <div className="min-w-0 flex-1">
@@ -890,15 +888,12 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                      <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
                        <div className="flex items-center gap-3 min-w-0 flex-1">
                           <Avatar className="h-10 w-10">
-                            <AvatarImage src={(
-                              () => {
+                            <AvatarImage src={(() => {
                                 const url = (prof?.avatar_url || row.photo_url || undefined) as string | undefined;
                                 if (!url) return undefined;
-                                if (url.startsWith('http')) return url;
-                                const { data } = supabase.storage.from('punch-photos').getPublicUrl(url);
-                                return data.publicUrl || undefined;
-                              }
-                            )()} />
+                                if (url.startsWith('http') && !url.includes('supabase.co/storage')) return url;
+                                return prof?.avatar_url?.startsWith('http') ? prof.avatar_url : undefined;
+                              })()} />
                             <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                           </Avatar>
                          <div className="min-w-0 flex-1">

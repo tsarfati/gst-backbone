@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -490,11 +491,7 @@ export default function MakePayment() {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('receipts')
-        .getPublicUrl(filePath);
-
-      return publicUrl;
+      return getStoragePathForDb('receipts', filePath);
     } catch (error) {
       console.error('Error uploading document:', error);
       toast({

@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
+import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 
@@ -136,18 +137,25 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         });
       }
 
-      const processedReceipts = (receipts || []).map(receipt => ({
-        ...receipt,
-        // Legacy compatibility fields
-        filename: receipt.file_name,
-        date: receipt.receipt_date || new Date(receipt.created_at).toISOString().split('T')[0],
-        vendor: receipt.vendor_name,
-        type: receipt.file_name.toLowerCase().includes('.pdf') ? 'pdf' as const : 'image' as const,
-        previewUrl: receipt.file_url,
-        uploadedBy: profilesMap.get(receipt.created_by) || 'User',
-        uploadedDate: new Date(receipt.created_at),
-        amount: receipt.amount !== null && receipt.amount !== undefined ? receipt.amount.toString() : undefined
-      }));
+      // Resolve signed URLs for all receipts
+      const resolvedReceipts = await Promise.all(
+        (receipts || []).map(async (receipt) => {
+          const previewUrl = await resolveStorageUrl('receipts', receipt.file_url);
+          return {
+            ...receipt,
+            filename: receipt.file_name,
+            date: receipt.receipt_date || new Date(receipt.created_at).toISOString().split('T')[0],
+            vendor: receipt.vendor_name,
+            type: receipt.file_name.toLowerCase().includes('.pdf') ? 'pdf' as const : 'image' as const,
+            previewUrl: previewUrl || receipt.file_url,
+            uploadedBy: profilesMap.get(receipt.created_by) || 'User',
+            uploadedDate: new Date(receipt.created_at),
+            amount: receipt.amount !== null && receipt.amount !== undefined ? receipt.amount.toString() : undefined
+          };
+        })
+      );
+
+      const processedReceipts = resolvedReceipts;
 
       const uncoded = processedReceipts.filter(r => r.status === 'uncoded');
       const coded = processedReceipts.filter(r => r.status !== 'uncoded').map(r => {
@@ -242,10 +250,8 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
           continue;
         }
 
-        // Get public URL
-        const { data: publicUrlData } = supabase.storage
-          .from('receipts')
-          .getPublicUrl(storageFileName);
+        // Store the path for private bucket
+        const fileUrl = getStoragePathForDb('receipts', storageFileName);
 
         // Insert into database with formatted name
         const { error: insertError } = await supabase
@@ -254,7 +260,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
             company_id: currentCompany.id,
             created_by: user.id,
             file_name: displayName,
-            file_url: publicUrlData.publicUrl,
+            file_url: fileUrl,
             file_size: file.size,
             amount: amount,
             status: 'uncoded'

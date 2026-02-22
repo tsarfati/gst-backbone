@@ -1,4 +1,5 @@
 import { useState, useRef, useCallback, useEffect } from 'react';
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -229,17 +230,15 @@ export function DeliveryTicketForm() {
 
         if (uploadError) throw uploadError;
 
-        const { data: urlData } = supabase.storage
-          .from('receipts')
-          .getPublicUrl(filePath);
+        const storedPath = getStoragePathForDb('receipts', filePath);
 
         // Map photo types to database fields
         if (photo.type === 'material') {
-          photoUrls.material_photo_url = urlData.publicUrl;
+          photoUrls.material_photo_url = storedPath;
         } else if (photo.type === 'slip') {
-          photoUrls.delivery_slip_photo_url = urlData.publicUrl;
+          photoUrls.delivery_slip_photo_url = storedPath;
         } else if (photo.type === 'general') {
-          photoUrls.photo_url = urlData.publicUrl;
+          photoUrls.photo_url = storedPath;
         }
       }
 

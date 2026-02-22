@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -361,10 +362,7 @@ export default function VisitorLogin() {
         if (uploadError) {
           console.error('Error uploading photo:', uploadError);
         } else {
-          const { data: { publicUrl } } = supabase.storage
-            .from('punch-photos')
-            .getPublicUrl(filePath);
-          photoUrl = publicUrl;
+          photoUrl = getStoragePathForDb('punch-photos', filePath);
         }
       }
 

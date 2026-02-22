@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -238,11 +239,7 @@ export default function VendorEdit() {
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from('receipts')
-          .getPublicUrl(filePath);
-
-        logoUrl = publicUrl;
+        logoUrl = getStoragePathForDb('receipts', filePath);
       }
 
       const vendorData = {

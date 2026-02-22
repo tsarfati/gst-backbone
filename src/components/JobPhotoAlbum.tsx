@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -333,9 +334,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from('punch-photos')
-        .getPublicUrl(fileName);
+      const photoPath = getStoragePathForDb('punch-photos', fileName);
 
       // Save to database
       const { error: insertError } = await supabase
@@ -343,7 +342,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         .insert({
           job_id: jobId,
           uploaded_by: user.id,
-          photo_url: publicUrl,
+          photo_url: photoPath,
           note: note.trim() || null,
           album_id: albumId,
           ...locationData,
