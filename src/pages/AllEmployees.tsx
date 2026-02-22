@@ -3,7 +3,7 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Users, Plus, Search, DatabaseBackup } from 'lucide-react';
+import { Users, Plus, Search, DatabaseBackup, FileDown } from 'lucide-react';
 import UnifiedViewSelector from '@/components/ui/unified-view-selector';
 import { useUnifiedViewPreference } from '@/hooks/useUnifiedViewPreference';
 import { useAuth } from '@/contexts/AuthContext';
@@ -16,6 +16,8 @@ import EmployeeGroupManager from '@/components/EmployeeGroupManager';
 import RolePermissionsManager from '@/components/RolePermissionsManager';
 import EmployeeDetailDialog from '@/components/EmployeeDetailDialog';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 
 interface Employee {
   id: string;
@@ -164,13 +166,40 @@ export default function AllEmployees() {
       if (data?.error) throw new Error(data.error);
       
       const summary = data.summary;
-      toast({
-        title: dryRun ? 'Dry Run Complete' : 'Migration Complete',
-        description: `Total: ${summary.total}, Migrated: ${summary.migrated}, Skipped: ${summary.skipped}, Errors: ${summary.errors}`,
-      });
-      console.log('Migration results:', JSON.stringify(data, null, 2));
-      
-      if (!dryRun) {
+
+      if (dryRun) {
+        // Generate PDF preview
+        const doc = new jsPDF({ orientation: 'landscape' });
+        doc.setFontSize(18);
+        doc.text('Pin Employee Migration Preview', 14, 20);
+        doc.setFontSize(10);
+        doc.text(`Generated: ${new Date().toLocaleString()}`, 14, 28);
+        doc.text(`Total: ${summary.total} | Would Migrate: ${summary.migrated} | Skipped: ${summary.skipped} | Errors: ${summary.errors}`, 14, 34);
+
+        const rows = (data.results || []).map((r: any) => [
+          r.name || '',
+          r.email || 'N/A',
+          r.pin_code || '',
+          r.company_id?.substring(0, 8) || 'N/A',
+          r.status || '',
+          r.reason || '',
+        ]);
+
+        autoTable(doc, {
+          startY: 40,
+          head: [['Name', 'Email (Generated)', 'PIN', 'Company ID', 'Status', 'Notes']],
+          body: rows,
+          styles: { fontSize: 9 },
+          headStyles: { fillColor: [41, 128, 185] },
+        });
+
+        doc.save('pin-employee-migration-preview.pdf');
+        toast({ title: 'PDF Downloaded', description: `Preview exported with ${summary.total} employees` });
+      } else {
+        toast({
+          title: 'Migration Complete',
+          description: `Total: ${summary.total}, Migrated: ${summary.migrated}, Skipped: ${summary.skipped}, Errors: ${summary.errors}`,
+        });
         fetchEmployees();
       }
     } catch (err: any) {
@@ -196,8 +225,8 @@ export default function AllEmployees() {
         {canCreateEmployees() && (
           <div className="flex gap-2">
             <Button variant="outline" onClick={() => handleMigratePinEmployees(true)} disabled={migrating}>
-              <DatabaseBackup className="h-4 w-4 mr-2" />
-              {migrating ? 'Running...' : 'Preview Migration'}
+              <FileDown className="h-4 w-4 mr-2" />
+              {migrating ? 'Generating...' : 'Export Migration Preview'}
             </Button>
             <Button variant="secondary" onClick={() => handleMigratePinEmployees(false)} disabled={migrating}>
               <DatabaseBackup className="h-4 w-4 mr-2" />
