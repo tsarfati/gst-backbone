@@ -51,14 +51,6 @@ interface UserProfile {
    email_bounced_at: string | null;
  }
  
- interface PinEmployee {
-   id: string;
-   first_name: string;
-   last_name: string;
-   display_name: string | null;
-   pin_code: string | null;
-   created_at: string;
- }
  
 const roleColors = {
   admin: 'destructive',
@@ -94,10 +86,10 @@ export default function UserSettings() {
   const { isSuperAdmin } = useTenant();
    const { settings } = useSettings();
   const [systemUsersOpen, setSystemUsersOpen] = useState(true);
-  const [pinEmployeesOpen, setPinEmployeesOpen] = useState(true);
+  const [pinEmployeesOpen, setPinEmployeesOpen] = useState(false);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
    const [invitations, setInvitations] = useState<Invitation[]>([]);
-   const [pinEmployees, setPinEmployees] = useState<PinEmployee[]>([]);
+   const [pinEmployees, setPinEmployees] = useState<any[]>([]);
    const [resendingId, setResendingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
 
@@ -111,7 +103,7 @@ export default function UserSettings() {
     if (currentCompany) {
       fetchUsers();
        fetchInvitations();
-       fetchPinEmployees();
+       // fetchPinEmployees removed - PIN employees are now regular users
     }
   }, [currentCompany]);
 
@@ -133,37 +125,7 @@ export default function UserSettings() {
      }
    };
  
-   const fetchPinEmployees = async () => {
-     if (!currentCompany) return;
- 
-     try {
-       // Get PIN employees created by users of this company
-       const { data: companyUsers } = await supabase
-         .from('user_company_access')
-         .select('user_id')
-         .eq('company_id', currentCompany.id)
-         .eq('is_active', true);
- 
-       if (!companyUsers || companyUsers.length === 0) {
-         setPinEmployees([]);
-         return;
-       }
- 
-       const userIds = companyUsers.map(u => u.user_id);
- 
-       const { data, error } = await supabase
-         .from('pin_employees')
-         .select('id, first_name, last_name, display_name, pin_code, created_at')
-         .in('created_by', userIds)
-         .eq('is_active', true)
-         .order('first_name', { ascending: true });
- 
-       if (error) throw error;
-       setPinEmployees(data || []);
-     } catch (error) {
-       console.error('Error fetching PIN employees:', error);
-     }
-   };
+   // fetchPinEmployees removed - PIN employees are now regular profile-based users
  
    const resendInvitation = async (invitation: Invitation) => {
      if (!currentCompany || !profile) return;
@@ -610,60 +572,7 @@ export default function UserSettings() {
                   </Card>
                 </Collapsible>
 
-                {/* PIN Employees - Collapsible */}
-                <Collapsible open={pinEmployeesOpen} onOpenChange={setPinEmployeesOpen}>
-                  <Card>
-                    <CardHeader className="cursor-pointer" onClick={() => setPinEmployeesOpen(!pinEmployeesOpen)}>
-                      <CollapsibleTrigger asChild>
-                        <div className="flex items-center justify-between w-full">
-                          <CardTitle className="flex items-center gap-2">
-                            {pinEmployeesOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                            PIN Employees ({users.filter(u => u.has_pin).length})
-                          </CardTitle>
-                        </div>
-                      </CollapsibleTrigger>
-                    </CardHeader>
-                    <CollapsibleContent>
-                      <CardContent>
-                        <div className="space-y-4">
-                           {pinEmployees.map((employee) => (
-                            <div
-                               key={employee.id}
-                               onClick={() => navigate(`/pin-employees/${employee.id}/edit`)}
-                              className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
-                            >
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3">
-                                  <div className="flex-1">
-                                    <h3 className="font-semibold">
-                                       {employee.display_name || `${employee.first_name} ${employee.last_name}`}
-                                    </h3>
-                                    <p className="text-sm text-muted-foreground">
-                                       Created: {new Date(employee.created_at).toLocaleDateString()}
-                                    </p>
-                                    <div className="flex flex-wrap gap-2 mt-2">
-                                      <Badge variant="secondary">
-                                        PIN Employee
-                                      </Badge>
-                                       {employee.pin_code && (
-                                         <Badge variant="secondary" className="font-mono">
-                                           PIN: {employee.pin_code}
-                                         </Badge>
-                                       )}
-                                    </div>
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                          ))}
-                           {pinEmployees.length === 0 && (
-                            <p className="text-muted-foreground text-center py-4">No PIN employees found</p>
-                          )}
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
+                {/* PIN Employees section removed - all employees are now regular users */}
               </>
             )}
           </div>

@@ -18,7 +18,6 @@ interface PinEmployee {
   first_name: string;
   last_name: string;
   display_name: string;
-  pin_code: string;
 }
 
 interface CardCustomization {
@@ -97,22 +96,33 @@ export default function EmployeeQRCardsReport() {
 
       const userIds = (accessData || []).map((a: any) => a.user_id);
 
-      const { data: pinData, error: pinError } = await supabase
-        .from("pin_employees")
-        .select("id, first_name, last_name, display_name, pin_code")
-        .in("id", userIds)
-        .eq("is_active", true)
+      if (userIds.length === 0) {
+        setPinEmployees([]);
+        return;
+      }
+
+      const { data: profilesData, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, display_name, punch_clock_access")
+        .in("user_id", userIds)
+        .eq("punch_clock_access", true)
         .order("last_name");
 
-      if (pinError) {
-        console.error("Error fetching PIN employees:", pinError);
+      if (error) {
+        console.error("Error fetching employees:", error);
         toast({
           title: "Error",
-          description: "Failed to fetch PIN employee data",
+          description: "Failed to fetch employee data",
           variant: "destructive",
         });
       } else {
-        setPinEmployees((pinData as PinEmployee[]) || []);
+        const employees: PinEmployee[] = (profilesData || []).map((p: any) => ({
+          id: p.user_id,
+          first_name: p.first_name || '',
+          last_name: p.last_name || '',
+          display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
+        }));
+        setPinEmployees(employees);
       }
     } finally {
       setLoading(false);
@@ -213,7 +223,7 @@ export default function EmployeeQRCardsReport() {
     doc.text(`${employee.first_name} ${employee.last_name}`, 105, customization.logoUrl ? 50 : 35, { align: "center" });
     doc.setFontSize(12);
     doc.text(`Display Name: ${employee.display_name}`, 105, customization.logoUrl ? 60 : 45, { align: "center" });
-    doc.text(`PIN: ${employee.pin_code}`, 105, customization.logoUrl ? 70 : 55, { align: "center" });
+    doc.text(`ID: ${employee.id.slice(0, 8)}`, 105, customization.logoUrl ? 70 : 55, { align: "center" });
     
     // Generate QR Code - use configured base URL
     const punchClockUrl = `${customization.baseUrl}/punch-clock-login`;
@@ -294,7 +304,7 @@ export default function EmployeeQRCardsReport() {
       doc.text(`${employee.first_name} ${employee.last_name}`, 105, customization.logoUrl ? 50 : 35, { align: "center" });
       doc.setFontSize(12);
       doc.text(`Display Name: ${employee.display_name}`, 105, customization.logoUrl ? 60 : 45, { align: "center" });
-      doc.text(`PIN: ${employee.pin_code}`, 105, customization.logoUrl ? 70 : 55, { align: "center" });
+      doc.text(`ID: ${employee.id.slice(0, 8)}`, 105, customization.logoUrl ? 70 : 55, { align: "center" });
       
       // Generate QR Code
       const qrCodeDataUrl = await QRCodeGenerator.toDataURL(punchClockUrl, {
@@ -559,7 +569,7 @@ export default function EmployeeQRCardsReport() {
                     <TableCell className="font-medium">
                       {employee.display_name}
                     </TableCell>
-                    <TableCell className="font-mono">{employee.pin_code}</TableCell>
+                    <TableCell className="font-mono">{employee.id.slice(0, 8)}</TableCell>
                     <TableCell>
                       <div className="flex gap-2">
                         <Button
@@ -592,7 +602,7 @@ export default function EmployeeQRCardsReport() {
           <CardHeader>
             <CardTitle>QR Code Preview</CardTitle>
             <CardDescription>
-              {selectedEmployee.display_name} - PIN: {selectedEmployee.pin_code}
+              {selectedEmployee.display_name}
             </CardDescription>
           </CardHeader>
           <CardContent className="flex flex-col items-center space-y-4">

@@ -264,15 +264,11 @@ export default function TimeSheets() {
       const costCodeIds = [...new Set((timeCardData || []).map(tc => tc.cost_code_id).filter(Boolean))];
 
       // Fetch related data separately
-      const [profilesData, pinEmployeesData, jobsData, costCodesData] = await Promise.all([
+      const [profilesData, jobsData, costCodesData] = await Promise.all([
         userIds.length > 0 ? supabase
           .from('profiles')
           .select('user_id, first_name, last_name, display_name')
           .in('user_id', userIds) : Promise.resolve({ data: [] }),
-        userIds.length > 0 ? supabase
-          .from('pin_employees')
-          .select('id, first_name, last_name, display_name')
-          .in('id', userIds) : Promise.resolve({ data: [] }),
         jobIds.length > 0 ? supabase
           .from('jobs')
           .select('id, name')
@@ -287,19 +283,16 @@ export default function TimeSheets() {
 
       // Create lookup maps
       const profilesMap = new Map((profilesData.data || []).map(p => [p.user_id, p]));
-      const pinEmployeesMap = new Map((pinEmployeesData.data || []).map(p => [p.id, p]));
       const jobsMap = new Map((jobsData.data || []).map(j => [j.id, j]));
       const costCodesMap = new Map((costCodesData.data || []).map(c => [c.id, c]));
 
       // Transform data with relationships and apply flagging
       const transformedData: TimeCard[] = (timeCardData || []).map(tc => {
         const profile = profilesMap.get(tc.user_id);
-        const pinEmployee = pinEmployeesMap.get(tc.user_id);
         const job = jobsMap.get(tc.job_id);
         const costCode = costCodesMap.get(tc.cost_code_id);
 
-        // Use either profile or PIN employee data
-        const employeeData = profile || pinEmployee;
+        const employeeData = profile;
         
         // Check if time card should be flagged
         const over24 = flagOver24 && tc.total_hours > 24;

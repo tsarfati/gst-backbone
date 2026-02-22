@@ -451,20 +451,7 @@ export default function EmployeeDashboard() {
           }
         }
         
-        // Load PIN employee data
-        const { data: pinData } = await supabase
-          .from('pin_employees')
-          .select('phone, email, avatar_url')
-          .eq('id', userId)
-          .maybeSingle();
-        if (pinData) {
-          setProfileData(prev => ({
-            ...prev,
-            email: (pinData as any).email || '',
-            phone: (pinData as any).phone || '',
-            avatar_url: (pinData as any).avatar_url || prev.avatar_url
-          }));
-        }
+        // Profile data already loaded from profiles table via auth context
       } else {
         // Regular user flow - direct database access
         // Load time cards - filter out deleted ones

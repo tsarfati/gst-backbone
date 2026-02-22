@@ -25,7 +25,7 @@ interface JobPhoto {
   location_lat?: number;
   location_lng?: number;
   location_address?: string;
-  pin_employee_id?: string;
+  
   profiles?: {
     first_name?: string;
     last_name?: string;
