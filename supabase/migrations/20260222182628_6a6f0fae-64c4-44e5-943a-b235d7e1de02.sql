@@ -1,0 +1,1 @@
+UPDATE profiles SET pin_code = '459487' WHERE user_id = 'dcdfec98-5141-4559-adb2-fe1d70bfce98';
