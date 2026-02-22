@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
@@ -7,23 +7,32 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import { Loader2 } from 'lucide-react';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import punchClockLynkLogo from '@/assets/punchclock-lynk-logo.png';
-import pmLynkLogo from '@/assets/pm-lynk-logo.png';
+import mockupPunchIn from '@/assets/mockup-punch-in.png';
+import mockupTimecards from '@/assets/mockup-timecards.png';
+import mockupPhotos from '@/assets/mockup-photos.png';
+import mockupGpsMap from '@/assets/mockup-gps-map.png';
 import {
-  Clock,
   MapPin,
   Camera,
   BarChart3,
   Smartphone,
   CheckCircle,
   ArrowRight,
-  Mail,
-  Phone,
   MessageSquare,
   FileText,
+  ChevronLeft,
+  ChevronRight,
 } from 'lucide-react';
 
 const darkBg = '#0f1419';
 const darkCardBg = '#1a1f2e';
+
+const heroSlides = [
+  { image: mockupPunchIn, label: 'GPS Punch In', description: 'One tap to clock in — GPS verified' },
+  { image: mockupGpsMap, label: 'Live GPS Tracking', description: 'See your entire crew on the map' },
+  { image: mockupTimecards, label: 'Timecard Reports', description: 'Detailed, filterable reports for payroll' },
+  { image: mockupPhotos, label: 'Shared Photo Albums', description: 'Capture jobsite progress effortlessly' },
+];
 
 export default function PunchClockLynkLanding() {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -31,6 +40,21 @@ export default function PunchClockLynkLanding() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [scrollY, setScrollY] = useState(0);
+  const [activeSlide, setActiveSlide] = useState(0);
+
+  const nextSlide = useCallback(() => {
+    setActiveSlide((prev) => (prev + 1) % heroSlides.length);
+  }, []);
+
+  const prevSlide = useCallback(() => {
+    setActiveSlide((prev) => (prev - 1 + heroSlides.length) % heroSlides.length);
+  }, []);
+
+  // Auto-advance carousel
+  useEffect(() => {
+    const timer = setInterval(nextSlide, 4000);
+    return () => clearInterval(timer);
+  }, [nextSlide]);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -117,79 +141,117 @@ export default function PunchClockLynkLanding() {
         </div>
       </nav>
 
-      {/* Hero — Apple-esque centered layout */}
-      <section className="relative min-h-[90vh] flex flex-col items-center justify-center text-center px-4 pt-20">
+      {/* Hero — Screenshot carousel */}
+      <section className="relative min-h-[90vh] flex flex-col items-center justify-center px-4 pt-24 pb-16">
         <div
           className="absolute inset-0"
           style={{
-            background: `radial-gradient(ellipse 60% 50% at 50% 45%, rgba(232,138,45,0.12), transparent 70%), ${darkBg}`,
+            background: `radial-gradient(ellipse 60% 50% at 50% 45%, rgba(232,138,45,0.10), transparent 70%), ${darkBg}`,
           }}
         />
 
-        <div className="relative z-10 max-w-4xl mx-auto">
+        <div className="relative z-10 max-w-6xl mx-auto w-full">
           {/* BuilderLYNK family badge */}
           <Link
             to="/"
-            className="inline-flex items-center gap-2 text-white/60 text-sm font-medium mb-8 hover:text-white/80 transition-colors"
+            className="inline-flex items-center gap-2 text-white/60 text-sm font-medium mb-6 hover:text-white/80 transition-colors"
           >
             <img src={builderlynkIcon} alt="" className="h-5 w-auto" />
             A BuilderLYNK Product
           </Link>
 
-          {/* App icon */}
-          <div className="mb-8">
-            <img
-              src={punchClockLynkLogo}
-              alt="Punch Clock LYNK"
-              className="h-28 w-28 mx-auto rounded-[1.75rem] shadow-2xl shadow-[#E88A2D]/20"
-            />
-          </div>
+          <div className="flex flex-col lg:flex-row items-center gap-12 lg:gap-16">
+            {/* Left: text */}
+            <div className="flex-1 text-center lg:text-left">
+              <div className="mb-6">
+                <img
+                  src={punchClockLynkLogo}
+                  alt="Punch Clock LYNK"
+                  className="h-20 w-20 mx-auto lg:mx-0 rounded-2xl shadow-2xl shadow-[#E88A2D]/20"
+                />
+              </div>
+              <h1 className="text-4xl sm:text-5xl lg:text-6xl font-black text-white mb-4 leading-[1.05] tracking-tight">
+                Punch Clock{' '}
+                <span className="text-[#E88A2D]">LYNK</span>
+              </h1>
+              <p className="text-lg sm:text-xl text-gray-400 mb-8 max-w-lg mx-auto lg:mx-0 leading-relaxed font-light">
+                GPS-verified time tracking built for construction.
+                Simple for your crew. Powerful for your business.
+              </p>
+              <div className="flex flex-col sm:flex-row gap-3 justify-center lg:justify-start mb-6">
+                <button
+                  onClick={() => { setAuthModalMode('signUp'); setShowAuthModal(true); }}
+                  className="text-base px-8 py-3.5 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.5)] transition-all duration-300 rounded-full inline-flex items-center justify-center gap-2"
+                  style={{ backgroundColor: '#E88A2D' }}
+                >
+                  Get Started Free <ArrowRight className="w-4 h-4" />
+                </button>
+                <a
+                  href="https://play.google.com/store/apps/details?id=com.gst.punchclock"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-base px-8 py-3.5 text-white font-semibold border border-white/20 hover:border-white/40 transition-all duration-300 rounded-full inline-flex items-center justify-center gap-2"
+                >
+                  <Smartphone className="w-4 h-4" /> Download App
+                </a>
+              </div>
+              <div className="flex flex-wrap gap-4 justify-center lg:justify-start text-xs text-white/50">
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-[#E88A2D]" /> No credit card required
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-[#E88A2D]" /> 14-day free trial
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <CheckCircle className="w-3.5 h-3.5 text-[#E88A2D]" /> Apple & Android
+                </span>
+              </div>
+            </div>
 
-          {/* Headline */}
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-[1.05] tracking-tight">
-            Punch Clock{' '}
-            <span className="text-[#E88A2D]">LYNK</span>
-          </h1>
+            {/* Right: phone carousel */}
+            <div className="flex-1 flex flex-col items-center max-w-sm w-full">
+              <div className="relative w-full aspect-[9/18] max-w-[280px]">
+                {heroSlides.map((slide, i) => (
+                  <img
+                    key={i}
+                    src={slide.image}
+                    alt={slide.label}
+                    className={`absolute inset-0 w-full h-full object-contain rounded-[2rem] transition-all duration-500 ${
+                      i === activeSlide
+                        ? 'opacity-100 scale-100'
+                        : 'opacity-0 scale-95 pointer-events-none'
+                    }`}
+                  />
+                ))}
+              </div>
 
-          <p className="text-xl sm:text-2xl text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed font-light">
-            GPS-verified time tracking built for construction.
-            <br className="hidden sm:block" />
-            Simple for your crew. Powerful for your business.
-          </p>
+              {/* Caption */}
+              <div className="mt-6 text-center min-h-[3.5rem]">
+                <p className="text-white font-semibold text-lg">{heroSlides[activeSlide].label}</p>
+                <p className="text-gray-400 text-sm">{heroSlides[activeSlide].description}</p>
+              </div>
 
-          {/* CTAs */}
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
-            <button
-              onClick={() => {
-                setAuthModalMode('signUp');
-                setShowAuthModal(true);
-              }}
-              className="text-lg px-10 py-4 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.5)] transition-all duration-300 rounded-full inline-flex items-center justify-center gap-2"
-              style={{ backgroundColor: '#E88A2D' }}
-            >
-              Get Started Free <ArrowRight className="w-5 h-5" />
-            </button>
-            <a
-              href="https://play.google.com/store/apps/details?id=com.gst.punchclock"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-lg px-10 py-4 text-white font-semibold border border-white/20 hover:border-white/40 transition-all duration-300 rounded-full inline-flex items-center justify-center gap-2"
-            >
-              <Smartphone className="w-5 h-5" /> Download App
-            </a>
-          </div>
-
-          {/* Trust line */}
-          <div className="flex flex-wrap gap-6 justify-center text-sm text-white/60">
-            <span className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-[#E88A2D]" /> No credit card required
-            </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-[#E88A2D]" /> 14-day free trial
-            </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-[#E88A2D]" /> Apple & Android
-            </span>
+              {/* Controls */}
+              <div className="flex items-center gap-4 mt-4">
+                <button onClick={prevSlide} className="text-white/40 hover:text-white transition-colors p-1">
+                  <ChevronLeft className="w-5 h-5" />
+                </button>
+                <div className="flex gap-2">
+                  {heroSlides.map((_, i) => (
+                    <button
+                      key={i}
+                      onClick={() => setActiveSlide(i)}
+                      className={`w-2 h-2 rounded-full transition-all duration-300 ${
+                        i === activeSlide ? 'bg-[#E88A2D] w-6' : 'bg-white/30 hover:bg-white/50'
+                      }`}
+                    />
+                  ))}
+                </div>
+                <button onClick={nextSlide} className="text-white/40 hover:text-white transition-colors p-1">
+                  <ChevronRight className="w-5 h-5" />
+                </button>
+              </div>
+            </div>
           </div>
         </div>
       </section>
