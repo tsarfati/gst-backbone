@@ -20,6 +20,7 @@ import LandingPage from "@/pages/LandingPage";
 import PunchClockLynkLanding from "@/pages/PunchClockLynkLanding";
 import PMLynkLanding from "@/pages/PMLynkLanding";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
+import DemoRequest from "@/pages/DemoRequest";
 import TaskDetails from "@/pages/TaskDetails";
 
 import Dashboard from "./pages/Dashboard";
@@ -182,6 +183,7 @@ function PublicRoutes() {
                 <Route path="/punch-clock-lynk" element={<PunchClockLynkLanding />} />
                 <Route path="/pm-lynk" element={<PMLynkLanding />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/demo" element={<DemoRequest />} />
                 <Route path="/auth" element={<Auth />} />
                 <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
                 <Route path="/visitor/:qrCode" element={<VisitorLogin />} />

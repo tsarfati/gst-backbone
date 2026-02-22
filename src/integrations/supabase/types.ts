@@ -2490,6 +2490,54 @@ export type Database = {
           },
         ]
       }
+      demo_requests: {
+        Row: {
+          company_name: string
+          created_at: string
+          details: string | null
+          email: string
+          first_name: string
+          id: string
+          industry: string | null
+          last_name: string
+          number_of_users: string | null
+          phone: string | null
+          product: string | null
+          status: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_name: string
+          created_at?: string
+          details?: string | null
+          email: string
+          first_name: string
+          id?: string
+          industry?: string | null
+          last_name: string
+          number_of_users?: string | null
+          phone?: string | null
+          product?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_name?: string
+          created_at?: string
+          details?: string | null
+          email?: string
+          first_name?: string
+          id?: string
+          industry?: string | null
+          last_name?: string
+          number_of_users?: string | null
+          phone?: string | null
+          product?: string | null
+          status?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       device_tokens: {
         Row: {
           created_at: string
