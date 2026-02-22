@@ -19,11 +19,10 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
       />
 
       <div className="relative z-10 max-w-7xl mx-auto w-full py-24">
-        <div className="grid lg:grid-cols-[auto_1fr] gap-16 lg:gap-20 items-stretch">
-          {/* Left — Logo, sized to match text height */}
+        <div className="grid lg:grid-cols-[30%_1fr] gap-12 lg:gap-16 items-center">
+          {/* Left — Logo, 30% width */}
           <div className="hidden lg:flex items-center justify-center">
-            <div className="relative h-full flex items-center">
-              {/* Glow behind logo */}
+            <div className="relative">
               <div
                 className="absolute -inset-10 rounded-full blur-3xl opacity-15"
                 style={{ background: 'radial-gradient(circle, #E88A2D, transparent 70%)' }}
@@ -31,7 +30,7 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
               <img
                 src={punchClockHeroLogo}
                 alt="Punch Clock LYNK"
-                className="relative h-full w-auto max-h-full object-contain drop-shadow-2xl"
+                className="relative w-full h-auto object-contain drop-shadow-2xl"
               />
             </div>
           </div>
