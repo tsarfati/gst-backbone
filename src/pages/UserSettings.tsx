@@ -8,7 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight, Mail, MailCheck, MailOpen, MailX, Clock, RefreshCw, Loader2, X } from 'lucide-react';
+import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight, Mail, MailCheck, MailOpen, MailX, Clock, RefreshCw, Loader2, X, Briefcase, HardHat } from 'lucide-react';
 import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
 import CompanyAccessRequests from "@/components/CompanyAccessRequests";
@@ -72,6 +72,22 @@ const roleLabels = {
   vendor: 'Vendor'
 };
 
+interface RoleGroupDef {
+  key: string;
+  label: string;
+  icon: React.ReactNode;
+  roles: string[];
+}
+
+const roleGroupDefs: RoleGroupDef[] = [
+  { key: 'admins', label: 'Administrators', icon: <Shield className="h-5 w-5" />, roles: ['admin', 'company_admin', 'owner'] },
+  { key: 'controllers', label: 'Controllers', icon: <Briefcase className="h-5 w-5" />, roles: ['controller'] },
+  { key: 'project_managers', label: 'Project Managers', icon: <HardHat className="h-5 w-5" />, roles: ['project_manager'] },
+  { key: 'employees', label: 'Employees', icon: <Users className="h-5 w-5" />, roles: ['employee'] },
+  { key: 'view_only', label: 'View Only', icon: <UserCheck className="h-5 w-5" />, roles: ['view_only'] },
+  { key: 'vendors', label: 'Vendors', icon: <UserCheck className="h-5 w-5" />, roles: ['vendor'] },
+];
+
 export default function UserSettings() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -85,8 +101,7 @@ export default function UserSettings() {
   const activeCompanyRole = useActiveCompanyRole();
   const { isSuperAdmin } = useTenant();
    const { settings } = useSettings();
-  const [systemUsersOpen, setSystemUsersOpen] = useState(true);
-  const [pinEmployeesOpen, setPinEmployeesOpen] = useState(false);
+  const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ admins: true, controllers: true, project_managers: true, employees: true });
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
    const [invitations, setInvitations] = useState<Invitation[]>([]);
    const [pinEmployees, setPinEmployees] = useState<any[]>([]);
@@ -432,112 +447,88 @@ export default function UserSettings() {
               <div className="text-center py-8">Loading users...</div>
             ) : (
               <>
-                {/* System Users - Collapsible */}
-                <Collapsible open={systemUsersOpen} onOpenChange={setSystemUsersOpen}>
+                {/* Pending Invitations */}
+                {invitations.length > 0 && (
                   <Card>
-                    <CardHeader className="cursor-pointer" onClick={() => setSystemUsersOpen(!systemUsersOpen)}>
-                      <CollapsibleTrigger asChild>
-                        <div className="flex items-center justify-between w-full">
-                          <CardTitle className="flex items-center gap-2">
-                            {systemUsersOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
-                            System Users ({users.filter(u => !u.has_pin).length})
-                          </CardTitle>
-                        </div>
-                      </CollapsibleTrigger>
+                    <CardHeader>
+                      <CardTitle className="flex items-center gap-2">
+                        <Mail className="h-5 w-5" />
+                        Pending Invitations ({invitations.length})
+                      </CardTitle>
                     </CardHeader>
-                    <CollapsibleContent>
-                      <CardContent>
-                        <div className="space-y-4">
-                           {/* Pending Invitations */}
-                              {invitations.length === 0 && (
-                                <p className="text-muted-foreground text-center py-4">
-                                  No pending invitations
-                                </p>
-                              )}
-                           {invitations.map((invitation) => (
-                             <div
-                               key={invitation.id}
-                                className="flex items-center justify-between p-6 bg-muted/30 rounded-lg border border-border"
-                             >
-                               <div className="flex-1">
-                                 <div className="flex items-center gap-3">
-                                   <div className="flex-1">
-                                     <h3 className="font-semibold">
-                                       {invitation.first_name && invitation.last_name
-                                         ? `${invitation.first_name} ${invitation.last_name}`
-                                         : invitation.email}
-                                     </h3>
-                                     <p className="text-sm text-muted-foreground">
-                                       {invitation.email}
-                                     </p>
-                                     <p className="text-sm text-muted-foreground">
-                                       Invited: {new Date(invitation.invited_at).toLocaleDateString()}
-                                       {' • '}
-                                       Expires: {new Date(invitation.expires_at).toLocaleDateString()}
-                                     </p>
-                                     <div className="flex flex-wrap gap-2 mt-2">
-                                        <Badge variant="secondary">
-                                         Pending Invitation
-                                       </Badge>
-                                       <Badge variant={roleColors[invitation.role as keyof typeof roleColors] || 'outline'}>
-                                         {roleLabels[invitation.role as keyof typeof roleLabels] || invitation.role}
-                                       </Badge>
-                                       {getEmailStatusBadge(invitation)}
-                                     </div>
-                                   </div>
-                                 </div>
-                               </div>
-                                <div className="flex items-center gap-2">
-                                  <Button
-                                    variant="outline"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      resendInvitation(invitation);
-                                    }}
-                                    disabled={resendingId === invitation.id}
-                                  >
-                                    {resendingId === invitation.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <>
-                                        <RefreshCw className="h-4 w-4 mr-2" />
-                                        Resend
-                                      </>
-                                    )}
-                                  </Button>
+                    <CardContent>
+                      <div className="space-y-4">
+                        {invitations.map((invitation) => (
+                          <div
+                            key={invitation.id}
+                            className="flex items-center justify-between p-4 bg-muted/30 rounded-lg border border-border"
+                          >
+                            <div className="flex-1">
+                              <h3 className="font-semibold">
+                                {invitation.first_name && invitation.last_name
+                                  ? `${invitation.first_name} ${invitation.last_name}`
+                                  : invitation.email}
+                              </h3>
+                              <p className="text-sm text-muted-foreground">{invitation.email}</p>
+                              <p className="text-sm text-muted-foreground">
+                                Invited: {new Date(invitation.invited_at).toLocaleDateString()}
+                                {' • '}
+                                Expires: {new Date(invitation.expires_at).toLocaleDateString()}
+                              </p>
+                              <div className="flex flex-wrap gap-2 mt-2">
+                                <Badge variant="secondary">Pending Invitation</Badge>
+                                <Badge variant={roleColors[invitation.role as keyof typeof roleColors] || 'outline'}>
+                                  {roleLabels[invitation.role as keyof typeof roleLabels] || invitation.role}
+                                </Badge>
+                                {getEmailStatusBadge(invitation)}
+                              </div>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); resendInvitation(invitation); }} disabled={resendingId === invitation.id}>
+                                {resendingId === invitation.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><RefreshCw className="h-4 w-4 mr-2" />Resend</>}
+                              </Button>
+                              <Button variant="destructive" size="sm" onClick={(e) => { e.stopPropagation(); cancelInvitation(invitation); }} disabled={cancellingId === invitation.id}>
+                                {cancellingId === invitation.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><X className="h-4 w-4 mr-2" />Cancel</>}
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </CardContent>
+                  </Card>
+                )}
 
-                                  <Button
-                                    variant="destructive"
-                                    size="sm"
-                                    onClick={(e) => {
-                                      e.stopPropagation();
-                                      cancelInvitation(invitation);
-                                    }}
-                                    disabled={cancellingId === invitation.id}
-                                  >
-                                    {cancellingId === invitation.id ? (
-                                      <Loader2 className="h-4 w-4 animate-spin" />
-                                    ) : (
-                                      <>
-                                        <X className="h-4 w-4 mr-2" />
-                                        Cancel
-                                      </>
-                                    )}
-                                  </Button>
-                                </div>
-                             </div>
-                           ))}
- 
-                           {/* Active System Users */}
-                          {users.filter(u => !u.has_pin).map((user) => (
-                            <div
-                              key={user.id}
-                              onClick={() => navigate(`/settings/users/${user.user_id}`)}
-                              className="flex items-center justify-between p-6 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
-                            >
-                              <div className="flex-1">
-                                <div className="flex items-center gap-3">
+                {/* Role-based collapsible groups */}
+                {roleGroupDefs.map(group => {
+                  const groupUsers = users.filter(u => group.roles.includes(u.role));
+                  if (groupUsers.length === 0) return null;
+
+                  const isOpen = openGroups[group.key] ?? false;
+
+                  return (
+                    <Collapsible key={group.key} open={isOpen} onOpenChange={() => setOpenGroups(prev => ({ ...prev, [group.key]: !prev[group.key] }))}>
+                      <Card>
+                        <CardHeader className="cursor-pointer py-4" onClick={() => setOpenGroups(prev => ({ ...prev, [group.key]: !prev[group.key] }))}>
+                          <CollapsibleTrigger asChild>
+                            <div className="flex items-center justify-between w-full">
+                              <CardTitle className="flex items-center gap-2 text-lg">
+                                {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                                {group.icon}
+                                {group.label}
+                                <Badge variant="secondary">{groupUsers.length}</Badge>
+                              </CardTitle>
+                            </div>
+                          </CollapsibleTrigger>
+                        </CardHeader>
+                        <CollapsibleContent>
+                          <CardContent className="pt-0">
+                            <div className="space-y-3">
+                              {groupUsers.map((user) => (
+                                <div
+                                  key={user.id}
+                                  onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                                  className="flex items-center justify-between p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                                >
                                   <div className="flex-1">
                                     <h3 className="font-semibold">
                                       {user.display_name || `${user.first_name} ${user.last_name}`}
@@ -546,11 +537,10 @@ export default function UserSettings() {
                                       Created: {new Date(user.created_at).toLocaleDateString()}
                                     </p>
                                     <div className="flex flex-wrap gap-2 mt-2">
-                                      <Badge 
-                                        variant={roleColors[user.role as keyof typeof roleColors]}
-                                      >
+                                      <Badge variant={roleColors[user.role as keyof typeof roleColors]}>
                                         {roleLabels[user.role as keyof typeof roleLabels]}
                                       </Badge>
+                                      {user.has_pin && <Badge variant="outline">PIN Set</Badge>}
                                       {user.has_global_job_access && (
                                         <Badge variant="outline">All Jobs Access</Badge>
                                       )}
@@ -560,19 +550,14 @@ export default function UserSettings() {
                                     </div>
                                   </div>
                                 </div>
-                              </div>
+                              ))}
                             </div>
-                          ))}
-                          {users.filter(u => !u.has_pin).length === 0 && (
-                            <p className="text-muted-foreground text-center py-4">No system users found</p>
-                          )}
-                        </div>
-                      </CardContent>
-                    </CollapsibleContent>
-                  </Card>
-                </Collapsible>
-
-                {/* PIN Employees section removed - all employees are now regular users */}
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Card>
+                    </Collapsible>
+                  );
+                })}
               </>
             )}
           </div>
