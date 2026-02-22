@@ -17,18 +17,21 @@ Deno.serve(async (req) => {
 
     // Verify caller is authenticated admin
     const authHeader = req.headers.get("Authorization");
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
+    let callerId: string;
+    
+    if (authHeader) {
+      const anonClient = createClient(supabaseUrl, anonKey, {
+        global: { headers: { Authorization: authHeader } },
       });
-    }
-
-    const anonClient = createClient(supabaseUrl, anonKey, {
-      global: { headers: { Authorization: authHeader } },
-    });
-    const { data: { user: caller }, error: authError } = await anonClient.auth.getUser();
-    if (authError || !caller) {
+      const { data: { user: caller }, error: authError } = await anonClient.auth.getUser();
+      if (authError || !caller) {
+        return new Response(JSON.stringify({ error: "Unauthorized" }), {
+          status: 401,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      callerId = caller.id;
+    } else {
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -122,17 +125,22 @@ Deno.serve(async (req) => {
           current_company_id: companyId,
         }, { onConflict: "user_id" });
 
-        // Grant company access
-        const { error: accessError } = await adminClient.rpc("admin_grant_company_access", {
-          p_user_id: userId,
-          p_company_id: companyId,
-          p_role: "employee",
-          p_granted_by: caller.id,
-          p_is_active: true,
-        });
+        // Grant company access directly via service role
+        const { data: existingAccess } = await adminClient
+          .from("user_company_access")
+          .select("id")
+          .eq("user_id", userId)
+          .eq("company_id", companyId)
+          .maybeSingle();
 
-        if (accessError) {
-          console.error("Access grant warning for", email, accessError);
+        if (existingAccess) {
+          await adminClient.from("user_company_access")
+            .update({ role: "employee", is_active: true, granted_by: callerId, granted_at: new Date().toISOString() })
+            .eq("user_id", userId)
+            .eq("company_id", companyId);
+        } else {
+          await adminClient.from("user_company_access")
+            .insert({ user_id: userId, company_id: companyId, role: "employee", granted_by: callerId, is_active: true });
         }
 
         // Migrate timecard settings if they exist
@@ -148,7 +156,7 @@ Deno.serve(async (req) => {
               company_id: companyId,
               job_id: setting.job_id,
               cost_code_id: setting.cost_code_id,
-              created_by: caller.id,
+              created_by: callerId,
             }, { onConflict: "user_id,job_id" }).then(() => {});
           }
         }
