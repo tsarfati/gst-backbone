@@ -211,10 +211,7 @@ export default function AllEmployees() {
             <div className="text-center py-8">Loading employees...</div>
           ) : (
             <EmployeeViews 
-              employees={filteredEmployees.map(e => ({
-                ...e,
-                is_pin_employee: e.has_pin,
-              }))}
+              employees={filteredEmployees}
               currentView={currentView}
               canManageEmployees={canManageEmployees}
               loading={loading}

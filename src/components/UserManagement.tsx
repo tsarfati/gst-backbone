@@ -112,29 +112,6 @@ export default function UserManagement() {
         allUsers = [...companyUsers];
       }
 
-      // Fetch PIN employees for this company (they are company-wide)
-      // PIN employees are associated with companies through their creator's company access
-      const { data: pinEmployeesData, error: pinError } = await supabase
-        .from('pin_employees')
-        .select('id as user_id, first_name, last_name, display_name, created_at, is_active, phone, department, notes')
-        .eq('is_active', true)
-        .in('created_by', companyUserIds)
-        .order('created_at', { ascending: false });
-
-      if (pinError) {
-        console.error('Error fetching PIN employees:', pinError);
-      } else if (pinEmployeesData) {
-        const pinEmployees = pinEmployeesData.map((emp: any) => ({
-          ...emp,
-          role: 'employee',
-          status: 'approved',
-          has_global_job_access: false,
-          isPinEmployee: true
-        }));
-
-        allUsers = [...allUsers, ...pinEmployees];
-      }
-
       setUsers(allUsers);
     } catch (error) {
       console.error('Error fetching users:', error);

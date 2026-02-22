@@ -8,14 +8,14 @@ import { cn } from "@/lib/utils";
 
 interface Employee {
   id: string;
-  user_id?: string; // Optional for PIN employees
+  user_id?: string;
   first_name: string;
   last_name: string;
   display_name: string;
   role: string;
   avatar_url?: string;
   created_at: string;
-  is_pin_employee?: boolean;
+  has_pin?: boolean;
   pin_code?: string;
   department?: string;
   phone?: string;
@@ -79,10 +79,10 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                     <Badge variant={roleColors[employee.role as keyof typeof roleColors]}>
                       {employee.role.replace('_', ' ').toUpperCase()}
                     </Badge>
-                    {employee.is_pin_employee && (
+                    {employee.has_pin && (
                       <Badge variant="secondary" className="flex items-center gap-1">
                         <Key className="h-3 w-3" />
-                        PIN Only
+                        PIN Access
                       </Badge>
                     )}
                     {employee.assigned_jobs && employee.assigned_jobs.length > 0 && (
@@ -103,7 +103,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
             </CardHeader>
             <CardContent>
               <div className="grid grid-cols-2 gap-4 text-sm">
-                {employee.is_pin_employee ? (
+                {employee.has_pin ? (
                   <>
                     <div className="flex items-center gap-2">
                       <Key className="h-4 w-4 text-muted-foreground" />
@@ -164,7 +164,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   </h3>
                   <p className="text-sm text-muted-foreground">
                     {employee.role.replace('_', ' ')} 
-                    {employee.is_pin_employee ? ' • PIN Only' : ` • Member since ${new Date(employee.created_at).toLocaleDateString()}`}
+                    {employee.has_pin ? ' • PIN Access' : ` • Member since ${new Date(employee.created_at).toLocaleDateString()}`}
                   </p>
                 </div>
               </div>
@@ -172,22 +172,15 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                 <Badge variant={roleColors[employee.role as keyof typeof roleColors]} className="text-xs">
                   {employee.role.replace('_', ' ').toUpperCase()}
                 </Badge>
-                {employee.is_pin_employee && (
+                {employee.has_pin && (
                   <Badge variant="secondary" className="text-xs flex items-center gap-1">
                     <Key className="h-3 w-3" />
-                    PIN
+                    PIN Access
                   </Badge>
                 )}
                 {employee.assigned_jobs && employee.assigned_jobs.length > 0 && (
-                  employee.assigned_jobs.slice(0, 2).map(job => (
-                    <Badge key={job.id} variant="outline" className="text-xs">
-                      {job.name}
-                    </Badge>
-                  ))
-                )}
-                {employee.assigned_jobs && employee.assigned_jobs.length > 2 && (
                   <Badge variant="outline" className="text-xs">
-                    +{employee.assigned_jobs.length - 2}
+                    {employee.assigned_jobs.length} {employee.assigned_jobs.length === 1 ? 'Job' : 'Jobs'}
                   </Badge>
                 )}
               </div>
@@ -197,27 +190,27 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
 
       case 'super-compact':
         return (
-          <div key={employee.id} className="flex items-center justify-between p-3 border rounded hover:bg-primary/10 hover:border-primary transition-colors cursor-pointer" onClick={() => onEmployeeClick(employee)}>
-            <div className="flex items-center gap-2">
-              <Avatar className="h-6 w-6">
+          <div key={employee.id} className="flex items-center justify-between py-2 px-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer" onClick={() => onEmployeeClick(employee)}>
+            <div className="flex items-center gap-3 min-w-0 flex-1">
+              <Avatar className="h-7 w-7">
                 <AvatarImage src={employee.avatar_url} />
                 <AvatarFallback className="text-xs">
                   {`${employee.first_name?.[0] || ''}${employee.last_name?.[0] || ''}`}
                 </AvatarFallback>
               </Avatar>
-              <span className="text-sm font-medium">
+              <span className="font-medium truncate">
                 {employee.display_name || `${employee.first_name} ${employee.last_name}`}
               </span>
             </div>
             <div className="flex items-center gap-2">
               <span className="text-xs text-muted-foreground">
                 {employee.role.replace('_', ' ')}
-                {employee.is_pin_employee && ' • PIN Only'}
+                {employee.has_pin && ' • PIN Access'}
               </span>
               <div className={cn("w-2 h-2 rounded-full", 
-                employee.role === 'admin' ? 'bg-red-500' : 
-                employee.role === 'controller' ? 'bg-blue-500' : 
-                employee.is_pin_employee ? 'bg-orange-500' : 'bg-green-500'
+                employee.role === 'admin' ? 'bg-destructive' : 
+                employee.role === 'controller' ? 'bg-primary' : 
+                'bg-accent'
               )} />
             </div>
           </div>
@@ -241,15 +234,15 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
                   <Badge variant={roleColors[employee.role as keyof typeof roleColors]} className="text-xs">
                     {employee.role.replace('_', ' ').toUpperCase()}
                   </Badge>
-                  {employee.is_pin_employee && (
+                  {employee.has_pin && (
                     <Badge variant="secondary" className="text-xs flex items-center gap-1">
                       <Key className="h-3 w-3" />
-                      PIN Only
+                      PIN Access
                     </Badge>
                   )}
                   {employee.assigned_jobs && employee.assigned_jobs.length > 0 && (
                     <Badge variant="outline" className="text-xs">
-                      {employee.assigned_jobs.length} {employee.assigned_jobs.length === 1 ? 'Job' : 'Jobs'}
+                      {employee.assigned_jobs.length} Jobs
                     </Badge>
                   )}
                 </div>

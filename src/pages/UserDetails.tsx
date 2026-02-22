@@ -199,9 +199,9 @@ export default function UserDetails() {
         setUserJobs(userJobsData.map((item: any) => item.jobs).filter(Boolean));
         return;
       }
-      const { data: pinSettingsData } = await (supabase as any).from('pin_employee_timecard_settings').select('assigned_jobs').eq('pin_employee_id', userId).maybeSingle();
-      if (pinSettingsData?.assigned_jobs?.length > 0) {
-        const { data: jobsData } = await supabase.from('jobs').select('id, name').in('id', pinSettingsData.assigned_jobs);
+      const { data: tcSettings } = await supabase.from('employee_timecard_settings').select('assigned_jobs').eq('user_id', userId).eq('company_id', currentCompany.id).maybeSingle();
+      if (tcSettings?.assigned_jobs?.length > 0) {
+        const { data: jobsData } = await supabase.from('jobs').select('id, name').in('id', tcSettings.assigned_jobs);
         if (jobsData) setUserJobs(jobsData);
       }
     } catch (error) {

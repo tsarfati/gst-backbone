@@ -59,7 +59,7 @@ async function validatePin(supabaseAdmin: any, pin: string) {
       first_name: profileData.first_name,
       last_name: profileData.last_name,
       role: profileData.role,
-      is_pin_employee: false,
+      is_pin_employee: false, // Legacy field, all employees are now profile-based
       existing_avatar: profileData.avatar_url,
       company_id: profileData.current_company_id,
       tenant_id
@@ -126,24 +126,7 @@ serve(async (req) => {
         assignedCostCodes = Array.from(allCostCodes);
       }
 
-      // Also check pin_employee_timecard_settings as fallback during migration
-      if (assignedJobs.length === 0) {
-        const { data: pinSettings } = await supabaseAdmin
-          .from('pin_employee_timecard_settings')
-          .select('assigned_jobs, assigned_cost_codes')
-          .eq('pin_employee_id', userRow.user_id);
-        
-        if (pinSettings && pinSettings.length > 0) {
-          const allJobs = new Set<string>();
-          const allCostCodes = new Set<string>();
-          for (const setting of pinSettings) {
-            (setting.assigned_jobs || []).forEach((j: string) => allJobs.add(j));
-            (setting.assigned_cost_codes || []).forEach((c: string) => allCostCodes.add(c));
-          }
-          assignedJobs = Array.from(allJobs);
-          assignedCostCodes = Array.from(allCostCodes);
-        }
-      }
+      // pin_employee_timecard_settings fallback removed - all settings now in employee_timecard_settings
 
       // Check global job access
       const { data: profileAccess } = await supabaseAdmin
@@ -251,18 +234,7 @@ serve(async (req) => {
         assignedJobs = Array.from(set);
       }
 
-      // Fallback to pin_employee_timecard_settings during migration
-      if (assignedJobs.length === 0) {
-        const { data: pinSettings } = await supabaseAdmin
-          .from('pin_employee_timecard_settings')
-          .select('assigned_jobs')
-          .eq('pin_employee_id', userRow.user_id);
-        if (pinSettings?.length) {
-          const set = new Set<string>();
-          for (const s of pinSettings) (s.assigned_jobs || []).forEach((j: string) => set.add(j));
-          assignedJobs = Array.from(set);
-        }
-      }
+      // pin_employee_timecard_settings fallback removed
 
       // Load jobs and derive contact user ids
       const { data: jobsData } = await supabaseAdmin
@@ -1061,22 +1033,7 @@ serve(async (req) => {
           assignedCostCodes = settings.assigned_cost_codes || [];
         }
 
-        // Fallback to pin_employee_timecard_settings during migration
-        if (assignedJobs.length === 0) {
-          const { data: pinSettings } = await supabaseAdmin
-            .from('pin_employee_timecard_settings')
-            .select('assigned_jobs, assigned_cost_codes')
-            .eq('pin_employee_id', userRow.user_id);
-          
-          if (pinSettings && pinSettings.length > 0) {
-            pinSettings.forEach(s => {
-              if (s.assigned_jobs) assignedJobs.push(...s.assigned_jobs);
-              if (s.assigned_cost_codes) assignedCostCodes.push(...s.assigned_cost_codes);
-            });
-            assignedJobs = [...new Set(assignedJobs)];
-            assignedCostCodes = [...new Set(assignedCostCodes)];
-          }
-        }
+        // pin_employee_timecard_settings fallback removed
         
         const { data: jobs } = await supabaseAdmin
           .from('jobs')
@@ -1128,20 +1085,7 @@ serve(async (req) => {
           assignedJobs = settings.assigned_jobs;
         }
 
-        // Fallback during migration
-        if (assignedJobs.length === 0) {
-          const { data: pinSettings } = await supabaseAdmin
-            .from('pin_employee_timecard_settings')
-            .select('assigned_jobs')
-            .eq('pin_employee_id', userRow.user_id);
-          
-          if (pinSettings && pinSettings.length > 0) {
-            pinSettings.forEach(s => {
-              if (s.assigned_jobs) assignedJobs.push(...s.assigned_jobs);
-            });
-            assignedJobs = [...new Set(assignedJobs)];
-          }
-        }
+        // pin_employee_timecard_settings fallback removed
         
         if (assignedJobs.length === 0) {
           return new Response(JSON.stringify({ contacts: [] }), {
