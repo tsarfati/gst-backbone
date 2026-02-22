@@ -8,27 +8,27 @@ import mockupPhotos from '@/assets/mockup-photos.png';
 const features = [
   {
     icon: Clock,
-    title: 'GPS punch in & out',
-    description: 'One tap. Location-stamped. Works on any phone, any jobsite.',
+    title: 'GPS & timestamp verification',
+    description: 'Every punch is stamped with exact time and GPS coordinates. Know where your crew is and when they clocked in — no guessing.',
     image: mockupPunchIn,
+  },
+  {
+    icon: Camera,
+    title: 'AI photo presence detection',
+    description: 'Employees must stay in frame to punch in. Face detection ensures the right person is on-site — eliminates buddy punching.',
+    image: mockupPhotos,
   },
   {
     icon: MapPin,
     title: 'Job & task assignments',
-    description: 'Employees select their job, location, and task. Control who sees what with per-user access.',
+    description: 'Employees select their job, location, and task at punch-in. Control access per user — unlimited locations and tasks.',
     image: mockupGpsMap,
   },
   {
     icon: FileText,
-    title: 'Custom reporting',
-    description: 'Pull reports by employee, job, task, or any combination. Overtime and cost codes calculated automatically.',
+    title: 'Custom reporting & branding',
+    description: 'Pull reports by employee, job, task, or any combination. Your logo, your colors — a fully branded experience.',
     image: mockupTimecards,
-  },
-  {
-    icon: Camera,
-    title: 'Your brand, your app',
-    description: 'Company logo, colors, and branding throughout. Looks like your own custom-built app.',
-    image: mockupPhotos,
   },
 ];
 

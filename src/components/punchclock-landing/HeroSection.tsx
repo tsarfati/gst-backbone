@@ -46,7 +46,7 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
             </h1>
 
             <p className="text-gray-400 text-lg leading-relaxed mb-10 max-w-lg">
-              GPS time tracking with built-in job costing. Employees punch in, select their job and task, and you get instant reports — branded with your company.
+              GPS-verified, time-stamped, AI-powered photo presence — every punch confirmed. Assign jobs and tasks, pull custom reports, all under your brand.
             </p>
 
             <div className="flex flex-wrap gap-3 mb-8">
