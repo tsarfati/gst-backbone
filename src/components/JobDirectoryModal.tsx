@@ -30,7 +30,7 @@ interface CompanyUser {
   phone: string | null;
   company_name: string | null;
   avatar_url: string | null;
-  type: 'user' | 'pin_employee';
+  type: 'user';
 }
 
 interface JobDirectoryModalProps {
@@ -146,26 +146,7 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
         }));
       }
       
-      // Fetch PIN employees
-      const { data: pinEmployees, error: pinError } = await supabase
-        .from('pin_employees')
-        .select('id, first_name, last_name, email, phone, avatar_url')
-        .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
-      
-      if (pinError) throw pinError;
-      
-      const pinUsers: CompanyUser[] = (pinEmployees || []).map(p => ({
-        id: p.id,
-        display_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown',
-        email: p.email,
-        phone: p.phone,
-        company_name: currentCompany.name,
-        avatar_url: p.avatar_url,
-        type: 'pin_employee' as const
-      }));
-      
-      setCompanyUsers([...users, ...pinUsers].sort((a, b) => a.display_name.localeCompare(b.display_name)));
+      setCompanyUsers(users.sort((a, b) => a.display_name.localeCompare(b.display_name)));
     } catch (error) {
       console.error('Error loading company users:', error);
     }

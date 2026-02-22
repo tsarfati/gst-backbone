@@ -29,7 +29,7 @@ interface DirectoryMember {
   project_role?: ProjectRole | null;
   is_primary_contact: boolean;
   is_project_team_member: boolean;
-  source?: 'directory' | 'pm' | 'assistant_pm' | 'pin_employee';
+  source?: 'directory' | 'pm' | 'assistant_pm' | 'employee';
 }
 
 interface JobProjectTeamProps {
@@ -198,7 +198,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
             project_role: employeeRole || { id: '', name: 'Employee' },
             is_primary_contact: false,
             is_project_team_member: true,
-            source: 'pin_employee' as const
+            source: 'employee' as const
           });
         }
       }
@@ -331,7 +331,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
         return <Badge variant="secondary" className="text-xs">PM</Badge>;
       case 'assistant_pm':
         return <Badge variant="secondary" className="text-xs">Asst PM</Badge>;
-      case 'pin_employee':
+      case 'employee':
         return <Badge variant="outline" className="text-xs">Employee</Badge>;
       default:
         return null;
@@ -468,7 +468,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
             {(() => {
               const pmMembers = teamMembers.filter(m => m.source === 'pm');
               const apmMembers = teamMembers.filter(m => m.source === 'assistant_pm');
-              const employeeMembers = teamMembers.filter(m => m.source === 'pin_employee');
+              const employeeMembers = teamMembers.filter(m => m.source === 'employee');
               const directoryMembers = teamMembers.filter(m => !m.source || m.source === 'directory');
 
               const renderMemberRow = (member: DirectoryMember) => (

@@ -16,7 +16,6 @@ import { exportPunchTrackingToExcel } from "@/utils/excelExport";
 interface PunchRecord {
   id: string;
   user_id: string | null;
-  pin_employee_id: string | null;
   employee_name: string;
   punch_time: string;
   punch_type: string;
@@ -205,7 +204,7 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
       const { error } = await supabase
         .from('time_cards')
         .insert({
-          user_id: punchIn.user_id || punchIn.pin_employee_id,
+          user_id: punchIn.user_id,
           job_id: punchIn.job_id,
           cost_code_id: punchIn.cost_code_id,
           company_id: jobData?.company_id,

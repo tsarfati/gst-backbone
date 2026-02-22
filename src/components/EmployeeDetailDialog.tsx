@@ -20,9 +20,7 @@ interface Employee {
   role: string;
   avatar_url?: string;
   created_at: string;
-  is_pin_employee?: boolean;
   has_pin?: boolean;
-  pin_code?: string;
   department?: string;
   phone?: string;
   group_id?: string;
@@ -95,7 +93,7 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
 
   if (!employee) return null;
 
-  const hasPinAccess = employee.has_pin || employee.is_pin_employee || !!employee.pin_code;
+  const hasPinAccess = employee.has_pin || !!employee.punch_clock_access;
 
   const handleEdit = () => {
     onOpenChange(false);
@@ -182,10 +180,10 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
               <Separator />
               
               <div className="space-y-3">
-                {hasPinAccess && employee.pin_code && (
+                {hasPinAccess && (
                   <div className="flex items-center gap-2">
                     <Key className="h-4 w-4 text-muted-foreground" />
-                    <span className="text-sm text-muted-foreground">PIN Code: {employee.pin_code}</span>
+                    <span className="text-sm text-muted-foreground">PIN Access Enabled</span>
                   </div>
                 )}
                 {employee.phone && (

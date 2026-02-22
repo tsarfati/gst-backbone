@@ -173,30 +173,14 @@ export default function AuditLog() {
         .select('user_id, first_name, last_name, display_name')
         .in('user_id', Array.from(allUserIds));
 
-      // Also fetch PIN employees
-      const { data: pinEmployees } = await supabase
-        .from('pin_employees')
-        .select('id, first_name, last_name, display_name')
-        .in('id', Array.from(allUserIds));
-
       const userMap = new Map();
       
-      // Map regular users
+      // Map users from profiles
       profiles?.forEach(profile => {
         const displayName = profile.display_name || 
           `${profile.first_name || ''} ${profile.last_name || ''}`.trim() ||
           'User';
         userMap.set(profile.user_id, {
-          name: displayName
-        });
-      });
-      
-      // Map PIN employees
-      pinEmployees?.forEach(employee => {
-        const displayName = employee.display_name ||
-          `${employee.first_name || ''} ${employee.last_name || ''}`.trim() ||
-          'Employee';
-        userMap.set(employee.id, {
           name: displayName
         });
       });

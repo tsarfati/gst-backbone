@@ -39,7 +39,6 @@ interface Job { id: string; name: string; latitude?: number | null; longitude?: 
 interface PunchRecord {
   id: string;
   user_id: string | null;
-  // pin_employee_id kept for legacy data compatibility
   job_id: string | null;
   cost_code_id: string | null;
   punch_time: string;

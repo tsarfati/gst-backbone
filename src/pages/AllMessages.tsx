@@ -73,7 +73,7 @@ export default function AllMessages() {
         if (m.to_user_id) userIdSet.add(m.to_user_id);
       });
 
-      // Resolve display names (handles both auth users and pin_employees)
+      // Resolve display names
       let nameMap: Record<string, string> = {};
       if (userIdSet.size > 0) {
         const { data: names, error: nameError } = await supabase.rpc('resolve_user_names', {
