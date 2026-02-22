@@ -1,5 +1,5 @@
 import { AnimatedSection } from '@/components/AnimatedSection';
-import { MapPin, Clock, Camera, FileText } from 'lucide-react';
+import { MapPin, FileText, Camera, Clock } from 'lucide-react';
 import mockupPunchIn from '@/assets/mockup-punch-in.png';
 import mockupGpsMap from '@/assets/mockup-gps-map.png';
 import mockupTimecards from '@/assets/mockup-timecards.png';
@@ -8,79 +8,73 @@ import mockupPhotos from '@/assets/mockup-photos.png';
 const features = [
   {
     icon: Clock,
-    title: 'One-tap GPS punch in & out',
-    description: 'Employees clock in with a single tap. Every punch is stamped with GPS coordinates so you know exactly where they are.',
+    title: 'One-tap punch in & out',
+    description: 'GPS-stamped every time. Works on any phone.',
     image: mockupPunchIn,
   },
   {
     icon: MapPin,
-    title: 'See your entire crew on the map',
-    description: 'Real-time GPS tracking shows where every worker is. Set up geofences around jobsites to prevent offsite punching.',
+    title: 'Live crew map',
+    description: 'See where everyone is. Geofence your jobsites.',
     image: mockupGpsMap,
   },
   {
     icon: FileText,
-    title: 'Payroll-ready timecard reports',
-    description: 'Timecards are generated automatically from clock-in/out data. Filter by employee, job, or cost code. Export directly to payroll.',
+    title: 'Auto timecards',
+    description: 'Overtime, job codes, cost codes — calculated and ready.',
     image: mockupTimecards,
   },
   {
     icon: Camera,
-    title: 'Document progress with photos',
-    description: 'Capture photos directly to shared project albums. Every photo is tagged with the job, date, and GPS location automatically.',
+    title: 'Jobsite photos',
+    description: 'Tagged with job, date, and GPS. Build a visual record.',
     image: mockupPhotos,
   },
 ];
 
 export function FeatureShowcase() {
   return (
-    <section className="py-24 sm:py-32" style={{ backgroundColor: '#0f1419' }}>
+    <section className="py-28" style={{ backgroundColor: '#0f1419' }}>
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
         <AnimatedSection animation="fade-up">
-          <div className="text-center mb-20">
-            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4 tracking-tight">
-              Everything you need to manage your{' '}
-              <span className="text-[#E88A2D]">crew</span>
+          <div className="text-center mb-16">
+            <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">
+              Four tools. One app.
             </h2>
-            <p className="text-gray-400 text-lg max-w-2xl mx-auto">
-              From clock-in to payroll export, Punch Clock LYNK handles it all.
+            <p className="text-gray-400 text-lg max-w-lg mx-auto">
+              Everything your field crew needs, nothing they don't.
             </p>
           </div>
         </AnimatedSection>
 
-        <div className="space-y-28">
-          {features.map((feature, index) => {
-            const isReversed = index % 2 === 1;
-            return (
-              <AnimatedSection key={index} animation="fade-up">
-                <div className={`flex flex-col ${isReversed ? 'lg:flex-row-reverse' : 'lg:flex-row'} items-center gap-12 lg:gap-20`}>
-                  {/* Image */}
-                  <div className="flex-1 flex justify-center">
-                    <div className="w-64 rounded-3xl overflow-hidden border border-white/10 shadow-2xl shadow-black/40">
-                      <img
-                        src={feature.image}
-                        alt={feature.title}
-                        className="w-full h-auto"
-                      />
-                    </div>
-                  </div>
-
-                  {/* Text */}
-                  <div className="flex-1 text-center lg:text-left">
-                    <div className="w-12 h-12 rounded-xl bg-[#E88A2D]/10 flex items-center justify-center mb-5 mx-auto lg:mx-0">
-                      <feature.icon className="h-6 w-6 text-[#E88A2D]" />
-                    </div>
-                    <h3 className="text-2xl sm:text-3xl font-bold text-white mb-4 leading-tight">
-                      {feature.title}
-                    </h3>
-                    <p className="text-gray-400 text-lg leading-relaxed max-w-md mx-auto lg:mx-0">
-                      {feature.description}
-                    </p>
-                  </div>
+        <div className="grid sm:grid-cols-2 gap-6">
+          {features.map((feature, index) => (
+            <AnimatedSection key={index} animation="fade-up" delay={index * 80}>
+              <div
+                className="group rounded-2xl border border-white/[0.06] overflow-hidden hover:border-[#E88A2D]/20 transition-colors duration-300"
+                style={{ backgroundColor: '#151a24' }}
+              >
+                {/* Image area */}
+                <div className="relative h-56 sm:h-64 overflow-hidden flex items-center justify-center" style={{ backgroundColor: '#111620' }}>
+                  <img
+                    src={feature.image}
+                    alt={feature.title}
+                    className="h-full w-auto object-contain group-hover:scale-[1.02] transition-transform duration-500"
+                  />
                 </div>
-              </AnimatedSection>
-            );
-          })}
+                {/* Text */}
+                <div className="p-6">
+                  <div className="flex items-center gap-3 mb-2">
+                    <feature.icon className="w-5 h-5 text-[#E88A2D] flex-shrink-0" />
+                    <h3 className="text-lg font-bold text-white">{feature.title}</h3>
+                  </div>
+                  <p className="text-gray-400 text-sm leading-relaxed pl-8">
+                    {feature.description}
+                  </p>
+                </div>
+              </div>
+            </AnimatedSection>
+          ))}
         </div>
       </div>
     </section>
