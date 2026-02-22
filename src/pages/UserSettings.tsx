@@ -511,10 +511,10 @@ export default function UserSettings() {
                   const isOpen = openGroups[group.key] ?? false;
 
                   return (
-                    <Collapsible key={group.key} open={isOpen} onOpenChange={() => setOpenGroups(prev => ({ ...prev, [group.key]: !prev[group.key] }))}>
+                    <Collapsible key={group.key} open={isOpen} onOpenChange={(open) => setOpenGroups(prev => ({ ...prev, [group.key]: open }))}>
                       <Card>
-                        <CardHeader className="cursor-pointer py-4" onClick={() => setOpenGroups(prev => ({ ...prev, [group.key]: !prev[group.key] }))}>
-                          <CollapsibleTrigger asChild>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer py-4">
                             <div className="flex items-center justify-between w-full">
                               <CardTitle className="flex items-center gap-2 text-lg">
                                 {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
@@ -523,8 +523,8 @@ export default function UserSettings() {
                                 <Badge variant="secondary">{groupUsers.length}</Badge>
                               </CardTitle>
                             </div>
-                          </CollapsibleTrigger>
-                        </CardHeader>
+                          </CardHeader>
+                        </CollapsibleTrigger>
                         <CollapsibleContent>
                           <CardContent className="pt-0">
                             <div className="space-y-3">
