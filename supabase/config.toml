@@ -5,3 +5,6 @@ verify_jwt = false
 
 [functions.daily-message]
 verify_jwt = false
+
+[functions.get-user-email]
+verify_jwt = false
