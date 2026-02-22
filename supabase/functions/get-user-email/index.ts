@@ -29,23 +29,22 @@ serve(async (req) => {
       });
     }
 
-    // Validate JWT and extract claims (verify_jwt is disabled in config)
+    // Validate JWT by fetching user
     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
 
-    const token = authHeader.replace("Bearer ", "");
-    const { data: claimsData, error: claimsError } = await supabaseAuth.auth.getClaims(token);
+    const { data: { user: authUser }, error: authError } = await supabaseAuth.auth.getUser();
 
-    if (claimsError || !claimsData?.claims?.sub) {
-      console.warn("[get-user-email] invalid token", { requestId, claimsError });
+    if (authError || !authUser) {
+      console.warn("[get-user-email] invalid token", { requestId, authError });
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const requestingUserId = String(claimsData.claims.sub);
+    const requestingUserId = authUser.id;
 
     // Parse request body
     const body = await req.json().catch(() => ({}));
