@@ -1,4 +1,5 @@
 import { useParams, useNavigate } from "react-router-dom";
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -593,14 +594,12 @@ export default function BillEdit() {
 
           if (uploadError) throw uploadError;
 
-          const { data: { publicUrl } } = supabase.storage
-            .from('receipts')
-            .getPublicUrl(filePath);
+          const fileUrl = getStoragePathForDb('receipts', filePath);
 
           // Save document record
           await supabase.from('invoice_documents').insert({
             invoice_id: id,
-            file_url: publicUrl,
+            file_url: fileUrl,
             file_name: file.name,
             file_type: file.type,
             file_size: file.size,

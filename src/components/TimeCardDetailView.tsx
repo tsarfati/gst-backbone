@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { resolveStorageUrl } from '@/utils/storageUtils';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -204,12 +205,10 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         }
       }
 
-      const normalizePhotoUrl = (url?: string | null) => {
+      const normalizePhotoUrl = async (url?: string | null) => {
         if (!url) return null;
-        if (url.startsWith('http')) return url;
-        // Treat as a path inside the 'punch-photos' bucket
-        const { data: publicData } = supabase.storage.from('punch-photos').getPublicUrl(url);
-        return publicData?.publicUrl || null;
+        if (url.startsWith('http') && !url.includes('supabase.co/storage')) return url;
+        return await resolveStorageUrl('punch-photos', url);
       };
 
       // Use profile data
@@ -229,8 +228,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         punch_in_location_lng: Number(timeCardData.punch_in_location_lng) || Number(punchIn?.longitude) || null,
         punch_out_location_lat: Number(timeCardData.punch_out_location_lat) || Number(punchOut?.latitude) || null,
         punch_out_location_lng: Number(timeCardData.punch_out_location_lng) || Number(punchOut?.longitude) || null,
-        punch_in_photo_url: normalizePhotoUrl(timeCardData.punch_in_photo_url || punchIn?.photo_url || null),
-        punch_out_photo_url: normalizePhotoUrl(timeCardData.punch_out_photo_url || punchOut?.photo_url || null),
+        punch_in_photo_url: await normalizePhotoUrl(timeCardData.punch_in_photo_url || punchIn?.photo_url || null),
+        punch_out_photo_url: await normalizePhotoUrl(timeCardData.punch_out_photo_url || punchOut?.photo_url || null),
       };
 
       // Persist backfilled cost code if we resolved it and it was missing

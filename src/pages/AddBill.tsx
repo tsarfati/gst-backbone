@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -984,13 +985,11 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             continue;
           }
 
-          const { data: { publicUrl } } = supabase.storage
-            .from('receipts')
-            .getPublicUrl(storageFileName);
+          const fileUrl = getStoragePathForDb('receipts', storageFileName);
 
           await supabase.from('invoice_documents').insert({
             invoice_id: invoiceId,
-            file_url: publicUrl,
+            file_url: fileUrl,
             file_name: displayName,
             file_type: file.type,
             file_size: file.size,
@@ -1421,15 +1420,13 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             continue;
           }
 
-          const { data: { publicUrl } } = supabase.storage
-            .from('receipts')
-            .getPublicUrl(storageFileName);
+          const fileUrl = getStoragePathForDb('receipts', storageFileName);
 
           // Create document records for each invoice
           for (const invoiceId of insertedInvoiceIds) {
             await supabase.from('invoice_documents').insert({
               invoice_id: invoiceId,
-              file_url: publicUrl,
+              file_url: fileUrl,
               file_name: displayName,
               file_type: file.type,
               file_size: file.size,

@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { resolveStorageUrl } from '@/utils/storageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -599,30 +600,31 @@ export default function TimeSheets() {
   );
 
   const PhotoDisplay = ({ url, type }: { url?: string; type: 'in' | 'out' }) => {
-    if (!url) return null;
-    
     // Normalize photo URL to handle Supabase storage paths
-    const normalizePhotoUrl = (photoUrl: string) => {
-      if (!photoUrl) return null;
-      
-      // If it's already a full URL, use it as is
-      if (photoUrl.startsWith('http')) return photoUrl;
-      
-      // If it's a storage path, get the public URL
-      const { data } = supabase.storage.from('punch-photos').getPublicUrl(photoUrl);
-      return data.publicUrl;
-    };
+    const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
+    
+    useEffect(() => {
+      if (!url) return;
+      const resolve = async () => {
+        if (url.startsWith('http') && !url.includes('supabase.co/storage')) {
+          setResolvedUrl(url);
+        } else {
+          const signed = await resolveStorageUrl('punch-photos', url);
+          setResolvedUrl(signed);
+        }
+      };
+      resolve();
+    }, [url]);
 
-    const normalizedUrl = normalizePhotoUrl(url);
-    if (!normalizedUrl) return null;
+    if (!resolvedUrl) return null;
     
     return (
       <div className="relative">
         <img 
-          src={normalizedUrl} 
+          src={resolvedUrl} 
           alt={`Punch ${type} photo`}
           className="h-8 w-8 rounded object-cover cursor-pointer hover:scale-110 transition-transform"
-          onClick={() => window.open(normalizedUrl, '_blank')}
+          onClick={() => window.open(resolvedUrl, '_blank')}
         />
         <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full p-1">
           <Camera className="h-2 w-2" />

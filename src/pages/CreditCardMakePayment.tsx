@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { getStoragePathForDb } from '@/utils/storageUtils';
 import { useParams, useNavigate } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -129,11 +130,7 @@ export default function CreditCardMakePayment() {
 
         if (uploadError) throw uploadError;
 
-        const { data: { publicUrl } } = supabase.storage
-          .from("credit-card-attachments")
-          .getPublicUrl(fileName);
-        
-        attachmentUrl = publicUrl;
+        attachmentUrl = getStoragePathForDb('credit-card-attachments', fileName);
       }
 
       // Create journal entry

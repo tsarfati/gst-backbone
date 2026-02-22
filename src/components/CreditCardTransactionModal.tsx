@@ -1,4 +1,5 @@
 import { useEffect, useState, useRef, useCallback } from "react";
+import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { usePreventBrowserZoom } from "@/hooks/usePreventBrowserZoom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -1429,19 +1430,18 @@ const resolveAttachmentRequirement = (): boolean => {
 
       if (uploadError) throw uploadError;
 
-      const { data: { publicUrl } } = supabase.storage
-        .from("credit-card-attachments")
-        .getPublicUrl(fileName);
+      const storedPath = getStoragePathForDb('credit-card-attachments', fileName);
 
-      // Optimistically show the preview immediately using the public URL
-      setAttachmentPreview(publicUrl);
+      // Optimistically show the preview - resolve to signed URL
+      const previewUrl = await resolveStorageUrl('credit-card-attachments', storedPath);
+      setAttachmentPreview(previewUrl);
 
       await supabase
         .from("credit_card_transactions")
-        .update({ attachment_url: publicUrl })
+        .update({ attachment_url: storedPath })
         .eq("id", transactionId);
 
-      setTransaction((prev: any) => ({ ...prev, attachment_url: publicUrl }));
+      setTransaction((prev: any) => ({ ...prev, attachment_url: storedPath }));
       await updateCodingStatus();
 
       toast({
