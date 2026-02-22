@@ -1328,6 +1328,63 @@ export type Database = {
           },
         ]
       }
+      company_subscriptions: {
+        Row: {
+          assigned_by: string
+          billing_cycle: string | null
+          company_id: string
+          created_at: string
+          end_date: string | null
+          id: string
+          notes: string | null
+          start_date: string
+          status: string
+          tier_id: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_by: string
+          billing_cycle?: string | null
+          company_id: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          start_date?: string
+          status?: string
+          tier_id: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_by?: string
+          billing_cycle?: string | null
+          company_id?: string
+          created_at?: string
+          end_date?: string | null
+          id?: string
+          notes?: string | null
+          start_date?: string
+          status?: string
+          tier_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_subscriptions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_subscriptions_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_ui_settings: {
         Row: {
           company_id: string
@@ -2774,6 +2831,39 @@ export type Database = {
           require_photo?: boolean | null
           updated_at?: string | null
           user_id?: string
+        }
+        Relationships: []
+      }
+      feature_modules: {
+        Row: {
+          category: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          key: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          key?: string
+          name?: string
+          sort_order?: number
         }
         Relationships: []
       }
@@ -6978,6 +7068,48 @@ export type Database = {
           },
         ]
       }
+      subscription_tiers: {
+        Row: {
+          annual_price: number | null
+          created_at: string
+          created_by: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          monthly_price: number
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          annual_price?: number | null
+          created_at?: string
+          created_by: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          monthly_price?: number
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          annual_price?: number | null
+          created_at?: string
+          created_by?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          monthly_price?: number
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: []
+      }
       super_admins: {
         Row: {
           created_at: string
@@ -7312,6 +7444,45 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      tier_feature_access: {
+        Row: {
+          access_level: string
+          created_at: string
+          feature_module_id: string
+          id: string
+          tier_id: string
+        }
+        Insert: {
+          access_level?: string
+          created_at?: string
+          feature_module_id: string
+          id?: string
+          tier_id: string
+        }
+        Update: {
+          access_level?: string
+          created_at?: string
+          feature_module_id?: string
+          id?: string
+          tier_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tier_feature_access_feature_module_id_fkey"
+            columns: ["feature_module_id"]
+            isOneToOne: false
+            referencedRelation: "feature_modules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tier_feature_access_tier_id_fkey"
+            columns: ["tier_id"]
+            isOneToOne: false
+            referencedRelation: "subscription_tiers"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       time_card_audit_trail: {
         Row: {
@@ -8642,6 +8813,10 @@ export type Database = {
         }[]
       }
       cleanup_pin_data: { Args: never; Returns: undefined }
+      company_has_feature: {
+        Args: { p_company_id: string; p_feature_key: string }
+        Returns: boolean
+      }
       create_default_filing_folders: {
         Args: { p_company_id: string; p_created_by: string; p_job_id: string }
         Returns: undefined
