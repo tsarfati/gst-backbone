@@ -7,16 +7,16 @@ export function WhySection() {
       after: 'GPS-verified punches, automatic timecards',
     },
     {
-      before: 'No idea if your crew is on-site',
-      after: 'Real-time location on a live map',
+      before: "No idea who's working on which job",
+      after: 'Employees select job, location, and task at punch-in',
     },
     {
-      before: 'Payroll errors and re-runs',
-      after: 'Automatic overtime and pay calculations',
+      before: 'Manually building reports in spreadsheets',
+      after: 'Instant reports by employee, job, task, or custom filters',
     },
     {
-      before: 'Flying blind on project costs',
-      after: 'Every hour tracked to a job and cost code',
+      before: "Generic apps that don't feel like yours",
+      after: 'Your logo, your colors — a fully branded experience',
     },
   ];
 

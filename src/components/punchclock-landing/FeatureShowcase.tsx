@@ -8,26 +8,26 @@ import mockupPhotos from '@/assets/mockup-photos.png';
 const features = [
   {
     icon: Clock,
-    title: 'One-tap punch in & out',
-    description: 'GPS-stamped every time. Works on any phone.',
+    title: 'GPS punch in & out',
+    description: 'One tap. Location-stamped. Works on any phone, any jobsite.',
     image: mockupPunchIn,
   },
   {
     icon: MapPin,
-    title: 'Live crew map',
-    description: 'See where everyone is. Geofence your jobsites.',
+    title: 'Job & task assignments',
+    description: 'Employees select their job, location, and task. Control who sees what with per-user access.',
     image: mockupGpsMap,
   },
   {
     icon: FileText,
-    title: 'Auto timecards',
-    description: 'Overtime, job codes, cost codes — calculated and ready.',
+    title: 'Custom reporting',
+    description: 'Pull reports by employee, job, task, or any combination. Overtime and cost codes calculated automatically.',
     image: mockupTimecards,
   },
   {
     icon: Camera,
-    title: 'Jobsite photos',
-    description: 'Tagged with job, date, and GPS. Build a visual record.',
+    title: 'Your brand, your app',
+    description: 'Company logo, colors, and branding throughout. Looks like your own custom-built app.',
     image: mockupPhotos,
   },
 ];
@@ -39,10 +39,10 @@ export function FeatureShowcase() {
         <AnimatedSection animation="fade-up">
           <div className="text-center mb-16">
             <h2 className="text-3xl sm:text-4xl font-bold text-white tracking-tight mb-3">
-              Four tools. One app.
+              Built for how you actually run jobs.
             </h2>
             <p className="text-gray-400 text-lg max-w-lg mx-auto">
-              Everything your field crew needs, nothing they don't.
+              Unlimited locations. Unlimited tasks. Total control over who sees what.
             </p>
           </div>
         </AnimatedSection>
