@@ -52,7 +52,7 @@ export default function PunchClockLynkLanding() {
 
   // Auto-advance carousel
   useEffect(() => {
-    const timer = setInterval(nextSlide, 4000);
+    const timer = setInterval(nextSlide, 7000);
     return () => clearInterval(timer);
   }, [nextSlide]);
 
