@@ -21,9 +21,11 @@ import {
   Shield,
   ArrowLeft,
   LogOut,
-  CreditCard
+  CreditCard,
+  Package
 } from 'lucide-react';
-import SubscriptionStatusDisplay from '@/components/SubscriptionStatusDisplay';
+import SubscriptionTierManager from '@/components/SubscriptionTierManager';
+import CompanySubscriptionManager from '@/components/CompanySubscriptionManager';
 
 interface TenantAccessRequest {
   id: string;
@@ -387,6 +389,10 @@ export default function SuperAdminDashboard() {
                 </Badge>
               )}
             </TabsTrigger>
+            <TabsTrigger value="tiers">
+              <Package className="h-4 w-4 mr-1" />
+              Tiers
+            </TabsTrigger>
             <TabsTrigger value="subscriptions">
               <CreditCard className="h-4 w-4 mr-1" />
               Subscriptions
@@ -468,8 +474,12 @@ export default function SuperAdminDashboard() {
             </Card>
           </TabsContent>
 
+          <TabsContent value="tiers" className="space-y-4">
+            <SubscriptionTierManager />
+          </TabsContent>
+
           <TabsContent value="subscriptions" className="space-y-4">
-            <SubscriptionStatusDisplay />
+            <CompanySubscriptionManager />
           </TabsContent>
 
           <TabsContent value="tenants" className="space-y-4">
