@@ -1,5 +1,6 @@
 import { AnimatedSection } from '@/components/AnimatedSection';
-import { ArrowRight } from 'lucide-react';
+import { ArrowRight, Calendar } from 'lucide-react';
+import { Link } from 'react-router-dom';
 
 interface CtaSectionProps {
   onGetStarted: () => void;
@@ -14,15 +15,23 @@ export function CtaSection({ onGetStarted }: CtaSectionProps) {
             Ready to try it?
           </h2>
           <p className="text-gray-400 mb-8">
-            Free 14-day trial. No credit card. Set up in under 5 minutes.
+            Start a free trial or schedule a personalized demo with our team.
           </p>
-          <button
-            onClick={onGetStarted}
-            className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg"
-            style={{ backgroundColor: '#E88A2D' }}
-          >
-            Start Free Trial <ArrowRight className="w-5 h-5" />
-          </button>
+          <div className="flex flex-wrap justify-center gap-3">
+            <button
+              onClick={onGetStarted}
+              className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg"
+              style={{ backgroundColor: '#E88A2D' }}
+            >
+              Start Free Trial <ArrowRight className="w-5 h-5" />
+            </button>
+            <Link
+              to="/demo"
+              className="px-10 py-4 text-white/80 font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:text-white border border-white/10 hover:border-white/25 text-lg"
+            >
+              <Calendar className="w-5 h-5" /> Schedule a Tour
+            </Link>
+          </div>
         </AnimatedSection>
       </div>
     </section>

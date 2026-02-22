@@ -11,6 +11,7 @@ import { WhySection } from '@/components/punchclock-landing/WhySection';
 import { TestimonialsSection } from '@/components/punchclock-landing/TestimonialsSection';
 import { CtaSection } from '@/components/punchclock-landing/CtaSection';
 import { FooterSection } from '@/components/punchclock-landing/FooterSection';
+import { TawkToChat } from '@/components/TawkToChat';
 
 export default function PunchClockLynkLanding() {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -60,6 +61,7 @@ export default function PunchClockLynkLanding() {
       <CtaSection onGetStarted={handleGetStarted} />
       <FooterSection />
       <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} initialMode={authModalMode} />
+      <TawkToChat />
     </div>
   );
 }
