@@ -41,12 +41,12 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
             </div>
 
             <h1 className="text-4xl sm:text-5xl xl:text-[3.5rem] font-extrabold text-white leading-[1.1] tracking-tight mb-6">
-              Know where your crew is.{' '}
-              <span className="text-[#E88A2D]">Always.</span>
+              Track every hour.{' '}
+              <span className="text-[#E88A2D]">Know every cost.</span>
             </h1>
 
             <p className="text-gray-400 text-lg leading-relaxed mb-10 max-w-lg">
-              GPS-verified time tracking that eliminates guesswork. One tap to clock in, automatic timecards, instant payroll export.
+              GPS time tracking with built-in job costing. Employees punch in, select their job and task, and you get instant reports — branded with your company.
             </p>
 
             <div className="flex flex-wrap gap-3 mb-8">
