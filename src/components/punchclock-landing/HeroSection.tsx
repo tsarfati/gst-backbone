@@ -19,23 +19,8 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
       />
 
       <div className="relative z-10 max-w-7xl mx-auto w-full py-24">
-        <div className="grid lg:grid-cols-[30%_1fr] gap-12 lg:gap-16 items-center">
-          {/* Left — Logo, 30% width */}
-          <div className="hidden lg:flex items-center justify-center">
-            <div className="relative">
-              <div
-                className="absolute -inset-10 rounded-full blur-3xl opacity-15"
-                style={{ background: 'radial-gradient(circle, #E88A2D, transparent 70%)' }}
-              />
-              <img
-                src={punchClockHeroLogo}
-                alt="Punch Clock LYNK"
-                className="relative w-full h-auto object-contain drop-shadow-2xl"
-              />
-            </div>
-          </div>
-
-          {/* Right — Copy */}
+        <div className="grid lg:grid-cols-[1fr_30%] gap-12 lg:gap-16 items-center">
+          {/* Left — Copy */}
           <div>
             {/* Mobile logo — show above text on small screens */}
             <div className="lg:hidden flex justify-center mb-10">
@@ -92,6 +77,21 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
               <img src={builderlynkIcon} alt="" className="h-4 w-auto opacity-60" />
               A BuilderLYNK Product
             </Link>
+          </div>
+
+          {/* Right — Logo */}
+          <div className="hidden lg:flex items-center justify-center">
+            <div className="relative">
+              <div
+                className="absolute -inset-10 rounded-full blur-3xl opacity-15"
+                style={{ background: 'radial-gradient(circle, #E88A2D, transparent 70%)' }}
+              />
+              <img
+                src={punchClockHeroLogo}
+                alt="Punch Clock LYNK"
+                className="relative w-full h-auto object-contain drop-shadow-2xl"
+              />
+            </div>
           </div>
         </div>
       </div>
