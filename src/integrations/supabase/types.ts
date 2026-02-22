@@ -5610,6 +5610,7 @@ export type Database = {
           custom_role_id: string | null
           default_company_id: string | null
           display_name: string | null
+          email: string | null
           first_name: string | null
           group_id: string | null
           has_global_job_access: boolean | null
@@ -5640,6 +5641,7 @@ export type Database = {
           custom_role_id?: string | null
           default_company_id?: string | null
           display_name?: string | null
+          email?: string | null
           first_name?: string | null
           group_id?: string | null
           has_global_job_access?: boolean | null
@@ -5670,6 +5672,7 @@ export type Database = {
           custom_role_id?: string | null
           default_company_id?: string | null
           display_name?: string | null
+          email?: string | null
           first_name?: string | null
           group_id?: string | null
           has_global_job_access?: boolean | null
