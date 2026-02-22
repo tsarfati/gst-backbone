@@ -23,12 +23,7 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
-    // Allow public access to punch clock routes
-    const publicPaths = ['/punch-clock', '/punch-clock-login', '/punch-clock-app'];
-    if (publicPaths.some(p => location.pathname.startsWith(p))) {
-      setChecking(false);
-      return;
-    }
+    // Punch clock routes are now handled by external app - no internal public paths needed
 
     // If no user, redirect to auth
     if (!user) {

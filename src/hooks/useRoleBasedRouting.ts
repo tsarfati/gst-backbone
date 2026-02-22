@@ -64,10 +64,10 @@ export function useRoleBasedRouting() {
           return;
         }
 
-        // For employees, redirect to punch clock app only
+        // Employees use external Punch Clock app - redirect to profile
         if (effectiveRole === 'employee') {
           if (location.pathname === '/auth' || location.pathname === '/') {
-            navigate('/punch-clock-app', { replace: true });
+            navigate('/profile-settings', { replace: true });
           }
           return;
         }
