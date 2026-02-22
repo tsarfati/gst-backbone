@@ -153,6 +153,7 @@ import JobVisitorLogs from "./pages/JobVisitorLogs";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorRegister from "./pages/VendorRegister";
+import SubscriptionPortal from "./pages/SubscriptionPortal";
 
 const queryClient = new QueryClient();
 
@@ -439,6 +440,7 @@ function AuthenticatedRoutes() {
               <Route path="receivables/invoices/:id/edit" element={<AddARInvoice />} />
               <Route path="receivables/payments" element={<ARPayments />} />
               <Route path="receivables/reports" element={<ReceivablesReports />} />
+              <Route path="subscription" element={<SubscriptionPortal />} />
             </Route>
             <Route path="*" element={<NotFound />} />
             </Routes>
