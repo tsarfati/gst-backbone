@@ -18,6 +18,12 @@ export function TawkToChat() {
   useEffect(() => {
     // IDs are configured
 
+    // Initialize Tawk API and minimize on load
+    (window as any).Tawk_API = (window as any).Tawk_API || {};
+    (window as any).Tawk_API.onLoad = function () {
+      (window as any).Tawk_API.minimize();
+    };
+
     const script = document.createElement('script');
     script.async = true;
     script.src = `https://embed.tawk.to/${TAWK_PROPERTY_ID}/${TAWK_WIDGET_ID}`;
