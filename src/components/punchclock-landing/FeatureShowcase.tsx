@@ -3,6 +3,7 @@ import { AnimatedSection } from '@/components/AnimatedSection';
 import {
   MapPin, FileText, Camera, Clock, Shield, Users,
   BarChart3, Paintbrush, Smartphone, Globe, Lock, Zap,
+  Bell, MessageSquare, ImageIcon,
 } from 'lucide-react';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import mockupPunchIn from '@/assets/mockup-punch-in.png';
@@ -81,6 +82,24 @@ const features = [
     icon: Zap,
     title: 'Real-Time Dashboard',
     description: 'See who is clocked in right now, where they are, and what they are working on. Live updates across all your jobsites at a glance.',
+    image: null,
+  },
+  {
+    icon: Bell,
+    title: 'Push Notifications',
+    description: 'Instant push notifications keep your team informed. Alerts for punch reminders, schedule changes, announcements, and more — delivered right to their phone.',
+    image: null,
+  },
+  {
+    icon: MessageSquare,
+    title: 'Intercompany Messaging',
+    description: 'Built-in text messaging between office and field. Send messages to individuals or groups — no personal phone numbers needed. Keep all communication in one place.',
+    image: null,
+  },
+  {
+    icon: ImageIcon,
+    title: 'Job Photo Albums',
+    description: 'Employees can capture and upload photos per job. Auto-organized albums with GPS tagging, timestamps, and full-resolution viewing. Document progress effortlessly.',
     image: null,
   },
 ];
