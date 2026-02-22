@@ -1102,6 +1102,7 @@ export type Database = {
           name: string
           phone: string | null
           state: string | null
+          stripe_customer_id: string | null
           tax_id: string | null
           tenant_id: string | null
           updated_at: string
@@ -1124,6 +1125,7 @@ export type Database = {
           name: string
           phone?: string | null
           state?: string | null
+          stripe_customer_id?: string | null
           tax_id?: string | null
           tenant_id?: string | null
           updated_at?: string
@@ -1146,6 +1148,7 @@ export type Database = {
           name?: string
           phone?: string | null
           state?: string | null
+          stripe_customer_id?: string | null
           tax_id?: string | null
           tenant_id?: string | null
           updated_at?: string
@@ -7080,6 +7083,8 @@ export type Database = {
           monthly_price: number
           name: string
           sort_order: number
+          stripe_price_id: string | null
+          stripe_product_id: string | null
           updated_at: string
         }
         Insert: {
@@ -7093,6 +7098,8 @@ export type Database = {
           monthly_price?: number
           name: string
           sort_order?: number
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
           updated_at?: string
         }
         Update: {
@@ -7106,6 +7113,8 @@ export type Database = {
           monthly_price?: number
           name?: string
           sort_order?: number
+          stripe_price_id?: string | null
+          stripe_product_id?: string | null
           updated_at?: string
         }
         Relationships: []
