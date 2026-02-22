@@ -4,6 +4,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { Loader2 } from 'lucide-react';
+import { AccountStatusScreen } from '@/components/AccountStatusScreen';
 
 interface AccessControlProps {
   children: React.ReactNode;
@@ -49,6 +50,13 @@ export function AccessControl({ children }: AccessControlProps) {
     // If profile is known and not completed, redirect to profile completion
     if (profile && profile.profile_completed === false) {
       navigate('/profile-completion', { replace: true });
+      return;
+    }
+
+    // Check account status - block pending and suspended users
+    if (profile && (profile.status === 'pending' || profile.status === 'suspended')) {
+      setChecking(false);
+      if (!initialized) setInitialized(true);
       return;
     }
 
@@ -111,6 +119,11 @@ export function AccessControl({ children }: AccessControlProps) {
       setInitialized(true);
     }
   }, [user?.id, profile?.profile_completed, profile?.current_company_id, userCompanies.length, authLoading, companyLoading, tenantLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname]);
+
+  // Show account status splash screens
+  if (profile && (profile.status === 'pending' || profile.status === 'suspended')) {
+    return <AccountStatusScreen status={profile.status as 'pending' | 'suspended'} />;
+  }
 
   if (!initialized && (authLoading || companyLoading || tenantLoading || checking)) {
     return (
