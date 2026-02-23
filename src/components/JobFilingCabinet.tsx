@@ -21,6 +21,7 @@ import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import FileShareModal from "./FileShareModal";
 import FileCabinetPreviewModal from "./FileCabinetPreviewModal";
+import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 
 interface Folder {
   id: string;
@@ -263,6 +264,21 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
       });
 
       if (dbError) throw dbError;
+
+      // Sync to Google Drive
+      if (companyId) {
+        const { data: urlData } = await supabase.storage.from('job-filing-cabinet').createSignedUrl(path, 3600);
+        if (urlData?.signedUrl) {
+          syncFileToGoogleDrive({
+            companyId,
+            jobId,
+            category: 'filing_cabinet',
+            fileUrl: urlData.signedUrl,
+            fileName: file.name,
+            subfolder: `Filing Cabinet`,
+          });
+        }
+      }
 
       toast({ title: "File uploaded", description: file.name });
       loadFiles();

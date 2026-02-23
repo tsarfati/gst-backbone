@@ -1,6 +1,7 @@
 import React, { createContext, useContext, useState, useCallback, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
+import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 
@@ -268,6 +269,18 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
 
         if (insertError) {
           console.error('Database insert error:', insertError);
+        } else {
+          // Sync to Google Drive
+          const { data: urlData } = await supabase.storage.from('receipts').createSignedUrl(storageFileName, 3600);
+          if (urlData?.signedUrl) {
+            syncFileToGoogleDrive({
+              companyId: currentCompany.id,
+              category: 'receipts',
+              fileUrl: urlData.signedUrl,
+              fileName: displayName,
+              subfolder: 'Receipts',
+            });
+          }
         }
       } catch (error) {
         console.error('Error processing file:', file.name, error);

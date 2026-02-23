@@ -1,5 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
+import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
+import { useCompany } from '@/contexts/CompanyContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -83,6 +85,7 @@ interface JobPhotoAlbumProps {
 export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const { toast } = useToast();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
   const [albums, setAlbums] = useState<PhotoAlbum[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string>('');
@@ -702,6 +705,19 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         });
         if (insertError) throw insertError;
         successCount++;
+
+        // Sync to Google Drive
+        if (currentCompany) {
+          const { data: urlData } = supabase.storage.from('punch-photos').getPublicUrl(fileName);
+          syncFileToGoogleDrive({
+            companyId: currentCompany.id,
+            jobId,
+            category: 'photos',
+            fileUrl: urlData.publicUrl,
+            fileName: file.name,
+            subfolder: `Photos`,
+          });
+        }
       } catch (error) {
         console.error('Error uploading file:', file.name, error);
       }
