@@ -449,8 +449,6 @@ const formatCurrency = (n: number | null | undefined) =>
       toast({ title: "Export failed", description: "Failed to export PDF", variant: "destructive" });
     }
   };
-    }
-  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto">
