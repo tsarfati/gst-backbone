@@ -107,7 +107,11 @@ serve(async (req: Request) => {
 
     // Build mail options
     const mailOptions: any = {
-      from: emailSettings.from_email || emailSettings.smtp_username,
+      from: emailSettings.from_email && emailSettings.from_email.includes('@')
+        ? emailSettings.from_email
+        : emailSettings.from_email
+          ? `${emailSettings.from_email} <${emailSettings.smtp_username}>`
+          : emailSettings.smtp_username,
       to: recipients,
       subject: subject,
       text: body,
