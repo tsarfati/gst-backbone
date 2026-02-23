@@ -12,7 +12,8 @@ import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Bell, Save, Camera, Upload, X, Mail } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { ArrowLeft, User, Bell, Save, Camera, Upload, X, Mail, SendHorizonal, Loader2, FileSignature } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ProfileData {
@@ -722,8 +723,11 @@ export default function ProfileSettings() {
 
 function EmailSettingsTab() {
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [sendingTest, setSendingTest] = useState(false);
+  const [testEmail, setTestEmail] = useState('');
   const [settings, setSettings] = useState({
     smtp_host: '',
     smtp_port: 587,
@@ -737,6 +741,7 @@ function EmailSettingsTab() {
     from_name: '',
     use_ssl: true,
     is_configured: false,
+    email_signature: '',
   });
 
   useEffect(() => {
@@ -752,7 +757,7 @@ function EmailSettingsTab() {
           smtp_host: data.smtp_host || '',
           smtp_port: data.smtp_port || 587,
           smtp_username: data.smtp_username || '',
-          smtp_password: '', // don't show encrypted password
+          smtp_password: '',
           imap_host: data.imap_host || '',
           imap_port: data.imap_port || 993,
           imap_username: data.imap_username || '',
@@ -761,6 +766,7 @@ function EmailSettingsTab() {
           from_name: data.from_name || '',
           use_ssl: data.use_ssl ?? true,
           is_configured: data.is_configured || false,
+          email_signature: data.email_signature || '',
         });
       }
     };
@@ -782,12 +788,12 @@ function EmailSettingsTab() {
         from_email: settings.from_email,
         from_name: settings.from_name,
         use_ssl: settings.use_ssl,
+        email_signature: settings.email_signature,
         is_configured: !!(settings.smtp_host && settings.smtp_username && settings.from_email),
       };
 
-      // Only update passwords if provided
       if (settings.smtp_password) {
-        payload.smtp_password_encrypted = settings.smtp_password; // In production, encrypt this
+        payload.smtp_password_encrypted = settings.smtp_password;
       }
       if (settings.imap_password) {
         payload.imap_password_encrypted = settings.imap_password;
@@ -807,96 +813,192 @@ function EmailSettingsTab() {
     }
   };
 
+  const sendTestEmail = async () => {
+    const recipient = testEmail || user?.email;
+    if (!recipient) {
+      toast({ title: 'Error', description: 'Please enter a recipient email address', variant: 'destructive' });
+      return;
+    }
+    if (!settings.is_configured && !settings.smtp_host) {
+      toast({ title: 'Error', description: 'Please configure and save your SMTP settings first', variant: 'destructive' });
+      return;
+    }
+
+    setSendingTest(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('send-test-email', {
+        body: {
+          email: recipient,
+          companyId: currentCompany?.id || '',
+          companyName: currentCompany?.display_name || currentCompany?.name || 'Your Company',
+        },
+      });
+
+      if (error) throw error;
+
+      toast({ title: 'Test email sent!', description: `A test email was sent to ${recipient}` });
+    } catch (err: any) {
+      toast({ title: 'Failed to send test email', description: err.message, variant: 'destructive' });
+    } finally {
+      setSendingTest(false);
+    }
+  };
+
   return (
-    <Card>
-      <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Mail className="h-5 w-5" />
-          SMTP / IMAP Settings
-        </CardTitle>
-      </CardHeader>
-      <CardContent className="space-y-6">
-        <p className="text-sm text-muted-foreground">
-          Configure your email settings to send files and messages from your company email address.
-        </p>
+    <div className="space-y-6">
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Mail className="h-5 w-5" />
+            SMTP / IMAP Settings
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-6">
+          <p className="text-sm text-muted-foreground">
+            Configure your email settings to send files and messages from your company email address.
+          </p>
 
-        {/* From Identity */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-semibold">Sender Identity</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>From Name</Label>
-              <Input value={settings.from_name} onChange={e => setSettings(p => ({ ...p, from_name: e.target.value }))} placeholder="John Doe" />
-            </div>
-            <div className="space-y-2">
-              <Label>From Email</Label>
-              <Input value={settings.from_email} onChange={e => setSettings(p => ({ ...p, from_email: e.target.value }))} placeholder="john@company.com" />
+          {/* From Identity */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold">Sender Identity</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>From Name</Label>
+                <Input value={settings.from_name} onChange={e => setSettings(p => ({ ...p, from_name: e.target.value }))} placeholder="John Doe" />
+              </div>
+              <div className="space-y-2">
+                <Label>From Email</Label>
+                <Input value={settings.from_email} onChange={e => setSettings(p => ({ ...p, from_email: e.target.value }))} placeholder="john@company.com" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <Separator />
+          <Separator />
 
-        {/* SMTP */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-semibold">Outgoing Mail (SMTP)</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>SMTP Host</Label>
-              <Input value={settings.smtp_host} onChange={e => setSettings(p => ({ ...p, smtp_host: e.target.value }))} placeholder="smtp.gmail.com" />
-            </div>
-            <div className="space-y-2">
-              <Label>SMTP Port</Label>
-              <Input type="number" value={settings.smtp_port} onChange={e => setSettings(p => ({ ...p, smtp_port: parseInt(e.target.value) || 587 }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Username</Label>
-              <Input value={settings.smtp_username} onChange={e => setSettings(p => ({ ...p, smtp_username: e.target.value }))} placeholder="your-email@company.com" />
-            </div>
-            <div className="space-y-2">
-              <Label>Password</Label>
-              <Input type="password" value={settings.smtp_password} onChange={e => setSettings(p => ({ ...p, smtp_password: e.target.value }))} placeholder="••••••••" />
+          {/* SMTP */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold">Outgoing Mail (SMTP)</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>SMTP Host</Label>
+                <Input value={settings.smtp_host} onChange={e => setSettings(p => ({ ...p, smtp_host: e.target.value }))} placeholder="smtp.gmail.com" />
+              </div>
+              <div className="space-y-2">
+                <Label>SMTP Port</Label>
+                <Input type="number" value={settings.smtp_port} onChange={e => setSettings(p => ({ ...p, smtp_port: parseInt(e.target.value) || 587 }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Username</Label>
+                <Input value={settings.smtp_username} onChange={e => setSettings(p => ({ ...p, smtp_username: e.target.value }))} placeholder="your-email@company.com" />
+              </div>
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <Input type="password" value={settings.smtp_password} onChange={e => setSettings(p => ({ ...p, smtp_password: e.target.value }))} placeholder="••••••••" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <Separator />
+          <Separator />
 
-        {/* IMAP */}
-        <div className="space-y-4">
-          <h4 className="text-sm font-semibold">Incoming Mail (IMAP)</h4>
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label>IMAP Host</Label>
-              <Input value={settings.imap_host} onChange={e => setSettings(p => ({ ...p, imap_host: e.target.value }))} placeholder="imap.gmail.com" />
-            </div>
-            <div className="space-y-2">
-              <Label>IMAP Port</Label>
-              <Input type="number" value={settings.imap_port} onChange={e => setSettings(p => ({ ...p, imap_port: parseInt(e.target.value) || 993 }))} />
-            </div>
-            <div className="space-y-2">
-              <Label>Username</Label>
-              <Input value={settings.imap_username} onChange={e => setSettings(p => ({ ...p, imap_username: e.target.value }))} placeholder="your-email@company.com" />
-            </div>
-            <div className="space-y-2">
-              <Label>Password</Label>
-              <Input type="password" value={settings.imap_password} onChange={e => setSettings(p => ({ ...p, imap_password: e.target.value }))} placeholder="••••••••" />
+          {/* IMAP */}
+          <div className="space-y-4">
+            <h4 className="text-sm font-semibold">Incoming Mail (IMAP)</h4>
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label>IMAP Host</Label>
+                <Input value={settings.imap_host} onChange={e => setSettings(p => ({ ...p, imap_host: e.target.value }))} placeholder="imap.gmail.com" />
+              </div>
+              <div className="space-y-2">
+                <Label>IMAP Port</Label>
+                <Input type="number" value={settings.imap_port} onChange={e => setSettings(p => ({ ...p, imap_port: parseInt(e.target.value) || 993 }))} />
+              </div>
+              <div className="space-y-2">
+                <Label>Username</Label>
+                <Input value={settings.imap_username} onChange={e => setSettings(p => ({ ...p, imap_username: e.target.value }))} placeholder="your-email@company.com" />
+              </div>
+              <div className="space-y-2">
+                <Label>Password</Label>
+                <Input type="password" value={settings.imap_password} onChange={e => setSettings(p => ({ ...p, imap_password: e.target.value }))} placeholder="••••••••" />
+              </div>
             </div>
           </div>
-        </div>
 
-        <div className="flex items-center gap-2">
-          <Switch checked={settings.use_ssl} onCheckedChange={v => setSettings(p => ({ ...p, use_ssl: v }))} />
-          <Label>Use SSL/TLS</Label>
-        </div>
+          <div className="flex items-center gap-2">
+            <Switch checked={settings.use_ssl} onCheckedChange={v => setSettings(p => ({ ...p, use_ssl: v }))} />
+            <Label>Use SSL/TLS</Label>
+          </div>
 
-        <div className="flex justify-end">
-          <Button onClick={saveEmailSettings} disabled={loading}>
-            <Save className="h-4 w-4 mr-2" />
-            {loading ? 'Saving...' : 'Save Email Settings'}
-          </Button>
-        </div>
-      </CardContent>
-    </Card>
+          <div className="flex justify-end">
+            <Button onClick={saveEmailSettings} disabled={loading}>
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? 'Saving...' : 'Save Email Settings'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Test Email */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <SendHorizonal className="h-5 w-5" />
+            Test Email
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Send a test email to verify your email configuration is working correctly.
+          </p>
+          <div className="flex gap-3">
+            <Input
+              value={testEmail}
+              onChange={e => setTestEmail(e.target.value)}
+              placeholder={user?.email || 'recipient@example.com'}
+              className="flex-1"
+            />
+            <Button onClick={sendTestEmail} disabled={sendingTest} variant="outline">
+              {sendingTest ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <SendHorizonal className="h-4 w-4 mr-2" />}
+              {sendingTest ? 'Sending...' : 'Send Test'}
+            </Button>
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Leave blank to send to your account email ({user?.email})
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* Email Signature */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <FileSignature className="h-5 w-5" />
+            Email Signature
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <p className="text-sm text-muted-foreground">
+            Set your email signature that will be automatically appended to all outgoing emails.
+          </p>
+          <Textarea
+            value={settings.email_signature}
+            onChange={e => setSettings(p => ({ ...p, email_signature: e.target.value }))}
+            placeholder={"Best regards,\nJohn Doe\nProject Manager\nABC Construction Co.\n(555) 123-4567"}
+            rows={6}
+          />
+          {settings.email_signature && (
+            <div className="border rounded-md p-4 bg-muted/50">
+              <p className="text-xs font-medium text-muted-foreground mb-2">Preview</p>
+              <div className="text-sm whitespace-pre-wrap">{settings.email_signature}</div>
+            </div>
+          )}
+          <div className="flex justify-end">
+            <Button onClick={saveEmailSettings} disabled={loading}>
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? 'Saving...' : 'Save Signature'}
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
   );
 }
