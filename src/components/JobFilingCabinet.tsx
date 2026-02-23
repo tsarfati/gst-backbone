@@ -516,12 +516,13 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                             </form>
                           ) : (
                             <span
-                              className="flex-1 truncate hover:underline cursor-text"
-                              onClick={(e) => {
+                              className="flex-1 truncate hover:underline cursor-pointer"
+                              onDoubleClick={(e) => {
                                 e.stopPropagation();
                                 setInlineEditFileId(file.id);
                                 setInlineEditName(file.file_name);
                               }}
+                              title="Double-click to rename"
                             >
                               {file.file_name}
                             </span>
