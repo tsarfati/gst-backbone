@@ -8,6 +8,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { resolveStorageUrl } from '@/utils/storageUtils';
 import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight, Mail, MailCheck, MailOpen, MailX, Clock, RefreshCw, Loader2, X, Briefcase, HardHat } from 'lucide-react';
 import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
@@ -317,13 +318,17 @@ export default function UserSettings() {
             .from('time_cards')
             .select('punch_in_photo_url, punch_out_photo_url')
             .eq('user_id', user.user_id)
+            .not('punch_in_photo_url', 'is', null)
             .order('created_at', { ascending: false })
             .limit(1);
 
           if (punchError) {
             console.warn(`[AvatarFallback] Error for ${user.first_name} ${user.last_name}:`, punchError);
           } else if (punchData && punchData.length > 0) {
-            effectiveAvatarUrl = punchData[0].punch_out_photo_url || punchData[0].punch_in_photo_url || null;
+            const rawUrl = punchData[0].punch_out_photo_url || punchData[0].punch_in_photo_url || null;
+            if (rawUrl) {
+              effectiveAvatarUrl = await resolveStorageUrl('punch-photos', rawUrl);
+            }
           }
         }
         

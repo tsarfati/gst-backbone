@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { resolveStorageUrl } from '@/utils/storageUtils';
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -173,10 +174,14 @@ export default function UserDetails() {
             .from('time_cards')
             .select('punch_in_photo_url, punch_out_photo_url')
             .eq('user_id', userId!)
+            .not('punch_in_photo_url', 'is', null)
             .order('created_at', { ascending: false })
             .limit(1);
           if (punchData && punchData.length > 0) {
-            avatarUrl = punchData[0].punch_out_photo_url || punchData[0].punch_in_photo_url || null;
+            const rawUrl = punchData[0].punch_out_photo_url || punchData[0].punch_in_photo_url || null;
+            if (rawUrl) {
+              avatarUrl = await resolveStorageUrl('punch-photos', rawUrl);
+            }
           }
         }
 
