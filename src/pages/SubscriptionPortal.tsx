@@ -220,7 +220,7 @@ export default function SubscriptionPortal() {
               <CardContent className="py-12 text-center">
                 <XCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
                 <p className="font-medium text-lg">No Active Subscription</p>
-                <p className="text-sm text-muted-foreground mt-1">Contact your administrator to set up a subscription.</p>
+                <p className="text-sm text-muted-foreground mt-1">Contact your BuilderLynk account manager to set up your subscription or reach out to <a href="mailto:support@builderlynk.com" className="text-primary underline">support@builderlynk.com</a>.</p>
               </CardContent>
             </Card>
           ) : (
