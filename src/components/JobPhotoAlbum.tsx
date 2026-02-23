@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
 import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -55,6 +55,25 @@ interface PhotoComment {
     last_name?: string;
     avatar_url?: string;
   };
+}
+
+/** Lazily resolves a signed URL for a private-bucket image */
+function ResolvedImage({ src, alt, className, onClick }: { src: string; alt: string; className?: string; onClick?: () => void }) {
+  const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    resolveStorageUrl('punch-photos', src).then((url) => {
+      if (!cancelled) setResolvedSrc(url || src);
+    });
+    return () => { cancelled = true; };
+  }, [src]);
+
+  if (!resolvedSrc) {
+    return <div className={className + ' bg-muted animate-pulse'} />;
+  }
+
+  return <img src={resolvedSrc} alt={alt} className={className} onClick={onClick} />;
 }
 
 interface JobPhotoAlbumProps {
@@ -128,9 +147,15 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
     };
   }, [jobId]);
 
+  const [resolvedDetailUrl, setResolvedDetailUrl] = useState<string | null>(null);
+
   useEffect(() => {
     if (selectedPhoto) {
       loadComments(selectedPhoto.id);
+      setResolvedDetailUrl(null);
+      resolveStorageUrl('punch-photos', selectedPhoto.photo_url).then((url) => {
+        setResolvedDetailUrl(url || selectedPhoto.photo_url);
+      });
     }
   }, [selectedPhoto]);
 
@@ -159,15 +184,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
-      
-      // Resolve signed URLs for private bucket photos
-      const resolved = await Promise.all(
-        (data || []).map(async (photo) => ({
-          ...photo,
-          photo_url: await resolveStorageUrl('punch-photos', photo.photo_url) || photo.photo_url,
-        }))
-      );
-      setPhotos(resolved);
+      setPhotos(data || []);
     } catch (error) {
       console.error('Error loading photos:', error);
       toast({
@@ -191,7 +208,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       if (error) throw error;
       
-      // Fetch cover photo for each album (latest photo) and resolve signed URLs
+      // Fetch cover photo for each album (latest photo)
       const albumsWithCovers = await Promise.all(
         (data || []).map(async (album) => {
           const { data: latestPhoto } = await supabase
@@ -202,13 +219,9 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
             .limit(1)
             .single();
           
-          const resolvedCover = latestPhoto?.photo_url 
-            ? await resolveStorageUrl('punch-photos', latestPhoto.photo_url) 
-            : null;
-          
           return {
             ...album,
-            cover_photo_url: resolvedCover
+            cover_photo_url: latestPhoto?.photo_url || null
           };
         })
       );
@@ -748,7 +761,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               <CardContent className="p-3 flex flex-col items-center text-center">
                 <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center mb-2 overflow-hidden group-hover:ring-2 ring-primary transition-all">
                   {album.cover_photo_url ? (
-                    <img 
+                    <ResolvedImage 
                       src={album.cover_photo_url} 
                       alt={album.name}
                       className="w-full h-full object-cover"
@@ -787,7 +800,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           {photos.map((photo) => (
             <Card key={photo.id} className="overflow-hidden">
               <div className="relative aspect-video">
-                <img
+                <ResolvedImage
                   src={photo.photo_url}
                   alt="Job photo"
                   className="w-full h-full object-cover cursor-pointer"
@@ -909,7 +922,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               <span>Photo Details</span>
               {selectedPhoto && (
                 <a
-                  href={selectedPhoto.photo_url}
+                  href={resolvedDetailUrl || '#'}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="text-sm font-normal text-primary hover:underline flex items-center gap-1"
@@ -924,17 +937,21 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
             <div className="space-y-6">
               {/* Full resolution image - no max constraints, natural size up to container */}
               <a 
-                href={selectedPhoto.photo_url} 
+                href={resolvedDetailUrl || '#'} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="block cursor-zoom-in"
               >
-                <img
-                  src={selectedPhoto.photo_url}
-                  alt="Job photo"
-                  className="w-full rounded-lg"
-                  style={{ maxHeight: '60vh', objectFit: 'contain' }}
-                />
+                {resolvedDetailUrl ? (
+                  <img
+                    src={resolvedDetailUrl}
+                    alt="Job photo"
+                    className="w-full rounded-lg"
+                    style={{ maxHeight: '60vh', objectFit: 'contain' }}
+                  />
+                ) : (
+                  <div className="w-full rounded-lg bg-muted animate-pulse" style={{ height: '40vh' }} />
+                )}
               </a>
               
               {/* Uploader Info */}
