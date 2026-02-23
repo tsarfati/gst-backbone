@@ -165,7 +165,22 @@ export default function UserDetails() {
       if (profileRes.data) {
         const role = accessRes.data?.role || profileRes.data.role;
         setCompanyRole(accessRes.data?.role || null);
-        const userData = { ...profileRes.data, role };
+        
+        // Fallback avatar: use latest punch selfie if no avatar set
+        let avatarUrl = profileRes.data.avatar_url;
+        if (!avatarUrl) {
+          const { data: punchData } = await supabase
+            .from('time_cards')
+            .select('punch_in_photo_url, punch_out_photo_url')
+            .eq('user_id', userId!)
+            .order('created_at', { ascending: false })
+            .limit(1);
+          if (punchData && punchData.length > 0) {
+            avatarUrl = punchData[0].punch_out_photo_url || punchData[0].punch_in_photo_url || null;
+          }
+        }
+
+        const userData = { ...profileRes.data, role, avatar_url: avatarUrl };
         setUser(userData);
         setEditForm({
           first_name: userData.first_name || '',
