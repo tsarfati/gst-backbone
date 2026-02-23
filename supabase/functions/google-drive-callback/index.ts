@@ -89,21 +89,20 @@ serve(async (req) => {
 });
 
 function redirectHtml(status: string, message: string, appUrl: string): string {
-  const escapedMessage = message.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  const escapedMessage = message.replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
   const redirectUrl = appUrl ? `${appUrl}/settings/security` : '';
+  const icon = status === 'success' ? '&#10004;' : '&#10006;';
+  const color = status === 'success' ? '#16a34a' : '#dc2626';
   return `<!DOCTYPE html>
 <html>
-<head><title>Google Drive Connection</title></head>
-<body>
-<script>
-  ${redirectUrl ? `
-    // Redirect back to app after a brief delay
-    setTimeout(function() {
-      window.location.href = '${redirectUrl}';
-    }, 1500);
-  ` : ''}
-  document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;"><h2>${status === 'success' ? '✅' : '❌'} ${escapedMessage}</h2><p>${redirectUrl ? 'Redirecting back to settings...' : 'You can close this window.'}</p></div>';
-</script>
+<head>
+  <meta charset="utf-8">
+  <title>Google Drive Connection</title>
+  ${redirectUrl ? `<meta http-equiv="refresh" content="2;url=${redirectUrl}">` : ''}
+</head>
+<body style="margin:0;display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:system-ui,sans-serif;">
+  <h2 style="color:${color}">${icon} ${escapedMessage}</h2>
+  <p>${redirectUrl ? 'Redirecting back to settings...' : 'You can close this window.'}</p>
 </body>
 </html>`;
 }
