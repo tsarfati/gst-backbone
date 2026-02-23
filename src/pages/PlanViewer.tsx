@@ -433,10 +433,13 @@ export default function PlanViewer() {
     }
   };
 
+  const [analyzeProgress, setAnalyzeProgress] = useState<{ current: number; total: number } | null>(null);
+
   const analyzePlan = async () => {
     if (!plan) return;
 
     setAnalyzing(true);
+    setAnalyzeProgress(null);
     try {
       console.log('Starting plan analysis with OCR...');
       
@@ -445,15 +448,20 @@ export default function PlanViewer() {
       pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
       
       const resp = await fetch(plan.file_url);
+      if (!resp.ok) throw new Error(`Failed to fetch PDF: ${resp.status}`);
       const buf = await resp.arrayBuffer();
       const loadingTask = pdfjs.getDocument({ data: buf });
       const pdf = await loadingTask.promise;
       const numPages = pdf.numPages;
       console.log(`PDF has ${numPages} pages`);
+      setAnalyzeProgress({ current: 0, total: numPages });
 
-      const pagesData = [];
+      let successCount = 0;
 
       for (let pageNum = 1; pageNum <= numPages; pageNum++) {
+        setAnalyzeProgress({ current: pageNum, total: numPages });
+        
+        let pageData: any;
         try {
           console.log(`Processing page ${pageNum}/${numPages} with OCR...`);
           const page = await pdf.getPage(pageNum);
@@ -493,7 +501,8 @@ export default function PlanViewer() {
           const result = ocrData?.data || {};
           console.log(`Page ${pageNum} OCR result:`, result);
 
-          pagesData.push({
+          pageData = {
+            plan_id: planId,
             page_number: pageNum,
             sheet_number: result.sheet_number || null,
             page_title: result.sheet_number && result.sheet_title
@@ -503,40 +512,49 @@ export default function PlanViewer() {
             page_description: result.sheet_title 
               ? `${result.discipline || 'General'} - ${result.sheet_title}`
               : `Page ${pageNum}`,
-          });
+          };
         } catch (pageError) {
           console.error(`Error processing page ${pageNum}:`, pageError);
           // Fallback to basic page info
-          pagesData.push({
+          pageData = {
+            plan_id: planId,
             page_number: pageNum,
             sheet_number: `Page ${pageNum}`,
             page_title: `Sheet ${pageNum}`,
             discipline: 'General',
             page_description: `Page ${pageNum}`,
-          });
+          };
+        }
+
+        // Save each page immediately so progress is not lost
+        try {
+          const { error: upsertError } = await supabase
+            .from("plan_pages" as any)
+            .upsert(pageData, { onConflict: 'plan_id,page_number' });
+          
+          if (upsertError) {
+            console.error(`Failed to save page ${pageNum}:`, upsertError);
+          } else {
+            successCount++;
+          }
+        } catch (saveError) {
+          console.error(`Failed to save page ${pageNum}:`, saveError);
         }
       }
 
-      await pdf.cleanup?.();
-      await pdf.destroy?.();
-
-      // Insert all pages into database
-      const { error: insertError } = await supabase
-        .from("plan_pages" as any)
-        .upsert(
-          pagesData.map((p: any) => ({ ...p, plan_id: planId })),
-          { onConflict: 'plan_id,page_number' }
-        );
-      
-      if (insertError) throw insertError;
+      try { await pdf.cleanup?.(); } catch {}
+      try { await pdf.destroy?.(); } catch {}
 
       await fetchPlanData();
-      toast.success(`Plan analyzed with OCR - ${numPages} pages found`);
+      toast.success(`Plan analyzed - ${successCount}/${numPages} pages indexed`);
     } catch (error: any) {
       console.error("Error analyzing plan:", error);
       toast.error(error.message || "Failed to analyze plan");
+      // Still try to reload whatever pages were saved
+      await fetchPlanData();
     } finally {
       setAnalyzing(false);
+      setAnalyzeProgress(null);
     }
   };
 
@@ -729,7 +747,9 @@ export default function PlanViewer() {
             {analyzing && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground">
                 <Loader2 className="h-4 w-4 animate-spin" />
-                Analyzing plan...
+                {analyzeProgress 
+                  ? `Analyzing page ${analyzeProgress.current}/${analyzeProgress.total}...`
+                  : "Analyzing plan..."}
               </div>
             )}
             {pages.length > 0 && (
