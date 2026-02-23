@@ -12,7 +12,7 @@ import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
-import { ArrowLeft, User, Bell, Save, Camera, Upload, X } from 'lucide-react';
+import { ArrowLeft, User, Bell, Save, Camera, Upload, X, Mail } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
 interface ProfileData {
@@ -358,6 +358,13 @@ export default function ProfileSettings() {
           >
             <Bell className="h-4 w-4 mr-2" />
             Notifications
+          </TabsTrigger>
+          <TabsTrigger 
+            value="email" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Email Settings
           </TabsTrigger>
         </TabsList>
 
@@ -705,7 +712,191 @@ export default function ProfileSettings() {
             </CardContent>
           </Card>
         </TabsContent>
+        <TabsContent value="email">
+          <EmailSettingsTab />
+        </TabsContent>
       </Tabs>
     </div>
+  );
+}
+
+function EmailSettingsTab() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const [loading, setLoading] = useState(false);
+  const [settings, setSettings] = useState({
+    smtp_host: '',
+    smtp_port: 587,
+    smtp_username: '',
+    smtp_password: '',
+    imap_host: '',
+    imap_port: 993,
+    imap_username: '',
+    imap_password: '',
+    from_email: '',
+    from_name: '',
+    use_ssl: true,
+    is_configured: false,
+  });
+
+  useEffect(() => {
+    if (!user) return;
+    const load = async () => {
+      const { data } = await supabase
+        .from('user_email_settings')
+        .select('*')
+        .eq('user_id', user.id)
+        .maybeSingle();
+      if (data) {
+        setSettings({
+          smtp_host: data.smtp_host || '',
+          smtp_port: data.smtp_port || 587,
+          smtp_username: data.smtp_username || '',
+          smtp_password: '', // don't show encrypted password
+          imap_host: data.imap_host || '',
+          imap_port: data.imap_port || 993,
+          imap_username: data.imap_username || '',
+          imap_password: '',
+          from_email: data.from_email || '',
+          from_name: data.from_name || '',
+          use_ssl: data.use_ssl ?? true,
+          is_configured: data.is_configured || false,
+        });
+      }
+    };
+    load();
+  }, [user]);
+
+  const saveEmailSettings = async () => {
+    if (!user) return;
+    setLoading(true);
+    try {
+      const payload: any = {
+        user_id: user.id,
+        smtp_host: settings.smtp_host,
+        smtp_port: settings.smtp_port,
+        smtp_username: settings.smtp_username,
+        imap_host: settings.imap_host,
+        imap_port: settings.imap_port,
+        imap_username: settings.imap_username,
+        from_email: settings.from_email,
+        from_name: settings.from_name,
+        use_ssl: settings.use_ssl,
+        is_configured: !!(settings.smtp_host && settings.smtp_username && settings.from_email),
+      };
+
+      // Only update passwords if provided
+      if (settings.smtp_password) {
+        payload.smtp_password_encrypted = settings.smtp_password; // In production, encrypt this
+      }
+      if (settings.imap_password) {
+        payload.imap_password_encrypted = settings.imap_password;
+      }
+
+      const { error } = await supabase
+        .from('user_email_settings')
+        .upsert(payload, { onConflict: 'user_id' });
+
+      if (error) throw error;
+
+      toast({ title: 'Success', description: 'Email settings saved' });
+    } catch (err: any) {
+      toast({ title: 'Error', description: err.message, variant: 'destructive' });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <Mail className="h-5 w-5" />
+          SMTP / IMAP Settings
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-6">
+        <p className="text-sm text-muted-foreground">
+          Configure your email settings to send files and messages from your company email address.
+        </p>
+
+        {/* From Identity */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold">Sender Identity</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>From Name</Label>
+              <Input value={settings.from_name} onChange={e => setSettings(p => ({ ...p, from_name: e.target.value }))} placeholder="John Doe" />
+            </div>
+            <div className="space-y-2">
+              <Label>From Email</Label>
+              <Input value={settings.from_email} onChange={e => setSettings(p => ({ ...p, from_email: e.target.value }))} placeholder="john@company.com" />
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* SMTP */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold">Outgoing Mail (SMTP)</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>SMTP Host</Label>
+              <Input value={settings.smtp_host} onChange={e => setSettings(p => ({ ...p, smtp_host: e.target.value }))} placeholder="smtp.gmail.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>SMTP Port</Label>
+              <Input type="number" value={settings.smtp_port} onChange={e => setSettings(p => ({ ...p, smtp_port: parseInt(e.target.value) || 587 }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Username</Label>
+              <Input value={settings.smtp_username} onChange={e => setSettings(p => ({ ...p, smtp_username: e.target.value }))} placeholder="your-email@company.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input type="password" value={settings.smtp_password} onChange={e => setSettings(p => ({ ...p, smtp_password: e.target.value }))} placeholder="••••••••" />
+            </div>
+          </div>
+        </div>
+
+        <Separator />
+
+        {/* IMAP */}
+        <div className="space-y-4">
+          <h4 className="text-sm font-semibold">Incoming Mail (IMAP)</h4>
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>IMAP Host</Label>
+              <Input value={settings.imap_host} onChange={e => setSettings(p => ({ ...p, imap_host: e.target.value }))} placeholder="imap.gmail.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>IMAP Port</Label>
+              <Input type="number" value={settings.imap_port} onChange={e => setSettings(p => ({ ...p, imap_port: parseInt(e.target.value) || 993 }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Username</Label>
+              <Input value={settings.imap_username} onChange={e => setSettings(p => ({ ...p, imap_username: e.target.value }))} placeholder="your-email@company.com" />
+            </div>
+            <div className="space-y-2">
+              <Label>Password</Label>
+              <Input type="password" value={settings.imap_password} onChange={e => setSettings(p => ({ ...p, imap_password: e.target.value }))} placeholder="••••••••" />
+            </div>
+          </div>
+        </div>
+
+        <div className="flex items-center gap-2">
+          <Switch checked={settings.use_ssl} onCheckedChange={v => setSettings(p => ({ ...p, use_ssl: v }))} />
+          <Label>Use SSL/TLS</Label>
+        </div>
+
+        <div className="flex justify-end">
+          <Button onClick={saveEmailSettings} disabled={loading}>
+            <Save className="h-4 w-4 mr-2" />
+            {loading ? 'Saving...' : 'Save Email Settings'}
+          </Button>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

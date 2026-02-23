@@ -3441,6 +3441,80 @@ export type Database = {
           },
         ]
       }
+      job_files: {
+        Row: {
+          company_id: string
+          created_at: string
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          folder_id: string
+          id: string
+          job_id: string
+          original_file_name: string
+          updated_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          folder_id: string
+          id?: string
+          job_id: string
+          original_file_name: string
+          updated_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          folder_id?: string
+          id?: string
+          job_id?: string
+          original_file_name?: string
+          updated_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_files_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_files_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "job_folders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_filing_documents: {
         Row: {
           company_id: string
@@ -3569,6 +3643,74 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_folders: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          is_system_folder: boolean
+          job_id: string
+          name: string
+          parent_folder_id: string | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_system_folder?: boolean
+          job_id: string
+          name: string
+          parent_folder_id?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_system_folder?: boolean
+          job_id?: string
+          name?: string
+          parent_folder_id?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_folders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_folders_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_folders_parent_folder_id_fkey"
+            columns: ["parent_folder_id"]
+            isOneToOne: false
+            referencedRelation: "job_folders"
             referencedColumns: ["id"]
           },
         ]
@@ -7828,6 +7970,63 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_email_settings: {
+        Row: {
+          created_at: string
+          from_email: string | null
+          from_name: string | null
+          id: string
+          imap_host: string | null
+          imap_password_encrypted: string | null
+          imap_port: number | null
+          imap_username: string | null
+          is_configured: boolean | null
+          smtp_host: string | null
+          smtp_password_encrypted: string | null
+          smtp_port: number | null
+          smtp_username: string | null
+          updated_at: string
+          use_ssl: boolean | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          imap_host?: string | null
+          imap_password_encrypted?: string | null
+          imap_port?: number | null
+          imap_username?: string | null
+          is_configured?: boolean | null
+          smtp_host?: string | null
+          smtp_password_encrypted?: string | null
+          smtp_port?: number | null
+          smtp_username?: string | null
+          updated_at?: string
+          use_ssl?: boolean | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          imap_host?: string | null
+          imap_password_encrypted?: string | null
+          imap_port?: number | null
+          imap_username?: string | null
+          is_configured?: boolean | null
+          smtp_host?: string | null
+          smtp_password_encrypted?: string | null
+          smtp_port?: number | null
+          smtp_username?: string | null
+          updated_at?: string
+          use_ssl?: boolean | null
+          user_id?: string
+        }
+        Relationships: []
       }
       user_invitations: {
         Row: {
