@@ -145,6 +145,7 @@ const navigationCategories = [
       { name: "Notifications & Email", href: "/settings/notifications", menuKey: "notification-settings" },
       { name: "Data & Security", href: "/settings/security", menuKey: "security-settings" },
       { name: "User Management", href: "/settings/users", menuKey: "user-settings" },
+      { name: "Subscription", href: "/subscription", menuKey: "settings", ownerOnly: true },
     ],
     collapsible: true,
   },
@@ -285,8 +286,11 @@ export function AppSidebar() {
              const superAdminOnly = 'superAdminOnly' in item && !!(item as any).superAdminOnly;
              if (superAdminOnly && !isSuperAdmin) return false;
 
-             const employeeHidden = 'employeeHidden' in item && !!(item as any).employeeHidden;
-             if (employeeHidden && effectiveRole === 'employee') return false;
+              const ownerOnly = 'ownerOnly' in item && !!(item as any).ownerOnly;
+              if (ownerOnly && profile?.user_id !== currentCompany?.created_by) return false;
+
+              const employeeHidden = 'employeeHidden' in item && !!(item as any).employeeHidden;
+              if (employeeHidden && effectiveRole === 'employee') return false;
 
              const menuKey = ('menuKey' in item ? (item as any).menuKey : undefined) as string | undefined;
              return !menuKey || hasAccess(menuKey);

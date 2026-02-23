@@ -18,6 +18,7 @@ interface Company {
   website?: string;
   enable_shared_vendor_database?: boolean;
   allow_journal_entry_deletion?: boolean;
+  created_by?: string;
 }
 
 interface UserCompanyAccess {
