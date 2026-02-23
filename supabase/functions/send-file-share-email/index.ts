@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import nodemailer from "npm:nodemailer@6.9.10";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -38,7 +39,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const { to, subject, body, file_name, file_url, user_id } = await req.json();
+    const { to, subject, body, file_name, file_url, attachments, user_id } = await req.json();
 
     // Get user's SMTP settings
     const { data: emailSettings, error: settingsError } = await supabase
@@ -54,53 +55,48 @@ serve(async (req: Request) => {
       );
     }
 
-    // Build email HTML
+    // Build file list from attachments array or legacy single file
+    const fileList = attachments && attachments.length > 0
+      ? attachments
+      : [{ file_name, file_url }];
+
+    // Build attachment links HTML
+    const attachmentHtml = fileList.map((f: any) =>
+      `<p>📎 <a href="${f.file_url}" style="color: #2563eb;">${f.file_name}</a></p>`
+    ).join('');
+
     const emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="white-space: pre-wrap;">${body.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
         <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
-        <p style="color: #666; font-size: 14px;">
-          📎 <a href="${file_url}" style="color: #2563eb;">${file_name}</a>
-          <br/><small>This link expires in 7 days.</small>
-        </p>
+        <div style="color: #666; font-size: 14px;">
+          ${attachmentHtml}
+          <small>These links expire in 7 days.</small>
+        </div>
+        ${emailSettings.email_signature ? `<hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" /><div style="white-space: pre-wrap; color: #666; font-size: 13px;">${emailSettings.email_signature.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : ''}
       </div>
     `;
 
-    // Use Deno's SMTP to send via user's SMTP server
-    // For now, we'll use a simple fetch-based approach with the nodemailer-compatible endpoint
-    // In production, you'd want proper SMTP library support
-
-    // Since Deno edge functions have limited SMTP support,
-    // we'll use the built-in Resend or similar service as a relay
-    // For MVP, store the message and provide the download link
-
-    // Try using built-in SMTP via Deno
-    const { SmtpClient } = await import("https://deno.land/x/denomailer@1.6.0/mod.ts");
-
-    const client = new SmtpClient();
-
-    const connectConfig: any = {
-      hostname: emailSettings.smtp_host,
+    // Create nodemailer transporter
+    const transporter = nodemailer.createTransport({
+      host: emailSettings.smtp_host,
       port: emailSettings.smtp_port,
-      username: emailSettings.smtp_username,
-      password: emailSettings.smtp_password_encrypted,
-    };
-
-    if (emailSettings.use_ssl) {
-      await client.connectTLS(connectConfig);
-    } else {
-      await client.connect(connectConfig);
-    }
-
-    await client.send({
-      from: emailSettings.from_email || emailSettings.smtp_username,
-      to: Array.isArray(to) ? to.join(",") : to,
-      subject: subject,
-      content: body,
-      html: emailHtml,
+      secure: emailSettings.use_ssl,
+      auth: {
+        user: emailSettings.smtp_username,
+        pass: emailSettings.smtp_password_encrypted,
+      },
     });
 
-    await client.close();
+    const recipients = Array.isArray(to) ? to.join(", ") : to;
+
+    await transporter.sendMail({
+      from: emailSettings.from_email || emailSettings.smtp_username,
+      to: recipients,
+      subject: subject,
+      text: body,
+      html: emailHtml,
+    });
 
     return new Response(
       JSON.stringify({ success: true }),
