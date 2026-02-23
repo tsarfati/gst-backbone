@@ -9,7 +9,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Label } from "@/components/ui/label";
-import { Download, FileSpreadsheet, Filter, X } from "lucide-react";
+import { Download, FileSpreadsheet, Filter, X, Mail } from "lucide-react";
+import ReportEmailModal from "@/components/ReportEmailModal";
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -278,7 +279,9 @@ export default function CommittedCostDetails() {
     }
   };
 
-  const exportToPDF = () => {
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  const buildPdfDoc = () => {
     const doc = new jsPDF();
     
     doc.setFontSize(16);
@@ -316,6 +319,11 @@ export default function CommittedCostDetails() {
       footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
     });
     
+    return doc;
+  };
+
+  const exportToPDF = () => {
+    const doc = buildPdfDoc();
     doc.save(`committed-cost-details-${new Date().toISOString().split("T")[0]}.pdf`);
     toast({ title: "Success", description: "PDF exported successfully" });
   };
@@ -405,6 +413,15 @@ export default function CommittedCostDetails() {
           >
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Excel
+          </Button>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => setEmailModalOpen(true)}
+            disabled={loading || filteredItems.length === 0}
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Email
           </Button>
         </div>
       </div>
@@ -546,6 +563,14 @@ export default function CommittedCostDetails() {
           )}
         </CardContent>
       </Card>
+
+      <ReportEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        generatePdf={buildPdfDoc}
+        reportName="Committed Cost Details"
+        fileName={`committed-cost-details-${new Date().toISOString().split("T")[0]}.pdf`}
+      />
     </div>
   );
 }

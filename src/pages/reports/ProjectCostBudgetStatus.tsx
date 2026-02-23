@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Progress } from "@/components/ui/progress";
-import { ArrowLeft, Download, FileSpreadsheet, Filter, AlertTriangle } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, Filter, AlertTriangle, Mail } from "lucide-react";
+import ReportEmailModal from "@/components/ReportEmailModal";
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -413,7 +414,9 @@ export default function ProjectCostBudgetStatus() {
     return line.dynamic_parent_budget_id ? Number(line.dynamic_group_remaining ?? 0) : line.remaining;
   };
 
-  const exportToPDF = () => {
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  const buildPdfDoc = () => {
     const doc = new jsPDF({ orientation: "landscape" });
     
     doc.setFontSize(18);
@@ -461,7 +464,6 @@ export default function ProjectCostBudgetStatus() {
       bodyStyles: { fontSize: 7 },
       footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
       didParseCell: (data) => {
-        // Highlight over-budget rows
         if (data.section === "body" && data.column.index === 6) {
           const line = budgetLines[data.row.index];
           const remaining = line ? getDisplayRemaining(line) : 0;
@@ -472,6 +474,11 @@ export default function ProjectCostBudgetStatus() {
       },
     });
     
+    return doc;
+  };
+
+  const exportToPDF = () => {
+    const doc = buildPdfDoc();
     doc.save(`project-budget-status-${format(new Date(), "yyyy-MM-dd")}.pdf`);
     toast({ title: "Success", description: "PDF exported successfully" });
   };
@@ -556,6 +563,10 @@ export default function ProjectCostBudgetStatus() {
           <Button variant="outline" size="sm" onClick={exportToPDF} disabled={loading || budgetLines.length === 0}>
             <Download className="h-4 w-4 mr-2" />
             PDF
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setEmailModalOpen(true)} disabled={loading || budgetLines.length === 0}>
+            <Mail className="h-4 w-4 mr-2" />
+            Email
           </Button>
           <Button variant="outline" size="sm" onClick={exportToExcel} disabled={loading || budgetLines.length === 0}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
@@ -731,6 +742,14 @@ export default function ProjectCostBudgetStatus() {
           )}
         </CardContent>
       </Card>
+
+      <ReportEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        generatePdf={buildPdfDoc}
+        reportName="Project Cost Budget Status"
+        fileName={`project-budget-status-${format(new Date(), "yyyy-MM-dd")}.pdf`}
+      />
     </div>
   );
 }

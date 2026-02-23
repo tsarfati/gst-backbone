@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, Mail } from "lucide-react";
+import ReportEmailModal from "@/components/ReportEmailModal";
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -150,7 +151,9 @@ export default function SubcontractSummaryReport() {
     }
   };
 
-  const exportToPDF = () => {
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  const buildPdfDoc = () => {
     const doc = new jsPDF({ orientation: "landscape" });
     
     doc.setFontSize(18);
@@ -189,6 +192,11 @@ export default function SubcontractSummaryReport() {
       footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
     });
     
+    return doc;
+  };
+
+  const exportToPDF = () => {
+    const doc = buildPdfDoc();
     doc.save(`subcontract-summary-${format(new Date(), "yyyy-MM-dd")}.pdf`);
     toast({ title: "Success", description: "PDF exported successfully" });
   };
@@ -276,6 +284,10 @@ export default function SubcontractSummaryReport() {
           <Button variant="outline" size="sm" onClick={exportToExcel} disabled={loading || subcontracts.length === 0}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setEmailModalOpen(true)} disabled={loading || subcontracts.length === 0}>
+            <Mail className="h-4 w-4 mr-2" />
+            Email
           </Button>
         </div>
       </div>
@@ -369,6 +381,14 @@ export default function SubcontractSummaryReport() {
           )}
         </CardContent>
       </Card>
+
+      <ReportEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        generatePdf={buildPdfDoc}
+        reportName="Subcontract Summary Report"
+        fileName={`subcontract-summary-${format(new Date(), "yyyy-MM-dd")}.pdf`}
+      />
     </div>
   );
 }

@@ -7,7 +7,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
-import { Download, ArrowLeft, Users } from "lucide-react";
+import { Download, ArrowLeft, Users, Mail } from "lucide-react";
+import ReportEmailModal from "@/components/ReportEmailModal";
 import { jsPDF } from "jspdf";
 import autoTable from "jspdf-autotable";
 
@@ -66,7 +67,9 @@ export default function PinEmployeeListReport() {
     }
   };
 
-  const generatePDF = async () => {
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  const buildPdfDoc = async () => {
     const doc = new jsPDF();
     doc.setFontSize(18);
     doc.text("Employee PIN Access Report", 14, 20);
@@ -92,6 +95,11 @@ export default function PinEmployeeListReport() {
       headStyles: { fillColor: [59, 130, 246] },
     });
 
+    return doc;
+  };
+
+  const generatePDF = async () => {
+    const doc = await buildPdfDoc();
     doc.save(`employee-pin-report-${new Date().toISOString().split("T")[0]}.pdf`);
     toast({ title: "Success", description: "Report downloaded" });
   };
@@ -114,6 +122,10 @@ export default function PinEmployeeListReport() {
         <Button onClick={generatePDF} disabled={loading || employees.length === 0}>
           <Download className="h-4 w-4 mr-2" />
           Download PDF
+        </Button>
+        <Button variant="outline" onClick={() => setEmailModalOpen(true)} disabled={loading || employees.length === 0}>
+          <Mail className="h-4 w-4 mr-2" />
+          Email
         </Button>
       </div>
 
@@ -161,6 +173,14 @@ export default function PinEmployeeListReport() {
           )}
         </CardContent>
       </Card>
+
+      <ReportEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        generatePdf={buildPdfDoc}
+        reportName="Employee PIN Access Report"
+        fileName={`employee-pin-report-${new Date().toISOString().split("T")[0]}.pdf`}
+      />
     </div>
   );
 }

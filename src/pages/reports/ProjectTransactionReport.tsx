@@ -7,7 +7,8 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Download, FileSpreadsheet, Filter } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, Filter, Mail } from "lucide-react";
+import ReportEmailModal from "@/components/ReportEmailModal";
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -175,7 +176,9 @@ export default function ProjectTransactionReport() {
 
   const totalAmount = transactions.reduce((sum, t) => sum + t.amount, 0);
 
-  const exportToPDF = async () => {
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  const buildPdfDoc = async () => {
     const doc = new jsPDF();
     
     doc.setFontSize(18);
@@ -210,6 +213,11 @@ export default function ProjectTransactionReport() {
       footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
     });
     
+    return doc;
+  };
+
+  const exportToPDF = async () => {
+    const doc = await buildPdfDoc();
     doc.save(`project-transactions-${format(new Date(), "yyyy-MM-dd")}.pdf`);
     toast({ title: "Success", description: "PDF exported successfully" });
   };
@@ -283,6 +291,10 @@ export default function ProjectTransactionReport() {
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Excel
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setEmailModalOpen(true)} disabled={loading || transactions.length === 0}>
+            <Mail className="h-4 w-4 mr-2" />
+            Email
+          </Button>
         </div>
       </div>
 
@@ -342,6 +354,14 @@ export default function ProjectTransactionReport() {
           )}
         </CardContent>
       </Card>
+
+      <ReportEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        generatePdf={buildPdfDoc}
+        reportName="Project Transaction Report"
+        fileName={`project-transactions-${format(new Date(), "yyyy-MM-dd")}.pdf`}
+      />
     </div>
   );
 }
