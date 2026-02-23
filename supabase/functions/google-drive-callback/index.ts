@@ -74,36 +74,35 @@ serve(async (req) => {
         connected_by: '00000000-0000-0000-0000-000000000000', // Will be updated by the frontend
       }, { onConflict: 'company_id' });
 
-    if (dbError) {
-      console.error('DB error storing tokens:', dbError);
-      return new Response(redirectHtml('error', 'Failed to store authorization'), {
-        headers: { 'Content-Type': 'text/html' },
-      });
-    }
-
-    return new Response(redirectHtml('success', 'Google Drive connected successfully!'), {
+    // Redirect back to the app's settings page
+    const appUrl = Deno.env.get('APP_URL') || req.headers.get('origin') || '';
+    return new Response(redirectHtml('success', 'Google Drive connected successfully!', appUrl), {
       headers: { 'Content-Type': 'text/html' },
     });
   } catch (error) {
     console.error('Error in google-drive-callback:', error);
-    return new Response(redirectHtml('error', error.message), {
+    const appUrl = Deno.env.get('APP_URL') || '';
+    return new Response(redirectHtml('error', error.message, appUrl), {
       headers: { 'Content-Type': 'text/html' },
     });
   }
 });
 
-function redirectHtml(status: string, message: string): string {
+function redirectHtml(status: string, message: string, appUrl: string): string {
+  const escapedMessage = message.replace(/'/g, "\\'").replace(/"/g, '&quot;');
+  const redirectUrl = appUrl ? `${appUrl}/settings/security` : '';
   return `<!DOCTYPE html>
 <html>
 <head><title>Google Drive Connection</title></head>
 <body>
 <script>
-  if (window.opener) {
-    window.opener.postMessage({ type: 'google-drive-auth', status: '${status}', message: '${message.replace(/'/g, "\\'")}' }, '*');
-    window.close();
-  } else {
-    document.body.innerHTML = '<h2>${status === 'success' ? '✅' : '❌'} ${message.replace(/'/g, "\\'")}</h2><p>You can close this window.</p>';
-  }
+  ${redirectUrl ? `
+    // Redirect back to app after a brief delay
+    setTimeout(function() {
+      window.location.href = '${redirectUrl}';
+    }, 1500);
+  ` : ''}
+  document.body.innerHTML = '<div style="display:flex;flex-direction:column;align-items:center;justify-content:center;height:100vh;font-family:sans-serif;"><h2>${status === 'success' ? '✅' : '❌'} ${escapedMessage}</h2><p>${redirectUrl ? 'Redirecting back to settings...' : 'You can close this window.'}</p></div>';
 </script>
 </body>
 </html>`;
