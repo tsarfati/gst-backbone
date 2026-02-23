@@ -157,8 +157,8 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
 
       const processedReceipts = resolvedReceipts;
 
-      const uncoded = processedReceipts.filter(r => r.status === 'uncoded');
-      const coded = processedReceipts.filter(r => r.status !== 'uncoded').map(r => {
+      const uncoded = processedReceipts.filter(r => r.status === 'uncoded' || r.status === 'partially_coded');
+      const coded = processedReceipts.filter(r => r.status !== 'uncoded' && r.status !== 'partially_coded').map(r => {
         const job = r.job_id ? jobsMap.get(r.job_id) : null;
         const costCode = r.cost_code_id ? costCodesMap.get(r.cost_code_id) : null;
         return {
