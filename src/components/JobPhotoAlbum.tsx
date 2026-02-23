@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { getStoragePathForDb } from '@/utils/storageUtils';
+import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
@@ -159,7 +159,15 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       const { data, error } = await query.order('created_at', { ascending: false });
 
       if (error) throw error;
-      setPhotos(data || []);
+      
+      // Resolve signed URLs for private bucket photos
+      const resolved = await Promise.all(
+        (data || []).map(async (photo) => ({
+          ...photo,
+          photo_url: await resolveStorageUrl('punch-photos', photo.photo_url) || photo.photo_url,
+        }))
+      );
+      setPhotos(resolved);
     } catch (error) {
       console.error('Error loading photos:', error);
       toast({
@@ -183,7 +191,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       if (error) throw error;
       
-      // Fetch cover photo for each album (latest photo)
+      // Fetch cover photo for each album (latest photo) and resolve signed URLs
       const albumsWithCovers = await Promise.all(
         (data || []).map(async (album) => {
           const { data: latestPhoto } = await supabase
@@ -194,9 +202,13 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
             .limit(1)
             .single();
           
+          const resolvedCover = latestPhoto?.photo_url 
+            ? await resolveStorageUrl('punch-photos', latestPhoto.photo_url) 
+            : null;
+          
           return {
             ...album,
-            cover_photo_url: latestPhoto?.photo_url || null
+            cover_photo_url: resolvedCover
           };
         })
       );
