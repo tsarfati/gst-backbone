@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil, ExternalLink } from 'lucide-react';
+import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil, ExternalLink, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -110,6 +110,9 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
   const ensuredEmployeeAlbumRef = useRef(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [dragOverAlbumId, setDragOverAlbumId] = useState<string | null>(null);
+  const [isDraggingOverPhotos, setIsDraggingOverPhotos] = useState(false);
 
   useEffect(() => {
     loadPhotos();
@@ -661,6 +664,84 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
     setNote('');
   };
 
+  const uploadFilesToAlbum = async (files: File[], albumId: string) => {
+    if (!user) return;
+
+    const imageFiles = Array.from(files).filter(f => f.type.startsWith('image/'));
+    if (imageFiles.length === 0) {
+      toast({ title: 'Invalid files', description: 'Only image files are supported.', variant: 'destructive' });
+      return;
+    }
+
+    setUploading(true);
+    let successCount = 0;
+
+    // Get location once for all photos
+    let locationData: Record<string, number> = {};
+    try {
+      const position = await new Promise<GeolocationPosition>((resolve, reject) => {
+        navigator.geolocation.getCurrentPosition(resolve, reject, { timeout: 3000 });
+      });
+      locationData = { location_lat: position.coords.latitude, location_lng: position.coords.longitude };
+    } catch { /* location not available */ }
+
+    for (const file of imageFiles) {
+      try {
+        const ext = file.name.split('.').pop() || 'jpg';
+        const fileName = `job-${jobId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const { error: uploadError } = await supabase.storage.from('punch-photos').upload(fileName, file);
+        if (uploadError) throw uploadError;
+
+        const photoPath = getStoragePathForDb('punch-photos', fileName);
+        const { error: insertError } = await supabase.from('job_photos').insert({
+          job_id: jobId,
+          uploaded_by: user.id,
+          photo_url: photoPath,
+          album_id: albumId,
+          ...locationData,
+        });
+        if (insertError) throw insertError;
+        successCount++;
+      } catch (error) {
+        console.error('Error uploading file:', file.name, error);
+      }
+    }
+
+    setUploading(false);
+    if (successCount > 0) {
+      toast({ title: 'Photos uploaded', description: `${successCount} photo(s) added successfully.` });
+      loadPhotos();
+      loadAlbums();
+    }
+  };
+
+  const handleDropOnAlbum = (e: React.DragEvent, albumId: string) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverAlbumId(null);
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      uploadFilesToAlbum(files, albumId);
+    }
+  };
+
+  const handleDropOnPhotoArea = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setIsDraggingOverPhotos(false);
+    if (!selectedAlbumId) return;
+    const files = Array.from(e.dataTransfer.files);
+    if (files.length > 0) {
+      uploadFilesToAlbum(files, selectedAlbumId);
+    }
+  };
+
+  const handleFileInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (!e.target.files || !selectedAlbumId) return;
+    uploadFilesToAlbum(Array.from(e.target.files), selectedAlbumId);
+    e.target.value = '';
+  };
+
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground">Loading photos...</div>;
   }
@@ -752,14 +833,22 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           {albums.map((album) => (
             <Card 
               key={album.id} 
-              className="cursor-pointer hover:border-primary transition-colors group"
+              className={`cursor-pointer hover:border-primary transition-colors group ${dragOverAlbumId === album.id ? 'border-primary ring-2 ring-primary bg-primary/5' : ''}`}
               onClick={() => {
                 setSelectedAlbumId(album.id);
                 setLoading(true);
               }}
+              onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverAlbumId(album.id); }}
+              onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverAlbumId(null); }}
+              onDrop={(e) => handleDropOnAlbum(e, album.id)}
             >
               <CardContent className="p-3 flex flex-col items-center text-center">
-                <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center mb-2 overflow-hidden group-hover:ring-2 ring-primary transition-all">
+                <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center mb-2 overflow-hidden group-hover:ring-2 ring-primary transition-all relative">
+                  {dragOverAlbumId === album.id ? (
+                    <div className="absolute inset-0 flex items-center justify-center bg-primary/10 z-10">
+                      <Upload className="h-8 w-8 text-primary animate-bounce" />
+                    </div>
+                  ) : null}
                   {album.cover_photo_url ? (
                     <ResolvedImage 
                       src={album.cover_photo_url} 
@@ -784,14 +873,45 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           )}
         </div>
       ) : (
-        <>
+        <div
+          onDragOver={(e) => { e.preventDefault(); setIsDraggingOverPhotos(true); }}
+          onDragLeave={(e) => { e.preventDefault(); setIsDraggingOverPhotos(false); }}
+          onDrop={handleDropOnPhotoArea}
+          className="relative"
+        >
+          {isDraggingOverPhotos && (
+            <div className="absolute inset-0 z-20 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center pointer-events-none">
+              <div className="text-center">
+                <Upload className="h-12 w-12 text-primary mx-auto mb-2 animate-bounce" />
+                <p className="text-lg font-medium text-primary">Drop photos here to upload</p>
+              </div>
+            </div>
+          )}
+
+          {/* Upload bar */}
+          <div className="flex items-center gap-2 mb-4">
+            <input
+              ref={fileInputRef}
+              type="file"
+              accept="image/*"
+              multiple
+              className="hidden"
+              onChange={handleFileInputChange}
+            />
+            <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
+              <Upload className="h-4 w-4 mr-2" />
+              {uploading ? 'Uploading...' : 'Upload Photos'}
+            </Button>
+            <span className="text-sm text-muted-foreground">or drag & drop images here</span>
+          </div>
+
       {photos.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <Camera className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
             <h3 className="text-xl font-semibold mb-2">No Photos Yet</h3>
             <p className="text-muted-foreground mb-4">
-              Photos will appear here when employees upload them.
+              Drag & drop photos here or click Upload to add them.
             </p>
           </CardContent>
         </Card>
@@ -853,7 +973,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           ))}
         </div>
       )}
-        </>
+        </div>
       )}
 
       {/* Upload Dialog */}
