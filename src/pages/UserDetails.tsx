@@ -28,6 +28,7 @@ import {
   XCircle,
   Save,
   X,
+  Trash2,
   Key
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
@@ -121,6 +122,8 @@ export default function UserDetails() {
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', display_name: '', role: '', status: '' });
   const [companyRole, setCompanyRole] = useState<string | null>(null);
+  const [removeConfirmName, setRemoveConfirmName] = useState('');
+  const [removing, setRemoving] = useState(false);
   
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
   const isAdmin = profile?.role === 'admin';
@@ -298,11 +301,34 @@ export default function UserDetails() {
     }
   };
 
+  const handleRemoveUser = async () => {
+    if (!currentCompany || !userId) return;
+    setRemoving(true);
+    try {
+      const { error } = await supabase
+        .from('user_company_access')
+        .update({ is_active: false })
+        .eq('user_id', userId)
+        .eq('company_id', currentCompany.id);
+
+      if (error) throw error;
+
+      toast({ title: 'User removed', description: 'The user has been removed from this company.' });
+      navigate('/settings/users');
+    } catch (error) {
+      console.error('Error removing user:', error);
+      toast({ title: 'Error', description: 'Failed to remove user.', variant: 'destructive' });
+    } finally {
+      setRemoving(false);
+    }
+  };
+
   if (loading) return <div className="p-6 text-center">Loading user details...</div>;
   if (!user) return <div className="p-6 text-center">User not found</div>;
 
   const displayName = user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User';
   const initials = user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U';
+  const isSelf = profile?.user_id === userId;
 
   const getAppLabel = (source?: string) => {
     if (source === 'punch_clock') return 'Punch Clock';
@@ -328,16 +354,51 @@ export default function UserDetails() {
           <ArrowLeft className="h-4 w-4" />
           {fromCompanyManagement ? 'Back to Company Management' : 'Back to Users'}
         </Button>
-        <Button onClick={() => {
-          const jobAccessEl = document.getElementById('job-access-section');
-          if (jobAccessEl) {
-            const saveBtn = jobAccessEl.querySelector<HTMLButtonElement>('[data-save-jobs]');
-            saveBtn?.click();
-          }
-        }} size="sm">
-          <Save className="h-4 w-4 mr-2" />
-          Save
-        </Button>
+        <div className="flex items-center gap-2">
+          {isAdmin && !isSelf && (
+            <AlertDialog onOpenChange={(open) => { if (!open) setRemoveConfirmName(''); }}>
+              <AlertDialogTrigger asChild>
+                <Button variant="destructive" size="sm">
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Remove User
+                </Button>
+              </AlertDialogTrigger>
+              <AlertDialogContent>
+                <AlertDialogHeader>
+                  <AlertDialogTitle>Remove User from Company</AlertDialogTitle>
+                  <AlertDialogDescription>
+                    This will revoke <strong>{displayName}</strong>'s access to this company. To confirm, type their full name below.
+                  </AlertDialogDescription>
+                </AlertDialogHeader>
+                <Input
+                  placeholder={displayName}
+                  value={removeConfirmName}
+                  onChange={(e) => setRemoveConfirmName(e.target.value)}
+                />
+                <AlertDialogFooter>
+                  <AlertDialogCancel>Cancel</AlertDialogCancel>
+                  <AlertDialogAction
+                    disabled={removeConfirmName !== displayName || removing}
+                    onClick={handleRemoveUser}
+                    className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                  >
+                    {removing ? 'Removing...' : 'Remove User'}
+                  </AlertDialogAction>
+                </AlertDialogFooter>
+              </AlertDialogContent>
+            </AlertDialog>
+          )}
+          <Button onClick={() => {
+            const jobAccessEl = document.getElementById('job-access-section');
+            if (jobAccessEl) {
+              const saveBtn = jobAccessEl.querySelector<HTMLButtonElement>('[data-save-jobs]');
+              saveBtn?.click();
+            }
+          }} size="sm">
+            <Save className="h-4 w-4 mr-2" />
+            Save
+          </Button>
+        </div>
       </div>
 
       {/* User Profile Card */}
