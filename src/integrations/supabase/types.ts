@@ -4107,6 +4107,7 @@ export type Database = {
       }
       job_plans: {
         Row: {
+          architect: string | null
           company_id: string
           created_at: string
           description: string | null
@@ -4114,15 +4115,18 @@ export type Database = {
           file_size: number | null
           file_url: string
           id: string
+          is_permit_set: boolean
           job_id: string
           plan_name: string
           plan_number: string | null
           revision: string | null
+          revision_date: string | null
           updated_at: string
           uploaded_at: string
           uploaded_by: string
         }
         Insert: {
+          architect?: string | null
           company_id: string
           created_at?: string
           description?: string | null
@@ -4130,15 +4134,18 @@ export type Database = {
           file_size?: number | null
           file_url: string
           id?: string
+          is_permit_set?: boolean
           job_id: string
           plan_name: string
           plan_number?: string | null
           revision?: string | null
+          revision_date?: string | null
           updated_at?: string
           uploaded_at?: string
           uploaded_by: string
         }
         Update: {
+          architect?: string | null
           company_id?: string
           created_at?: string
           description?: string | null
@@ -4146,10 +4153,12 @@ export type Database = {
           file_size?: number | null
           file_url?: string
           id?: string
+          is_permit_set?: boolean
           job_id?: string
           plan_name?: string
           plan_number?: string | null
           revision?: string | null
+          revision_date?: string | null
           updated_at?: string
           uploaded_at?: string
           uploaded_by?: string
