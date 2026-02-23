@@ -14,10 +14,10 @@ import { Link } from 'react-router-dom';
 import EmployeeViews from '@/components/EmployeeViews';
 import EmployeeGroupManager from '@/components/EmployeeGroupManager';
 import RolePermissionsManager from '@/components/RolePermissionsManager';
-import EmployeeDetailDialog from '@/components/EmployeeDetailDialog';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
+import { useNavigate } from 'react-router-dom';
 
 interface Employee {
   id: string;
@@ -49,13 +49,12 @@ export default function AllEmployees() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   
-  const [selectedEmployee, setSelectedEmployee] = useState<Employee | null>(null);
-  const [showEmployeeDetail, setShowEmployeeDetail] = useState(false);
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('employees-view');
   const { canCreateEmployees, hasElevatedAccess } = useActionPermissions();
+  const navigate = useNavigate();
 
   const canManageEmployees = hasElevatedAccess();
 
@@ -152,8 +151,8 @@ export default function AllEmployees() {
   });
 
   const handleEmployeeClick = (employee: any) => {
-    setSelectedEmployee(employee);
-    setShowEmployeeDetail(true);
+    const userId = employee.user_id || employee.id;
+    navigate(`/settings/users/${userId}`);
   };
 
   return (
@@ -246,11 +245,7 @@ export default function AllEmployees() {
         )}
       </Tabs>
 
-      <EmployeeDetailDialog
-        open={showEmployeeDetail}
-        onOpenChange={setShowEmployeeDetail}
-        employee={selectedEmployee}
-      />
+
     </div>
   );
 }
