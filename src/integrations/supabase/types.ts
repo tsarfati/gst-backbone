@@ -1254,6 +1254,107 @@ export type Database = {
           },
         ]
       }
+      company_files: {
+        Row: {
+          category: string
+          company_id: string
+          contract_value: number | null
+          created_at: string
+          description: string | null
+          expiration_date: string | null
+          file_name: string
+          file_size: number | null
+          file_type: string | null
+          file_url: string
+          filing_document_id: string | null
+          id: string
+          issue_date: string | null
+          job_id: string | null
+          name: string
+          permit_number: string | null
+          policy_number: string | null
+          status: string | null
+          trade: string | null
+          updated_at: string
+          uploaded_by: string
+        }
+        Insert: {
+          category: string
+          company_id: string
+          contract_value?: number | null
+          created_at?: string
+          description?: string | null
+          expiration_date?: string | null
+          file_name: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url: string
+          filing_document_id?: string | null
+          id?: string
+          issue_date?: string | null
+          job_id?: string | null
+          name: string
+          permit_number?: string | null
+          policy_number?: string | null
+          status?: string | null
+          trade?: string | null
+          updated_at?: string
+          uploaded_by: string
+        }
+        Update: {
+          category?: string
+          company_id?: string
+          contract_value?: number | null
+          created_at?: string
+          description?: string | null
+          expiration_date?: string | null
+          file_name?: string
+          file_size?: number | null
+          file_type?: string | null
+          file_url?: string
+          filing_document_id?: string | null
+          id?: string
+          issue_date?: string | null
+          job_id?: string | null
+          name?: string
+          permit_number?: string | null
+          policy_number?: string | null
+          status?: string | null
+          trade?: string | null
+          updated_at?: string
+          uploaded_by?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_files_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_files_filing_document_id_fkey"
+            columns: ["filing_document_id"]
+            isOneToOne: false
+            referencedRelation: "job_filing_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "company_files_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_settings: {
         Row: {
           company_id: string
@@ -2947,6 +3048,85 @@ export type Database = {
           },
         ]
       }
+      google_drive_sync_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          job_id: string | null
+          sync_bills: boolean | null
+          sync_company_contracts: boolean | null
+          sync_company_files: boolean | null
+          sync_company_insurance: boolean | null
+          sync_company_permits: boolean | null
+          sync_delivery_tickets: boolean | null
+          sync_filing_cabinet: boolean | null
+          sync_permits: boolean | null
+          sync_photos: boolean | null
+          sync_receipts: boolean | null
+          sync_subcontracts: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          sync_bills?: boolean | null
+          sync_company_contracts?: boolean | null
+          sync_company_files?: boolean | null
+          sync_company_insurance?: boolean | null
+          sync_company_permits?: boolean | null
+          sync_delivery_tickets?: boolean | null
+          sync_filing_cabinet?: boolean | null
+          sync_permits?: boolean | null
+          sync_photos?: boolean | null
+          sync_receipts?: boolean | null
+          sync_subcontracts?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          job_id?: string | null
+          sync_bills?: boolean | null
+          sync_company_contracts?: boolean | null
+          sync_company_files?: boolean | null
+          sync_company_insurance?: boolean | null
+          sync_company_permits?: boolean | null
+          sync_delivery_tickets?: boolean | null
+          sync_filing_cabinet?: boolean | null
+          sync_permits?: boolean | null
+          sync_photos?: boolean | null
+          sync_receipts?: boolean | null
+          sync_subcontracts?: boolean | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_drive_sync_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "google_drive_sync_settings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "google_drive_sync_settings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       google_drive_tokens: {
         Row: {
           access_token: string
@@ -3765,42 +3945,57 @@ export type Database = {
       job_permits: {
         Row: {
           company_id: string
+          cost: number | null
           created_at: string
           description: string | null
+          expiration_date: string | null
           file_name: string
           file_url: string
           id: string
+          issue_date: string | null
           job_id: string
           permit_name: string
           permit_number: string | null
+          status: string | null
+          trade: string | null
           updated_at: string
           uploaded_at: string
           uploaded_by: string
         }
         Insert: {
           company_id: string
+          cost?: number | null
           created_at?: string
           description?: string | null
+          expiration_date?: string | null
           file_name: string
           file_url: string
           id?: string
+          issue_date?: string | null
           job_id: string
           permit_name: string
           permit_number?: string | null
+          status?: string | null
+          trade?: string | null
           updated_at?: string
           uploaded_at?: string
           uploaded_by: string
         }
         Update: {
           company_id?: string
+          cost?: number | null
           created_at?: string
           description?: string | null
+          expiration_date?: string | null
           file_name?: string
           file_url?: string
           id?: string
+          issue_date?: string | null
           job_id?: string
           permit_name?: string
           permit_number?: string | null
+          status?: string | null
+          trade?: string | null
           updated_at?: string
           uploaded_at?: string
           uploaded_by?: string
