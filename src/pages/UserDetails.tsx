@@ -127,6 +127,7 @@ export default function UserDetails() {
   const [removing, setRemoving] = useState(false);
   
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
+  const fromEmployees = location.state?.fromEmployees || false;
   const isAdmin = profile?.role === 'admin';
   const isController = profile?.role === 'controller';
   const canManage = isAdmin || isController;
@@ -368,11 +369,11 @@ export default function UserDetails() {
       <div className="flex items-center justify-between">
         <Button
           variant="ghost"
-          onClick={() => navigate(fromCompanyManagement ? '/settings/company-management' : '/settings/users')}
+          onClick={() => navigate(fromCompanyManagement ? '/settings/company-management' : fromEmployees ? '/employees' : '/settings/users')}
           className="flex items-center gap-2"
         >
           <ArrowLeft className="h-4 w-4" />
-          {fromCompanyManagement ? 'Back to Company Management' : 'Back to Users'}
+          {fromCompanyManagement ? 'Back to Company Management' : fromEmployees ? 'Back to All Employees' : 'Back to Users'}
         </Button>
         <div className="flex items-center gap-2">
           {isAdmin && !isSelf && (

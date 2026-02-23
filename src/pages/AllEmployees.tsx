@@ -152,7 +152,7 @@ export default function AllEmployees() {
 
   const handleEmployeeClick = (employee: any) => {
     const userId = employee.user_id || employee.id;
-    navigate(`/settings/users/${userId}`);
+    navigate(`/settings/users/${userId}`, { state: { fromEmployees: true } });
   };
 
   return (
