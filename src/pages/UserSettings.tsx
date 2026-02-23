@@ -305,12 +305,29 @@ export default function UserSettings() {
       if (profilesError) throw profilesError;
 
       // Fetch jobs for regular users and determine PIN status
+      // Also fetch latest punch selfie as avatar fallback for users without avatars
       const usersWithJobs = await Promise.all((regularUsers || []).map(async (user) => {
         const userRole = roleMap.get(user.user_id) || 'employee';
         const hasPin = !!user.pin_code;
+
+        // If no avatar, fetch latest punch selfie as fallback
+        let effectiveAvatarUrl = user.avatar_url;
+        if (!effectiveAvatarUrl) {
+          const { data: latestPunch } = await supabase
+            .from('time_cards')
+            .select('punch_in_photo_url, punch_out_photo_url')
+            .eq('user_id', user.user_id)
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .maybeSingle();
+
+          if (latestPunch) {
+            effectiveAvatarUrl = latestPunch.punch_out_photo_url || latestPunch.punch_in_photo_url || null;
+          }
+        }
         
         if (user.has_global_job_access) {
-          return { ...user, role: userRole, jobs: [], has_pin: hasPin };
+          return { ...user, avatar_url: effectiveAvatarUrl, role: userRole, jobs: [], has_pin: hasPin };
         }
         
         const { data: userJobs } = await supabase
@@ -319,7 +336,7 @@ export default function UserSettings() {
           .eq('user_id', user.user_id);
         
         const jobs = userJobs?.map((item: any) => item.jobs).filter(Boolean) || [];
-        return { ...user, role: userRole, jobs, has_pin: hasPin };
+        return { ...user, avatar_url: effectiveAvatarUrl, role: userRole, jobs, has_pin: hasPin };
       }));
 
       // Sort by name
