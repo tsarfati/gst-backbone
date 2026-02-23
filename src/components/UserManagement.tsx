@@ -12,6 +12,26 @@ import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddSystemUserDialog from "@/components/AddSystemUserDialog";
 
+const UserAvatar = ({ avatarUrl, name }: { avatarUrl?: string; name: string }) => {
+  const [imgError, setImgError] = useState(false);
+  const initial = name?.[0]?.toUpperCase() || 'U';
+
+  return (
+    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+      {avatarUrl && !imgError ? (
+        <img
+          src={avatarUrl}
+          alt=""
+          className="h-10 w-10 rounded-full object-cover"
+          onError={() => setImgError(true)}
+        />
+      ) : (
+        <span className="text-sm font-semibold text-primary">{initial}</span>
+      )}
+    </div>
+  );
+};
+
 interface UserProfile {
   user_id: string;
   display_name: string;
@@ -163,15 +183,7 @@ export default function UserManagement() {
       onClick={() => navigate(`/settings/users/${u.user_id}`, { state: { fromCompanyManagement: false } })}
       className="flex items-center gap-4 p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
     >
-      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-        {u.avatar_url ? (
-          <img src={u.avatar_url} alt="" className="h-10 w-10 rounded-full object-cover" />
-        ) : (
-          <span className="text-sm font-semibold text-primary">
-            {u.first_name?.[0]?.toUpperCase() || u.display_name?.[0]?.toUpperCase() || 'U'}
-          </span>
-        )}
-      </div>
+      <UserAvatar avatarUrl={u.avatar_url} name={u.first_name || u.display_name || 'U'} />
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className="font-semibold">{u.display_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Unnamed User'}</h3>
