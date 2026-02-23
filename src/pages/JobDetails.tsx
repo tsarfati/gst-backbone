@@ -170,10 +170,12 @@ export default function JobDetails() {
           <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
           <p className="text-muted-foreground">Job Details</p>
         </div>
-        <Button variant="outline" size="sm" onClick={() => setExportModalOpen(true)}>
-          <Download className="h-4 w-4 mr-2" />
-          Export Job
-        </Button>
+        {job.status === 'completed' && (
+          <Button variant="outline" size="sm" onClick={() => setExportModalOpen(true)}>
+            <Download className="h-4 w-4 mr-2" />
+            Archive Job
+          </Button>
+        )}
       </div>
 
       {/* Tabbed Content */}

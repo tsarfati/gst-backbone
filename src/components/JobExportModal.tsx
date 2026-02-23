@@ -84,7 +84,7 @@ export default function JobExportModal({
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Package className="h-5 w-5" />
-            Export Job Archive
+            Archive Job
           </DialogTitle>
           <DialogDescription>
             Download a complete archive of this job including all documents, photos, plans,
