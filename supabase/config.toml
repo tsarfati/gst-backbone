@@ -26,3 +26,6 @@ verify_jwt = false
 
 [functions.manage-subscription]
 verify_jwt = false
+
+[functions.send-file-share-email]
+verify_jwt = false
