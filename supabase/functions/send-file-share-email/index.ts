@@ -61,14 +61,35 @@ serve(async (req: Request) => {
         <div style="white-space: pre-wrap;">${body.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
     `;
 
-    // Add file links if present (file sharing mode)
+    // Build file list
     const fileList = attachments && attachments.length > 0
       ? attachments
       : file_name && file_url
         ? [{ file_name, file_url }]
         : [];
 
-    if (fileList.length > 0) {
+    // Download files and create real email attachments
+    const emailAttachments: any[] = [];
+
+    for (const f of fileList) {
+      try {
+        const response = await fetch(f.file_url);
+        if (response.ok) {
+          const arrayBuffer = await response.arrayBuffer();
+          emailAttachments.push({
+            filename: f.file_name,
+            content: Buffer.from(arrayBuffer),
+          });
+        } else {
+          console.warn(`Failed to download file ${f.file_name}: ${response.status}`);
+        }
+      } catch (dlErr) {
+        console.warn(`Error downloading file ${f.file_name}:`, dlErr);
+      }
+    }
+
+    if (fileList.length > 0 && emailAttachments.length === 0) {
+      // Fallback to links if downloads failed
       const attachmentHtml = fileList.map((f: any) =>
         `<p>📎 <a href="${f.file_url}" style="color: #2563eb;">${f.file_name}</a></p>`
       ).join('');
@@ -78,6 +99,13 @@ serve(async (req: Request) => {
         <div style="color: #666; font-size: 14px;">
           ${attachmentHtml}
           <small>These links expire in 7 days.</small>
+        </div>
+      `;
+    } else if (emailAttachments.length > 0) {
+      emailHtml += `
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
+        <div style="color: #666; font-size: 14px;">
+          <p>📎 ${emailAttachments.length} file(s) attached</p>
         </div>
       `;
     }
@@ -118,13 +146,19 @@ serve(async (req: Request) => {
       html: emailHtml,
     };
 
+    // Add file attachments
+    if (emailAttachments.length > 0) {
+      mailOptions.attachments = [...emailAttachments];
+    }
+
     // Handle PDF attachment (base64 encoded)
     if (pdf_attachment && pdf_attachment.content) {
-      mailOptions.attachments = [{
+      if (!mailOptions.attachments) mailOptions.attachments = [];
+      mailOptions.attachments.push({
         filename: pdf_attachment.filename || 'report.pdf',
         content: Buffer.from(pdf_attachment.content, 'base64'),
         contentType: 'application/pdf',
-      }];
+      });
     }
 
     await transporter.sendMail(mailOptions);
