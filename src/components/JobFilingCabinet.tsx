@@ -3,6 +3,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
+import { Checkbox } from "@/components/ui/checkbox";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from "@/components/ui/dialog";
@@ -11,7 +12,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   FolderOpen, FolderClosed, Plus, Upload, FileText, MoreVertical,
-  ChevronRight, ChevronDown, Pencil, Trash2, Share2, Download, Loader2
+  ChevronRight, ChevronDown, Pencil, Trash2, Share2, Download, Loader2, Mail, X
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -19,6 +20,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/components/ui/use-toast";
 import { cn } from "@/lib/utils";
 import FileShareModal from "./FileShareModal";
+import FileCabinetPreviewModal from "./FileCabinetPreviewModal";
 
 interface Folder {
   id: string;
@@ -62,7 +64,11 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const [newFolderName, setNewFolderName] = useState("");
   const [renamingItem, setRenamingItem] = useState<{ type: 'folder' | 'file'; id: string; name: string } | null>(null);
   const [deleteItem, setDeleteItem] = useState<{ type: 'folder' | 'file'; id: string; name: string } | null>(null);
-  const [shareFile, setShareFile] = useState<JobFile | null>(null);
+  const [shareFiles, setShareFiles] = useState<JobFile[]>([]);
+  const [previewFile, setPreviewFile] = useState<JobFile | null>(null);
+
+  // Multi-select state
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
 
   const companyId = currentCompany?.id;
 
@@ -80,7 +86,6 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
       return;
     }
 
-    // Create system folders if they don't exist
     if (!data || data.length === 0) {
       const foldersToCreate = SYSTEM_FOLDERS.map((name, i) => ({
         job_id: jobId,
@@ -138,6 +143,24 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     load();
   }, [loadFolders, loadFiles]);
 
+  const allFiles = Object.values(files).flat();
+
+  const getSelectedFiles = (): JobFile[] => {
+    return allFiles.filter(f => selectedFileIds.has(f.id));
+  };
+
+  const toggleFileSelection = (fileId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setSelectedFileIds(prev => {
+      const next = new Set(prev);
+      if (next.has(fileId)) next.delete(fileId);
+      else next.add(fileId);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedFileIds(new Set());
+
   const toggleFolder = (folderId: string) => {
     setExpandedFolders(prev => {
       const next = new Set(prev);
@@ -193,8 +216,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     const table = deleteItem.type === 'folder' ? 'job_folders' : 'job_files';
 
     if (deleteItem.type === 'file') {
-      // Delete from storage first
-      const file = Object.values(files).flat().find(f => f.id === deleteItem.id);
+      const file = allFiles.find(f => f.id === deleteItem.id);
       if (file) {
         await supabase.storage.from('job-filing-cabinet').remove([file.file_url]);
       }
@@ -206,6 +228,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     } else {
       toast({ title: "Deleted successfully" });
       setDeleteItem(null);
+      selectedFileIds.delete(deleteItem.id);
       loadFolders();
       loadFiles();
     }
@@ -241,7 +264,6 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
 
       toast({ title: "File uploaded", description: file.name });
       loadFiles();
-      // Auto-expand the folder
       setExpandedFolders(prev => new Set(prev).add(folderId));
     } catch (err: any) {
       console.error('Upload error:', err);
@@ -287,16 +309,26 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const downloadFile = async (file: JobFile) => {
-    const { data, error } = await supabase.storage
-      .from('job-filing-cabinet')
-      .createSignedUrl(file.file_url, 60);
+    try {
+      const { data, error } = await supabase.storage
+        .from('job-filing-cabinet')
+        .createSignedUrl(file.file_url, 60);
 
-    if (error || !data) {
+      if (error || !data) throw new Error('Failed to get URL');
+
+      const response = await fetch(data.signedUrl);
+      const blob = await response.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = file.file_name;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    } catch {
       toast({ title: "Error", description: "Failed to download file", variant: "destructive" });
-      return;
     }
-
-    window.open(data.signedUrl, '_blank');
   };
 
   const formatFileSize = (bytes: number | null) => {
@@ -323,6 +355,30 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
           New Folder
         </Button>
       </div>
+
+      {/* Multi-select toolbar */}
+      {selectedFileIds.size > 0 && (
+        <div className="flex items-center gap-2 p-2 bg-primary/5 border border-primary/20 rounded-lg">
+          <Badge variant="secondary" className="text-xs">
+            {selectedFileIds.size} selected
+          </Badge>
+          <Button
+            size="sm"
+            variant="outline"
+            onClick={() => {
+              setShareFiles(getSelectedFiles());
+            }}
+          >
+            <Mail className="h-4 w-4 mr-1.5" />
+            Email Selected
+          </Button>
+          <div className="flex-1" />
+          <Button size="sm" variant="ghost" onClick={clearSelection}>
+            <X className="h-4 w-4 mr-1" />
+            Clear
+          </Button>
+        </div>
+      )}
 
       <div className="space-y-1">
         {folders.map(folder => {
@@ -408,42 +464,56 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                       Drop files here or click upload
                     </div>
                   ) : (
-                    folderFiles.map(file => (
-                      <div
-                        key={file.id}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-muted/50 group text-sm"
-                      >
-                        <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                        <span className="flex-1 truncate">{file.file_name}</span>
-                        <span className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</span>
-                        <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center">
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => downloadFile(file)}>
-                            <Download className="h-3.5 w-3.5" />
-                          </Button>
-                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShareFile(file)}>
-                            <Share2 className="h-3.5 w-3.5" />
-                          </Button>
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button variant="ghost" size="icon" className="h-7 w-7">
-                                <MoreVertical className="h-3.5 w-3.5" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="end">
-                              <DropdownMenuItem onClick={() => setRenamingItem({ type: 'file', id: file.id, name: file.file_name })}>
-                                <Pencil className="h-4 w-4 mr-2" /> Rename
-                              </DropdownMenuItem>
-                              <DropdownMenuItem
-                                className="text-destructive"
-                                onClick={() => setDeleteItem({ type: 'file', id: file.id, name: file.file_name })}
-                              >
-                                <Trash2 className="h-4 w-4 mr-2" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
+                    folderFiles.map(file => {
+                      const isSelected = selectedFileIds.has(file.id);
+                      return (
+                        <div
+                          key={file.id}
+                          className={cn(
+                            "flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-muted/50 group text-sm cursor-pointer",
+                            isSelected && "bg-primary/5 ring-1 ring-primary/20"
+                          )}
+                          onClick={() => setPreviewFile(file)}
+                        >
+                          <div onClick={e => e.stopPropagation()}>
+                            <Checkbox
+                              checked={isSelected}
+                              onCheckedChange={() => toggleFileSelection(file.id)}
+                              className="shrink-0"
+                            />
+                          </div>
+                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <span className="flex-1 truncate">{file.file_name}</span>
+                          <span className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</span>
+                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center" onClick={e => e.stopPropagation()}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => downloadFile(file)}>
+                              <Download className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShareFiles([file])}>
+                              <Share2 className="h-3.5 w-3.5" />
+                            </Button>
+                            <DropdownMenu>
+                              <DropdownMenuTrigger asChild>
+                                <Button variant="ghost" size="icon" className="h-7 w-7">
+                                  <MoreVertical className="h-3.5 w-3.5" />
+                                </Button>
+                              </DropdownMenuTrigger>
+                              <DropdownMenuContent align="end">
+                                <DropdownMenuItem onClick={() => setRenamingItem({ type: 'file', id: file.id, name: file.file_name })}>
+                                  <Pencil className="h-4 w-4 mr-2" /> Rename
+                                </DropdownMenuItem>
+                                <DropdownMenuItem
+                                  className="text-destructive"
+                                  onClick={() => setDeleteItem({ type: 'file', id: file.id, name: file.file_name })}
+                                >
+                                  <Trash2 className="h-4 w-4 mr-2" /> Delete
+                                </DropdownMenuItem>
+                              </DropdownMenuContent>
+                            </DropdownMenu>
+                          </div>
                         </div>
-                      </div>
-                    ))
+                      );
+                    })
                   )}
                 </div>
               )}
@@ -508,13 +578,23 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
         </DialogContent>
       </Dialog>
 
-      {/* Share Modal */}
-      {shareFile && (
+      {/* Share Modal (supports multi-file) */}
+      {shareFiles.length > 0 && (
         <FileShareModal
-          open={!!shareFile}
-          onOpenChange={() => setShareFile(null)}
-          file={shareFile}
+          open={shareFiles.length > 0}
+          onOpenChange={(open) => { if (!open) { setShareFiles([]); clearSelection(); } }}
+          files={shareFiles}
           jobId={jobId}
+        />
+      )}
+
+      {/* File Preview Modal */}
+      {previewFile && (
+        <FileCabinetPreviewModal
+          open={!!previewFile}
+          onOpenChange={(open) => { if (!open) setPreviewFile(null); }}
+          file={previewFile}
+          onShare={() => setShareFiles([previewFile])}
         />
       )}
     </div>
