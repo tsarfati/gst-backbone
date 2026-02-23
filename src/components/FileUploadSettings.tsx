@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -9,7 +9,8 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
-import { Info, Save } from 'lucide-react';
+import { useAuth } from '@/contexts/AuthContext';
+import { Info, Save, CheckCircle, XCircle, Loader2 } from 'lucide-react';
 
 interface FileUploadSettings {
   receipt_naming_pattern: string;
@@ -28,10 +29,14 @@ interface FileUploadSettings {
   ftp_folder_path: string;
 }
 
-export default function FileUploadSettings() {
+export default function FileUploadSettingsComponent() {
   const { currentCompany } = useCompany();
+  const { user } = useAuth();
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
+  const [driveConnected, setDriveConnected] = useState(false);
+  const [driveLoading, setDriveLoading] = useState(false);
+  const [checkingDrive, setCheckingDrive] = useState(true);
   const [settings, setSettings] = useState<FileUploadSettings>({
     receipt_naming_pattern: '{vendor}_{date}_{amount}',
     bill_naming_pattern: '{vendor}_{invoice_number}_{date}',
@@ -52,8 +57,87 @@ export default function FileUploadSettings() {
   useEffect(() => {
     if (currentCompany) {
       fetchSettings();
+      checkDriveConnection();
     }
   }, [currentCompany]);
+
+  // Listen for Google Drive OAuth callback messages
+  useEffect(() => {
+    const handleMessage = (event: MessageEvent) => {
+      if (event.data?.type === 'google-drive-auth') {
+        if (event.data.status === 'success') {
+          setDriveConnected(true);
+          setSettings(prev => ({ ...prev, enable_google_drive: true }));
+          toast({ title: 'Google Drive Connected', description: event.data.message });
+          // Update connected_by
+          if (currentCompany && user) {
+            supabase.from('google_drive_tokens')
+              .update({ connected_by: user.id })
+              .eq('company_id', currentCompany.id)
+              .then(() => {});
+          }
+        } else {
+          toast({ title: 'Connection Failed', description: event.data.message, variant: 'destructive' });
+        }
+      }
+    };
+    window.addEventListener('message', handleMessage);
+    return () => window.removeEventListener('message', handleMessage);
+  }, [currentCompany, user]);
+
+  const checkDriveConnection = async () => {
+    if (!currentCompany) return;
+    setCheckingDrive(true);
+    try {
+      const { data } = await supabase
+        .from('google_drive_tokens')
+        .select('id, folder_id, folder_name')
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+      setDriveConnected(!!data);
+    } catch {
+      setDriveConnected(false);
+    } finally {
+      setCheckingDrive(false);
+    }
+  };
+
+  const connectGoogleDrive = async () => {
+    if (!currentCompany) return;
+    setDriveLoading(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('google-drive-auth', {
+        body: { company_id: currentCompany.id },
+      });
+      if (error) throw error;
+      if (data?.url) {
+        window.open(data.url, 'google-drive-auth', 'width=600,height=700,popup=true');
+      }
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setDriveLoading(false);
+    }
+  };
+
+  const disconnectGoogleDrive = async () => {
+    if (!currentCompany) return;
+    setDriveLoading(true);
+    try {
+      const { error } = await supabase
+        .from('google_drive_tokens')
+        .delete()
+        .eq('company_id', currentCompany.id);
+      if (error) throw error;
+      setDriveConnected(false);
+      setSettings(prev => ({ ...prev, enable_google_drive: false }));
+      toast({ title: 'Disconnected', description: 'Google Drive has been disconnected.' });
+    } catch (error: any) {
+      toast({ title: 'Error', description: error.message, variant: 'destructive' });
+    } finally {
+      setDriveLoading(false);
+    }
+  };
 
   const fetchSettings = async () => {
     if (!currentCompany) return;
@@ -267,30 +351,65 @@ export default function FileUploadSettings() {
         <TabsContent value="storage" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Google Drive Integration</CardTitle>
+              <CardTitle className="flex items-center gap-2">
+                Google Drive Integration
+                {checkingDrive ? (
+                  <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />
+                ) : driveConnected ? (
+                  <CheckCircle className="h-5 w-5 text-green-500" />
+                ) : (
+                  <XCircle className="h-5 w-5 text-muted-foreground" />
+                )}
+              </CardTitle>
               <CardDescription>
-                Automatically sync uploaded files to Google Drive
+                {driveConnected 
+                  ? 'Google Drive is connected. Files will sync automatically when enabled.'
+                  : 'Connect your Google Drive to automatically sync uploaded files.'}
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="enable-google-drive">Enable Google Drive Sync</Label>
-                <Switch
-                  id="enable-google-drive"
-                  checked={settings.enable_google_drive}
-                  onCheckedChange={(checked) => setSettings({ ...settings, enable_google_drive: checked })}
-                />
-              </div>
-              {settings.enable_google_drive && (
-                <div className="space-y-2">
-                  <Label htmlFor="google-folder-id">Google Drive Folder ID</Label>
-                  <Input
-                    id="google-folder-id"
-                    value={settings.google_drive_folder_id}
-                    onChange={(e) => setSettings({ ...settings, google_drive_folder_id: e.target.value })}
-                    placeholder="Enter folder ID from Google Drive URL"
-                  />
-                </div>
+              {driveConnected ? (
+                <>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="enable-google-drive">Enable Google Drive Sync</Label>
+                    <Switch
+                      id="enable-google-drive"
+                      checked={settings.enable_google_drive}
+                      onCheckedChange={(checked) => setSettings({ ...settings, enable_google_drive: checked })}
+                    />
+                  </div>
+                  {settings.enable_google_drive && (
+                    <div className="space-y-2">
+                      <Label htmlFor="google-folder-id">Google Drive Folder ID (optional)</Label>
+                      <Input
+                        id="google-folder-id"
+                        value={settings.google_drive_folder_id}
+                        onChange={(e) => setSettings({ ...settings, google_drive_folder_id: e.target.value })}
+                        placeholder="Leave empty for root, or paste folder ID from Drive URL"
+                      />
+                      <p className="text-xs text-muted-foreground">
+                        Find the folder ID in the Google Drive URL: drive.google.com/drive/folders/<strong>folder-id-here</strong>
+                      </p>
+                    </div>
+                  )}
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={disconnectGoogleDrive}
+                    disabled={driveLoading}
+                  >
+                    {driveLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Disconnect Google Drive
+                  </Button>
+                </>
+              ) : (
+                <Button
+                  onClick={connectGoogleDrive}
+                  disabled={driveLoading}
+                >
+                  {driveLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Connect Google Drive
+                </Button>
               )}
             </CardContent>
           </Card>

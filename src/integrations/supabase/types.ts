@@ -2947,6 +2947,53 @@ export type Database = {
           },
         ]
       }
+      google_drive_tokens: {
+        Row: {
+          access_token: string
+          company_id: string
+          connected_by: string
+          created_at: string
+          folder_id: string | null
+          folder_name: string | null
+          id: string
+          refresh_token: string
+          token_expires_at: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          company_id: string
+          connected_by: string
+          created_at?: string
+          folder_id?: string | null
+          folder_name?: string | null
+          id?: string
+          refresh_token: string
+          token_expires_at: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          company_id?: string
+          connected_by?: string
+          created_at?: string
+          folder_id?: string | null
+          folder_name?: string | null
+          id?: string
+          refresh_token?: string
+          token_expires_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_drive_tokens_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       invoice_audit_trail: {
         Row: {
           change_type: string
