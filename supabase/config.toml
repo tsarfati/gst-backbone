@@ -29,3 +29,12 @@ verify_jwt = false
 
 [functions.send-file-share-email]
 verify_jwt = false
+
+[functions.google-drive-auth]
+verify_jwt = false
+
+[functions.google-drive-callback]
+verify_jwt = false
+
+[functions.sync-to-google-drive]
+verify_jwt = false
