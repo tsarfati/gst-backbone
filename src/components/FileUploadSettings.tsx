@@ -11,6 +11,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { Info, Save, CheckCircle, XCircle, Loader2 } from 'lucide-react';
+import GoogleDriveFolderPicker from '@/components/GoogleDriveFolderPicker';
 
 interface FileUploadSettings {
   receipt_naming_pattern: string;
@@ -95,6 +96,13 @@ export default function FileUploadSettingsComponent() {
         .eq('company_id', currentCompany.id)
         .maybeSingle();
       setDriveConnected(!!data);
+      if (data?.folder_id) {
+        setSettings(prev => ({
+          ...prev,
+          google_drive_folder_id: data.folder_id || '',
+          enable_google_drive: true,
+        }));
+      }
     } catch {
       setDriveConnected(false);
     } finally {
@@ -378,18 +386,25 @@ export default function FileUploadSettingsComponent() {
                       onCheckedChange={(checked) => setSettings({ ...settings, enable_google_drive: checked })}
                     />
                   </div>
-                  {settings.enable_google_drive && (
+                  {settings.enable_google_drive && currentCompany && (
                     <div className="space-y-2">
-                      <Label htmlFor="google-folder-id">Google Drive Folder ID (optional)</Label>
-                      <Input
-                        id="google-folder-id"
-                        value={settings.google_drive_folder_id}
-                        onChange={(e) => setSettings({ ...settings, google_drive_folder_id: e.target.value })}
-                        placeholder="Leave empty for root, or paste folder ID from Drive URL"
+                      <Label>Select Sync Folder</Label>
+                      <GoogleDriveFolderPicker
+                        companyId={currentCompany.id}
+                        selectedFolderId={settings.google_drive_folder_id}
+                        selectedFolderName=""
+                        onSelect={(folderId, folderName) => {
+                          setSettings(prev => ({ ...prev, google_drive_folder_id: folderId }));
+                          if (currentCompany) {
+                            supabase
+                              .from('google_drive_tokens')
+                              .update({ folder_id: folderId, folder_name: folderName } as any)
+                              .eq('company_id', currentCompany.id)
+                              .then(() => {});
+                          }
+                          toast({ title: 'Folder selected', description: `Files will sync to "${folderName}"` });
+                        }}
                       />
-                      <p className="text-xs text-muted-foreground">
-                        Find the folder ID in the Google Drive URL: drive.google.com/drive/folders/<strong>folder-id-here</strong>
-                      </p>
                     </div>
                   )}
                   <Button
