@@ -116,6 +116,7 @@ export default function UserManagement() {
 
         allUsers = (profilesData || []).map(profile => {
           const access = userAccessData.find(a => a.user_id === profile.user_id);
+          console.log('[UserMgmt] profile avatar_url for', profile.display_name, ':', profile.avatar_url);
           return {
             ...profile,
             role: access?.role || profile.role,
