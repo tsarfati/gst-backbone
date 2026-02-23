@@ -91,7 +91,7 @@ serve(async (req: Request) => {
           const arrayBuffer = await response.arrayBuffer();
           emailAttachments.push({
             filename: f.file_name,
-            content: Buffer.from(arrayBuffer),
+            content: new Uint8Array(arrayBuffer),
           });
         } else {
           console.warn(`Failed to download file ${f.file_name}: ${response.status}`);
@@ -163,9 +163,15 @@ serve(async (req: Request) => {
     // Handle PDF attachment (base64 encoded)
     if (pdf_attachment && pdf_attachment.content) {
       if (!mailOptions.attachments) mailOptions.attachments = [];
+      // Decode base64 to Uint8Array for Deno compatibility
+      const binaryStr = atob(pdf_attachment.content);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
       mailOptions.attachments.push({
         filename: pdf_attachment.filename || 'report.pdf',
-        content: Buffer.from(pdf_attachment.content, 'base64'),
+        content: bytes,
         contentType: 'application/pdf',
       });
     }
