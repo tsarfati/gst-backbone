@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -21,7 +21,7 @@ import JobPlans from "@/components/JobPlans";
 import JobBillingSetup from "@/components/JobBillingSetup";
 import JobRFIs from "@/components/JobRFIs";
 import JobProjectTeam from "@/components/JobProjectTeam";
-
+import JobExportModal from "@/components/JobExportModal";
 
 interface Job {
   id: string;
@@ -50,6 +50,7 @@ export default function JobDetails() {
   const [searchParams, setSearchParams] = useSearchParams();
   const initialTab = searchParams.get('tab') || 'details';
   const [activeTab, setActiveTab] = useState<string>(initialTab);
+  const [exportModalOpen, setExportModalOpen] = useState(false);
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -169,6 +170,10 @@ export default function JobDetails() {
           <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
           <p className="text-muted-foreground">Job Details</p>
         </div>
+        <Button variant="outline" size="sm" onClick={() => setExportModalOpen(true)}>
+          <Download className="h-4 w-4 mr-2" />
+          Export Job
+        </Button>
       </div>
 
       {/* Tabbed Content */}
@@ -387,6 +392,13 @@ export default function JobDetails() {
           </TabsContent>
         </Tabs>
       </Card>
+
+      <JobExportModal
+        open={exportModalOpen}
+        onOpenChange={setExportModalOpen}
+        jobId={id!}
+        jobName={job.name}
+      />
     </div>
   );
 }
