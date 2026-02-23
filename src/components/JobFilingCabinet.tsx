@@ -66,6 +66,8 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const [deleteItem, setDeleteItem] = useState<{ type: 'folder' | 'file'; id: string; name: string } | null>(null);
   const [shareFiles, setShareFiles] = useState<JobFile[]>([]);
   const [previewFile, setPreviewFile] = useState<JobFile | null>(null);
+  const [inlineEditFileId, setInlineEditFileId] = useState<string | null>(null);
+  const [inlineEditName, setInlineEditName] = useState("");
 
   // Multi-select state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
@@ -483,7 +485,47 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                             />
                           </div>
                           <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                          <span className="flex-1 truncate">{file.file_name}</span>
+                          {inlineEditFileId === file.id ? (
+                            <form
+                              className="flex-1 min-w-0"
+                              onSubmit={async (e) => {
+                                e.preventDefault();
+                                if (!inlineEditName.trim()) return;
+                                const { error } = await supabase
+                                  .from('job_files')
+                                  .update({ file_name: inlineEditName.trim() })
+                                  .eq('id', file.id);
+                                if (error) {
+                                  toast({ title: "Error", description: "Failed to rename", variant: "destructive" });
+                                } else {
+                                  toast({ title: "File renamed" });
+                                  loadFiles();
+                                }
+                                setInlineEditFileId(null);
+                              }}
+                            >
+                              <Input
+                                autoFocus
+                                value={inlineEditName}
+                                onChange={(e) => setInlineEditName(e.target.value)}
+                                onBlur={() => setInlineEditFileId(null)}
+                                onKeyDown={(e) => { if (e.key === 'Escape') setInlineEditFileId(null); }}
+                                className="h-6 text-sm py-0 px-1"
+                                onClick={(e) => e.stopPropagation()}
+                              />
+                            </form>
+                          ) : (
+                            <span
+                              className="flex-1 truncate hover:underline cursor-text"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setInlineEditFileId(file.id);
+                                setInlineEditName(file.file_name);
+                              }}
+                            >
+                              {file.file_name}
+                            </span>
+                          )}
                           <span className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</span>
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center" onClick={e => e.stopPropagation()}>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => downloadFile(file)}>
