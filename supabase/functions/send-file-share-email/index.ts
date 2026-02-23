@@ -55,6 +55,19 @@ serve(async (req: Request) => {
       );
     }
 
+    // Get user's profile for sender name
+    const { data: profileData } = await supabase
+      .from("profiles")
+      .select("first_name, last_name")
+      .eq("user_id", user_id)
+      .single();
+
+    const senderName = profileData?.first_name && profileData?.last_name
+      ? `${profileData.first_name} ${profileData.last_name}`
+      : emailSettings.from_email || null;
+    const senderEmail = emailSettings.smtp_username;
+    const fromField = senderName ? `${senderName} <${senderEmail}>` : senderEmail;
+
     // Build email HTML body
     let emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -135,11 +148,7 @@ serve(async (req: Request) => {
 
     // Build mail options
     const mailOptions: any = {
-      from: emailSettings.from_email && emailSettings.from_email.includes('@')
-        ? emailSettings.from_email
-        : emailSettings.from_email
-          ? `${emailSettings.from_email} <${emailSettings.smtp_username}>`
-          : emailSettings.smtp_username,
+      from: fromField,
       to: recipients,
       subject: subject,
       text: body,
