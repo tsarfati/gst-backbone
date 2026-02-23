@@ -16,14 +16,21 @@ const UserAvatar = ({ avatarUrl, name }: { avatarUrl?: string; name: string }) =
   const [imgError, setImgError] = useState(false);
   const initial = name?.[0]?.toUpperCase() || 'U';
 
+  // Add cache-busting to avoid stale/blocked cached responses
+  const imgSrc = avatarUrl ? `${avatarUrl}?t=${Date.now()}` : null;
+
   return (
     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-      {avatarUrl && !imgError ? (
+      {imgSrc && !imgError ? (
         <img
-          src={avatarUrl}
+          src={imgSrc}
           alt=""
           className="h-10 w-10 rounded-full object-cover"
-          onError={() => setImgError(true)}
+          crossOrigin="anonymous"
+          onError={(e) => {
+            console.warn('[UserAvatar] Failed to load avatar for', name, ':', avatarUrl, e);
+            setImgError(true);
+          }}
         />
       ) : (
         <span className="text-sm font-semibold text-primary">{initial}</span>
