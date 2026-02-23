@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -6,11 +6,12 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, Star, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
+import { useUserAvatars } from '@/hooks/useUserAvatar';
+import UserAvatar from '@/components/UserAvatar';
 
 
 interface ProjectRole {
@@ -325,6 +326,19 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   };
 
+  // Extract user IDs from auto-populated members for avatar resolution
+  const teamUserIds = useMemo(() => {
+    return teamMembers
+      .filter(m => m.source && m.source !== 'directory')
+      .map(m => {
+        const parts = m.id.split('-');
+        return parts.slice(1).join('-'); // e.g. "pm-uuid" -> "uuid"
+      })
+      .filter(Boolean);
+  }, [teamMembers]);
+
+  const { avatarMap } = useUserAvatars(teamUserIds);
+
   const getSourceBadge = (source?: string) => {
     switch (source) {
       case 'pm':
@@ -476,14 +490,24 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                   key={member.id}
                   className="flex items-center gap-3 py-2 border-b last:border-b-0 hover:bg-muted/30 px-2 -mx-2 rounded transition-colors"
                 >
-                  <Avatar className="h-9 w-9 shrink-0">
-                    {member.avatar_url && (
-                      <AvatarImage src={member.avatar_url} alt={member.name} />
-                    )}
-                    <AvatarFallback className="bg-primary/10 text-primary text-sm">
-                      {getInitials(member.name)}
-                    </AvatarFallback>
-                  </Avatar>
+                  {(() => {
+                    // Resolve avatar: for auto members use the hook's map, for directory use avatar_url directly
+                    let resolvedUrl = member.avatar_url;
+                    if (member.source && member.source !== 'directory') {
+                      const uid = member.id.split('-').slice(1).join('-');
+                      if (uid && avatarMap[uid] !== undefined) {
+                        resolvedUrl = avatarMap[uid];
+                      }
+                    }
+                    return (
+                      <UserAvatar
+                        src={resolvedUrl}
+                        name={member.name}
+                        className="h-9 w-9 shrink-0"
+                        fallbackClassName="bg-primary/10 text-primary text-sm"
+                      />
+                    );
+                  })()}
 
                   <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-4 gap-1 sm:gap-4 items-center">
                     <div className="flex items-center gap-2">
