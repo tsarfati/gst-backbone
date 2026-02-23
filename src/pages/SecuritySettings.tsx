@@ -8,11 +8,11 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Download, Upload, Shield, Key, Trash2, Lock, FileText } from 'lucide-react';
+import { Download, Upload, Shield, Key, Trash2, FileText, HardDrive } from 'lucide-react';
 import { useCompany } from '@/contexts/CompanyContext';
-import DevelopmentFreeze from '@/components/DevelopmentFreeze';
 import AuditLog from '@/components/AuditLog';
 import FileUploadSettings from '@/components/FileUploadSettings';
+import ThirdPartyStorageSettings from '@/components/ThirdPartyStorageSettings';
 
 export default function SecuritySettings() {
   const { toast } = useToast();
@@ -65,8 +65,8 @@ export default function SecuritySettings() {
             <TabsTrigger value="security" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Security</TabsTrigger>
             <TabsTrigger value="data" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Data & Privacy</TabsTrigger>
             <TabsTrigger value="files" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">File Uploads</TabsTrigger>
+            <TabsTrigger value="storage" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Third-Party Storage</TabsTrigger>
             <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Audit Log</TabsTrigger>
-            <TabsTrigger value="development" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Development Freeze</TabsTrigger>
           </TabsList>
 
           <TabsContent value="security" className="space-y-6">
@@ -200,6 +200,10 @@ export default function SecuritySettings() {
             <FileUploadSettings />
           </TabsContent>
 
+          <TabsContent value="storage" className="space-y-6">
+            <ThirdPartyStorageSettings />
+          </TabsContent>
+
           <TabsContent value="audit" className="space-y-6">
             <Card>
               <CardHeader>
@@ -213,23 +217,6 @@ export default function SecuritySettings() {
               </CardHeader>
               <CardContent>
                 <AuditLog />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="development" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Lock className="h-5 w-5" />
-                  Development Freeze
-                </CardTitle>
-                <CardDescription>
-                  Lock specific pages to prevent code changes during stable periods
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <DevelopmentFreeze />
               </CardContent>
             </Card>
           </TabsContent>
