@@ -313,16 +313,17 @@ export default function UserSettings() {
         // If no avatar, fetch latest punch selfie as fallback
         let effectiveAvatarUrl = user.avatar_url;
         if (!effectiveAvatarUrl) {
-          const { data: latestPunch } = await supabase
+          const { data: punchData, error: punchError } = await supabase
             .from('time_cards')
             .select('punch_in_photo_url, punch_out_photo_url')
             .eq('user_id', user.user_id)
             .order('created_at', { ascending: false })
-            .limit(1)
-            .maybeSingle();
+            .limit(1);
 
-          if (latestPunch) {
-            effectiveAvatarUrl = latestPunch.punch_out_photo_url || latestPunch.punch_in_photo_url || null;
+          if (punchError) {
+            console.warn(`[AvatarFallback] Error for ${user.first_name} ${user.last_name}:`, punchError);
+          } else if (punchData && punchData.length > 0) {
+            effectiveAvatarUrl = punchData[0].punch_out_photo_url || punchData[0].punch_in_photo_url || null;
           }
         }
         
