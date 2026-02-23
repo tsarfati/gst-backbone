@@ -28,6 +28,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   display_name: string;
+  avatar_url?: string | null;
   role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
   created_at: string;
   pin_code?: string;
@@ -297,7 +298,7 @@ export default function UserSettings() {
       // Fetch regular users
       const { data: regularUsers, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access')
+        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access')
         .in('user_id', userIds)
         .order('created_at', { ascending: false });
 
@@ -534,8 +535,20 @@ export default function UserSettings() {
                                   onClick={() => navigate(`/settings/users/${user.user_id}`)}
                                   className="flex items-center gap-4 p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                                 >
-                                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
-                                    <span className="text-sm font-semibold text-primary">
+                                  <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                    {user.avatar_url ? (
+                                      <img
+                                        src={user.avatar_url}
+                                        alt={user.display_name || user.first_name || ''}
+                                        className="h-full w-full object-cover"
+                                        referrerPolicy="no-referrer"
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                        }}
+                                      />
+                                    ) : null}
+                                    <span className={`text-sm font-semibold text-primary ${user.avatar_url ? 'hidden' : ''}`}>
                                       {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
                                     </span>
                                   </div>
