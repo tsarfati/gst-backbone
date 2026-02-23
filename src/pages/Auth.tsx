@@ -63,11 +63,20 @@ export default function Auth() {
   }, [searchParams]);
 
   useEffect(() => {
-    if (user && !profile && !isRecoveryMode) {
-      // Wait for profile to load before redirecting
-      return;
+    if (isRecoveryMode) return;
+    if (!user) return;
+    
+    // Wait for profile to load
+    if (profile === null && user) return;
+
+    // User is authenticated — redirect away from auth page
+    if (profile?.profile_completed === false) {
+      navigate('/profile-completion', { replace: true });
+    } else {
+      // Let useRoleBasedRouting handle it, but if no role yet just go to dashboard
+      navigate('/dashboard', { replace: true });
     }
-  }, [user, profile, isRecoveryMode]);
+  }, [user, profile, isRecoveryMode, navigate]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
