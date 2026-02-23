@@ -106,8 +106,17 @@ export default function UncodedReceipts() {
     if (selectedReceipt) {
       const numeric = String(selectedReceipt.amount || "0").replace(/[^0-9.\-]/g, "");
       setSelectedAmount(numeric);
+      // Restore saved vendor if partially coded
+      if (selectedReceipt.vendor_id) {
+        setSelectedVendor(selectedReceipt.vendor_id);
+      } else {
+        setSelectedVendor("");
+      }
+      setIsCreditCardCharge(selectedReceipt.is_credit_card_charge || false);
     } else {
       setSelectedAmount("");
+      setSelectedVendor("");
+      setIsCreditCardCharge(false);
     }
   }, [selectedReceipt]);
 
@@ -391,6 +400,61 @@ export default function UncodedReceipts() {
     }
   };
 
+  const handleSaveProgress = async () => {
+    if (!selectedReceipt || selectedReceipt.type === 'bill') return;
+
+    try {
+      const totalAmount = parseFloat(selectedAmount) || undefined;
+
+      // Get vendor_id from vendor selection
+      let vendorIdToSave = null;
+      if (selectedVendor) {
+        const { data: vendorData } = await supabase
+          .from('vendors')
+          .select('id')
+          .eq('id', selectedVendor)
+          .maybeSingle();
+        vendorIdToSave = vendorData?.id || null;
+      }
+
+      // Get first distribution's job_id if available (even without cost code)
+      const firstDist = costDistribution.length > 0 ? costDistribution[0] : null;
+
+      const updateData: Record<string, any> = {
+        status: 'partially_coded',
+      };
+
+      if (totalAmount !== undefined) updateData.amount = totalAmount;
+      if (vendorIdToSave) {
+        updateData.vendor_id = vendorIdToSave;
+        updateData.vendor_name = selectedVendor;
+      }
+      if (firstDist?.job_id) updateData.job_id = firstDist.job_id;
+      if (firstDist?.cost_code_id) updateData.cost_code_id = firstDist.cost_code_id;
+      updateData.is_credit_card_charge = isCreditCardCharge;
+
+      const { error } = await supabase
+        .from('receipts')
+        .update(updateData)
+        .eq('id', selectedReceipt.id);
+
+      if (error) throw error;
+
+      await refreshReceipts();
+      toast({
+        title: "Progress saved",
+        description: "Receipt partially coded. You can finish coding later.",
+      });
+    } catch (error) {
+      console.error('Error saving progress:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save progress",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleDeleteReceipt = async (receiptId: string) => {
     await deleteReceipt(receiptId);
     setSelectedReceipt(null);
@@ -451,6 +515,7 @@ export default function UncodedReceipts() {
                 vendor: bill.vendors?.name || 'Unknown Vendor',
                 type: 'bill',
                 billData: bill,
+                status: 'uncoded',
                 assignedUser: null,
                 previewUrl: null
               }))].map((receipt) => (
@@ -476,6 +541,9 @@ export default function UncodedReceipts() {
                         </span>
                         {receipt.type === 'bill' && (
                           <Badge variant="outline" className="text-xs">Bill</Badge>
+                        )}
+                        {receipt.status === 'partially_coded' && (
+                          <Badge variant="secondary" className="text-xs">In Progress</Badge>
                         )}
                       </div>
                       <div className="flex flex-col gap-1">
@@ -1003,15 +1071,25 @@ export default function UncodedReceipts() {
                     />
                   </div>
 
-                  <Button 
-                    onClick={() => {
-                      handleCodeReceipt();
-                    }} 
-                    className="w-full h-8 mt-4"
-                    disabled={!selectedAmount || costDistribution.length === 0 || !costDistribution.every(d => d.job_id && d.cost_code_id)}
-                  >
-                    Code Receipt
-                  </Button>
+                  <div className="flex gap-2 mt-4">
+                    <Button 
+                      variant="outline"
+                      onClick={handleSaveProgress} 
+                      className="flex-1 h-8"
+                      disabled={!selectedAmount && !selectedVendor && costDistribution.length === 0}
+                    >
+                      Save Progress
+                    </Button>
+                    <Button 
+                      onClick={() => {
+                        handleCodeReceipt();
+                      }} 
+                      className="flex-1 h-8"
+                      disabled={!selectedAmount || costDistribution.length === 0 || !costDistribution.every(d => d.job_id && d.cost_code_id)}
+                    >
+                      Code Receipt
+                    </Button>
+                  </div>
                 </div>
               </div>
 
