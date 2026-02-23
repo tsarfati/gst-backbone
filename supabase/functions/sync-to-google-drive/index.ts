@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
-  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
+  'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version',
 };
 
 serve(async (req) => {
@@ -53,7 +53,6 @@ serve(async (req) => {
 
       accessToken = refreshed.access_token;
 
-      // Update stored token
       await supabase
         .from('google_drive_tokens')
         .update({
@@ -66,6 +65,7 @@ serve(async (req) => {
     // Download file from the provided URL
     const fileResponse = await fetch(file_url);
     if (!fileResponse.ok) {
+      console.error('Failed to download file:', file_url, fileResponse.status);
       return new Response(JSON.stringify({ error: 'Failed to download file' }), {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -75,10 +75,26 @@ serve(async (req) => {
     const fileBlob = await fileResponse.blob();
     const targetFolderId = folder_id || tokenData.folder_id;
 
+    // Handle subfolder paths (e.g., "Photos/image.jpg" or "Receipts/receipt.pdf")
+    let uploadFolderId = targetFolderId;
+    let uploadFileName = file_name;
+    
+    if (file_name.includes('/')) {
+      const parts = file_name.split('/');
+      uploadFileName = parts.pop()!;
+      
+      // Create or find each subfolder in the path
+      let currentParentId = targetFolderId;
+      for (const folderName of parts) {
+        currentParentId = await findOrCreateFolder(accessToken, folderName, currentParentId);
+      }
+      uploadFolderId = currentParentId;
+    }
+
     // Upload to Google Drive
-    const metadata: Record<string, unknown> = { name: file_name };
-    if (targetFolderId) {
-      metadata.parents = [targetFolderId];
+    const metadata: Record<string, unknown> = { name: uploadFileName };
+    if (uploadFolderId) {
+      metadata.parents = [uploadFolderId];
     }
 
     const form = new FormData();
@@ -104,6 +120,8 @@ serve(async (req) => {
       });
     }
 
+    console.log('Successfully synced file to Google Drive:', uploadResult.name);
+
     return new Response(JSON.stringify({ success: true, file: uploadResult }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -115,6 +133,36 @@ serve(async (req) => {
     });
   }
 });
+
+async function findOrCreateFolder(accessToken: string, folderName: string, parentId: string): Promise<string> {
+  // Search for existing folder
+  const query = `name='${folderName}' and '${parentId}' in parents and mimeType='application/vnd.google-apps.folder' and trashed=false`;
+  const searchRes = await fetch(
+    `https://www.googleapis.com/drive/v3/files?q=${encodeURIComponent(query)}&fields=files(id,name)`,
+    { headers: { Authorization: `Bearer ${accessToken}` } }
+  );
+  const searchData = await searchRes.json();
+  
+  if (searchData.files?.length > 0) {
+    return searchData.files[0].id;
+  }
+
+  // Create the folder
+  const createRes = await fetch('https://www.googleapis.com/drive/v3/files', {
+    method: 'POST',
+    headers: {
+      Authorization: `Bearer ${accessToken}`,
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      name: folderName,
+      mimeType: 'application/vnd.google-apps.folder',
+      parents: [parentId],
+    }),
+  });
+  const created = await createRes.json();
+  return created.id;
+}
 
 async function refreshAccessToken(refreshToken: string) {
   const clientId = Deno.env.get('GOOGLE_DRIVE_CLIENT_ID')!;
