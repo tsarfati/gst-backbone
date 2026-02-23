@@ -8,7 +8,8 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
-import { ArrowLeft, Download, FileSpreadsheet, ChevronDown, ChevronRight } from "lucide-react";
+import { ArrowLeft, Download, FileSpreadsheet, ChevronDown, ChevronRight, Mail } from "lucide-react";
+import ReportEmailModal from "@/components/ReportEmailModal";
 import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
@@ -157,7 +158,9 @@ export default function SubcontractDetailsByVendor() {
     }
   };
 
-  const exportToPDF = () => {
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  const buildPdfDoc = () => {
     const doc = new jsPDF({ orientation: "landscape" });
     
     doc.setFontSize(18);
@@ -208,6 +211,11 @@ export default function SubcontractDetailsByVendor() {
       yPos = (doc as any).lastAutoTable.finalY + 10;
     });
     
+    return doc;
+  };
+
+  const exportToPDF = () => {
+    const doc = buildPdfDoc();
     doc.save(`subcontract-details-by-vendor-${format(new Date(), "yyyy-MM-dd")}.pdf`);
     toast({ title: "Success", description: "PDF exported successfully" });
   };
@@ -290,6 +298,10 @@ export default function SubcontractDetailsByVendor() {
           <Button variant="outline" size="sm" onClick={exportToExcel} disabled={loading || vendorGroups.length === 0}>
             <FileSpreadsheet className="h-4 w-4 mr-2" />
             Excel
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => setEmailModalOpen(true)} disabled={loading || vendorGroups.length === 0}>
+            <Mail className="h-4 w-4 mr-2" />
+            Email
           </Button>
         </div>
       </div>
@@ -405,6 +417,14 @@ export default function SubcontractDetailsByVendor() {
           ))}
         </div>
       )}
+
+      <ReportEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        generatePdf={buildPdfDoc}
+        reportName="Subcontract Details by Vendor"
+        fileName={`subcontract-details-by-vendor-${format(new Date(), "yyyy-MM-dd")}.pdf`}
+      />
     </div>
   );
 }

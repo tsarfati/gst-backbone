@@ -39,7 +39,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const { to, subject, body, file_name, file_url, attachments, user_id } = await req.json();
+    const { to, subject, body, file_name, file_url, attachments, user_id, pdf_attachment } = await req.json();
 
     // Get user's SMTP settings
     const { data: emailSettings, error: settingsError } = await supabase
@@ -55,27 +55,42 @@ serve(async (req: Request) => {
       );
     }
 
-    // Build file list from attachments array or legacy single file
-    const fileList = attachments && attachments.length > 0
-      ? attachments
-      : [{ file_name, file_url }];
-
-    // Build attachment links HTML
-    const attachmentHtml = fileList.map((f: any) =>
-      `<p>📎 <a href="${f.file_url}" style="color: #2563eb;">${f.file_name}</a></p>`
-    ).join('');
-
-    const emailHtml = `
+    // Build email HTML body
+    let emailHtml = `
       <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
         <div style="white-space: pre-wrap;">${body.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+    `;
+
+    // Add file links if present (file sharing mode)
+    const fileList = attachments && attachments.length > 0
+      ? attachments
+      : file_name && file_url
+        ? [{ file_name, file_url }]
+        : [];
+
+    if (fileList.length > 0) {
+      const attachmentHtml = fileList.map((f: any) =>
+        `<p>📎 <a href="${f.file_url}" style="color: #2563eb;">${f.file_name}</a></p>`
+      ).join('');
+
+      emailHtml += `
         <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
         <div style="color: #666; font-size: 14px;">
           ${attachmentHtml}
           <small>These links expire in 7 days.</small>
         </div>
-        ${emailSettings.email_signature ? `<hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" /><div style="white-space: pre-wrap; color: #666; font-size: 13px;">${emailSettings.email_signature.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>` : ''}
-      </div>
-    `;
+      `;
+    }
+
+    // Add signature if available
+    if (emailSettings.email_signature) {
+      emailHtml += `
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
+        <div style="white-space: pre-wrap; color: #666; font-size: 13px;">${emailSettings.email_signature.replace(/</g, '&lt;').replace(/>/g, '&gt;')}</div>
+      `;
+    }
+
+    emailHtml += '</div>';
 
     // Create nodemailer transporter
     const transporter = nodemailer.createTransport({
@@ -90,13 +105,25 @@ serve(async (req: Request) => {
 
     const recipients = Array.isArray(to) ? to.join(", ") : to;
 
-    await transporter.sendMail({
+    // Build mail options
+    const mailOptions: any = {
       from: emailSettings.from_email || emailSettings.smtp_username,
       to: recipients,
       subject: subject,
       text: body,
       html: emailHtml,
-    });
+    };
+
+    // Handle PDF attachment (base64 encoded)
+    if (pdf_attachment && pdf_attachment.content) {
+      mailOptions.attachments = [{
+        filename: pdf_attachment.filename || 'report.pdf',
+        content: Buffer.from(pdf_attachment.content, 'base64'),
+        contentType: 'application/pdf',
+      }];
+    }
+
+    await transporter.sendMail(mailOptions);
 
     return new Response(
       JSON.stringify({ success: true }),

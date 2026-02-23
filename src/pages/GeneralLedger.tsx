@@ -14,7 +14,8 @@ import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { CalendarIcon, ChevronDown, Loader2, Download, FileDown, X } from "lucide-react";
+import { CalendarIcon, ChevronDown, Loader2, Download, FileDown, X, Mail } from "lucide-react";
+import ReportEmailModal from "@/components/ReportEmailModal";
 import { format, startOfMonth, endOfMonth, startOfYear, endOfYear, subMonths } from "date-fns";
 import * as XLSX from "xlsx";
 import jsPDF from "jspdf";
@@ -402,82 +403,52 @@ const formatCurrency = (n: number | null | undefined) =>
     });
   };
 
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+
+  const buildPdfDoc = async () => {
+    const doc = new jsPDF();
+    doc.setFontSize(18);
+    doc.text("General Ledger Report", 14, 20);
+    doc.setFontSize(11);
+    doc.text(`Company: ${currentCompany?.display_name || currentCompany?.name || ""}`, 14, 30);
+    doc.text(`Period: ${format(dateStart, "MM/dd/yyyy")} - ${format(dateEnd, "MM/dd/yyyy")}`, 14, 36);
+    doc.text(`Generated: ${format(new Date(), "MM/dd/yyyy HH:mm")}`, 14, 42);
+    const totalDebit = lines.reduce((sum, line) => sum + (line.debit_amount || 0), 0);
+    const totalCredit = lines.reduce((sum, line) => sum + (line.credit_amount || 0), 0);
+    autoTable(doc, {
+      startY: 50,
+      head: [['Date', 'Account', 'Reference', 'Description', 'Debit', 'Credit']],
+      body: lines.map(line => [
+        format(new Date(line.entry_date), "MM/dd/yyyy"),
+        `${accountMap.get(line.account_id)?.account_number} - ${accountMap.get(line.account_id)?.account_name}`,
+        line.reference || "",
+        (line.description || "") + (line.is_reversed ? " (REVERSED)" : ""),
+        formatCurrency(line.debit_amount),
+        formatCurrency(line.credit_amount),
+      ]),
+      foot: [['', '', '', 'Totals:', formatCurrency(totalDebit), formatCurrency(totalCredit)]],
+      theme: 'grid',
+      styles: { fontSize: 8 },
+      headStyles: { fillColor: [66, 139, 202] },
+      footStyles: { fillColor: [240, 240, 240], fontStyle: 'bold' },
+    });
+    return doc;
+  };
+
   const handleExportPDF = async () => {
     if (lines.length === 0) {
-      toast({
-        title: "No data to export",
-        description: "Please load the report first",
-        variant: "destructive",
-      });
+      toast({ title: "No data to export", description: "Please load the report first", variant: "destructive" });
       return;
     }
-
     try {
-      // Check for custom template
-      const { data: templateData } = await supabase
-        .from('pdf_templates')
-        .select('*')
-        .eq('company_id', currentCompany?.id)
-        .eq('template_type', 'general_ledger')
-        .maybeSingle();
-
-      if (templateData?.template_file_url) {
-        // Use custom template if available
-        toast({
-          title: "Custom template support",
-          description: "Custom templates for General Ledger are coming soon. Using default PDF for now.",
-        });
-      }
-
-      // Generate default PDF
-      const doc = new jsPDF();
-      
-      // Add title
-      doc.setFontSize(18);
-      doc.text("General Ledger Report", 14, 20);
-      
-      // Add company info
-      doc.setFontSize(11);
-      doc.text(`Company: ${currentCompany?.display_name || currentCompany?.name || ""}`, 14, 30);
-      doc.text(`Period: ${format(dateStart, "MM/dd/yyyy")} - ${format(dateEnd, "MM/dd/yyyy")}`, 14, 36);
-      doc.text(`Generated: ${format(new Date(), "MM/dd/yyyy HH:mm")}`, 14, 42);
-
-      // Calculate totals
-      const totalDebit = lines.reduce((sum, line) => sum + (line.debit_amount || 0), 0);
-      const totalCredit = lines.reduce((sum, line) => sum + (line.credit_amount || 0), 0);
-
-      // Add table
-      autoTable(doc, {
-        startY: 50,
-        head: [['Date', 'Account', 'Reference', 'Description', 'Debit', 'Credit']],
-        body: lines.map(line => [
-          format(new Date(line.entry_date), "MM/dd/yyyy"),
-          `${accountMap.get(line.account_id)?.account_number} - ${accountMap.get(line.account_id)?.account_name}`,
-          line.reference || "",
-          (line.description || "") + (line.is_reversed ? " (REVERSED)" : ""),
-          formatCurrency(line.debit_amount),
-          formatCurrency(line.credit_amount),
-        ]),
-        foot: [['', '', '', 'Totals:', formatCurrency(totalDebit), formatCurrency(totalCredit)]],
-        theme: 'grid',
-        styles: { fontSize: 8 },
-        headStyles: { fillColor: [66, 139, 202] },
-        footStyles: { fillColor: [240, 240, 240], fontStyle: 'bold' },
-      });
-
+      const doc = await buildPdfDoc();
       doc.save(`General_Ledger_${format(dateStart, "yyyy-MM-dd")}_to_${format(dateEnd, "yyyy-MM-dd")}.pdf`);
-
-      toast({
-        title: "Export successful",
-        description: "General Ledger has been exported to PDF",
-      });
+      toast({ title: "Export successful", description: "General Ledger has been exported to PDF" });
     } catch (error) {
       console.error('Error exporting PDF:', error);
-      toast({
-        title: "Export failed",
-        description: "Failed to export PDF",
-        variant: "destructive",
-      });
+      toast({ title: "Export failed", description: "Failed to export PDF", variant: "destructive" });
+    }
+  };
     }
   };
 
@@ -623,6 +594,10 @@ const formatCurrency = (n: number | null | undefined) =>
               <FileDown className="mr-2 h-4 w-4" />
               Export to PDF
             </Button>
+            <Button onClick={() => setEmailModalOpen(true)} variant="outline" disabled={lines.length === 0}>
+              <Mail className="mr-2 h-4 w-4" />
+              Email Report
+            </Button>
           </div>
         </CardContent>
       </Card>
@@ -730,6 +705,14 @@ const formatCurrency = (n: number | null | undefined) =>
           </CardContent>
         </Card>
       )}
+
+      <ReportEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        generatePdf={buildPdfDoc}
+        reportName="General Ledger Report"
+        fileName={`General_Ledger_${format(dateStart, "yyyy-MM-dd")}_to_${format(dateEnd, "yyyy-MM-dd")}.pdf`}
+      />
     </div>
   );
 }
