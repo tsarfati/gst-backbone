@@ -12,29 +12,30 @@ import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddSystemUserDialog from "@/components/AddSystemUserDialog";
 
-const UserAvatar = ({ avatarUrl, name }: { avatarUrl?: string; name: string }) => {
+const UserAvatar = ({ avatarUrl, name }: { avatarUrl?: string | null; name: string }) => {
   const [imgError, setImgError] = useState(false);
   const initial = name?.[0]?.toUpperCase() || 'U';
 
-  // Add cache-busting to avoid stale/blocked cached responses
-  const imgSrc = avatarUrl ? `${avatarUrl}?t=${Date.now()}` : null;
+  if (!avatarUrl || imgError) {
+    return (
+      <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+        <span className="text-sm font-semibold text-primary">{initial}</span>
+      </div>
+    );
+  }
 
   return (
     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-      {imgSrc && !imgError ? (
-        <img
-          src={imgSrc}
-          alt=""
-          className="h-10 w-10 rounded-full object-cover"
-          crossOrigin="anonymous"
-          onError={(e) => {
-            console.warn('[UserAvatar] Failed to load avatar for', name, ':', avatarUrl, e);
-            setImgError(true);
-          }}
-        />
-      ) : (
-        <span className="text-sm font-semibold text-primary">{initial}</span>
-      )}
+      <img
+        src={avatarUrl}
+        alt={name}
+        className="h-full w-full object-cover"
+        referrerPolicy="no-referrer"
+        onError={() => {
+          console.warn('[UserAvatar] img failed:', avatarUrl);
+          setImgError(true);
+        }}
+      />
     </div>
   );
 };
