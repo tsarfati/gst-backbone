@@ -384,7 +384,28 @@ export default function FileUploadSettingsComponent() {
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
-              {driveConnected ? (
+              {!checkingDrive && !driveConnected && (
+                <div className="flex flex-col items-center gap-3 py-4">
+                  <p className="text-sm text-muted-foreground text-center">
+                    Connect your Google account to enable automatic file syncing to Google Drive.
+                  </p>
+                  <Button
+                    size="lg"
+                    onClick={connectGoogleDrive}
+                    disabled={driveLoading}
+                  >
+                    {driveLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Connect Google Drive
+                  </Button>
+                </div>
+              )}
+              {checkingDrive && (
+                <div className="flex items-center justify-center py-4">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground mr-2" />
+                  <span className="text-sm text-muted-foreground">Checking connection...</span>
+                </div>
+              )}
+              {driveConnected && (
                 <>
                   <div className="flex items-center justify-between">
                     <Label htmlFor="enable-google-drive">Enable Google Drive Sync</Label>
@@ -425,14 +446,6 @@ export default function FileUploadSettingsComponent() {
                     Disconnect Google Drive
                   </Button>
                 </>
-              ) : (
-                <Button
-                  onClick={connectGoogleDrive}
-                  disabled={driveLoading}
-                >
-                  {driveLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Connect Google Drive
-                </Button>
               )}
             </CardContent>
           </Card>
