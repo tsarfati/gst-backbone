@@ -114,24 +114,17 @@ export default function FileUploadSettingsComponent() {
     if (!currentCompany) return;
     setDriveLoading(true);
     
-    // Open the popup immediately on user click to avoid popup blockers
-    const popup = window.open('about:blank', 'google-drive-auth', 'width=600,height=700,popup=true');
-    
     try {
       const { data, error } = await supabase.functions.invoke('google-drive-auth', {
         body: { company_id: currentCompany.id },
       });
       if (error) throw error;
-      if (data?.url && popup) {
-        popup.location.href = data.url;
-      } else if (data?.url) {
-        // Fallback if popup was blocked
-        window.open(data.url, 'google-drive-auth', 'width=600,height=700,popup=true');
+      if (data?.url) {
+        // Use full-page redirect instead of popup — Google blocks OAuth in popups/iframes
+        window.location.href = data.url;
       }
     } catch (error: any) {
-      popup?.close();
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } finally {
       setDriveLoading(false);
     }
   };
