@@ -4,12 +4,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { FileText, Upload, Pencil } from "lucide-react";
+import { FileText, Upload, Pencil, Stamp } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 
@@ -28,6 +29,9 @@ interface JobPlan {
   file_size: number | null;
   uploaded_by: string;
   uploaded_at: string;
+  architect: string | null;
+  is_permit_set: boolean;
+  revision_date: string | null;
 }
 
 export default function JobPlans({ jobId }: JobPlansProps) {
@@ -46,6 +50,9 @@ export default function JobPlans({ jobId }: JobPlansProps) {
     plan_number: "",
     revision: "",
     description: "",
+    architect: "",
+    is_permit_set: false,
+    revision_date: "",
   });
 
   useEffect(() => {
@@ -118,6 +125,9 @@ export default function JobPlans({ jobId }: JobPlansProps) {
             plan_number: formData.plan_number || null,
             revision: formData.revision || null,
             description: formData.description || null,
+            architect: formData.architect || null,
+            is_permit_set: formData.is_permit_set,
+            revision_date: formData.revision_date || null,
             file_url: fileUrl,
             file_name: fileName,
             file_size: selectedFile.size,
@@ -139,6 +149,9 @@ export default function JobPlans({ jobId }: JobPlansProps) {
             plan_number: formData.plan_number || null,
             revision: formData.revision || null,
             description: formData.description || null,
+            architect: formData.architect || null,
+            is_permit_set: formData.is_permit_set,
+            revision_date: formData.revision_date || null,
             file_url: fileUrl,
             file_name: fileName,
             file_size: selectedFile.size,
@@ -149,7 +162,7 @@ export default function JobPlans({ jobId }: JobPlansProps) {
       }
 
       setDialogOpen(false);
-      setFormData({ plan_name: "", plan_number: "", revision: "", description: "" });
+      setFormData({ plan_name: "", plan_number: "", revision: "", description: "", architect: "", is_permit_set: false, revision_date: "" });
       setSelectedFile(null);
       setEditingPlan(null);
       fetchPlans();
@@ -168,6 +181,9 @@ export default function JobPlans({ jobId }: JobPlansProps) {
       plan_number: plan.plan_number || "",
       revision: plan.revision || "",
       description: plan.description || "",
+      architect: plan.architect || "",
+      is_permit_set: plan.is_permit_set || false,
+      revision_date: plan.revision_date || "",
     });
     setDialogOpen(true);
   };
@@ -228,6 +244,15 @@ export default function JobPlans({ jobId }: JobPlansProps) {
                 {plan.revision && (
                   <p className="text-xs text-muted-foreground">Rev: {plan.revision}</p>
                 )}
+                {plan.architect && (
+                  <p className="text-xs text-muted-foreground">Architect: {plan.architect}</p>
+                )}
+                {plan.is_permit_set && (
+                  <div className="flex items-center gap-1 mt-1">
+                    <Stamp className="h-3 w-3 text-primary" />
+                    <span className="text-xs font-medium text-primary">Stamped Permit Set</span>
+                  </div>
+                )}
                 {plan.description && (
                   <p className="text-xs text-muted-foreground mt-2 line-clamp-2">
                     {plan.description}
@@ -248,8 +273,8 @@ export default function JobPlans({ jobId }: JobPlansProps) {
         onOpenChange={(open) => {
           setDialogOpen(open);
           if (!open) {
-            setEditingPlan(null);
-            setFormData({ plan_name: "", plan_number: "", revision: "", description: "" });
+          setEditingPlan(null);
+            setFormData({ plan_name: "", plan_number: "", revision: "", description: "", architect: "", is_permit_set: false, revision_date: "" });
             setSelectedFile(null);
           }
         }}
@@ -287,6 +312,32 @@ export default function JobPlans({ jobId }: JobPlansProps) {
                   placeholder="Rev 2"
                 />
               </div>
+            </div>
+            <div>
+              <Label htmlFor="architect">Architect / Design Engineer</Label>
+              <Input
+                id="architect"
+                value={formData.architect}
+                onChange={(e) => setFormData({ ...formData, architect: e.target.value })}
+                placeholder="e.g., Smith & Associates"
+              />
+            </div>
+            <div>
+              <Label htmlFor="revision_date">Revision Date</Label>
+              <Input
+                id="revision_date"
+                type="date"
+                value={formData.revision_date}
+                onChange={(e) => setFormData({ ...formData, revision_date: e.target.value })}
+              />
+            </div>
+            <div className="flex items-center space-x-2">
+              <Checkbox
+                id="is_permit_set"
+                checked={formData.is_permit_set}
+                onCheckedChange={(checked) => setFormData({ ...formData, is_permit_set: checked === true })}
+              />
+              <Label htmlFor="is_permit_set" className="cursor-pointer">Stamped Permit Set</Label>
             </div>
             <div>
               <Label htmlFor="description">Description</Label>

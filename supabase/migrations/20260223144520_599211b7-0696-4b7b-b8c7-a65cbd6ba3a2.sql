@@ -1,0 +1,5 @@
+
+ALTER TABLE public.job_plans
+ADD COLUMN IF NOT EXISTS architect TEXT,
+ADD COLUMN IF NOT EXISTS is_permit_set BOOLEAN NOT NULL DEFAULT false,
+ADD COLUMN IF NOT EXISTS revision_date DATE;
