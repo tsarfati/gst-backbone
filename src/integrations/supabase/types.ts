@@ -7974,6 +7974,7 @@ export type Database = {
       user_email_settings: {
         Row: {
           created_at: string
+          email_signature: string | null
           from_email: string | null
           from_name: string | null
           id: string
@@ -7992,6 +7993,7 @@ export type Database = {
         }
         Insert: {
           created_at?: string
+          email_signature?: string | null
           from_email?: string | null
           from_name?: string | null
           id?: string
@@ -8010,6 +8012,7 @@ export type Database = {
         }
         Update: {
           created_at?: string
+          email_signature?: string | null
           from_email?: string | null
           from_name?: string | null
           id?: string
