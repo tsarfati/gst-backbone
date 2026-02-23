@@ -113,15 +113,23 @@ export default function FileUploadSettingsComponent() {
   const connectGoogleDrive = async () => {
     if (!currentCompany) return;
     setDriveLoading(true);
+    
+    // Open the popup immediately on user click to avoid popup blockers
+    const popup = window.open('about:blank', 'google-drive-auth', 'width=600,height=700,popup=true');
+    
     try {
       const { data, error } = await supabase.functions.invoke('google-drive-auth', {
         body: { company_id: currentCompany.id },
       });
       if (error) throw error;
-      if (data?.url) {
+      if (data?.url && popup) {
+        popup.location.href = data.url;
+      } else if (data?.url) {
+        // Fallback if popup was blocked
         window.open(data.url, 'google-drive-auth', 'width=600,height=700,popup=true');
       }
     } catch (error: any) {
+      popup?.close();
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
     } finally {
       setDriveLoading(false);
