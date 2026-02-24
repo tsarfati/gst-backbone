@@ -27,7 +27,7 @@ export default function Auth() {
   const [inviteAccepted, setInviteAccepted] = useState(false);
   const [inviteHandledToken, setInviteHandledToken] = useState<string | null>(null);
   
-  const { signIn, signUp, signInWithGoogle, user, profile } = useAuth();
+  const { signIn, signUp, signInWithGoogle, user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -101,7 +101,7 @@ export default function Auth() {
         setInviteAccepted(true);
         setInviteHandledToken(inviteToken);
         await new Promise((r) => setTimeout(r, 0));
-        await supabase.auth.getSession(); // no-op refresh point
+        await refreshProfile();
 
         toast({
           title: 'Invitation accepted',

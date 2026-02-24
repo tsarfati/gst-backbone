@@ -18,6 +18,7 @@ export function AccessControl({ children }: AccessControlProps) {
   const location = useLocation();
   const [checking, setChecking] = useState(false);
   const [initialized, setInitialized] = useState(false);
+  const isInviteAuthRoute = location.pathname === '/auth' && new URLSearchParams(location.search).has('invite');
 
   useEffect(() => {
     if (authLoading || companyLoading || tenantLoading) {
@@ -34,6 +35,14 @@ export function AccessControl({ children }: AccessControlProps) {
     // If no user, redirect to auth
     if (!user) {
       if (location.pathname !== '/auth') navigate('/auth', { replace: true });
+      return;
+    }
+
+    // Allow invited users to reach /auth?invite=... even if their profile is still pending,
+    // so the auth page can run the invite acceptance flow and activate their account.
+    if (isInviteAuthRoute) {
+      setChecking(false);
+      if (!initialized) setInitialized(true);
       return;
     }
 
@@ -118,10 +127,10 @@ export function AccessControl({ children }: AccessControlProps) {
     if (!initialized) {
       setInitialized(true);
     }
-  }, [user?.id, profile?.profile_completed, profile?.current_company_id, userCompanies.length, authLoading, companyLoading, tenantLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname]);
+  }, [user?.id, profile?.profile_completed, profile?.current_company_id, profile?.status, userCompanies.length, authLoading, companyLoading, tenantLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute]);
 
   // Show account status splash screens
-  if (profile && (profile.status === 'pending' || profile.status === 'suspended')) {
+  if (!isInviteAuthRoute && profile && (profile.status === 'pending' || profile.status === 'suspended')) {
     return <AccountStatusScreen status={profile.status as 'pending' | 'suspended'} />;
   }
 
