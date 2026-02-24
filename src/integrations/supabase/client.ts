@@ -11,6 +11,8 @@ const SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiO
 export const supabase = createClient<Database>(SUPABASE_URL, SUPABASE_PUBLISHABLE_KEY, {
   auth: {
     storage: localStorage,
+    // Prevent localhost session collisions with other BuilderLYNK apps/previews on the same origin.
+    storageKey: "builderlynk-gst-backbone-auth",
     persistSession: true,
     autoRefreshToken: true,
   }

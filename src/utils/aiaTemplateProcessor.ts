@@ -91,15 +91,67 @@ function formatCurrency(value: number): string {
 /**
  * Replace placeholders in a string with actual values
  */
+const EXPLICIT_NUMERIC_PLACEHOLDERS = new Set([
+  'application_number',
+  'contract_amount',
+  'change_orders_amount',
+  'current_contract_sum',
+  'total_completed',
+  'total_retainage',
+  'total_earned_less_retainage',
+  'less_previous_certificates',
+  'current_payment_due',
+  'balance_to_finish',
+  'total_completed_stored_to_date',
+  'total_completed_and_stored_to_date',
+  'sov_scheduled_value',
+  'sov_previous_applications',
+  'sov_this_period',
+  'sov_materials_stored',
+  'sov_total_completed',
+  'sov_total_completed_to_date',
+  'sov_total_completed_stored_to_date',
+  'sov_total_completed_and_stored_to_date',
+  'sov_percent_complete',
+  'sov_balance_to_finish',
+  'sov_retainage',
+]);
+
+function looksNumericPlaceholder(rawKey: string): boolean {
+  const key = rawKey.trim().toLowerCase();
+  if (EXPLICIT_NUMERIC_PLACEHOLDERS.has(key)) return true;
+  if (key === 'project_number' || key === 'architect_project_no' || key === 'sov_item_no') return false;
+  return /(amount|sum|total|retainage|payment|balance|value|percent|applications|stored|completed)/.test(key);
+}
+
+function defaultPlaceholderValue(rawKey: string): string {
+  const key = rawKey.trim().toLowerCase();
+  if (!looksNumericPlaceholder(key)) return '';
+  if (key.includes('percent')) return '0%';
+  if (key.includes('amount') || key.includes('sum') || key.includes('total') || key.includes('payment') || key.includes('balance') || key.includes('value') || key.includes('retainage')) {
+    return '$0.00';
+  }
+  return '0';
+}
+
+function removeUnresolvedPlaceholders(value: string): string {
+  return value.replace(/\{([^{}]+)\}/g, (_full, rawKey: string) => defaultPlaceholderValue(rawKey));
+}
+
 function replacePlaceholders(template: string | number | undefined, placeholders: Record<string, string>): string {
   if (template === undefined || template === null) return '';
   
   let result = String(template);
   
   for (const [key, value] of Object.entries(placeholders)) {
-    const placeholder = new RegExp(`\\{${key}\\}`, 'gi');
+    const escapedKey = key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+    // Allow template authors to include whitespace inside braces, e.g. "{ company_city }"
+    const placeholder = new RegExp(`\\{\\s*${escapedKey}\\s*\\}`, 'gi');
     result = result.replace(placeholder, value || '');
   }
+
+  // Remove any placeholder tokens left behind by template variants we do not explicitly map.
+  result = removeUnresolvedPlaceholders(result);
   
   return result;
 }
@@ -253,6 +305,42 @@ export async function processAIATemplate(
     console.log('Workbook sheets:', workbook.worksheets.map(ws => ws.name));
 
     // Create placeholder mappings
+    const g703Totals = data.lineItems.reduce((acc, item) => {
+      const totalCompleted = Number(item.total_completed || 0);
+      const materialsStored = Number(item.materials_stored || 0);
+      const lineRetainage = Number(item.retainage || 0);
+      const inferredRetainageRate = totalCompleted > 0 ? lineRetainage / totalCompleted : 0;
+      const completedWorkBase = Math.max(totalCompleted - materialsStored, 0);
+      const storedMaterialBase = Math.max(materialsStored, 0);
+      const retainageCompletedWork = completedWorkBase * inferredRetainageRate;
+      const retainageStoredMaterial = storedMaterialBase * inferredRetainageRate;
+
+      return {
+        scheduled_value: acc.scheduled_value + Number(item.scheduled_value || 0),
+        previous_applications: acc.previous_applications + Number(item.previous_applications || 0),
+        this_period: acc.this_period + Number(item.this_period || 0),
+        materials_stored: acc.materials_stored + materialsStored,
+        total_completed: acc.total_completed + totalCompleted,
+        balance_to_finish: acc.balance_to_finish + Number(item.balance_to_finish || 0),
+        retainage: acc.retainage + lineRetainage,
+        retainage_completed_work: acc.retainage_completed_work + retainageCompletedWork,
+        retainage_stored_material: acc.retainage_stored_material + retainageStoredMaterial,
+      };
+    }, {
+      scheduled_value: 0,
+      previous_applications: 0,
+      this_period: 0,
+      materials_stored: 0,
+      total_completed: 0,
+      balance_to_finish: 0,
+      retainage: 0,
+      retainage_completed_work: 0,
+      retainage_stored_material: 0,
+    });
+    const g703OverallPercent = g703Totals.scheduled_value > 0
+      ? (g703Totals.total_completed / g703Totals.scheduled_value) * 100
+      : 0;
+
     const placeholders: Record<string, string> = {
       // Company Information
       company_name: data.company_name,
@@ -301,6 +389,32 @@ export async function processAIATemplate(
       less_previous_certificates: data.less_previous_certificates,
       current_payment_due: data.current_payment_due,
       balance_to_finish: data.balance_to_finish,
+      // Common template aliases seen across AIA workbook variants
+      total_completed_stored_to_date: data.total_completed,
+      total_completed_and_stored_to_date: data.total_completed,
+
+      // G703 totals row placeholders (template-driven totals row below the SOV section)
+      g703_total_scheduled_value: formatCurrency(g703Totals.scheduled_value),
+      g703_total_revised_budget: formatCurrency(g703Totals.scheduled_value),
+      g703_total_revised_contract: formatCurrency(g703Totals.scheduled_value),
+      g703_total_previous_applications: formatCurrency(g703Totals.previous_applications),
+      g703_total_revisions: formatCurrency(g703Totals.previous_applications),
+      g703_total_revision: formatCurrency(g703Totals.previous_applications),
+      g703_total_this_period: formatCurrency(g703Totals.this_period),
+      g703_total_materials_stored: formatCurrency(g703Totals.materials_stored),
+      g703_total_completed: formatCurrency(g703Totals.total_completed),
+      g703_total_completed_to_date: formatCurrency(g703Totals.total_completed),
+      g703_total_completed_stored_to_date: formatCurrency(g703Totals.total_completed),
+      g703_total_completed_and_stored_to_date: formatCurrency(g703Totals.total_completed),
+      g703_total_balance_to_finish: formatCurrency(g703Totals.balance_to_finish),
+      g703_total_retainage: formatCurrency(g703Totals.retainage),
+      g703_total_retainage_completed_work: formatCurrency(g703Totals.retainage_completed_work),
+      g703_total_retainage_complete_work: formatCurrency(g703Totals.retainage_completed_work),
+      g703_total_retainage_completed: formatCurrency(g703Totals.retainage_completed_work),
+      g703_total_retainage_stored_material: formatCurrency(g703Totals.retainage_stored_material),
+      g703_total_retainage_materials_stored: formatCurrency(g703Totals.retainage_stored_material),
+      g703_total_retainage_stored: formatCurrency(g703Totals.retainage_stored_material),
+      g703_overall_percent_complete: `${g703OverallPercent.toFixed(1)}%`,
     };
 
     // Process each worksheet
@@ -342,6 +456,16 @@ export async function processAIATemplate(
           const targetRow = worksheet.getRow(targetRowNumber);
 
           const itemPlaceholders: Record<string, string> = {
+            // Split retainage placeholders are inferred from the line's total retainage proportionally.
+            // This supports templates that break retainage into "completed work" and "stored material" columns.
+            sov_retainage_completed_work: formatCurrency(
+              Math.max(item.total_completed - item.materials_stored, 0) *
+              (item.total_completed > 0 ? item.retainage / item.total_completed : 0)
+            ),
+            sov_retainage_stored_material: formatCurrency(
+              Math.max(item.materials_stored, 0) *
+              (item.total_completed > 0 ? item.retainage / item.total_completed : 0)
+            ),
             sov_item_no: item.item_number,
             sov_description: item.description,
             sov_scheduled_value: formatCurrency(item.scheduled_value),
@@ -349,6 +473,9 @@ export async function processAIATemplate(
             sov_this_period: formatCurrency(item.this_period),
             sov_materials_stored: formatCurrency(item.materials_stored),
             sov_total_completed: formatCurrency(item.total_completed),
+            sov_total_completed_to_date: formatCurrency(item.total_completed),
+            sov_total_completed_stored_to_date: formatCurrency(item.total_completed),
+            sov_total_completed_and_stored_to_date: formatCurrency(item.total_completed),
             sov_percent_complete: `${item.percent_complete.toFixed(1)}%`,
             sov_balance_to_finish: formatCurrency(item.balance_to_finish),
             sov_retainage: formatCurrency(item.retainage),

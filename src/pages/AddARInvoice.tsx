@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useSearchParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +22,7 @@ import { generateAIAInvoice, downloadBlob, type AIATemplateData } from "@/utils/
 interface Job {
   id: string;
   name: string;
+  project_number?: string | null;
   customer_id: string | null;
   address: string | null;
 }
@@ -40,6 +41,8 @@ interface SOVItem {
   item_number: string;
   description: string;
   scheduled_value: number;
+  workflow_status?: "draft" | "approved";
+  approved_at?: string | null;
 }
 
 interface LineItem {
@@ -56,12 +59,39 @@ interface LineItem {
   retainage: number;
 }
 
-export default function AddARInvoice() {
+interface AddARInvoiceProps {
+  embedded?: boolean;
+  initialJobId?: string;
+  initialCustomerId?: string;
+  existingInvoiceId?: string;
+  lockJobContext?: boolean;
+  onSaved?: (invoiceId: string) => void;
+  onStatusChanged?: (invoiceId: string, status: string) => void;
+  onCancel?: () => void;
+}
+
+export default function AddARInvoice({
+  embedded = false,
+  initialJobId,
+  initialCustomerId,
+  existingInvoiceId,
+  lockJobContext: lockJobContextProp = false,
+  onSaved,
+  onStatusChanged,
+  onCancel,
+}: AddARInvoiceProps = {}) {
   const navigate = useNavigate();
+  const { id: routeInvoiceId } = useParams();
   const [searchParams] = useSearchParams();
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
+
+  const launchFromJobBilling = embedded || searchParams.get("from") === "job-billing";
+  const effectiveExistingInvoiceId = existingInvoiceId || (!embedded ? routeInvoiceId : undefined);
+  const preselectedJobId = initialJobId ?? searchParams.get("jobId") ?? "";
+  const preselectedCustomerId = initialCustomerId ?? searchParams.get("customerId") ?? "";
+  const lockJobContext = lockJobContextProp || launchFromJobBilling || searchParams.get("lockJobContext") === "1";
 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -70,11 +100,15 @@ export default function AddARInvoice() {
   const [sovItems, setSovItems] = useState<SOVItem[]>([]);
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [hasNoSOV, setHasNoSOV] = useState(false);
+  const [isSOVApproved, setIsSOVApproved] = useState(false);
   const [previousInvoices, setPreviousInvoices] = useState<any[]>([]);
+  const [currentInvoiceId, setCurrentInvoiceId] = useState<string | null>(effectiveExistingInvoiceId || null);
+  const [currentInvoiceStatus, setCurrentInvoiceStatus] = useState<string>("draft");
+  const [isHydratingExistingInvoice, setIsHydratingExistingInvoice] = useState(false);
 
   // Form state
-  const [selectedJobId, setSelectedJobId] = useState<string>(searchParams.get("jobId") || "");
-  const [selectedCustomerId, setSelectedCustomerId] = useState<string>("");
+  const [selectedJobId, setSelectedJobId] = useState<string>(preselectedJobId);
+  const [selectedCustomerId, setSelectedCustomerId] = useState<string>(preselectedCustomerId);
   const [invoiceNumber, setInvoiceNumber] = useState("");
   const [applicationNumber, setApplicationNumber] = useState(1);
   const [periodFrom, setPeriodFrom] = useState(format(new Date(), "yyyy-MM-dd"));
@@ -90,8 +124,12 @@ export default function AddARInvoice() {
 
   useEffect(() => {
     if (selectedJobId && currentCompany?.id) {
+      if (isHydratingExistingInvoice) return;
+      if (currentInvoiceId) return;
       loadSOVForJob(selectedJobId);
-      loadPreviousInvoices(selectedJobId);
+      if (!currentInvoiceId) {
+        loadPreviousInvoices(selectedJobId);
+      }
       
       // Set customer from job
       const job = jobs.find(j => j.id === selectedJobId);
@@ -99,7 +137,30 @@ export default function AddARInvoice() {
         setSelectedCustomerId(job.customer_id);
       }
     }
-  }, [selectedJobId, jobs]);
+  }, [selectedJobId, jobs, currentCompany?.id, currentInvoiceId, isHydratingExistingInvoice]);
+
+  const navigateAfterSave = (invoiceId?: string) => {
+    if (embedded) {
+      if (invoiceId && onSaved) onSaved(invoiceId);
+      if (!invoiceId && onCancel) onCancel();
+      return;
+    }
+
+    if (launchFromJobBilling && selectedJobId) {
+      const params = new URLSearchParams({ tab: "billing" });
+      if (invoiceId) {
+        params.set("drawId", invoiceId);
+      }
+      navigate(`/jobs/${selectedJobId}?${params.toString()}`);
+      return;
+    }
+
+    if (invoiceId) {
+      navigate(`/receivables/invoices/${invoiceId}`);
+    } else {
+      navigate("/receivables/invoices");
+    }
+  };
 
   const loadInitialData = async () => {
     try {
@@ -108,7 +169,7 @@ export default function AddARInvoice() {
       const [jobsRes, customersRes] = await Promise.all([
         supabase
           .from("jobs")
-          .select("id, name, customer_id, address")
+          .select("id, name, project_number, customer_id, address")
           .eq("company_id", currentCompany!.id)
           .eq("status", "active")
           .order("name"),
@@ -123,7 +184,23 @@ export default function AddARInvoice() {
       if (jobsRes.error) throw jobsRes.error;
       if (customersRes.error) throw customersRes.error;
 
-      setJobs(jobsRes.data || []);
+      let jobsData = jobsRes.data || [];
+
+      if (preselectedJobId && !jobsData.some((j) => j.id === preselectedJobId)) {
+        const { data: preselectedJob, error: preselectedJobError } = await supabase
+          .from("jobs")
+          .select("id, name, project_number, customer_id, address")
+          .eq("company_id", currentCompany!.id)
+          .eq("id", preselectedJobId)
+          .maybeSingle();
+
+        if (preselectedJobError) throw preselectedJobError;
+        if (preselectedJob) {
+          jobsData = [preselectedJob, ...jobsData];
+        }
+      }
+
+      setJobs(jobsData);
       setCustomers(customersRes.data || []);
 
       // Generate invoice number
@@ -133,6 +210,10 @@ export default function AddARInvoice() {
         .eq("company_id", currentCompany!.id);
       
       setInvoiceNumber(`INV-${String((count || 0) + 1).padStart(5, "0")}`);
+
+      if (effectiveExistingInvoiceId) {
+        await loadExistingInvoice(effectiveExistingInvoiceId);
+      }
     } catch (error: any) {
       console.error("Error loading data:", error);
       toast({
@@ -145,7 +226,115 @@ export default function AddARInvoice() {
     }
   };
 
-  const loadSOVForJob = async (jobId: string) => {
+  const recalcLineItem = (item: LineItem, previousCompleted: number, nextRetainagePercent: number): LineItem => {
+    const total_completed = previousCompleted + item.this_period + item.materials_stored;
+    const percent_complete = item.scheduled_value > 0
+      ? Math.round((total_completed / item.scheduled_value) * 10000) / 100
+      : 0;
+    const balance_to_finish = item.scheduled_value - total_completed;
+    const retainage = total_completed * (nextRetainagePercent / 100);
+
+    return {
+      ...item,
+      previous_applications: previousCompleted,
+      total_completed,
+      percent_complete,
+      balance_to_finish,
+      retainage,
+    };
+  };
+
+  const loadExistingInvoice = async (invoiceId: string) => {
+    try {
+      setIsHydratingExistingInvoice(true);
+
+      const { data: invoice, error: invoiceError } = await supabase
+        .from("ar_invoices")
+        .select(`
+          id,
+          customer_id,
+          job_id,
+          invoice_number,
+          application_number,
+          period_from,
+          period_to,
+          contract_date,
+          retainage_percent,
+          status,
+          ar_invoice_line_items (
+            sov_id,
+            scheduled_value,
+            previous_applications,
+            this_period,
+            materials_stored,
+            total_completed,
+            percent_complete,
+            balance_to_finish,
+            retainage
+          )
+        `)
+        .eq("company_id", currentCompany!.id)
+        .eq("id", invoiceId)
+        .single();
+
+      if (invoiceError) throw invoiceError;
+
+      setCurrentInvoiceId(invoice.id);
+      setCurrentInvoiceStatus(invoice.status || "draft");
+      setSelectedJobId(invoice.job_id || "");
+      setSelectedCustomerId(invoice.customer_id || "");
+      setInvoiceNumber(invoice.invoice_number || "");
+      setApplicationNumber(invoice.application_number || 1);
+      setPeriodFrom(invoice.period_from || format(new Date(), "yyyy-MM-dd"));
+      setPeriodTo(invoice.period_to || format(new Date(), "yyyy-MM-dd"));
+      setContractDate(invoice.contract_date || "");
+      setRetainagePercent(Number(invoice.retainage_percent ?? 10));
+
+      const sovData = await loadSOVForJob(invoice.job_id, { initializeLineItems: false });
+      const savedRows = (invoice.ar_invoice_line_items || []) as any[];
+      const savedBySovId = new Map(savedRows.map((row) => [row.sov_id, row]));
+
+      const mergedItems: LineItem[] = (sovData || []).map((sovItem: any) => {
+        const scheduled = Number(sovItem.scheduled_value || 0);
+        const saved = savedBySovId.get(sovItem.id);
+        const base: LineItem = {
+          sov_id: sovItem.id,
+          item_number: sovItem.item_number,
+          description: sovItem.description,
+          scheduled_value: scheduled,
+          previous_applications: Number(saved?.previous_applications || 0),
+          this_period: Number(saved?.this_period || 0),
+          materials_stored: Number(saved?.materials_stored || 0),
+          total_completed: Number(saved?.total_completed || 0),
+          percent_complete: Number(saved?.percent_complete || 0),
+          balance_to_finish: Number(saved?.balance_to_finish ?? scheduled),
+          retainage: Number(saved?.retainage || 0),
+        };
+
+        return recalcLineItem(base, Number(saved?.previous_applications || 0), Number(invoice.retainage_percent ?? 10));
+      });
+
+      setPreviousInvoices(
+        mergedItems.map((item) => ({
+          sov_id: item.sov_id,
+          total_completed: item.previous_applications,
+        }))
+      );
+      setLineItems(mergedItems);
+    } catch (error: any) {
+      console.error("Error loading existing invoice:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to load invoice draft",
+        variant: "destructive",
+      });
+    } finally {
+      setIsHydratingExistingInvoice(false);
+    }
+  };
+
+  const loadSOVForJob = async (jobId: string, options?: { initializeLineItems?: boolean }) => {
+    const initializeLineItems = options?.initializeLineItems ?? true;
     try {
       const { data, error } = await supabase
         .from("schedule_of_values")
@@ -159,35 +348,44 @@ export default function AddARInvoice() {
 
       if (!data || data.length === 0) {
         setHasNoSOV(true);
+        setIsSOVApproved(false);
         setSovItems([]);
-        setLineItems([]);
+        if (initializeLineItems) setLineItems([]);
         return;
       }
 
       setHasNoSOV(false);
+      setIsSOVApproved(data.every((item) => (item as any).workflow_status === "approved"));
       setSovItems(data.map(item => ({
         id: item.id,
         item_number: item.item_number,
         description: item.description,
-        scheduled_value: Number(item.scheduled_value)
+        scheduled_value: Number(item.scheduled_value),
+        workflow_status: (item as any).workflow_status || "draft",
+        approved_at: (item as any).approved_at ?? null,
       })));
 
       // Initialize line items
-      setLineItems(data.map(item => ({
-        sov_id: item.id,
-        item_number: item.item_number,
-        description: item.description,
-        scheduled_value: Number(item.scheduled_value),
-        previous_applications: 0,
-        this_period: 0,
-        materials_stored: 0,
-        total_completed: 0,
-        percent_complete: 0,
-        balance_to_finish: Number(item.scheduled_value),
-        retainage: 0
-      })));
+      if (initializeLineItems) {
+        setLineItems(data.map(item => ({
+          sov_id: item.id,
+          item_number: item.item_number,
+          description: item.description,
+          scheduled_value: Number(item.scheduled_value),
+          previous_applications: 0,
+          this_period: 0,
+          materials_stored: 0,
+          total_completed: 0,
+          percent_complete: 0,
+          balance_to_finish: Number(item.scheduled_value),
+          retainage: 0
+        })));
+      }
+
+      return data;
     } catch (error: any) {
       console.error("Error loading SOV:", error);
+      return null;
     }
   };
 
@@ -290,21 +488,104 @@ export default function AddARInvoice() {
   const totalRetainage = totals.retainage;
   const lessPreviousCertificates = totals.previousApplications - (totals.previousApplications * (retainagePercent / 100));
   const currentPaymentDue = (totalCompletedStored - totalRetainage) - lessPreviousCertificates;
+  const isDraftEditable = (currentInvoiceStatus || "draft").toLowerCase() === "draft";
 
-  const handleSave = async () => {
+  const upsertInvoiceAndLineItems = async (targetStatus: string = "draft") => {
     if (!selectedJobId || !selectedCustomerId) {
-      toast({
-        title: "Error",
-        description: "Please select a job and customer",
-        variant: "destructive",
-      });
-      return;
+      throw new Error("Please select a job and customer");
     }
 
     if (lineItems.length === 0) {
+      throw new Error("No line items to invoice");
+    }
+
+    if (!isSOVApproved) {
+      throw new Error("Approve the Schedule of Values in Job Billing before creating a draw invoice.");
+    }
+
+    const invoicePayload = {
+      company_id: currentCompany!.id,
+      customer_id: selectedCustomerId,
+      job_id: selectedJobId,
+      invoice_number: invoiceNumber,
+      application_number: applicationNumber,
+      issue_date: new Date().toISOString(),
+      due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
+      period_from: periodFrom,
+      period_to: periodTo,
+      contract_date: contractDate || null,
+      amount: totals.thisPeriod,
+      total_amount: currentPaymentDue,
+      contract_amount: contractSum,
+      change_orders_amount: changeOrders,
+      retainage_percent: retainagePercent,
+      total_retainage: totalRetainage,
+      less_previous_certificates: lessPreviousCertificates,
+      current_payment_due: currentPaymentDue,
+      status: targetStatus,
+    } as const;
+
+    let invoiceId = currentInvoiceId;
+
+    if (invoiceId) {
+      const { error: updateError } = await supabase
+        .from("ar_invoices")
+        .update(invoicePayload)
+        .eq("id", invoiceId)
+        .eq("company_id", currentCompany!.id);
+      if (updateError) throw updateError;
+
+      const { error: deleteLinesError } = await supabase
+        .from("ar_invoice_line_items")
+        .delete()
+        .eq("ar_invoice_id", invoiceId)
+        .eq("company_id", currentCompany!.id);
+      if (deleteLinesError) throw deleteLinesError;
+    } else {
+      const { data: invoice, error: invoiceError } = await supabase
+        .from("ar_invoices")
+        .insert({
+          ...invoicePayload,
+          created_by: user!.id,
+        })
+        .select()
+        .single();
+      if (invoiceError) throw invoiceError;
+      invoiceId = invoice.id;
+      setCurrentInvoiceId(invoice.id);
+    }
+
+    const lineItemsToInsert = lineItems.map(item => ({
+      company_id: currentCompany!.id,
+      ar_invoice_id: invoiceId!,
+      sov_id: item.sov_id,
+      scheduled_value: item.scheduled_value,
+      previous_applications: item.previous_applications,
+      this_period: item.this_period,
+      materials_stored: item.materials_stored,
+      total_completed: item.total_completed,
+      percent_complete: item.percent_complete,
+      balance_to_finish: item.balance_to_finish,
+      retainage: item.retainage
+    }));
+
+    if (lineItemsToInsert.length > 0) {
+      const { error: lineItemsError } = await supabase
+        .from("ar_invoice_line_items")
+        .insert(lineItemsToInsert);
+      if (lineItemsError) throw lineItemsError;
+    }
+
+    setCurrentInvoiceStatus(targetStatus);
+    if (invoiceId) onStatusChanged?.(invoiceId, targetStatus);
+    return invoiceId!;
+  };
+
+  const handleSave = async () => {
+    if (!isDraftEditable) {
       toast({
-        title: "Error",
-        description: "No line items to invoice",
+        title: "Draw locked",
+        description: "This draw is locked after being sent for review.",
         variant: "destructive",
       });
       return;
@@ -312,64 +593,14 @@ export default function AddARInvoice() {
 
     try {
       setSaving(true);
-
-      // Create invoice - note: balance_due is a generated column, don't include it
-      const { data: invoice, error: invoiceError } = await supabase
-        .from("ar_invoices")
-        .insert({
-          company_id: currentCompany!.id,
-          customer_id: selectedCustomerId,
-          job_id: selectedJobId,
-          invoice_number: invoiceNumber,
-          application_number: applicationNumber,
-          issue_date: new Date().toISOString(),
-          due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          period_from: periodFrom,
-          period_to: periodTo,
-          contract_date: contractDate || null,
-          amount: totals.thisPeriod,
-          total_amount: currentPaymentDue,
-          contract_amount: contractSum,
-          change_orders_amount: changeOrders,
-          retainage_percent: retainagePercent,
-          total_retainage: totalRetainage,
-          less_previous_certificates: lessPreviousCertificates,
-          current_payment_due: currentPaymentDue,
-          status: "draft",
-          created_by: user!.id
-        })
-        .select()
-        .single();
-
-      if (invoiceError) throw invoiceError;
-
-      // Create line items
-      const lineItemsToInsert = lineItems.map(item => ({
-        company_id: currentCompany!.id,
-        ar_invoice_id: invoice.id,
-        sov_id: item.sov_id,
-        scheduled_value: item.scheduled_value,
-        previous_applications: item.previous_applications,
-        this_period: item.this_period,
-        materials_stored: item.materials_stored,
-        total_completed: item.total_completed,
-        percent_complete: item.percent_complete,
-        balance_to_finish: item.balance_to_finish,
-        retainage: item.retainage
-      }));
-
-      const { error: lineItemsError } = await supabase
-        .from("ar_invoice_line_items")
-        .insert(lineItemsToInsert);
-
-      if (lineItemsError) throw lineItemsError;
+      const invoiceId = await upsertInvoiceAndLineItems("draft");
 
       toast({
         title: "Success",
-        description: "Invoice created successfully",
+        description: currentInvoiceId ? "Draft updated successfully" : "Draw draft created successfully",
       });
 
-      navigate(`/receivables/invoices/${invoice.id}`);
+      navigateAfterSave(invoiceId);
     } catch (error: any) {
       console.error("Error saving invoice:", error);
       toast({
@@ -385,6 +616,14 @@ export default function AddARInvoice() {
   const generateAIAPdf = async (forReview: boolean = false) => {
     // First, try to use the uploaded Excel template
     if (currentCompany?.id) {
+      const fmtAiaCurrency = (value: number) => `$${Number.isFinite(value) ? value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}`;
+      // Do not use the internal job UUID as the project number on customer-facing AIA forms.
+      // Use a user-defined job number/project number when that field exists in Job Information.
+      const exportedProjectNumber =
+        (selectedJob?.project_number as string | undefined) ||
+        ((selectedJob as any)?.job_number as string | undefined) ||
+        "";
+
       const templateData: AIATemplateData = {
         // Company Information
         company_name: currentCompany.name || '',
@@ -407,7 +646,7 @@ export default function AddARInvoice() {
 
         // Project/Job Information
         project_name: selectedJob?.name || '',
-        project_number: selectedJobId || '',
+        project_number: exportedProjectNumber,
         project_address: selectedJob?.address || '',
         project_city: '',
         project_state: '',
@@ -417,9 +656,9 @@ export default function AddARInvoice() {
 
         // Contract Information
         contract_date: contractDate ? format(new Date(contractDate), 'MM/dd/yyyy') : '',
-        contract_amount: `$${formatNumber(contractSum)}`,
-        change_orders_amount: `$${formatNumber(changeOrders)}`,
-        current_contract_sum: `$${formatNumber(totalContractSum)}`,
+        contract_amount: fmtAiaCurrency(contractSum),
+        change_orders_amount: fmtAiaCurrency(changeOrders),
+        current_contract_sum: fmtAiaCurrency(totalContractSum),
         retainage_percent: `${retainagePercent}%`,
 
         // Application/Invoice Details
@@ -427,12 +666,12 @@ export default function AddARInvoice() {
         application_date: format(new Date(), 'MM/dd/yyyy'),
         period_from: periodFrom ? format(new Date(periodFrom), 'MM/dd/yyyy') : '',
         period_to: periodTo ? format(new Date(periodTo), 'MM/dd/yyyy') : '',
-        total_completed: `$${formatNumber(totalCompletedStored)}`,
-        total_retainage: `$${formatNumber(totalRetainage)}`,
-        total_earned_less_retainage: `$${formatNumber(totalCompletedStored - totalRetainage)}`,
-        less_previous_certificates: `$${formatNumber(lessPreviousCertificates)}`,
-        current_payment_due: `$${formatNumber(currentPaymentDue)}`,
-        balance_to_finish: `$${formatNumber(totals.balanceToFinish + totalRetainage)}`,
+        total_completed: fmtAiaCurrency(totalCompletedStored),
+        total_retainage: fmtAiaCurrency(totalRetainage),
+        total_earned_less_retainage: fmtAiaCurrency(totalCompletedStored - totalRetainage),
+        less_previous_certificates: fmtAiaCurrency(lessPreviousCertificates),
+        current_payment_due: fmtAiaCurrency(currentPaymentDue),
+        balance_to_finish: fmtAiaCurrency(totals.balanceToFinish + totalRetainage),
 
         // Line Items
         lineItems: lineItems.map(item => ({
@@ -725,10 +964,10 @@ export default function AddARInvoice() {
   };
 
   const handleSaveProgress = async () => {
-    if (!selectedJobId) {
+    if (!isDraftEditable) {
       toast({
-        title: "Error",
-        description: "Please select a job first",
+        title: "Draw locked",
+        description: "This draw is locked after being sent for review.",
         variant: "destructive",
       });
       return;
@@ -736,66 +975,14 @@ export default function AddARInvoice() {
 
     try {
       setSaving(true);
-
-      // Create invoice as draft - note: balance_due is a generated column
-      const { data: invoice, error: invoiceError } = await supabase
-        .from("ar_invoices")
-        .insert({
-          company_id: currentCompany!.id,
-          customer_id: selectedCustomerId || null,
-          job_id: selectedJobId,
-          invoice_number: invoiceNumber,
-          application_number: applicationNumber,
-          issue_date: new Date().toISOString(),
-          due_date: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString(),
-          period_from: periodFrom,
-          period_to: periodTo,
-          contract_date: contractDate || null,
-          amount: totals.thisPeriod,
-          total_amount: currentPaymentDue,
-          contract_amount: contractSum,
-          change_orders_amount: changeOrders,
-          retainage_percent: retainagePercent,
-          total_retainage: totalRetainage,
-          less_previous_certificates: lessPreviousCertificates,
-          current_payment_due: currentPaymentDue,
-          status: "draft",
-          created_by: user!.id
-        })
-        .select()
-        .single();
-
-      if (invoiceError) throw invoiceError;
-
-      // Create line items if we have them
-      if (lineItems.length > 0) {
-        const lineItemsToInsert = lineItems.map(item => ({
-          company_id: currentCompany!.id,
-          ar_invoice_id: invoice.id,
-          sov_id: item.sov_id,
-          scheduled_value: item.scheduled_value,
-          previous_applications: item.previous_applications,
-          this_period: item.this_period,
-          materials_stored: item.materials_stored,
-          total_completed: item.total_completed,
-          percent_complete: item.percent_complete,
-          balance_to_finish: item.balance_to_finish,
-          retainage: item.retainage
-        }));
-
-        const { error: lineItemsError } = await supabase
-          .from("ar_invoice_line_items")
-          .insert(lineItemsToInsert);
-
-        if (lineItemsError) throw lineItemsError;
-      }
+      const invoiceId = await upsertInvoiceAndLineItems("draft");
 
       toast({
         title: "Progress Saved",
         description: "Invoice draft saved successfully",
       });
 
-      navigate(`/receivables/invoices/${invoice.id}`);
+      navigateAfterSave(invoiceId);
     } catch (error: any) {
       console.error("Error saving progress:", error);
       toast({
@@ -808,45 +995,74 @@ export default function AddARInvoice() {
     }
   };
 
-  const handleSendForReview = () => {
-    if (!selectedJobId || !selectedCustomerId) {
+  const handleSendForReview = async () => {
+    if (!isDraftEditable) {
       toast({
-        title: "Error",
-        description: "Please select a job and customer first",
+        title: "Draw locked",
+        description: "This draw has already been sent for review.",
         variant: "destructive",
       });
       return;
     }
-    generateAIAPdf(true);
+
+    try {
+      setSaving(true);
+      await upsertInvoiceAndLineItems("sent_for_review");
+      await generateAIAPdf(true);
+      toast({
+        title: "Sent for Review",
+        description: "Draft was saved and locked for review.",
+      });
+    } catch (error: any) {
+      console.error("Error sending for review:", error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to send draw for review",
+        variant: "destructive",
+      });
+    } finally {
+      setSaving(false);
+    }
   };
 
   const selectedJob = jobs.find(j => j.id === selectedJobId);
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
+  const canCreateDrawInvoice = Boolean(selectedJobId) && !hasNoSOV && isSOVApproved;
+  const isReadOnly = !isDraftEditable;
 
   if (loading) {
     return (
-      <div className="container mx-auto py-6">
+      <div className={embedded ? "py-2" : "container mx-auto py-6"}>
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className={embedded ? "space-y-6" : "container mx-auto py-6 space-y-6"}>
       {/* Header */}
       <div className="flex items-center gap-4">
-        <Button variant="ghost" onClick={() => navigate("/receivables/invoices")}>
-          <ArrowLeft className="h-4 w-4" />
-        </Button>
+        {!embedded && (
+          <Button variant="ghost" onClick={() => navigateAfterSave()}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+        )}
         <div className="flex-1">
-          <h1 className="text-3xl font-bold">New AIA Invoice</h1>
+          <h1 className={embedded ? "text-xl font-bold" : "text-3xl font-bold"}>
+            {embedded ? (currentInvoiceId ? "Edit Draw Invoice" : "Create Draw Invoice") : (currentInvoiceId ? "Edit AIA Invoice" : "New AIA Invoice")}
+          </h1>
           <p className="text-muted-foreground">Application for Payment (G702/G703)</p>
         </div>
         <div className="flex gap-2 flex-wrap">
+          {embedded && onCancel && (
+            <Button variant="ghost" onClick={onCancel}>
+              Cancel
+            </Button>
+          )}
           <Button 
             variant="outline" 
             onClick={handleSaveProgress} 
-            disabled={saving || !selectedJobId}
+            disabled={saving || !canCreateDrawInvoice || isReadOnly}
           >
             <Save className="h-4 w-4 mr-2" />
             Save Progress
@@ -862,17 +1078,22 @@ export default function AddARInvoice() {
           <Button 
             variant="secondary" 
             onClick={handleSendForReview} 
-            disabled={hasNoSOV || lineItems.length === 0}
+            disabled={saving || hasNoSOV || lineItems.length === 0 || isReadOnly}
           >
             <Send className="h-4 w-4 mr-2" />
             Send for Review
           </Button>
-          <Button onClick={handleSave} disabled={saving || hasNoSOV}>
+          <Button onClick={handleSave} disabled={saving || !canCreateDrawInvoice || isReadOnly}>
             <FileText className="h-4 w-4 mr-2" />
-            {saving ? "Saving..." : "Create Invoice"}
+            {saving ? "Saving..." : currentInvoiceId ? "Save Draft" : embedded ? "Create Draw" : "Create Invoice"}
           </Button>
         </div>
       </div>
+      {isReadOnly && (
+        <div className="rounded-md border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-sm text-amber-800">
+          This draw is locked because it has been sent for review.
+        </div>
+      )}
 
       {/* Job & Customer Selection */}
       <Card>
@@ -883,7 +1104,7 @@ export default function AddARInvoice() {
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
               <Label>Project *</Label>
-              <Select value={selectedJobId} onValueChange={setSelectedJobId}>
+              <Select value={selectedJobId} onValueChange={setSelectedJobId} disabled={isReadOnly || (lockJobContext && !!selectedJobId)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
@@ -897,7 +1118,7 @@ export default function AddARInvoice() {
             
             <div className="space-y-2">
               <Label>Customer *</Label>
-              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId}>
+              <Select value={selectedCustomerId} onValueChange={setSelectedCustomerId} disabled={isReadOnly || (lockJobContext && !!selectedJobId)}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select customer" />
                 </SelectTrigger>
@@ -911,29 +1132,34 @@ export default function AddARInvoice() {
 
             <div className="space-y-2">
               <Label>Invoice Number</Label>
-              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} />
+              <Input value={invoiceNumber} onChange={(e) => setInvoiceNumber(e.target.value)} disabled={isReadOnly} />
             </div>
 
             <div className="space-y-2">
               <Label>Application #</Label>
-              <Input type="number" value={applicationNumber} onChange={(e) => setApplicationNumber(parseInt(e.target.value))} />
+              <Input
+                type="number"
+                value={applicationNumber}
+                onChange={(e) => setApplicationNumber(parseInt(e.target.value))}
+                disabled={isReadOnly || lockJobContext}
+              />
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mt-4">
             <div className="space-y-2">
               <Label>Period From</Label>
-              <Input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} />
+              <Input type="date" value={periodFrom} onChange={(e) => setPeriodFrom(e.target.value)} disabled={isReadOnly} />
             </div>
             
             <div className="space-y-2">
               <Label>Period To</Label>
-              <Input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} />
+              <Input type="date" value={periodTo} onChange={(e) => setPeriodTo(e.target.value)} disabled={isReadOnly} />
             </div>
 
             <div className="space-y-2">
               <Label>Contract Date</Label>
-              <Input type="date" value={contractDate} onChange={(e) => setContractDate(e.target.value)} />
+              <Input type="date" value={contractDate} onChange={(e) => setContractDate(e.target.value)} disabled={isReadOnly} />
             </div>
 
             <div className="space-y-2">
@@ -945,9 +1171,15 @@ export default function AddARInvoice() {
                 min={0}
                 max={100}
                 step={0.5}
+                disabled={isReadOnly}
               />
             </div>
           </div>
+          {lockJobContext && selectedJobId && (
+            <p className="text-xs text-muted-foreground mt-4">
+              Project, customer, and application number are locked because this draw was launched from Job Billing for a specific job.
+            </p>
+          )}
         </CardContent>
       </Card>
 
@@ -963,6 +1195,23 @@ export default function AddARInvoice() {
               </p>
               <Button onClick={() => navigate(`/jobs/${selectedJobId}?tab=billing`)}>
                 Set Up Billing Schedule
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {!hasNoSOV && selectedJobId && !isSOVApproved && (
+        <Card className="border-amber-500">
+          <CardContent className="py-8">
+            <div className="flex flex-col items-center text-center">
+              <AlertCircle className="h-12 w-12 text-amber-600 mb-4" />
+              <h3 className="text-lg font-medium mb-2">Schedule of Values Not Approved</h3>
+              <p className="text-muted-foreground mb-4">
+                Draw invoices are blocked until the project&apos;s Schedule of Values is approved in Job Billing.
+              </p>
+              <Button onClick={() => navigate(`/jobs/${selectedJobId}?tab=billing`)}>
+                Open Job Billing
               </Button>
             </div>
           </CardContent>
@@ -1102,6 +1351,7 @@ export default function AddARInvoice() {
                                 value={item.this_period}
                                 onChange={(val) => updateLineItem(index, "this_period", parseFloat(val) || 0)}
                                 className="w-24 text-right text-sm"
+                                disabled={isReadOnly}
                               />
                             </div>
                           </TableCell>
@@ -1112,6 +1362,7 @@ export default function AddARInvoice() {
                                 value={item.materials_stored}
                                 onChange={(val) => updateLineItem(index, "materials_stored", parseFloat(val) || 0)}
                                 className="w-24 text-right text-sm"
+                                disabled={isReadOnly}
                               />
                             </div>
                           </TableCell>

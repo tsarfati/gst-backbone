@@ -17,6 +17,7 @@ import { geocodeAddress } from "@/utils/geocoding";
 import { formatCurrency } from "@/utils/formatNumber";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import JobDirectoryModal from "@/components/JobDirectoryModal";
+import DragDropUpload from "@/components/DragDropUpload";
 
 export default function JobEdit() {
   const { id } = useParams();
@@ -46,6 +47,7 @@ export default function JobEdit() {
 
   const [formData, setFormData] = useState({
     name: "",
+    project_number: "",
     budget: "",
     start_date: "",
     end_date: "",
@@ -106,6 +108,7 @@ export default function JobEdit() {
 
           setFormData({
             name: data.name || "",
+            project_number: (data as any).project_number || "",
             budget: data.budget ? data.budget.toString() : "",
             start_date: data.start_date || "",
             end_date: data.end_date || "",
@@ -231,6 +234,7 @@ export default function JobEdit() {
         .from('jobs')
         .update({
           name: formData.name,
+          project_number: formData.project_number || null,
           start_date: formData.start_date || null,
           end_date: formData.end_date || null,
           status: formData.status,
@@ -269,10 +273,12 @@ export default function JobEdit() {
     }
   };
 
-  const handleBannerUpload = async (event: ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    // allow re-selecting same file later
-    event.target.value = "";
+  const handleBannerUpload = async (eventOrFile: ChangeEvent<HTMLInputElement> | File) => {
+    const file = eventOrFile instanceof File ? eventOrFile : eventOrFile.target.files?.[0];
+    if (!(eventOrFile instanceof File)) {
+      // allow re-selecting same file later
+      eventOrFile.target.value = "";
+    }
 
     if (!file) return;
     if (!id) return;
@@ -480,6 +486,18 @@ export default function JobEdit() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Recommended: 1200x400px, max 5MB
                   </p>
+                  <div className="mt-2 w-full min-w-[240px]">
+                    <DragDropUpload
+                      onFileSelect={(file) => void handleBannerUpload(file)}
+                      accept=".jpg,.jpeg,.png,.webp"
+                      maxSize={5}
+                      size="compact"
+                      title="Drop banner image"
+                      subtitle="or click to choose image"
+                      helperText="Job banner image (max 5MB)"
+                      disabled={bannerUploading || !permissions.canEditJobs()}
+                    />
+                  </div>
                 </div>
               </div>
             </div>
@@ -501,6 +519,18 @@ export default function JobEdit() {
                   placeholder="Enter job name"
                 />
               </div>
+              <div className="space-y-2">
+                <Label htmlFor="project_number">Job / Project Number</Label>
+                <Input
+                  id="project_number"
+                  value={formData.project_number}
+                  onChange={(e) => handleInputChange("project_number", e.target.value)}
+                  placeholder="e.g. 24-001"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="budget">Total Budget</Label>
                 <div className="relative">

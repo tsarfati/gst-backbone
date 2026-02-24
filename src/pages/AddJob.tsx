@@ -14,6 +14,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import CostCodeManager from "@/components/CostCodeManager";
 import JobBudgetManager from "@/components/JobBudgetManager";
 import { geocodeAddress } from "@/utils/geocoding";
+import DragDropUpload from "@/components/DragDropUpload";
 
 export default function AddJob() {
   const navigate = useNavigate();
@@ -25,6 +26,7 @@ export default function AddJob() {
   
   const [formData, setFormData] = useState({
     jobName: "",
+    projectNumber: "",
     client: "",
     customerId: "",
     address: "",
@@ -37,9 +39,76 @@ export default function AddJob() {
   });
   
   const [costCodes, setCostCodes] = useState<Array<{ id: string; code: string; description: string }>>([]);
+  const [bannerFile, setBannerFile] = useState<File | null>(null);
+  const [bannerPreview, setBannerPreview] = useState<string | null>(null);
+  const [bannerUploading, setBannerUploading] = useState(false);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleBannerSelect = (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      toast({
+        title: "File too large",
+        description: "Please choose an image under 5MB.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!file.type.startsWith("image/")) {
+      toast({
+        title: "Invalid file type",
+        description: "Please choose an image file.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (bannerPreview) URL.revokeObjectURL(bannerPreview);
+    setBannerFile(file);
+    setBannerPreview(URL.createObjectURL(file));
+  };
+
+  useEffect(() => {
+    return () => {
+      if (bannerPreview) URL.revokeObjectURL(bannerPreview);
+    };
+  }, [bannerPreview]);
+
+  const uploadBannerForJob = async (jobId: string): Promise<string | null> => {
+    if (!bannerFile || !currentCompany?.id) return null;
+
+    setBannerUploading(true);
+    try {
+      const fileExt = bannerFile.name.split(".").pop() || "png";
+      const fileName = `banner-${Date.now()}.${fileExt}`;
+      const filePath = `${currentCompany.id}/jobs/${jobId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("job-banners")
+        .upload(filePath, bannerFile, {
+          upsert: true,
+          contentType: bannerFile.type,
+        });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from("job-banners").getPublicUrl(filePath);
+      const publicUrl = data.publicUrl;
+
+      const { error: updateError } = await supabase
+        .from("jobs")
+        .update({ banner_url: publicUrl })
+        .eq("id", jobId);
+
+      if (updateError) throw updateError;
+
+      return publicUrl;
+    } finally {
+      setBannerUploading(false);
+    }
   };
 
   useEffect(() => {
@@ -91,6 +160,7 @@ export default function AddJob() {
     // Create the job first
     const { data: jobData, error: jobError } = await supabase.from('jobs').insert({
       name: formData.jobName,
+      project_number: formData.projectNumber || null,
       client: formData.client,
       customer_id: formData.customerId || null,
       address: formData.address,
@@ -109,6 +179,18 @@ export default function AddJob() {
     if (jobError) {
       toast({ title: "Error creating job", description: jobError.message, variant: "destructive" });
       return;
+    }
+
+    if (jobData?.id && bannerFile) {
+      try {
+        await uploadBannerForJob(jobData.id);
+      } catch (bannerError: any) {
+        console.error("Error uploading job banner:", bannerError);
+        toast({
+          title: "Job created",
+          description: "Job was created, but banner upload failed. You can upload it later.",
+        });
+      }
     }
 
     // Auto-create a chart of account for this job
@@ -187,6 +269,15 @@ export default function AddJob() {
                 />
               </div>
               <div className="space-y-2">
+                <Label htmlFor="projectNumber">Job / Project Number</Label>
+                <Input
+                  id="projectNumber"
+                  value={formData.projectNumber}
+                  onChange={(e) => handleInputChange("projectNumber", e.target.value)}
+                  placeholder="e.g. 24-001"
+                />
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="customer">Customer *</Label>
                 <Select value={formData.customerId} onValueChange={(value) => handleInputChange("customerId", value)}>
                   <SelectTrigger>
@@ -201,7 +292,7 @@ export default function AddJob() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
+              <div className="space-y-2 md:col-span-2">
                 <Label htmlFor="client">Client Contact (Optional)</Label>
                 <Input
                   id="client"
@@ -316,23 +407,45 @@ export default function AddJob() {
             <div className="space-y-2">
               <Label htmlFor="banner">Banner Image</Label>
               <div className="flex items-center gap-4">
-                <div className="h-20 w-32 border border-border rounded-lg flex items-center justify-center bg-muted">
-                  <Building className="h-8 w-8 text-muted-foreground" />
+                <div className="h-20 w-32 border border-border rounded-lg flex items-center justify-center bg-muted overflow-hidden">
+                  {bannerPreview ? (
+                    <img
+                      src={bannerPreview}
+                      alt="Job banner preview"
+                      className="h-full w-full object-cover"
+                    />
+                  ) : (
+                    <Building className="h-8 w-8 text-muted-foreground" />
+                  )}
                 </div>
                 <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    id="banner-upload"
-                  />
-                  <Label htmlFor="banner-upload" className="cursor-pointer">
-                    <Button type="button" variant="outline" asChild>
-                      <span>
-                        Upload Banner
-                      </span>
+                  <div className="mt-2 w-full min-w-[240px]">
+                    <DragDropUpload
+                      onFileSelect={handleBannerSelect}
+                      accept=".jpg,.jpeg,.png,.webp"
+                      maxSize={5}
+                      size="compact"
+                      title="Drop banner image"
+                      subtitle="or click to choose image"
+                      helperText="Job banner image (max 5MB)"
+                      disabled={bannerUploading}
+                    />
+                  </div>
+                  {bannerFile && (
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      className="mt-2"
+                      onClick={() => {
+                        if (bannerPreview) URL.revokeObjectURL(bannerPreview);
+                        setBannerFile(null);
+                        setBannerPreview(null);
+                      }}
+                    >
+                      Remove Selected Banner
                     </Button>
-                  </Label>
+                  )}
                   <p className="text-xs text-muted-foreground mt-1">
                     Recommended: 1200x400px, max 5MB
                   </p>
@@ -355,7 +468,7 @@ export default function AddJob() {
 
         {/* Form Actions */}
         <div className="flex gap-3">
-          <Button type="submit">
+          <Button type="submit" disabled={bannerUploading}>
             <Save className="h-4 w-4 mr-2" />
             Create Job
           </Button>
