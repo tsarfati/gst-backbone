@@ -170,7 +170,7 @@ export default function AddARInvoice({
       const [jobsRes, customersRes] = await Promise.all([
         supabase
           .from("jobs")
-          .select("id, name, project_number, customer_id, address, start_date")
+          .select("id, name, customer_id, address, start_date")
           .eq("company_id", currentCompany!.id)
           .eq("status", "active")
           .order("name"),
@@ -190,7 +190,7 @@ export default function AddARInvoice({
       if (preselectedJobId && !jobsData.some((j) => j.id === preselectedJobId)) {
         const { data: preselectedJob, error: preselectedJobError } = await supabase
           .from("jobs")
-          .select("id, name, project_number, customer_id, address, start_date")
+          .select("id, name, customer_id, address, start_date")
           .eq("company_id", currentCompany!.id)
           .eq("id", preselectedJobId)
           .maybeSingle();
