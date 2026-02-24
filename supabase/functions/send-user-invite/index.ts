@@ -81,6 +81,9 @@ function hslToHex(hsl: string): string {
      // Build the invitation URL
      const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.lovable.app";
      const inviteUrl = `${baseUrl}/auth?invite=${inviteToken}`;
+     const displayRoleName = (customRoleName && customRoleName.trim())
+       ? customRoleName.trim()
+       : role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
  
     // Use company's primary color or fallback to BuilderLynk orange
     const brandPrimary = primaryColor ? hslToHex(primaryColor) : "#E88A2D";
