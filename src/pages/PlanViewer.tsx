@@ -78,6 +78,7 @@ export default function PlanViewer() {
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [initialPlanDataLoaded, setInitialPlanDataLoaded] = useState(false);
   
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -87,6 +88,7 @@ export default function PlanViewer() {
 
   useEffect(() => {
     if (planId) {
+      setInitialPlanDataLoaded(false);
       fetchPlanData();
     }
   }, [planId]);
@@ -122,6 +124,36 @@ export default function PlanViewer() {
       if (!e.ctrlKey) return;
       // Prevent Chrome page zoom (Cmd +/- is still available if the user wants it).
       if (e.cancelable) e.preventDefault();
+      try {
+        (e as any).stopImmediatePropagation?.();
+      } catch {
+        // ignore
+      }
+      e.stopPropagation();
+      nudgeBodyZoom();
+    };
+
+    const onKeyDown = (e: KeyboardEvent) => {
+      if (!(e.metaKey || e.ctrlKey) || e.altKey) return;
+
+      const key = e.key;
+      const zoomInKeys = key === "+" || key === "=";
+      const zoomOutKeys = key === "-" || key === "_";
+      const resetKeys = key === "0";
+
+      if (!zoomInKeys && !zoomOutKeys && !resetKeys) return;
+
+      if (e.cancelable) e.preventDefault();
+      e.stopPropagation();
+
+      if (zoomInKeys) {
+        setZoomLevel((prev) => Math.min(prev + 0.25, 3));
+      } else if (zoomOutKeys) {
+        setZoomLevel((prev) => Math.max(prev - 0.25, 0.5));
+      } else {
+        setZoomLevel(1);
+      }
+
       nudgeBodyZoom();
     };
 
@@ -140,6 +172,7 @@ export default function PlanViewer() {
     };
 
     window.addEventListener("wheel", onWheel, { passive: false, capture: true });
+    window.addEventListener("keydown", onKeyDown, { capture: true });
     window.addEventListener("gesturestart", onGesture as any, { passive: false, capture: true } as any);
     window.addEventListener("gesturechange", onGesture as any, { passive: false, capture: true } as any);
     window.addEventListener("gestureend", onGestureEnd as any, { passive: false, capture: true } as any);
@@ -149,9 +182,11 @@ export default function PlanViewer() {
     document.addEventListener("gesturechange", onGesture as any, { passive: false, capture: true } as any);
     document.addEventListener("gestureend", onGestureEnd as any, { passive: false, capture: true } as any);
     document.addEventListener("wheel", onWheel, { passive: false, capture: true } as any);
+    document.addEventListener("keydown", onKeyDown, { capture: true } as any);
 
     return () => {
       window.removeEventListener("wheel", onWheel as any, true as any);
+      window.removeEventListener("keydown", onKeyDown as any, true as any);
       window.removeEventListener("gesturestart", onGesture as any, true as any);
       window.removeEventListener("gesturechange", onGesture as any, true as any);
       window.removeEventListener("gestureend", onGestureEnd as any, true as any);
@@ -160,6 +195,7 @@ export default function PlanViewer() {
       document.removeEventListener("gesturechange", onGesture as any, true as any);
       document.removeEventListener("gestureend", onGestureEnd as any, true as any);
       document.removeEventListener("wheel", onWheel as any, true as any);
+      document.removeEventListener("keydown", onKeyDown as any, true as any);
 
       // Restore any previous zoom style
       try {
@@ -171,10 +207,13 @@ export default function PlanViewer() {
   }, []);
 
   useEffect(() => {
+    // Only auto-analyze after the initial plan/pages fetch has completed.
+    // Otherwise `setPlan(...)` can fire before `setPages(...)` and falsely look like an empty index.
+    if (!initialPlanDataLoaded || loading) return;
     if (plan && pages.length === 0 && !analyzing) {
       analyzePlan();
     }
-  }, [plan, pages]);
+  }, [initialPlanDataLoaded, loading, plan, pages, analyzing]);
 
   // Initialize Fabric.js canvas for markups (only once)
   useEffect(() => {
@@ -396,6 +435,7 @@ export default function PlanViewer() {
       console.error("Error fetching plan:", error);
       toast.error("Failed to load plan");
     } finally {
+      setInitialPlanDataLoaded(true);
       setLoading(false);
     }
   };
@@ -683,7 +723,7 @@ export default function PlanViewer() {
   }
 
   const handleZoomIn = () => {
-    setZoomLevel(prev => Math.min(prev + 0.25, 3));
+    setZoomLevel(prev => Math.min(prev + 0.25, 5));
   };
 
   const handleZoomOut = () => {
@@ -723,6 +763,28 @@ export default function PlanViewer() {
 
   const currentPageData = pages.find(p => p.page_number === currentPage);
   const currentPageComments = comments.filter(c => c.page_number === currentPage);
+  const handleBackToJobPlans = () => {
+    if (plan?.job_id) {
+      navigate(`/jobs/${plan.job_id}?tab=plans`);
+      return;
+    }
+    navigate(-1);
+  };
+  const getPageLabel = (page: PlanPage) => {
+    const sheet = page.sheet_number?.trim();
+    const title = page.page_title?.trim();
+
+    if (sheet && title) {
+      const normalizedSheet = sheet.toLowerCase();
+      const normalizedTitle = title.toLowerCase();
+      if (normalizedTitle.startsWith(normalizedSheet)) {
+        return title;
+      }
+      return `${sheet} - ${title}`;
+    }
+
+    return title || sheet || `Page ${page.page_number}`;
+  };
 
   return (
     <SidebarProvider defaultOpen={true}>
@@ -730,7 +792,7 @@ export default function PlanViewer() {
         {/* Header - completely separated from PDF, never affected by zoom */}
         <header className="flex items-center justify-between px-4 py-3 border-b bg-background shrink-0 z-40">
           <div className="flex items-center gap-4">
-            <Button variant="ghost" size="sm" onClick={() => navigate(-1)}>
+            <Button variant="ghost" size="sm" onClick={handleBackToJobPlans}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
@@ -763,11 +825,10 @@ export default function PlanViewer() {
                 <SelectTrigger className="w-[260px] bg-background z-50">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent className="bg-background z-50">
+                  <SelectContent className="bg-background z-50">
                   {pages.map((page) => (
                     <SelectItem key={page.id} value={page.page_number.toString()}>
-                      {(page.sheet_number || `Page ${page.page_number}`)}
-                      {page.page_title ? ` - ${page.page_title}` : ""}
+                      {getPageLabel(page)}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -812,7 +873,7 @@ export default function PlanViewer() {
           {/* PDF Viewer wrapper - purely a layout container; SinglePagePdfViewer handles scroll internally */}
           <div
             ref={pdfContainerRef}
-            className="flex-1 relative min-h-0 min-w-0 bg-muted/30"
+            className="flex-1 relative min-h-0 min-w-0 bg-muted/30 overflow-hidden"
           >
             {/* Canvas overlay for markups and interactions */}
             <div
@@ -828,21 +889,23 @@ export default function PlanViewer() {
 
             {/* Single-page PDF viewer with built-in pan/drag */}
             {plan?.file_url && (
-              <SinglePagePdfViewer
-                url={plan.file_url}
-                pageNumber={currentPage}
-                totalPages={pages.length}
-                zoomLevel={zoomLevel}
-                onTotalPagesChange={(total) => {
-                  // If no pages exist yet and we get a total, we could trigger analysis
-                  if (pages.length === 0 && total > 0 && !analyzing) {
-                    // Optionally auto-analyze
-                  }
-                }}
-                onZoomChange={(newZoom) => {
-                  setZoomLevel(Math.round(newZoom * 100) / 100);
-                }}
-              />
+              <div className="absolute inset-0 min-w-0 min-h-0">
+                <SinglePagePdfViewer
+                  url={plan.file_url}
+                  pageNumber={currentPage}
+                  totalPages={pages.length}
+                  zoomLevel={zoomLevel}
+                  onTotalPagesChange={(total) => {
+                    // If no pages exist yet and we get a total, we could trigger analysis
+                    if (pages.length === 0 && total > 0 && !analyzing) {
+                      // Optionally auto-analyze
+                    }
+                  }}
+                  onZoomChange={(newZoom) => {
+                    setZoomLevel(Math.round(newZoom * 100) / 100);
+                  }}
+                />
+              </div>
             )}
           </div>
 

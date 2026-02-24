@@ -26,6 +26,8 @@ import JobExportModal from "@/components/JobExportModal";
 interface Job {
   id: string;
   name: string;
+  project_number?: string | null;
+  customer_id?: string | null;
   client?: string;
   address?: string;
   job_type?: string;
@@ -36,6 +38,12 @@ interface Job {
   end_date?: string;
   description?: string;
   visitor_qr_code?: string;
+  created_at?: string;
+  customer?: {
+    id: string;
+    name: string;
+    display_name?: string | null;
+  } | null;
 }
 
 export default function JobDetails() {
@@ -62,7 +70,10 @@ export default function JobDetails() {
       try {
         const { data, error } = await supabase
           .from('jobs')
-          .select('*')
+          .select(`
+            *,
+            customer:customers(id, name, display_name)
+          `)
           .eq('id', id)
           .maybeSingle();
 
@@ -119,7 +130,7 @@ export default function JobDetails() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-6">
         <div className="text-center py-12 text-muted-foreground">Loading job details...</div>
       </div>
     );
@@ -127,7 +138,7 @@ export default function JobDetails() {
 
   if (!job) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/jobs")}>
             <ArrowLeft className="h-4 w-4" />
@@ -161,7 +172,7 @@ export default function JobDetails() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-6">
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => navigate("/jobs")}>
           <ArrowLeft className="h-4 w-4" />
@@ -252,24 +263,12 @@ export default function JobDetails() {
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <Camera className="h-4 w-4 mr-2" />
-              Photo Album
+              Photos
             </TabsTrigger>
           </TabsList>
           
           <TabsContent value="details" className="p-6">
-            {/* Project Team Section - Full Width at Top */}
             <div className="mb-6">
-              <JobProjectTeam jobId={id!} />
-            </div>
-
-            {/* Bills Needing Approval or Coding for this Job */}
-            {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
-              <div className="mb-6">
-                <BillsNeedingCoding jobId={id!} limit={3} />
-              </div>
-            )}
-
-            <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Job Information</CardTitle>
@@ -281,76 +280,86 @@ export default function JobDetails() {
                   )}
                 </CardHeader>
                 <CardContent className="space-y-4">
-                  {job.client && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Client</label>
-                      <p className="text-foreground">{job.client}</p>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Job / Project Number</label>
+                      <p className="text-foreground mt-1">{job.project_number || 'Not set'}</p>
                     </div>
-                  )}
-                  
-                  {job.address && (
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Address</label>
-                      <p className="text-foreground">{job.address}</p>
-                    </div>
-                  )}
-
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Type</label>
-                      <Badge variant="outline" className="ml-2">
-                        {job.job_type?.charAt(0).toUpperCase() + job.job_type?.slice(1) || 'N/A'}
-                      </Badge>
-                    </div>
-
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Status</label>
-                      <Badge variant="outline" className="ml-2">
-                        {job.status?.charAt(0).toUpperCase() + job.status?.slice(1) || 'N/A'}
-                      </Badge>
-                    </div>
-                  </div>
-
-                  <div>
-                    <label className="text-sm font-medium text-muted-foreground">Budget</label>
-                    <p className="text-foreground">${budgetTotal.toLocaleString()}</p>
-                  </div>
-
-                  {(job.start_date || job.end_date) && (
-                    <div>
-                      <label className="text-sm font-medium text-muted-foreground">Timeline</label>
-                      <p className="text-foreground">
-                        {job.start_date && `Start: ${job.start_date}`}
-                        {job.start_date && job.end_date && ' • '}
-                        {job.end_date && `End: ${job.end_date}`}
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Customer</label>
+                      <p className="text-foreground mt-1">
+                        {job.customer?.display_name || job.customer?.name || 'Not set'}
                       </p>
                     </div>
-                  )}
-
-                  {job.description && (
                     <div>
-                      <label className="text-sm font-medium text-muted-foreground">Description</label>
-                      <p className="text-foreground">{job.description}</p>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Client Contact</label>
+                      <p className="text-foreground mt-1">{job.client || 'Not set'}</p>
                     </div>
-                  )}
-
-                  <div className="pt-4 border-t">
-                    <h3 className="text-sm font-medium text-muted-foreground mb-3">Additional Information</h3>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">QR Code</label>
-                        <p className="text-foreground">{job.visitor_qr_code || 'Not generated'}</p>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Status</label>
+                      <div className="mt-1">
+                        <Badge variant="outline">
+                          {job.status?.charAt(0).toUpperCase() + job.status?.slice(1) || 'N/A'}
+                        </Badge>
                       </div>
-                      <div>
-                        <label className="text-sm font-medium text-muted-foreground">Created</label>
-                        <p className="text-foreground">{new Date().toLocaleDateString()}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Job Type</label>
+                      <div className="mt-1">
+                        <Badge variant="outline">
+                          {job.job_type?.charAt(0).toUpperCase() + job.job_type?.slice(1) || 'N/A'}
+                        </Badge>
                       </div>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Budget</label>
+                      <p className="text-foreground mt-1">${budgetTotal.toLocaleString()}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Start Date</label>
+                      <p className="text-foreground mt-1">{job.start_date || 'Not set'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">End Date</label>
+                      <p className="text-foreground mt-1">{job.end_date || 'Not set'}</p>
+                    </div>
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Created</label>
+                      <p className="text-foreground mt-1">
+                        {job.created_at ? new Date(job.created_at).toLocaleDateString() : 'Unknown'}
+                      </p>
                     </div>
                   </div>
+
+                  <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-4 pt-1">
+                    <div>
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Address</label>
+                      <p className="text-foreground mt-1 break-words">{job.address || 'Not set'}</p>
+                    </div>
+                    <div className="min-w-0 xl:min-w-[220px]">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Visitor QR Code</label>
+                      <p className="text-foreground mt-1 truncate">{job.visitor_qr_code || 'Not generated'}</p>
+                    </div>
+                  </div>
+
+                  {job.description && (
+                    <div className="pt-1">
+                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Description</label>
+                      <p className="text-foreground mt-1 whitespace-pre-wrap">{job.description}</p>
+                    </div>
+                  )}
                 </CardContent>
               </Card>
+            </div>
 
-              {/* Location Map */}
+            {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
+              <div className="mb-6">
+                <BillsNeedingCoding jobId={id!} limit={3} />
+              </div>
+            )}
+
+            <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6">
+              <JobProjectTeam jobId={id!} />
               <JobLocationMap address={job.address} />
             </div>
 

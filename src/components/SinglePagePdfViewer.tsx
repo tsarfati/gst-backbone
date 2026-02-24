@@ -70,7 +70,7 @@ export default function SinglePagePdfViewer({
   const requestRenderRef = useRef<((args: { page: number; zoom: number; reason: RenderReason }) => void) | null>(null);
   const zoomRenderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  const clampZoom = useCallback((z: number) => Math.min(Math.max(z, 0.5), 4), []);
+  const clampZoom = useCallback((z: number) => Math.min(Math.max(z, 0.5), 5), []);
 
   const updateCanvasCssSize = useCallback((zoom: number) => {
     const canvas = canvasRef.current;
@@ -600,14 +600,11 @@ export default function SinglePagePdfViewer({
       <div
         ref={contentRef}
         className={cn(
-          "relative min-h-full p-4",
-          // At 100% fill the viewport; when zoomed, expand to the canvas' CSS width so
-          // horizontal scrolling/panning is possible.
-          zoomLevel > 1 ? "w-max" : "w-full"
+          "relative min-h-full p-4 w-full",
         )}
       >
-        {/* Inline-block ensures wrapper width matches the canvas CSS width (enables horizontal scroll). */}
-        <div className="relative inline-block">
+        {/* Keep the scroll container width fixed; only this inner wrapper grows with the canvas. */}
+        <div className="relative inline-block min-w-full">
           {loading && (
             <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 pointer-events-none">
               <div className="flex flex-col items-center gap-2">

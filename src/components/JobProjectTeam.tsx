@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
+import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, Star, UserCheck } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -364,15 +365,13 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
 
   return (
     <Card>
-      <CardHeader className="flex flex-row items-center justify-between pb-4">
+      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
         <div>
           <CardTitle className="flex items-center gap-2">
             <Users className="h-5 w-5 text-primary" />
             Project Team
           </CardTitle>
-          <CardDescription>
-            Team members assigned to this project
-          </CardDescription>
+          <CardDescription>Team members assigned to this project</CardDescription>
         </div>
         <div className="flex items-center gap-2">
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
@@ -477,7 +476,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
             </p>
           </div>
         ) : (
-          <div className="space-y-6">
+          <div className="space-y-3">
             {/* Group and render by type */}
             {(() => {
               const pmMembers = teamMembers.filter(m => m.source === 'pm');
@@ -485,10 +484,17 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
               const employeeMembers = teamMembers.filter(m => m.source === 'employee');
               const directoryMembers = teamMembers.filter(m => !m.source || m.source === 'directory');
 
+              const groupConfigs = [
+                { key: 'pm', title: 'Project Managers', members: pmMembers, badgeVariant: 'default' as const },
+                { key: 'apm', title: 'Assistant Project Managers', members: apmMembers, badgeVariant: 'secondary' as const },
+                { key: 'employees', title: 'Employees', members: employeeMembers, badgeVariant: 'outline' as const },
+                { key: 'directory', title: 'Team Members', members: directoryMembers, badgeVariant: 'secondary' as const },
+              ].filter(group => group.members.length > 0);
+
               const renderMemberRow = (member: DirectoryMember) => (
                 <div
                   key={member.id}
-                  className="flex items-center gap-3 py-2 border-b last:border-b-0 hover:bg-muted/30 px-2 -mx-2 rounded transition-colors"
+                  className="flex items-start gap-2.5 py-2 hover:bg-muted/30 px-2 rounded transition-colors"
                 >
                   {(() => {
                     // Resolve avatar: for auto members use the hook's map, for directory use avatar_url directly
@@ -503,88 +509,98 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                       <UserAvatar
                         src={resolvedUrl}
                         name={member.name}
-                        className="h-9 w-9 shrink-0"
+                        className="h-8 w-8 shrink-0"
                         fallbackClassName="bg-primary/10 text-primary text-sm"
                       />
                     );
                   })()}
 
-                  <div className="flex-1 min-w-0 grid grid-cols-1 sm:grid-cols-4 gap-1 sm:gap-4 items-center">
-                    <div className="flex items-center gap-2">
-                      <span className="font-medium truncate">{member.name}</span>
+                  <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      <span className="font-medium leading-tight truncate">{member.name}</span>
                       {member.is_primary_contact && (
                         <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" fill="currentColor" />
                       )}
+                      {getSourceBadge(member.source)}
+                      {member.project_role?.name && (!member.source || member.source === 'directory') && (
+                        <Badge variant="outline" className="text-[10px] h-5 px-1.5">
+                          {member.project_role.name}
+                        </Badge>
+                      )}
                     </div>
-                    <div className="text-sm text-muted-foreground truncate flex items-center gap-1">
-                      <Building2 className="h-3 w-3 shrink-0 sm:hidden" />
-                      {member.company_name || '-'}
-                    </div>
-                    <div className="text-sm text-muted-foreground truncate">
-                      {member.email ? (
-                        <a href={`mailto:${member.email}`} className="hover:text-primary flex items-center gap-1">
-                          <Mail className="h-3 w-3 shrink-0 sm:hidden" />
-                          {member.email}
-                        </a>
-                      ) : '-'}
-                    </div>
-                    <div className="text-sm text-muted-foreground truncate">
-                      {member.phone ? (
-                        <a href={`tel:${member.phone}`} className="hover:text-primary flex items-center gap-1">
-                          <Phone className="h-3 w-3 shrink-0 sm:hidden" />
-                          {member.phone}
-                        </a>
-                      ) : '-'}
+                    <div className="mt-0.5 grid grid-cols-1 lg:grid-cols-3 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                      <div className="truncate flex items-center gap-1">
+                        <Building2 className="h-3 w-3 shrink-0" />
+                        <span className="truncate">{member.company_name || 'No company'}</span>
+                      </div>
+                      <div className="truncate">
+                        {member.email ? (
+                          <a href={`mailto:${member.email}`} className="hover:text-primary flex items-center gap-1">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{member.email}</span>
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            No email
+                          </span>
+                        )}
+                      </div>
+                      <div className="truncate">
+                        {member.phone ? (
+                          <a href={`tel:${member.phone}`} className="hover:text-primary flex items-center gap-1">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            <span className="truncate">{member.phone}</span>
+                          </a>
+                        ) : (
+                          <span className="inline-flex items-center gap-1">
+                            <Phone className="h-3 w-3 shrink-0" />
+                            No phone
+                          </span>
+                        )}
+                      </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
-                    {(!member.source || member.source === 'directory') && (
+                    {(!member.source || member.source === 'directory') ? (
                       <>
-                        <Button variant="ghost" size="icon" className="h-8 w-8" onClick={() => openEditDialog(member)}>
-                          <Edit className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(member)}>
+                          <Edit className="h-3.5 w-3.5" />
                         </Button>
-                        <Button variant="ghost" size="icon" className="h-8 w-8 hover:text-destructive" onClick={() => removeMember(member)}>
-                          <Trash2 className="h-4 w-4" />
+                        <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => removeMember(member)}>
+                          <Trash2 className="h-3.5 w-3.5" />
                         </Button>
                       </>
+                    ) : (
+                      <div className="w-7" />
                     )}
                   </div>
                 </div>
               );
 
-              const renderGroup = (title: string, members: DirectoryMember[], badgeVariant: 'default' | 'secondary' | 'outline' = 'secondary') => {
-                if (members.length === 0) return null;
-                return (
-                  <div key={title}>
-                    <div className="flex items-center gap-2 mb-2">
-                      <Badge variant={badgeVariant} className="text-xs">{title}</Badge>
-                      <span className="text-xs text-muted-foreground">({members.length})</span>
-                    </div>
-                    {/* Header row - hidden on mobile */}
-                    <div className="hidden sm:grid grid-cols-[40px_1fr] gap-3 mb-1 px-2 text-xs text-muted-foreground uppercase tracking-wide">
-                      <div></div>
-                      <div className="grid grid-cols-4 gap-4">
-                        <div>Name</div>
-                        <div>Company</div>
-                        <div>Email</div>
-                        <div>Phone</div>
-                      </div>
-                    </div>
-                    <div className="divide-y">
-                      {members.map(renderMemberRow)}
-                    </div>
-                  </div>
-                );
-              };
-
               return (
-                <>
-                  {renderGroup('Project Managers', pmMembers, 'default')}
-                  {renderGroup('Assistant Project Managers', apmMembers, 'secondary')}
-                  {renderGroup('Employees', employeeMembers, 'outline')}
-                  {renderGroup('Team Members', directoryMembers, 'secondary')}
-                </>
+                <Accordion
+                  type="multiple"
+                  defaultValue={groupConfigs.map(group => group.key)}
+                  className="w-full"
+                >
+                  {groupConfigs.map(group => (
+                    <AccordionItem key={group.key} value={group.key} className="border rounded-md px-0 mb-2 last:mb-0">
+                      <AccordionTrigger className="px-3 py-2 hover:no-underline">
+                        <div className="flex items-center gap-2 text-left">
+                          <Badge variant={group.badgeVariant} className="text-xs">{group.title}</Badge>
+                          <span className="text-xs text-muted-foreground">{group.members.length}</span>
+                        </div>
+                      </AccordionTrigger>
+                      <AccordionContent className="px-2 pb-2 pt-0">
+                        <div className="divide-y rounded-md border bg-background">
+                          {group.members.map(renderMemberRow)}
+                        </div>
+                      </AccordionContent>
+                    </AccordionItem>
+                  ))}
+                </Accordion>
               );
             })()}
           </div>
