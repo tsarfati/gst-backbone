@@ -41,6 +41,7 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseAuthed = createClient(supabaseUrl, supabaseServiceKey, {
       global: { headers: { Authorization: authHeader } },
     });
+    const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
     const { data: userData, error: userError } = await supabaseAuthed.auth.getUser();
     if (userError || !userData?.user) {
@@ -63,7 +64,7 @@ serve(async (req: Request): Promise<Response> => {
     let pendingInvite: any = null;
 
     if (inviteToken) {
-      const { data, error: pendingError } = await supabaseAuthed
+      const { data, error: pendingError } = await supabaseAdmin
         .from("pending_user_invites")
         .select("id, email, company_id, role, custom_role_id, invited_by, expires_at, accepted_at")
         .eq("invite_token", inviteToken)
@@ -74,7 +75,7 @@ serve(async (req: Request): Promise<Response> => {
     } else {
       // Fallback for users who completed auth but lost the invite token in the browser redirect.
       // Accept only when there is exactly one active pending invite for this email to avoid ambiguity.
-      const { data, error: pendingError } = await supabaseAuthed
+      const { data, error: pendingError } = await supabaseAdmin
         .from("pending_user_invites")
         .select("id, email, company_id, role, custom_role_id, invited_by, expires_at, accepted_at, created_at")
         .eq("email", normalizedEmail)
@@ -138,7 +139,7 @@ serve(async (req: Request): Promise<Response> => {
     const nowIso = new Date().toISOString();
 
     // Grant/activate company access
-    const { data: existingAccess, error: existingAccessError } = await supabaseAuthed
+    const { data: existingAccess, error: existingAccessError } = await supabaseAdmin
       .from("user_company_access")
       .select("id")
       .eq("company_id", pendingInvite.company_id)
@@ -148,7 +149,7 @@ serve(async (req: Request): Promise<Response> => {
     if (existingAccessError) throw existingAccessError;
 
     if (existingAccess?.id) {
-      const { error: updateAccessError } = await supabaseAuthed
+      const { error: updateAccessError } = await supabaseAdmin
         .from("user_company_access")
         .update({
           is_active: true,
@@ -158,7 +159,7 @@ serve(async (req: Request): Promise<Response> => {
         .eq("id", existingAccess.id);
       if (updateAccessError) throw updateAccessError;
     } else {
-      const { error: insertAccessError } = await supabaseAuthed
+      const { error: insertAccessError } = await supabaseAdmin
         .from("user_company_access")
         .insert({
           company_id: pendingInvite.company_id,
@@ -183,19 +184,19 @@ serve(async (req: Request): Promise<Response> => {
       profilePatch.role = "employee";
     }
 
-    const { error: profileUpdateError } = await supabaseAuthed
+    const { error: profileUpdateError } = await supabaseAdmin
       .from("profiles")
       .update(profilePatch)
       .eq("user_id", userData.user.id);
     if (profileUpdateError) throw profileUpdateError;
 
     // Mark invitation accepted in both tracking tables
-    await supabaseAuthed
+    await supabaseAdmin
       .from("pending_user_invites")
       .update({ accepted_at: nowIso, updated_at: nowIso })
       .eq("id", pendingInvite.id);
 
-    await supabaseAuthed
+    await supabaseAdmin
       .from("user_invitations")
       .update({
         status: "accepted",

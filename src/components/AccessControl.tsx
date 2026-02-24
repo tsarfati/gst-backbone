@@ -39,9 +39,13 @@ export function AccessControl({ children }: AccessControlProps) {
     const tryAutoAcceptInvite = async () => {
       setAutoAcceptingInvite(true);
       try {
-        const { error, data } = await supabase.functions.invoke('accept-user-invite', {
+        const invokePromise = supabase.functions.invoke('accept-user-invite', {
           body: {},
         });
+        const timeoutPromise = new Promise<never>((_, reject) =>
+          setTimeout(() => reject(new Error('Invite acceptance timed out')), 10000)
+        );
+        const { error, data } = await Promise.race([invokePromise, timeoutPromise]);
 
         if (cancelled) return;
         if (error) {
