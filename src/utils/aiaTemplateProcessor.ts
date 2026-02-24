@@ -373,6 +373,8 @@ export async function processAIATemplate(
 
       // Contract Information
       contract_date: data.contract_date,
+      contract_start_date: data.contract_date,
+      project_start_date: data.contract_date,
       contract_amount: data.contract_amount,
       change_orders_amount: data.change_orders_amount,
       current_contract_sum: data.current_contract_sum,
@@ -415,6 +417,8 @@ export async function processAIATemplate(
       g703_total_retainage_materials_stored: formatCurrency(g703Totals.retainage_stored_material),
       g703_total_retainage_stored: formatCurrency(g703Totals.retainage_stored_material),
       g703_overall_percent_complete: `${g703OverallPercent.toFixed(1)}%`,
+      g703_total_percent_complete: `${g703OverallPercent.toFixed(1)}%`,
+      g703_percent_complete: `${g703OverallPercent.toFixed(1)}%`,
     };
 
     // Process each worksheet

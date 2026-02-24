@@ -25,6 +25,7 @@ interface Job {
   project_number?: string | null;
   customer_id: string | null;
   address: string | null;
+  start_date?: string | null;
 }
 
 interface Customer {
@@ -169,7 +170,7 @@ export default function AddARInvoice({
       const [jobsRes, customersRes] = await Promise.all([
         supabase
           .from("jobs")
-          .select("id, name, project_number, customer_id, address")
+          .select("id, name, project_number, customer_id, address, start_date")
           .eq("company_id", currentCompany!.id)
           .eq("status", "active")
           .order("name"),
@@ -189,7 +190,7 @@ export default function AddARInvoice({
       if (preselectedJobId && !jobsData.some((j) => j.id === preselectedJobId)) {
         const { data: preselectedJob, error: preselectedJobError } = await supabase
           .from("jobs")
-          .select("id, name, project_number, customer_id, address")
+          .select("id, name, project_number, customer_id, address, start_date")
           .eq("company_id", currentCompany!.id)
           .eq("id", preselectedJobId)
           .maybeSingle();
@@ -623,6 +624,7 @@ export default function AddARInvoice({
         (selectedJob?.project_number as string | undefined) ||
         ((selectedJob as any)?.job_number as string | undefined) ||
         "";
+      const effectiveContractDate = contractDate || selectedJob?.start_date || "";
 
       const templateData: AIATemplateData = {
         // Company Information
@@ -655,7 +657,7 @@ export default function AddARInvoice({
         architect_project_no: '',
 
         // Contract Information
-        contract_date: contractDate ? format(new Date(contractDate), 'MM/dd/yyyy') : '',
+        contract_date: effectiveContractDate ? format(new Date(effectiveContractDate), 'MM/dd/yyyy') : '',
         contract_amount: fmtAiaCurrency(contractSum),
         change_orders_amount: fmtAiaCurrency(changeOrders),
         current_contract_sum: fmtAiaCurrency(totalContractSum),
@@ -769,7 +771,7 @@ export default function AddARInvoice({
     doc.setFont("helvetica", "bold");
     doc.text("CONTRACT DATE:", col2X, startY + 35);
     doc.setFont("helvetica", "normal");
-    doc.text(contractDate ? format(new Date(contractDate), "MM/dd/yyyy") : "-", col2X + 30, startY + 35);
+    doc.text((contractDate || selectedJob?.start_date) ? format(new Date(contractDate || selectedJob?.start_date || ""), "MM/dd/yyyy") : "-", col2X + 30, startY + 35);
     
     // Column 3: Application details
     doc.setFont("helvetica", "bold");
