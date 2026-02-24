@@ -108,7 +108,7 @@ function hslToHex(hsl: string): string {
                  <!-- Header with BuilderLynk branding -->
                  <tr>
                    <td style="background-color: ${brandNavy}; padding: 30px; text-align: center;">
-                    <img src="${builderLynkLogo}" alt="BuilderLYNK" style="height: 90px; width: auto; max-width: 320px;" />
+                    <img src="${builderLynkLogo}" alt="BuilderLYNK" style="height: 270px; width: auto; max-width: 520px;" />
                    </td>
                  </tr>
                  
