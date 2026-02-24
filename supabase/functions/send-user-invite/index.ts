@@ -263,7 +263,4 @@ function hslToHex(hsl: string): string {
    }
  };
  
- serve(handler);
-    const displayRoleName = (customRoleName && customRoleName.trim())
-      ? customRoleName.trim()
-      : role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());
+serve(handler);
