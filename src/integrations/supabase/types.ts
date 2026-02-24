@@ -4657,6 +4657,7 @@ export type Database = {
           longitude: number | null
           name: string
           project_manager_user_id: string | null
+          project_number: string | null
           require_pm_bill_approval: boolean | null
           revenue_account_id: string | null
           shift_end_time: string | null
@@ -4689,6 +4690,7 @@ export type Database = {
           longitude?: number | null
           name: string
           project_manager_user_id?: string | null
+          project_number?: string | null
           require_pm_bill_approval?: boolean | null
           revenue_account_id?: string | null
           shift_end_time?: string | null
@@ -4721,6 +4723,7 @@ export type Database = {
           longitude?: number | null
           name?: string
           project_manager_user_id?: string | null
+          project_number?: string | null
           require_pm_bill_approval?: boolean | null
           revenue_account_id?: string | null
           shift_end_time?: string | null
@@ -7293,6 +7296,8 @@ export type Database = {
       }
       schedule_of_values: {
         Row: {
+          approved_at: string | null
+          approved_by: string | null
           company_id: string
           cost_code_id: string | null
           created_at: string
@@ -7305,8 +7310,11 @@ export type Database = {
           scheduled_value: number
           sort_order: number
           updated_at: string
+          workflow_status: string
         }
         Insert: {
+          approved_at?: string | null
+          approved_by?: string | null
           company_id: string
           cost_code_id?: string | null
           created_at?: string
@@ -7319,8 +7327,11 @@ export type Database = {
           scheduled_value?: number
           sort_order?: number
           updated_at?: string
+          workflow_status?: string
         }
         Update: {
+          approved_at?: string | null
+          approved_by?: string | null
           company_id?: string
           cost_code_id?: string | null
           created_at?: string
@@ -7333,6 +7344,7 @@ export type Database = {
           scheduled_value?: number
           sort_order?: number
           updated_at?: string
+          workflow_status?: string
         }
         Relationships: [
           {
