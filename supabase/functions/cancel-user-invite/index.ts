@@ -53,19 +53,36 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    // Authorization: allow only admin/controller/company_admin on the company
-    const { data: access, error: accessError } = await supabaseAuthed
+    // Authorization: allow only admin/controller/company_admin (or super_admin profile fallback).
+    // Some environments may have duplicate user_company_access rows; handle that safely.
+    const { data: accessRows, error: accessError } = await supabaseAuthed
       .from("user_company_access")
       .select("role, is_active")
       .eq("company_id", companyId)
-      .eq("user_id", userData.user.id)
-      .maybeSingle();
+      .eq("user_id", userData.user.id);
 
     if (accessError) throw accessError;
 
-    const role = (access?.role ?? "").toLowerCase();
-    const isActive = access?.is_active === true;
-    const canManage = isActive && ["admin", "company_admin", "controller", "owner"].includes(role);
+    const canManageFromCompanyRole = (accessRows || []).some((row) => {
+      const role = String(row.role || "").toLowerCase();
+      const isActive = row.is_active === true;
+      return isActive && ["admin", "company_admin", "controller", "owner"].includes(role);
+    });
+
+    let canManage = canManageFromCompanyRole;
+
+    if (!canManage) {
+      const { data: profileRow, error: profileError } = await supabaseAuthed
+        .from("profiles")
+        .select("role")
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+
+      if (profileError) throw profileError;
+
+      const profileRole = String(profileRow?.role || "").toLowerCase();
+      canManage = ["super_admin", "admin", "controller", "owner"].includes(profileRole);
+    }
 
     if (!canManage) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {

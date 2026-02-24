@@ -173,7 +173,11 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const signUp = async (email: string, password: string, firstName?: string, lastName?: string) => {
-    const redirectUrl = `${window.location.origin}/`;
+    const currentUrl = new URL(window.location.href);
+    const inviteToken = currentUrl.searchParams.get('invite');
+    const redirectUrl = inviteToken
+      ? `${window.location.origin}/auth?invite=${encodeURIComponent(inviteToken)}`
+      : `${window.location.origin}/`;
     
     const { error } = await supabase.auth.signUp({
       email,

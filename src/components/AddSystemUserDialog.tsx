@@ -1,4 +1,4 @@
- import { useState } from 'react';
+ import { useEffect, useState } from 'react';
  import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
  import { Button } from '@/components/ui/button';
  import { Input } from '@/components/ui/input';
@@ -10,7 +10,7 @@
 import { useSettings } from '@/contexts/SettingsContext';
  import { supabase } from '@/integrations/supabase/client';
 import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
- import { Mail, UserPlus, Loader2 } from 'lucide-react';
+import { Mail, UserPlus, Loader2 } from 'lucide-react';
  
  interface AddSystemUserDialogProps {
    open: boolean;
@@ -19,15 +19,53 @@ import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
  }
  
  export default function AddSystemUserDialog({ open, onOpenChange, onUserAdded }: AddSystemUserDialogProps) {
-   const [email, setEmail] = useState('');
-   const [firstName, setFirstName] = useState('');
-   const [lastName, setLastName] = useState('');
-   const [role, setRole] = useState('employee');
-   const [loading, setLoading] = useState(false);
+  interface CustomRole {
+    id: string;
+    role_name: string;
+    role_key: string;
+    is_active?: boolean;
+  }
+
+  const SYSTEM_ROLE_OPTIONS = [
+    { value: 'admin', label: 'Administrator' },
+    { value: 'controller', label: 'Controller' },
+    { value: 'project_manager', label: 'Project Manager' },
+    { value: 'employee', label: 'Employee' },
+    { value: 'view_only', label: 'View Only' },
+  ] as const;
+
+  const [email, setEmail] = useState('');
+  const [firstName, setFirstName] = useState('');
+  const [lastName, setLastName] = useState('');
+  const [role, setRole] = useState('employee');
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  const [loading, setLoading] = useState(false);
    const { toast } = useToast();
    const { currentCompany } = useCompany();
-   const { user } = useAuth();
+  const { user } = useAuth();
   const { settings } = useSettings();
+
+  useEffect(() => {
+    const loadCustomRoles = async () => {
+      if (!currentCompany?.id || !open) return;
+      try {
+        const { data, error } = await supabase
+          .from('custom_roles')
+          .select('id, role_name, role_key, is_active')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true)
+          .order('role_name');
+
+        if (error) throw error;
+        setCustomRoles((data as CustomRole[]) || []);
+      } catch (error) {
+        console.error('Error loading custom roles for invite dialog:', error);
+        setCustomRoles([]);
+      }
+    };
+
+    loadCustomRoles();
+  }, [currentCompany?.id, open]);
  
    const resetForm = () => {
      setEmail('');
@@ -59,13 +97,20 @@ import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
       // Get the primary color from settings
       const primaryColor = settings.customColors?.primary;
 
-       // Call edge function to send invitation email
+      const selectedCustomRole = role.startsWith('custom_')
+        ? customRoles.find((r) => r.id === role.replace('custom_', ''))
+        : null;
+      const fallbackSystemRole = selectedCustomRole ? 'employee' : role;
+
+      // Call edge function to send invitation email
        const { data, error } = await supabase.functions.invoke('send-user-invite', {
          body: {
            email,
            firstName,
            lastName,
-           role,
+           role: fallbackSystemRole,
+           customRoleId: selectedCustomRole?.id,
+           customRoleName: selectedCustomRole?.role_name,
            companyId: currentCompany.id,
            companyName: currentCompany.display_name || currentCompany.name,
           companyLogo,
@@ -153,14 +198,32 @@ import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
                <SelectTrigger>
                  <SelectValue />
                </SelectTrigger>
-               <SelectContent>
-                 <SelectItem value="admin">Administrator</SelectItem>
-                 <SelectItem value="controller">Controller</SelectItem>
-                 <SelectItem value="project_manager">Project Manager</SelectItem>
-                 <SelectItem value="employee">Employee</SelectItem>
-                 <SelectItem value="view_only">View Only</SelectItem>
-               </SelectContent>
-             </Select>
+                <SelectContent>
+                  {SYSTEM_ROLE_OPTIONS.map((opt) => (
+                    <SelectItem key={opt.value} value={opt.value}>{opt.label}</SelectItem>
+                  ))}
+                  {customRoles.length > 0 && (
+                    <>
+                      <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                        Custom Roles
+                      </div>
+                      {customRoles.map((customRole) => (
+                        <SelectItem
+                          key={customRole.id}
+                          value={`custom_${customRole.id}`}
+                        >
+                          {customRole.role_name}
+                        </SelectItem>
+                      ))}
+                    </>
+                  )}
+                </SelectContent>
+              </Select>
+              {customRoles.length > 0 && (
+                <p className="text-xs text-muted-foreground">
+                  Custom-role invites are created with an employee base role and your custom role will be applied automatically after invite acceptance.
+                </p>
+              )}
            </div>
  
            <div className="flex gap-3 pt-4">

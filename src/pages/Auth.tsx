@@ -23,11 +23,15 @@ export default function Auth() {
   const [showPassword, setShowPassword] = useState(false);
   const [isRecoveryMode, setIsRecoveryMode] = useState(false);
   const [resetSuccess, setResetSuccess] = useState(false);
+  const [inviteAccepting, setInviteAccepting] = useState(false);
+  const [inviteAccepted, setInviteAccepted] = useState(false);
+  const [inviteHandledToken, setInviteHandledToken] = useState<string | null>(null);
   
   const { signIn, signUp, signInWithGoogle, user, profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const inviteToken = searchParams.get('invite');
   
   // Use role-based routing after successful auth
   useRoleBasedRouting();
@@ -65,6 +69,7 @@ export default function Auth() {
   useEffect(() => {
     if (isRecoveryMode) return;
     if (!user) return;
+    if (inviteToken && (inviteAccepting || (!inviteAccepted && inviteHandledToken !== inviteToken))) return;
     
     // Wait for profile to load
     if (profile === null && user) return;
@@ -76,7 +81,57 @@ export default function Auth() {
       // Let useRoleBasedRouting handle it, but if no role yet just go to dashboard
       navigate('/dashboard', { replace: true });
     }
-  }, [user, profile, isRecoveryMode, navigate]);
+  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, inviteAccepted, inviteHandledToken]);
+
+  useEffect(() => {
+    if (!inviteToken || !user || inviteAccepted || inviteAccepting || inviteHandledToken === inviteToken) return;
+
+    let cancelled = false;
+
+    const acceptInvite = async () => {
+      setInviteAccepting(true);
+      try {
+        const { data, error } = await supabase.functions.invoke('accept-user-invite', {
+          body: { inviteToken },
+        });
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        setInviteAccepted(true);
+        setInviteHandledToken(inviteToken);
+        await new Promise((r) => setTimeout(r, 0));
+        await supabase.auth.getSession(); // no-op refresh point
+
+        toast({
+          title: 'Invitation accepted',
+          description: data?.customRoleId
+            ? 'Your company access and custom role have been applied.'
+            : 'Your company access has been applied.',
+        });
+
+        const url = new URL(window.location.href);
+        url.searchParams.delete('invite');
+        window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+      } catch (err: any) {
+        if (cancelled) return;
+        setInviteHandledToken(inviteToken);
+        toast({
+          title: 'Invitation issue',
+          description: err?.message || 'Unable to apply this invitation automatically. Please contact your administrator.',
+          variant: 'destructive',
+        });
+      } finally {
+        if (!cancelled) setInviteAccepting(false);
+      }
+    };
+
+    acceptInvite();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken, user, inviteAccepted, inviteAccepting, inviteHandledToken, toast]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -124,7 +179,9 @@ export default function Auth() {
     } else {
       toast({
         title: 'Success',
-        description: 'Account created! Please check your email for verification.',
+        description: inviteToken
+          ? 'Account created. If email confirmation is enabled, check your inbox; then sign in to finish accepting your invitation.'
+          : 'Account created! Please check your email for verification.',
       });
     }
     setLoading(false);
@@ -326,10 +383,15 @@ export default function Auth() {
             <span className="text-[#E88A2D]">BuilderLYNK</span>
           </CardTitle>
           <CardDescription>
-            Sign in to your account or create a new one
+            {inviteToken ? 'You were invited to join a company. Sign in or create your account to accept the invitation.' : 'Sign in to your account or create a new one'}
           </CardDescription>
         </CardHeader>
         <CardContent>
+          {inviteToken && (
+            <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
+              {inviteAccepting ? 'Applying your invitation after sign-in...' : 'This page was opened from a BuilderLYNK invitation link.'}
+            </div>
+          )}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className="grid w-full grid-cols-2">
               <TabsTrigger value="signin">Sign In</TabsTrigger>

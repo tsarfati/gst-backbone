@@ -10,12 +10,14 @@
      "authorization, x-client-info, apikey, content-type",
  };
  
- interface InviteRequest {
-   email: string;
-   firstName?: string;
-   lastName?: string;
-   role: string;
-   companyId: string;
+interface InviteRequest {
+  email: string;
+  firstName?: string;
+  lastName?: string;
+  role: string;
+  customRoleId?: string;
+  customRoleName?: string;
+  companyId: string;
    companyName: string;
    companyLogo?: string;
    primaryColor?: string;
@@ -58,7 +60,7 @@ function hslToHex(hsl: string): string {
      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
      const supabase = createClient(supabaseUrl, supabaseServiceKey);
  
-     const { email, firstName, lastName, role, companyId, companyName, companyLogo, primaryColor, invitedBy, resendInvitationId }: InviteRequest = await req.json();
+     const { email, firstName, lastName, role, customRoleId, customRoleName, companyId, companyName, companyLogo, primaryColor, invitedBy, resendInvitationId }: InviteRequest = await req.json();
  
      if (!email || !companyId || !companyName) {
        throw new Error("Missing required fields: email, companyId, companyName");
@@ -121,7 +123,7 @@ function hslToHex(hsl: string): string {
                      </p>
                      
                      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
-                      You've been assigned the role of <strong style="color: ${brandPrimary};">${role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase())}</strong>.
+                      You've been assigned the role of <strong style="color: ${brandPrimary};">${displayRoleName}</strong>.
                      </p>
                      
                      <!-- CTA Button -->
@@ -203,6 +205,7 @@ function hslToHex(hsl: string): string {
            first_name: firstName || null,
            last_name: lastName || null,
            role,
+           custom_role_id: customRoleId ?? null,
            company_id: companyId,
            invited_by: invitedBy,
            expires_at: expiresAt.toISOString(),
@@ -224,6 +227,7 @@ function hslToHex(hsl: string): string {
            first_name: firstName || null,
            last_name: lastName || null,
            role,
+           custom_role_id: customRoleId ?? null,
            company_id: companyId,
            invite_token: inviteToken,
            expires_at: expiresAt.toISOString(),
@@ -252,3 +256,6 @@ function hslToHex(hsl: string): string {
  };
  
  serve(handler);
+    const displayRoleName = (customRoleName && customRoleName.trim())
+      ? customRoleName.trim()
+      : role.replace('_', ' ').replace(/\b\w/g, l => l.toUpperCase());

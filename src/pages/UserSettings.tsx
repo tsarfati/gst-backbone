@@ -184,9 +184,18 @@ export default function UserSettings() {
        fetchInvitations();
      } catch (error: any) {
        console.error('Error resending invitation:', error);
+       let errorMessage = error?.message || 'Failed to resend invitation';
+       try {
+         if (typeof error?.context?.json === 'function') {
+           const body = await error.context.json();
+           errorMessage = body?.error || body?.message || errorMessage;
+         }
+       } catch {
+         // ignore parse errors and keep fallback message
+       }
        toast({
          title: 'Error',
-         description: error.message || 'Failed to resend invitation',
+         description: errorMessage,
          variant: 'destructive',
        });
      } finally {
@@ -220,9 +229,18 @@ export default function UserSettings() {
         fetchInvitations();
       } catch (error: any) {
         console.error('Error cancelling invitation:', error);
+        let errorMessage = error?.message || 'Failed to cancel invitation';
+        try {
+          if (typeof error?.context?.json === 'function') {
+            const body = await error.context.json();
+            errorMessage = body?.error || body?.message || errorMessage;
+          }
+        } catch {
+          // ignore parse errors and keep fallback message
+        }
         toast({
           title: 'Error',
-          description: error.message || 'Failed to cancel invitation',
+          description: errorMessage,
           variant: 'destructive',
         });
       } finally {
