@@ -83,8 +83,17 @@ serve(async (req: Request) => {
 
     // Download files and create real email attachments
     const emailAttachments: any[] = [];
+    const explicitLinkFiles: any[] = [];
+    const fallbackLinkFiles: any[] = [];
 
     for (const f of fileList) {
+      const deliveryMethod = f.delivery_method === "link" ? "link" : "attachment";
+
+      if (deliveryMethod === "link") {
+        explicitLinkFiles.push(f);
+        continue;
+      }
+
       try {
         const response = await fetch(f.file_url);
         if (response.ok) {
@@ -95,30 +104,40 @@ serve(async (req: Request) => {
           });
         } else {
           console.warn(`Failed to download file ${f.file_name}: ${response.status}`);
+          fallbackLinkFiles.push(f);
         }
       } catch (dlErr) {
         console.warn(`Error downloading file ${f.file_name}:`, dlErr);
+        fallbackLinkFiles.push(f);
       }
     }
 
-    if (fileList.length > 0 && emailAttachments.length === 0) {
-      // Fallback to links if downloads failed
-      const attachmentHtml = fileList.map((f: any) =>
-        `<p>📎 <a href="${f.file_url}" style="color: #2563eb;">${f.file_name}</a></p>`
-      ).join('');
-
-      emailHtml += `
-        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
-        <div style="color: #666; font-size: 14px;">
-          ${attachmentHtml}
-          <small>These links expire in 7 days.</small>
-        </div>
-      `;
-    } else if (emailAttachments.length > 0) {
+    if (emailAttachments.length > 0) {
       emailHtml += `
         <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
         <div style="color: #666; font-size: 14px;">
           <p>📎 ${emailAttachments.length} file(s) attached</p>
+        </div>
+      `;
+    }
+
+    const linkFiles = [...explicitLinkFiles, ...fallbackLinkFiles];
+    if (linkFiles.length > 0) {
+      const attachmentHtml = linkFiles.map((f: any) => {
+        const expiryText = f.link_expires_label
+          ? ` <span style="color: #888;">(expires in ${f.link_expires_label})</span>`
+          : '';
+        const fallbackText = fallbackLinkFiles.includes(f)
+          ? ` <span style="color: #b45309;">(sent as link because attachment could not be fetched)</span>`
+          : '';
+        return `<p>🔗 <a href="${f.file_url}" style="color: #2563eb;">${f.file_name}</a>${expiryText}${fallbackText}</p>`;
+      }).join('');
+
+      emailHtml += `
+        <hr style="margin: 20px 0; border: none; border-top: 1px solid #eee;" />
+        <div style="color: #666; font-size: 14px;">
+          <p style="margin: 0 0 8px 0;">Secure file links:</p>
+          ${attachmentHtml}
         </div>
       `;
     }
