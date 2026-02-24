@@ -19,6 +19,7 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 
     const authHeader = req.headers.get("Authorization");
@@ -29,21 +30,23 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const supabaseAuthed = createClient(supabaseUrl, supabaseServiceKey, {
-      global: {
-        headers: {
-          Authorization: authHeader,
-        },
-      },
+    // Use anon key for JWT validation
+    const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
     });
 
-    const { data: userData, error: userError } = await supabaseAuthed.auth.getUser();
+    const token = authHeader.replace("Bearer ", "");
+    const { data: userData, error: userError } = await supabaseAuth.auth.getUser(token);
     if (userError || !userData?.user) {
+      console.error("JWT validation failed:", userError);
       return new Response(JSON.stringify({ error: "Unauthorized" }), {
         status: 401,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
+
+    // Use service role key for privileged operations
+    const supabaseAuthed = createClient(supabaseUrl, supabaseServiceKey);
 
     const { invitationId, companyId }: CancelInviteRequest = await req.json();
     if (!invitationId || !companyId) {

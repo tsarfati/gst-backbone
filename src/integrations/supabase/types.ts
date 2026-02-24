@@ -5493,6 +5493,7 @@ export type Database = {
           accepted_at: string | null
           company_id: string
           created_at: string
+          custom_role_id: string | null
           email: string
           expires_at: string
           first_name: string | null
@@ -5507,6 +5508,7 @@ export type Database = {
           accepted_at?: string | null
           company_id: string
           created_at?: string
+          custom_role_id?: string | null
           email: string
           expires_at: string
           first_name?: string | null
@@ -5521,6 +5523,7 @@ export type Database = {
           accepted_at?: string | null
           company_id?: string
           created_at?: string
+          custom_role_id?: string | null
           email?: string
           expires_at?: string
           first_name?: string | null
@@ -5537,6 +5540,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "pending_user_invites_custom_role_id_fkey"
+            columns: ["custom_role_id"]
+            isOneToOne: false
+            referencedRelation: "custom_roles"
             referencedColumns: ["id"]
           },
         ]
@@ -8300,6 +8310,7 @@ export type Database = {
           accepted_by: string | null
           company_id: string
           created_at: string
+          custom_role_id: string | null
           email: string
           email_bounced_at: string | null
           email_delivered_at: string | null
@@ -8321,6 +8332,7 @@ export type Database = {
           accepted_by?: string | null
           company_id: string
           created_at?: string
+          custom_role_id?: string | null
           email: string
           email_bounced_at?: string | null
           email_delivered_at?: string | null
@@ -8342,6 +8354,7 @@ export type Database = {
           accepted_by?: string | null
           company_id?: string
           created_at?: string
+          custom_role_id?: string | null
           email?: string
           email_bounced_at?: string | null
           email_delivered_at?: string | null
@@ -8364,6 +8377,13 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_invitations_custom_role_id_fkey"
+            columns: ["custom_role_id"]
+            isOneToOne: false
+            referencedRelation: "custom_roles"
             referencedColumns: ["id"]
           },
         ]
@@ -9557,6 +9577,10 @@ export type Database = {
         Args: { p_other_user_id: string; p_user_id: string }
         Returns: undefined
       }
+      normalize_message_attachment_ref: {
+        Args: { p_value: string }
+        Returns: string
+      }
       pin_insert_job_photo: {
         Args: {
           p_job_id: string
@@ -9624,6 +9648,7 @@ export type Database = {
         }
         Returns: undefined
       }
+      repair_message_attachment_urls: { Args: never; Returns: number }
       resolve_user_names: {
         Args: { p_user_ids: string[] }
         Returns: {
