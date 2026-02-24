@@ -78,8 +78,8 @@ function hslToHex(hsl: string): string {
     const brandPrimary = primaryColor ? hslToHex(primaryColor) : "#E88A2D";
      const brandNavy = "#1e3a5f";
  
-    // BuilderLynk logo URL
-    const builderLynkLogo = "https://builderlynk.lovable.app/email-assets/builderlynk-logo.png?v=2";
+    // BuilderLYNK logo URL (new brand mark)
+    const builderLynkLogo = "https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png";
 
      // Build branded email HTML
      const emailHtml = `
@@ -97,7 +97,7 @@ function hslToHex(hsl: string): string {
                  <!-- Header with BuilderLynk branding -->
                  <tr>
                    <td style="background-color: ${brandNavy}; padding: 30px; text-align: center;">
-                    <img src="${builderLynkLogo}" alt="BuilderLYNK" style="height: 50px; width: auto;" />
+                    <img src="${builderLynkLogo}" alt="BuilderLYNK" style="height: 90px; width: auto; max-width: 320px;" />
                    </td>
                  </tr>
                  
