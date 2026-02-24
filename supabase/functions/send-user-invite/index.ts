@@ -8,7 +8,14 @@ const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+  "Access-Control-Allow-Methods": "POST, OPTIONS",
 };
+
+const buildCorsHeaders = (req: Request) => ({
+  ...corsHeaders,
+  "Access-Control-Allow-Headers":
+    req.headers.get("Access-Control-Request-Headers") || corsHeaders["Access-Control-Allow-Headers"],
+});
  
 interface InviteRequest {
   email: string;
@@ -51,8 +58,9 @@ function hslToHex(hsl: string): string {
 }
 
   const handler = async (req: Request): Promise<Response> => {
+   const responseCorsHeaders = buildCorsHeaders(req);
    if (req.method === "OPTIONS") {
-     return new Response(null, { headers: corsHeaders });
+     return new Response(null, { headers: responseCorsHeaders });
    }
  
    try {
@@ -241,7 +249,7 @@ function hslToHex(hsl: string): string {
  
      return new Response(JSON.stringify({ success: true, inviteToken }), {
        status: 200,
-       headers: { "Content-Type": "application/json", ...corsHeaders },
+       headers: { "Content-Type": "application/json", ...responseCorsHeaders },
      });
    } catch (error: any) {
      console.error("Error in send-user-invite function:", error);
@@ -249,7 +257,7 @@ function hslToHex(hsl: string): string {
        JSON.stringify({ error: error.message }),
        {
          status: 500,
-         headers: { "Content-Type": "application/json", ...corsHeaders },
+         headers: { "Content-Type": "application/json", ...responseCorsHeaders },
        }
      );
    }
