@@ -10,7 +10,7 @@ Level 2: Dynamic Parents    (e.g., "1.09")         - Work breakdown items with b
 Level 3: Child Codes        (e.g., "1.09-labor")   - Category-specific cost tracking
 ```
 
-## How It Work
+## How It Works
 
 ### Automatic Hierarchy
 
