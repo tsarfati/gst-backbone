@@ -10,7 +10,7 @@ Level 2: Dynamic Parents    (e.g., "1.09")         - Work breakdown items with b
 Level 3: Child Codes        (e.g., "1.09-labor")   - Category-specific cost tracking
 ```
 
-## How It Works
+## How It Work
 
 ### Automatic Hierarchy
 
@@ -69,7 +69,7 @@ Dynamic groups are optional but helpful for high-level tracking:
 
 ```sql
 INSERT INTO cost_codes (code, description, type, is_dynamic_group, company_id)
-VALUES 
+VALUES
   ('1.0', 'Labor Group', 'labor', true, 'your-company-id'),
   ('2.0', 'Materials Group', 'material', true, 'your-company-id');
 ```
@@ -80,7 +80,7 @@ These will have budgets assigned:
 
 ```sql
 INSERT INTO cost_codes (code, description, type, company_id, job_id)
-VALUES 
+VALUES
   ('1.09', 'General Labor', 'labor', 'your-company-id', 'your-job-id'),
   ('1.10', 'Skilled Labor', 'labor', 'your-company-id', 'your-job-id');
 ```
@@ -91,7 +91,7 @@ The system will automatically link these to their parents:
 
 ```sql
 INSERT INTO cost_codes (code, description, type, company_id, job_id)
-VALUES 
+VALUES
   ('1.09-labor', 'General Labor - Labor', 'labor', 'your-company-id', 'your-job-id'),
   ('1.09-material', 'General Labor - Materials', 'material', 'your-company-id', 'your-job-id'),
   ('1.09-equipment', 'General Labor - Equipment', 'equipment', 'your-company-id', 'your-job-id');
@@ -120,6 +120,7 @@ Set budgets for the dynamic parent codes:
 ### Multi-Category Analysis
 
 This structure allows you to answer questions like:
+
 - "How much labor vs materials did we spend on general labor?"
 - "What percentage of concrete costs were equipment?"
 - "Which work items have the highest material-to-labor ratio?"
@@ -151,6 +152,7 @@ Each cost code can be linked to your chart of accounts:
 - **Children**: Detailed accounts (e.g., 5011, 5012, 5013)
 
 This enables:
+
 - Financial statement reporting
 - General ledger integration
 - Multi-dimensional cost analysis
@@ -182,6 +184,7 @@ This enables:
 ### Category Suffix Standards
 
 Recommended suffixes for consistency:
+
 - `-labor`: Direct labor costs
 - `-material`: Materials and supplies
 - `-equipment`: Equipment rental, operation, depreciation
@@ -223,6 +226,7 @@ Use the provided `cost-codes-example.csv` file as a template:
 ### Parent Not Found
 
 If a child code doesn't link to a parent:
+
 1. Ensure the parent code exists (e.g., `1.09` for `1.09-labor`)
 2. Verify the code follows the pattern (parent-category)
 3. Check that company_id and job_id match
@@ -230,6 +234,7 @@ If a child code doesn't link to a parent:
 ### Budget Not Rolling Up
 
 If costs aren't accumulating to parent:
+
 1. Verify the dynamic budget was created for the parent
 2. Check that invoices are approved
 3. Ensure child codes have correct parent_cost_code_id
@@ -237,6 +242,7 @@ If costs aren't accumulating to parent:
 ### Missing Dynamic Group
 
 If parent codes don't show a group:
+
 1. Create the group cost code with `is_dynamic_group = true`
 2. Ensure the group code ends in .0 (e.g., `1.0`, `2.0`)
 3. Refresh the budget manager
@@ -244,6 +250,7 @@ If parent codes don't show a group:
 ## Support
 
 For additional help:
+
 - Review the example CSV file
 - Check the cost code hierarchy in Cost Code Manager
 - Contact your system administrator
