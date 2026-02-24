@@ -15,6 +15,7 @@ export function useRoleBasedRouting() {
   const { hasAccess } = useMenuPermissions();
   const navigate = useNavigate();
   const location = useLocation();
+  const isInviteAuthRoute = location.pathname === '/auth' && new URLSearchParams(location.search).has('invite');
 
   // Prefer active-company role, then profile role, then any company role we can infer.
   const effectiveRole =
@@ -32,6 +33,9 @@ export function useRoleBasedRouting() {
   useEffect(() => {
     // Wait for both tenant and company contexts to settle before routing
     if (tenantLoading || companyLoading) return;
+    // Do not interfere with invite acceptance flow or pending/suspended gating.
+    if (isInviteAuthRoute) return;
+    if (profile?.status === 'pending' || profile?.status === 'suspended') return;
 
     // Super admins who are tenant OWNERS should go to super admin dashboard
     // Super admins who are NOT owners (e.g., tenant admins) should go to regular dashboard
@@ -112,5 +116,5 @@ export function useRoleBasedRouting() {
     };
 
     fetchDefaultPage();
-  }, [effectiveRole, isSuperAdmin, isTenantOwner, tenantLoading, companyLoading, hasAccess, navigate, location.pathname]);
+  }, [effectiveRole, isSuperAdmin, isTenantOwner, tenantLoading, companyLoading, hasAccess, navigate, location.pathname, location.search, isInviteAuthRoute, profile?.status]);
 }
