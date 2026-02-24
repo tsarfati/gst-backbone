@@ -17,6 +17,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { UserPinSettings } from '@/components/UserPinSettings';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface UserProfile {
   id: string;
@@ -354,8 +355,8 @@ export default function UserEdit() {
     );
   };
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleAvatarUpload = async (eventOrFile: React.ChangeEvent<HTMLInputElement> | File) => {
+    const file = eventOrFile instanceof File ? eventOrFile : eventOrFile.target.files?.[0];
     if (!file || !user) return;
 
     if (file.size > 2 * 1024 * 1024) {
@@ -545,6 +546,18 @@ export default function UserEdit() {
                     className="hidden"
                     onChange={handleAvatarUpload}
                   />
+                  <div className="w-full max-w-[220px]">
+                    <DragDropUpload
+                      onFileSelect={(file) => void handleAvatarUpload(file)}
+                      accept=".jpg,.jpeg,.png,.webp"
+                      maxSize={2}
+                      size="compact"
+                      title="Drop avatar image"
+                      subtitle="or click to choose image"
+                      helperText="Profile avatar (max 2MB)"
+                      disabled={uploadingAvatar}
+                    />
+                  </div>
                 </div>
                 <div className="flex-1 space-y-4">
                   <div className="grid grid-cols-2 gap-4">

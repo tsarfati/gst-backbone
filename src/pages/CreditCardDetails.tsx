@@ -15,6 +15,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { CreditCardPaymentModal } from "@/components/CreditCardPaymentModal";
 import { useCreditCardBalance } from "@/hooks/useCreditCardBalance";
 import Papa from "papaparse";
+import DragDropUpload from "@/components/DragDropUpload";
 
 export default function CreditCardDetails() {
   const { id } = useParams();
@@ -415,10 +416,14 @@ export default function CreditCardDetails() {
               <div className="space-y-4">
                 <div>
                   <Label>CSV File</Label>
-                  <Input
-                    type="file"
+                  <DragDropUpload
+                    onFileSelect={(file) => setCsvFile(file)}
                     accept=".csv"
-                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                    maxSize={10}
+                    size="compact"
+                    title="Drop transaction CSV"
+                    subtitle="or click to choose CSV file"
+                    helperText="Bank CSV import"
                   />
                   <p className="text-sm text-muted-foreground mt-2">
                     <strong>Supported formats:</strong><br />
@@ -526,10 +531,14 @@ export default function CreditCardDetails() {
                     <div className="space-y-4">
                       <div>
                         <Label>Statement File</Label>
-                        <Input
-                          type="file"
+                        <DragDropUpload
+                          onFileSelect={(file) => setStatementFile(file)}
                           accept=".pdf,.jpg,.jpeg,.png"
-                          onChange={(e) => setStatementFile(e.target.files?.[0] || null)}
+                          maxSize={20}
+                          size="compact"
+                          title="Drop statement file"
+                          subtitle="or click to choose statement"
+                          helperText="PDF or image statement"
                         />
                       </div>
                       <div>

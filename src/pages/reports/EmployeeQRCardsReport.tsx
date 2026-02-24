@@ -12,6 +12,7 @@ import { useNavigate } from "react-router-dom";
 import { Download, ArrowLeft, QrCode, Settings, Save } from "lucide-react";
 import QRCodeGenerator from "qrcode";
 import { jsPDF } from "jspdf";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface PinEmployee {
   id: string;
@@ -450,11 +451,14 @@ export default function EmployeeQRCardsReport() {
 
             <div className="space-y-2">
               <Label htmlFor="logoUpload">Company Logo</Label>
-              <Input
-                id="logoUpload"
-                type="file"
-                accept="image/*"
-                onChange={handleLogoUpload}
+              <DragDropUpload
+                onFileSelect={(file) => handleLogoUpload({ target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>)}
+                accept=".png,.jpg,.jpeg,.webp,.svg"
+                maxSize={10}
+                size="compact"
+                title="Drop company logo"
+                subtitle="or click to choose image"
+                helperText="Image logo for QR cards"
               />
               {customization.logoUrl && (
                 <div className="mt-2">

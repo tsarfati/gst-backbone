@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Plus, Upload, X, FileText } from 'lucide-react';
 import { useToast } from '@/components/ui/use-toast';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface CostCode {
   id: string;
@@ -139,20 +140,20 @@ export default function CostCodeManager({ jobId, costCodes, onCostCodesChange }:
             Add Cost Code
           </Button>
           
-          <label className="cursor-pointer">
-            <Button variant="outline" size="sm" asChild>
-              <div>
-                <Upload className="h-4 w-4 mr-2" />
-                Upload CSV/Excel
-              </div>
-            </Button>
-            <input
-              type="file"
+          <div className="w-full md:w-auto md:min-w-[280px]">
+            <DragDropUpload
+              onFileSelect={(file) => {
+                const synthetic = { target: { files: [file] }, currentTarget: { value: '' } } as any;
+                handleFileUpload(synthetic);
+              }}
               accept=".csv,.xlsx,.xls"
-              onChange={handleFileUpload}
-              className="hidden"
+              maxSize={20}
+              size="compact"
+              title="Drag CSV/Excel here"
+              dropTitle="Drop import file here"
+              helperText="Cost code CSV or Excel file"
             />
-          </label>
+          </div>
         </div>
 
         {/* Add Form */}

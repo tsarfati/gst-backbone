@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import DragDropUpload from "@/components/DragDropUpload";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -632,11 +633,14 @@ export default function ChartOfAccounts() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="csv-file">CSV File</Label>
-                  <Input
-                    id="csv-file"
-                    type="file"
+                  <DragDropUpload
+                    onFileSelect={(file) => setCsvFile(file)}
                     accept=".csv"
-                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                    maxSize={20}
+                    size="compact"
+                    title="Drag CSV file here"
+                    dropTitle="Drop CSV file here"
+                    helperText="Chart of Accounts CSV import"
                   />
                   <div className="flex justify-between items-center mt-2">
                     <Button 

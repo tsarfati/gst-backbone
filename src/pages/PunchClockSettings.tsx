@@ -17,6 +17,7 @@ import { supabase } from '@/integrations/supabase/client';
 import EmployeeTimecardSettings from '@/components/EmployeeTimecardSettings';
 import JobPunchClockSettings from '@/components/JobPunchClockSettings';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
+import DragDropUpload from '@/components/DragDropUpload';
 
 // Helper to resize any image to square PNG (contain) at desired size
 async function resizeImageToPng(file: File, size: number): Promise<Blob> {
@@ -318,6 +319,41 @@ export default function PunchClockSettings() {
       ...prev,
       [key]: value
     }));
+  };
+
+  const handlePwaIconUpload = async (file: File, size: 192 | 512) => {
+    if (!file || !currentCompany) return;
+    try {
+      const resized = await resizeImageToPng(file, size);
+      const fileName = `${currentCompany.id}-${size}.png`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('company-logos')
+        .upload(fileName, resized, { upsert: true, cacheControl: '3600', contentType: 'image/png' });
+
+      if (uploadError) {
+        toast({ title: 'Error', description: 'Failed to upload icon', variant: 'destructive' });
+        return;
+      }
+
+      const { data: { publicUrl } } = supabase.storage
+        .from('company-logos')
+        .getPublicUrl(fileName);
+
+      const dbField = size === 192 ? 'pwa_icon_192_url' : 'pwa_icon_512_url';
+      await supabase
+        .from('job_punch_clock_settings')
+        .upsert({ job_id: null, company_id: currentCompany.id, [dbField]: publicUrl, created_by: user?.id } as any);
+
+      const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
+      updateSetting(dbField as keyof PunchClockSettings, urlWithTimestamp);
+      try { localStorage.setItem(dbField, publicUrl); } catch {}
+
+      toast({ title: 'Success', description: `${size}x${size} icon resized, uploaded and saved` });
+    } catch (err) {
+      console.error(err);
+      toast({ title: 'Error', description: 'Failed to process icon', variant: 'destructive' });
+    }
   };
 
   const handleRecalculate = async () => {
@@ -913,46 +949,14 @@ export default function PunchClockSettings() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="icon-192">Small Icon (192x192px)</Label>
-                    <Input
-                      id="icon-192"
-                      type="file"
-                      accept="image/png,image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file && currentCompany) {
-                          try {
-                            // Force exact 192x192 PNG
-                            const resized = await resizeImageToPng(file, 192);
-                            const fileName = `${currentCompany.id}-192.png`;
-
-                            const { error: uploadError } = await supabase.storage
-                              .from('company-logos')
-                              .upload(fileName, resized, { upsert: true, cacheControl: '3600', contentType: 'image/png' });
-
-                            if (uploadError) {
-                              toast({ title: 'Error', description: 'Failed to upload icon', variant: 'destructive' });
-                              return;
-                            }
-
-                            const { data: { publicUrl } } = supabase.storage
-                              .from('company-logos')
-                              .getPublicUrl(fileName);
-
-                            await supabase
-                              .from('job_punch_clock_settings')
-                              .upsert({ job_id: null, company_id: currentCompany.id, pwa_icon_192_url: publicUrl, created_by: user?.id });
-
-                            const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
-                            updateSetting('pwa_icon_192_url', urlWithTimestamp);
-                            try { localStorage.setItem('pwa_icon_192_url', publicUrl); } catch {}
-
-                            toast({ title: 'Success', description: '192x192 icon resized, uploaded and saved' });
-                          } catch (err) {
-                            console.error(err);
-                            toast({ title: 'Error', description: 'Failed to process icon', variant: 'destructive' });
-                          }
-                        }
-                      }}
+                    <DragDropUpload
+                      onFileSelect={(file) => { void handlePwaIconUpload(file, 192); }}
+                      accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                      maxSize={10}
+                      size="compact"
+                      title="Drag 192x192 icon here"
+                      dropTitle="Drop 192x192 icon here"
+                      helperText="Any image accepted, auto-resized to PNG"
                     />
                     {settings.pwa_icon_192_url && (
                       <div className="mt-2">
@@ -967,46 +971,14 @@ export default function PunchClockSettings() {
 
                   <div className="space-y-2">
                     <Label htmlFor="icon-512">Large Icon (512x512px)</Label>
-                    <Input
-                      id="icon-512"
-                      type="file"
-                      accept="image/png,image/*"
-                      onChange={async (e) => {
-                        const file = e.target.files?.[0];
-                        if (file && currentCompany) {
-                          try {
-                            // Force exact 512x512 PNG
-                            const resized = await resizeImageToPng(file, 512);
-                            const fileName = `${currentCompany.id}-512.png`;
-
-                            const { error: uploadError } = await supabase.storage
-                              .from('company-logos')
-                              .upload(fileName, resized, { upsert: true, cacheControl: '3600', contentType: 'image/png' });
-
-                            if (uploadError) {
-                              toast({ title: 'Error', description: 'Failed to upload icon', variant: 'destructive' });
-                              return;
-                            }
-
-                            const { data: { publicUrl } } = supabase.storage
-                              .from('company-logos')
-                              .getPublicUrl(fileName);
-
-                            await supabase
-                              .from('job_punch_clock_settings')
-                              .upsert({ job_id: null, company_id: currentCompany.id, pwa_icon_512_url: publicUrl, created_by: user?.id });
-
-                            const urlWithTimestamp = `${publicUrl}?t=${Date.now()}`;
-                            updateSetting('pwa_icon_512_url', urlWithTimestamp);
-                            try { localStorage.setItem('pwa_icon_512_url', publicUrl); } catch {}
-
-                            toast({ title: 'Success', description: '512x512 icon resized, uploaded and saved' });
-                          } catch (err) {
-                            console.error(err);
-                            toast({ title: 'Error', description: 'Failed to process icon', variant: 'destructive' });
-                          }
-                        }
-                      }}
+                    <DragDropUpload
+                      onFileSelect={(file) => { void handlePwaIconUpload(file, 512); }}
+                      accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                      maxSize={10}
+                      size="compact"
+                      title="Drag 512x512 icon here"
+                      dropTitle="Drop 512x512 icon here"
+                      helperText="Any image accepted, auto-resized to PNG"
                     />
                     {settings.pwa_icon_512_url && (
                       <div className="mt-2">

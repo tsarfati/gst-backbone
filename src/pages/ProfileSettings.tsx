@@ -13,6 +13,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Textarea } from '@/components/ui/textarea';
+import DragDropUpload from '@/components/DragDropUpload';
 import { ArrowLeft, User, Bell, Save, Camera, Upload, X, Mail, SendHorizonal, Loader2, FileSignature } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 
@@ -193,6 +194,19 @@ export default function ProfileSettings() {
         variant: 'destructive',
       });
     }
+    event.target.value = '';
+  };
+
+  const handleAvatarFile = (file?: File | null) => {
+    if (file && file.type.startsWith('image/')) {
+      void uploadAvatar(file);
+      return;
+    }
+    toast({
+      title: 'Error',
+      description: 'Please select a valid image file',
+      variant: 'destructive',
+    });
   };
 
   const startCamera = async () => {
@@ -427,6 +441,18 @@ export default function ProfileSettings() {
                   onChange={handleFileUpload}
                   className="hidden"
                 />
+                <div className="w-full max-w-xs">
+                  <DragDropUpload
+                    onFileSelect={handleAvatarFile}
+                    accept=".png,.jpg,.jpeg,.webp,.gif"
+                    maxSize={10}
+                    size="compact"
+                    disabled={uploadingAvatar}
+                    title="Drag profile photo here"
+                    dropTitle="Drop profile photo here"
+                    helperText="Image file up to 10MB"
+                  />
+                </div>
               </div>
 
               {/* Camera Modal */}

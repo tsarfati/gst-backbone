@@ -28,6 +28,7 @@ import { format } from "date-fns";
 import { Calendar } from "@/components/ui/calendar";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { cn } from "@/lib/utils";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface BankAccount {
   id: string;
@@ -474,6 +475,10 @@ export default function Reconcile() {
 
   const handleStatementFileChange = (e: any) => {
     const file = e.target.files?.[0] || null;
+    setStatementFile(file);
+  };
+
+  const handleStatementFileSelect = (file: File) => {
     setStatementFile(file);
   };
 
@@ -1137,11 +1142,14 @@ export default function Reconcile() {
           <div className="flex flex-col md:flex-row items-start md:items-end gap-3">
             <div className="space-y-2 w-full md:w-auto">
               <Label htmlFor="statementUpload">Attach Statement PDF</Label>
-              <Input 
-                id="statementUpload" 
-                type="file" 
-                accept=".pdf" 
-                onChange={handleStatementFileChange}
+              <DragDropUpload
+                onFileSelect={handleStatementFileSelect}
+                accept=".pdf"
+                maxSize={20}
+                size="compact"
+                title="Drop bank statement PDF"
+                subtitle="or click to choose PDF"
+                helperText="PDF only"
               />
             </div>
             <Button 

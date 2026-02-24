@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface Job {
   id: string;
@@ -156,8 +157,8 @@ export function DeliveryTicketForm() {
     fileInputRef.current?.click();
   };
 
-  const onFileSelected = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const onFileSelected = (eventOrFile: React.ChangeEvent<HTMLInputElement> | File) => {
+    const file = eventOrFile instanceof File ? eventOrFile : eventOrFile.target.files?.[0];
     if (!file) return;
 
     const reader = new FileReader();
@@ -193,7 +194,9 @@ export function DeliveryTicketForm() {
     reader.readAsDataURL(file);
     
     // Reset input
-    event.target.value = '';
+    if (!(eventOrFile instanceof File)) {
+      eventOrFile.target.value = '';
+    }
   };
 
   const removePhoto = (photoId: string) => {
@@ -453,6 +456,15 @@ export function DeliveryTicketForm() {
               <Upload className="h-4 w-4 mr-2" />
               Upload from Gallery
             </Button>
+            <DragDropUpload
+              onFileSelect={(file) => onFileSelected(file)}
+              accept=".jpg,.jpeg,.png,.webp"
+              maxSize={15}
+              size="compact"
+              title="Drop photo from device"
+              subtitle="or click to choose image"
+              helperText={`Adds a ${getPhotoTypeLabel(currentPhotoType).toLowerCase()} photo`}
+            />
           </div>
         </CardContent>
       </Card>

@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
+import DragDropUpload from "@/components/DragDropUpload";
 
 const INSURANCE_TYPES = [
   "General Liability", "Workers' Compensation", "Commercial Auto",
@@ -203,7 +204,19 @@ export default function CompanyInsurance() {
             </div>
             <div className="space-y-2"><Label>Status</Label><Select value={newPolicy.status} onValueChange={(v) => setNewPolicy(p => ({ ...p, status: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="expiring">Expiring</SelectItem><SelectItem value="expired">Expired</SelectItem></SelectContent></Select></div>
             <div className="space-y-2"><Label>Description</Label><Input value={newPolicy.description} onChange={(e) => setNewPolicy(p => ({ ...p, description: e.target.value }))} placeholder="Optional" /></div>
-            <div className="space-y-2"><Label>Policy File *</Label><Input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} /></div>
+            <div className="space-y-2">
+              <Label>Policy File *</Label>
+              <DragDropUpload
+                onFileSelect={(file) => setSelectedFile(file)}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                maxSize={20}
+                disabled={uploading}
+                size="compact"
+                title="Drag policy file here"
+                dropTitle="Drop policy file here"
+                helperText="PDF, image, or document up to 20MB"
+              />
+            </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button><Button onClick={handleAdd} disabled={uploading || !newPolicy.name || !selectedFile}>{uploading ? 'Uploading...' : 'Add Policy'}</Button></DialogFooter>
         </DialogContent>

@@ -23,6 +23,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useCreditCardBalances } from "@/hooks/useCreditCardBalances";
 import Papa from "papaparse";
+import DragDropUpload from "@/components/DragDropUpload";
 
 export default function CreditCards() {
   const navigate = useNavigate();
@@ -154,6 +155,11 @@ export default function CreditCards() {
     });
   };
 
+  const handleCsvFileSelect = async (file: File) => {
+    const event = { target: { files: [file] } } as unknown as React.ChangeEvent<HTMLInputElement>;
+    await handleFileUpload(event);
+  };
+
   const filteredCards = creditCards.filter(card => {
     const matchesSearch = card?.card_name?.toLowerCase().includes(searchTerm.toLowerCase()) ||
                          card?.card_number_last_four?.toLowerCase().includes(searchTerm.toLowerCase());
@@ -214,12 +220,15 @@ export default function CreditCards() {
                 </div>
                 <div className="space-y-2">
                   <Label htmlFor="csv-upload">CSV File</Label>
-                  <Input
-                    id="csv-upload"
-                    type="file"
+                  <DragDropUpload
+                    onFileSelect={handleCsvFileSelect}
                     accept=".csv"
-                    onChange={handleFileUpload}
+                    maxSize={10}
                     disabled={!selectedCard || uploadingCsv}
+                    size="compact"
+                    title="Drop credit card CSV"
+                    subtitle="or click to choose CSV file"
+                    helperText="CSV statement import"
                   />
                   <p className="text-xs text-muted-foreground">
                     CSV should include columns: date, description, amount, type (debit/credit)

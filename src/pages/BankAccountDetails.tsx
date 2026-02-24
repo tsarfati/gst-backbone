@@ -15,6 +15,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { format } from "date-fns";
 import DocumentPreviewModal from "@/components/DocumentPreviewModal";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface BankAccount {
   id: string;
@@ -234,6 +235,7 @@ export default function BankAccountDetails() {
   const handleStatementFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0] || null;
     setNewStatementFile(file);
+    e.target.value = '';
   };
 
   const handleUploadStatement = async () => {
@@ -666,7 +668,16 @@ export default function BankAccountDetails() {
               <div className="space-y-3">
                 <div className="space-y-2">
                   <Label htmlFor="new-statement">Statement PDF File</Label>
-                  <Input id="new-statement" type="file" accept=".pdf" onChange={handleStatementFileChange} />
+                  <DragDropUpload
+                    onFileSelect={(file) => setNewStatementFile(file)}
+                    accept=".pdf"
+                    maxSize={25}
+                    size="compact"
+                    disabled={statementUploading}
+                    title="Drag statement PDF here"
+                    dropTitle="Drop statement PDF here"
+                    helperText="PDF bank statement"
+                  />
                 </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-2">

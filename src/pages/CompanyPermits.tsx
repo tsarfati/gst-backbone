@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
+import DragDropUpload from "@/components/DragDropUpload";
 
 const TRADES = [
   "General", "Electrical", "Plumbing", "HVAC", "Mechanical",
@@ -473,7 +474,16 @@ export default function CompanyPermits() {
             </div>
             <div className="space-y-2">
               <Label>Permit File *</Label>
-              <Input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} />
+              <DragDropUpload
+                onFileSelect={(file) => setSelectedFile(file)}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                maxSize={20}
+                disabled={uploading}
+                size="compact"
+                title="Drag permit file here"
+                dropTitle="Drop permit file here"
+                helperText="PDF, image, or document up to 20MB"
+              />
             </div>
           </div>
           <DialogFooter>

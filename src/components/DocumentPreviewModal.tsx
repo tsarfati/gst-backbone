@@ -7,6 +7,7 @@ import { Download, X, FileText, Image as ImageIcon } from "lucide-react";
 import { useState, useEffect } from "react";
 import UrlPdfInlinePreview from "./UrlPdfInlinePreview";
 import { supabase } from "@/integrations/supabase/client";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface DocumentPreviewModalProps {
   isOpen: boolean;
@@ -315,16 +316,14 @@ export default function DocumentPreviewModal({
 
             <div>
               <Label htmlFor="edit_file">Replace File (optional)</Label>
-              <Input
-                id="edit_file"
-                type="file"
-                onChange={(e) => {
-                  const file = e.target.files?.[0];
-                  if (file && onFileSelect) {
-                    onFileSelect(file);
-                  }
-                }}
+              <DragDropUpload
+                onFileSelect={(file) => onFileSelect?.(file)}
                 accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.dwg,.dxf"
+                maxSize={30}
+                size="compact"
+                title="Drop replacement file"
+                subtitle="or click to choose file"
+                helperText="PDF, image, Office, CAD file"
               />
               {selectedFile ? (
                 <p className="text-sm text-muted-foreground mt-2">

@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import DragDropUpload from '@/components/DragDropUpload';
 import {
   Accordion,
   AccordionContent,
@@ -146,8 +147,7 @@ export default function AIAInvoiceTemplateSettings() {
     }
   };
 
-  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const processUploadFile = async (file: File) => {
     if (!file || !currentCompany?.id) return;
 
     // Validate file type
@@ -224,8 +224,14 @@ export default function AIAInvoiceTemplateSettings() {
       });
     } finally {
       setUploading(false);
-      e.target.value = '';
     }
+  };
+
+  const handleUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    await processUploadFile(file);
+    e.target.value = '';
   };
 
   const handleDelete = async (template: AIATemplate) => {
@@ -305,30 +311,35 @@ export default function AIAInvoiceTemplateSettings() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="border-2 border-dashed rounded-lg p-6 text-center">
+          {uploading ? (
+            <div className="border rounded-lg p-6">
+              <div className="flex flex-col items-center gap-2 text-center">
+                <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
+                <span className="text-sm font-medium">Uploading template...</span>
+                <span className="text-xs text-muted-foreground">Please wait</span>
+              </div>
+            </div>
+          ) : (
+            <DragDropUpload
+              onFileSelect={processUploadFile}
+              accept=".xlsx,.xls,.csv"
+              maxSize={10}
+              disabled={uploading}
+              title="Drag AIA template here"
+              dropTitle="Drop template here"
+              helperText="Excel/CSV templates (.xlsx, .xls, .csv) up to 10MB"
+            />
+          )}
+
+          <div className="sr-only">
             <Input
               type="file"
               accept=".xlsx,.xls,.csv"
-              className="hidden"
               id="aia-template-upload"
               onChange={handleUpload}
               disabled={uploading}
             />
-            <Label htmlFor="aia-template-upload" className="cursor-pointer">
-              <div className="flex flex-col items-center gap-2">
-                {uploading ? (
-                  <Loader2 className="h-10 w-10 animate-spin text-muted-foreground" />
-                ) : (
-                  <Upload className="h-10 w-10 text-muted-foreground" />
-                )}
-                <span className="text-sm font-medium">
-                  {uploading ? 'Uploading...' : 'Click to upload Excel template'}
-                </span>
-                <span className="text-xs text-muted-foreground">
-                  XLSX, XLS, or CSV up to 10MB
-                </span>
-              </div>
-            </Label>
+            <Label htmlFor="aia-template-upload">Upload AIA template</Label>
           </div>
 
           {/* Existing Templates */}
@@ -468,4 +479,3 @@ export default function AIAInvoiceTemplateSettings() {
     </div>
   );
 }
-

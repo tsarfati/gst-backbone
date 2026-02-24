@@ -17,6 +17,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
+import DragDropUpload from "@/components/DragDropUpload";
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -189,7 +190,19 @@ export default function CompanyContracts() {
               <div className="space-y-2"><Label>Status</Label><Select value={newContract.status} onValueChange={(v) => setNewContract(p => ({ ...p, status: v }))}><SelectTrigger><SelectValue /></SelectTrigger><SelectContent><SelectItem value="active">Active</SelectItem><SelectItem value="pending">Pending</SelectItem><SelectItem value="completed">Completed</SelectItem><SelectItem value="expired">Expired</SelectItem></SelectContent></Select></div>
             </div>
             <div className="space-y-2"><Label>Description</Label><Input value={newContract.description} onChange={(e) => setNewContract(p => ({ ...p, description: e.target.value }))} placeholder="Optional" /></div>
-            <div className="space-y-2"><Label>Contract File *</Label><Input type="file" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" onChange={(e) => setSelectedFile(e.target.files?.[0] || null)} /></div>
+            <div className="space-y-2">
+              <Label>Contract File *</Label>
+              <DragDropUpload
+                onFileSelect={(file) => setSelectedFile(file)}
+                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                maxSize={20}
+                disabled={uploading}
+                size="compact"
+                title="Drag contract file here"
+                dropTitle="Drop contract file here"
+                helperText="PDF, image, or document up to 20MB"
+              />
+            </div>
           </div>
           <DialogFooter><Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button><Button onClick={handleAdd} disabled={uploading || !newContract.name || !selectedFile}>{uploading ? 'Uploading...' : 'Upload Contract'}</Button></DialogFooter>
         </DialogContent>

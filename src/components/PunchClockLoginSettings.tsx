@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import DragDropUpload from '@/components/DragDropUpload';
 
 // Default empty settings for new companies
 const defaultSettings = {
@@ -209,15 +210,15 @@ export function PunchClockLoginSettings() {
         {/* Header Image Upload */}
         <div className="space-y-2">
           <Label>Header Image</Label>
-          <div className="flex items-center gap-4">
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImageUpload(file, 'header');
-              }}
-              className="flex-1"
+          <div className="space-y-2">
+            <DragDropUpload
+              onFileSelect={(file) => { void handleImageUpload(file, 'header'); }}
+              accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+              maxSize={10}
+              size="compact"
+              title="Drag header image here"
+              dropTitle="Drop header image here"
+              helperText="Image file up to 10MB"
             />
             {settings.header_image_url && (
               <Button
@@ -225,7 +226,8 @@ export function PunchClockLoginSettings() {
                 size="sm"
                 onClick={() => setSettings(prev => ({ ...prev, header_image_url: '' }))}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remove Header Image
               </Button>
             )}
           </div>
@@ -241,15 +243,15 @@ export function PunchClockLoginSettings() {
         {/* Logo Upload */}
         <div className="space-y-2">
           <Label>Company Logo</Label>
-          <div className="flex items-center gap-4">
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImageUpload(file, 'logo');
-              }}
-              className="flex-1"
+          <div className="space-y-2">
+            <DragDropUpload
+              onFileSelect={(file) => { void handleImageUpload(file, 'logo'); }}
+              accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+              maxSize={10}
+              size="compact"
+              title="Drag logo here"
+              dropTitle="Drop logo here"
+              helperText="Image file up to 10MB"
             />
             {settings.logo_url && (
               <Button
@@ -257,7 +259,8 @@ export function PunchClockLoginSettings() {
                 size="sm"
                 onClick={() => setSettings(prev => ({ ...prev, logo_url: '' }))}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remove Logo
               </Button>
             )}
           </div>
@@ -299,15 +302,15 @@ export function PunchClockLoginSettings() {
         {/* Background Image Upload */}
         <div className="space-y-2">
           <Label>Background Image</Label>
-          <div className="flex items-center gap-4">
-            <Input
-              type="file"
-              accept="image/*"
-              onChange={(e) => {
-                const file = e.target.files?.[0];
-                if (file) handleImageUpload(file, 'background');
-              }}
-              className="flex-1"
+          <div className="space-y-2">
+            <DragDropUpload
+              onFileSelect={(file) => { void handleImageUpload(file, 'background'); }}
+              accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+              maxSize={10}
+              size="compact"
+              title="Drag background image here"
+              dropTitle="Drop background image here"
+              helperText="Image file up to 10MB"
             />
             {settings.background_image_url && (
               <Button
@@ -315,7 +318,8 @@ export function PunchClockLoginSettings() {
                 size="sm"
                 onClick={() => setSettings(prev => ({ ...prev, background_image_url: '' }))}
               >
-                <Trash2 className="h-4 w-4" />
+                <Trash2 className="h-4 w-4 mr-2" />
+                Remove Background Image
               </Button>
             )}
           </div>

@@ -14,6 +14,7 @@ import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
 import { Plus, FileText, Send, MessageSquare, Paperclip, Calendar } from "lucide-react";
 import { format } from "date-fns";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface JobRFIsProps {
   jobId: string;
@@ -589,6 +590,20 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
                           </Button>
                         </div>
                       ))}
+                    </div>
+                  )}
+                  {selectedRfi.status !== "closed" && (
+                    <div className="mt-3">
+                      <DragDropUpload
+                        onFileSelect={(file) => { void handleFileUpload(file); }}
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.xls"
+                        maxSize={20}
+                        disabled={uploadingFile}
+                        size="compact"
+                        title="Drag RFI attachment here"
+                        dropTitle="Drop attachment here"
+                        helperText="PDF, image, Word, or Excel file up to 20MB"
+                      />
                     </div>
                   )}
                 </div>

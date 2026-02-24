@@ -10,6 +10,7 @@ import { Upload, X, Palette, Image, Settings, Eye, MessageSquare } from 'lucide-
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface VisitorLoginSettings {
   id?: string;
@@ -228,26 +229,15 @@ export function VisitorLogSettings() {
                   </Button>
                 </div>
               ) : (
-                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
-                  <div className="text-center">
-                    <Upload className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <div className="mt-2">
-                      <Label htmlFor="header-logo" className="cursor-pointer text-primary hover:underline">
-                        Upload Header Logo
-                      </Label>
-                      <Input
-                        id="header-logo"
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(file, 'header');
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
+                <DragDropUpload
+                  onFileSelect={(file) => { void handleImageUpload(file, 'header'); }}
+                  accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                  maxSize={10}
+                  size="compact"
+                  title="Drag header logo here"
+                  dropTitle="Drop header logo here"
+                  helperText="Image file up to 10MB"
+                />
               )}
             </div>
 
@@ -271,26 +261,15 @@ export function VisitorLogSettings() {
                   </Button>
                 </div>
               ) : (
-                <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-4">
-                  <div className="text-center">
-                    <Image className="mx-auto h-8 w-8 text-muted-foreground" />
-                    <div className="mt-2">
-                      <Label htmlFor="background-image" className="cursor-pointer text-primary hover:underline">
-                        Upload Background Image
-                      </Label>
-                      <Input
-                        id="background-image"
-                        type="file"
-                        className="hidden"
-                        accept="image/*"
-                        onChange={(e) => {
-                          const file = e.target.files?.[0];
-                          if (file) handleImageUpload(file, 'background');
-                        }}
-                      />
-                    </div>
-                  </div>
-                </div>
+                <DragDropUpload
+                  onFileSelect={(file) => { void handleImageUpload(file, 'background'); }}
+                  accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                  maxSize={10}
+                  size="compact"
+                  title="Drag background image here"
+                  dropTitle="Drop background image here"
+                  helperText="Image file up to 10MB"
+                />
               )}
             </div>
 

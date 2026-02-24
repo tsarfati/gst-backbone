@@ -13,6 +13,7 @@ import { Separator } from '@/components/ui/separator';
 import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SubcontractTemplateSettings from '@/components/PdfTemplateSettingsSubcontract';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface TemplateSettings {
   id?: string;
@@ -195,8 +196,7 @@ export default function PdfTemplateSettings() {
     }
   };
 
-  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const uploadLogoFile = async (file?: File | null) => {
     if (!file || !currentCompany?.id) return;
 
     setUploadingLogo(true);
@@ -234,6 +234,11 @@ export default function PdfTemplateSettings() {
     } finally {
       setUploadingLogo(false);
     }
+  };
+
+  const handleLogoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    await uploadLogoFile(e.target.files?.[0]);
+    e.target.value = '';
   };
 
   const removeLogo = () => {
@@ -349,31 +354,23 @@ export default function PdfTemplateSettings() {
                       </div>
                     </div>
                   ) : (
-                    <div className="border-2 border-dashed rounded-lg p-6 text-center">
-                      <Input
-                        type="file"
-                        accept="image/*"
-                        className="hidden"
-                        id="logo-upload"
-                        onChange={handleLogoUpload}
-                        disabled={uploadingLogo}
-                      />
-                      <Label htmlFor="logo-upload" className="cursor-pointer">
+                    uploadingLogo ? (
+                      <div className="border rounded-lg p-6 text-center">
                         <div className="flex flex-col items-center gap-2">
-                          {uploadingLogo ? (
-                            <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-                          ) : (
-                            <Upload className="h-8 w-8 text-muted-foreground" />
-                          )}
-                          <span className="text-sm text-muted-foreground">
-                            {uploadingLogo ? 'Uploading...' : 'Click to upload logo'}
-                          </span>
-                          <span className="text-xs text-muted-foreground">
-                            PNG, JPG up to 2MB
-                          </span>
+                          <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                          <span className="text-sm text-muted-foreground">Uploading...</span>
                         </div>
-                      </Label>
-                    </div>
+                      </div>
+                    ) : (
+                      <DragDropUpload
+                        onFileSelect={(file) => { void uploadLogoFile(file); }}
+                        accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                        maxSize={2}
+                        title="Drag logo here"
+                        dropTitle="Drop logo here"
+                        helperText="PNG/JPG/SVG/WEBP up to 2MB"
+                      />
+                    )
                   )}
 
                   {!template.logo_url && currentCompany?.logo_url && (

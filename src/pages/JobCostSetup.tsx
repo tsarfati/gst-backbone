@@ -36,6 +36,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import Papa from "papaparse";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface CostCode {
   id: string;
@@ -653,11 +654,14 @@ export default function JobCostSetup() {
               <div className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="csv-file">CSV File</Label>
-                  <Input
-                    id="csv-file"
-                    type="file"
+                  <DragDropUpload
+                    onFileSelect={(file) => setCsvFile(file)}
                     accept=".csv"
-                    onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                    maxSize={10}
+                    size="compact"
+                    title="Drop cost code template CSV"
+                    subtitle="or click to choose CSV file"
+                    helperText="Required columns: code, description, type"
                   />
                   <div className="flex justify-between items-center mt-2">
                     <Button 

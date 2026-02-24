@@ -13,6 +13,7 @@ import { toast } from "sonner";
 import { FileText, Upload, Pencil, Stamp } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface JobPlansProps {
   jobId: string;
@@ -353,12 +354,27 @@ export default function JobPlans({ jobId }: JobPlansProps) {
               <Label htmlFor="file">
                 {editingPlan ? "Upload New File (optional)" : "Select File *"}
               </Label>
-              <Input
-                id="file"
-                type="file"
-                accept=".pdf,.dwg,.dxf"
-                onChange={(e) => setSelectedFile(e.target.files?.[0] || null)}
-              />
+              <div className="space-y-2">
+                <DragDropUpload
+                  onFileSelect={(file) => setSelectedFile(file)}
+                  accept=".pdf,.dwg,.dxf"
+                  maxSize={25}
+                  disabled={uploading}
+                  title={editingPlan ? "Drag replacement plan file here" : "Drag plan file here"}
+                  dropTitle="Drop plan file here"
+                  helperText="PDF, DWG, or DXF up to 25MB"
+                />
+                <Input
+                  id="file"
+                  type="file"
+                  accept=".pdf,.dwg,.dxf"
+                  onChange={(e) => {
+                    setSelectedFile(e.target.files?.[0] || null);
+                    e.target.value = "";
+                  }}
+                  className="sr-only"
+                />
+              </div>
               {!editingPlan && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Accepted formats: PDF, DWG, DXF

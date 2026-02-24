@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import Papa from "papaparse";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface CostCode {
   id: string;
@@ -381,13 +382,20 @@ export default function CostCodes() {
           <div className="flex items-center gap-4">
             <div className="flex-1">
               <Label htmlFor="csvFile">Upload CSV File</Label>
-              <Input
-                id="csvFile"
-                type="file"
-                accept=".csv"
-                onChange={(e) => handleCsvUpload(e)}
-                className="mt-1"
-              />
+              <div className="mt-1">
+                <DragDropUpload
+                  onFileSelect={(file) => {
+                    const synthetic = { target: { files: [file] }, currentTarget: { value: '' } } as any;
+                    handleCsvUpload(synthetic);
+                  }}
+                  accept=".csv"
+                  maxSize={20}
+                  size="compact"
+                  title="Drag CSV file here"
+                  dropTitle="Drop CSV file here"
+                  helperText="Cost codes CSV import"
+                />
+              </div>
               <p className="text-sm text-muted-foreground mt-1">
                 Expected format: code, description, type (material, labor, sub, equipment, or other)
               </p>

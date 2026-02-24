@@ -19,6 +19,7 @@ import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 import PaymentTermsSelect from "@/components/PaymentTermsSelect";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useQueryClient } from "@tanstack/react-query";
+import DragDropUpload from "@/components/DragDropUpload";
 
 export default function VendorEdit() {
   const { id } = useParams();
@@ -190,8 +191,8 @@ export default function VendorEdit() {
     }));
   };
 
-  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleLogoUpload = (eventOrFile: React.ChangeEvent<HTMLInputElement> | File) => {
+    const file = eventOrFile instanceof File ? eventOrFile : eventOrFile.target.files?.[0];
     if (file) {
       setLogoFile(file);
       const reader = new FileReader();
@@ -581,6 +582,17 @@ export default function VendorEdit() {
                   <p className="text-xs text-muted-foreground mt-1">
                     Recommended: Square image, max 2MB
                   </p>
+                  <div className="mt-2 w-full min-w-[220px]">
+                    <DragDropUpload
+                      onFileSelect={(file) => handleLogoUpload(file)}
+                      accept=".jpg,.jpeg,.png,.webp,.svg"
+                      maxSize={2}
+                      size="compact"
+                      title="Drop vendor logo"
+                      subtitle="or click to choose image"
+                      helperText="Square logo image (max 2MB)"
+                    />
+                  </div>
                 </div>
               </div>
             </div>

@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Upload, User, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import DragDropUpload from '@/components/DragDropUpload';
 
 export default function ProfileCompletion() {
   const { user, profile, refreshProfile } = useAuth();
@@ -30,8 +31,8 @@ export default function ProfileCompletion() {
     setFormData(prev => ({ ...prev, [field]: value }));
   };
 
-  const handleAvatarChange = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleAvatarChange = (eventOrFile: React.ChangeEvent<HTMLInputElement> | File) => {
+    const file = eventOrFile instanceof File ? eventOrFile : eventOrFile.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) { // 5MB limit
         toast({
@@ -183,6 +184,17 @@ export default function ProfileCompletion() {
               <p className="text-sm text-muted-foreground text-center">
                 Click the upload button to add a profile picture *
               </p>
+              <div className="w-full">
+                <DragDropUpload
+                  onFileSelect={(file) => handleAvatarChange(file)}
+                  accept=".jpg,.jpeg,.png,.webp"
+                  maxSize={5}
+                  size="compact"
+                  title="Drop profile photo"
+                  subtitle="or click to choose image"
+                  helperText="Required profile photo (max 5MB)"
+                />
+              </div>
             </div>
 
             {/* Form Fields */}

@@ -12,6 +12,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import BillApprovalSettings from "@/components/BillApprovalSettings";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface PickupLocation {
   id: string;
@@ -37,8 +38,7 @@ export default function CompanySettings() {
 
   const pickupLocations = settings.companySettings?.checkPickupLocations || [];
 
-  const handleLogoUpload = (type: 'company' | 'header') => async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const uploadLogoFile = async (type: 'company' | 'header', file?: File | null) => {
     if (!file || !currentCompany) return;
 
     // Validate file size (max 2MB)
@@ -113,9 +113,12 @@ export default function CompanySettings() {
       });
     } finally {
       setUploadingLogo(null);
-      // Reset file input
-      event.target.value = '';
     }
+  };
+
+  const handleLogoUpload = (type: 'company' | 'header') => async (event: React.ChangeEvent<HTMLInputElement>) => {
+    await uploadLogoFile(type, event.target.files?.[0]);
+    event.target.value = '';
   };
 
   const handleRemoveLogo = async (type: 'company' | 'header') => {
@@ -269,22 +272,19 @@ export default function CompanySettings() {
                 <div className="flex flex-col items-center gap-2">
                   <Building2 className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">No company logo uploaded</p>
-                  <Label htmlFor="company-logo-upload" className="cursor-pointer">
-                    <Button variant="outline" size="sm" asChild disabled={uploadingLogo === 'company'}>
-                      <span>
-                        <Upload className="h-4 w-4 mr-2" />
-                        {uploadingLogo === 'company' ? 'Uploading...' : 'Upload Logo'}
-                      </span>
-                    </Button>
-                  </Label>
-                  <Input
-                    id="company-logo-upload"
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={handleLogoUpload('company')}
-                    disabled={uploadingLogo === 'company'}
-                  />
+                  {uploadingLogo === 'company' ? (
+                    <div className="text-sm text-muted-foreground">Uploading...</div>
+                  ) : (
+                    <DragDropUpload
+                      onFileSelect={(file) => { void uploadLogoFile('company', file); }}
+                      accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                      maxSize={2}
+                      size="compact"
+                      title="Drag company logo here"
+                      dropTitle="Drop logo here"
+                      helperText="Image file up to 2MB"
+                    />
+                  )}
                 </div>
               </div>
             )}
@@ -317,22 +317,19 @@ export default function CompanySettings() {
                 <div className="flex flex-col items-center gap-2">
                   <Building2 className="h-8 w-8 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">No header logo uploaded</p>
-                  <Label htmlFor="header-logo-upload" className="cursor-pointer">
-                    <Button variant="outline" size="sm" asChild disabled={uploadingLogo === 'header'}>
-                      <span>
-                        <Upload className="h-4 w-4 mr-2" />
-                        {uploadingLogo === 'header' ? 'Uploading...' : 'Upload Logo'}
-                      </span>
-                    </Button>
-                  </Label>
-                  <Input
-                    id="header-logo-upload"
-                    type="file"
-                    accept="image/*"
-                    className="sr-only"
-                    onChange={handleLogoUpload('header')}
-                    disabled={uploadingLogo === 'header'}
-                  />
+                  {uploadingLogo === 'header' ? (
+                    <div className="text-sm text-muted-foreground">Uploading...</div>
+                  ) : (
+                    <DragDropUpload
+                      onFileSelect={(file) => { void uploadLogoFile('header', file); }}
+                      accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                      maxSize={2}
+                      size="compact"
+                      title="Drag header logo here"
+                      dropTitle="Drop logo here"
+                      helperText="Image file up to 2MB"
+                    />
+                  )}
                 </div>
               </div>
             )}

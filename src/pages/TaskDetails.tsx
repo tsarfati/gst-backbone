@@ -17,6 +17,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface Task {
   id: string;
@@ -216,8 +217,8 @@ export default function TaskDetails() {
     }
   };
 
-  const handleFileUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleFileUpload = async (eventOrFile: React.ChangeEvent<HTMLInputElement> | File) => {
+    const file = eventOrFile instanceof File ? eventOrFile : eventOrFile.target.files?.[0];
     if (!file || !user || !id) return;
 
     setUploadingFile(true);
@@ -578,6 +579,17 @@ export default function TaskDetails() {
                       <Upload className="h-4 w-4 mr-2" />
                       {uploadingFile ? 'Uploading...' : 'Upload File'}
                     </Button>
+                    <div className="mt-3">
+                      <DragDropUpload
+                        onFileSelect={(file) => void handleFileUpload(file)}
+                        size="compact"
+                        maxSize={20}
+                        title="Drop attachment file"
+                        subtitle="or click to choose file"
+                        helperText="Upload task attachment"
+                        disabled={uploadingFile}
+                      />
+                    </div>
                   </div>
 
                   <div className="space-y-2">

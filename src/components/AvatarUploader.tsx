@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface AvatarUploaderProps {
   value?: string;
@@ -133,6 +134,21 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
             Remove Photo
           </Button>
         )}
+        <div className="w-full sm:max-w-xs">
+          <DragDropUpload
+            onFileSelect={(file) => {
+              const synthetic = { target: { files: [file] }, currentTarget: { value: '' } } as any;
+              void handleFileChange(synthetic);
+            }}
+            accept=".png,.jpg,.jpeg,.webp,.gif"
+            maxSize={10}
+            size="compact"
+            disabled={disabled || uploading}
+            title="Drag photo here"
+            dropTitle="Drop photo here"
+            helperText="Image file up to 10MB"
+          />
+        </div>
       </div>
     </div>
   );

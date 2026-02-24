@@ -11,6 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { FileText, Upload, Plus, Pencil } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import DocumentPreviewModal from "./DocumentPreviewModal";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface JobPermit {
   id: string;
@@ -75,11 +76,15 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
     }
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const setPermitFile = (file?: File | null) => {
     if (file) {
       setSelectedFile(file);
     }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    setPermitFile(e.target.files?.[0]);
+    e.target.value = "";
   };
 
   const handleUpload = async () => {
@@ -363,12 +368,24 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
 
             <div>
               <Label htmlFor="file">{editingPermit ? "Replace File (optional)" : "Select File *"}</Label>
-              <Input
-                id="file"
-                type="file"
-                onChange={handleFileSelect}
-                accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
-              />
+              <div className="space-y-2">
+                <DragDropUpload
+                  onFileSelect={setPermitFile}
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  maxSize={20}
+                  disabled={uploading}
+                  title={editingPermit ? "Drag replacement permit file here" : "Drag permit file here"}
+                  dropTitle="Drop permit file here"
+                  helperText="PDF, image, or document up to 20MB"
+                />
+                <Input
+                  id="file"
+                  type="file"
+                  onChange={handleFileSelect}
+                  accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                  className="sr-only"
+                />
+              </div>
               {selectedFile ? (
                 <p className="text-sm text-muted-foreground mt-2">
                   Selected: {selectedFile.name}

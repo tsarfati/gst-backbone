@@ -31,6 +31,7 @@ import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface Vendor {
   id: string;
@@ -473,6 +474,10 @@ export default function MakePayment() {
     const file = e.target.files?.[0];
     if (!file) return;
 
+    setPaymentDocument(file);
+  };
+
+  const handlePaymentDocumentSelect = (file: File) => {
     setPaymentDocument(file);
   };
 
@@ -1345,11 +1350,14 @@ export default function MakePayment() {
               <div>
                 <Label htmlFor="payment_document">Attach Document (Optional)</Label>
                 <div className="space-y-2">
-                  <Input
-                    id="payment_document"
-                    type="file"
-                    onChange={handleDocumentUpload}
+                  <DragDropUpload
+                    onFileSelect={handlePaymentDocumentSelect}
                     accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                    maxSize={20}
+                    size="compact"
+                    title="Drop payment document"
+                    subtitle="or click to choose file"
+                    helperText="PDF, image, Word document (optional)"
                   />
                   {paymentDocument && (
                     <p className="text-sm text-muted-foreground">

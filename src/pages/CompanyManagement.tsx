@@ -21,6 +21,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface CompanyUser {
   id: string;
@@ -326,8 +327,7 @@ export default function CompanyManagement() {
     }
   };
 
-  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const uploadCompanyLogoFile = async (file?: File | null) => {
     if (!file || !currentCompany) return;
 
     // Validate file size (max 2MB)
@@ -392,6 +392,11 @@ export default function CompanyManagement() {
     } finally {
       setUploadingLogo(false);
     }
+  };
+
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    await uploadCompanyLogoFile(event.target.files?.[0]);
+    event.target.value = '';
   };
 
   useEffect(() => {
@@ -513,22 +518,20 @@ export default function CompanyManagement() {
                 </AvatarFallback>
               </Avatar>
               {isCompanyAdmin && (
-                <div className="flex items-center gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={uploadingLogo}
-                    onClick={() => document.getElementById('logo-upload')?.click()}
-                  >
-                    {uploadingLogo ? (
-                      <>Uploading...</>
-                    ) : (
-                      <>
-                        <Camera className="h-4 w-4 mr-2" />
-                        Upload Logo
-                      </>
-                    )}
-                  </Button>
+                <div className="w-full max-w-sm">
+                  {uploadingLogo ? (
+                    <div className="text-sm text-muted-foreground">Uploading logo...</div>
+                  ) : (
+                    <DragDropUpload
+                      onFileSelect={(file) => { void uploadCompanyLogoFile(file); }}
+                      accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                      maxSize={2}
+                      size="compact"
+                      title="Drag logo here"
+                      dropTitle="Drop logo here"
+                      helperText="Company logo image up to 2MB"
+                    />
+                  )}
                   <input
                     id="logo-upload"
                     type="file"

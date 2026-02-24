@@ -12,6 +12,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useReceipts } from '@/contexts/ReceiptContext';
 import { supabase } from '@/integrations/supabase/client';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface Job {
   id: string;
@@ -150,8 +151,7 @@ export function ReceiptScanner() {
     processReceiptWithOCR(imageData);
   };
 
-  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleSelectedFile = (file?: File | null) => {
     if (!file) return;
 
     const reader = new FileReader();
@@ -161,6 +161,11 @@ export function ReceiptScanner() {
       processReceiptWithOCR(imageData);
     };
     reader.readAsDataURL(file);
+  };
+
+  const handleFileUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    handleSelectedFile(event.target.files?.[0]);
+    event.target.value = '';
   };
 
   const processReceiptWithOCR = async (imageData: string) => {
@@ -330,6 +335,15 @@ export function ReceiptScanner() {
             accept="image/*"
             onChange={handleFileUpload}
             className="hidden"
+          />
+          <DragDropUpload
+            onFileSelect={handleSelectedFile}
+            accept=".jpg,.jpeg,.png,.webp,.heic,.heif"
+            maxSize={20}
+            size="compact"
+            title="Drag receipt photo here"
+            dropTitle="Drop receipt photo here"
+            helperText="Receipt image up to 20MB"
           />
         </div>
       )}

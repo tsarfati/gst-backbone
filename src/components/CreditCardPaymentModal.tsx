@@ -11,6 +11,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { useCreditCardBalance } from "@/hooks/useCreditCardBalance";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface CreditCardPaymentModalProps {
   open: boolean;
@@ -302,11 +303,15 @@ export function CreditCardPaymentModal({
 
             <div>
               <Label>Attachment (Optional)</Label>
-              <div className="flex items-center gap-2">
-                <Input
-                  type="file"
-                  onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+              <div className="space-y-2">
+                <DragDropUpload
+                  onFileSelect={(file) => setAttachmentFile(file)}
                   accept=".pdf,.jpg,.jpeg,.png"
+                  maxSize={15}
+                  size="compact"
+                  title="Drop receipt/confirmation"
+                  subtitle="or click to choose attachment"
+                  helperText="PDF or image attachment (optional)"
                 />
                 {attachmentFile && (
                   <Button

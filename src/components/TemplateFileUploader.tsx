@@ -9,6 +9,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import DragDropUpload from '@/components/DragDropUpload';
 
 interface TemplateFileUploaderProps {
   templateType: string;
@@ -34,8 +35,7 @@ export default function TemplateFileUploader({
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0];
+  const processSelectedFile = (file?: File | null) => {
     if (!file) return;
 
     const validExtensions = ['.docx', '.xlsx', '.pdf'];
@@ -60,6 +60,11 @@ export default function TemplateFileUploader({
     }
 
     setSelectedFile(file);
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    processSelectedFile(e.target.files?.[0]);
+    e.target.value = '';
   };
 
   const handleUpload = async () => {
@@ -325,12 +330,22 @@ export default function TemplateFileUploader({
           <>
             <div className="space-y-2">
               <Label htmlFor={`template-${templateType}`}>Select Template File</Label>
+              <DragDropUpload
+                onFileSelect={processSelectedFile}
+                accept=".docx,.xlsx,.pdf"
+                maxSize={20}
+                disabled={uploading}
+                title="Drag template file here"
+                dropTitle="Drop template file here"
+                helperText="Word (.docx), Excel (.xlsx), or PDF (.pdf) up to 20MB"
+              />
               <Input
                 id={`template-${templateType}`}
                 type="file"
                 accept=".docx,.xlsx,.pdf"
                 onChange={handleFileSelect}
                 disabled={uploading}
+                className="sr-only"
               />
               <p className="text-xs text-muted-foreground">
                 Accepted formats: Word (.docx), Excel (.xlsx), PDF (.pdf) - Max 20MB

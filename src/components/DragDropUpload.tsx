@@ -1,4 +1,4 @@
-import { useCallback, useState } from 'react';
+import { useCallback, useMemo, useState, type ReactNode } from 'react';
 import { Upload, FileText, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -10,6 +10,12 @@ interface DragDropUploadProps {
   maxSize?: number; // in MB
   disabled?: boolean;
   className?: string;
+  title?: string;
+  dropTitle?: string;
+  subtitle?: string;
+  helperText?: string;
+  size?: 'default' | 'compact';
+  icon?: ReactNode;
 }
 
 export default function DragDropUpload({
@@ -17,10 +23,22 @@ export default function DragDropUpload({
   accept = ".pdf,.jpg,.jpeg,.png,.doc,.docx",
   maxSize = 10,
   disabled = false,
-  className
+  className,
+  title = "Drag and drop a file here",
+  dropTitle = "Drop file here",
+  subtitle = "or click to browse files",
+  helperText,
+  size = 'default',
+  icon,
 }: DragDropUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const compact = size === 'compact';
+
+  const formattedAccept = useMemo(() => accept
+    .split(',')
+    .map((type) => type.trim().replace(/^\./, '').toUpperCase())
+    .join(', '), [accept]);
 
   const validateFile = (file: File): string | null => {
     if (maxSize && file.size > maxSize * 1024 * 1024) {
@@ -88,7 +106,7 @@ export default function DragDropUpload({
     <div className={cn("w-full", className)}>
       <Card 
         className={cn(
-          "border-2 border-dashed transition-colors cursor-pointer",
+          "relative border-2 border-dashed transition-colors cursor-pointer rounded-xl",
           isDragOver && !disabled ? "border-primary bg-primary/5" : "border-muted-foreground/25",
           disabled ? "opacity-50 cursor-not-allowed" : "hover:border-primary/50"
         )}
@@ -96,31 +114,39 @@ export default function DragDropUpload({
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
       >
-        <CardContent className="p-6">
-          <div className="flex flex-col items-center justify-center text-center space-y-3">
+        <CardContent className={cn(compact ? "p-4" : "p-6")}>
+          <div className={cn("flex flex-col items-center justify-center text-center", compact ? "space-y-2" : "space-y-3")}>
             <div className={cn(
-              "p-3 rounded-full",
+              compact ? "p-2 rounded-full" : "p-3 rounded-full",
               isDragOver && !disabled ? "bg-primary text-primary-foreground" : "bg-muted"
             )}>
-              <Upload className="h-6 w-6" />
+              {icon ?? <Upload className={cn(compact ? "h-5 w-5" : "h-6 w-6")} />}
             </div>
             
             <div className="space-y-1">
-              <p className="text-sm font-medium">
+              <p className={cn("font-medium", compact ? "text-xs" : "text-sm")}>
                 {isDragOver && !disabled 
-                  ? "Drop file here" 
-                  : "Drag and drop a file here"
+                  ? dropTitle
+                  : title
                 }
               </p>
               <p className="text-xs text-muted-foreground">
-                or click to browse files
+                {subtitle}
               </p>
             </div>
 
-            <div className="space-y-1 text-xs text-muted-foreground">
-              <p>Supported formats: {accept.replace(/\./g, '').toUpperCase()}</p>
-              <p>Maximum size: {maxSize}MB</p>
-            </div>
+            {(helperText || accept || maxSize) && (
+              <div className="space-y-1 text-xs text-muted-foreground">
+                {helperText ? (
+                  <p>{helperText}</p>
+                ) : (
+                  <>
+                    <p>Supported formats: {formattedAccept}</p>
+                    <p>Maximum size: {maxSize}MB</p>
+                  </>
+                )}
+              </div>
+            )}
 
             <input
               type="file"

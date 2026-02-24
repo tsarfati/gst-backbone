@@ -17,6 +17,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import ColorPicker from '@/components/ColorPicker';
 import { Palette, Smartphone, Users } from 'lucide-react';
+import DragDropUpload from '@/components/DragDropUpload';
 
 
 export default function ThemeSettings({ embedded = false }: { embedded?: boolean }) {
@@ -35,8 +36,7 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
     });
   };
 
-  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const uploadThemeLogoFile = async (file?: File | null) => {
     if (!file || !user) return;
 
     setUploading(true);
@@ -73,8 +73,12 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
     }
   };
 
-  const handleBannerUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    await uploadThemeLogoFile(event.target.files?.[0]);
+    event.target.value = '';
+  };
+
+  const uploadThemeBannerFile = async (file?: File | null) => {
     if (!file || !user) return;
 
     setUploading(true);
@@ -109,6 +113,11 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
     } finally {
       setUploading(false);
     }
+  };
+
+  const handleBannerUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    await uploadThemeBannerFile(event.target.files?.[0]);
+    event.target.value = '';
   };
 
   return (
@@ -216,13 +225,18 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
                         </Button>
                       </div>
                     )}
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleLogoUpload}
-                      className="w-auto"
-                      disabled={uploading}
-                    />
+                    <div className="min-w-[260px]">
+                      <DragDropUpload
+                        onFileSelect={(file) => { void uploadThemeLogoFile(file); }}
+                        accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                        maxSize={10}
+                        size="compact"
+                        disabled={uploading}
+                        title="Drag logo here"
+                        dropTitle="Drop logo here"
+                        helperText="Image file up to 10MB"
+                      />
+                    </div>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Upload a logo to replace the default icon in the sidebar header
@@ -250,13 +264,18 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
                         </Button>
                       </div>
                     )}
-                    <Input
-                      type="file"
-                      accept="image/*"
-                      onChange={handleBannerUpload}
-                      className="w-auto"
-                      disabled={uploading}
-                    />
+                    <div className="min-w-[260px]">
+                      <DragDropUpload
+                        onFileSelect={(file) => { void uploadThemeBannerFile(file); }}
+                        accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
+                        maxSize={10}
+                        size="compact"
+                        disabled={uploading}
+                        title="Drag banner image here"
+                        dropTitle="Drop banner image here"
+                        helperText="Image file up to 10MB"
+                      />
+                    </div>
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Upload a banner image to display at the top of your dashboard

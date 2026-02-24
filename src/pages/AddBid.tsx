@@ -13,6 +13,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
 import QuickAddVendor from '@/components/QuickAddVendor';
+import { cn } from '@/lib/utils';
 
 interface Vendor {
   id: string;
@@ -96,10 +97,7 @@ export default function AddBid() {
     v.name.toLowerCase().includes(vendorSearch.toLowerCase())
   );
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-
+  const addPendingFiles = (files: FileList | File[]) => {
     const newFiles: PendingFile[] = Array.from(files).map(file => {
       const isImage = file.type.startsWith('image/');
       const isPdf = file.type === 'application/pdf';
@@ -120,6 +118,12 @@ export default function AddBid() {
       return updated;
     });
 
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files) return;
+    addPendingFiles(files);
     e.target.value = '';
   };
 
@@ -369,7 +373,18 @@ export default function AddBid() {
                   className="hidden"
                   onChange={handleFileSelect}
                 />
-                <div className="border-2 border-dashed rounded-lg p-12 text-center hover:border-primary/50 transition-colors">
+                <div
+                  className={cn("border-2 border-dashed rounded-lg p-12 text-center hover:border-primary/50 transition-colors")}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer.files?.length) addPendingFiles(e.dataTransfer.files);
+                  }}
+                >
                   <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
                   <p className="text-sm text-muted-foreground">
                     Drag & drop or click to upload bid documents

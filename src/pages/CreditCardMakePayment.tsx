@@ -12,6 +12,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { useToast } from "@/hooks/use-toast";
 import { ArrowLeft, DollarSign, Upload, Paperclip } from "lucide-react";
 import { CurrencyInput } from "@/components/ui/currency-input";
+import DragDropUpload from "@/components/DragDropUpload";
 
 export default function CreditCardMakePayment() {
   const { id } = useParams();
@@ -311,11 +312,15 @@ export default function CreditCardMakePayment() {
 
               <div>
                 <Label>Attachment (Optional)</Label>
-                <div className="flex items-center gap-2">
-                  <Input
-                    type="file"
-                    onChange={(e) => setAttachmentFile(e.target.files?.[0] || null)}
+                <div className="space-y-2">
+                  <DragDropUpload
+                    onFileSelect={(file) => setAttachmentFile(file)}
                     accept=".pdf,.jpg,.jpeg,.png"
+                    maxSize={15}
+                    size="compact"
+                    title="Drop receipt/confirmation"
+                    subtitle="or click to choose attachment"
+                    helperText="PDF or image attachment (optional)"
                   />
                   {attachmentFile && (
                     <Button

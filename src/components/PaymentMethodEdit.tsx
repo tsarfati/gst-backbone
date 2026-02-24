@@ -13,6 +13,7 @@ import { useSettings } from "@/contexts/SettingsContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
+import DragDropUpload from "@/components/DragDropUpload";
 
 interface PaymentMethod {
   id?: string;
@@ -152,8 +153,10 @@ export default function PaymentMethodEdit({
     }
   };
  
-  const handleVoidedCheckUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
+  const handleVoidedCheckUpload = async (eventOrFile: React.ChangeEvent<HTMLInputElement> | File) => {
+    const file = eventOrFile instanceof File
+      ? eventOrFile
+      : eventOrFile.target.files?.[0];
     if (file) {
       setVoidedCheckFile(file);
       // Create preview URL
@@ -353,13 +356,17 @@ export default function PaymentMethodEdit({
                   <Label htmlFor="voidedCheck">Voided Check Upload</Label>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2">
-                      <Input
-                        id="voidedCheck"
-                        type="file"
-                        accept="image/*,.pdf"
-                        onChange={handleVoidedCheckUpload}
-                        className="file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-primary file:text-primary-foreground hover:file:bg-primary/90"
-                      />
+                      <div className="w-full">
+                        <DragDropUpload
+                          onFileSelect={(file) => void handleVoidedCheckUpload(file)}
+                          accept=".pdf,.jpg,.jpeg,.png"
+                          maxSize={15}
+                          size="compact"
+                          title="Drop voided check"
+                          subtitle="or click to choose file"
+                          helperText="PDF or image of voided check"
+                        />
+                      </div>
                     </div>
                     {formData.voided_check_url && !previewUrl && (
                       <div className="flex items-center gap-2 text-sm text-muted-foreground">
