@@ -8,7 +8,7 @@ const corsHeaders = {
 };
 
 type AcceptInviteRequest = {
-  inviteToken: string;
+  inviteToken?: string;
 };
 
 const ALLOWED_BASE_ROLES = new Set([
@@ -50,13 +50,7 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    const { inviteToken }: AcceptInviteRequest = await req.json();
-    if (!inviteToken) {
-      return new Response(JSON.stringify({ error: "Missing inviteToken" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
+    const { inviteToken }: AcceptInviteRequest = await req.json().catch(() => ({} as AcceptInviteRequest));
 
     const normalizedEmail = (userData.user.email || "").trim().toLowerCase();
     if (!normalizedEmail) {
@@ -66,13 +60,48 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    const { data: pendingInvite, error: pendingError } = await supabaseAuthed
-      .from("pending_user_invites")
-      .select("id, email, company_id, role, custom_role_id, invited_by, expires_at, accepted_at")
-      .eq("invite_token", inviteToken)
-      .maybeSingle();
+    let pendingInvite: any = null;
 
-    if (pendingError) throw pendingError;
+    if (inviteToken) {
+      const { data, error: pendingError } = await supabaseAuthed
+        .from("pending_user_invites")
+        .select("id, email, company_id, role, custom_role_id, invited_by, expires_at, accepted_at")
+        .eq("invite_token", inviteToken)
+        .maybeSingle();
+
+      if (pendingError) throw pendingError;
+      pendingInvite = data;
+    } else {
+      // Fallback for users who completed auth but lost the invite token in the browser redirect.
+      // Accept only when there is exactly one active pending invite for this email to avoid ambiguity.
+      const { data, error: pendingError } = await supabaseAuthed
+        .from("pending_user_invites")
+        .select("id, email, company_id, role, custom_role_id, invited_by, expires_at, accepted_at, created_at")
+        .eq("email", normalizedEmail)
+        .is("accepted_at", null)
+        .order("created_at", { ascending: false })
+        .limit(2);
+
+      if (pendingError) throw pendingError;
+
+      const activeInvites = (data || []).filter((inv: any) => {
+        const expiresAtMs = new Date(inv.expires_at).getTime();
+        return Number.isFinite(expiresAtMs) && expiresAtMs >= Date.now();
+      });
+
+      if (activeInvites.length > 1) {
+        return new Response(
+          JSON.stringify({ error: "Multiple pending invitations found. Please use the original invite link." }),
+          {
+            status: 409,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          },
+        );
+      }
+
+      pendingInvite = activeInvites[0] ?? null;
+    }
+
     if (!pendingInvite) {
       return new Response(JSON.stringify({ error: "Invitation not found" }), {
         status: 404,
