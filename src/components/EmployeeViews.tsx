@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Mail, Building, Users, Key, Phone } from "lucide-react";
 import { UnifiedViewType } from "@/components/ui/unified-view-selector";
 import { cn } from "@/lib/utils";
+import { useUserAvatars } from "@/hooks/useUserAvatar";
 
 interface Employee {
   id: string;
@@ -42,6 +43,9 @@ const roleColors = {
 } as const;
 
 export default function EmployeeViews({ employees, currentView, canManageEmployees, loading, onEmployeeClick }: EmployeeViewsProps) {
+  const employeeUserIds = employees.map((employee) => employee.user_id || employee.id).filter(Boolean);
+  const { avatarMap } = useUserAvatars(employeeUserIds);
+
   if (loading) {
     return <div className="text-center py-8">Loading employees...</div>;
   }
@@ -59,6 +63,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
   }
 
   const renderEmployee = (employee: Employee) => {
+    const resolvedAvatarUrl = avatarMap[employee.user_id || employee.id] ?? employee.avatar_url;
     switch (currentView) {
       case 'list':
         return (
@@ -66,7 +71,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
             <CardHeader className="pb-3">
               <div className="flex items-center gap-4">
                 <Avatar className="h-12 w-12">
-                  <AvatarImage src={employee.avatar_url} />
+                  <AvatarImage src={resolvedAvatarUrl || undefined} />
                   <AvatarFallback>
                     {`${employee.first_name?.[0] || ''}${employee.last_name?.[0] || ''}`}
                   </AvatarFallback>
@@ -153,7 +158,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-3">
                 <Avatar className="h-8 w-8">
-                  <AvatarImage src={employee.avatar_url} />
+                  <AvatarImage src={resolvedAvatarUrl || undefined} />
                   <AvatarFallback className="text-xs">
                     {`${employee.first_name?.[0] || ''}${employee.last_name?.[0] || ''}`}
                   </AvatarFallback>
@@ -193,7 +198,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
           <div key={employee.id} className="flex items-center justify-between py-2 px-3 border-b last:border-b-0 hover:bg-muted/50 cursor-pointer" onClick={() => onEmployeeClick(employee)}>
             <div className="flex items-center gap-3 min-w-0 flex-1">
               <Avatar className="h-7 w-7">
-                <AvatarImage src={employee.avatar_url} />
+                <AvatarImage src={resolvedAvatarUrl || undefined} />
                 <AvatarFallback className="text-xs">
                   {`${employee.first_name?.[0] || ''}${employee.last_name?.[0] || ''}`}
                 </AvatarFallback>
@@ -221,7 +226,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
           <Card key={employee.id} className="hover:shadow-md transition-shadow p-4 text-center cursor-pointer" onClick={() => onEmployeeClick(employee)}>
             <div className="space-y-3">
               <Avatar className="h-16 w-16 mx-auto">
-                <AvatarImage src={employee.avatar_url} />
+                <AvatarImage src={resolvedAvatarUrl || undefined} />
                 <AvatarFallback>
                   {`${employee.first_name?.[0] || ''}${employee.last_name?.[0] || ''}`}
                 </AvatarFallback>

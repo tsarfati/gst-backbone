@@ -14,6 +14,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import PunchDetailView from '@/components/PunchDetailView';
 import TimeCardDetailModal from '@/components/TimeCardDetailModal';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
+import { useUserAvatars } from '@/hooks/useUserAvatar';
 
 interface CurrentStatus {
   id: string;
@@ -84,6 +85,16 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const dashboardUserIds = useMemo(
+    () => Array.from(new Set([
+      ...active.map((row) => row.user_id),
+      ...recentOuts.map((row) => row.user_id).filter(Boolean) as string[],
+      ...pendingChangeRequests.map((cr: any) => cr.user_id).filter(Boolean) as string[],
+      ...pendingTimeCards.map((tc: any) => tc.user_id).filter(Boolean) as string[],
+    ])),
+    [active, recentOuts, pendingChangeRequests, pendingTimeCards]
+  );
+  const { avatarMap } = useUserAvatars(dashboardUserIds);
   
   const isAdmin = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
@@ -722,39 +733,33 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   return (
                     <div 
                       key={cr.id} 
-                      className="p-4 rounded-lg border bg-card/50 hover:bg-primary/5 hover:border-primary cursor-pointer transition-colors"
+                      className="px-3 py-2 rounded-lg border bg-card/50 hover:bg-primary/5 hover:border-primary cursor-pointer transition-colors"
                       onClick={() => {
                         setSelectedTimeCardId(tc?.id || null);
                         setTimeCardModalOpen(true);
                       }}
                     >
-                      <div className="flex items-center gap-4">
-                        <Avatar className="h-12 w-12">
-                          <AvatarImage src={prof?.avatar_url} />
+                      <div className="flex items-center gap-3 min-h-10">
+                        <Avatar className="h-10 w-10 shrink-0">
+                          <AvatarImage src={(avatarMap[cr.user_id] || prof?.avatar_url || undefined) as string | undefined} />
                           <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                         </Avatar>
                         <div className="min-w-0 flex-1">
-                          <div className="font-semibold text-lg truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
-                          <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
-                          {tc?.punch_in_time && (
-                            <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-                              <Clock className="h-4 w-4" /> {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}
+                          <div className="flex items-center gap-2 min-w-0">
+                            <div className="font-semibold truncate text-sm">
+                              {prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}
                             </div>
-                          )}
-                          {tc?.total_hours && (
-                            <div className="text-sm font-medium text-primary mt-1">
-                              {tc.total_hours.toFixed(2)} hours
-                            </div>
-                          )}
-                          {cr.reason && (
-                            <div className="text-xs text-muted-foreground mt-2 italic line-clamp-2">
-                              <span className="font-semibold">Reason:</span> {cr.reason}
-                            </div>
-                          )}
+                            <Badge variant="secondary" className="shrink-0 text-[10px] px-2 py-0 h-5">
+                              Pending Review
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground truncate leading-tight">
+                            <span>{job?.name || 'Job'}</span>
+                            {tc?.punch_in_time && <span> • {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}</span>}
+                            {tc?.total_hours && <span> • {tc.total_hours.toFixed(2)}h</span>}
+                            {cr.reason && <span> • {cr.reason}</span>}
+                          </div>
                         </div>
-                        <Badge variant="secondary">
-                          Pending Review
-                        </Badge>
                       </div>
                     </div>
                   );
@@ -768,34 +773,32 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                     return (
                       <div 
                         key={tc.id} 
-                        className="p-4 rounded-lg border bg-card/50 hover:bg-primary/5 hover:border-primary cursor-pointer transition-colors"
+                        className="px-3 py-2 rounded-lg border bg-card/50 hover:bg-primary/5 hover:border-primary cursor-pointer transition-colors"
                         onClick={() => {
                           setSelectedTimeCardId(tc.id);
                           setTimeCardModalOpen(true);
                         }}
                       >
-                        <div className="flex items-center gap-4">
-                          <Avatar className="h-12 w-12">
-                            <AvatarImage src={prof?.avatar_url} />
+                        <div className="flex items-center gap-3 min-h-10">
+                          <Avatar className="h-10 w-10 shrink-0">
+                            <AvatarImage src={(avatarMap[tc.user_id] || prof?.avatar_url || undefined) as string | undefined} />
                             <AvatarFallback className="text-lg">{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                           </Avatar>
                           <div className="min-w-0 flex-1">
-                            <div className="font-semibold text-lg truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
-                            <div className="text-sm text-muted-foreground truncate">{job?.name || 'Job'}</div>
-                            {tc.punch_in_time && (
-                              <div className="flex items-center gap-1 text-sm text-muted-foreground mt-2">
-                                <Clock className="h-4 w-4" /> {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}
+                            <div className="flex items-center gap-2 min-w-0">
+                              <div className="font-semibold truncate text-sm">
+                                {prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}
                               </div>
-                            )}
-                            {tc.total_hours && (
-                              <div className="text-sm font-medium text-primary mt-1">
-                                {tc.total_hours.toFixed(2)} hours
-                              </div>
-                            )}
+                              <Badge variant="default" className="shrink-0 text-[10px] px-2 py-0 h-5">
+                                Needs Approval
+                              </Badge>
+                            </div>
+                            <div className="text-xs text-muted-foreground truncate leading-tight">
+                              <span>{job?.name || 'Job'}</span>
+                              {tc.punch_in_time && <span> • {format(new Date(tc.punch_in_time), 'MMM d, h:mm a')}</span>}
+                              {tc.total_hours && <span> • {tc.total_hours.toFixed(2)}h</span>}
+                            </div>
                           </div>
-                          <Badge variant="default">
-                            Needs Approval
-                          </Badge>
                         </div>
                       </div>
                     );
@@ -831,14 +834,8 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                        onClick={() => openDetailForActive(row)}
                      >
                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                         <Avatar className="h-10 w-10">
-                            <AvatarImage src={(() => {
-                                const url = (prof?.avatar_url || row.punch_in_photo_url || undefined) as string | undefined;
-                                if (!url) return undefined;
-                                if (url.startsWith('http') && !url.includes('supabase.co/storage')) return url;
-                                // For private bucket, use createSignedUrl synchronously won't work - fall back to avatar
-                                return prof?.avatar_url?.startsWith('http') ? prof.avatar_url : undefined;
-                              })()} />
+                        <Avatar className="h-10 w-10">
+                            <AvatarImage src={(avatarMap[row.user_id] || prof?.avatar_url || undefined) as string | undefined} />
                            <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                          </Avatar>
                            <div className="min-w-0 flex-1">
@@ -888,12 +885,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                      <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
                        <div className="flex items-center gap-3 min-w-0 flex-1">
                           <Avatar className="h-10 w-10">
-                            <AvatarImage src={(() => {
-                                const url = (prof?.avatar_url || row.photo_url || undefined) as string | undefined;
-                                if (!url) return undefined;
-                                if (url.startsWith('http') && !url.includes('supabase.co/storage')) return url;
-                                return prof?.avatar_url?.startsWith('http') ? prof.avatar_url : undefined;
-                              })()} />
+                            <AvatarImage src={(avatarMap[row.user_id || ''] || prof?.avatar_url || undefined) as string | undefined} />
                             <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                           </Avatar>
                          <div className="min-w-0 flex-1">
