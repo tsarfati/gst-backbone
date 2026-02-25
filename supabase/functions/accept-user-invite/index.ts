@@ -62,6 +62,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     let pendingInvite: any = null;
+    let inviteWasAlreadyAccepted = false;
 
     if (inviteToken) {
       const { data, error: pendingError } = await supabaseAdmin
@@ -75,13 +76,12 @@ serve(async (req: Request): Promise<Response> => {
     } else {
       // Fallback for users who completed auth but lost the invite token in the browser redirect.
       // Accept only when there is exactly one active pending invite for this email to avoid ambiguity.
-      const { data, error: pendingError } = await supabaseAdmin
+      let { data, error: pendingError } = await supabaseAdmin
         .from("pending_user_invites")
         .select("id, email, company_id, role, custom_role_id, invited_by, expires_at, accepted_at, created_at")
         .eq("email", normalizedEmail)
-        .is("accepted_at", null)
         .order("created_at", { ascending: false })
-        .limit(2);
+        .limit(5);
 
       if (pendingError) throw pendingError;
 
@@ -90,7 +90,10 @@ serve(async (req: Request): Promise<Response> => {
         return Number.isFinite(expiresAtMs) && expiresAtMs >= Date.now();
       });
 
-      if (activeInvites.length > 1) {
+      const unacceptedActiveInvites = activeInvites.filter((inv: any) => !inv.accepted_at);
+      const acceptedActiveInvites = activeInvites.filter((inv: any) => !!inv.accepted_at);
+
+      if (unacceptedActiveInvites.length > 1) {
         return new Response(
           JSON.stringify({ error: "Multiple pending invitations found. Please use the original invite link." }),
           {
@@ -100,7 +103,23 @@ serve(async (req: Request): Promise<Response> => {
         );
       }
 
-      pendingInvite = activeInvites[0] ?? null;
+      if (unacceptedActiveInvites.length === 1) {
+        pendingInvite = unacceptedActiveInvites[0];
+      } else if (acceptedActiveInvites.length === 1) {
+        // Repair path: invite may already be marked accepted while profile/company access was not fully applied.
+        pendingInvite = acceptedActiveInvites[0];
+        inviteWasAlreadyAccepted = true;
+      } else if (acceptedActiveInvites.length > 1) {
+        return new Response(
+          JSON.stringify({ error: "Multiple invitations found for this account. Please contact your administrator." }),
+          {
+            status: 409,
+            headers: { "Content-Type": "application/json", ...corsHeaders },
+          },
+        );
+      } else {
+        pendingInvite = null;
+      }
     }
 
     if (!pendingInvite) {
@@ -111,10 +130,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (pendingInvite.accepted_at) {
-      return new Response(JSON.stringify({ success: true, alreadyAccepted: true }), {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
+      inviteWasAlreadyAccepted = true;
     }
 
     if (new Date(pendingInvite.expires_at).getTime() < Date.now()) {
@@ -211,6 +227,7 @@ serve(async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({
         success: true,
+        alreadyAccepted: inviteWasAlreadyAccepted,
         companyId: pendingInvite.company_id,
         role: baseRole,
         customRoleId: pendingInvite.custom_role_id ?? null,
