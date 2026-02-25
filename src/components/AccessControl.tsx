@@ -39,9 +39,31 @@ export function AccessControl({ children }: AccessControlProps) {
     const tryAutoAcceptInvite = async () => {
       setAutoAcceptingInvite(true);
       try {
-        const invokePromise = supabase.functions.invoke('accept-user-invite', {
-          body: {},
-        });
+        const invokeWithRetry = async () => {
+          let lastError: any = null;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData.session?.access_token;
+
+            const result = await supabase.functions.invoke('accept-user-invite', {
+              body: {},
+              headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+            });
+
+            if (!result.error) return result;
+
+            lastError = result.error;
+            const msg = String(result.error?.message || '');
+            const unauthorized = msg.includes('401') || msg.toLowerCase().includes('unauthorized');
+            if (!unauthorized || attempt === 3) return result;
+
+            await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          }
+
+          return { data: null, error: lastError };
+        };
+
+        const invokePromise = invokeWithRetry();
         const timeoutPromise = new Promise<never>((_, reject) =>
           setTimeout(() => reject(new Error('Invite acceptance timed out')), 10000)
         );
