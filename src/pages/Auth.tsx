@@ -91,9 +91,34 @@ export default function Auth() {
     const acceptInvite = async () => {
       setInviteAccepting(true);
       try {
-        const { data, error } = await supabase.functions.invoke('accept-user-invite', {
-          body: { inviteToken },
-        });
+        const invokeAcceptInvite = async () => {
+          // Session token can lag briefly behind SIGNED_IN UI state in some environments.
+          let lastError: any = null;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData.session?.access_token;
+
+            const { data, error } = await supabase.functions.invoke('accept-user-invite', {
+              body: { inviteToken },
+              headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+            });
+
+            if (!error) return { data, error: null as any };
+
+            lastError = error;
+            const message = String(error?.message || '');
+            const isUnauthorized = message.includes('401') || message.toLowerCase().includes('unauthorized');
+            if (!isUnauthorized || attempt === 3) {
+              return { data, error };
+            }
+
+            await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          }
+
+          return { data: null, error: lastError };
+        };
+
+        const { data, error } = await invokeAcceptInvite();
 
         if (error) throw error;
         if (cancelled) return;
