@@ -107,8 +107,8 @@ function hslToHex(hsl: string): string {
                <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
                  <!-- Header with BuilderLynk branding -->
                  <tr>
-                  <td style="background-color: ${brandNavy}; padding: 12px 20px; text-align: center;">
-                    <img src="${builderLynkLogo}" alt="BuilderLYNK" style="display:block; margin:0 auto; height: 360px; width: auto; max-width: 560px;" />
+                  <td style="background-color: ${brandNavy}; padding: 16px 20px; text-align: center;">
+                    <img src="${builderLynkLogo}" alt="BuilderLYNK" style="display:block; margin:0 auto; height: 220px; width: auto; max-width: 520px;" />
                   </td>
                 </tr>
                  
