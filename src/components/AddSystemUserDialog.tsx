@@ -35,8 +35,6 @@ import { Mail, UserPlus, Loader2 } from 'lucide-react';
   ] as const;
 
   const [email, setEmail] = useState('');
-  const [firstName, setFirstName] = useState('');
-  const [lastName, setLastName] = useState('');
   const [role, setRole] = useState('employee');
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [loading, setLoading] = useState(false);
@@ -67,12 +65,10 @@ import { Mail, UserPlus, Loader2 } from 'lucide-react';
     loadCustomRoles();
   }, [currentCompany?.id, open]);
  
-   const resetForm = () => {
-     setEmail('');
-     setFirstName('');
-     setLastName('');
-     setRole('employee');
-   };
+  const resetForm = () => {
+    setEmail('');
+    setRole('employee');
+  };
  
    const handleSubmit = async (e: React.FormEvent) => {
      e.preventDefault();
@@ -106,8 +102,6 @@ import { Mail, UserPlus, Loader2 } from 'lucide-react';
        const { data, error } = await supabase.functions.invoke('send-user-invite', {
          body: {
            email,
-           firstName,
-           lastName,
            role: fallbackSystemRole,
            customRoleId: selectedCustomRole?.id,
            customRoleName: selectedCustomRole?.role_name,
@@ -149,10 +143,10 @@ import { Mail, UserPlus, Loader2 } from 'lucide-react';
              <UserPlus className="h-5 w-5" />
              Add System User
            </DialogTitle>
-           <DialogDescription>
-             Send an email invitation to add a new user with full system access.
-           </DialogDescription>
-         </DialogHeader>
+          <DialogDescription>
+             Send an invitation by email and assign the role. The user will complete their name during account setup.
+          </DialogDescription>
+        </DialogHeader>
  
          <form onSubmit={handleSubmit} className="space-y-4">
            <div className="space-y-2">
@@ -171,28 +165,7 @@ import { Mail, UserPlus, Loader2 } from 'lucide-react';
              </div>
            </div>
  
-           <div className="grid grid-cols-2 gap-4">
-             <div className="space-y-2">
-               <Label htmlFor="firstName">First Name</Label>
-               <Input
-                 id="firstName"
-                 value={firstName}
-                 onChange={(e) => setFirstName(e.target.value)}
-                 placeholder="John"
-               />
-             </div>
-             <div className="space-y-2">
-               <Label htmlFor="lastName">Last Name</Label>
-               <Input
-                 id="lastName"
-                 value={lastName}
-                 onChange={(e) => setLastName(e.target.value)}
-                 placeholder="Doe"
-               />
-             </div>
-           </div>
- 
-           <div className="space-y-2">
+          <div className="space-y-2">
              <Label htmlFor="role">Role *</Label>
              <Select value={role} onValueChange={setRole}>
                <SelectTrigger>
