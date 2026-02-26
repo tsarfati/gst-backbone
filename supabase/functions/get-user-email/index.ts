@@ -123,7 +123,7 @@ serve(async (req) => {
       if (requesterAccessError) throw requesterAccessError;
 
       const requesterRole = (requesterAccess as any)?.role as string | undefined;
-      const allowedRoles = new Set(["admin", "controller", "company_admin"]);
+      const allowedRoles = new Set(["admin", "controller", "company_admin", "project_manager"]);
 
       if (!requesterRole || !allowedRoles.has(requesterRole)) {
         console.warn("[get-user-email] insufficient permissions", {
