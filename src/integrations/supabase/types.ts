@@ -4295,6 +4295,7 @@ export type Database = {
           count_late_punch_in: boolean | null
           created_at: string
           created_by: string
+          disable_auto_approve_over_hours: number | null
           earliest_punch_start_time: string | null
           early_punch_in_buffer_minutes: number | null
           enable_distance_warning: boolean | null
@@ -4349,6 +4350,7 @@ export type Database = {
           count_late_punch_in?: boolean | null
           created_at?: string
           created_by: string
+          disable_auto_approve_over_hours?: number | null
           earliest_punch_start_time?: string | null
           early_punch_in_buffer_minutes?: number | null
           enable_distance_warning?: boolean | null
@@ -4403,6 +4405,7 @@ export type Database = {
           count_late_punch_in?: boolean | null
           created_at?: string
           created_by?: string
+          disable_auto_approve_over_hours?: number | null
           earliest_punch_start_time?: string | null
           early_punch_in_buffer_minutes?: number | null
           enable_distance_warning?: boolean | null
