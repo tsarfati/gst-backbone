@@ -23,6 +23,7 @@ import { cn } from "@/lib/utils";
 import { usePostCreditCardTransactions } from "@/hooks/usePostCreditCardTransactions";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import ReceiptCostDistribution from "@/components/ReceiptCostDistribution";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 interface CreditCardTransactionModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -41,6 +42,7 @@ export function CreditCardTransactionModal({
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds, canAccessJob } = useWebsiteJobAccess();
 
   const [transaction, setTransaction] = useState<any>(null);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -173,7 +175,7 @@ useEffect(() => {
 }, [open, ccDistribution, transaction?.cost_code_id]);
 
 useEffect(() => {
-  if (open && transactionId && currentCompany) {
+  if (open && transactionId && currentCompany && !websiteJobAccessLoading) {
     // Preload matches passed in from parent
     if (initialMatches && initialMatches.length > 0) {
       setSuggestedMatches(initialMatches);
@@ -206,7 +208,7 @@ useEffect(() => {
     setIsLinkedToBill(false);
     setBillDistribution([]);
   }
-}, [open, transactionId, currentCompany, initialMatches]);
+}, [open, transactionId, currentCompany, initialMatches, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
 // Recompute coded status when key fields change
 useEffect(() => {
@@ -260,7 +262,7 @@ useEffect(() => {
         }
       }
       
-      // Validate job belongs to current company
+      // Validate job belongs to current company and current user's website/PM job access
       if (transData.job_id && transData.jobs) {
         const { data: jobCheck } = await supabase
           .from("jobs")
@@ -269,7 +271,7 @@ useEffect(() => {
           .eq("company_id", currentCompany?.id)
           .maybeSingle();
         
-        if (!jobCheck) {
+        if (!jobCheck || !canAccessJob(transData.job_id)) {
           await supabase
             .from("credit_card_transactions")
             .update({ job_id: null, cost_code_id: null })
@@ -364,12 +366,20 @@ useEffect(() => {
       }
 
       // Fetch jobs from jobs table only
-      const { data: jobsData } = await supabase
-        .from('jobs')
-        .select('id, name')
-        .eq('company_id', currentCompany?.id)
-        .order('name');
-      setJobs(jobsData || []);
+      if (!isPrivileged && allowedJobIds.length === 0) {
+        setJobs([]);
+      } else {
+        let jobsQuery = supabase
+          .from('jobs')
+          .select('id, name')
+          .eq('company_id', currentCompany?.id)
+          .order('name');
+        if (!isPrivileged) {
+          jobsQuery = jobsQuery.in('id', allowedJobIds);
+        }
+        const { data: jobsData } = await jobsQuery;
+        setJobs(jobsData || []);
+      }
 
       // Fetch expense accounts from chart of accounts (exclude 50000-58000 job range) - ordered by account_number
       const { data: expenseAccountsData } = await supabase

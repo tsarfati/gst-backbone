@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
 import { cn } from '@/lib/utils';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 
 interface CostCode {
   id: string;
@@ -41,14 +42,16 @@ export default function JobCostCodeSelector({
   const [budgetMap, setBudgetMap] = useState<Record<string, number>>({});
   const { toast } = useToast();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   // Normalize cost code type for comparisons (treat undefined/null distinctly)
   const normalizeType = (t?: string | null) => (t ?? '');
 
   useEffect(() => {
+    if (websiteJobAccessLoading) return;
     loadMasterCostCodes();
     loadPreviousJobs();
-  }, [currentCompany]);
+  }, [currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(","), jobId]);
 
   useEffect(() => {
     const loadBudgets = async () => {
@@ -105,13 +108,23 @@ export default function JobCostCodeSelector({
     if (!currentCompany) return;
     
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from('jobs')
         .select('id, name')
         .eq('company_id', currentCompany.id)
         .neq('id', jobId || '') // Exclude current job
         .order('created_at', { ascending: false })
         .limit(20);
+
+      if (!isPrivileged) {
+        if (allowedJobIds.length === 0) {
+          setPreviousJobs([]);
+          return;
+        }
+        query = query.in('id', allowedJobIds);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setPreviousJobs(data || []);
@@ -409,7 +422,7 @@ export default function JobCostCodeSelector({
             <div className="flex gap-2">
               <Select value={selectedPreviousJobId} onValueChange={setSelectedPreviousJobId} disabled={disabled}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a previous job" />
+                  <SelectValue placeholder={websiteJobAccessLoading ? "Loading jobs..." : "Select a previous job"} />
                 </SelectTrigger>
                 <SelectContent>
                   {previousJobs.map((job) => (

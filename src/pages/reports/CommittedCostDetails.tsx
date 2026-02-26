@@ -15,6 +15,7 @@ import { formatNumber } from "@/utils/formatNumber";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { exportAoAToXlsx } from "@/utils/exceljsExport";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface CommittedItem {
   id: string;
@@ -44,6 +45,7 @@ export default function CommittedCostDetails() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const urlJobId = searchParams.get("jobId");
   const urlCostCodeId = searchParams.get("costCodeId");
@@ -65,10 +67,19 @@ export default function CommittedCostDetails() {
   const [resolvedCostCodeId, setResolvedCostCodeId] = useState<string | null>(null);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadFilterData();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+
+  useEffect(() => {
+    if (selectedJobId && !isPrivileged && !allowedJobIds.includes(selectedJobId)) {
+      setSelectedJobId("");
+      setSelectedCostCodeId("");
+      setItems([]);
+      setFilteredItems([]);
+    }
+  }, [selectedJobId, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (selectedJobId && currentCompany?.id) {
@@ -100,12 +111,20 @@ export default function CommittedCostDetails() {
   const loadFilterData = async () => {
     try {
       setLoadingFilters(true);
-      const { data: jobsData, error } = await supabase
+      if (!isPrivileged && allowedJobIds.length === 0) {
+        setJobs([]);
+        return;
+      }
+      let query = supabase
         .from("jobs")
         .select("id, name")
         .eq("company_id", currentCompany!.id)
         .eq("is_active", true)
         .order("name");
+      if (!isPrivileged) {
+        query = query.in("id", allowedJobIds);
+      }
+      const { data: jobsData, error } = await query;
 
       if (error) throw error;
       setJobs(jobsData || []);
@@ -155,6 +174,7 @@ export default function CommittedCostDetails() {
 
   const loadCommittedItems = useCallback(async () => {
     if (!selectedJobId) return;
+    if (!isPrivileged && !allowedJobIds.includes(selectedJobId)) return;
     
     try {
       setLoading(true);
@@ -232,7 +252,7 @@ export default function CommittedCostDetails() {
     } finally {
       setLoading(false);
     }
-  }, [selectedJobId, resolvedCostCodeId, toast]);
+  }, [selectedJobId, resolvedCostCodeId, toast, isPrivileged, allowedJobIds.join(",")]);
 
   const applyFilters = () => {
     let filtered = [...items];

@@ -29,17 +29,21 @@ interface EmployeeTimecardSettings {
   require_location: boolean;
   require_photo: boolean;
   auto_lunch_deduction: boolean;
+  enforce_punch_in_distance?: boolean | null;
+  punch_in_distance_limit_meters?: number | null;
   notes?: string;
 }
 
 interface EmployeeTimecardSettingsProps {
   selectedEmployeeId?: string;
   onEmployeeChange: (employeeId: string) => void;
+  hideEmployeeSelector?: boolean;
 }
 
 export default function EmployeeTimecardSettings({
   selectedEmployeeId,
-  onEmployeeChange
+  onEmployeeChange,
+  hideEmployeeSelector = false,
 }: EmployeeTimecardSettingsProps) {
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -48,6 +52,13 @@ export default function EmployeeTimecardSettings({
   const [settings, setSettings] = useState<EmployeeTimecardSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [distanceSettingsColumnsAvailable, setDistanceSettingsColumnsAvailable] = useState(true);
+
+  const allowedPunchInDistanceMeters = [10, 50, 100, 300] as const;
+  const isMissingColumnError = (error: any) => {
+    const message = String(error?.message || error?.details || error?.hint || '').toLowerCase();
+    return message.includes('enforce_punch_in_distance') || message.includes('punch_in_distance_limit_meters');
+  };
 
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
@@ -133,10 +144,24 @@ export default function EmployeeTimecardSettings({
           require_location: data.require_location ?? true,
           require_photo: data.require_photo ?? true,
           auto_lunch_deduction: data.auto_lunch_deduction ?? true,
+          enforce_punch_in_distance: (data as any).enforce_punch_in_distance ?? false,
+          punch_in_distance_limit_meters: allowedPunchInDistanceMeters.includes((data as any).punch_in_distance_limit_meters)
+            ? (data as any).punch_in_distance_limit_meters
+            : null,
           notes: data.notes
         });
+        setDistanceSettingsColumnsAvailable(true);
       } else {
-        setSettings({ user_id: userId, assigned_jobs: [], job_cost_codes: [], require_location: true, require_photo: true, auto_lunch_deduction: true });
+        setSettings({
+          user_id: userId,
+          assigned_jobs: [],
+          job_cost_codes: [],
+          require_location: true,
+          require_photo: true,
+          auto_lunch_deduction: true,
+          enforce_punch_in_distance: false,
+          punch_in_distance_limit_meters: 50,
+        });
       }
     } catch (error) {
       console.error('Error loading employee settings:', error);
@@ -161,6 +186,12 @@ export default function EmployeeTimecardSettings({
         require_location: settings.require_location,
         require_photo: settings.require_photo,
         auto_lunch_deduction: settings.auto_lunch_deduction,
+        enforce_punch_in_distance: !!settings.enforce_punch_in_distance,
+        punch_in_distance_limit_meters: settings.enforce_punch_in_distance
+          ? (allowedPunchInDistanceMeters.includes((settings.punch_in_distance_limit_meters ?? 50) as any)
+              ? settings.punch_in_distance_limit_meters ?? 50
+              : 50)
+          : (settings.punch_in_distance_limit_meters ?? null),
         notes: settings.notes,
         created_by: profile?.user_id
       };
@@ -172,12 +203,31 @@ export default function EmployeeTimecardSettings({
         .eq('company_id', currentCompany.id)
         .maybeSingle();
 
-      const { error } = existing
-        ? await supabase.from('employee_timecard_settings').update(settingsData).eq('id', existing.id)
-        : await supabase.from('employee_timecard_settings').insert(settingsData);
+      let { error } = existing
+        ? await supabase.from('employee_timecard_settings').update(settingsData as any).eq('id', existing.id)
+        : await supabase.from('employee_timecard_settings').insert(settingsData as any);
+
+      // Graceful fallback if DB migration for geofence columns has not been applied yet.
+      if (error && isMissingColumnError(error)) {
+        setDistanceSettingsColumnsAvailable(false);
+        const { enforce_punch_in_distance, punch_in_distance_limit_meters, ...legacySettingsData } = settingsData as any;
+        const retry = existing
+          ? await supabase.from('employee_timecard_settings').update(legacySettingsData).eq('id', existing.id)
+          : await supabase.from('employee_timecard_settings').insert(legacySettingsData);
+        error = retry.error;
+        if (!error) {
+          toast({
+            title: "Settings Saved (Partial)",
+            description: "Punch-in distance restriction settings could not be saved because the database columns are not deployed yet.",
+            variant: "destructive"
+          });
+        }
+      }
       if (error) throw error;
 
-      toast({ title: "Settings Saved", description: "Employee timecard settings have been updated successfully." });
+      if (distanceSettingsColumnsAvailable) {
+        toast({ title: "Settings Saved", description: "Employee timecard settings have been updated successfully." });
+      }
     } catch (error) {
       console.error('Error saving employee settings:', error);
       toast({ title: "Error", description: "Failed to save employee settings", variant: "destructive" });
@@ -215,37 +265,38 @@ export default function EmployeeTimecardSettings({
 
   return (
     <div className="space-y-6">
-      {/* Employee Selection */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <User className="h-5 w-5" />
-            Select Employee
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="space-y-2">
-            <Label>Employee</Label>
-            <Select value={selectedEmployeeId} onValueChange={onEmployeeChange}>
-              <SelectTrigger>
-                <SelectValue placeholder="Select an employee to configure" />
-              </SelectTrigger>
-              <SelectContent>
-                {employees.map((employee) => (
-                  <SelectItem key={employee.id} value={employee.user_id}>
-                    <div className="flex items-center gap-2">
-                      <span>{employee.display_name || `${employee.first_name} ${employee.last_name}`}</span>
-                      <Badge variant="outline" className="text-xs">
-                        {employee.role}
-                      </Badge>
-                    </div>
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
+      {!hideEmployeeSelector && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Select Employee
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-2">
+              <Label>Employee</Label>
+              <Select value={selectedEmployeeId} onValueChange={onEmployeeChange}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select an employee to configure" />
+                </SelectTrigger>
+                <SelectContent>
+                  {employees.map((employee) => (
+                    <SelectItem key={employee.id} value={employee.user_id}>
+                      <div className="flex items-center gap-2">
+                        <span>{employee.display_name || `${employee.first_name} ${employee.last_name}`}</span>
+                        <Badge variant="outline" className="text-xs">
+                          {employee.role}
+                        </Badge>
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {settings && currentCompany && (
         <div className="space-y-6">
@@ -295,6 +346,63 @@ export default function EmployeeTimecardSettings({
                   checked={settings.auto_lunch_deduction}
                   onCheckedChange={(checked) => updateSettings({ auto_lunch_deduction: checked })}
                 />
+              </div>
+
+              <div className="border-t pt-4 space-y-3">
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5 pr-4">
+                    <Label>Require Employee To Be Near Job Site To Punch In</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Block punch in unless the employee is within the selected distance of the job-site location.
+                    </p>
+                  </div>
+                  <Switch
+                    checked={!!settings.enforce_punch_in_distance}
+                    disabled={!distanceSettingsColumnsAvailable}
+                    onCheckedChange={(checked) =>
+                      updateSettings({
+                        enforce_punch_in_distance: checked,
+                        punch_in_distance_limit_meters: checked
+                          ? (settings.punch_in_distance_limit_meters ?? 50)
+                          : settings.punch_in_distance_limit_meters ?? 50,
+                      })
+                    }
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Punch-In Distance Limit</Label>
+                  <Select
+                    value={String(settings.punch_in_distance_limit_meters ?? 50)}
+                    onValueChange={(value) => {
+                      const nextValue = parseInt(value, 10);
+                      if (!allowedPunchInDistanceMeters.includes(nextValue as any)) return;
+                      updateSettings({ punch_in_distance_limit_meters: nextValue });
+                    }}
+                    disabled={!distanceSettingsColumnsAvailable || !settings.enforce_punch_in_distance}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select distance" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {allowedPunchInDistanceMeters.map((meters) => (
+                        <SelectItem key={meters} value={String(meters)}>
+                          {meters}m
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  {!distanceSettingsColumnsAvailable && (
+                    <p className="text-xs text-amber-600">
+                      Punch-in distance settings are unavailable until the database migration for employee timecard settings is applied.
+                    </p>
+                  )}
+                  {distanceSettingsColumnsAvailable && (
+                    <p className="text-xs text-muted-foreground">
+                      Employee must be within this distance of the job-site location to punch in.
+                    </p>
+                  )}
+                </div>
               </div>
 
               <div className="space-y-2">

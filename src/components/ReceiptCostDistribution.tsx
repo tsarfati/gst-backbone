@@ -12,6 +12,7 @@ import { Plus, Trash2, Calculator, Check, ChevronsUpDown } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface CostDistribution {
   id: string;
@@ -70,10 +71,12 @@ export default function ReceiptCostDistribution({
   const [costCodesByJob, setCostCodesByJob] = useState<Record<string, CostCode[]>>({});
 const [loading, setLoading] = useState(true);
 const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'labor' | 'material' | 'equipment' | 'sub' | 'other'>>({});
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   useEffect(() => {
+    if (websiteJobAccessLoading) return;
     loadJobs();
-  }, [companyId]);
+  }, [companyId, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   // Sync only once when modal opens with initial data
   useEffect(() => {
@@ -96,11 +99,14 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
 
     try {
       setLoading(true);
-      const { data, error } = await supabase
+      let jobsQuery = supabase
         .from('jobs')
         .select('id, name')
-        .eq('company_id', companyId)
-        .order('name');
+        .eq('company_id', companyId);
+      if (!isPrivileged) {
+        jobsQuery = jobsQuery.in('id', allowedJobIds.length ? allowedJobIds : ['00000000-0000-0000-0000-000000000000']);
+      }
+      const { data, error } = await jobsQuery.order('name');
 
       if (error) throw error;
       setJobs(data || []);

@@ -186,18 +186,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             .select('settings')
             .eq('company_id', currentCompany.id)
             .is('user_id', null)
-            .maybeSingle(),
+            .order('updated_at', { ascending: false })
+            .limit(1),
           supabase
             .from('company_ui_settings')
             .select('settings')
             .eq('company_id', currentCompany.id)
             .eq('user_id', user.id)
-            .maybeSingle()
+            .order('updated_at', { ascending: false })
+            .limit(1)
         ]);
 
-        const companySettings = (companyResp?.data?.settings || null) as Partial<AppSettings> | null;
+        const companySettings = ((companyResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
         setCompanyDefaults(companySettings);
-        const userSettings = (userResp?.data?.settings || null) as Partial<AppSettings> | null;
+        const userSettings = ((userResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
 
         const merged = { ...defaultSettings, ...(companySettings || {}), ...(userSettings || {}) } as AppSettings;
         setSettings(merged);

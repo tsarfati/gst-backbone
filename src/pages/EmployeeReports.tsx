@@ -3,7 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { useNavigate } from "react-router-dom";
-import { Users, QrCode, UserCircle, ArrowRight, Search, Filter, FileText } from "lucide-react";
+import { Users, QrCode, ArrowRight, Search, Filter, FileText, ShieldAlert } from "lucide-react";
 import { useReportFavorites } from "@/hooks/useReportFavorites";
 import { ReportFavoriteButton } from "@/components/ReportFavoriteButton";
 import { ComingSoonBadge } from "@/components/ComingSoonBadge";
@@ -25,6 +25,14 @@ const reports: Report[] = [
     description: "Generate comprehensive time card reports with filtering and export options",
     icon: FileText,
     path: "/punch-clock/reports",
+    isBuilt: true,
+  },
+  {
+    key: "punch-clock-attempt-audit",
+    title: "Punch Clock Attempt Audit",
+    description: "Review blocked punch-in attempts, geofence failures, and location-related audit events",
+    icon: ShieldAlert,
+    path: "/employees/reports/punch-clock-attempt-audit",
     isBuilt: true,
   },
   {

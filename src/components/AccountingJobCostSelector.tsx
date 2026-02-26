@@ -8,6 +8,7 @@ import { Building, Code, Plus, DollarSign } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import BudgetStatusDisplay from "@/components/BudgetStatusDisplay";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface Job {
   id: string;
@@ -47,10 +48,13 @@ export default function AccountingJobCostSelector({
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   useEffect(() => {
-    loadJobs();
-  }, []);
+    if (!websiteJobAccessLoading) {
+      loadJobs();
+    }
+  }, [websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (selectedJobId) {
@@ -62,11 +66,22 @@ export default function AccountingJobCostSelector({
 
   const loadJobs = async () => {
     try {
-      const { data, error } = await supabase
+      if (!isPrivileged && allowedJobIds.length === 0) {
+        setJobs([]);
+        return;
+      }
+
+      let query = supabase
         .from('jobs')
         .select('id, name, status, budget_total')
         .in('status', ['planning', 'active', 'on-hold'])
         .order('name');
+
+      if (!isPrivileged) {
+        query = query.in('id', allowedJobIds);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setJobs(data || []);
@@ -137,7 +152,7 @@ export default function AccountingJobCostSelector({
             disabled={disabled}
           >
             <SelectTrigger id="job-select">
-              <SelectValue placeholder="Select a job" />
+              <SelectValue placeholder={websiteJobAccessLoading ? "Loading jobs..." : "Select a job"} />
             </SelectTrigger>
             <SelectContent>
               {jobs.map((job) => (

@@ -17,6 +17,7 @@ import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useDashboardPermissions } from '@/hooks/useDashboardPermissions';
 import BillsNeedingCoding from '@/components/BillsNeedingCoding';
 import CreditCardCodingRequests from '@/components/CreditCardCodingRequests';
+import UserAvatar from '@/components/UserAvatar';
 
 interface Notification {
   id: string;
@@ -36,6 +37,7 @@ interface Message {
   created_at: string;
   from_profile?: {
     display_name: string;
+    avatar_url?: string | null;
   };
 }
 
@@ -304,7 +306,7 @@ export default function Dashboard() {
         (billComms || []).map(async (msg: any) => {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('display_name, first_name, last_name')
+            .select('display_name, first_name, last_name, avatar_url')
             .eq('user_id', msg.user_id)
             .single();
           return { ...msg, profiles: profile };
@@ -316,7 +318,7 @@ export default function Dashboard() {
         (directMessages || []).map(async (message) => {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('display_name')
+            .select('display_name, avatar_url')
             .eq('user_id', message.from_user_id)
             .single();
           
@@ -338,7 +340,8 @@ export default function Dashboard() {
         from_profile: {
           display_name: comm.profiles?.display_name || 
             `${comm.profiles?.first_name || ''} ${comm.profiles?.last_name || ''}`.trim() || 
-            'Team Member'
+            'Team Member',
+          avatar_url: comm.profiles?.avatar_url || null,
         }
       }));
       
@@ -663,41 +666,57 @@ export default function Dashboard() {
                     No messages
                   </p>
                 ) : (
-                  <div className="space-y-3">
+                  <div className="space-y-2">
                     {messages.map((message) => (
                       <div
                         key={message.id}
-                        className={`p-3 rounded-lg border cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors ${
-                          !message.read ? 'bg-accent' : 'bg-background'
+                        className={`px-3 py-2 rounded-lg border cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors ${
+                          !message.read ? 'bg-accent/70 border-primary/30' : 'bg-background'
                         }`}
                         onClick={() => {
                           markMessageAsRead(message.id);
                           navigate(`/messages?thread=${message.id}`);
                         }}
                       >
-                        <div className="flex items-start justify-between">
-                          <div className="flex-1">
-                            <h4 className="font-medium">{message.subject}</h4>
-                            <p className="text-sm text-muted-foreground mt-1">
-                              From: {message.from_profile?.display_name}
-                            </p>
-                            <p className="text-sm mt-2 line-clamp-2">
-                              {message.content}
-                            </p>
-                            <p className="text-xs text-muted-foreground mt-2">
-                              {new Date(message.created_at).toLocaleDateString()}
-                            </p>
+                        <div className="flex items-start gap-3">
+                          <UserAvatar
+                            src={message.from_profile?.avatar_url || undefined}
+                            name={message.from_profile?.display_name || "User"}
+                            className="h-9 w-9 shrink-0"
+                            fallbackClassName="text-xs"
+                          />
+                          <div className="min-w-0 flex-1">
+                            <div className="flex items-start justify-between gap-2">
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 min-w-0">
+                                  <span className="font-medium text-sm truncate">
+                                    {message.from_profile?.display_name || 'Unknown'}
+                                  </span>
+                                  {!message.read && (
+                                    <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
+                                  )}
+                                </div>
+                                <p className="text-sm text-muted-foreground truncate mt-0.5">
+                                  <span className="font-medium text-foreground/90">{message.subject || 'No subject'}</span>
+                                  {message.content ? ` · ${message.content}` : ''}
+                                </p>
+                              </div>
+                              <span className="text-[11px] text-muted-foreground shrink-0 pt-0.5">
+                                {new Date(message.created_at).toLocaleDateString()}
+                              </span>
+                            </div>
                           </div>
                           {!message.read && (
                             <Button
                               size="sm"
                               variant="ghost"
+                              className="h-7 w-7 p-0 shrink-0"
                               onClick={(e) => {
                                 e.stopPropagation();
                                 markMessageAsRead(message.id);
                               }}
                             >
-                              <X className="h-4 w-4" />
+                              <X className="h-3.5 w-3.5" />
                             </Button>
                           )}
                         </div>

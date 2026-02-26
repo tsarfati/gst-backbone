@@ -10,6 +10,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 
 interface Job {
   id: string;
@@ -27,6 +28,7 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -39,19 +41,28 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
   });
 
   useEffect(() => {
-    if (open && currentCompany) {
+    if (open && currentCompany && !websiteJobAccessLoading) {
       loadJobs();
     }
-  }, [open, currentCompany]);
+  }, [open, currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
   const loadJobs = async () => {
     if (!currentCompany) return;
-    const { data } = await supabase
+    if (!isPrivileged && allowedJobIds.length === 0) {
+      setJobs([]);
+      return;
+    }
+
+    let query = supabase
       .from('jobs')
       .select('id, name')
       .eq('company_id', currentCompany.id)
       .eq('is_active', true)
       .order('name');
+    if (!isPrivileged) {
+      query = query.in('id', allowedJobIds);
+    }
+    const { data } = await query;
     setJobs(data || []);
   };
 
@@ -183,7 +194,7 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
               onValueChange={(value) => setFormData(prev => ({ ...prev, job_id: value }))}
             >
               <SelectTrigger>
-                <SelectValue placeholder="Select a project" />
+                <SelectValue placeholder={websiteJobAccessLoading ? "Loading projects..." : "Select a project"} />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="">No Project</SelectItem>

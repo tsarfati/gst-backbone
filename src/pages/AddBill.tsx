@@ -29,6 +29,7 @@ import QuickAddVendor from "@/components/QuickAddVendor";
 import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 import BillDistributionSection from "@/components/BillDistributionSection";
 import BudgetStatusDisplay from "@/components/BudgetStatusDisplay";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface DistributionLineItem {
   id: string;
@@ -43,6 +44,7 @@ export default function AddBill() {
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [formData, setFormData] = useState({
     vendor_id: "",
@@ -102,9 +104,10 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
    const { missingCount: vendorComplianceMissing } = useVendorCompliance(formData.vendor_id);
 
   useEffect(() => {
+    if (websiteJobAccessLoading) return;
     fetchInitialData();
     fetchPayablesSettings();
-  }, []);
+  }, [websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (formData.job_id && billType === "commitment") {
@@ -140,7 +143,17 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       const companyId = currentCompany?.id || profile?.current_company_id;
       const [vendorsRes, jobsRes, expenseAccountsRes, companyMasterCodesRes] = await Promise.all([
         supabase.from('vendors').select('id, name, logo_url, is_active, company_id, require_invoice_number, vendor_type').eq('is_active', true).eq('company_id', companyId),
-        supabase.from('jobs').select('*').eq('company_id', companyId),
+        (() => {
+          let q = supabase.from('jobs').select('*').eq('company_id', companyId);
+          if (!isPrivileged) {
+            if (allowedJobIds.length === 0) {
+              q = q.in('id', ['00000000-0000-0000-0000-000000000000']);
+            } else {
+              q = q.in('id', allowedJobIds);
+            }
+          }
+          return q;
+        })(),
         supabase.from('chart_of_accounts')
           .select('id, account_number, account_name, account_type, require_attachment')
           .eq('company_id', companyId)

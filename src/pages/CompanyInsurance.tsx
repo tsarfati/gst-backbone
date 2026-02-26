@@ -18,6 +18,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import DragDropUpload from "@/components/DragDropUpload";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 const INSURANCE_TYPES = [
   "General Liability", "Workers' Compensation", "Commercial Auto",
@@ -47,6 +48,7 @@ export default function CompanyInsurance() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   const [newPolicy, setNewPolicy] = useState({
     name: "", policy_number: "", trade: "", job_id: "", status: "active",
@@ -55,8 +57,8 @@ export default function CompanyInsurance() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
 
   useEffect(() => {
-    if (currentCompany) { fetchPolicies(); fetchJobs(); }
-  }, [currentCompany]);
+    if (currentCompany && !websiteJobAccessLoading) { fetchPolicies(); fetchJobs(); }
+  }, [currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const fetchPolicies = async () => {
     if (!currentCompany) return;
@@ -66,12 +68,25 @@ export default function CompanyInsurance() {
       .eq('company_id', currentCompany.id)
       .eq('category', 'insurance')
       .order('created_at', { ascending: false });
-    if (data) setPolicies(data);
+    if (data) {
+      const filtered = isPrivileged
+        ? data
+        : data.filter((p: any) => !p.job_id || allowedJobIds.includes(p.job_id));
+      setPolicies(filtered);
+    }
   };
 
   const fetchJobs = async () => {
     if (!currentCompany) return;
-    const { data } = await supabase.from('jobs').select('id, name').eq('company_id', currentCompany.id).eq('is_active', true).order('name');
+    if (!isPrivileged && allowedJobIds.length === 0) {
+      setJobs([]);
+      return;
+    }
+    let query = supabase.from('jobs').select('id, name').eq('company_id', currentCompany.id).eq('is_active', true).order('name');
+    if (!isPrivileged) {
+      query = query.in('id', allowedJobIds);
+    }
+    const { data } = await query;
     if (data) setJobs(data);
   };
 

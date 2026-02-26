@@ -2,6 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 
 interface DashboardPermissions {
   [key: string]: boolean;
@@ -10,6 +11,7 @@ interface DashboardPermissions {
 export function useDashboardPermissions() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
+  const activeCompanyRole = useActiveCompanyRole();
   const [permissions, setPermissions] = useState<DashboardPermissions>({});
   const [loading, setLoading] = useState(true);
 
@@ -39,13 +41,15 @@ export function useDashboardPermissions() {
         return;
       }
 
-      if (!profile?.role) {
+      const baseRole = activeCompanyRole || profile?.role;
+
+      if (!baseRole && !profile?.custom_role_id) {
         setLoading(false);
         return;
       }
 
-      // Admin has access to everything
-      if (profile.role === 'admin') {
+      // Admin has access to everything (unless a custom role is explicitly assigned)
+      if (!profile?.custom_role_id && baseRole === 'admin') {
         setPermissions({
           'dashboard.stats': true,
           'dashboard.notifications': true,
@@ -69,12 +73,19 @@ export function useDashboardPermissions() {
       }
 
       try {
-        // Fetch role permissions from database
-        const { data, error } = await supabase
-          .from('role_permissions')
-          .select('menu_item, can_access')
-          .eq('role', profile.role)
-          .like('menu_item', 'dashboard.%');
+        const query = profile?.custom_role_id
+          ? supabase
+              .from('custom_role_permissions')
+              .select('menu_item, can_access')
+              .eq('custom_role_id', profile.custom_role_id)
+              .like('menu_item', 'dashboard.%')
+          : supabase
+              .from('role_permissions')
+              .select('menu_item, can_access')
+              .eq('role', baseRole as any)
+              .like('menu_item', 'dashboard.%');
+
+        const { data, error } = await query;
 
         if (error) throw error;
 
@@ -92,11 +103,11 @@ export function useDashboardPermissions() {
     };
 
     fetchDashboardPermissions();
-  }, [profile?.role, isSuperAdmin]);
+  }, [profile?.role, profile?.custom_role_id, activeCompanyRole, isSuperAdmin]);
 
   const canViewSection = (section: string): boolean => {
     if (isSuperAdmin) return true;
-    if (profile?.role === 'admin') return true;
+    if (!profile?.custom_role_id && (activeCompanyRole === 'admin' || profile?.role === 'admin')) return true;
     return permissions[`dashboard.${section}`] || false;
   };
 
@@ -106,4 +117,3 @@ export function useDashboardPermissions() {
     canViewSection,
   };
 }
-

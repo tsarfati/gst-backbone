@@ -60,13 +60,15 @@ export function useMenuPermissions() {
       return;
     }
 
-    if (effectiveRole) {
+    if (profile?.custom_role_id) {
+      fetchCustomMenuPermissions(profile.custom_role_id);
+    } else if (effectiveRole) {
       fetchMenuPermissions(effectiveRole);
     } else {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveRole, isSuperAdmin, companyLoading]);
+  }, [effectiveRole, profile?.custom_role_id, isSuperAdmin, companyLoading]);
 
   const fetchMenuPermissions = async (role: AppRole) => {
     try {
@@ -92,6 +94,29 @@ export function useMenuPermissions() {
     }
   };
 
+  const fetchCustomMenuPermissions = async (customRoleId: string) => {
+    try {
+      const { data, error } = await supabase
+        .from('custom_role_permissions')
+        .select('menu_item, can_access')
+        .eq('custom_role_id', customRoleId);
+
+      if (error) throw error;
+
+      const permissionsMap: MenuPermissions = {};
+      data?.forEach((permission) => {
+        permissionsMap[permission.menu_item] = permission.can_access;
+      });
+
+      setPermissions(permissionsMap);
+    } catch (error) {
+      console.error('Error fetching custom menu permissions:', error);
+      setPermissions({});
+    } finally {
+      setLoading(false);
+    }
+  };
+
 
   const hasAccess = (menuItem: string): boolean => {
     if (loading) return false;
@@ -99,13 +124,13 @@ export function useMenuPermissions() {
     // Super admins have access to everything
     if (isSuperAdmin) return true;
 
-    // Admin users have access to everything
-    if (effectiveRole === 'admin') {
+    // Admin users without a custom role have access to everything
+    if (!profile?.custom_role_id && effectiveRole === 'admin') {
       return true;
     }
 
     // Always allow managers access to punch clock features
-    const isManager = effectiveRole === 'controller' || effectiveRole === 'project_manager';
+    const isManager = !profile?.custom_role_id && (effectiveRole === 'controller' || effectiveRole === 'project_manager');
     const punchClockItems = ['punch-clock-dashboard', 'timecard-reports', 'punch-clock-settings'];
     if (isManager && punchClockItems.includes(menuItem)) {
       return true;
@@ -125,7 +150,7 @@ export function useMenuPermissions() {
     if (profile?.has_global_job_access) return true;
 
     // Admin always has access
-    if (effectiveRole === 'admin') return true;
+    if (!profile?.custom_role_id && effectiveRole === 'admin') return true;
 
     // If no specific jobs provided, check if user has any job access
     if (!jobIds) return true; // Let the component handle the specific checks

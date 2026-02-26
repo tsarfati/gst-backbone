@@ -10,6 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Trash2, Calculator, Check, ChevronsUpDown, AlertCircle, Loader2, CheckCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { cn } from "@/lib/utils";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface CostDistribution {
   id: string;
@@ -70,10 +71,12 @@ export default function BillCostDistribution({
   const [costCodesByJob, setCostCodesByJob] = useState<Record<string, CostCode[]>>({});
   const [loading, setLoading] = useState(true);
   const [openPopover, setOpenPopover] = useState<Record<string, boolean>>({});
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   useEffect(() => {
+    if (websiteJobAccessLoading) return;
     loadData();
-  }, [companyId]);
+  }, [companyId, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (initialDistribution.length > 0) {
@@ -92,11 +95,16 @@ export default function BillCostDistribution({
     try {
       setLoading(true);
       const [jobsResult, expenseResult] = await Promise.all([
-        supabase
-          .from('jobs')
-          .select('id, name')
-          .eq('company_id', companyId)
-          .order('name'),
+        (() => {
+          let q = supabase
+            .from('jobs')
+            .select('id, name')
+            .eq('company_id', companyId);
+          if (!isPrivileged) {
+            q = q.in('id', allowedJobIds.length ? allowedJobIds : ['00000000-0000-0000-0000-000000000000']);
+          }
+          return q.order('name');
+        })(),
         supabase
           .from('chart_of_accounts')
           .select('id, account_number, account_name')

@@ -17,6 +17,7 @@ import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { format } from "date-fns";
 import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface BudgetLine {
   id: string;
@@ -48,6 +49,7 @@ export default function ProjectCostBudgetStatus() {
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [budgetLines, setBudgetLines] = useState<BudgetLine[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -55,23 +57,37 @@ export default function ProjectCostBudgetStatus() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadJobs();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadBudgetData();
     }
-  }, [currentCompany?.id, selectedJob]);
+  }, [currentCompany?.id, selectedJob, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+
+  useEffect(() => {
+    if (selectedJob !== "all" && !isPrivileged && !allowedJobIds.includes(selectedJob)) {
+      setSelectedJob("all");
+    }
+  }, [selectedJob, isPrivileged, allowedJobIds.join(",")]);
 
   const loadJobs = async () => {
-    const { data } = await supabase
+    if (!isPrivileged && allowedJobIds.length === 0) {
+      setJobs([]);
+      return;
+    }
+    let query = supabase
       .from("jobs")
       .select("id, name")
       .eq("company_id", currentCompany!.id)
       .order("name");
+    if (!isPrivileged) {
+      query = query.in("id", allowedJobIds);
+    }
+    const { data } = await query;
     setJobs(data || []);
   };
 
@@ -149,6 +165,20 @@ export default function ProjectCostBudgetStatus() {
         paidInvoicesQuery = paidInvoicesQuery.eq("job_id", selectedJob);
         subcontractsQuery = subcontractsQuery.eq("job_id", selectedJob);
         purchaseOrdersQuery = purchaseOrdersQuery.eq("job_id", selectedJob);
+      } else if (!isPrivileged) {
+        if (allowedJobIds.length === 0) {
+          budgetsQuery = budgetsQuery.eq("job_id", "__no_access__");
+          actualsQuery = actualsQuery.eq("job_id", "__no_access__");
+          paidInvoicesQuery = paidInvoicesQuery.eq("job_id", "__no_access__");
+          subcontractsQuery = subcontractsQuery.eq("job_id", "__no_access__");
+          purchaseOrdersQuery = purchaseOrdersQuery.eq("job_id", "__no_access__");
+        } else {
+          budgetsQuery = budgetsQuery.in("job_id", allowedJobIds);
+          actualsQuery = actualsQuery.in("job_id", allowedJobIds);
+          paidInvoicesQuery = paidInvoicesQuery.in("job_id", allowedJobIds);
+          subcontractsQuery = subcontractsQuery.in("job_id", allowedJobIds);
+          purchaseOrdersQuery = purchaseOrdersQuery.in("job_id", allowedJobIds);
+        }
       }
 
       const [

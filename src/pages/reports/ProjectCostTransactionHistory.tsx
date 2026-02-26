@@ -23,6 +23,7 @@ import { CreditCardTransactionModal } from "@/components/CreditCardTransactionMo
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { cn } from "@/lib/utils";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface Transaction {
   id: string;
@@ -87,6 +88,7 @@ export default function ProjectCostTransactionHistory() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const urlJobId = searchParams.get("jobId");
   const urlCostCodeId = searchParams.get("costCodeId");
@@ -116,10 +118,20 @@ export default function ProjectCostTransactionHistory() {
   const [expandedCategories, setExpandedCategories] = useState<Set<string>>(new Set());
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadFilterData();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+
+  useEffect(() => {
+    if (selectedJobId && !isPrivileged && !allowedJobIds.includes(selectedJobId)) {
+      setSelectedJobId("");
+      setSelectedCostCodeId("");
+      setTransactions([]);
+      setFilteredTransactions([]);
+      setJobBudgetSummary([]);
+    }
+  }, [selectedJobId, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (selectedJobId && currentCompany?.id) {
@@ -161,12 +173,20 @@ export default function ProjectCostTransactionHistory() {
   const loadFilterData = async () => {
     try {
       setLoadingFilters(true);
-      const { data: jobsData, error } = await supabase
+      if (!isPrivileged && allowedJobIds.length === 0) {
+        setJobs([]);
+        return;
+      }
+      let query = supabase
         .from("jobs")
         .select("id, name")
         .eq("company_id", currentCompany!.id)
         .eq("is_active", true)
         .order("name");
+      if (!isPrivileged) {
+        query = query.in("id", allowedJobIds);
+      }
+      const { data: jobsData, error } = await query;
 
       if (error) throw error;
       setJobs(jobsData || []);
@@ -249,6 +269,7 @@ export default function ProjectCostTransactionHistory() {
 
   const loadTransactions = useCallback(async () => {
     if (!selectedJobId || !currentCompany?.id) return;
+    if (!isPrivileged && !allowedJobIds.includes(selectedJobId)) return;
     
     try {
       setLoading(true);
@@ -451,7 +472,7 @@ export default function ProjectCostTransactionHistory() {
     } finally {
       setLoading(false);
     }
-  }, [selectedJobId, resolvedCostCodeId, currentCompany?.id, toast]);
+  }, [selectedJobId, resolvedCostCodeId, currentCompany?.id, toast, isPrivileged, allowedJobIds.join(",")]);
 
   const applyFilters = () => {
     let filtered = [...transactions];

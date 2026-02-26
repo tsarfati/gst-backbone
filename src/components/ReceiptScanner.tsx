@@ -11,8 +11,10 @@ import { Camera, Upload, CheckCircle, X, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useReceipts } from '@/contexts/ReceiptContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import DragDropUpload from '@/components/DragDropUpload';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 
 interface Job {
   id: string;
@@ -34,7 +36,9 @@ interface Vendor {
 export function ReceiptScanner() {
   const { user } = useAuth();
   const { addReceipts, codeReceipt } = useReceipts();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [showCamera, setShowCamera] = useState(false);
   const [capturedImage, setCapturedImage] = useState<string | null>(null);
@@ -60,13 +64,18 @@ export function ReceiptScanner() {
 
   // Load data when component mounts
   const loadData = useCallback(async () => {
+    if (!currentCompany?.id) return;
     try {
       // Load jobs
-      const { data: jobsData } = await supabase
+      let jobsQuery = supabase
         .from('jobs')
         .select('id, name, address')
-        .eq('status', 'active')
-        .order('name');
+        .eq('company_id', currentCompany.id)
+        .eq('status', 'active');
+      if (!isPrivileged) {
+        jobsQuery = jobsQuery.in('id', allowedJobIds.length ? allowedJobIds : ['00000000-0000-0000-0000-000000000000']);
+      }
+      const { data: jobsData } = await jobsQuery.order('name');
       
       if (jobsData) setJobs(jobsData);
 
@@ -92,11 +101,12 @@ export function ReceiptScanner() {
     } catch (error) {
       console.error('Error loading data:', error);
     }
-  }, []);
+  }, [currentCompany?.id, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
+    if (websiteJobAccessLoading) return;
     loadData();
-  }, [loadData]);
+  }, [loadData, websiteJobAccessLoading]);
 
   const startCamera = async () => {
     setShowCamera(true);

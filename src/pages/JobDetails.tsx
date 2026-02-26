@@ -22,6 +22,7 @@ import JobBillingSetup from "@/components/JobBillingSetup";
 import JobRFIs from "@/components/JobRFIs";
 import JobProjectTeam from "@/components/JobProjectTeam";
 import JobExportModal from "@/components/JobExportModal";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface Job {
   id: string;
@@ -59,10 +60,21 @@ export default function JobDetails() {
   const initialTab = searchParams.get('tab') || 'details';
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const { loading: jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged } = useWebsiteJobAccess();
 
   useEffect(() => {
     const fetchJob = async () => {
       if (!id) {
+        setLoading(false);
+        return;
+      }
+
+      if (jobAccessLoading) {
+        return;
+      }
+
+      if (!isPrivileged && !hasGlobalJobAccess && !canAccessJob(id)) {
+        setJob(null);
         setLoading(false);
         return;
       }
@@ -126,7 +138,7 @@ export default function JobDetails() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, toast]);
+  }, [id, toast, jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged]);
 
   if (loading) {
     return (

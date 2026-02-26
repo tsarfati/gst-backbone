@@ -13,6 +13,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import SubcontractCostDistribution from "@/components/SubcontractCostDistribution";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -31,6 +32,7 @@ export default function SubcontractEdit() {
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds, canAccessJob } = useWebsiteJobAccess();
   
   const [formData, setFormData] = useState({
     name: "",
@@ -96,6 +98,15 @@ export default function SubcontractEdit() {
           .single();
 
         if (subcontractError) throw subcontractError;
+        if (subcontractData.job_id && !canAccessJob(subcontractData.job_id)) {
+          toast({
+            title: "Access denied",
+            description: "You do not have access to this subcontract's project",
+            variant: "destructive",
+          });
+          navigate('/payables/subcontracts');
+          return;
+        }
 
         setFormData({
           name: subcontractData.name,
@@ -126,11 +137,22 @@ export default function SubcontractEdit() {
         }
 
         // Fetch jobs
-        const { data: jobsData, error: jobsError } = await supabase
+        let jobsQuery = supabase
           .from('jobs')
           .select('id, name, client')
           .eq('company_id', companyId)
           .order('name');
+        if (!isPrivileged) {
+          if (allowedJobIds.length === 0) {
+            setJobs([]);
+          } else {
+            jobsQuery = jobsQuery.in('id', allowedJobIds);
+          }
+        }
+
+        const { data: jobsData, error: jobsError } = !isPrivileged && allowedJobIds.length === 0
+          ? { data: [], error: null as any }
+          : await jobsQuery;
 
         if (jobsError) throw jobsError;
         setJobs(jobsData || []);
@@ -157,10 +179,10 @@ export default function SubcontractEdit() {
       }
     };
 
-    if (user && (currentCompany?.id || profile?.current_company_id)) {
+    if (!websiteJobAccessLoading && user && (currentCompany?.id || profile?.current_company_id)) {
       fetchData();
     }
-  }, [id, user, currentCompany, profile, toast]);
+  }, [id, user, currentCompany, profile, toast, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(','), canAccessJob, navigate]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({

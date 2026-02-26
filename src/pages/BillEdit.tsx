@@ -23,6 +23,7 @@ import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import BillApprovalActions from "@/components/BillApprovalActions";
 import BillDistributionSection from "@/components/BillDistributionSection";
 import BillCostDistribution from "@/components/BillCostDistribution";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface Vendor {
   id: string;
@@ -50,6 +51,7 @@ export default function BillEdit() {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const { profile, user } = useAuth();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds, canAccessJob } = useWebsiteJobAccess();
   
   const [bill, setBill] = useState<any>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -88,10 +90,10 @@ export default function BillEdit() {
   });
 
   useEffect(() => {
-    if (id) {
+    if (id && !websiteJobAccessLoading) {
       loadBillAndOptions();
     }
-  }, [id]);
+  }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadBillAndOptions = async () => {
     try {
@@ -124,6 +126,16 @@ export default function BillEdit() {
 
       // Ensure billData has the correct type with is_reimbursement field
       const typedBillData = billData as typeof billData & { is_reimbursement?: boolean };
+
+      if (typedBillData?.job_id && !isPrivileged && !canAccessJob(typedBillData.job_id)) {
+        toast({
+          title: "Access Restricted",
+          description: "You do not have access to this bill's job.",
+          variant: "destructive",
+        });
+        navigate("/payables");
+        return;
+      }
 
       // If this is a subcontract invoice, load subcontract and commitment details
       if (typedBillData.subcontract_id) {
@@ -190,11 +202,16 @@ export default function BillEdit() {
           .select('id, name, vendor_type')
           .eq('company_id', companyId)
           .order('name'),
-        supabase
-          .from('jobs')
-          .select('id, name')
-          .eq('company_id', companyId)
-          .order('name'),
+        (() => {
+          let q = supabase
+            .from('jobs')
+            .select('id, name')
+            .eq('company_id', companyId);
+          if (!isPrivileged) {
+            q = q.in('id', allowedJobIds.length ? allowedJobIds : ['00000000-0000-0000-0000-000000000000']);
+          }
+          return q.order('name');
+        })(),
         supabase
           .from('chart_of_accounts')
           .select('id, account_number, account_name, account_type, require_attachment')

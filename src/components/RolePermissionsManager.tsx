@@ -54,6 +54,7 @@ interface MenuItem {
   label: string;
   description: string;
   actions?: ActionItem[];
+  children?: MenuItem[];
 }
 
 interface MenuCategory {
@@ -105,7 +106,116 @@ const menuCategories: MenuCategory[] = [
           { key: 'jobs-add', label: 'Add Jobs', description: 'Create new jobs' },
           { key: 'jobs-edit', label: 'Edit Jobs', description: 'Modify job details' },
           { key: 'jobs-delete', label: 'Delete Jobs', description: 'Remove jobs' },
-          { key: 'jobs-budget', label: 'Job Budgets', description: 'View and manage budgets' },
+        ]
+        ,
+        children: [
+          {
+            key: 'jobs-tab-details',
+            label: 'Job Details Tab',
+            description: 'Job information and overview tab',
+            actions: [
+              { key: 'jobs-view-details', label: 'View', description: 'Open job details and read overview information' },
+              { key: 'jobs-edit-details', label: 'Edit', description: 'Edit job information and metadata' },
+            ]
+          },
+          {
+            key: 'jobs-tab-committed-costs',
+            label: 'Committed Costs Tab',
+            description: 'Committed costs and commitments',
+            actions: [
+              { key: 'jobs-view-committed-costs', label: 'View', description: 'See committed costs tab and totals' },
+              { key: 'jobs-edit-committed-costs', label: 'Edit', description: 'Create/edit commitments and related entries' },
+            ]
+          },
+          {
+            key: 'jobs-tab-budget',
+            label: 'Cost Codes & Budget Tab',
+            description: 'Budget and cost code management',
+            actions: [
+              { key: 'jobs-view-budget', label: 'View', description: 'Read cost codes and budget tab' },
+              { key: 'jobs-edit-budget', label: 'Edit', description: 'Edit cost codes, budget values, and setup' },
+            ]
+          },
+          {
+            key: 'jobs-tab-forecasting',
+            label: 'Forecasting Tab',
+            description: 'Forecasting and projections',
+            actions: [
+              { key: 'jobs-view-forecasting', label: 'View', description: 'Read forecasting tab and projections' },
+              { key: 'jobs-edit-forecasting', label: 'Edit', description: 'Modify forecasting values and assumptions' },
+            ]
+          },
+          {
+            key: 'jobs-tab-plans',
+            label: 'Plans Tab',
+            description: 'Plans and sheets',
+            actions: [
+              { key: 'jobs-view-plans', label: 'View Plans', description: 'Open plans tab and plan viewer' },
+              { key: 'jobs-upload-plans', label: 'Upload Plans', description: 'Upload plan sheets and plan documents' },
+              { key: 'jobs-delete-plans', label: 'Delete Plans', description: 'Delete uploaded plans' },
+            ]
+          },
+          {
+            key: 'jobs-tab-rfis',
+            label: 'RFIs Tab',
+            description: 'RFIs and responses',
+            actions: [
+              { key: 'jobs-view-rfis', label: 'View RFIs', description: 'Read RFIs and attachments' },
+              { key: 'jobs-create-rfis', label: 'Create RFIs', description: 'Create new RFIs' },
+              { key: 'jobs-edit-rfis', label: 'Edit RFIs', description: 'Edit RFIs, statuses, and responses' },
+              { key: 'jobs-delete-rfis', label: 'Delete RFIs', description: 'Delete RFIs' },
+            ]
+          },
+          {
+            key: 'jobs-tab-billing',
+            label: 'Billing Tab',
+            description: 'SOV and draw billing workflow',
+            actions: [
+              { key: 'jobs-view-billing', label: 'View Billing', description: 'View SOV, draws, and billing tab' },
+              { key: 'jobs-edit-billing', label: 'Edit Billing', description: 'Edit SOV and draft draws' },
+              { key: 'jobs-approve-sov', label: 'Approve SOV', description: 'Approve and lock schedule of values' },
+              { key: 'jobs-create-draws', label: 'Create Draws', description: 'Create and update draw invoices from job billing' },
+              { key: 'jobs-send-draws', label: 'Send Draws', description: 'Submit draws for review/approval' },
+            ]
+          },
+          {
+            key: 'jobs-tab-photos',
+            label: 'Photos Tab',
+            description: 'Job photo albums and photos',
+            children: [
+              {
+                key: 'jobs-tab-photos-albums',
+                label: 'Albums',
+                description: 'Photo album controls',
+                actions: [
+                  { key: 'jobs-photos-create-albums', label: 'Create Albums', description: 'Create photo albums' },
+                  { key: 'jobs-photos-edit-albums', label: 'Edit Albums', description: 'Rename/reorganize albums' },
+                  { key: 'jobs-photos-delete-albums', label: 'Delete Albums', description: 'Delete photo albums' },
+                ]
+              },
+              {
+                key: 'jobs-tab-photos-photos',
+                label: 'Photos',
+                description: 'Photo item controls',
+                actions: [
+                  { key: 'jobs-view-photo-album', label: 'View Photos', description: 'Open job photos tab' },
+                  { key: 'jobs-upload-photos', label: 'Upload Photos', description: 'Add photos to job photo album' },
+                  { key: 'jobs-delete-photos', label: 'Delete Photos', description: 'Delete job photos' },
+                  { key: 'jobs-markup-photos', label: 'Markup Photos', description: 'Annotate/markup job photos' },
+                ]
+              }
+            ]
+          },
+          {
+            key: 'jobs-tab-files',
+            label: 'Filing Cabinet Tab',
+            description: 'Job documents and file management',
+            actions: [
+              { key: 'jobs-view-filing-cabinet', label: 'View Files', description: 'Open job filing cabinet/documents' },
+              { key: 'jobs-upload-files', label: 'Upload Files', description: 'Upload job documents and files' },
+              { key: 'jobs-delete-files', label: 'Delete Files', description: 'Delete job documents/files' },
+            ]
+          },
         ]
       },
       { 
@@ -238,6 +348,37 @@ const menuCategories: MenuCategory[] = [
           { key: 'ar-invoices-add', label: 'Add Invoices', description: 'Create new invoices' },
           { key: 'ar-invoices-edit', label: 'Edit Invoices', description: 'Modify invoice details' },
           { key: 'ar-invoices-delete', label: 'Delete Invoices', description: 'Remove invoices' },
+        ],
+        children: [
+          {
+            key: 'ar-invoices-tab-overview',
+            label: 'Invoice Detail / Overview',
+            description: 'General invoice fields and summary',
+            actions: [
+              { key: 'ar-invoices-view-details', label: 'View', description: 'View invoice details' },
+              { key: 'ar-invoices-edit-details', label: 'Edit', description: 'Edit invoice header/details' },
+            ]
+          },
+          {
+            key: 'ar-invoices-tab-line-items',
+            label: 'Line Items',
+            description: 'Invoice line item controls',
+            actions: [
+              { key: 'ar-invoices-view-line-items', label: 'View Line Items', description: 'View invoice line items' },
+              { key: 'ar-invoices-edit-line-items', label: 'Edit Line Items', description: 'Add/edit/remove invoice line items' },
+            ]
+          },
+          {
+            key: 'ar-invoices-tab-aia',
+            label: 'AIA / Draw Billing',
+            description: 'AIA/G702/G703 and draw actions',
+            actions: [
+              { key: 'ar-invoices-view-aia', label: 'View AIA', description: 'View AIA draw forms' },
+              { key: 'ar-invoices-edit-aia', label: 'Edit AIA', description: 'Edit AIA draw values' },
+              { key: 'ar-invoices-export-aia', label: 'Export AIA', description: 'Export AIA templates/PDFs' },
+              { key: 'ar-invoices-send-review', label: 'Send for Review', description: 'Send invoice/draw for review' },
+            ]
+          }
         ]
       },
       { 
@@ -1178,14 +1319,34 @@ export default function RolePermissionsManager() {
                           )}
                           
                           {/* Menu items within category */}
-                          {category.items.map((item) => {
-                            const itemKey = `${roleKey}-${item.key}`;
-                            const isItemOpen = openMenuItems[itemKey] || false;
-                            const hasActions = item.actions && item.actions.length > 0;
-                            
-                            return (
-                              <div key={item.key} className="ml-2">
-                                {hasActions ? (
+                          {(() => {
+                            const renderMenuNode = (item: MenuItem, depth = 0): React.ReactNode => {
+                              const itemKey = `${roleKey}-${item.key}`;
+                              const isItemOpen = openMenuItems[itemKey] || false;
+                              const hasActions = !!item.actions?.length;
+                              const hasChildren = !!item.children?.length;
+                              const leftMargin = depth === 0 ? 'ml-2' : 'ml-4';
+
+                              const currentChecked = isCustomRole && customRoleData
+                                ? getCustomRolePermission(customRoleData.id, item.key)
+                                : getPermission(role.key, item.key);
+
+                              if (!hasActions && !hasChildren) {
+                                return (
+                                  <div key={item.key} className={leftMargin}>
+                                    {renderPermissionSwitch(
+                                      isCustomRole ? '' : role.key,
+                                      item.key,
+                                      item.label,
+                                      isCustomRole,
+                                      customRoleData?.id
+                                    )}
+                                  </div>
+                                );
+                              }
+
+                              return (
+                                <div key={item.key} className={leftMargin}>
                                   <Collapsible
                                     open={isItemOpen}
                                     onOpenChange={() => toggleMenuItem(roleKey, item.key)}
@@ -1194,14 +1355,16 @@ export default function RolePermissionsManager() {
                                       <CollapsibleTrigger asChild>
                                         <div className="flex items-center gap-2 py-1.5 px-2 hover:bg-muted/50 rounded cursor-pointer flex-1">
                                           {isItemOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-                                          <span className="text-sm font-medium">{item.label}</span>
+                                          <div className="flex flex-col">
+                                            <span className="text-sm font-medium">{item.label}</span>
+                                            {item.description && (
+                                              <span className="text-[10px] text-muted-foreground">{item.description}</span>
+                                            )}
+                                          </div>
                                         </div>
                                       </CollapsibleTrigger>
                                       <Switch
-                                        checked={isCustomRole && customRoleData
-                                          ? getCustomRolePermission(customRoleData.id, item.key)
-                                          : getPermission(role.key, item.key)
-                                        }
+                                        checked={currentChecked}
                                         onCheckedChange={(checked) => {
                                           if (isCustomRole && customRoleData) {
                                             updateCustomRolePermission(customRoleData.id, item.key, checked);
@@ -1212,7 +1375,7 @@ export default function RolePermissionsManager() {
                                         disabled={role.key === 'admin'}
                                       />
                                     </div>
-                                    
+
                                     <CollapsibleContent>
                                       <div className="ml-5 mt-1 space-y-0.5 border-l border-muted/50 pl-3">
                                         {item.actions?.map((action) => (
@@ -1238,21 +1401,17 @@ export default function RolePermissionsManager() {
                                             />
                                           </div>
                                         ))}
+
+                                        {item.children?.map((child) => renderMenuNode(child, depth + 1))}
                                       </div>
                                     </CollapsibleContent>
                                   </Collapsible>
-                                ) : (
-                                  renderPermissionSwitch(
-                                    isCustomRole ? '' : role.key,
-                                    item.key,
-                                    item.label,
-                                    isCustomRole,
-                                    customRoleData?.id
-                                  )
-                                )}
-                              </div>
-                            );
-                          })}
+                                </div>
+                              );
+                            };
+
+                            return category.items.map((item) => renderMenuNode(item));
+                          })()}
                         </div>
                       </CollapsibleContent>
                     </Collapsible>

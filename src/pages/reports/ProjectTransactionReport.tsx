@@ -14,6 +14,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { format } from "date-fns";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface Transaction {
   id: string;
@@ -36,6 +37,7 @@ export default function ProjectTransactionReport() {
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [transactions, setTransactions] = useState<Transaction[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -43,23 +45,37 @@ export default function ProjectTransactionReport() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadJobs();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadTransactions();
     }
-  }, [currentCompany?.id, selectedJob]);
+  }, [currentCompany?.id, selectedJob, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+
+  useEffect(() => {
+    if (selectedJob !== "all" && !isPrivileged && !allowedJobIds.includes(selectedJob)) {
+      setSelectedJob("all");
+    }
+  }, [selectedJob, isPrivileged, allowedJobIds.join(",")]);
 
   const loadJobs = async () => {
-    const { data } = await supabase
+    if (!isPrivileged && allowedJobIds.length === 0) {
+      setJobs([]);
+      return;
+    }
+    let query = supabase
       .from("jobs")
       .select("id, name")
       .eq("company_id", currentCompany!.id)
       .order("name");
+    if (!isPrivileged) {
+      query = query.in("id", allowedJobIds);
+    }
+    const { data } = await query;
     setJobs(data || []);
   };
 
@@ -78,6 +94,13 @@ export default function ProjectTransactionReport() {
           cost_codes(code, description)
         `)
         .eq("jobs.company_id", currentCompany!.id);
+      if (!isPrivileged) {
+        if (allowedJobIds.length === 0) {
+          billsQuery = billsQuery.eq("job_id", "__no_access__");
+        } else {
+          billsQuery = billsQuery.in("job_id", allowedJobIds);
+        }
+      }
 
       if (selectedJob !== "all") {
         billsQuery = billsQuery.eq("job_id", selectedJob);
@@ -112,6 +135,13 @@ export default function ProjectTransactionReport() {
           )
         `)
         .eq("jobs.company_id", currentCompany!.id);
+      if (!isPrivileged) {
+        if (allowedJobIds.length === 0) {
+          ccQuery = ccQuery.eq("job_id", "__no_access__");
+        } else {
+          ccQuery = ccQuery.in("job_id", allowedJobIds);
+        }
+      }
 
       if (selectedJob !== "all") {
         ccQuery = ccQuery.eq("job_id", selectedJob);

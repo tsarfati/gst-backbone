@@ -49,6 +49,7 @@ import EmployeePerformance from "./pages/EmployeePerformance";
 import EmployeeReports from "./pages/EmployeeReports";
 import PinEmployeeListReport from "./pages/reports/PinEmployeeListReport";
 import EmployeeQRCardsReport from "./pages/reports/EmployeeQRCardsReport";
+import PunchClockAttemptAuditReport from "./pages/reports/PunchClockAttemptAuditReport";
 
 import TimeSheets from "./pages/TimeSheets";
 import TimecardReports from "./pages/TimecardReports";
@@ -317,6 +318,7 @@ function AuthenticatedRoutes() {
               <Route path="employees/reports" element={<EmployeeReports />} />
               <Route path="employees/reports/pin-list" element={<PinEmployeeListReport />} />
               <Route path="employees/reports/qr-cards" element={<EmployeeQRCardsReport />} />
+              <Route path="employees/reports/punch-clock-attempt-audit" element={<PunchClockAttemptAuditReport />} />
               
               <Route path="manual-punch-out" element={<ManualPunchOut />} />
               <Route path="manual-time-entry" element={<ManualTimeEntry />} />

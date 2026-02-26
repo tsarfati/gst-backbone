@@ -40,6 +40,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
+import UserWebsiteJobAssignments from "@/components/UserWebsiteJobAssignments";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -60,6 +61,7 @@ interface UserProfile {
   email?: string;
   phone?: string;
   role: string;
+  custom_role_id?: string | null;
   status: string;
   has_global_job_access: boolean;
   avatar_url?: string;
@@ -81,6 +83,13 @@ interface Vendor {
 interface Job {
   id: string;
   name: string;
+}
+
+interface CustomRole {
+  id: string;
+  role_name: string;
+  role_key: string;
+  color?: string | null;
 }
 
 interface LoginAudit {
@@ -122,6 +131,7 @@ export default function UserDetails() {
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState({ first_name: '', last_name: '', display_name: '', role: '', status: '' });
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [companyRole, setCompanyRole] = useState<string | null>(null);
   const [removeConfirmName, setRemoveConfirmName] = useState('');
   const [removing, setRemoving] = useState(false);
@@ -154,8 +164,26 @@ export default function UserDetails() {
       fetchUserJobs();
       fetchLoginAudit();
       fetchUserEmail();
+      if (currentCompany) fetchCustomRoles();
     }
   }, [userId, currentCompany, isSuperAdmin]);
+
+  const fetchCustomRoles = async () => {
+    if (!currentCompany) return;
+    try {
+      const { data, error } = await supabase
+        .from('custom_roles')
+        .select('id, role_name, role_key, color')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('role_name');
+      if (error) throw error;
+      setCustomRoles((data as CustomRole[]) || []);
+    } catch (error) {
+      console.error('Error fetching custom roles:', error);
+      setCustomRoles([]);
+    }
+  };
 
   const fetchUserDetails = async () => {
     try {
@@ -192,7 +220,7 @@ export default function UserDetails() {
           first_name: userData.first_name || '',
           last_name: userData.last_name || '',
           display_name: userData.display_name || '',
-          role: role,
+          role: userData.custom_role_id ? `custom_${userData.custom_role_id}` : role,
           status: userData.status || 'approved',
         });
         
@@ -277,7 +305,7 @@ export default function UserDetails() {
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       display_name: user.display_name || '',
-      role: user.role,
+      role: user.custom_role_id ? `custom_${user.custom_role_id}` : user.role,
       status: user.status || 'approved',
     });
     setEditing(true);
@@ -303,15 +331,32 @@ export default function UserDetails() {
         .eq('user_id', user.user_id);
       if (profileError) throw profileError;
 
-      // Update company-specific role
+      const isCustomRoleSelection = editForm.role.startsWith('custom_');
+      const selectedCustomRoleId = isCustomRoleSelection ? editForm.role.replace('custom_', '') : null;
+
+      // Update company-specific role (custom roles use employee base role)
       const { error: roleError } = await supabase
         .from('user_company_access')
-        .update({ role: editForm.role as any })
+        .update({ role: (isCustomRoleSelection ? 'employee' : editForm.role) as any })
         .eq('user_id', user.user_id)
         .eq('company_id', currentCompany.id);
       if (roleError) throw roleError;
 
-      setUser(prev => prev ? { ...prev, ...editForm } : null);
+      const { error: customRoleError } = await supabase
+        .from('profiles')
+        .update({ custom_role_id: selectedCustomRoleId })
+        .eq('user_id', user.user_id);
+      if (customRoleError) throw customRoleError;
+
+      setUser(prev => prev ? {
+        ...prev,
+        first_name: editForm.first_name,
+        last_name: editForm.last_name,
+        display_name: editForm.display_name,
+        status: editForm.status,
+        role: isCustomRoleSelection ? 'employee' : editForm.role,
+        custom_role_id: selectedCustomRoleId,
+      } : null);
       setEditing(false);
       toast({ title: "Success", description: "User updated successfully" });
     } catch (error) {
@@ -350,6 +395,7 @@ export default function UserDetails() {
   const displayName = user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User';
   const initials = user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U';
   const isSelf = profile?.user_id === userId;
+  const assignedCustomRole = user.custom_role_id ? customRoles.find((r) => r.id === user.custom_role_id) : null;
 
   const getAppLabel = (source?: string) => {
     if (source === 'punch_clock') return 'Punch Clock';
@@ -483,6 +529,18 @@ export default function UserDetails() {
                           <SelectItem value="view_only">View Only</SelectItem>
                           <SelectItem value="company_admin">Company Admin</SelectItem>
                           <SelectItem value="vendor">Vendor</SelectItem>
+                          {customRoles.length > 0 && (
+                            <>
+                              <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">
+                                Custom Roles
+                              </div>
+                              {customRoles.map((customRole) => (
+                                <SelectItem key={customRole.id} value={`custom_${customRole.id}`}>
+                                  {customRole.role_name}
+                                </SelectItem>
+                              ))}
+                            </>
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -505,7 +563,7 @@ export default function UserDetails() {
                     <h2 className="text-3xl font-bold">{displayName}</h2>
                     <div className="flex items-center gap-2 mt-2">
                       <Badge className={roleColors[user.role] || 'bg-muted'}>
-                        {roleLabels[user.role] || user.role}
+                        {assignedCustomRole ? `${assignedCustomRole.role_name} (Custom)` : (roleLabels[user.role] || user.role)}
                       </Badge>
                       <Badge className={statusColors[user.status] || 'bg-muted'}>
                         {user.status}
@@ -677,10 +735,18 @@ export default function UserDetails() {
         </Card>
       )}
 
-      {/* Punch Clock Job Access */}
+      {/* Punch Clock Job Access (renamed only) */}
       <div id="job-access-section">
-        <UserJobAccess userId={userId!} userRole={user.role} />
+        <UserJobAccess
+          userId={userId!}
+          userRole={user.role}
+          title="Punch Clock Job Assignments & Cost Codes"
+          description={`Control which jobs and cost codes this ${user.role === 'employee' ? 'employee' : 'user'} can access in the punch clock app.`}
+        />
       </div>
+
+      {/* Website / PM Lynk Job Access (simple job assignments only) */}
+      <UserWebsiteJobAssignments userId={userId!} canManage={canManage} />
 
       {/* Login Audit Trail */}
       <Card>

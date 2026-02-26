@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useIsMobile } from '@/hooks/use-mobile';
 import { supabase } from '@/integrations/supabase/client';
 import DeliveryTicketDetailView from '@/components/DeliveryTicketDetailView';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 
 interface Job {
   id: string;
@@ -45,6 +46,7 @@ export default function DeliveryTickets() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const isMobile = useIsMobile();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds, canAccessJob } = useWebsiteJobAccess();
   
   const [jobs, setJobs] = useState<Job[]>([]);
   const [selectedJobId, setSelectedJobId] = useState<string>('');
@@ -79,13 +81,23 @@ export default function DeliveryTickets() {
   const isProjectManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
+    if (websiteJobAccessLoading) return;
     loadJobs();
     if (jobId) {
+      if (!canAccessJob(jobId)) {
+        toast({
+          title: 'Access denied',
+          description: 'You do not have access to this project',
+          variant: 'destructive',
+        });
+        navigate('/construction/jobs');
+        return;
+      }
       setSelectedJobId(jobId);
       loadJob();
       loadDeliveryTickets();
     }
-  }, [jobId]);
+  }, [jobId, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
   useEffect(() => {
     if (selectedJobId && !jobId) {
@@ -95,11 +107,21 @@ export default function DeliveryTickets() {
 
   const loadJobs = async () => {
     try {
-      const { data, error } = await supabase
+      if (!isPrivileged && allowedJobIds.length === 0) {
+        setJobs([]);
+        return;
+      }
+
+      let query = supabase
         .from('jobs')
         .select('id, name, address')
         .eq('status', 'active')
         .order('name');
+      if (!isPrivileged) {
+        query = query.in('id', allowedJobIds);
+      }
+
+      const { data, error } = await query;
 
       if (error) throw error;
       setJobs(data || []);
@@ -115,6 +137,7 @@ export default function DeliveryTickets() {
 
   const loadJob = async () => {
     if (!jobId) return;
+    if (!canAccessJob(jobId)) return;
     
     try {
       const { data, error } = await supabase
@@ -138,6 +161,7 @@ export default function DeliveryTickets() {
   const loadDeliveryTickets = async () => {
     const targetJobId = jobId || selectedJobId;
     if (!targetJobId) return;
+    if (!canAccessJob(targetJobId)) return;
     
     try {
       setIsLoading(true);

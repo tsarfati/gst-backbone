@@ -41,6 +41,14 @@ interface UserProfile {
   phone?: string;
   punch_clock_access?: boolean;
   pm_lynk_access?: boolean;
+  custom_role_id?: string | null;
+}
+
+interface CustomRole {
+  id: string;
+  role_name: string;
+  role_key: string;
+  color?: string | null;
 }
 
  interface Invitation {
@@ -114,6 +122,7 @@ export default function UserSettings() {
    const [pinEmployees, setPinEmployees] = useState<any[]>([]);
    const [resendingId, setResendingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
 
   // Use company-specific role, fallback to profile role
   const effectiveRole = activeCompanyRole || profile?.role;
@@ -124,10 +133,30 @@ export default function UserSettings() {
   useEffect(() => {
     if (currentCompany) {
       fetchUsers();
+      fetchCustomRoles();
        fetchInvitations();
        // fetchPinEmployees removed - PIN employees are now regular users
     }
   }, [currentCompany]);
+
+  const fetchCustomRoles = async () => {
+    if (!currentCompany) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('custom_roles')
+        .select('id, role_name, role_key, color')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('role_name');
+
+      if (error) throw error;
+      setCustomRoles((data as CustomRole[]) || []);
+    } catch (error) {
+      console.error('Error fetching custom roles:', error);
+      setCustomRoles([]);
+    }
+  };
 
    const fetchInvitations = async () => {
      if (!currentCompany) return;
@@ -317,7 +346,7 @@ export default function UserSettings() {
       // Fetch regular users
       const { data: regularUsers, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access')
+        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id')
         .in('user_id', userIds)
         .order('created_at', { ascending: false });
 
@@ -418,6 +447,19 @@ export default function UserSettings() {
   const cancelEdit = () => {
     setEditingUser(null);
     setEditRole('');
+  };
+
+  const getCustomRoleForUser = (user: UserProfile) => {
+    if (!user.custom_role_id) return null;
+    return customRoles.find((r) => r.id === user.custom_role_id) || null;
+  };
+
+  const getUsersForCustomRole = (customRoleId: string) => {
+    return users.filter((u) => u.custom_role_id === customRoleId);
+  };
+
+  const getUsersForSystemGroup = (roles: string[]) => {
+    return users.filter((u) => !u.custom_role_id && roles.includes(u.role));
   };
 
   if (!canManageUsers) {
@@ -547,7 +589,7 @@ export default function UserSettings() {
 
                 {/* Role-based collapsible groups */}
                 {roleGroupDefs.map(group => {
-                  const groupUsers = users.filter(u => group.roles.includes(u.role));
+                  const groupUsers = getUsersForSystemGroup(group.roles);
                   if (groupUsers.length === 0) return null;
 
                   const isOpen = openGroups[group.key] ?? false;
@@ -571,6 +613,9 @@ export default function UserSettings() {
                           <CardContent className="pt-0">
                             <div className="space-y-3">
                               {groupUsers.map((user) => (
+                                (() => {
+                                  const customRoleForUser = getCustomRoleForUser(user);
+                                  return (
                                 <div
                                   key={user.id}
                                   onClick={() => navigate(`/settings/users/${user.user_id}`)}
@@ -607,8 +652,8 @@ export default function UserSettings() {
                                       <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
                                     </div>
                                     <div className="flex flex-wrap gap-2 mt-2">
-                                      <Badge variant={roleColors[user.role as keyof typeof roleColors]}>
-                                        {roleLabels[user.role as keyof typeof roleLabels]}
+                                      <Badge variant={customRoleForUser ? 'secondary' : (roleColors[user.role as keyof typeof roleColors] || 'outline')}>
+                                        {customRoleForUser ? `${customRoleForUser.role_name} (Custom)` : (roleLabels[user.role as keyof typeof roleLabels] || user.role)}
                                       </Badge>
                                       {user.has_pin ? (
                                         <Badge variant="outline" className="text-xs">PIN: {user.pin_code}</Badge>
@@ -626,7 +671,108 @@ export default function UserSettings() {
                                     </div>
                                   </div>
                                 </div>
+                                  );
+                                })()
                               ))}
+                            </div>
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Card>
+                    </Collapsible>
+                  );
+                })}
+
+                {/* Custom-role collapsible groups (always after built-in system roles) */}
+                {customRoles.map((customRole) => {
+                  const groupUsers = getUsersForCustomRole(customRole.id);
+                  if (groupUsers.length === 0) return null;
+
+                  const groupKey = `custom_${customRole.id}`;
+                  const isOpen = openGroups[groupKey] ?? true;
+
+                  return (
+                    <Collapsible
+                      key={groupKey}
+                      open={isOpen}
+                      onOpenChange={(open) => setOpenGroups(prev => ({ ...prev, [groupKey]: open }))}
+                    >
+                      <Card>
+                        <CollapsibleTrigger asChild>
+                          <CardHeader className="cursor-pointer py-4">
+                            <div className="flex items-center justify-between w-full">
+                              <CardTitle className="flex items-center gap-2 text-lg">
+                                {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                                <Shield className="h-5 w-5" />
+                                {customRole.role_name}
+                                <Badge variant="secondary">{groupUsers.length}</Badge>
+                                <Badge variant="outline" className="text-xs">Custom Role</Badge>
+                              </CardTitle>
+                            </div>
+                          </CardHeader>
+                        </CollapsibleTrigger>
+                        <CollapsibleContent>
+                          <CardContent className="pt-0">
+                            <div className="space-y-3">
+                              {groupUsers.map((user) => {
+                                const customRoleForUser = getCustomRoleForUser(user);
+                                return (
+                                  <div
+                                    key={user.id}
+                                    onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                                    className="flex items-center gap-4 p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                                  >
+                                    <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                      {user.avatar_url ? (
+                                        <img
+                                          src={user.avatar_url}
+                                          alt={user.display_name || user.first_name || ''}
+                                          className="h-full w-full object-cover"
+                                          referrerPolicy="no-referrer"
+                                          onError={(e) => {
+                                            (e.target as HTMLImageElement).style.display = 'none';
+                                            (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                          }}
+                                        />
+                                      ) : null}
+                                      <span className={`text-sm font-semibold text-primary ${user.avatar_url ? 'hidden' : ''}`}>
+                                        {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
+                                      </span>
+                                    </div>
+                                    <div className="flex-1 min-w-0">
+                                      <div className="flex items-center gap-2 flex-wrap">
+                                        <h3 className="font-semibold">
+                                          {user.display_name || `${user.first_name} ${user.last_name}`}
+                                        </h3>
+                                        <Badge variant={user.status === 'approved' ? 'success' : user.status === 'pending' ? 'warning' : user.status === 'rejected' ? 'destructive' : 'outline'}>
+                                          {user.status || 'pending'}
+                                        </Badge>
+                                      </div>
+                                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
+                                        {user.phone && <span>{user.phone}</span>}
+                                        <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
+                                      </div>
+                                      <div className="flex flex-wrap gap-2 mt-2">
+                                        <Badge variant="secondary">
+                                          {customRoleForUser ? `${customRoleForUser.role_name} (Custom)` : 'Custom Role'}
+                                        </Badge>
+                                        {user.has_pin ? (
+                                          <Badge variant="outline" className="text-xs">PIN: {user.pin_code}</Badge>
+                                        ) : (
+                                          <Badge variant="outline" className="text-xs text-muted-foreground">No PIN</Badge>
+                                        )}
+                                        {user.punch_clock_access && <Badge variant="outline" className="text-xs">Punch Clock</Badge>}
+                                        {user.pm_lynk_access && <Badge variant="outline" className="text-xs">PM Lynk</Badge>}
+                                        {user.has_global_job_access && (
+                                          <Badge variant="outline">All Jobs Access</Badge>
+                                        )}
+                                        {!user.has_global_job_access && user.jobs && user.jobs.length > 0 && (
+                                          <Badge variant="secondary">{user.jobs.length} Job{user.jobs.length !== 1 ? 's' : ''}</Badge>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                );
+                              })}
                             </div>
                           </CardContent>
                         </CollapsibleContent>
@@ -669,7 +815,12 @@ export default function UserSettings() {
                   <SelectContent>
                     {users.map((user) => (
                       <SelectItem key={user.user_id} value={user.user_id}>
-                        {user.display_name || `${user.first_name} ${user.last_name}`} - {roleLabels[user.role as keyof typeof roleLabels]}
+                        {user.display_name || `${user.first_name} ${user.last_name}`} - {(() => {
+                          const customRoleForUser = getCustomRoleForUser(user);
+                          return customRoleForUser
+                            ? `${customRoleForUser.role_name} (Custom)`
+                            : (roleLabels[user.role as keyof typeof roleLabels] || user.role);
+                        })()}
                       </SelectItem>
                     ))}
                   </SelectContent>

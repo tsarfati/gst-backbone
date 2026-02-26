@@ -32,6 +32,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import DragDropUpload from "@/components/DragDropUpload";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface Vendor {
   id: string;
@@ -105,6 +106,7 @@ export default function MakePayment() {
   const location = useLocation();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -147,11 +149,17 @@ export default function MakePayment() {
   const [invoiceDocuments, setInvoiceDocuments] = useState<Record<string, string>>({});
 
   useEffect(() => {
-    if (currentCompany) {
+    if (currentCompany && !websiteJobAccessLoading) {
       loadData();
       generatePaymentNumber();
     }
-  }, [currentCompany]);
+  }, [currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
+
+  useEffect(() => {
+    if (selectedJob && selectedJob !== "all" && !isPrivileged && !allowedJobIds.includes(selectedJob)) {
+      setSelectedJob("all");
+    }
+  }, [selectedJob, isPrivileged, allowedJobIds.join(',')]);
 
   // Handle pre-selected bill from navigation state
   useEffect(() => {
@@ -267,7 +275,8 @@ export default function MakePayment() {
           amount_paid: amountPaid,
           balance_due: balanceDue
         };
-      }).filter(inv => inv.balance_due > 0); // Only show invoices with remaining balance
+      }).filter(inv => inv.balance_due > 0)
+        .filter(inv => isPrivileged || !inv.job_id || allowedJobIds.includes(inv.job_id)); // job access filter, keep company-level invoices
       
       setAllInvoices(formattedInvoices);
       setInvoices(formattedInvoices);

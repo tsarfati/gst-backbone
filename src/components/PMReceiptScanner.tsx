@@ -90,23 +90,24 @@ export function PMReceiptScanner() {
     try {
       console.log('PM Receipt Scanner - Loading data...', { userId: effectiveUserId, companyId: effectiveCompanyId });
       
-      // Determine job access (fallback to false if no user)
-      let profileData: { has_global_job_access?: boolean } | null = null;
-      let profileError: any = null;
+      // PM Lynk website/mobile visibility should follow explicit job assignments unless the user is privileged.
+      let isPrivileged = false;
+      let privilegedError: any = null;
       if (effectiveUserId) {
         const { data, error } = await supabase
-          .from('profiles')
-          .select('has_global_job_access')
+          .from('user_company_access')
+          .select('role')
           .eq('user_id', effectiveUserId)
-          .maybeSingle();
-        profileData = data;
-        profileError = error;
+          .eq('is_active', true);
+        privilegedError = error;
+        const roles = (data || []).map((r: any) => String(r.role || '').toLowerCase());
+        isPrivileged = roles.some((r) => ['admin', 'company_admin', 'controller', 'owner'].includes(r));
       }
 
-      console.log('PM Receipt Scanner - Profile data:', { profileData, profileError, hasGlobalAccess: profileData?.has_global_job_access });
+      console.log('PM Receipt Scanner - Privileged check:', { isPrivileged, privilegedError, effectiveUserId });
 
       let jobsData: Job[] = [];
-      if (profileData?.has_global_job_access) {
+      if (isPrivileged) {
         // Global access: query ALL companies user has access to
         const { data: userCompanies } = effectiveUserId
           ? await supabase.rpc('get_user_companies', { _user_id: effectiveUserId })

@@ -4,6 +4,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -87,6 +88,7 @@ export default function AddARInvoice({
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds, canAccessJob } = useWebsiteJobAccess();
 
   const launchFromJobBilling = embedded || searchParams.get("from") === "job-billing";
   const effectiveExistingInvoiceId = existingInvoiceId || (!embedded ? routeInvoiceId : undefined);
@@ -118,10 +120,10 @@ export default function AddARInvoice({
   const [retainagePercent, setRetainagePercent] = useState(10);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadInitialData();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (selectedJobId && currentCompany?.id) {
@@ -186,8 +188,14 @@ export default function AddARInvoice({
       if (customersRes.error) throw customersRes.error;
 
       let jobsData = jobsRes.data || [];
+      if (!isPrivileged) {
+        jobsData = jobsData.filter((job) => allowedJobIds.includes(job.id));
+      }
 
       if (preselectedJobId && !jobsData.some((j) => j.id === preselectedJobId)) {
+        if (!isPrivileged && !allowedJobIds.includes(preselectedJobId)) {
+          throw new Error("You do not have access to the selected project");
+        }
         const { data: preselectedJob, error: preselectedJobError } = await supabase
           .from("jobs")
           .select("id, name, customer_id, address, start_date, project_number")
@@ -279,6 +287,9 @@ export default function AddARInvoice({
         .single();
 
       if (invoiceError) throw invoiceError;
+      if (invoice.job_id && !canAccessJob(invoice.job_id)) {
+        throw new Error("You do not have access to this project");
+      }
 
       setCurrentInvoiceId(invoice.id);
       setCurrentInvoiceStatus(invoice.status || "draft");
@@ -1040,6 +1051,8 @@ export default function AddARInvoice({
     );
   }
 
+  const visibleJobs = isPrivileged ? jobs : jobs.filter((job) => allowedJobIds.includes(job.id));
+
   return (
     <div className={embedded ? "space-y-6" : "container mx-auto py-6 space-y-6"}>
       {/* Header */}
@@ -1111,7 +1124,7 @@ export default function AddARInvoice({
                   <SelectValue placeholder="Select project" />
                 </SelectTrigger>
                 <SelectContent>
-                  {jobs.map(job => (
+                  {visibleJobs.map(job => (
                     <SelectItem key={job.id} value={job.id}>{job.name}</SelectItem>
                   ))}
                 </SelectContent>

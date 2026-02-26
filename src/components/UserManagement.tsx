@@ -55,6 +55,14 @@ interface UserProfile {
   pin_code?: string;
   punch_clock_access?: boolean;
   pm_lynk_access?: boolean;
+  custom_role_id?: string | null;
+}
+
+interface CustomRole {
+  id: string;
+  role_name: string;
+  role_key: string;
+  color?: string | null;
 }
 
 interface RoleGroup {
@@ -84,6 +92,7 @@ export default function UserManagement() {
   const [loading, setLoading] = useState(true);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ admins: true, controllers: true, project_managers: true, employees: true });
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
+  const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
 
   const activeCompanyRole = useActiveCompanyRole();
   const isAdmin = activeCompanyRole === 'admin' || activeCompanyRole === 'company_admin' || activeCompanyRole === 'owner';
@@ -91,8 +100,43 @@ export default function UserManagement() {
   useEffect(() => {
     if (currentCompany) {
       fetchUsers();
+      fetchCustomRoles();
     }
   }, [currentCompany, location.key]);
+
+  useEffect(() => {
+    if (!currentCompany) return;
+
+    const refreshOnFocus = () => {
+      fetchUsers();
+      fetchCustomRoles();
+    };
+
+    window.addEventListener('focus', refreshOnFocus);
+    document.addEventListener('visibilitychange', refreshOnFocus);
+
+    return () => {
+      window.removeEventListener('focus', refreshOnFocus);
+      document.removeEventListener('visibilitychange', refreshOnFocus);
+    };
+  }, [currentCompany]);
+
+  const fetchCustomRoles = async () => {
+    if (!currentCompany) return;
+    try {
+      const { data, error } = await supabase
+        .from('custom_roles')
+        .select('id, role_name, role_key, color')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('role_name');
+      if (error) throw error;
+      setCustomRoles((data as CustomRole[]) || []);
+    } catch (error) {
+      console.error('Error fetching custom roles:', error);
+      setCustomRoles([]);
+    }
+  };
 
   const fetchUsers = async () => {
     if (!currentCompany) {
@@ -181,12 +225,20 @@ export default function UserManagement() {
   };
 
   const getUsersForGroup = (group: RoleGroup) => {
-    return users.filter(u => u.status !== 'pending' && group.roles.includes(u.role));
+    return users.filter(u => u.status !== 'pending' && !u.custom_role_id && group.roles.includes(u.role));
+  };
+
+  const getUsersForCustomRole = (customRoleId: string) => {
+    return users.filter((u) => u.status !== 'pending' && u.custom_role_id === customRoleId);
   };
 
   const pendingUsers = users.filter(u => u.status === 'pending');
 
   const renderUserCard = (u: UserProfile) => (
+    (() => {
+      const customRole = u.custom_role_id ? customRoles.find((r) => r.id === u.custom_role_id) : null;
+      const roleLabel = customRole ? customRole.role_name : u.role;
+      return (
     <div
       key={u.user_id}
       onClick={() => navigate(`/settings/users/${u.user_id}`, { state: { fromCompanyManagement: false } })}
@@ -196,6 +248,9 @@ export default function UserManagement() {
       <div className="flex-1 min-w-0">
         <div className="flex items-center gap-2 flex-wrap">
           <h3 className="font-semibold">{u.display_name || `${u.first_name || ''} ${u.last_name || ''}`.trim() || 'Unnamed User'}</h3>
+          <Badge variant={customRole ? 'secondary' : 'outline'}>
+            {customRole ? `${customRole.role_name} (Custom)` : roleLabel}
+          </Badge>
           <Badge variant={u.status === 'approved' ? 'default' : u.status === 'pending' ? 'secondary' : 'destructive'}>
             {u.status || 'pending'}
           </Badge>
@@ -210,6 +265,8 @@ export default function UserManagement() {
         </div>
       </div>
     </div>
+      );
+    })()
   );
 
   if (loading) {
@@ -281,6 +338,41 @@ export default function UserManagement() {
       )}
 
       {/* Role-based collapsible groups */}
+      {customRoles.map((customRole) => {
+        const groupUsers = getUsersForCustomRole(customRole.id);
+        if (groupUsers.length === 0) return null;
+
+        const groupKey = `custom_${customRole.id}`;
+        const isOpen = openGroups[groupKey] ?? true;
+
+        return (
+          <Collapsible key={groupKey} open={isOpen} onOpenChange={() => toggleGroup(groupKey)}>
+            <Card>
+              <CardHeader className="cursor-pointer py-4" onClick={() => toggleGroup(groupKey)}>
+                <CollapsibleTrigger asChild>
+                  <div className="flex items-center justify-between w-full">
+                    <CardTitle className="flex items-center gap-2 text-lg">
+                      {isOpen ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                      <Shield className="h-5 w-5" />
+                      {customRole.role_name}
+                      <Badge variant="secondary">{groupUsers.length}</Badge>
+                      <Badge variant="outline" className="text-xs">Custom Role</Badge>
+                    </CardTitle>
+                  </div>
+                </CollapsibleTrigger>
+              </CardHeader>
+              <CollapsibleContent>
+                <CardContent className="pt-0">
+                  <div className="grid gap-3">
+                    {groupUsers.map(renderUserCard)}
+                  </div>
+                </CardContent>
+              </CollapsibleContent>
+            </Card>
+          </Collapsible>
+        );
+      })}
+
       {roleGroups.map(group => {
         const groupUsers = getUsersForGroup(group);
         if (groupUsers.length === 0) return null;

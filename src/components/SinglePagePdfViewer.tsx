@@ -12,6 +12,7 @@ interface SinglePagePdfViewerProps {
   zoomLevel: number;
   onTotalPagesChange?: (total: number) => void;
   onZoomChange?: (zoom: number) => void;
+  onPageRectChange?: (rect: { left: number; top: number; width: number; height: number } | null) => void;
 }
 
 type RenderReason = "page" | "zoom";
@@ -29,6 +30,7 @@ export default function SinglePagePdfViewer({
   zoomLevel,
   onTotalPagesChange,
   onZoomChange,
+  onPageRectChange,
 }: SinglePagePdfViewerProps) {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
@@ -82,6 +84,28 @@ export default function SinglePagePdfViewer({
     canvas.style.width = `${w}px`;
     canvas.style.height = `${h}px`;
   }, []);
+
+  const emitPageRect = useCallback(() => {
+    const container = containerRef.current;
+    const canvas = canvasRef.current;
+    if (!onPageRectChange) return;
+    if (!container || !canvas || canvas.offsetWidth <= 0 || canvas.offsetHeight <= 0) {
+      onPageRectChange(null);
+      return;
+    }
+
+    const cRect = container.getBoundingClientRect();
+    const pRect = canvas.getBoundingClientRect();
+    onPageRectChange({
+      // Relative to the visible viewport of the internal scroll container.
+      // The parent overlay in PlanViewer is not inside this scroll container,
+      // so we intentionally do NOT add scroll offsets here.
+      left: pRect.left - cRect.left,
+      top: pRect.top - cRect.top,
+      width: pRect.width,
+      height: pRect.height,
+    });
+  }, [onPageRectChange]);
 
   const getContentPadding = useCallback(() => {
     const el = contentRef.current;
@@ -180,14 +204,14 @@ export default function SinglePagePdfViewer({
 
     const handleWheel = (e: WheelEvent) => {
       // Trackpad pinch in Chromium => wheel with ctrlKey=true.
-      if (!e.ctrlKey) return;
+      // Mousewheel zoom on macOS can be used with Cmd (metaKey).
+      if (!(e.ctrlKey || e.metaKey)) return;
 
       // Only intercept when the gesture originates within the PDF viewer.
       const isInside =
         containsTarget(e.target) ||
         activeRef.current ||
         containsPoint(e.clientX, e.clientY);
-      console.log("[PDF Viewer] wheel ctrlKey detected, isInside:", isInside, "target:", e.target);
       if (!isInside) return;
 
       // Cancel browser page-zoom and keep this event from reaching higher-level listeners.
@@ -203,8 +227,6 @@ export default function SinglePagePdfViewer({
         // ignore
       }
       e.stopPropagation();
-      console.log("[PDF Viewer] preventDefault called, applying zoom");
-
       const prevZoom = zoomRef.current;
       const delta = -e.deltaY * 0.01;
       const nextZoom = clampZoom(Math.round((prevZoom + delta) * 100) / 100);
@@ -212,7 +234,6 @@ export default function SinglePagePdfViewer({
       const rect = container.getBoundingClientRect();
       const focusX = Math.min(Math.max(e.clientX - rect.left, 0), rect.width);
       const focusY = Math.min(Math.max(e.clientY - rect.top, 0), rect.height);
-      console.log("[PDF Viewer] zoom:", prevZoom, "->", nextZoom, "focusX:", focusX, "focusY:", focusY);
       applyZoom(nextZoom, focusX, focusY);
     };
 
@@ -400,6 +421,7 @@ export default function SinglePagePdfViewer({
         displayCanvas.width = offscreen.width;
         displayCanvas.height = offscreen.height;
         ctx.drawImage(offscreen, 0, 0);
+        emitPageRect();
 
         if (reason === "page") {
           setLoading(false);
@@ -418,22 +440,23 @@ export default function SinglePagePdfViewer({
         }
       }
     },
-    [pdfDoc, updateCanvasCssSize]
+    [pdfDoc, updateCanvasCssSize, emitPageRect]
   );
 
   useEffect(() => {
     requestRenderRef.current = requestRender;
   }, [requestRender]);
 
-  // Render on page changes immediately
+  // Render on page changes immediately (not on every zoom tick)
   useEffect(() => {
     if (!pdfDoc) return;
     void requestRender({ page: pageNumber, zoom: zoomLevel, reason: "page" });
-  }, [pdfDoc, pageNumber, zoomLevel, requestRender]);
+  }, [pdfDoc, pageNumber, requestRender]);
 
   // Zoom: resize immediately, then re-render at high-res after user stops zooming
   useEffect(() => {
     updateCanvasCssSize(zoomLevel);
+    emitPageRect();
 
     if (!pdfDoc) return;
 
@@ -450,7 +473,35 @@ export default function SinglePagePdfViewer({
         clearTimeout(zoomRenderTimeoutRef.current);
       }
     };
-  }, [zoomLevel, pageNumber, pdfDoc, requestRender, updateCanvasCssSize]);
+  }, [zoomLevel, pageNumber, pdfDoc, requestRender, updateCanvasCssSize, emitPageRect]);
+
+  useEffect(() => {
+    if (!onPageRectChange) return;
+    const container = containerRef.current;
+    if (!container) return;
+
+    const handleScroll = () => emitPageRect();
+    container.addEventListener("scroll", handleScroll, { passive: true });
+
+    const ro = new ResizeObserver(() => emitPageRect());
+    ro.observe(container);
+    if (canvasRef.current) ro.observe(canvasRef.current);
+
+    let rafId: number | null = null;
+    let rafCount = 0;
+    const tick = () => {
+      emitPageRect();
+      rafCount += 1;
+      if (rafCount < 30) rafId = window.requestAnimationFrame(tick);
+    };
+    rafId = window.requestAnimationFrame(tick);
+
+    return () => {
+      container.removeEventListener("scroll", handleScroll as any);
+      ro.disconnect();
+      if (rafId) window.cancelAnimationFrame(rafId);
+    };
+  }, [onPageRectChange, emitPageRect, pageNumber, zoomLevel, pdfDoc]);
 
   // Pan/drag
   const handlePointerDown = useCallback(
@@ -606,10 +657,12 @@ export default function SinglePagePdfViewer({
         {/* Keep the scroll container width fixed; only this inner wrapper grows with the canvas. */}
         <div className="relative inline-block min-w-full">
           {loading && (
-            <div className="absolute inset-0 flex items-center justify-center bg-background/50 z-10 pointer-events-none">
-              <div className="flex flex-col items-center gap-2">
-                <Loader2 className="h-8 w-8 animate-spin text-primary" />
-                <p className="text-sm text-muted-foreground">Loading page {pageNumber}...</p>
+            <div className="absolute top-3 right-3 z-10 pointer-events-none">
+              <div className="flex items-center gap-2 rounded-md border bg-background/90 px-2 py-1 shadow-sm backdrop-blur-sm">
+                <Loader2 className="h-4 w-4 animate-spin text-primary" />
+                <p className="text-xs text-muted-foreground whitespace-nowrap">
+                  Loading page {pageNumber}
+                </p>
               </div>
             </div>
           )}

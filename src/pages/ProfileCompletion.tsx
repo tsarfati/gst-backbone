@@ -18,14 +18,34 @@ export default function ProfileCompletion() {
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
-    first_name: profile?.first_name || '',
-    last_name: profile?.last_name || '',
+    first_name: profile?.first_name || (user?.user_metadata as any)?.first_name || (user?.user_metadata as any)?.firstName || '',
+    last_name: profile?.last_name || (user?.user_metadata as any)?.last_name || (user?.user_metadata as any)?.lastName || '',
     nickname: profile?.nickname || '',
     birthday: profile?.birthday || '',
   });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile?.avatar_url || null);
   const [loading, setLoading] = useState(false);
+
+  useEffect(() => {
+    setFormData((prev) => ({
+      ...prev,
+      first_name:
+        prev.first_name ||
+        profile?.first_name ||
+        (user?.user_metadata as any)?.first_name ||
+        (user?.user_metadata as any)?.firstName ||
+        '',
+      last_name:
+        prev.last_name ||
+        profile?.last_name ||
+        (user?.user_metadata as any)?.last_name ||
+        (user?.user_metadata as any)?.lastName ||
+        '',
+      nickname: prev.nickname || profile?.nickname || '',
+      birthday: prev.birthday || profile?.birthday || '',
+    }));
+  }, [profile?.first_name, profile?.last_name, profile?.nickname, profile?.birthday, user?.user_metadata]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -198,6 +218,18 @@ export default function ProfileCompletion() {
             </div>
 
             {/* Form Fields */}
+            <div className="space-y-2">
+              <Label htmlFor="email">Email</Label>
+              <Input
+                id="email"
+                value={user?.email || ""}
+                disabled
+                readOnly
+                className="bg-muted/40"
+              />
+              <p className="text-xs text-muted-foreground">Email is locked to the account you signed up with.</p>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="first_name">First Name *</Label>
@@ -205,6 +237,9 @@ export default function ProfileCompletion() {
                   id="first_name"
                   value={formData.first_name}
                   onChange={(e) => handleInputChange('first_name', e.target.value)}
+                  disabled
+                  readOnly
+                  className="bg-muted/40"
                   required
                 />
               </div>
@@ -214,6 +249,9 @@ export default function ProfileCompletion() {
                   id="last_name"
                   value={formData.last_name}
                   onChange={(e) => handleInputChange('last_name', e.target.value)}
+                  disabled
+                  readOnly
+                  className="bg-muted/40"
                   required
                 />
               </div>

@@ -13,6 +13,8 @@ import { Loader2, Save, Building, CheckSquare, MapPin, ChevronRight } from "luci
 interface UserJobAccessProps {
   userId: string;
   userRole: string;
+  title?: string;
+  description?: string;
 }
 
 interface Job {
@@ -31,7 +33,12 @@ interface CostCode {
   job_id?: string;
 }
 
-export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) {
+export default function UserJobAccess({
+  userId,
+  userRole,
+  title,
+  description,
+}: UserJobAccessProps) {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(true);
@@ -283,10 +290,10 @@ export default function UserJobAccess({ userId, userRole }: UserJobAccessProps) 
         <div>
           <CardTitle className="flex items-center gap-2">
             <Building className="h-5 w-5" />
-            Job Assignments & Cost Codes
+            {title || 'Job Assignments & Cost Codes'}
           </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            Control which jobs and cost codes this {userRole === 'employee' ? 'employee' : 'user'} can access in the punch clock app
+            {description || `Control which jobs and cost codes this ${userRole === 'employee' ? 'employee' : 'user'} can access in the punch clock app`}
           </p>
         </div>
       </CardHeader>

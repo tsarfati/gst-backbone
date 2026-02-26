@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -10,8 +10,9 @@ import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Sidebar, SidebarContent, SidebarProvider, SidebarTrigger, useSidebar } from "@/components/ui/sidebar";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { ArrowLeft, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler, ZoomIn, ZoomOut, Maximize2, Move } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler, ZoomIn, ZoomOut, Maximize2, Move } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import SinglePagePdfViewer from "@/components/SinglePagePdfViewer";
@@ -27,6 +28,7 @@ interface PlanPage {
   page_description: string | null;
   sheet_number: string | null;
   discipline: string | null;
+  thumbnail_url?: string | null;
 }
 
 interface PlanComment {
@@ -48,7 +50,238 @@ interface PlanMarkup {
   page_number: number;
   markup_data: any;
   created_at: string;
+  profiles?: {
+    full_name: string | null;
+  };
 }
+
+interface PlanPageLink {
+  id: string;
+  plan_id: string;
+  source_page_number: number;
+  target_page_number: number;
+  ref_text: string;
+  target_sheet_number: string | null;
+  target_title: string | null;
+  x_norm: number;
+  y_norm: number;
+  w_norm: number;
+  h_norm: number;
+  confidence: number | null;
+  is_auto: boolean;
+}
+
+interface PlanPageRevision {
+  id: string;
+  plan_id: string;
+  target_page_number: number;
+  sheet_number: string | null;
+  normalized_sheet_key: string;
+  revision_label: string;
+  revision_sort: number | null;
+  is_current: boolean | null;
+}
+
+type DetectedLinkCandidate = {
+  source_page_number: number;
+  ref_text: string;
+  normalized_ref: string;
+  x_norm: number;
+  y_norm: number;
+  w_norm: number;
+  h_norm: number;
+  confidence?: number;
+  kind?: "sheet_ref" | "symbol_tag";
+};
+
+type UnresolvedLinkCandidate = {
+  source_page_number: number;
+  ref_text: string;
+};
+
+const SHEET_REF_PATTERN = /\b(?:\d+\s*\/\s*)?([A-Z]{1,4}\s*[-.]?\s*\d{1,3}(?:\.\d{1,3})?)\b/g;
+const SYMBOL_CODE_PATTERN = /^[A-Z]{1,4}$/;
+const SYMBOL_NUM_PATTERN = /^\d{1,3}[A-Z]?$/i;
+
+const normalizeSheetRef = (value: string | null | undefined) =>
+  (value || "")
+    .toUpperCase()
+    .trim()
+    .replace(/\s+/g, "")
+    .replace(/([A-Z])[-_](\d)/g, "$1$2");
+
+const normalizeSymbolTagRef = (code: string | null | undefined, num: string | null | undefined) =>
+  `${(code || "").toUpperCase().replace(/\s+/g, "")}${(num || "").toUpperCase().replace(/\s+/g, "")}`;
+
+type ExtractedTextBox = {
+  text: string;
+  x: number;
+  y: number;
+  w: number;
+  h: number;
+};
+
+const extractPdfTextBoxes = (params: { textItems: any[]; viewportWidth: number; viewportHeight: number }): ExtractedTextBox[] => {
+  const { textItems, viewportWidth, viewportHeight } = params;
+  const boxes: ExtractedTextBox[] = [];
+
+  for (const item of textItems || []) {
+    const text = String(item?.str || "").trim();
+    if (!text) continue;
+    const transform = Array.isArray(item?.transform) ? item.transform : null;
+    if (!transform || transform.length < 6) continue;
+
+    const x = Number(transform[4]) || 0;
+    const yBase = Number(transform[5]) || 0;
+    const rawW = Math.abs(Number(item?.width) || Number(transform[0]) || 0);
+    const rawH = Math.abs(Number(item?.height) || Number(transform[3]) || 10);
+    if (!rawW || !rawH || !viewportWidth || !viewportHeight) continue;
+
+    const boxX = Math.max(0, x);
+    const boxY = Math.max(0, viewportHeight - yBase - rawH);
+    const boxW = Math.min(rawW, viewportWidth - boxX);
+    const boxH = Math.min(rawH, viewportHeight - boxY);
+    if (boxW <= 0 || boxH <= 0) continue;
+
+    boxes.push({ text, x: boxX, y: boxY, w: boxW, h: boxH });
+  }
+
+  return boxes;
+};
+
+const extractSheetRefCandidates = (params: {
+  pageNumber: number;
+  textItems: any[];
+  viewportWidth: number;
+  viewportHeight: number;
+}): DetectedLinkCandidate[] => {
+  const { pageNumber, textItems, viewportWidth, viewportHeight } = params;
+  const out: DetectedLinkCandidate[] = [];
+
+  for (const item of textItems || []) {
+    const str = String(item?.str || "").trim();
+    if (!str || str.length > 48) continue;
+    if (!/[A-Z]/i.test(str) || !/\d/.test(str)) continue;
+
+    const matches = Array.from(str.matchAll(SHEET_REF_PATTERN));
+    if (matches.length === 0) continue;
+
+    const transform = Array.isArray(item?.transform) ? item.transform : null;
+    if (!transform || transform.length < 6) continue;
+
+    const x = Number(transform[4]) || 0;
+    const yBase = Number(transform[5]) || 0;
+    const rawW = Math.abs(Number(item?.width) || Number(transform[0]) || 0);
+    const rawH = Math.abs(Number(item?.height) || Number(transform[3]) || 10);
+    if (!rawW || !rawH || !viewportWidth || !viewportHeight) continue;
+
+    const boxX = Math.max(0, x);
+    const boxY = Math.max(0, viewportHeight - yBase - rawH);
+    const boxW = Math.min(rawW, viewportWidth - boxX);
+    const boxH = Math.min(rawH, viewportHeight - boxY);
+
+    for (const match of matches) {
+      const fullMatch = (match[0] || "").trim();
+      const rawRef = (match[1] || "").trim();
+      const normalizedRef = normalizeSheetRef(rawRef);
+      if (!normalizedRef) continue;
+
+      const itemText = String(item?.str || "");
+      const totalChars = Math.max(1, itemText.length);
+      const fullMatchStart = Math.max(0, match.index ?? itemText.indexOf(match[0] || ""));
+      const fullMatchLen = Math.max(1, String(match[0] || "").length);
+      const refOffsetInFull = String(match[0] || "").toUpperCase().indexOf(String(match[1] || "").toUpperCase());
+      const refStart = fullMatchStart + Math.max(0, refOffsetInFull);
+      const refLen = Math.max(1, String(match[1] || "").length);
+      const charW = boxW / totalChars;
+      const refinedX = boxX + refStart * charW;
+      const refinedW = Math.min(boxW, Math.max(charW * refLen, 12));
+
+      out.push({
+        source_page_number: pageNumber,
+        ref_text: fullMatch || rawRef,
+        normalized_ref: normalizedRef,
+        x_norm: Math.max(0, Math.min(1, refinedX / viewportWidth)),
+        y_norm: Math.max(0, Math.min(1, boxY / viewportHeight)),
+        w_norm: Math.max(0.01, Math.min(1, refinedW / viewportWidth)),
+        h_norm: Math.max(0.01, Math.min(1, boxH / viewportHeight)),
+        confidence: 0.75,
+        kind: "sheet_ref",
+      });
+    }
+  }
+
+  return out;
+};
+
+const extractSymbolTagCandidates = (params: {
+  pageNumber: number;
+  textBoxes: ExtractedTextBox[];
+  viewportWidth: number;
+  viewportHeight: number;
+}): DetectedLinkCandidate[] => {
+  const { pageNumber, textBoxes, viewportWidth, viewportHeight } = params;
+  const out: DetectedLinkCandidate[] = [];
+  const seen = new Set<string>();
+
+  // Split-circle callout heuristic: stacked alpha code over numeric code, aligned in X and close in Y.
+  for (const top of textBoxes) {
+    const topText = top.text.toUpperCase().replace(/\s+/g, "");
+    if (!SYMBOL_CODE_PATTERN.test(topText)) continue;
+    if (topText.length < 1 || topText.length > 4) continue;
+    // Ignore common one-char note bubbles that are too generic.
+    if (topText.length === 1) continue;
+
+    const topCx = top.x + top.w / 2;
+    const topBottom = top.y + top.h;
+
+    for (const bottom of textBoxes) {
+      if (bottom === top) continue;
+      const bottomText = bottom.text.toUpperCase().replace(/\s+/g, "");
+      if (!SYMBOL_NUM_PATTERN.test(bottomText)) continue;
+
+      const bottomCx = bottom.x + bottom.w / 2;
+      const xDelta = Math.abs(topCx - bottomCx);
+      const maxWidth = Math.max(top.w, bottom.w);
+      if (xDelta > Math.max(12, maxWidth * 0.8)) continue;
+
+      const yGap = bottom.y - topBottom;
+      if (yGap < -4 || yGap > Math.max(28, (top.h + bottom.h) * 1.4)) continue;
+
+      const left = Math.min(top.x, bottom.x);
+      const right = Math.max(top.x + top.w, bottom.x + bottom.w);
+      const upper = Math.min(top.y, bottom.y);
+      const lower = Math.max(top.y + top.h, bottom.y + bottom.h);
+      const w = right - left;
+      const h = lower - upper;
+
+      const normalizedRef = normalizeSymbolTagRef(topText, bottomText);
+      if (!normalizedRef) continue;
+      const key = `${pageNumber}:${normalizedRef}:${Math.round(left)}:${Math.round(upper)}`;
+      if (seen.has(key)) continue;
+      seen.add(key);
+
+      out.push({
+        source_page_number: pageNumber,
+        ref_text: `${topText}${bottomText}`,
+        normalized_ref: normalizedRef,
+        x_norm: Math.max(0, Math.min(1, left / viewportWidth)),
+        y_norm: Math.max(0, Math.min(1, upper / viewportHeight)),
+        w_norm: Math.max(0.01, Math.min(1, w / viewportWidth)),
+        h_norm: Math.max(0.01, Math.min(1, h / viewportHeight)),
+        confidence: 0.62,
+        kind: "symbol_tag",
+      });
+    }
+  }
+
+  return out;
+};
+
+const toDateInputValue = (value: string | null | undefined) => {
+  if (!value) return "";
+  return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : value.slice(0, 10);
+};
 
 export default function PlanViewer() {
   const { planId } = useParams();
@@ -57,9 +290,12 @@ export default function PlanViewer() {
   const { user } = useAuth();
 
   const [plan, setPlan] = useState<any>(null);
+  const [jobName, setJobName] = useState<string>("");
   const [pages, setPages] = useState<PlanPage[]>([]);
   const [comments, setComments] = useState<PlanComment[]>([]);
   const [markups, setMarkups] = useState<PlanMarkup[]>([]);
+  const [pageLinks, setPageLinks] = useState<PlanPageLink[]>([]);
+  const [pageRevisions, setPageRevisions] = useState<PlanPageRevision[]>([]);
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
@@ -79,6 +315,23 @@ export default function PlanViewer() {
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [initialPlanDataLoaded, setInitialPlanDataLoaded] = useState(false);
+  const [planInfoSaving, setPlanInfoSaving] = useState(false);
+  const [managePagesOpen, setManagePagesOpen] = useState(false);
+  const [selectedMarkupId, setSelectedMarkupId] = useState<string>("");
+  const [pendingMarkupLoadId, setPendingMarkupLoadId] = useState<string | null>(null);
+  const [selectedPageLinkId, setSelectedPageLinkId] = useState<string | null>(null);
+  const [pdfPageRect, setPdfPageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [linkMinConfidence, setLinkMinConfidence] = useState<string>("all");
+  const [unresolvedAutoRefs, setUnresolvedAutoRefs] = useState<UnresolvedLinkCandidate[]>([]);
+  const [planInfoForm, setPlanInfoForm] = useState({
+    plan_name: "",
+    plan_number: "",
+    revision: "",
+    architect: "",
+    revision_date: "",
+    description: "",
+    is_permit_set: false,
+  });
   
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -99,6 +352,35 @@ export default function PlanViewer() {
       setCurrentPage(parseInt(pageParam));
     }
   }, [searchParams]);
+
+  useEffect(() => {
+    if (!planId) return;
+    fetchMarkups();
+  }, [planId, currentPage]);
+
+  // pdfPageRect is now provided directly by SinglePagePdfViewer so hotspots track
+  // the actual internal scroll/zoom container correctly.
+
+  useEffect(() => {
+    if (!pendingMarkupLoadId) return;
+    const markup = markups.find((m) => m.id === pendingMarkupLoadId);
+    if (!markup || markup.page_number !== currentPage || !fabricCanvasRef.current) return;
+
+    const loadPending = async () => {
+      try {
+        await fabricCanvasRef.current!.loadFromJSON(markup.markup_data);
+        fabricCanvasRef.current!.renderAll();
+        setPendingMarkupLoadId(null);
+        toast.success("Markup loaded");
+      } catch (error) {
+        console.error("Error loading pending markup layer:", error);
+        toast.error("Failed to load markup");
+        setPendingMarkupLoadId(null);
+      }
+    };
+
+    void loadPending();
+  }, [pendingMarkupLoadId, markups, currentPage]);
 
   // IMPORTANT (Chrome macOS): trackpad pinch can trigger *page* zoom (which scales the header/toolbar).
   // We disable browser zoom while this viewer is mounted so zoom only affects the PDF.
@@ -121,15 +403,12 @@ export default function PlanViewer() {
     };
 
     const onWheel = (e: WheelEvent) => {
-      if (!e.ctrlKey) return;
+      if (!(e.ctrlKey || e.metaKey)) return;
+      const target = e.target as Node | null;
+      const inPdfViewer = !!(target && pdfContainerRef.current?.contains(target));
+      if (inPdfViewer) return;
       // Prevent Chrome page zoom (Cmd +/- is still available if the user wants it).
       if (e.cancelable) e.preventDefault();
-      try {
-        (e as any).stopImmediatePropagation?.();
-      } catch {
-        // ignore
-      }
-      e.stopPropagation();
       nudgeBodyZoom();
     };
 
@@ -420,6 +699,17 @@ export default function PlanViewer() {
       if (planError) throw planError;
       setPlan(planData);
 
+      if (planData?.job_id) {
+        const { data: jobData } = await supabase
+          .from("jobs")
+          .select("name")
+          .eq("id", planData.job_id)
+          .maybeSingle();
+        setJobName(jobData?.name || "");
+      } else {
+        setJobName("");
+      }
+
       const { data: pagesData, error: pagesError } = await supabase
         .from("plan_pages" as any)
         .select("*")
@@ -427,7 +717,49 @@ export default function PlanViewer() {
         .order("page_number");
 
       if (pagesError) throw pagesError;
-      setPages((pagesData || []) as any);
+      const nextPages = (pagesData || []) as any;
+      setPages(nextPages);
+
+      const { data: linksData, error: linksError } = await supabase
+        .from("plan_page_links" as any)
+        .select("*")
+        .eq("plan_id", planId)
+        .eq("is_auto", true)
+        .order("source_page_number", { ascending: true });
+
+      if (!linksError) {
+        setPageLinks((linksData || []) as any);
+      } else {
+        console.warn("Error fetching plan links:", linksError);
+        setPageLinks([]);
+      }
+
+      const { data: revisionsData, error: revisionsError } = await supabase
+        .from("plan_page_revisions" as any)
+        .select("*")
+        .eq("plan_id", planId)
+        .order("normalized_sheet_key", { ascending: true })
+        .order("revision_sort", { ascending: false })
+        .order("target_page_number", { ascending: true });
+
+      if (!revisionsError) {
+        setPageRevisions((revisionsData || []) as any);
+      } else {
+        // Migration may not be applied yet; keep plan viewer working.
+        console.warn("Error fetching plan revisions:", revisionsError);
+        setPageRevisions([]);
+      }
+
+      const firstIndexedPage = nextPages.find((p: PlanPage) => p.page_number === 1) || nextPages[0];
+      setPlanInfoForm({
+        plan_name: planData?.plan_name || firstIndexedPage?.page_title || "",
+        plan_number: planData?.plan_number || firstIndexedPage?.sheet_number || "",
+        revision: planData?.revision || "",
+        architect: planData?.architect || "",
+        revision_date: toDateInputValue(planData?.revision_date),
+        description: planData?.description || firstIndexedPage?.page_description || "",
+        is_permit_set: !!planData?.is_permit_set,
+      });
 
       fetchComments();
       fetchMarkups();
@@ -440,9 +772,70 @@ export default function PlanViewer() {
     }
   };
 
+  const pageMapByNumber = useMemo(() => {
+    const m = new Map<number, PlanPage>();
+    pages.forEach((p) => m.set(p.page_number, p));
+    return m;
+  }, [pages]);
+
+  const filteredPageLinks = useMemo(() => {
+    if (linkMinConfidence === "all") return pageLinks;
+    const min = Number(linkMinConfidence);
+    if (!Number.isFinite(min)) return pageLinks;
+    return pageLinks.filter((l) => (l.confidence ?? 0) >= min);
+  }, [pageLinks, linkMinConfidence]);
+
+  const currentPageLinks = useMemo(
+    () => filteredPageLinks.filter((l) => l.source_page_number === currentPage),
+    [filteredPageLinks, currentPage]
+  );
+
+  const selectedPageLink = useMemo(
+    () => filteredPageLinks.find((l) => l.id === selectedPageLinkId) || null,
+    [filteredPageLinks, selectedPageLinkId]
+  );
+
+  const autoLinkSummaryByPage = useMemo(() => {
+    const counts = new Map<number, number>();
+    filteredPageLinks.forEach((l) => {
+      counts.set(l.source_page_number, (counts.get(l.source_page_number) || 0) + 1);
+    });
+    return counts;
+  }, [filteredPageLinks]);
+
+  const pageRevisionGroups = useMemo(() => {
+    const groups = new Map<string, PlanPageRevision[]>();
+    for (const rev of pageRevisions) {
+      const key = rev.normalized_sheet_key || normalizeSheetRef(rev.sheet_number) || `PAGE${rev.target_page_number}`;
+      const next = groups.get(key) || [];
+      next.push(rev);
+      groups.set(key, next);
+    }
+
+    groups.forEach((list) => {
+      list.sort((a, b) => {
+        const sortA = a.revision_sort ?? 0;
+        const sortB = b.revision_sort ?? 0;
+        if (sortA !== sortB) return sortB - sortA;
+        if ((a.is_current ? 1 : 0) !== (b.is_current ? 1 : 0)) return (b.is_current ? 1 : 0) - (a.is_current ? 1 : 0);
+        return b.target_page_number - a.target_page_number;
+      });
+    });
+
+    return groups;
+  }, [pageRevisions]);
+
+  const handleJumpToLinkedPage = (link: PlanPageLink) => {
+    setSelectedPageLinkId(link.id);
+    if (link.target_page_number !== currentPage) {
+      setCurrentPage(link.target_page_number);
+      setSearchParams({ page: link.target_page_number.toString() });
+    }
+  };
+
   const fetchComments = async () => {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("plan_comments" as any)
         .select(`
           *,
@@ -450,6 +843,17 @@ export default function PlanViewer() {
         `)
         .eq("plan_id", planId)
         .order("created_at", { ascending: false });
+
+      if (error) {
+        // Fallback if the join alias is invalid in this environment.
+        const fallback = await supabase
+          .from("plan_comments" as any)
+          .select("*")
+          .eq("plan_id", planId)
+          .order("created_at", { ascending: false });
+        data = fallback.data as any;
+        error = fallback.error as any;
+      }
 
       if (error) throw error;
       setComments((data || []) as any);
@@ -460,14 +864,29 @@ export default function PlanViewer() {
 
   const fetchMarkups = async () => {
     try {
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from("plan_markups" as any)
-        .select("*")
+        .select(`
+          *,
+          profiles:user_id (full_name)
+        `)
         .eq("plan_id", planId)
-        .eq("page_number", currentPage);
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        // Fallback if the join alias is invalid in this environment.
+        const fallback = await supabase
+          .from("plan_markups" as any)
+          .select("*")
+          .eq("plan_id", planId)
+          .order("created_at", { ascending: false });
+        data = fallback.data as any;
+        error = fallback.error as any;
+      }
 
       if (error) throw error;
-      setMarkups((data || []) as any);
+      const nextMarkups = (data || []) as any;
+      setMarkups(nextMarkups);
     } catch (error) {
       console.error("Error fetching markups:", error);
     }
@@ -497,6 +916,9 @@ export default function PlanViewer() {
       setAnalyzeProgress({ current: 0, total: numPages });
 
       let successCount = 0;
+      const collectedPageRows: any[] = [];
+      const detectedLinkCandidates: DetectedLinkCandidate[] = [];
+      const pageTextSearchRows: Array<{ page_number: number; textBlob: string }> = [];
 
       for (let pageNum = 1; pageNum <= numPages; pageNum++) {
         setAnalyzeProgress({ current: pageNum, total: numPages });
@@ -505,6 +927,7 @@ export default function PlanViewer() {
         try {
           console.log(`Processing page ${pageNum}/${numPages} with OCR...`);
           const page = await pdf.getPage(pageNum);
+          const baseViewport = page.getViewport({ scale: 1 });
           
           // Render page to canvas for OCR
           const viewport = page.getViewport({ scale: 1.5 });
@@ -553,6 +976,41 @@ export default function PlanViewer() {
               ? `${result.discipline || 'General'} - ${result.sheet_title}`
               : `Page ${pageNum}`,
           };
+
+          try {
+            const textContent = await page.getTextContent();
+            const textItems = (textContent?.items || []) as any[];
+            const candidates = extractSheetRefCandidates({
+              pageNumber: pageNum,
+              textItems,
+              viewportWidth: baseViewport.width,
+              viewportHeight: baseViewport.height,
+            });
+            const textBoxes = extractPdfTextBoxes({
+              textItems,
+              viewportWidth: baseViewport.width,
+              viewportHeight: baseViewport.height,
+            });
+            const symbolCandidates = extractSymbolTagCandidates({
+              pageNumber: pageNum,
+              textBoxes,
+              viewportWidth: baseViewport.width,
+              viewportHeight: baseViewport.height,
+            });
+            detectedLinkCandidates.push(...candidates, ...symbolCandidates);
+
+            const normalizedTextBlob = textBoxes
+              .map((b) => b.text.toUpperCase())
+              .join(" ")
+              .replace(/\s+/g, " ")
+              .trim();
+            pageTextSearchRows.push({
+              page_number: pageNum,
+              textBlob: normalizedTextBlob,
+            });
+          } catch (textErr) {
+            console.warn(`Text extraction failed for page ${pageNum}:`, textErr);
+          }
         } catch (pageError) {
           console.error(`Error processing page ${pageNum}:`, pageError);
           // Fallback to basic page info
@@ -565,6 +1023,8 @@ export default function PlanViewer() {
             page_description: `Page ${pageNum}`,
           };
         }
+
+        collectedPageRows.push(pageData);
 
         // Save each page immediately so progress is not lost
         try {
@@ -580,6 +1040,130 @@ export default function PlanViewer() {
         } catch (saveError) {
           console.error(`Failed to save page ${pageNum}:`, saveError);
         }
+      }
+
+      // Build and save auto-detected inter-sheet links from extracted text references.
+      try {
+        const sheetToPage = new Map<string, { page_number: number; sheet_number: string | null; title: string | null }>();
+        for (const p of collectedPageRows) {
+          const sheet = p.sheet_number || null;
+          const title = p.page_title || null;
+          const keys = new Set<string>();
+          if (sheet) keys.add(normalizeSheetRef(sheet));
+          if (title) {
+            const titleMatch = String(title).match(/\b([A-Z]{1,4}\s*[-.]?\s*\d{1,3}(?:\.\d{1,3})?)\b/i);
+            if (titleMatch?.[1]) keys.add(normalizeSheetRef(titleMatch[1]));
+          }
+          keys.forEach((key) => {
+            if (key) sheetToPage.set(key, { page_number: p.page_number, sheet_number: sheet, title });
+          });
+        }
+
+        const unresolvedRefs: UnresolvedLinkCandidate[] = [];
+        const pageTextBlobMap = new Map<number, string>(
+          pageTextSearchRows.map((r) => [r.page_number, r.textBlob])
+        );
+        const findTargetPageForSymbolTag = (candidate: DetectedLinkCandidate) => {
+          const compact = candidate.normalized_ref.toUpperCase();
+          const alpha = compact.match(/^[A-Z]+/)?.[0] || "";
+          const numeric = compact.slice(alpha.length);
+          if (!alpha || !numeric) return null;
+
+          const variants = [
+            `${alpha}${numeric}`,
+            `${alpha}-${numeric}`,
+            `${alpha} ${numeric}`,
+          ];
+
+          // Prefer schedule/detail sheets first, then any other page with a matching row label token.
+          const preferredPages = collectedPageRows
+            .filter((p) => p.page_number !== candidate.source_page_number)
+            .map((p) => ({
+              page_number: p.page_number,
+              title: String(p.page_title || p.page_description || "").toUpperCase(),
+              sheet_number: p.sheet_number || null,
+              page_title: p.page_title || null,
+            }))
+            .filter((p) => {
+              const blob = pageTextBlobMap.get(p.page_number) || "";
+              return variants.some((v) => blob.includes(v));
+            })
+            .sort((a, b) => {
+              const aScore = /SCHEDULE|EQUIPMENT|LEGEND|DETAIL/.test(a.title) ? 1 : 0;
+              const bScore = /SCHEDULE|EQUIPMENT|LEGEND|DETAIL/.test(b.title) ? 1 : 0;
+              return bScore - aScore;
+            });
+
+          return preferredPages[0] || null;
+        };
+
+        const linkRows = detectedLinkCandidates
+          .map((c) => {
+            let target = sheetToPage.get(c.normalized_ref);
+            if (!target && c.kind === "symbol_tag") {
+              target = findTargetPageForSymbolTag(c) as any;
+            }
+            if (!target) {
+              unresolvedRefs.push({
+                source_page_number: c.source_page_number,
+                ref_text: c.ref_text,
+              });
+              return null;
+            }
+            if (target.page_number === c.source_page_number) return null;
+
+            const rx = Math.round(c.x_norm * 10000) / 10000;
+            const ry = Math.round(c.y_norm * 10000) / 10000;
+            const rw = Math.round(c.w_norm * 10000) / 10000;
+            const rh = Math.round(c.h_norm * 10000) / 10000;
+            return {
+              plan_id: planId,
+              source_page_number: c.source_page_number,
+              target_page_number: target.page_number,
+              ref_text: c.ref_text,
+              target_sheet_number: target.sheet_number,
+              target_title: target.title,
+              x_norm: rx,
+              y_norm: ry,
+              w_norm: rw,
+              h_norm: rh,
+              confidence: c.confidence ?? (c.kind === "symbol_tag" ? 0.62 : 0.75),
+              is_auto: true,
+              link_key: `${c.source_page_number}:${target.page_number}:${c.normalized_ref}:${rx}:${ry}`,
+            };
+          })
+          .filter(Boolean) as any[];
+
+        const uniqueByKey = new Map<string, any>();
+        for (const row of linkRows) {
+          if (!uniqueByKey.has(row.link_key)) uniqueByKey.set(row.link_key, row);
+        }
+        const dedupedLinks = Array.from(uniqueByKey.values());
+
+        await supabase
+          .from("plan_page_links" as any)
+          .delete()
+          .eq("plan_id", planId)
+          .eq("is_auto", true);
+
+        if (dedupedLinks.length > 0) {
+          const { error: linkUpsertError } = await supabase
+            .from("plan_page_links" as any)
+            .upsert(dedupedLinks, { onConflict: "link_key" });
+          if (linkUpsertError) {
+            console.warn("Failed to save auto plan links:", linkUpsertError);
+          }
+        }
+        setUnresolvedAutoRefs(
+          Array.from(
+            new Map(
+              unresolvedRefs.map((r) => [`${r.source_page_number}:${r.ref_text.toUpperCase()}`, r])
+            ).values()
+          ).slice(0, 100)
+        );
+      } catch (linkError) {
+        console.warn("Auto link detection/save failed:", linkError);
+        setUnresolvedAutoRefs([]);
       }
 
       try { await pdf.cleanup?.(); } catch {}
@@ -613,6 +1197,42 @@ export default function PlanViewer() {
     } catch (error) {
       console.error("Error updating page:", error);
       toast.error("Failed to update page");
+    }
+  };
+
+  const handleUpdatePlanInfo = async () => {
+    if (!plan?.id) return;
+    if (!planInfoForm.plan_name.trim()) {
+      toast.error("Plan name is required");
+      return;
+    }
+
+    setPlanInfoSaving(true);
+    try {
+      const updates = {
+        plan_name: planInfoForm.plan_name.trim(),
+        plan_number: planInfoForm.plan_number || null,
+        revision: planInfoForm.revision || null,
+        architect: planInfoForm.architect || null,
+        revision_date: planInfoForm.revision_date || null,
+        description: planInfoForm.description || null,
+        is_permit_set: !!planInfoForm.is_permit_set,
+        updated_at: new Date().toISOString(),
+      };
+
+      const { error } = await supabase
+        .from("job_plans")
+        .update(updates)
+        .eq("id", plan.id);
+
+      if (error) throw error;
+      setPlan((prev: any) => ({ ...prev, ...updates }));
+      toast.success("Plan information updated");
+    } catch (error) {
+      console.error("Error updating plan information:", error);
+      toast.error("Failed to update plan information");
+    } finally {
+      setPlanInfoSaving(false);
     }
   };
 
@@ -670,6 +1290,7 @@ export default function PlanViewer() {
       if (error) throw error;
 
       toast.success("Markup saved");
+      if (fabricCanvasRef.current) fabricCanvasRef.current.clear();
       fetchMarkups();
     } catch (error) {
       console.error("Error saving markup:", error);
@@ -682,6 +1303,28 @@ export default function PlanViewer() {
       fabricCanvasRef.current.clear();
     }
   };
+
+  const handleLoadMarkupLayer = async (markup: PlanMarkup) => {
+    if (!fabricCanvasRef.current) return;
+
+    if (markup.page_number !== currentPage) {
+      setPendingMarkupLoadId(markup.id);
+      setCurrentPage(markup.page_number);
+      setSearchParams({ page: markup.page_number.toString() });
+      toast.message(`Switched to page ${markup.page_number}. Loading markup...`);
+      return;
+    }
+
+    try {
+      await fabricCanvasRef.current.loadFromJSON(markup.markup_data);
+      fabricCanvasRef.current.renderAll();
+      toast.success("Markup layer loaded");
+    } catch (error) {
+      console.error("Error loading markup layer:", error);
+      toast.error("Failed to load markup layer");
+    }
+  };
+
 
   const handleAddShape = (shape: "circle" | "line") => {
     if (!fabricCanvasRef.current) return;
@@ -703,6 +1346,44 @@ export default function PlanViewer() {
       });
       fabricCanvasRef.current.add(line);
     }
+  };
+
+  const sortedPageNumbers = useMemo(
+    () => pages.map((p) => p.page_number).sort((a, b) => a - b),
+    [pages]
+  );
+
+  const currentPageIndex = useMemo(
+    () => sortedPageNumbers.indexOf(currentPage),
+    [sortedPageNumbers, currentPage]
+  );
+
+  const prevPageNumber = currentPageIndex > 0 ? sortedPageNumbers[currentPageIndex - 1] : null;
+  const nextPageNumber =
+    currentPageIndex >= 0 && currentPageIndex < sortedPageNumbers.length - 1
+      ? sortedPageNumbers[currentPageIndex + 1]
+      : null;
+
+  const currentSheetKey = useMemo(() => {
+    const page = pages.find((p) => p.page_number === currentPage);
+    if (!page) return `PAGE${currentPage}`;
+    return normalizeSheetRef(page.sheet_number) || `PAGE${page.page_number}`;
+  }, [pages, currentPage]);
+
+  const currentSheetRevisions = useMemo(
+    () => pageRevisionGroups.get(currentSheetKey) || [],
+    [pageRevisionGroups, currentSheetKey]
+  );
+
+  const selectedRevisionId = useMemo(() => {
+    if (currentSheetRevisions.length === 0) return "";
+    const exact = currentSheetRevisions.find((r) => r.target_page_number === currentPage);
+    return (exact || currentSheetRevisions[0]).id;
+  }, [currentSheetRevisions, currentPage]);
+
+  const navigateToPage = (pageNumber: number) => {
+    setCurrentPage(pageNumber);
+    setSearchParams({ page: pageNumber.toString() });
   };
 
   if (loading) {
@@ -763,6 +1444,23 @@ export default function PlanViewer() {
 
   const currentPageData = pages.find(p => p.page_number === currentPage);
   const currentPageComments = comments.filter(c => c.page_number === currentPage);
+  const getMarkupLabel = (markup: PlanMarkup) => {
+    const author = markup.profiles?.full_name || "Unknown User";
+    const pageMeta = pages.find((p) => p.page_number === markup.page_number);
+    const sheet = pageMeta?.sheet_number?.trim();
+    const title = pageMeta?.page_title?.trim();
+    let pageLabel = `Pg ${markup.page_number}`;
+
+    if (sheet && title) {
+      const normalizedSheet = sheet.toLowerCase();
+      const normalizedTitle = title.toLowerCase();
+      pageLabel = normalizedTitle.startsWith(normalizedSheet) ? title : `${sheet} - ${title}`;
+    } else if (title || sheet) {
+      pageLabel = title || sheet || pageLabel;
+    }
+
+    return `${pageLabel} • ${author} • ${format(new Date(markup.created_at), "MMM d, h:mm a")}`;
+  };
   const handleBackToJobPlans = () => {
     if (plan?.job_id) {
       navigate(`/jobs/${plan.job_id}?tab=plans`);
@@ -786,28 +1484,48 @@ export default function PlanViewer() {
     return title || sheet || `Page ${page.page_number}`;
   };
 
+  const pageSelectorWidthCh = (() => {
+    const longest = pages.reduce((max, page) => {
+      const labelLength = getPageLabel(page).length;
+      return Math.max(max, labelLength);
+    }, 0);
+
+    // Fixed width based on the largest label in the set so the toolbar does not shift.
+    return Math.min(72, Math.max(30, longest + 4));
+  })();
+
+  const handleSelectRevision = (revisionId: string) => {
+    const revision = currentSheetRevisions.find((r) => r.id === revisionId);
+    if (!revision) return;
+    if (revision.target_page_number !== currentPage) {
+      navigateToPage(revision.target_page_number);
+    }
+  };
+
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="flex flex-col h-screen bg-background w-full overflow-hidden">
         {/* Header - completely separated from PDF, never affected by zoom */}
-        <header className="flex items-center justify-between px-4 py-3 border-b bg-background shrink-0 z-40">
-          <div className="flex items-center gap-4">
+        <header className="flex items-center justify-between gap-2 px-4 py-3 border-b bg-background shrink-0 z-40">
+          <div className="flex min-w-0 flex-1 items-center gap-3">
             <Button variant="ghost" size="sm" onClick={handleBackToJobPlans}>
               <ArrowLeft className="h-4 w-4 mr-2" />
               Back
             </Button>
-            <div>
-              <h1 className="font-semibold">{plan.plan_name}</h1>
+            <div className="min-w-0 flex-1">
+              <h1 className="truncate text-xl font-semibold tracking-tight">
+                {jobName ? `${jobName} — ${plan.plan_name}` : plan.plan_name}
+              </h1>
               {plan.plan_number && (
-                <p className="text-sm text-muted-foreground">Plan #: {plan.plan_number}</p>
+                <p className="truncate text-sm text-muted-foreground">Plan Set #: {plan.plan_number}</p>
               )}
             </div>
           </div>
 
           {/* Page Navigation + Tools */}
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-1.5 shrink-0 pl-2">
             {analyzing && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground mr-1">
                 <Loader2 className="h-4 w-4 animate-spin" />
                 {analyzeProgress 
                   ? `Analyzing page ${analyzeProgress.current}/${analyzeProgress.total}...`
@@ -815,27 +1533,62 @@ export default function PlanViewer() {
               </div>
             )}
             {pages.length > 0 && (
-              <Select
-                value={currentPage.toString()}
-                onValueChange={(value) => {
-                  setCurrentPage(parseInt(value));
-                  setSearchParams({ page: value });
-                }}
-              >
-                <SelectTrigger className="w-[260px] bg-background z-50">
-                  <SelectValue />
-                </SelectTrigger>
-                  <SelectContent className="bg-background z-50">
-                  {pages.map((page) => (
-                    <SelectItem key={page.id} value={page.page_number.toString()}>
-                      {getPageLabel(page)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <div className="flex items-center gap-1.5">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => prevPageNumber && navigateToPage(prevPageNumber)}
+                  disabled={!prevPageNumber}
+                  title="Previous Page"
+                >
+                  <ChevronLeft className="h-4 w-4" />
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => nextPageNumber && navigateToPage(nextPageNumber)}
+                  disabled={!nextPageNumber}
+                  title="Next Page"
+                >
+                  <ChevronRight className="h-4 w-4" />
+                </Button>
+                <Select
+                  value={currentPage.toString()}
+                  onValueChange={(value) => navigateToPage(parseInt(value))}
+                >
+                  <SelectTrigger
+                    className="bg-background z-50 max-w-[42rem]"
+                    style={{ width: `${pageSelectorWidthCh}ch` }}
+                  >
+                    <SelectValue />
+                  </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                    {pages.map((page) => (
+                      <SelectItem key={page.id} value={page.page_number.toString()}>
+                        {getPageLabel(page)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                {currentSheetRevisions.length > 0 && (
+                  <Select value={selectedRevisionId} onValueChange={handleSelectRevision}>
+                    <SelectTrigger className="w-[14rem] bg-background z-50">
+                      <SelectValue placeholder="Revision" />
+                    </SelectTrigger>
+                    <SelectContent className="bg-background z-50">
+                      {currentSheetRevisions.map((rev, idx) => (
+                        <SelectItem key={rev.id} value={rev.id}>
+                          {rev.revision_label || `Revision ${idx + 1}`}
+                          {rev.is_current ? " (Current)" : ""}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              </div>
             )}
             {/* Tools in header */}
-            <div className="flex items-center gap-1 ml-2">
+            <div className="flex items-center gap-1 ml-1">
               <Button variant="outline" size="sm" onClick={handleZoomOut} title="Zoom Out">
                 <ZoomOut className="h-4 w-4" />
               </Button>
@@ -895,6 +1648,7 @@ export default function PlanViewer() {
                   pageNumber={currentPage}
                   totalPages={pages.length}
                   zoomLevel={zoomLevel}
+                  onPageRectChange={setPdfPageRect}
                   onTotalPagesChange={(total) => {
                     // If no pages exist yet and we get a total, we could trigger analysis
                     if (pages.length === 0 && total > 0 && !analyzing) {
@@ -907,279 +1661,590 @@ export default function PlanViewer() {
                 />
               </div>
             )}
+
+            {/* Auto-detected sheet reference hotspots */}
+            {activeTool === "select" && pdfPageRect && currentPageLinks.length > 0 && (
+              <div className="absolute inset-0 z-20 pointer-events-none">
+                {currentPageLinks.map((link) => {
+                  const left = pdfPageRect.left + link.x_norm * pdfPageRect.width;
+                  const top = pdfPageRect.top + link.y_norm * pdfPageRect.height;
+                  const width = Math.max(18, link.w_norm * pdfPageRect.width);
+                  const height = Math.max(14, link.h_norm * pdfPageRect.height);
+                  const targetMeta = pageMapByNumber.get(link.target_page_number);
+                  const isSelected = selectedPageLinkId === link.id;
+
+                  return (
+                    <div
+                      key={link.id}
+                      className="absolute pointer-events-auto"
+                      style={{ left, top, width, height }}
+                    >
+                      <button
+                        type="button"
+                        className={`group h-full w-full rounded border-2 bg-blue-500/10 transition-colors ${
+                          isSelected ? "border-blue-300 bg-blue-500/20" : "border-blue-400/80 hover:bg-blue-500/20"
+                        }`}
+                        title={`Go to ${targetMeta?.sheet_number || link.target_sheet_number || `Page ${link.target_page_number}`}`}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          setSelectedPageLinkId((prev) => (prev === link.id ? null : link.id));
+                        }}
+                      >
+                        <span className="sr-only">{link.ref_text}</span>
+                      </button>
+
+                      {isSelected && (
+                        <div className="absolute left-0 top-[calc(100%+6px)] z-30 w-64 rounded-lg border bg-background/95 shadow-lg backdrop-blur">
+                          <div className="border-b px-3 py-2">
+                            <p className="text-[11px] uppercase tracking-wide text-muted-foreground">Sheet Link</p>
+                            <p className="text-sm font-semibold truncate">
+                              {targetMeta?.sheet_number || link.target_sheet_number || `Page ${link.target_page_number}`}
+                            </p>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {targetMeta?.page_title || link.target_title || "Detected sheet reference"}
+                            </p>
+                          </div>
+                          {targetMeta?.thumbnail_url && (
+                            <div className="px-3 pt-3">
+                              <div className="overflow-hidden rounded border bg-muted/30">
+                                <img
+                                  src={targetMeta.thumbnail_url}
+                                  alt={targetMeta.page_title || targetMeta.sheet_number || `Page ${link.target_page_number}`}
+                                  className="h-28 w-full object-contain bg-background"
+                                />
+                              </div>
+                            </div>
+                          )}
+                          <div className="px-3 py-2 text-xs text-muted-foreground">
+                            Ref: <span className="font-medium text-foreground">{link.ref_text}</span>
+                          </div>
+                          <div className="flex items-center justify-end gap-2 px-3 pb-3">
+                            <Button size="sm" variant="outline" onClick={() => setSelectedPageLinkId(null)}>
+                              Close
+                            </Button>
+                            <Button size="sm" onClick={() => handleJumpToLinkedPage(link)}>
+                              Open Sheet
+                            </Button>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            )}
           </div>
 
           {/* Right Sidebar */}
           {sidebarOpen && (
           <div className="w-96 border-l bg-background flex flex-col min-h-0">
-            <Tabs defaultValue="index" className="h-full flex flex-col p-2">
+            <Tabs defaultValue="plan-info" className="flex-1 min-h-0 grid grid-rows-[auto_minmax(0,1fr)] p-2 overflow-hidden gap-2">
               <TabsList className="grid w-full grid-cols-3">
-                <TabsTrigger value="index">Index</TabsTrigger>
+                <TabsTrigger value="plan-info">Plan Info</TabsTrigger>
                 <TabsTrigger value="markup">Markup</TabsTrigger>
                 <TabsTrigger value="comments">
                   <MessageSquare className="h-4 w-4 mr-1" />
                   Comments
                 </TabsTrigger>
               </TabsList>
+              <div className="relative min-h-0 overflow-hidden">
 
             {/* Page Index Tab */}
-            <TabsContent value="index" className="flex-1 overflow-hidden">
-              <ScrollArea className="h-full p-4">
-                {pages.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-12">
-                    <p className="text-sm text-muted-foreground mb-4">
-                      No page index yet
-                    </p>
-                    <Button onClick={analyzePlan} disabled={analyzing}>
-                      {analyzing ? "Analyzing..." : "Analyze Plan"}
+            <TabsContent value="index" className="absolute inset-0 mt-0 overflow-hidden hidden data-[state=active]:flex data-[state=active]:flex-col">
+              <div className="h-full min-h-0 flex flex-col overflow-hidden">
+                <div className="shrink-0 px-4 pt-4 pb-3 border-b">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-sm font-semibold">Page Index</h3>
+                    <Button 
+                      onClick={analyzePlan} 
+                      disabled={analyzing}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {analyzing ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        pages.length === 0 ? "Analyze Plan" : "Re-analyze"
+                      )}
                     </Button>
                   </div>
-                ) : (
-                  <div className="space-y-3">
-                    <div className="flex items-center justify-between pb-3 border-b">
-                      <h3 className="text-sm font-semibold">Page Index</h3>
-                      <Button 
-                        onClick={analyzePlan} 
-                        disabled={analyzing}
-                        variant="outline"
-                        size="sm"
-                      >
-                        {analyzing ? (
-                          <>
-                            <Loader2 className="h-3 w-3 mr-1 animate-spin" />
-                            Analyzing...
-                          </>
-                        ) : (
-                          "Re-analyze"
-                        )}
-                      </Button>
+                </div>
+
+                <ScrollArea className="flex-1 min-h-0 overflow-hidden px-4 py-3">
+                  {pages.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-10">
+                      <p className="text-sm text-muted-foreground mb-4">
+                        No page index yet
+                      </p>
+                      <p className="text-xs text-muted-foreground text-center max-w-xs">
+                        Run plan analysis to auto-populate pages, then edit any page details below.
+                      </p>
                     </div>
-                    {pages.map((page) => (
-                      <div
-                        key={page.id}
-                        className={`p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors ${
-                          currentPage === page.page_number ? "bg-accent" : ""
-                        }`}
-                        onClick={() => {
-                          setCurrentPage(page.page_number);
-                          setSearchParams({ page: page.page_number.toString() });
-                        }}
-                      >
-                        {editingPage === page.id ? (
-                          <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
-                            <Input
-                              value={page.sheet_number || ""}
-                              onChange={(e) => setPages(pages.map(p =>
-                                p.id === page.id ? { ...p, sheet_number: e.target.value } : p
-                              ))}
-                              placeholder="Sheet Number"
-                              className="text-sm"
-                            />
-                            <Input
-                              value={page.page_title || ""}
-                              onChange={(e) => setPages(pages.map(p =>
-                                p.id === page.id ? { ...p, page_title: e.target.value } : p
-                              ))}
-                              placeholder="Page Title"
-                              className="text-sm"
-                            />
-                            <Input
-                              value={page.discipline || ""}
-                              onChange={(e) => setPages(pages.map(p =>
-                                p.id === page.id ? { ...p, discipline: e.target.value } : p
-                              ))}
-                              placeholder="Discipline"
-                              className="text-sm"
-                            />
-                            <Textarea
-                              value={page.page_description || ""}
-                              onChange={(e) => setPages(pages.map(p =>
-                                p.id === page.id ? { ...p, page_description: e.target.value } : p
-                              ))}
-                              placeholder="Description"
-                              rows={2}
-                              className="text-sm"
-                            />
-                            <div className="flex gap-2">
-                              <Button
-                                size="sm"
-                                onClick={() => handleUpdatePage(page.id, page)}
-                              >
-                                <Save className="h-3 w-3 mr-1" />
-                                Save
-                              </Button>
-                              <Button
-                                size="sm"
-                                variant="outline"
-                                onClick={() => setEditingPage(null)}
-                              >
-                                Cancel
-                              </Button>
-                            </div>
-                          </div>
-                        ) : (
-                          <>
-                            <div className="flex items-start justify-between mb-2">
-                              <div>
-                                <p className="font-medium text-sm">
-                                  {(page.sheet_number || `Page ${page.page_number}`)}
-                                </p>
-                                <p className="text-xs text-muted-foreground">{page.discipline}</p>
+                  ) : (
+                    <div className="space-y-3">
+                      {pages.map((page) => (
+                        <div
+                          key={page.id}
+                          className={`p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors ${
+                            currentPage === page.page_number ? "bg-accent" : ""
+                          }`}
+                          onClick={() => {
+                            setCurrentPage(page.page_number);
+                            setSearchParams({ page: page.page_number.toString() });
+                          }}
+                        >
+                          {editingPage === page.id ? (
+                            <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                              <Input
+                                value={page.sheet_number || ""}
+                                onChange={(e) => setPages(pages.map(p =>
+                                  p.id === page.id ? { ...p, sheet_number: e.target.value } : p
+                                ))}
+                                placeholder="Sheet Number"
+                                className="text-sm"
+                              />
+                              <Input
+                                value={page.page_title || ""}
+                                onChange={(e) => setPages(pages.map(p =>
+                                  p.id === page.id ? { ...p, page_title: e.target.value } : p
+                                ))}
+                                placeholder="Page Title"
+                                className="text-sm"
+                              />
+                              <Input
+                                value={page.discipline || ""}
+                                onChange={(e) => setPages(pages.map(p =>
+                                  p.id === page.id ? { ...p, discipline: e.target.value } : p
+                                ))}
+                                placeholder="Discipline"
+                                className="text-sm"
+                              />
+                              <Textarea
+                                value={page.page_description || ""}
+                                onChange={(e) => setPages(pages.map(p =>
+                                  p.id === page.id ? { ...p, page_description: e.target.value } : p
+                                ))}
+                                placeholder="Description"
+                                rows={2}
+                                className="text-sm"
+                              />
+                              <div className="flex gap-2">
+                                <Button
+                                  size="sm"
+                                  onClick={() => handleUpdatePage(page.id, page)}
+                                >
+                                  <Save className="h-3 w-3 mr-1" />
+                                  Save
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setEditingPage(null)}
+                                >
+                                  Cancel
+                                </Button>
                               </div>
-                              <Button
-                                size="sm"
-                                variant="ghost"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setEditingPage(page.id);
-                                }}
-                              >
-                                <Pencil className="h-3 w-3" />
-                              </Button>
                             </div>
-                            <p className="font-medium text-sm">{page.page_title}</p>
+                          ) : (
+                            <>
+                              <div className="flex items-start justify-between mb-2">
+                                <div>
+                                  <p className="font-medium text-sm">
+                                    {(page.sheet_number || `Page ${page.page_number}`)}
+                                  </p>
+                                  <p className="text-xs text-muted-foreground">{page.discipline}</p>
+                                </div>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    setEditingPage(page.id);
+                                  }}
+                                >
+                                  <Pencil className="h-3 w-3" />
+                                </Button>
+                              </div>
+                              <p className="font-medium text-sm">{page.page_title}</p>
                               {page.page_title && (
                                 <p className="text-xs text-muted-foreground mt-1">
                                   {page.page_title}
                                 </p>
                               )}
-                          </>
-                        )}
-                      </div>
-                    ))}
+                            </>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </ScrollArea>
+              </div>
+            </TabsContent>
+
+            {/* Plan Set Information Tab */}
+            <TabsContent value="plan-info" className="absolute inset-0 mt-0 overflow-hidden hidden data-[state=active]:flex data-[state=active]:flex-col">
+              <div className="flex h-full min-h-0 flex-col">
+                <div className="shrink-0 border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 p-3 pr-5">
+                  <div className="flex items-center justify-end gap-2 flex-wrap">
+                    <Button
+                      onClick={analyzePlan}
+                      disabled={analyzing}
+                      variant="outline"
+                      size="sm"
+                    >
+                      {analyzing ? (
+                        <>
+                          <Loader2 className="h-3 w-3 mr-1 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        pages.length === 0 ? "Analyze Plan" : "Re-analyze"
+                      )}
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setManagePagesOpen(true)}>
+                      Update Plan Pages
+                    </Button>
+                    <Button size="sm" onClick={handleUpdatePlanInfo} disabled={planInfoSaving}>
+                      {planInfoSaving ? "Saving..." : "Save Plan Set Info"}
+                    </Button>
                   </div>
-                )}
-              </ScrollArea>
+                </div>
+                <ScrollArea className="flex-1 min-h-0 overflow-hidden">
+                <div className="pl-4 pr-6 py-4 space-y-3">
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
+                      <Label>Total Pages</Label>
+                      <Input value={String(pages.length || 0)} readOnly className="text-sm bg-muted/40" />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="drawer_plan_name">Plan Set Name</Label>
+                      <Input
+                        id="drawer_plan_name"
+                        value={planInfoForm.plan_name}
+                        onChange={(e) => setPlanInfoForm((prev) => ({ ...prev, plan_name: e.target.value }))}
+                        placeholder="Plan set name"
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="drawer_plan_number">Plan Set #</Label>
+                      <Input
+                        id="drawer_plan_number"
+                        value={planInfoForm.plan_number}
+                        onChange={(e) => setPlanInfoForm((prev) => ({ ...prev, plan_number: e.target.value }))}
+                        placeholder="A-101"
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="drawer_revision">Revision</Label>
+                      <Input
+                        id="drawer_revision"
+                        value={planInfoForm.revision}
+                        onChange={(e) => setPlanInfoForm((prev) => ({ ...prev, revision: e.target.value }))}
+                        placeholder="Rev 1"
+                        className="text-sm"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="drawer_architect">Architect / Design Engineer</Label>
+                    <Input
+                      id="drawer_architect"
+                      value={planInfoForm.architect}
+                      onChange={(e) => setPlanInfoForm((prev) => ({ ...prev, architect: e.target.value }))}
+                      placeholder="Firm name"
+                      className="text-sm"
+                    />
+                  </div>
+
+                  <div className="grid grid-cols-2 gap-2 items-end">
+                    <div className="space-y-2">
+                      <Label htmlFor="drawer_revision_date">Revision Date</Label>
+                      <Input
+                        id="drawer_revision_date"
+                        type="date"
+                        value={planInfoForm.revision_date}
+                        onChange={(e) => setPlanInfoForm((prev) => ({ ...prev, revision_date: e.target.value }))}
+                        className="text-sm"
+                      />
+                    </div>
+                    <div className="flex items-center space-x-2 pb-2">
+                      <Checkbox
+                        id="drawer_is_permit_set"
+                        checked={planInfoForm.is_permit_set}
+                        onCheckedChange={(checked) => setPlanInfoForm((prev) => ({ ...prev, is_permit_set: checked === true }))}
+                      />
+                      <Label htmlFor="drawer_is_permit_set" className="text-sm cursor-pointer">
+                        Permit Set
+                      </Label>
+                    </div>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="drawer_plan_description">Description</Label>
+                    <Textarea
+                      id="drawer_plan_description"
+                      value={planInfoForm.description}
+                      onChange={(e) => setPlanInfoForm((prev) => ({ ...prev, description: e.target.value }))}
+                      rows={3}
+                      className="text-sm"
+                      placeholder="Plan set notes or context"
+                    />
+                  </div>
+
+                  <div className="pt-2 border-t space-y-3">
+                    <div className="flex items-center justify-between gap-2">
+                      <div>
+                        <h4 className="text-sm font-semibold">Auto Sheet Links</h4>
+                        <p className="text-xs text-muted-foreground">
+                          {filteredPageLinks.length} detected link{filteredPageLinks.length === 1 ? "" : "s"} in this plan set
+                        </p>
+                      </div>
+                      <div className="w-32">
+                        <Select value={linkMinConfidence} onValueChange={setLinkMinConfidence}>
+                          <SelectTrigger className="h-8">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="all">All links</SelectItem>
+                            <SelectItem value="0.7">High confidence</SelectItem>
+                            <SelectItem value="0.85">Very high</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+
+                    <div className="rounded-md border">
+                      <ScrollArea className="max-h-40">
+                        <div className="divide-y">
+                          {pages.map((page) => {
+                            const count = autoLinkSummaryByPage.get(page.page_number) || 0;
+                            if (count === 0) return null;
+                            return (
+                              <button
+                                key={`auto-links-page-${page.id}`}
+                                type="button"
+                                className="flex w-full items-center justify-between px-3 py-2 text-left hover:bg-accent"
+                                onClick={() => {
+                                  setCurrentPage(page.page_number);
+                                  setSearchParams({ page: page.page_number.toString() });
+                                }}
+                              >
+                                <div className="min-w-0">
+                                  <p className="text-sm font-medium truncate">{page.sheet_number || `Page ${page.page_number}`}</p>
+                                  <p className="text-xs text-muted-foreground truncate">{page.page_title || page.page_description || ""}</p>
+                                </div>
+                                <div className="ml-2 rounded-full border px-2 py-0.5 text-xs">
+                                  {count}
+                                </div>
+                              </button>
+                            );
+                          })}
+                          {filteredPageLinks.length === 0 && (
+                            <div className="px-3 py-4 text-xs text-muted-foreground">
+                              No auto links detected yet. Run Analyze / Re-analyze from Plan Info.
+                            </div>
+                          )}
+                        </div>
+                      </ScrollArea>
+                    </div>
+
+                    <div className="rounded-md border p-3">
+                      <div className="flex items-center justify-between">
+                        <h5 className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">
+                          Unresolved References
+                        </h5>
+                        <span className="text-xs text-muted-foreground">{unresolvedAutoRefs.length}</span>
+                      </div>
+                      {unresolvedAutoRefs.length > 0 ? (
+                        <div className="mt-2 flex flex-wrap gap-2">
+                          {unresolvedAutoRefs.slice(0, 12).map((ref) => (
+                            <button
+                              key={`${ref.source_page_number}:${ref.ref_text}`}
+                              type="button"
+                              className="rounded-full border px-2 py-1 text-xs hover:bg-accent"
+                              onClick={() => {
+                                setCurrentPage(ref.source_page_number);
+                                setSearchParams({ page: ref.source_page_number.toString() });
+                              }}
+                            >
+                              {ref.ref_text} · p{ref.source_page_number}
+                            </button>
+                          ))}
+                          {unresolvedAutoRefs.length > 12 && (
+                            <span className="text-xs text-muted-foreground self-center">
+                              +{unresolvedAutoRefs.length - 12} more
+                            </span>
+                          )}
+                        </div>
+                      ) : (
+                        <p className="mt-2 text-xs text-muted-foreground">
+                          No unresolved references from the latest analysis run.
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                </div>
+                </ScrollArea>
+              </div>
             </TabsContent>
 
             {/* Markup Tools Tab */}
-            <TabsContent value="markup" className="flex-1 overflow-hidden">
-              <div className="p-4 space-y-4">
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Drawing Tools</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button
-                      variant={activeTool === "select" ? "default" : "outline"}
-                      onClick={() => setActiveTool("select")}
-                      size="sm"
-                    >
-                      Select
-                    </Button>
-                    <Button
-                      variant={activeTool === "pen" ? "default" : "outline"}
-                      onClick={() => setActiveTool("pen")}
-                      size="sm"
-                    >
-                      <Pencil className="h-4 w-4 mr-1" />
-                      Pen
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleAddShape("circle")}
-                      size="sm"
-                    >
-                      Circle
-                    </Button>
-                    <Button
-                      variant="outline"
-                      onClick={() => handleAddShape("line")}
-                      size="sm"
-                    >
-                      Line
-                    </Button>
-                  </div>
-                </div>
-
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Measurement Tool</label>
-                  <div className="space-y-2">
-                    <Button
-                      variant={activeTool === "measure" ? "default" : "outline"}
-                      onClick={() => setActiveTool("measure")}
-                      size="sm"
-                      className="w-full"
-                    >
-                      <Ruler className="h-4 w-4 mr-2" />
-                      Measure Distance
-                    </Button>
-                    
-                    {planScale ? (
-                      <div className="p-2 bg-primary/10 rounded text-xs">
-                        Scale: {planScale.realDistance} {scaleFormData.unit} = {planScale.pixelDistance.toFixed(0)}px
+            <TabsContent value="markup" className="absolute inset-0 mt-0 overflow-hidden hidden data-[state=active]:flex data-[state=active]:flex-col">
+              <div className="h-full min-h-0 flex flex-col">
+                <ScrollArea className="flex-1 min-h-0">
+                  <div className="pl-4 pr-6 py-4 space-y-4">
+                    <div className="rounded-lg border p-3 space-y-3">
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Drawing Tools</label>
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button
+                            variant={activeTool === "select" ? "default" : "outline"}
+                            onClick={() => setActiveTool("select")}
+                            size="sm"
+                          >
+                            Select
+                          </Button>
+                          <Button
+                            variant={activeTool === "pen" ? "default" : "outline"}
+                            onClick={() => setActiveTool("pen")}
+                            size="sm"
+                          >
+                            <Pencil className="h-4 w-4 mr-1" />
+                            Pen
+                          </Button>
+                          <Button variant="outline" onClick={() => handleAddShape("circle")} size="sm">
+                            Circle
+                          </Button>
+                          <Button variant="outline" onClick={() => handleAddShape("line")} size="sm">
+                            Line
+                          </Button>
+                        </div>
                       </div>
-                    ) : (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="w-full"
-                        onClick={() => {
-                          setActiveTool("measure");
-                          setScaleDialogOpen(true);
-                        }}
-                      >
-                        Set Scale
-                      </Button>
-                    )}
-                    
-                    {activeTool === "measure" && (
-                      <div className="p-2 bg-muted rounded text-xs">
-                        {measurePoints.length === 0 && "Click first point"}
-                        {measurePoints.length === 1 && "Click second point to measure"}
+
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Measurement Tool</label>
+                        <div className="space-y-2">
+                          <Button
+                            variant={activeTool === "measure" ? "default" : "outline"}
+                            onClick={() => setActiveTool("measure")}
+                            size="sm"
+                            className="w-full"
+                          >
+                            <Ruler className="h-4 w-4 mr-2" />
+                            Measure Distance
+                          </Button>
+
+                          {planScale ? (
+                            <div className="p-2 bg-primary/10 rounded text-xs">
+                              Scale: {planScale.realDistance} {scaleFormData.unit} = {planScale.pixelDistance.toFixed(0)}px
+                            </div>
+                          ) : (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="w-full"
+                              onClick={() => {
+                                setActiveTool("measure");
+                                setScaleDialogOpen(true);
+                              }}
+                            >
+                              Set Scale
+                            </Button>
+                          )}
+
+                          {activeTool === "measure" && (
+                            <div className="p-2 bg-muted rounded text-xs">
+                              {measurePoints.length === 0 && "Click first point"}
+                              {measurePoints.length === 1 && "Click second point to measure"}
+                            </div>
+                          )}
+                        </div>
                       </div>
-                    )}
-                  </div>
-                </div>
 
-                <div>
-                  <label className="text-sm font-medium mb-2 block">Color</label>
-                  <div className="flex gap-2">
-                    {["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#000000"].map(
-                      (color) => (
-                        <button
-                          key={color}
-                          className={`w-8 h-8 rounded border-2 ${
-                            markupColor === color ? "border-primary" : "border-transparent"
-                          }`}
-                          style={{ backgroundColor: color }}
-                          onClick={() => setMarkupColor(color)}
-                        />
-                      )
-                    )}
-                  </div>
-                </div>
+                      <div>
+                        <label className="text-sm font-medium mb-2 block">Color</label>
+                        <div className="flex gap-2 flex-wrap">
+                          {["#FF0000", "#00FF00", "#0000FF", "#FFFF00", "#FF00FF", "#000000"].map(
+                            (color) => (
+                              <button
+                                key={color}
+                                className={`w-8 h-8 rounded border-2 ${
+                                  markupColor === color ? "border-primary" : "border-transparent"
+                                }`}
+                                style={{ backgroundColor: color }}
+                                onClick={() => setMarkupColor(color)}
+                              />
+                            )
+                          )}
+                        </div>
+                      </div>
 
-                <div className="flex gap-2">
-                  <Button onClick={handleSaveMarkup} className="flex-1">
-                    Save Markup
-                  </Button>
-                  <Button variant="outline" onClick={handleClearCanvas}>
-                    <X className="h-4 w-4" />
-                  </Button>
-                </div>
+                      <div className="flex gap-2">
+                        <Button onClick={handleSaveMarkup} className="flex-1">
+                          Save Markup Layer
+                        </Button>
+                        <Button variant="outline" onClick={handleClearCanvas} title="Clear Draft Canvas">
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    </div>
 
-                {markups.length > 0 && (
-                  <div className="mt-6">
-                    <h3 className="text-sm font-medium mb-2">Saved Markups</h3>
-                    <ScrollArea className="h-[200px]">
+                    <div className="rounded-lg border p-3 space-y-3">
+                      <div>
+                        <h3 className="text-sm font-semibold">Saved Markups</h3>
+                        <p className="text-xs text-muted-foreground">
+                          Select a saved markup to jump to that page and load it
+                        </p>
+                      </div>
+
                       <div className="space-y-2">
-                        {markups.map((markup) => (
-                          <div key={markup.id} className="p-2 border rounded text-xs">
-                            <p className="text-muted-foreground">
-                              {format(new Date(markup.created_at), "MMM d, yyyy h:mm a")}
-                            </p>
-                          </div>
-                        ))}
+                        <Label htmlFor="saved-markup-select" className="text-xs">Markup</Label>
+                        <Select
+                          value={selectedMarkupId || undefined}
+                          onValueChange={(value) => {
+                            setSelectedMarkupId(value);
+                            const selected = markups.find((m) => m.id === value);
+                            if (selected) void handleLoadMarkupLayer(selected);
+                          }}
+                        >
+                          <SelectTrigger id="saved-markup-select" className="w-full">
+                            <SelectValue placeholder={markups.length ? "Select a markup layer" : "No saved markups"} />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {markups.map((markup) => (
+                              <SelectItem key={markup.id} value={markup.id}>
+                                {getMarkupLabel(markup)}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
                       </div>
-                    </ScrollArea>
+
+                      <div className="text-xs text-muted-foreground">
+                        {markups.length === 0
+                          ? "Save a markup to create your first saved layer."
+                          : `${markups.length} saved markup layer${markups.length === 1 ? "" : "s"} for this plan`}
+                      </div>
+                    </div>
                   </div>
-                )}
+                </ScrollArea>
               </div>
             </TabsContent>
 
             {/* Comments Tab */}
-            <TabsContent value="comments" className="flex-1 overflow-hidden flex flex-col">
-              <div className="flex-1 overflow-hidden">
-                <ScrollArea className="h-full p-4">
+            <TabsContent value="comments" className="absolute inset-0 mt-0 overflow-hidden hidden data-[state=active]:flex data-[state=active]:flex-col">
+              <div className="flex-1 min-h-0 overflow-hidden">
+                <ScrollArea className="h-full">
+                  <div className="pl-4 pr-6 py-4">
                   {currentPageComments.length === 0 ? (
                     <p className="text-sm text-muted-foreground text-center py-8">
                       No comments yet. Click "Place Pin" below to add a comment.
@@ -1209,6 +2274,7 @@ export default function PlanViewer() {
                       ))}
                     </div>
                   )}
+                  </div>
                 </ScrollArea>
               </div>
 
@@ -1254,11 +2320,133 @@ export default function PlanViewer() {
                 </Button>
               </div>
             </TabsContent>
+              </div>
             </Tabs>
           </div>
           )}
         </div>
       </div>
+
+      <Dialog open={managePagesOpen} onOpenChange={setManagePagesOpen}>
+        <DialogContent className="max-w-6xl h-[88vh] flex flex-col">
+          <DialogHeader>
+            <DialogTitle>Update Plan Pages</DialogTitle>
+          </DialogHeader>
+          <div className="flex-1 min-h-0 border rounded-md overflow-hidden">
+            <ScrollArea className="h-full">
+              <div className="p-4 space-y-3">
+                {pages.length === 0 ? (
+                  <div className="flex flex-col items-center justify-center py-12">
+                    <p className="text-sm text-muted-foreground mb-3">No pages indexed yet.</p>
+                    <Button onClick={analyzePlan} disabled={analyzing} variant="outline">
+                      {analyzing ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Analyzing...
+                        </>
+                      ) : (
+                        "Analyze Plan"
+                      )}
+                    </Button>
+                  </div>
+                ) : (
+                  pages.map((page) => (
+                    <div
+                      key={`manage-page-${page.id}`}
+                      className={`p-3 border rounded-lg cursor-pointer hover:bg-accent transition-colors ${
+                        currentPage === page.page_number ? "bg-accent" : ""
+                      }`}
+                      onClick={() => {
+                        setCurrentPage(page.page_number);
+                        setSearchParams({ page: page.page_number.toString() });
+                      }}
+                    >
+                      {editingPage === page.id ? (
+                        <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
+                          <Input
+                            value={page.sheet_number || ""}
+                            onChange={(e) => setPages(pages.map(p =>
+                              p.id === page.id ? { ...p, sheet_number: e.target.value } : p
+                            ))}
+                            placeholder="Sheet Number"
+                            className="text-sm"
+                          />
+                          <Input
+                            value={page.page_title || ""}
+                            onChange={(e) => setPages(pages.map(p =>
+                              p.id === page.id ? { ...p, page_title: e.target.value } : p
+                            ))}
+                            placeholder="Page Title"
+                            className="text-sm"
+                          />
+                          <Input
+                            value={page.discipline || ""}
+                            onChange={(e) => setPages(pages.map(p =>
+                              p.id === page.id ? { ...p, discipline: e.target.value } : p
+                            ))}
+                            placeholder="Discipline"
+                            className="text-sm"
+                          />
+                          <Textarea
+                            value={page.page_description || ""}
+                            onChange={(e) => setPages(pages.map(p =>
+                              p.id === page.id ? { ...p, page_description: e.target.value } : p
+                            ))}
+                            placeholder="Description"
+                            rows={2}
+                            className="text-sm"
+                          />
+                          <div className="flex gap-2">
+                            <Button size="sm" onClick={() => handleUpdatePage(page.id, page)}>
+                              <Save className="h-3 w-3 mr-1" />
+                              Save
+                            </Button>
+                            <Button size="sm" variant="outline" onClick={() => setEditingPage(null)}>
+                              Cancel
+                            </Button>
+                          </div>
+                        </div>
+                      ) : (
+                        <>
+                          <div className="flex items-start justify-between mb-2">
+                            <div>
+                              <p className="font-medium text-sm">
+                                {page.sheet_number || `Page ${page.page_number}`}
+                              </p>
+                              <p className="text-xs text-muted-foreground">{page.discipline}</p>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setEditingPage(page.id);
+                              }}
+                            >
+                              <Pencil className="h-3 w-3" />
+                            </Button>
+                          </div>
+                          <p className="font-medium text-sm">{page.page_title}</p>
+                          {page.page_description && (
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {page.page_description}
+                            </p>
+                          )}
+                        </>
+                      )}
+                    </div>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setManagePagesOpen(false)}>
+              Save & Exit
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Scale Setting Dialog */}
       <Dialog open={scaleDialogOpen} onOpenChange={setScaleDialogOpen}>

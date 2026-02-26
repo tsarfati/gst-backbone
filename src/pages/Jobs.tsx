@@ -11,6 +11,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { Badge } from "@/components/ui/badge";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 export default function Jobs() {
   const navigate = useNavigate();
@@ -21,13 +22,14 @@ export default function Jobs() {
   const { canCreate } = useActionPermissions();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const { loading: jobAccessLoading, hasGlobalJobAccess, allowedJobIds, isPrivileged } = useWebsiteJobAccess();
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference('jobs-view', 'list');
   
   const customerId = searchParams.get("customerId");
   const [customerName, setCustomerName] = useState<string | null>(null);
 
   useEffect(() => {
-    if (user && currentCompany) {
+    if (user && currentCompany && !jobAccessLoading) {
       // Clear previous company's jobs to avoid cross-company bleed
       setJobs([]);
       loadJobs();
@@ -56,7 +58,7 @@ export default function Jobs() {
         supabase.removeChannel(channel);
       };
     }
-  }, [user, currentCompany, customerId]);
+  }, [user, currentCompany, customerId, jobAccessLoading, hasGlobalJobAccess, allowedJobIds.join(","), isPrivileged]);
 
   const loadCustomerName = async (custId: string) => {
     const { data } = await supabase
@@ -81,12 +83,24 @@ export default function Jobs() {
       
       // Clear any existing jobs first to prevent cross-company contamination
       setJobs([]);
+
+      if (!isPrivileged && !hasGlobalJobAccess && allowedJobIds.length === 0) {
+        setJobs([]);
+        return;
+      }
       
       let query = supabase
         .from('jobs')
-        .select('*')
+        .select(`
+          *,
+          customer:customers(id, name, display_name)
+        `)
         .eq('company_id', companyId)
         .eq('is_active', true);
+
+      if (!isPrivileged && !hasGlobalJobAccess) {
+        query = query.in('id', allowedJobIds);
+      }
       
       // Filter by customer if specified
       if (customerId) {
@@ -152,7 +166,7 @@ export default function Jobs() {
         return {
           id: j.id,
           name: j.name,
-          client: j.client,
+          customer: j.customer?.display_name || j.customer?.name || j.client || "",
           budget: budget ? `$${budget.toLocaleString()}` : "$0",
           spent: `$${spent.toLocaleString()}`,
           receipts: receiptsByJob[j.id] || 0,
@@ -186,10 +200,12 @@ export default function Jobs() {
       return (
         <div className="text-center py-8">
           <Building className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-semibold mb-2">No jobs found</h3>
-          <p className="text-muted-foreground">Get started by creating your first job</p>
-        </div>
-      );
+            <h3 className="text-lg font-semibold mb-2">No jobs found</h3>
+            <p className="text-muted-foreground">
+              {!isPrivileged && !hasGlobalJobAccess ? "No jobs are assigned to your website access yet" : "Get started by creating your first job"}
+            </p>
+          </div>
+        );
     }
 
     switch (currentView) {
@@ -212,7 +228,7 @@ export default function Jobs() {
               <thead className="bg-muted/50">
                 <tr className="text-left text-sm text-muted-foreground">
                   <th className="p-3 font-medium">Job Name</th>
-                  <th className="p-3 font-medium">Client</th>
+                  <th className="p-3 font-medium">Customer</th>
                   <th className="p-3 font-medium text-right">Budget</th>
                   <th className="p-3 font-medium text-right">Spent</th>
                   <th className="p-3 font-medium text-right">Receipts</th>
@@ -232,7 +248,7 @@ export default function Jobs() {
                       onClick={() => handleJobClick(job)}
                     >
                       <td className="p-3 font-medium">{job.name}</td>
-                      <td className="p-3 text-muted-foreground">{job.client || "-"}</td>
+                      <td className="p-3 text-muted-foreground">{job.customer || "-"}</td>
                       <td className="p-3 text-right">{job.budget}</td>
                       <td className="p-3 text-right">{job.spent}</td>
                       <td className="p-3 text-right">{job.receipts}</td>
@@ -263,7 +279,7 @@ export default function Jobs() {
                   <span className="text-sm font-medium">{job.name}</span>
                 </div>
                 <div className="flex items-center gap-2">
-                  <span className="text-xs text-muted-foreground">{job.client}</span>
+                  <span className="text-xs text-muted-foreground">{job.customer || "-"}</span>
                   <div className="w-2 h-2 rounded-full bg-green-500" />
                 </div>
               </div>
