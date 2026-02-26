@@ -130,6 +130,24 @@ export default function AppSettings() {
                       </SelectContent>
                     </Select>
                   </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="distance-unit">Distance Units</Label>
+                    <Select
+                      value={settings.distanceUnit}
+                      onValueChange={(value: 'meters' | 'feet') =>
+                        updateSettings({ distanceUnit: value })
+                      }
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select distance unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="meters">Meters (m)</SelectItem>
+                        <SelectItem value="feet">Feet (ft)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardContent>
             </Card>

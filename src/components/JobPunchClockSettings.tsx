@@ -10,9 +10,11 @@ import { Building2, Clock, Save, MapPin } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { supabase } from '@/integrations/supabase/client';
 import { JobShiftTimeSettings } from '@/components/JobShiftTimeSettings';
+import { formatDistanceLabel } from '@/lib/distanceUnits';
 
 interface Job { id: string; name: string }
 
@@ -79,6 +81,7 @@ const defaultJobSettings: JobSettings = {
 export default function JobPunchClockSettings() {
   const { profile, user } = useAuth();
   const { currentCompany } = useCompany();
+  const { settings: appSettings } = useSettings();
   const activeCompanyRole = useActiveCompanyRole();
   const { toast } = useToast();
   const [jobs, setJobs] = useState<Job[]>([]);
@@ -86,6 +89,7 @@ export default function JobPunchClockSettings() {
   const [settings, setSettings] = useState<JobSettings>(defaultJobSettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const distanceUnit = appSettings.distanceUnit ?? 'meters';
 
   // Use active company role first, fallback to profile.role for backward compatibility
   const effectiveRole = activeCompanyRole || profile?.role;
@@ -364,13 +368,13 @@ export default function JobPunchClockSettings() {
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
-                    <Label>Location Accuracy (m)</Label>
+                    <Label>Location Accuracy ({distanceUnit === 'feet' ? 'ft' : 'm'})</Label>
                     <Select value={settings.location_accuracy_meters.toString()} onValueChange={(v) => setSettings(s => ({...s, location_accuracy_meters: parseInt(v)}))}>
                       <SelectTrigger><SelectValue /></SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="50">50 (High)</SelectItem>
-                        <SelectItem value="100">100 (Medium)</SelectItem>
-                        <SelectItem value="200">200 (Low)</SelectItem>
+                          <SelectItem value="50">{formatDistanceLabel(50, distanceUnit)} (High)</SelectItem>
+                          <SelectItem value="100">{formatDistanceLabel(100, distanceUnit)} (Medium)</SelectItem>
+                          <SelectItem value="200">{formatDistanceLabel(200, distanceUnit)} (Low)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -459,15 +463,15 @@ export default function JobPunchClockSettings() {
 
                   {settings.enable_distance_warning && (
                     <div className="ml-4 space-y-2">
-                      <Label>Maximum Distance from Job (meters)</Label>
+                      <Label>Maximum Distance from Job ({distanceUnit === 'feet' ? 'feet' : 'meters'})</Label>
                       <Select value={settings.max_distance_from_job_meters.toString()} onValueChange={(v) => setSettings(s => ({...s, max_distance_from_job_meters: parseInt(v)}))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="100">100m (Very Close)</SelectItem>
-                          <SelectItem value="200">200m (Close)</SelectItem>
-                          <SelectItem value="500">500m (Medium)</SelectItem>
-                          <SelectItem value="1000">1km (Far)</SelectItem>
-                          <SelectItem value="2000">2km (Very Far)</SelectItem>
+                          <SelectItem value="100">{formatDistanceLabel(100, distanceUnit)} (Very Close)</SelectItem>
+                          <SelectItem value="200">{formatDistanceLabel(200, distanceUnit)} (Close)</SelectItem>
+                          <SelectItem value="500">{formatDistanceLabel(500, distanceUnit)} (Medium)</SelectItem>
+                          <SelectItem value="1000">{formatDistanceLabel(1000, distanceUnit)} (Far)</SelectItem>
+                          <SelectItem value="2000">{formatDistanceLabel(2000, distanceUnit)} (Very Far)</SelectItem>
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground">

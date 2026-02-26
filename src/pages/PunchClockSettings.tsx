@@ -18,6 +18,8 @@ import EmployeeTimecardSettings from '@/components/EmployeeTimecardSettings';
 import JobPunchClockSettings from '@/components/JobPunchClockSettings';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import DragDropUpload from '@/components/DragDropUpload';
+import { useSettings } from '@/contexts/SettingsContext';
+import { formatDistanceLabel } from '@/lib/distanceUnits';
 
 // Helper to resize any image to square PNG (contain) at desired size
 async function resizeImageToPng(file: File, size: number): Promise<Blob> {
@@ -76,6 +78,8 @@ interface PunchClockSettings {
   calculate_overtime: boolean;
   enable_distance_warnings: boolean;
   max_distance_from_job_meters: number;
+  warn_when_punch_outside_jobsite: boolean;
+  outside_jobsite_warning_distance_meters: number | null;
   pwa_icon_192_url: string;
   pwa_icon_512_url: string;
   enable_install_prompt: boolean;
@@ -117,6 +121,8 @@ const defaultSettings: PunchClockSettings = {
   calculate_overtime: true,
   enable_distance_warnings: true,
   max_distance_from_job_meters: 200,
+  warn_when_punch_outside_jobsite: false,
+  outside_jobsite_warning_distance_meters: 100,
   pwa_icon_192_url: '',
   pwa_icon_512_url: '',
   enable_install_prompt: true,
@@ -139,11 +145,13 @@ export default function PunchClockSettings() {
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { settings: appSettings } = useSettings();
   const [settings, setSettings] = useState<PunchClockSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [recalculating, setRecalculating] = useState(false);
+  const distanceUnit = appSettings.distanceUnit ?? 'meters';
 
   // Use the company-specific role, not the global profile.role
   const activeCompanyRole = useActiveCompanyRole();
@@ -226,6 +234,11 @@ export default function PunchClockSettings() {
           disable_auto_approve_over_hours: (data as any).disable_auto_approve_over_hours ?? null,
           enable_distance_warnings: true, // Default value since not in DB
           max_distance_from_job_meters: 200, // Default value since not in DB
+          warn_when_punch_outside_jobsite: (data as any).warn_when_punch_outside_jobsite === true,
+          outside_jobsite_warning_distance_meters:
+            [10, 50, 100, 300].includes(Number((data as any).outside_jobsite_warning_distance_meters))
+              ? Number((data as any).outside_jobsite_warning_distance_meters)
+              : 100,
           pwa_icon_192_url: data.pwa_icon_192_url ? `${data.pwa_icon_192_url}?t=${Date.now()}` : '',
           pwa_icon_512_url: data.pwa_icon_512_url ? `${data.pwa_icon_512_url}?t=${Date.now()}` : '',
           enable_install_prompt: data.enable_install_prompt !== false,
@@ -293,6 +306,12 @@ export default function PunchClockSettings() {
           count_early_punch_time: settings.count_early_punch_time,
           count_late_punch_in: settings.count_late_punch_in,
           late_grace_period_minutes: settings.late_grace_period_minutes,
+          warn_when_punch_outside_jobsite: settings.warn_when_punch_outside_jobsite,
+          outside_jobsite_warning_distance_meters: settings.warn_when_punch_outside_jobsite
+            ? ([10, 50, 100, 300].includes(Number(settings.outside_jobsite_warning_distance_meters))
+                ? Number(settings.outside_jobsite_warning_distance_meters)
+                : 100)
+            : (settings.outside_jobsite_warning_distance_meters ?? 100),
           created_by: user?.id
         } as any);
 
@@ -631,7 +650,7 @@ export default function PunchClockSettings() {
               <Separator />
 
               <div className="space-y-2">
-                <Label htmlFor="location-accuracy">Location Accuracy (meters)</Label>
+                <Label htmlFor="location-accuracy">Location Accuracy ({distanceUnit === 'feet' ? 'feet' : 'meters'})</Label>
                 <Select
                   value={settings.location_accuracy_meters.toString()}
                   onValueChange={(value) => updateSetting('location_accuracy_meters', parseInt(value))}
@@ -640,9 +659,9 @@ export default function PunchClockSettings() {
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="50">50 meters (High accuracy)</SelectItem>
-                    <SelectItem value="100">100 meters (Medium accuracy)</SelectItem>
-                    <SelectItem value="200">200 meters (Low accuracy)</SelectItem>
+                    <SelectItem value="50">{formatDistanceLabel(50, distanceUnit)} (High accuracy)</SelectItem>
+                    <SelectItem value="100">{formatDistanceLabel(100, distanceUnit)} (Medium accuracy)</SelectItem>
+                    <SelectItem value="200">{formatDistanceLabel(200, distanceUnit)} (Low accuracy)</SelectItem>
                   </SelectContent>
                 </Select>
                 <p className="text-xs text-muted-foreground">
@@ -667,7 +686,7 @@ export default function PunchClockSettings() {
 
               {settings.enable_distance_warnings && (
                 <div className="space-y-2 ml-4 p-4 border rounded-lg bg-muted/50">
-                  <Label htmlFor="max-distance-warning">Warning Distance (meters)</Label>
+                  <Label htmlFor="max-distance-warning">Warning Distance ({distanceUnit === 'feet' ? 'feet' : 'meters'})</Label>
                   <Select
                     value={settings.max_distance_from_job_meters?.toString() || '200'}
                     onValueChange={(value) => updateSetting('max_distance_from_job_meters', parseInt(value))}
@@ -676,15 +695,62 @@ export default function PunchClockSettings() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="100">100 meters</SelectItem>
-                      <SelectItem value="200">200 meters</SelectItem>
-                      <SelectItem value="300">300 meters</SelectItem>
-                      <SelectItem value="500">500 meters</SelectItem>
-                      <SelectItem value="1000">1000 meters</SelectItem>
+                      <SelectItem value="100">{formatDistanceLabel(100, distanceUnit)}</SelectItem>
+                      <SelectItem value="200">{formatDistanceLabel(200, distanceUnit)}</SelectItem>
+                      <SelectItem value="300">{formatDistanceLabel(300, distanceUnit)}</SelectItem>
+                      <SelectItem value="500">{formatDistanceLabel(500, distanceUnit)}</SelectItem>
+                      <SelectItem value="1000">{formatDistanceLabel(1000, distanceUnit)}</SelectItem>
                     </SelectContent>
                   </Select>
                   <p className="text-xs text-muted-foreground">
                     Time cards will be flagged with a warning if punch locations are beyond this distance from the job site
+                  </p>
+                </div>
+              )}
+
+              <Separator />
+
+              <div className="flex items-center justify-between">
+                <div className="space-y-0.5">
+                  <Label>Warn When Employee Is Not At Job Site (Supervisor Approval Required)</Label>
+                  <p className="text-sm text-muted-foreground">
+                    For employees without strict location blocking, punches outside the selected distance will require supervisor approval.
+                  </p>
+                </div>
+                <Switch
+                  checked={!!settings.warn_when_punch_outside_jobsite}
+                  onCheckedChange={(checked) =>
+                    updateSetting('warn_when_punch_outside_jobsite', checked)
+                  }
+                />
+              </div>
+
+              {settings.warn_when_punch_outside_jobsite && (
+                <div className="space-y-2 ml-4 p-4 border rounded-lg bg-muted/50">
+                  <Label htmlFor="outside-jobsite-warning-distance">
+                    Outside Jobsite Warning Distance ({distanceUnit === 'feet' ? 'feet' : 'meters'})
+                  </Label>
+                  <Select
+                    value={String(settings.outside_jobsite_warning_distance_meters ?? 100)}
+                    onValueChange={(value) => {
+                      const next = parseInt(value, 10);
+                      if (![10, 50, 100, 300].includes(next)) return;
+                      updateSetting('outside_jobsite_warning_distance_meters', next);
+                    }}
+                  >
+                    <SelectTrigger id="outside-jobsite-warning-distance">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {[10, 50, 100, 300].map((meters) => (
+                        <SelectItem key={meters} value={String(meters)}>
+                          {formatDistanceLabel(meters, distanceUnit)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <p className="text-xs text-muted-foreground">
+                    If an employee without strict geofence blocking punches outside this distance, the punch can still be recorded but must be approved by a supervisor.
                   </p>
                 </div>
               )}

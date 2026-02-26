@@ -16,6 +16,8 @@ import { supabase } from '@/integrations/supabase/client';
 import EmployeeTimecardSettings from '@/components/EmployeeTimecardSettings';
 import JobPunchClockSettings from '@/components/JobPunchClockSettings';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
+import { useSettings } from '@/contexts/SettingsContext';
+import { formatDistanceLabel } from '@/lib/distanceUnits';
 interface PunchClockSettings {
   require_location: boolean;
   require_photo: boolean;
@@ -109,11 +111,13 @@ export default function PunchClockSettingsComponent() {
   const { user, profile } = useAuth();
   const { currentCompany, userCompanies, loading: companyLoading } = useCompany();
   const { toast } = useToast();
+  const { settings: appSettings } = useSettings();
   const [settings, setSettings] = useState<PunchClockSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [recalculating, setRecalculating] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
+  const distanceUnit = appSettings.distanceUnit ?? 'meters';
 
   // Use centralized hook for company-specific role
   const normalizeRole = (role?: string | null) => {
@@ -466,7 +470,7 @@ export default function PunchClockSettingsComponent() {
 
               {settings.require_location && (
                 <div className="space-y-2 ml-4 p-4 border rounded-lg bg-muted/50">
-                  <Label htmlFor="location-accuracy">Location Accuracy (meters)</Label>
+                  <Label htmlFor="location-accuracy">Location Accuracy ({distanceUnit === 'feet' ? 'feet' : 'meters'})</Label>
                   <Input
                     id="location-accuracy"
                     type="number"
@@ -475,6 +479,9 @@ export default function PunchClockSettingsComponent() {
                     min="50"
                     max="500"
                   />
+                  <p className="text-xs text-muted-foreground">
+                    Current threshold: {formatDistanceLabel(settings.location_accuracy_meters, distanceUnit)}
+                  </p>
                 </div>
               )}
             </CardContent>

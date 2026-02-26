@@ -24,205 +24,442 @@ function errorResponse(message: string, status = 400) {
   });
 }
 
-// ─── Haversine helper ───────────────────────────────────────────────
-function haversineDistanceMeters(
-  lat1: number, lon1: number,
-  lat2: number, lon2: number,
-): number {
-  const R = 6371e3; // Earth radius in meters
-  const toRad = (deg: number) => deg * Math.PI / 180;
-  const dLat = toRad(lat2 - lat1);
-  const dLon = toRad(lon2 - lon1);
-  const a =
-    Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) *
-    Math.sin(dLon / 2) * Math.sin(dLon / 2);
-  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-}
-
-// ─── Geofence block response builder ─────────────────────────────────
-interface GeofenceBlockInfo {
-  code: string;       // OUT_OF_GEOFENCE_RANGE | JOB_LOCATION_MISSING | LOCATION_REQUIRED
-  message: string;
-  action: string;     // "in" | "out"
-  block_reason: string;
-  distance_from_job_meters?: number;
-  distance_limit_meters?: number;
-}
-
-function geofenceBlockResponse(info: GeofenceBlockInfo) {
-  return new Response(JSON.stringify(info), {
-    status: 403,
+function jsonResponse(payload: Record<string, unknown>, status = 200) {
+  return new Response(JSON.stringify(payload), {
+    status,
     headers: { "Content-Type": "application/json", ...corsHeaders },
   });
 }
 
-// ─── Geofence enforcement ────────────────────────────────────────────
-// Returns null when punch should proceed, or a Response to return immediately.
-async function enforceGeofence(
-  supabaseAdmin: any,
-  opts: {
-    userId: string;
-    companyId: string | null;
-    jobId: string;
-    action: "in" | "out";
-    deviceLat: number | null | undefined;
-    deviceLng: number | null | undefined;
-  },
-): Promise<Response | null> {
-  const { userId, companyId, jobId, action, deviceLat, deviceLng } = opts;
-  const actionLabel = action === "in" ? "punch in" : "punch out";
-
-  // 1. Load employee geofence settings (fail-open if columns missing)
-  let enforceGeofenceEnabled = false;
-  let distanceLimitMeters = 50;
-  try {
-    let query = supabaseAdmin
-      .from("employee_timecard_settings")
-      .select("enforce_punch_in_distance, punch_in_distance_limit_meters, updated_at")
-      .eq("user_id", userId);
-
-    if (companyId) {
-      query = query.eq("company_id", companyId);
-    }
-
-    const { data: rows, error } = await query.order("updated_at", { ascending: false }).limit(5);
-
-    if (error) {
-      const msg = String(error.message || "").toLowerCase();
-      if (msg.includes("enforce_punch_in_distance") || msg.includes("punch_in_distance_limit_meters")) {
-        console.log("Geofence columns not present in DB; skipping enforcement");
-        return null; // fail-open
-      }
-      console.error("Error loading geofence settings:", error);
-      return null; // fail-open on unexpected errors
-    }
-
-    if (!rows || rows.length === 0) return null; // no settings row → no enforcement
-
-    // Pick best row: prefer enabled, then latest
-    const enabledRow = rows.find((r: any) => r.enforce_punch_in_distance === true);
-    const settingsRow = enabledRow || rows[0];
-
-    if (!settingsRow.enforce_punch_in_distance) return null; // explicitly disabled
-
-    enforceGeofenceEnabled = true;
-    distanceLimitMeters = settingsRow.punch_in_distance_limit_meters ?? 50;
-  } catch (e) {
-    console.error("Geofence settings lookup exception:", e);
-    return null; // fail-open
-  }
-
-  // 2. Job coordinates
-  const { data: jobRow, error: jobErr } = await supabaseAdmin
-    .from("jobs")
-    .select("latitude, longitude")
-    .eq("id", jobId)
-    .maybeSingle();
-
-  if (jobErr) {
-    console.error("Error loading job coords:", jobErr);
-    return null; // fail-open
-  }
-
-  const jobLat = jobRow?.latitude != null ? Number(jobRow.latitude) : null;
-  const jobLng = jobRow?.longitude != null ? Number(jobRow.longitude) : null;
-
-  if (jobLat == null || jobLng == null) {
-    // Audit
-    await auditGeofenceBlock(supabaseAdmin, {
-      userId, companyId, jobId, action,
-      blockReason: "JOB_LOCATION_MISSING",
-      deviceLat, deviceLng, jobLat, jobLng,
-      distanceLimitMeters,
-      message: "This job does not have a job-site location set. Contact your administrator.",
-    });
-    return geofenceBlockResponse({
-      code: "JOB_LOCATION_MISSING",
-      message: "This job does not have a job-site location set. Contact your administrator.",
-      action,
-      block_reason: "JOB_LOCATION_MISSING",
-    });
-  }
-
-  // 3. Device coordinates required
-  if (deviceLat == null || deviceLng == null) {
-    await auditGeofenceBlock(supabaseAdmin, {
-      userId, companyId, jobId, action,
-      blockReason: "LOCATION_REQUIRED",
-      deviceLat, deviceLng, jobLat, jobLng,
-      distanceLimitMeters,
-      message: `Location is required to ${actionLabel} for this job.`,
-    });
-    return geofenceBlockResponse({
-      code: "LOCATION_REQUIRED",
-      message: `Location is required to ${actionLabel} for this job.`,
-      action,
-      block_reason: "LOCATION_REQUIRED",
-    });
-  }
-
-  // 4. Haversine check
-  const distance = haversineDistanceMeters(Number(deviceLat), Number(deviceLng), jobLat, jobLng);
-
-  if (distance > distanceLimitMeters) {
-    await auditGeofenceBlock(supabaseAdmin, {
-      userId, companyId, jobId, action,
-      blockReason: "OUT_OF_GEOFENCE_RANGE",
-      deviceLat, deviceLng, jobLat, jobLng,
-      distanceLimitMeters,
-      distanceFromJob: Math.round(distance),
-      message: `You are not at the job site and cannot ${actionLabel}.`,
-    });
-    return geofenceBlockResponse({
-      code: "OUT_OF_GEOFENCE_RANGE",
-      message: `You are not at the job site and cannot ${actionLabel}.`,
-      action,
-      block_reason: "OUT_OF_GEOFENCE_RANGE",
-      distance_from_job_meters: Math.round(distance),
-      distance_limit_meters: distanceLimitMeters,
-    });
-  }
-
-  return null; // within range – proceed
+function geofenceBlockResponse(params: {
+  code: "JOB_LOCATION_MISSING" | "LOCATION_REQUIRED" | "OUT_OF_GEOFENCE_RANGE";
+  message: string;
+  action: "punch_in" | "punch_out";
+  block_reason: "job_missing_coordinates" | "location_unavailable" | "out_of_range";
+  distance_from_job_meters?: number | null;
+  distance_limit_meters?: number | null;
+}) {
+  return jsonResponse(
+    {
+      code: params.code,
+      error: params.message,
+      message: params.message,
+      action: params.action,
+      block_reason: params.block_reason,
+      distance_from_job_meters: params.distance_from_job_meters ?? null,
+      distance_limit_meters: params.distance_limit_meters ?? null,
+    },
+    422
+  );
 }
 
-// ─── Audit helper ────────────────────────────────────────────────────
-async function auditGeofenceBlock(
-  supabaseAdmin: any,
-  info: {
-    userId: string;
-    companyId: string | null;
-    jobId: string;
-    action: string;
-    blockReason: string;
-    deviceLat: any;
-    deviceLng: any;
-    jobLat: any;
-    jobLng: any;
-    distanceLimitMeters: number;
-    distanceFromJob?: number;
-    message?: string;
-  },
-) {
+function haversineMeters(lat1: number, lon1: number, lat2: number, lon2: number): number {
+  const R = 6371e3;
+  const φ1 = (lat1 * Math.PI) / 180;
+  const φ2 = (lat2 * Math.PI) / 180;
+  const Δφ = ((lat2 - lat1) * Math.PI) / 180;
+  const Δλ = ((lon2 - lon1) * Math.PI) / 180;
+  const a =
+    Math.sin(Δφ / 2) * Math.sin(Δφ / 2) +
+    Math.cos(φ1) * Math.cos(φ2) * Math.sin(Δλ / 2) * Math.sin(Δλ / 2);
+  const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  return R * c;
+}
+
+function isMissingColumnError(err: any, columnName: string) {
+  const msg = String(err?.message || "");
+  return msg.includes(columnName) || err?.code === "42703";
+}
+
+function asFiniteNumber(value: any): number | null {
+  const n = Number(value);
+  return Number.isFinite(n) ? n : null;
+}
+
+async function insertPunchAttemptAudit(supabaseAdmin: any, row: Record<string, unknown>) {
   try {
-    await supabaseAdmin.from("punch_clock_attempt_audit").insert({
-      user_id: info.userId,
-      company_id: info.companyId,
-      job_id: info.jobId,
-      action: info.action,
-      block_reason: info.blockReason,
-      distance_from_job_meters: info.distanceFromJob ?? null,
-      distance_limit_meters: info.distanceLimitMeters,
-      device_latitude: info.deviceLat ?? null,
-      device_longitude: info.deviceLng ?? null,
-      job_latitude: info.jobLat ?? null,
-      job_longitude: info.jobLng ?? null,
-      message: info.message ?? null,
-    });
+    const { error } = await supabaseAdmin.from("punch_clock_attempt_audit").insert(row);
+    if (error) console.warn("punch_clock_attempt_audit insert warning:", error.message);
   } catch (e) {
-    console.error("Failed to insert geofence audit:", e);
+    console.warn("punch_clock_attempt_audit insert exception:", (e as Error)?.message || e);
   }
+}
+
+async function loadEmployeeGeofenceSettings(
+  supabaseAdmin: any,
+  params: { user_id?: string | null; pin_employee_id?: string | null; company_id?: string | null }
+) {
+  const { user_id, pin_employee_id, company_id } = params;
+  const sortRows = (rows: any[]) => {
+    return [...rows].sort((a, b) => {
+      const aEnabled = a?.enforce_punch_in_distance === true ? 1 : 0;
+      const bEnabled = b?.enforce_punch_in_distance === true ? 1 : 0;
+      if (aEnabled !== bEnabled) return bEnabled - aEnabled;
+      const aUpdated = new Date(a?.updated_at || a?.created_at || 0).getTime();
+      const bUpdated = new Date(b?.updated_at || b?.created_at || 0).getTime();
+      return bUpdated - aUpdated;
+    });
+  };
+
+  if (user_id) {
+    try {
+      let q = supabaseAdmin
+        .from("employee_timecard_settings")
+        .select("user_id, company_id, enforce_punch_in_distance, punch_in_distance_limit_meters, updated_at, created_at")
+        .eq("user_id", user_id);
+      if (company_id) q = q.eq("company_id", company_id);
+      const { data, error } = await q.limit(20);
+      if (error) {
+        if (
+          isMissingColumnError(error, "enforce_punch_in_distance") ||
+          isMissingColumnError(error, "punch_in_distance_limit_meters")
+        ) {
+          console.warn("employee geofence columns missing; failing open");
+          return { settings: null, columnsMissing: true };
+        }
+        console.warn("employee geofence settings lookup warning:", error.message);
+        return { settings: null, columnsMissing: false };
+      }
+      const chosen = sortRows(data || [])[0] || null;
+      return { settings: chosen, columnsMissing: false };
+    } catch (e) {
+      console.warn("employee geofence settings lookup exception:", (e as Error)?.message || e);
+      return { settings: null, columnsMissing: false };
+    }
+  }
+
+  if (pin_employee_id) {
+    try {
+      let q = supabaseAdmin
+        .from("pin_employee_timecard_settings")
+        .select("pin_employee_id, company_id, enforce_punch_in_distance, punch_in_distance_limit_meters, updated_at, created_at")
+        .eq("pin_employee_id", pin_employee_id);
+      if (company_id) q = q.eq("company_id", company_id);
+      const { data, error } = await q.limit(20);
+      if (error) {
+        if (
+          isMissingColumnError(error, "enforce_punch_in_distance") ||
+          isMissingColumnError(error, "punch_in_distance_limit_meters")
+        ) {
+          console.warn("pin employee geofence columns missing; failing open");
+          return { settings: null, columnsMissing: true };
+        }
+        console.warn("pin employee geofence settings lookup warning:", error.message);
+        return { settings: null, columnsMissing: false };
+      }
+      const chosen = sortRows(data || [])[0] || null;
+      return { settings: chosen, columnsMissing: false };
+    } catch (e) {
+      console.warn("pin employee geofence settings lookup exception:", (e as Error)?.message || e);
+      return { settings: null, columnsMissing: false };
+    }
+  }
+
+  return { settings: null, columnsMissing: false };
+}
+
+async function loadCompanyWarningGeofenceSettings(supabaseAdmin: any, company_id: string | null | undefined) {
+  if (!company_id) return { settings: null, columnsMissing: false };
+  try {
+    const { data, error } = await supabaseAdmin
+      .from("job_punch_clock_settings")
+      .select("company_id, job_id, warn_when_punch_outside_jobsite, outside_jobsite_warning_distance_meters, updated_at, created_at")
+      .eq("company_id", company_id)
+      .is("job_id", null)
+      .order("updated_at", { ascending: false })
+      .order("created_at", { ascending: false })
+      .limit(10);
+    if (error) {
+      if (
+        isMissingColumnError(error, "warn_when_punch_outside_jobsite") ||
+        isMissingColumnError(error, "outside_jobsite_warning_distance_meters")
+      ) {
+        console.warn("company warning geofence columns missing; failing open");
+        return { settings: null, columnsMissing: true };
+      }
+      console.warn("company warning geofence settings lookup warning:", error.message);
+      return { settings: null, columnsMissing: false };
+    }
+    return { settings: (data || [])[0] || null, columnsMissing: false };
+  } catch (e) {
+    console.warn("company warning geofence settings lookup exception:", (e as Error)?.message || e);
+    return { settings: null, columnsMissing: false };
+  }
+}
+
+async function enforcePunchDistanceIfRequired(
+  supabaseAdmin: any,
+  params: {
+    action: "in" | "out";
+    company_id: string | null;
+    user_id: string;
+    pin_employee_id?: string | null;
+    job_id: string | null;
+    latitude?: number | null;
+    longitude?: number | null;
+    is_pin_employee?: boolean;
+  }
+) {
+  const attemptedAction = params.action === "in" ? "punch_in" : "punch_out";
+  const requestLat = asFiniteNumber(params.latitude);
+  const requestLng = asFiniteNumber(params.longitude);
+  const isPinEmployee = params.is_pin_employee === true;
+
+  const employeeSettingsResult = await loadEmployeeGeofenceSettings(supabaseAdmin, {
+    user_id: params.user_id,
+    pin_employee_id: params.pin_employee_id ?? null,
+    company_id: params.company_id,
+  });
+  const employeeSettings = employeeSettingsResult.settings;
+  const strictEnabled = employeeSettings?.enforce_punch_in_distance === true;
+  const strictLimit = [10, 50, 100, 300].includes(Number(employeeSettings?.punch_in_distance_limit_meters))
+    ? Number(employeeSettings?.punch_in_distance_limit_meters)
+    : null;
+
+  if (!strictEnabled) {
+    // Company-level warning-only fallback (non-blocking)
+    const companyWarningResult = await loadCompanyWarningGeofenceSettings(supabaseAdmin, params.company_id);
+    const warningSettings = companyWarningResult.settings;
+    const warningEnabled = warningSettings?.warn_when_punch_outside_jobsite === true;
+    const warningLimit = [10, 50, 100, 300].includes(Number(warningSettings?.outside_jobsite_warning_distance_meters))
+      ? Number(warningSettings?.outside_jobsite_warning_distance_meters)
+      : 100;
+
+    if (!warningEnabled || !params.job_id) {
+      return { blockedResponse: null, warning: null };
+    }
+
+    const { data: jobCoords, error: jobErr } = await supabaseAdmin
+      .from("jobs")
+      .select("id, latitude, longitude")
+      .eq("id", params.job_id)
+      .maybeSingle();
+    if (jobErr || !jobCoords) {
+      await insertPunchAttemptAudit(supabaseAdmin, {
+        app_source: "punch_clock",
+        attempted_action: attemptedAction,
+        outcome: "allowed",
+        block_reason: null,
+        company_id: params.company_id,
+        user_id: params.user_id,
+        pin_employee_id: params.pin_employee_id ?? null,
+        is_pin_employee: isPinEmployee,
+        job_id: params.job_id,
+        distance_limit_meters: warningLimit,
+        details: { warning_reason: "outside_jobsite_warning_skipped_job_not_found" },
+      });
+      return { blockedResponse: null, warning: null };
+    }
+
+    const jobLat = asFiniteNumber(jobCoords.latitude);
+    const jobLng = asFiniteNumber(jobCoords.longitude);
+    if (jobLat == null || jobLng == null) {
+      await insertPunchAttemptAudit(supabaseAdmin, {
+        app_source: "punch_clock",
+        attempted_action: attemptedAction,
+        outcome: "allowed",
+        block_reason: null,
+        company_id: params.company_id,
+        user_id: params.user_id,
+        pin_employee_id: params.pin_employee_id ?? null,
+        is_pin_employee: isPinEmployee,
+        job_id: params.job_id,
+        distance_limit_meters: warningLimit,
+        details: { warning_reason: "outside_jobsite_warning_skipped_job_missing_coordinates" },
+      });
+      return { blockedResponse: null, warning: null };
+    }
+
+    if (requestLat == null || requestLng == null) {
+      await insertPunchAttemptAudit(supabaseAdmin, {
+        app_source: "punch_clock",
+        attempted_action: attemptedAction,
+        outcome: "allowed",
+        block_reason: null,
+        company_id: params.company_id,
+        user_id: params.user_id,
+        pin_employee_id: params.pin_employee_id ?? null,
+        is_pin_employee: isPinEmployee,
+        job_id: params.job_id,
+        distance_limit_meters: warningLimit,
+        job_latitude: jobLat,
+        job_longitude: jobLng,
+        details: { warning_reason: "outside_jobsite_warning_skipped_location_unavailable" },
+      });
+      return { blockedResponse: null, warning: null };
+    }
+
+    const distance = haversineMeters(requestLat, requestLng, jobLat, jobLng);
+    if (distance > warningLimit) {
+      const warningPayload = {
+        warning_code: "OUTSIDE_JOBSITE_SUPERVISOR_APPROVAL_REQUIRED",
+        warning_reason: "outside_jobsite_warning",
+        requires_supervisor_approval: true,
+        action: attemptedAction,
+        distance_from_job_meters: Math.round(distance),
+        distance_limit_meters: warningLimit,
+        message:
+          params.action === "in"
+            ? "You are not at the job site. This punch will need to be approved by a supervisor. Please talk to your supervisor."
+            : "You are not at the job site. This punch out will need to be approved by a supervisor. Please talk to your supervisor.",
+      };
+
+      await insertPunchAttemptAudit(supabaseAdmin, {
+        app_source: "punch_clock",
+        attempted_action: attemptedAction,
+        outcome: "allowed",
+        block_reason: null,
+        company_id: params.company_id,
+        user_id: params.user_id,
+        pin_employee_id: params.pin_employee_id ?? null,
+        is_pin_employee: isPinEmployee,
+        job_id: params.job_id,
+        distance_from_job_meters: Math.round(distance),
+        distance_limit_meters: warningLimit,
+        device_latitude: requestLat,
+        device_longitude: requestLng,
+        job_latitude: jobLat,
+        job_longitude: jobLng,
+        details: { warning_reason: "outside_jobsite_warning" },
+      });
+
+      return { blockedResponse: null, warning: warningPayload };
+    }
+
+    return { blockedResponse: null, warning: null };
+  }
+
+  // Strict employee geofence enforcement
+  if (!params.job_id) {
+    return { blockedResponse: null, warning: null };
+  }
+
+  const { data: jobCoords, error: jobErr } = await supabaseAdmin
+    .from("jobs")
+    .select("id, latitude, longitude")
+    .eq("id", params.job_id)
+    .maybeSingle();
+
+  if (jobErr || !jobCoords) {
+    const resp = geofenceBlockResponse({
+      code: "JOB_LOCATION_MISSING",
+      message: "This job does not have a job-site location set. Contact your administrator.",
+      action: attemptedAction,
+      block_reason: "job_missing_coordinates",
+      distance_limit_meters: strictLimit,
+    });
+    await insertPunchAttemptAudit(supabaseAdmin, {
+      app_source: "punch_clock",
+      attempted_action: attemptedAction,
+      outcome: "blocked",
+      block_reason: "job_missing_coordinates",
+      company_id: params.company_id,
+      user_id: params.user_id,
+      pin_employee_id: params.pin_employee_id ?? null,
+      is_pin_employee: isPinEmployee,
+      job_id: params.job_id,
+      distance_limit_meters: strictLimit,
+      details: { reason: "job_not_found" },
+    });
+    return { blockedResponse: resp, warning: null };
+  }
+
+  const jobLat = asFiniteNumber(jobCoords.latitude);
+  const jobLng = asFiniteNumber(jobCoords.longitude);
+  if (jobLat == null || jobLng == null) {
+    const resp = geofenceBlockResponse({
+      code: "JOB_LOCATION_MISSING",
+      message: "This job does not have a job-site location set. Contact your administrator.",
+      action: attemptedAction,
+      block_reason: "job_missing_coordinates",
+      distance_limit_meters: strictLimit,
+    });
+    await insertPunchAttemptAudit(supabaseAdmin, {
+      app_source: "punch_clock",
+      attempted_action: attemptedAction,
+      outcome: "blocked",
+      block_reason: "job_missing_coordinates",
+      company_id: params.company_id,
+      user_id: params.user_id,
+      pin_employee_id: params.pin_employee_id ?? null,
+      is_pin_employee: isPinEmployee,
+      job_id: params.job_id,
+      distance_limit_meters: strictLimit,
+      job_latitude: jobLat,
+      job_longitude: jobLng,
+    });
+    return { blockedResponse: resp, warning: null };
+  }
+
+  if (requestLat == null || requestLng == null) {
+    const resp = geofenceBlockResponse({
+      code: "LOCATION_REQUIRED",
+      message:
+        params.action === "in"
+          ? "Location is required to punch in for this job."
+          : "Location is required to punch out for this job.",
+      action: attemptedAction,
+      block_reason: "location_unavailable",
+      distance_limit_meters: strictLimit,
+    });
+    await insertPunchAttemptAudit(supabaseAdmin, {
+      app_source: "punch_clock",
+      attempted_action: attemptedAction,
+      outcome: "blocked",
+      block_reason: "location_unavailable",
+      company_id: params.company_id,
+      user_id: params.user_id,
+      pin_employee_id: params.pin_employee_id ?? null,
+      is_pin_employee: isPinEmployee,
+      job_id: params.job_id,
+      distance_limit_meters: strictLimit,
+      job_latitude: jobLat,
+      job_longitude: jobLng,
+    });
+    return { blockedResponse: resp, warning: null };
+  }
+
+  const effectiveLimit = strictLimit ?? 50;
+  const distance = haversineMeters(requestLat, requestLng, jobLat, jobLng);
+  if (distance > effectiveLimit) {
+    const roundedDistance = Math.round(distance);
+    const resp = geofenceBlockResponse({
+      code: "OUT_OF_GEOFENCE_RANGE",
+      message:
+        params.action === "in"
+          ? "You are not at the job site and cannot punch in."
+          : "You are not at the job site and cannot punch out.",
+      action: attemptedAction,
+      block_reason: "out_of_range",
+      distance_from_job_meters: roundedDistance,
+      distance_limit_meters: effectiveLimit,
+    });
+    await insertPunchAttemptAudit(supabaseAdmin, {
+      app_source: "punch_clock",
+      attempted_action: attemptedAction,
+      outcome: "blocked",
+      block_reason: "out_of_range",
+      company_id: params.company_id,
+      user_id: params.user_id,
+      pin_employee_id: params.pin_employee_id ?? null,
+      is_pin_employee: isPinEmployee,
+      job_id: params.job_id,
+      distance_from_job_meters: roundedDistance,
+      distance_limit_meters: effectiveLimit,
+      device_latitude: requestLat,
+      device_longitude: requestLng,
+      job_latitude: jobLat,
+      job_longitude: jobLng,
+    });
+    return { blockedResponse: resp, warning: null };
+  }
+
+  return {
+    blockedResponse: null,
+    warning: null,
+    geofenceDistanceMeters: Math.round(distance),
+    geofenceLimitMeters: effectiveLimit,
+  };
 }
 
 async function validatePin(supabaseAdmin: any, pin: string) {
@@ -892,6 +1129,19 @@ serve(async (req) => {
           locationWarning = "Location missing (required by settings)";
         }
 
+        // Server-side geofence enforcement / warning fallback (authoritative)
+        const geofenceResultIn = await enforcePunchDistanceIfRequired(supabaseAdmin, {
+          action: "in",
+          company_id: companyId,
+          user_id: userRow.user_id,
+          pin_employee_id: null,
+          job_id,
+          latitude,
+          longitude,
+          is_pin_employee: false,
+        });
+        if (geofenceResultIn.blockedResponse) return geofenceResultIn.blockedResponse;
+
         // Check if already punched in
         const { data: existingPunch, error: checkErr } = await supabaseAdmin
           .from("current_punch_status")
@@ -1001,14 +1251,15 @@ serve(async (req) => {
           .eq("is_active", true)
           .maybeSingle();
 
-        return new Response(
-          JSON.stringify({ 
-            ok: true, 
-            current_punch: updatedPunch,
-            warning: [earlyPunchWarning, locationWarning].filter(Boolean).join(' | ') || null 
-          }), 
-          { headers: { "Content-Type": "application/json", ...corsHeaders } }
-        );
+        return jsonResponse({
+          ok: true,
+          current_punch: updatedPunch,
+          warning: [earlyPunchWarning, locationWarning].filter(Boolean).join(' | ') || null,
+          ...(geofenceResultIn.warning ? { geofence_warning: geofenceResultIn.warning } : {}),
+          ...(geofenceResultIn.geofenceDistanceMeters != null
+            ? { distance_from_job_meters: geofenceResultIn.geofenceDistanceMeters }
+            : {}),
+        });
       }
 
       if (action === "out") {
@@ -1173,6 +1424,19 @@ serve(async (req) => {
           locationWarningOut = "Location missing (required by settings)";
         }
 
+        // Server-side geofence enforcement / warning fallback (authoritative)
+        const geofenceResultOut = await enforcePunchDistanceIfRequired(supabaseAdmin, {
+          action: "out",
+          company_id: companyId,
+          user_id: userRow.user_id,
+          pin_employee_id: null,
+          job_id: currentPunch.job_id ?? null,
+          latitude,
+          longitude,
+          is_pin_employee: false,
+        });
+        if (geofenceResultOut.blockedResponse) return geofenceResultOut.blockedResponse;
+
         const userAgent = req.headers.get('user-agent') || null;
         const ipAddress = req.headers.get('x-forwarded-for') || req.headers.get('x-real-ip') || req.headers.get('cf-connecting-ip') || null;
 
@@ -1310,14 +1574,17 @@ serve(async (req) => {
           const locationsDiffer = distanceMeters !== null && distanceMeters > LOCATION_THRESHOLD_METERS;
           
           const shouldFlagHours = (flagOver24 && totalHours > 24) || (flagOver12 && totalHours > 12);
-          const shouldFlag = shouldFlagHours || locationsDiffer;
+          const geofenceWarningTriggered = geofenceResultOut.warning?.warning_reason === 'outside_jobsite_warning';
+          const shouldFlag = shouldFlagHours || locationsDiffer || geofenceWarningTriggered;
           const timecardStatus = shouldFlag ? 'pending' : 'approved';
           
           const flagReason = locationsDiffer 
             ? `Punch-out location differs from punch-in (${distanceMeters?.toFixed(0)}m apart)`
             : shouldFlagHours 
               ? `Time card exceeds ${totalHours > 24 ? '24' : '12'} hours`
-              : null;
+              : geofenceWarningTriggered
+                ? `Punched outside jobsite warning distance (${geofenceResultOut.warning?.distance_from_job_meters}m > ${geofenceResultOut.warning?.distance_limit_meters}m)`
+                : null;
 
           const { error: tcErr } = await supabaseAdmin
             .from('time_cards')
@@ -1351,7 +1618,15 @@ serve(async (req) => {
           console.error('Exception while creating time card:', tcCatchErr);
         }
 
-        return new Response(JSON.stringify({ ok: true, current_punch: null }), { headers: { "Content-Type": "application/json", ...corsHeaders } });
+        return jsonResponse({
+          ok: true,
+          current_punch: null,
+          warning: locationWarningOut,
+          ...(geofenceResultOut.warning ? { geofence_warning: geofenceResultOut.warning } : {}),
+          ...(geofenceResultOut.geofenceDistanceMeters != null
+            ? { distance_from_job_meters: geofenceResultOut.geofenceDistanceMeters }
+            : {}),
+        });
       }
 
       return errorResponse("Invalid action. Use 'in' or 'out'", 400);

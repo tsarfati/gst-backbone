@@ -10,12 +10,14 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, FileText, Edit, History, AlertCircle, Shield } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { geocodeAddress } from '@/utils/geocoding';
-import { calculateDistance, formatDistance } from '@/utils/distanceCalculation';
+import { calculateDistance } from '@/utils/distanceCalculation';
+import { formatDistanceLabel } from '@/lib/distanceUnits';
 import { useToast } from '@/hooks/use-toast';
 import AuditTrailView from './AuditTrailView';
 import EditTimeCardDialog from './EditTimeCardDialog';
@@ -59,6 +61,7 @@ interface TimeCardDetail {
 export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: TimeCardDetailViewProps) {
   const { user, profile } = useAuth();
   const { currentCompany, userCompanies } = useCompany();
+  const { settings: appSettings } = useSettings();
   const { toast } = useToast();
   const [timeCard, setTimeCard] = useState<TimeCardDetail | null>(null);
   const [loading, setLoading] = useState(false);
@@ -77,6 +80,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const [costCodes, setCostCodes] = useState<Record<string, any>>({});
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
+  const distanceUnit = appSettings.distanceUnit ?? 'meters';
 
   // Get user's role for the current company
   const currentUserRole = userCompanies.find(uc => uc.company_id === currentCompany?.id)?.role;
@@ -1201,6 +1205,37 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                       <div className="pt-2">
                         <p className="text-sm text-muted-foreground mb-1">Notes:</p>
                         <p className="text-sm">{timeCard.notes}</p>
+                      </div>
+                    )}
+
+                    {(timeCard.distance_warning || punchInDistance != null || punchOutDistance != null) && (
+                      <div className="pt-2 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <AlertTriangle className={`h-4 w-4 ${timeCard.distance_warning ? 'text-amber-500' : 'text-muted-foreground'}`} />
+                          <p className="text-sm font-medium">
+                            Punch Distance {timeCard.distance_warning ? 'Warning' : 'Info'}
+                          </p>
+                        </div>
+                        {distanceWarningSettings?.enabled && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Warning Threshold:</span>
+                            <span className="text-sm font-medium">
+                              {formatDistanceLabel(distanceWarningSettings.maxDistance, distanceUnit)}
+                            </span>
+                          </div>
+                        )}
+                        {punchInDistance != null && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Punch In Distance:</span>
+                            <span className="text-sm font-medium">{formatDistanceLabel(punchInDistance, distanceUnit)}</span>
+                          </div>
+                        )}
+                        {punchOutDistance != null && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Punch Out Distance:</span>
+                            <span className="text-sm font-medium">{formatDistanceLabel(punchOutDistance, distanceUnit)}</span>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>

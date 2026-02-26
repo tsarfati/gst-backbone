@@ -145,6 +145,7 @@ const navigationCategories = [
       { name: "Notifications & Email", href: "/settings/notifications", menuKey: "notification-settings" },
       { name: "Data & Security", href: "/settings/security", menuKey: "security-settings" },
       { name: "User Management", href: "/settings/users", menuKey: "user-settings" },
+      { name: "Punch Clock", href: "/punch-clock/settings", menuKey: "punch-clock-settings" },
       { name: "Subscription", href: "/subscription", menuKey: "settings", ownerOnly: true },
     ],
     collapsible: true,

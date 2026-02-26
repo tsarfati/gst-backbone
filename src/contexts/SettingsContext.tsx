@@ -7,6 +7,7 @@ export interface AppSettings {
   theme: 'light' | 'dark' | 'system';
   dateFormat: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
   currencyFormat: 'USD' | 'EUR' | 'GBP';
+  distanceUnit: 'meters' | 'feet';
   defaultView: 'tiles' | 'list' | 'compact';
   itemsPerPage: 10 | 25 | 50 | 100;
   notifications: {
@@ -47,6 +48,7 @@ const defaultSettings: AppSettings = {
   theme: 'system',
   dateFormat: 'MM/DD/YYYY',
   currencyFormat: 'USD',
+  distanceUnit: 'meters',
   defaultView: 'tiles',
   itemsPerPage: 25,
   notifications: {

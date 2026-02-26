@@ -11,7 +11,9 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import JobCostCodeAssignments, { JobCostCodes } from './JobCostCodeAssignments';
+import { formatDistanceLabel } from '@/lib/distanceUnits';
 
 interface Employee {
   id: string;
@@ -48,6 +50,7 @@ export default function EmployeeTimecardSettings({
   const { profile } = useAuth();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
+  const { settings: appSettings } = useSettings();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [settings, setSettings] = useState<EmployeeTimecardSettings | null>(null);
   const [loading, setLoading] = useState(false);
@@ -55,6 +58,7 @@ export default function EmployeeTimecardSettings({
   const [distanceSettingsColumnsAvailable, setDistanceSettingsColumnsAvailable] = useState(true);
 
   const allowedPunchInDistanceMeters = [10, 50, 100, 300] as const;
+  const distanceUnit = appSettings.distanceUnit ?? 'meters';
   const isMissingColumnError = (error: any) => {
     const message = String(error?.message || error?.details || error?.hint || '').toLowerCase();
     return message.includes('enforce_punch_in_distance') || message.includes('punch_in_distance_limit_meters');
@@ -387,7 +391,7 @@ export default function EmployeeTimecardSettings({
                     <SelectContent>
                       {allowedPunchInDistanceMeters.map((meters) => (
                         <SelectItem key={meters} value={String(meters)}>
-                          {meters}m
+                          {formatDistanceLabel(meters, distanceUnit, { compact: false })}
                         </SelectItem>
                       ))}
                     </SelectContent>

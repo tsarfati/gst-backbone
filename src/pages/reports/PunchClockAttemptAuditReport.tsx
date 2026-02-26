@@ -5,6 +5,7 @@ import { ArrowLeft, Download, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -12,6 +13,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
+import { formatDistanceLabel } from "@/lib/distanceUnits";
 
 type AuditRow = {
   id: string;
@@ -84,6 +86,7 @@ export default function PunchClockAttemptAuditReport() {
   const navigate = useNavigate();
   const { currentCompany, userCompanies } = useCompany();
   const { profile } = useAuth();
+  const { settings: appSettings } = useSettings();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -103,6 +106,7 @@ export default function PunchClockAttemptAuditReport() {
   const [actionFilter, setActionFilter] = useState<string>(DEFAULT_ACTION);
   const [page, setPage] = useState(1);
   const pageSize = 50;
+  const distanceUnit = appSettings.distanceUnit ?? "meters";
 
   const companyRole = useMemo(
     () => userCompanies.find((c) => c.company_id === currentCompany?.id)?.role?.toLowerCase() || null,
@@ -512,8 +516,8 @@ export default function PunchClockAttemptAuditReport() {
                       <TableHead>Outcome</TableHead>
                       <TableHead>Block Reason</TableHead>
                       <TableHead>Job</TableHead>
-                      <TableHead className="text-right">Distance (m)</TableHead>
-                      <TableHead className="text-right">Allowed (m)</TableHead>
+                      <TableHead className="text-right">Distance ({distanceUnit === "feet" ? "ft" : "m"})</TableHead>
+                      <TableHead className="text-right">Allowed ({distanceUnit === "feet" ? "ft" : "m"})</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -538,8 +542,12 @@ export default function PunchClockAttemptAuditReport() {
                         </TableCell>
                         <TableCell className="max-w-[14rem] truncate">{getBlockReason(row) || "—"}</TableCell>
                         <TableCell className="max-w-[16rem] truncate">{getJobLabel(row)}</TableCell>
-                        <TableCell className="text-right">{getDistance(row) ?? "—"}</TableCell>
-                        <TableCell className="text-right">{getAllowedLimit(row) ?? "—"}</TableCell>
+                        <TableCell className="text-right">
+                          {getDistance(row) == null ? "—" : formatDistanceLabel(getDistance(row) as number, distanceUnit, { compact: true })}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          {getAllowedLimit(row) == null ? "—" : formatDistanceLabel(getAllowedLimit(row) as number, distanceUnit, { compact: true })}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>
@@ -566,4 +574,3 @@ export default function PunchClockAttemptAuditReport() {
     </div>
   );
 }
-

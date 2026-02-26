@@ -9,11 +9,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Settings, MapPin, MessageSquare, Palette, X, Upload, Eye, Image as ImageIcon2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import { supabase } from '@/integrations/supabase/client';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { QrCode, Settings as SettingsIcon, Clock } from 'lucide-react';
 import { JobQRCode } from '@/components/JobQRCode';
 import DragDropUpload from '@/components/DragDropUpload';
+import { formatDistanceLabel } from '@/lib/distanceUnits';
 
 interface AutoLogoutSettings {
   id?: string;
@@ -65,7 +67,9 @@ interface VisitorLogSettingsEnhancedProps {
 
 export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhancedProps) {
   const { currentCompany } = useCompany();
+  const { settings: appSettings } = useSettings();
   const { toast } = useToast();
+  const distanceUnit = appSettings.distanceUnit ?? 'meters';
   
   const [autoLogoutSettings, setAutoLogoutSettings] = useState<AutoLogoutSettings>({
     job_id: jobId,
@@ -840,7 +844,9 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
 
               {autoLogoutSettings.geolocation_logout_enabled && (
                 <div className="space-y-2">
-                  <Label htmlFor="distance-meters">Distance Threshold (meters)</Label>
+                  <Label htmlFor="distance-meters">
+                    Distance Threshold ({distanceUnit === 'feet' ? 'feet' : 'meters'})
+                  </Label>
                   <Input
                     id="distance-meters"
                     type="number"
@@ -854,7 +860,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                     }))}
                   />
                   <p className="text-xs text-muted-foreground">
-                    Auto check-out when visitor moves beyond this distance from the job site
+                    Auto check-out when visitor moves beyond {formatDistanceLabel(autoLogoutSettings.geolocation_distance_meters, distanceUnit)} from the job site
                   </p>
                 </div>
               )}
