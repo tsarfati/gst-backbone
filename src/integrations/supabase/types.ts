@@ -4312,6 +4312,7 @@ export type Database = {
           manual_photo_capture: boolean | null
           max_distance_from_job_meters: number | null
           notification_enabled: boolean | null
+          outside_jobsite_warning_distance_meters: number | null
           overtime_grace_period_minutes: number | null
           overtime_past_window_threshold_minutes: number | null
           overtime_threshold: number | null
@@ -4333,6 +4334,7 @@ export type Database = {
           sms_punchout_reminder_minutes: number | null
           time_display_format: string | null
           updated_at: string
+          warn_when_punch_outside_jobsite: boolean
         }
         Insert: {
           allow_early_punch_in?: boolean | null
@@ -4364,6 +4366,7 @@ export type Database = {
           manual_photo_capture?: boolean | null
           max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
+          outside_jobsite_warning_distance_meters?: number | null
           overtime_grace_period_minutes?: number | null
           overtime_past_window_threshold_minutes?: number | null
           overtime_threshold?: number | null
@@ -4385,6 +4388,7 @@ export type Database = {
           sms_punchout_reminder_minutes?: number | null
           time_display_format?: string | null
           updated_at?: string
+          warn_when_punch_outside_jobsite?: boolean
         }
         Update: {
           allow_early_punch_in?: boolean | null
@@ -4416,6 +4420,7 @@ export type Database = {
           manual_photo_capture?: boolean | null
           max_distance_from_job_meters?: number | null
           notification_enabled?: boolean | null
+          outside_jobsite_warning_distance_meters?: number | null
           overtime_grace_period_minutes?: number | null
           overtime_past_window_threshold_minutes?: number | null
           overtime_threshold?: number | null
@@ -4437,6 +4442,7 @@ export type Database = {
           sms_punchout_reminder_minutes?: number | null
           time_display_format?: string | null
           updated_at?: string
+          warn_when_punch_outside_jobsite?: boolean
         }
         Relationships: [
           {
