@@ -154,7 +154,7 @@ export default function UserWebsiteJobAssignments({ userId, canManage = true }: 
                 </div>
                 {job.status && (
                   <Badge variant="outline" className="text-xs">
-                    {job.status.replaceAll("_", " ")}
+                    {job.status.split("_").join(" ")}
                   </Badge>
                 )}
               </label>

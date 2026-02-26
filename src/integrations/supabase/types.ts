@@ -2881,12 +2881,14 @@ export type Database = {
           created_by: string
           default_cost_code_id: string | null
           default_job_id: string | null
+          enforce_punch_in_distance: boolean
           id: string
           lunch_duration_minutes: number | null
           max_daily_hours: number | null
           notes: string | null
           notification_preferences: Json | null
           overtime_threshold: number | null
+          punch_in_distance_limit_meters: number | null
           require_location: boolean | null
           require_photo: boolean | null
           updated_at: string | null
@@ -2903,12 +2905,14 @@ export type Database = {
           created_by: string
           default_cost_code_id?: string | null
           default_job_id?: string | null
+          enforce_punch_in_distance?: boolean
           id?: string
           lunch_duration_minutes?: number | null
           max_daily_hours?: number | null
           notes?: string | null
           notification_preferences?: Json | null
           overtime_threshold?: number | null
+          punch_in_distance_limit_meters?: number | null
           require_location?: boolean | null
           require_photo?: boolean | null
           updated_at?: string | null
@@ -2925,12 +2929,14 @@ export type Database = {
           created_by?: string
           default_cost_code_id?: string | null
           default_job_id?: string | null
+          enforce_punch_in_distance?: boolean
           id?: string
           lunch_duration_minutes?: number | null
           max_daily_hours?: number | null
           notes?: string | null
           notification_preferences?: Json | null
           overtime_threshold?: number | null
+          punch_in_distance_limit_meters?: number | null
           require_location?: boolean | null
           require_photo?: boolean | null
           updated_at?: string | null
@@ -5909,6 +5915,74 @@ export type Database = {
           },
         ]
       }
+      plan_page_links: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          created_by: string | null
+          h_norm: number
+          id: string
+          is_auto: boolean
+          link_key: string
+          plan_id: string
+          ref_text: string
+          source_page_number: number
+          target_page_number: number
+          target_sheet_number: string | null
+          target_title: string | null
+          updated_at: string
+          w_norm: number
+          x_norm: number
+          y_norm: number
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          h_norm: number
+          id?: string
+          is_auto?: boolean
+          link_key: string
+          plan_id: string
+          ref_text: string
+          source_page_number: number
+          target_page_number: number
+          target_sheet_number?: string | null
+          target_title?: string | null
+          updated_at?: string
+          w_norm: number
+          x_norm: number
+          y_norm: number
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          created_by?: string | null
+          h_norm?: number
+          id?: string
+          is_auto?: boolean
+          link_key?: string
+          plan_id?: string
+          ref_text?: string
+          source_page_number?: number
+          target_page_number?: number
+          target_sheet_number?: string | null
+          target_title?: string | null
+          updated_at?: string
+          w_norm?: number
+          x_norm?: number
+          y_norm?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_page_links_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "job_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       plan_pages: {
         Row: {
           created_at: string
@@ -6310,6 +6384,60 @@ export type Database = {
           owner_id?: string
           qr_code?: string
           updated_at?: string
+        }
+        Relationships: []
+      }
+      punch_clock_attempt_audit: {
+        Row: {
+          action: string
+          block_reason: string
+          company_id: string | null
+          created_at: string
+          device_latitude: number | null
+          device_longitude: number | null
+          distance_from_job_meters: number | null
+          distance_limit_meters: number | null
+          id: string
+          job_id: string | null
+          job_latitude: number | null
+          job_longitude: number | null
+          message: string | null
+          pin_employee_id: string | null
+          user_id: string | null
+        }
+        Insert: {
+          action: string
+          block_reason: string
+          company_id?: string | null
+          created_at?: string
+          device_latitude?: number | null
+          device_longitude?: number | null
+          distance_from_job_meters?: number | null
+          distance_limit_meters?: number | null
+          id?: string
+          job_id?: string | null
+          job_latitude?: number | null
+          job_longitude?: number | null
+          message?: string | null
+          pin_employee_id?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          action?: string
+          block_reason?: string
+          company_id?: string | null
+          created_at?: string
+          device_latitude?: number | null
+          device_longitude?: number | null
+          distance_from_job_meters?: number | null
+          distance_limit_meters?: number | null
+          id?: string
+          job_id?: string | null
+          job_latitude?: number | null
+          job_longitude?: number | null
+          message?: string | null
+          pin_employee_id?: string | null
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -9707,6 +9835,14 @@ export type Database = {
           user_id: string
           zodiac_sign: string
         }[]
+      }
+      user_can_access_job: {
+        Args: { _job: string; _user: string }
+        Returns: boolean
+      }
+      user_has_privileged_company_job_access: {
+        Args: { _company: string; _user: string }
+        Returns: boolean
       }
       user_in_company_tenant: {
         Args: { _company_id: string; _user_id: string }
