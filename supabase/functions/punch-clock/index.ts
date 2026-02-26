@@ -1055,17 +1055,6 @@ serve(async (req) => {
         if (jobError || !jobData) return errorResponse("Unable to find job", 400);
         const companyId = jobData.company_id;
 
-        // ── Geofence enforcement for PUNCH IN ──
-        const geofenceBlock = await enforceGeofence(supabaseAdmin, {
-          userId: userRow.user_id,
-          companyId,
-          jobId: job_id,
-          action: "in",
-          deviceLat: latitude,
-          deviceLng: longitude,
-        });
-        if (geofenceBlock) return geofenceBlock;
-
         if (cost_code_id) {
           const { data: costCodeData, error: ccError } = await supabaseAdmin
             .from('cost_codes')
@@ -1283,17 +1272,6 @@ serve(async (req) => {
 
         if (jobError || !jobData) return errorResponse("Unable to find job", 400);
         const companyId = jobData.company_id;
-
-        // ── Geofence enforcement for PUNCH OUT ──
-        const geofenceBlock = await enforceGeofence(supabaseAdmin, {
-          userId: userRow.user_id,
-          companyId,
-          jobId: currentPunch.job_id,
-          action: "out",
-          deviceLat: latitude,
-          deviceLng: longitude,
-        });
-        if (geofenceBlock) return geofenceBlock;
 
         const { data: jobSettings, error: settingsErr } = await supabaseAdmin
           .from("job_punch_clock_settings")
@@ -1561,7 +1539,7 @@ serve(async (req) => {
             lat2: number | null, lng2: number | null
           ): number | null => {
             if (lat1 == null || lng1 == null || lat2 == null || lng2 == null) return null;
-            return haversineDistanceMeters(lat1, lng1, lat2, lng2);
+            return haversineMeters(lat1, lng1, lat2, lng2);
           };
 
           const punchInLat = currentPunch.punch_in_location_lat ?? null;
