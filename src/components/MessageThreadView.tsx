@@ -1,14 +1,14 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Card, CardContent } from '@/components/ui/card';
+import UserAvatar from '@/components/UserAvatar';
 import { Reply, Send, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import { useUserAvatars } from '@/hooks/useUserAvatar';
 
 const CURRENT_USER_ID = 'fa67f9ba-67fc-4708-9526-7bfef906dae3';
 const CURRENT_COMPANY_ID = 'f64fff8d-16f4-4a07-81b3-e470d7e2d560';
@@ -53,9 +53,16 @@ export default function MessageThreadView({
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const scrollContainerRef = useRef<HTMLDivElement | null>(null);
 
   const userId = user?.id || CURRENT_USER_ID;
   const companyId = currentCompany?.id || CURRENT_COMPANY_ID;
+  const conversationPartnerId = useMemo(() => {
+    if (!message) return null;
+    return message.from_user_id === userId ? message.to_user_id : message.from_user_id;
+  }, [message, userId]);
+  const threadUserIds = Array.from(new Set(threadMessages.flatMap((m) => [m.from_user_id, m.to_user_id]).filter(Boolean)));
+  const { avatarMap } = useUserAvatars(threadUserIds);
 
   useEffect(() => {
     if (message && isOpen) {
@@ -70,13 +77,13 @@ export default function MessageThreadView({
     try {
       setIsLoading(true);
       
-      const rootMessageId = message.thread_id || message.id;
-      
+      if (!conversationPartnerId) return;
+
       const { data, error } = await supabase
         .from('messages')
         .select('*')
         .eq('company_id', companyId)
-        .or(`id.eq.${rootMessageId},thread_id.eq.${rootMessageId}`)
+        .or(`and(from_user_id.eq.${userId},to_user_id.eq.${conversationPartnerId}),and(from_user_id.eq.${conversationPartnerId},to_user_id.eq.${userId})`)
         .order('created_at', { ascending: true });
 
       if (error) throw error;
@@ -130,11 +137,12 @@ export default function MessageThreadView({
       }
 
       // Mark unread replies in thread
-      const rootMessageId = message.thread_id || message.id;
+      const partnerId = message.from_user_id === userId ? message.to_user_id : message.from_user_id;
       const { data: unreadReplies } = await supabase
         .from('messages')
         .select('id')
-        .eq('thread_id', rootMessageId)
+        .eq('company_id', companyId)
+        .eq('from_user_id', partnerId)
         .eq('to_user_id', userId)
         .eq('read', false);
 
@@ -150,6 +158,16 @@ export default function MessageThreadView({
       console.error('Error marking messages as read:', error);
     }
   };
+
+  useEffect(() => {
+    if (!isOpen || !threadMessages.length) return;
+    const el = scrollContainerRef.current;
+    if (el) {
+      requestAnimationFrame(() => {
+        el.scrollTop = el.scrollHeight;
+      });
+    }
+  }, [isOpen, threadMessages.length]);
 
   const sendReply = async () => {
     if (!message || !replyContent.trim()) return;
@@ -206,44 +224,47 @@ export default function MessageThreadView({
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+        <div ref={scrollContainerRef} className="flex-1 overflow-y-auto space-y-2 pr-3">
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
               <span className="ml-2">Loading conversation...</span>
             </div>
           ) : (
-            threadMessages.map((msg) => (
-              <Card key={msg.id} className={`${msg.from_user_id === userId ? 'ml-8' : 'mr-8'}`}>
-                <CardContent className="p-4">
-                  <div className="flex items-start gap-3">
-                    <Avatar className="h-8 w-8">
-                      <AvatarFallback>
-                        {msg.from_profile?.display_name?.charAt(0) || 'U'}
-                      </AvatarFallback>
-                    </Avatar>
-                    <div className="flex-1">
-                      <div className="flex items-center justify-between mb-2">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium">
-                            {msg.from_profile?.display_name || 'Unknown User'}
-                          </span>
-                          {msg.is_reply && (
-                            <span className="text-xs text-muted-foreground">replied</span>
-                          )}
-                        </div>
-                        <span className="text-xs text-muted-foreground">
-                          {new Date(msg.created_at).toLocaleString()}
-                        </span>
-                      </div>
-                      <div className="whitespace-pre-wrap text-sm">
-                        {msg.content}
-                      </div>
+            threadMessages.map((msg) => {
+              const isMine = msg.from_user_id === userId;
+              const senderName = msg.from_profile?.display_name || 'Unknown User';
+              return (
+                <div key={msg.id} className={`flex items-end gap-2 ${isMine ? 'justify-end' : 'justify-start'}`}>
+                  {!isMine && (
+                    <UserAvatar
+                      src={avatarMap[msg.from_user_id] ?? null}
+                      name={senderName}
+                      className="h-8 w-8 shrink-0"
+                      fallbackClassName="text-xs"
+                    />
+                  )}
+                  <div className={`max-w-[78%] rounded-lg px-3 py-2 border ${isMine ? 'bg-primary text-primary-foreground border-primary/30' : 'bg-muted/40 border-border'}`}>
+                    <div className={`flex items-center gap-2 text-[11px] mb-1 ${isMine ? 'text-primary-foreground/80' : 'text-muted-foreground'}`}>
+                      <span className="font-medium truncate">{senderName}</span>
+                      <span>•</span>
+                      <span>{new Date(msg.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+                    </div>
+                    <div className="whitespace-pre-wrap text-sm leading-tight">
+                      {msg.content}
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            ))
+                  {isMine && (
+                    <UserAvatar
+                      src={avatarMap[msg.from_user_id] ?? null}
+                      name={senderName}
+                      className="h-8 w-8 shrink-0"
+                      fallbackClassName="text-xs"
+                    />
+                  )}
+                </div>
+              );
+            })
           )}
         </div>
 

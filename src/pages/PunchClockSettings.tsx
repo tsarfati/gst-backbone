@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import EmployeeTimecardSettings from '@/components/EmployeeTimecardSettings';
 import JobPunchClockSettings from '@/components/JobPunchClockSettings';
+import { PunchClockLoginSettings } from '@/components/PunchClockLoginSettings';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import DragDropUpload from '@/components/DragDropUpload';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -431,10 +432,11 @@ export default function PunchClockSettings() {
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
-        <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
+          <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
           <TabsTrigger value="general" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">General Settings</TabsTrigger>
           <TabsTrigger value="employees" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Employee Settings</TabsTrigger>
           <TabsTrigger value="jobs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Job Settings</TabsTrigger>
+          <TabsTrigger value="login" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Punch Clock Login</TabsTrigger>
           <TabsTrigger value="pwa" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Mobile App</TabsTrigger>
         </TabsList>
 
@@ -953,6 +955,10 @@ export default function PunchClockSettings() {
         </TabsContent>
         <TabsContent value="jobs" className="space-y-6">
           <JobPunchClockSettings />
+        </TabsContent>
+
+        <TabsContent value="login" className="space-y-6">
+          <PunchClockLoginSettings />
         </TabsContent>
 
         <TabsContent value="pwa" className="space-y-6">

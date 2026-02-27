@@ -82,6 +82,7 @@ import CompanySettingsPage from "./pages/CompanySettingsPage";
 import SecuritySettings from "./pages/SecuritySettings";
 import ProfileSettings from "./pages/ProfileSettings";
 import ThemeSettings from "./pages/ThemeSettings";
+import PMLynkSettings from "./pages/PMLynkSettings";
 import CodedReceipts from "./pages/CodedReceipts";
 import NotificationSettings from "./pages/NotificationSettings";
 import EmailTemplateEdit from "./pages/EmailTemplateEdit";
@@ -295,7 +296,7 @@ function AuthenticatedRoutes() {
               <Route path="vendors/reports" element={<VendorReports />} />
               <Route path="vendors/:id" element={<VendorDetails />} />
               <Route path="vendors/:id/edit" element={<VendorEdit />} />
-              <Route path="settings" element={<AppSettings />} />
+              <Route path="settings" element={<Navigate to="/settings/company?tab=theme" replace />} />
               <Route path="settings/company" element={<CompanySettingsPage />} />
               <Route path="settings/company/chart-of-accounts" element={<ChartOfAccounts />} />
               <Route path="settings/company/job-cost-setup" element={<JobCostSetupStandalone />} />
@@ -305,6 +306,7 @@ function AuthenticatedRoutes() {
               <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
               <Route path="settings/email-templates/:id/preview" element={<EmailTemplatePreview />} />
               <Route path="settings/security" element={<SecuritySettings />} />
+              <Route path="settings/pm-lynk" element={<PMLynkSettings />} />
               <Route path="theme-settings" element={<ThemeSettings />} />
               
               <Route path="profile-settings" element={<ProfileSettings />} />

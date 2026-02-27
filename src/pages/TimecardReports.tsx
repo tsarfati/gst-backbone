@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useSearchParams } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { BarChart3, Download, RefreshCw } from 'lucide-react';
@@ -76,6 +77,7 @@ interface FilterState {
 }
 
 export default function TimecardReports() {
+  const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
@@ -101,6 +103,7 @@ export default function TimecardReports() {
     showDeleted: false,
     showNotes: false
   });
+  const preselectedUserId = searchParams.get('userId');
 
   const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes(profile?.role as string);
 
@@ -109,6 +112,14 @@ export default function TimecardReports() {
       loadInitialData();
     }
   }, [currentCompany?.id]);
+
+  useEffect(() => {
+    if (!preselectedUserId) return;
+    setFilters(prev => {
+      if (prev.employees.length === 1 && prev.employees[0] === preselectedUserId) return prev;
+      return { ...prev, employees: [preselectedUserId] };
+    });
+  }, [preselectedUserId]);
 
   const loadInitialData = async () => {
     await Promise.all([

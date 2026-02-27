@@ -3,18 +3,20 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Label } from '@/components/ui/label';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useToast } from '@/hooks/use-toast';
 import CompanySettings from '@/components/CompanySettings';
 import PayablesSettings from '@/components/PayablesSettings';
+import PaymentTermsSettings from '@/components/PaymentTermsSettings';
 import JobSettings from '@/components/JobSettings';
 import CreditCardSettings from '@/components/CreditCardSettings';
 import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
 import JobCostSetup from '@/pages/JobCostSetup';
-import { Building, CreditCard, Briefcase, DollarSign, Banknote, Clock, Palette } from 'lucide-react';
+import { Building, CreditCard, Briefcase, DollarSign, Banknote, Palette } from 'lucide-react';
 import ThemeSettings from '@/pages/ThemeSettings';
-import PunchClockSettings from '@/pages/PunchClockSettings';
 import AccrualAccountingSettings from '@/components/AccrualAccountingSettings';
 
 export default function CompanySettingsPage() {
@@ -78,13 +80,6 @@ export default function CompanySettingsPage() {
               Job Settings
             </TabsTrigger>
             <TabsTrigger 
-              value="punch-clock" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
-            >
-              <Clock className="h-4 w-4" />
-              Punch Clock
-            </TabsTrigger>
-            <TabsTrigger 
               value="theme" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
@@ -101,21 +96,104 @@ export default function CompanySettingsPage() {
           </TabsList>
 
           <TabsContent value="company">
-            <CompanySettings />
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Regional Settings</CardTitle>
+                  <CardDescription>
+                    Configure date, currency, and distance display formats for your company users
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="company-date-format">Date Format</Label>
+                      <Select
+                        value={settings.dateFormat}
+                        onValueChange={(value: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD') =>
+                          updateSettings({ dateFormat: value })
+                        }
+                      >
+                        <SelectTrigger id="company-date-format">
+                          <SelectValue placeholder="Select date format" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                          <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                          <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="company-currency-format">Currency Format</Label>
+                      <Select
+                        value={settings.currencyFormat}
+                        onValueChange={(value: 'USD' | 'EUR' | 'GBP') =>
+                          updateSettings({ currencyFormat: value })
+                        }
+                      >
+                        <SelectTrigger id="company-currency-format">
+                          <SelectValue placeholder="Select currency" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="USD">USD ($)</SelectItem>
+                          <SelectItem value="EUR">EUR (€)</SelectItem>
+                          <SelectItem value="GBP">GBP (£)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label htmlFor="company-distance-unit">Distance Units</Label>
+                      <Select
+                        value={settings.distanceUnit}
+                        onValueChange={(value: 'meters' | 'feet') =>
+                          updateSettings({ distanceUnit: value })
+                        }
+                      >
+                        <SelectTrigger id="company-distance-unit">
+                          <SelectValue placeholder="Select distance unit" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="meters">Meters (m)</SelectItem>
+                          <SelectItem value="feet">Feet (ft)</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <CompanySettings
+                showCheckPickupLocations={false}
+                showBillApprovalSettings={false}
+                showJournalEntrySettings={false}
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="payables">
-            <Card>
-              <CardHeader>
-                <CardTitle>Payables & Payment Settings</CardTitle>
-                <CardDescription>
-                  Configure approval workflows, thresholds, and payment processing settings
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <PayablesSettings />
-              </CardContent>
-            </Card>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle>Payables & Payment Settings</CardTitle>
+                  <CardDescription>
+                    Configure approval workflows, thresholds, and payment processing settings
+                  </CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <PayablesSettings />
+                </CardContent>
+              </Card>
+
+              <PaymentTermsSettings />
+
+              <CompanySettings
+                showBranding={false}
+                showJournalEntrySettings={false}
+              />
+            </div>
           </TabsContent>
 
           <TabsContent value="credit-cards">
@@ -146,16 +224,18 @@ export default function CompanySettingsPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="punch-clock">
-            <PunchClockSettings />
-          </TabsContent>
-
           <TabsContent value="theme">
             <ThemeSettings embedded />
           </TabsContent>
 
           <TabsContent value="banking">
             <div className="space-y-6">
+              <CompanySettings
+                showBranding={false}
+                showCheckPickupLocations={false}
+                showBillApprovalSettings={false}
+              />
+
               <AccrualAccountingSettings />
 
               <Card>

@@ -103,142 +103,112 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
         .order("created_at", { ascending: true });
 
       if (budgetError) throw budgetError;
+      const budgetRows = budgetData || [];
+      const costCodeIds = [...new Set(budgetRows.map((bd: any) => bd.cost_code_id).filter(Boolean))];
+      const actualByCostCode = new Map<string, number>();
+      const committedByCostCode = new Map<string, number>();
 
-      // Calculate actual amount for a SPECIFIC cost code ID only
-      // EXCLUDES invoices linked to subcontracts or purchase orders (those are payments against commitments)
-      const calculateActualAmount = async (costCodeId: string): Promise<number> => {
-        try {
-          // Posted journal entry lines (debit amounts for expenses)
-          const { data: journalLines, error: jeError } = await supabase
+      const addToMap = (map: Map<string, number>, key: string | null | undefined, amount: number) => {
+        if (!key) return;
+        map.set(key, (map.get(key) || 0) + (Number.isFinite(amount) ? amount : 0));
+      };
+
+      if (costCodeIds.length > 0) {
+        const [journalRes, directPaidInvoicesRes, paidDistRes, subcontractsRes, purchaseOrdersRes] = await Promise.all([
+          supabase
             .from("journal_entry_lines")
-            .select("debit_amount, journal_entries!inner(status)")
+            .select("cost_code_id, debit_amount, journal_entries!inner(status)")
             .eq("job_id", jobId)
-            .eq("cost_code_id", costCodeId)
-            .eq("journal_entries.status", "posted");
-
-          if (jeError) throw jeError;
-
-          const journalTotal = (journalLines || []).reduce(
-            (sum, line) => sum + Number((line as any).debit_amount || 0),
-            0
-          );
-
-          // Paid invoices (direct) - EXCLUDE those linked to subcontracts or purchase orders
-          const { data: paidInvoices } = await supabase
+            .in("cost_code_id", costCodeIds)
+            .eq("journal_entries.status", "posted"),
+          supabase
             .from("invoices")
-            .select("amount, subcontract_id, purchase_order_id")
+            .select("cost_code_id, amount, subcontract_id, purchase_order_id")
             .eq("job_id", jobId)
-            .eq("cost_code_id", costCodeId)
+            .in("cost_code_id", costCodeIds)
             .eq("status", "paid")
             .is("subcontract_id", null)
-            .is("purchase_order_id", null);
-
-          const invoiceTotal = (paidInvoices || []).reduce(
-            (sum, inv) => sum + Number((inv as any).amount || 0),
-            0
-          );
-
-          // Paid invoices (distributed) - EXCLUDE those linked to subcontracts or purchase orders
-          const { data: paidDistributions } = await supabase
+            .is("purchase_order_id", null),
+          supabase
             .from("invoice_cost_distributions")
-            .select("amount, invoices!inner(job_id, status, subcontract_id, purchase_order_id)")
-            .eq("cost_code_id", costCodeId)
+            .select("cost_code_id, amount, invoices!inner(job_id, status, subcontract_id, purchase_order_id)")
+            .in("cost_code_id", costCodeIds)
             .eq("invoices.job_id", jobId)
             .eq("invoices.status", "paid")
             .is("invoices.subcontract_id", null)
-            .is("invoices.purchase_order_id", null);
-
-          const distTotal = (paidDistributions || []).reduce(
-            (sum, d) => sum + Number((d as any).amount || 0),
-            0
-          );
-
-          return journalTotal + invoiceTotal + distTotal;
-        } catch (error) {
-          console.error("Error calculating actual amount:", error);
-          return 0;
-        }
-      };
-
-      // Calculate committed amount - Subcontracts + POs only (total commitment value)
-      // Does NOT include unpaid invoices since those are payments against commitments
-      const calculateCommittedAmount = async (costCodeId: string): Promise<number> => {
-        try {
-          let total = 0;
-
-          // Subcontracts (cost_distribution)
-          const { data: subcontracts, error: subError } = await supabase
+            .is("invoices.purchase_order_id", null),
+          supabase
             .from("subcontracts")
-            .select("cost_distribution")
+            .select("cost_distribution, status")
             .eq("job_id", jobId)
-            .not("status", "eq", "cancelled");
-
-          if (subError) throw subError;
-
-          (subcontracts || []).forEach((sub: any) => {
-            const raw = sub.cost_distribution;
-            let parsed: any = raw;
-            if (typeof raw === "string") {
-              try {
-                parsed = JSON.parse(raw);
-              } catch {
-                parsed = null;
-              }
-            }
-
-            const items = Array.isArray(parsed)
-              ? parsed
-              : parsed && typeof parsed === "object" && Array.isArray((parsed as any).items)
-                ? (parsed as any).items
-                : [];
-
-            items.forEach((dist: any) => {
-              if (dist?.cost_code_id && dist.cost_code_id === costCodeId) {
-                total += Number(dist?.amount || 0);
-              }
-            });
-          });
-
-          // Purchase Orders
-          const { data: purchaseOrders, error: poError } = await (supabase as any)
+            .not("status", "eq", "cancelled"),
+          (supabase as any)
             .from("purchase_orders")
             .select("amount, status, cost_code_id")
             .eq("job_id", jobId)
-            .eq("cost_code_id", costCodeId);
+            .in("cost_code_id", costCodeIds),
+        ]);
 
-          if (poError) throw poError;
+        if (journalRes.error) throw journalRes.error;
+        if (directPaidInvoicesRes.error) throw directPaidInvoicesRes.error;
+        if (paidDistRes.error) throw paidDistRes.error;
+        if (subcontractsRes.error) throw subcontractsRes.error;
+        if (purchaseOrdersRes.error) throw purchaseOrdersRes.error;
 
-          (purchaseOrders || []).forEach((po: any) => {
-            if (po?.status !== "cancelled") {
-              total += Number(po?.amount || 0);
+        (journalRes.data || []).forEach((line: any) => {
+          addToMap(actualByCostCode, line.cost_code_id, Number(line.debit_amount || 0));
+        });
+
+        (directPaidInvoicesRes.data || []).forEach((inv: any) => {
+          addToMap(actualByCostCode, inv.cost_code_id, Number(inv.amount || 0));
+        });
+
+        (paidDistRes.data || []).forEach((dist: any) => {
+          addToMap(actualByCostCode, dist.cost_code_id, Number(dist.amount || 0));
+        });
+
+        (subcontractsRes.data || []).forEach((sub: any) => {
+          const raw = sub.cost_distribution;
+          let parsed: any = raw;
+          if (typeof raw === "string") {
+            try {
+              parsed = JSON.parse(raw);
+            } catch {
+              parsed = null;
+            }
+          }
+
+          const items = Array.isArray(parsed)
+            ? parsed
+            : parsed && typeof parsed === "object" && Array.isArray((parsed as any).items)
+              ? (parsed as any).items
+              : [];
+
+          items.forEach((dist: any) => {
+            const costCodeId = dist?.cost_code_id;
+            if (costCodeId && costCodeIds.includes(costCodeId)) {
+              addToMap(committedByCostCode, costCodeId, Number(dist?.amount || 0));
             }
           });
+        });
 
-          return total;
-        } catch (error) {
-          console.error("Error calculating committed amount:", error);
-          return 0;
-        }
-      };
+        (purchaseOrdersRes.data || []).forEach((po: any) => {
+          if (po?.status !== "cancelled") {
+            addToMap(committedByCostCode, po.cost_code_id, Number(po?.amount || 0));
+          }
+        });
+      }
 
-      // Calculate actual and committed amounts from live data - use EXACT cost_code_id, no aggregation
-      const budgetLinesWithActuals = await Promise.all(
-        (budgetData || []).map(async (bd: any) => {
-          const actualAmount = await calculateActualAmount(bd.cost_code_id);
-          const committedAmount = await calculateCommittedAmount(bd.cost_code_id);
-
-          return {
-            id: bd.id,
-            cost_code_id: bd.cost_code_id,
-            budgeted_amount: bd.budgeted_amount,
-            actual_amount: actualAmount,
-            committed_amount: committedAmount,
-            is_dynamic: bd.is_dynamic,
-            parent_budget_id: bd.parent_budget_id,
-            cost_code: bd.cost_codes,
-          };
-        })
-      );
+      const budgetLinesWithActuals = budgetRows.map((bd: any) => ({
+        id: bd.id,
+        cost_code_id: bd.cost_code_id,
+        budgeted_amount: bd.budgeted_amount,
+        actual_amount: actualByCostCode.get(bd.cost_code_id) || 0,
+        committed_amount: committedByCostCode.get(bd.cost_code_id) || 0,
+        is_dynamic: bd.is_dynamic,
+        parent_budget_id: bd.parent_budget_id,
+        cost_code: bd.cost_codes,
+      }));
 
       setBudgetLines(budgetLinesWithActuals);
     } catch (error) {
@@ -540,8 +510,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
       <CardHeader>
         <CardTitle>Job Budget - {jobName}</CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-        <div className="space-y-4">
+      <CardContent className="space-y-4">
+        <div className="space-y-3">
           {canEditBudget && (
             <div className="flex justify-end">
               <Button onClick={saveBudget} disabled={saving} size="sm">
@@ -555,19 +525,19 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
           {/* Unified Budget List */}
           {budgetLines.length > 0 && (
             <Card>
-              <CardHeader>
+              <CardHeader className="py-3">
                 <CardTitle className="text-base">Budget Lines</CardTitle>
               </CardHeader>
-              <CardContent>
+              <CardContent className="pt-0 pb-3">
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead>Cost Code</TableHead>
-                      <TableHead>Description</TableHead>
-                      <TableHead>Budgeted Amount</TableHead>
-                      <TableHead>Actual Amount</TableHead>
-                      <TableHead>Committed Amount</TableHead>
-                      <TableHead>Variance</TableHead>
+                      <TableHead className="py-2">Cost Code</TableHead>
+                      <TableHead className="py-2">Description</TableHead>
+                      <TableHead className="py-2">Budgeted Amount</TableHead>
+                      <TableHead className="py-2">Actual Amount</TableHead>
+                      <TableHead className="py-2">Committed Amount</TableHead>
+                      <TableHead className="py-2">Variance</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -596,32 +566,33 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                         <TableRow 
                           key={line.id || line.cost_code_id} 
                           className={cn(
-                            (isChild || line.is_dynamic) && "bg-primary/5 hover:bg-primary/10 transition-colors"
+                            (isChild || line.is_dynamic) && "bg-primary/5 hover:bg-primary/10 transition-colors",
+                            "h-auto"
                           )}
                         >
-                          <TableCell className={isChild ? "pl-12" : ""}>
-                            <div className="flex items-center gap-2">
+                          <TableCell className={cn("py-1.5", isChild ? "pl-12" : "")}>
+                            <div className="flex items-center gap-1.5 leading-none">
                               {line.is_dynamic && childCount !== undefined && childCount > 0 && (
                                 <button
                                   onClick={() => toggleGroup(line.cost_code?.code || '')}
                                   className="hover:bg-primary/10 p-0.5 rounded"
                                 >
                                   {isExpanded ? (
-                                    <ChevronDown className="h-4 w-4" />
+                                    <ChevronDown className="h-3.5 w-3.5" />
                                   ) : (
-                                    <ChevronRight className="h-4 w-4" />
+                                    <ChevronRight className="h-3.5 w-3.5" />
                                   )}
                                 </button>
                               )}
                               {line.is_dynamic && childCount !== undefined && childCount > 0 && (
-                                <span className="text-xs text-muted-foreground">({childCount})</span>
+                                <span className="text-[11px] text-muted-foreground">({childCount})</span>
                               )}
-                              <span className="font-mono text-sm">{line.cost_code?.code}</span>
+                              <span className="font-mono text-xs leading-none">{line.cost_code?.code}</span>
                               {line.is_dynamic && (
                                 <>
-                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0">Dynamic</Badge>
+                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 leading-none">Dynamic</Badge>
                                   {isOverBudget && (
-                                    <Badge variant="destructive" className="flex items-center gap-1 text-[10px] px-1.5 py-0">
+                                    <Badge variant="destructive" className="flex items-center gap-1 text-[10px] px-1.5 py-0 leading-none">
                                       <AlertCircle className="h-2.5 w-2.5" />
                                       Over
                                     </Badge>
@@ -629,32 +600,32 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                 </>
                               )}
                               {isChild && (
-                                <span className="text-xs text-muted-foreground">(shares parent budget)</span>
+                                <span className="text-[11px] text-muted-foreground leading-none">(shares parent budget)</span>
                               )}
                             </div>
                           </TableCell>
-                          <TableCell>
-                            <div>
+                          <TableCell className="py-1.5">
+                            <div className="leading-tight">
                               {line.cost_code?.description}
-                              {line.cost_code?.type && <span className="text-xs text-muted-foreground ml-2">({line.cost_code.type})</span>}
+                              {line.cost_code?.type && <span className="text-[11px] text-muted-foreground ml-1.5">({line.cost_code.type})</span>}
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-1.5">
                             {isChild ? (
-                              <span className="font-mono text-muted-foreground text-sm">
+                              <span className="font-mono text-xs text-muted-foreground leading-none">
                                 {formatCurrency(parentBudget ?? 0)}
                               </span>
                             ) : (
                               <CurrencyInput
                                 value={line.budgeted_amount.toString()}
                                 onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
-                                className="w-32"
+                                className="w-28 h-8 text-xs"
                                 placeholder="0.00"
                                 disabled={!canEditBudget}
                               />
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-1.5">
                             {line.is_dynamic ? (
                               <button
                                 onClick={(e) => {
@@ -668,7 +639,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   navigate(`/banking/general-ledger?${params.toString()}`);
                                 }}
                                 className={cn(
-                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-xs leading-none",
                                   toneClass
                                 )}
                               >
@@ -687,7 +658,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   navigate(`/banking/general-ledger?${params.toString()}`);
                                 }}
                                 className={cn(
-                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-xs leading-none",
                                   toneClass
                                 )}
                                 type="button"
@@ -696,7 +667,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                               </button>
                             )}
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-1.5">
                             {line.is_dynamic ? (
                               <button
                                 onClick={(e) => {
@@ -711,7 +682,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   navigate(`/construction/reports/committed-details?${params.toString()}`);
                                 }}
                                 className={cn(
-                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-xs leading-none",
                                   toneClass
                                 )}
                                 type="button"
@@ -732,7 +703,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   navigate(`/construction/reports/committed-details?${params.toString()}`);
                                 }}
                                 className={cn(
-                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left",
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-xs leading-none",
                                   toneClass
                                 )}
                                 type="button"
@@ -741,8 +712,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                               </button>
                             )}
                           </TableCell>
-                          <TableCell>
-                            <span className={cn("font-mono font-semibold", toneClass)}>
+                          <TableCell className="py-1.5">
+                            <span className={cn("font-mono font-semibold text-xs leading-none", toneClass)}>
                               {line.is_dynamic ? formatCurrency(remaining ?? 0) : formatCurrency(displayVariance)}
                             </span>
                           </TableCell>

@@ -3,7 +3,6 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { MessageSquare, Plus, Search, Reply, Archive, Star } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -12,6 +11,9 @@ import { useToast } from '@/hooks/use-toast';
 import { useSearchParams } from 'react-router-dom';
 import ComposeMessageDialog from '@/components/ComposeMessageDialog';
 import MessageThreadView from '@/components/MessageThreadView';
+import { useUserAvatars } from '@/hooks/useUserAvatar';
+import UserAvatar from '@/components/UserAvatar';
+import { cn } from '@/lib/utils';
 
 interface Message {
   id: string;
@@ -51,6 +53,10 @@ export default function AllMessages() {
 
   const userId = user?.id || CURRENT_USER_ID;
   const companyId = currentCompany?.id || CURRENT_COMPANY_ID;
+  const messageUserIds = Array.from(
+    new Set(messages.flatMap((m) => [m.from_user_id, m.to_user_id]).filter(Boolean))
+  );
+  const { avatarMap } = useUserAvatars(messageUserIds);
 
   const fetchMessages = useCallback(async () => {
     try {
@@ -173,8 +179,8 @@ export default function AllMessages() {
     fetchMessages();
   };
 
-  // Apply client-side filters
-  const filteredMessages = messages.filter((message) => {
+  // Apply client-side filters (raw messages)
+  const filteredRawMessages = messages.filter((message) => {
     // Filter by tab
     if (filter === 'sent' && message.from_user_id !== userId) return false;
     if (filter === 'unread' && (message.read || message.from_user_id === userId)) return false;
@@ -196,19 +202,49 @@ export default function AllMessages() {
     (m) => !m.read && m.to_user_id === userId
   ).length;
 
-  const getDisplayName = (message: Message) => {
-    if (filter === 'sent' || message.from_user_id === userId) {
-      return `To: ${message.to_profile?.display_name || 'Unknown User'}`;
-    }
-    return `From: ${message.from_profile?.display_name || 'Unknown User'}`;
+  const getCounterparty = (message: Message) => {
+    const isOutgoing = message.from_user_id === userId;
+    const counterpartyId = isOutgoing ? message.to_user_id : message.from_user_id;
+    const counterpartyName = isOutgoing
+      ? message.to_profile?.display_name || 'Unknown User'
+      : message.from_profile?.display_name || 'Unknown User';
+    return { counterpartyId, counterpartyName, isOutgoing };
   };
 
-  const getAvatarName = (message: Message) => {
-    if (filter === 'sent' || message.from_user_id === userId) {
-      return message.to_profile?.display_name || 'U';
-    }
-    return message.from_profile?.display_name || 'U';
-  };
+  const groupedConversations = Array.from(
+    filteredRawMessages.reduce((map, message) => {
+      const { counterpartyId, counterpartyName } = getCounterparty(message);
+      const existing = map.get(counterpartyId);
+      const isUnreadIncoming = !message.read && message.to_user_id === userId;
+      if (!existing) {
+        map.set(counterpartyId, {
+          key: counterpartyId,
+          counterpartyId,
+          counterpartyName,
+          latestMessage: message,
+          unreadCount: isUnreadIncoming ? 1 : 0,
+          messageCount: 1,
+        });
+      } else {
+        existing.messageCount += 1;
+        if (isUnreadIncoming) existing.unreadCount += 1;
+        if (new Date(message.created_at).getTime() > new Date(existing.latestMessage.created_at).getTime()) {
+          existing.latestMessage = message;
+          existing.counterpartyName = counterpartyName;
+        }
+      }
+      return map;
+    }, new Map<string, {
+      key: string;
+      counterpartyId: string;
+      counterpartyName: string;
+      latestMessage: Message;
+      unreadCount: number;
+      messageCount: number;
+    }>())
+  )
+    .map(([, value]) => value)
+    .sort((a, b) => new Date(b.latestMessage.created_at).getTime() - new Date(a.latestMessage.created_at).getTime());
 
   return (
     <div className="p-6">
@@ -280,14 +316,14 @@ export default function AllMessages() {
               ? 'Unread Messages'
               : 'Sent Messages'}
             <Badge variant="outline" className="ml-2">
-              {filteredMessages.length}
+              {groupedConversations.length}
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
             <div className="text-center py-8">Loading messages...</div>
-          ) : filteredMessages.length === 0 ? (
+          ) : groupedConversations.length === 0 ? (
             <div className="text-center py-8">
               <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
               <h3 className="text-lg font-semibold mb-2">No messages found</h3>
@@ -298,64 +334,63 @@ export default function AllMessages() {
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
-              {filteredMessages.map((message) => {
+            <div className="space-y-1">
+              {groupedConversations.map((conversation) => {
+                const message = conversation.latestMessage;
                 const isReceived = message.to_user_id === userId;
-                const isUnread = !message.read && isReceived;
+                const isUnread = conversation.unreadCount > 0;
+                const avatarUserId = conversation.counterpartyId;
 
                 return (
                   <div
-                    key={message.id}
-                    className={`p-4 border rounded-lg cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors ${
+                    key={conversation.key}
+                    className={`px-3 py-2 border rounded-lg cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors ${
                       isUnread ? 'bg-accent/20 border-primary/20' : ''
                     }`}
                     onClick={() => openThreadView(message)}
                   >
-                    <div className="flex items-start justify-between">
-                      <div className="flex items-start gap-3 flex-1">
-                        <Avatar className="h-10 w-10">
-                          <AvatarFallback>
-                            {getAvatarName(message).charAt(0).toUpperCase()}
-                          </AvatarFallback>
-                        </Avatar>
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-3 flex-1 min-w-0">
+                        <UserAvatar
+                          src={avatarMap[avatarUserId] ?? null}
+                          name={conversation.counterpartyName}
+                          className="h-10 w-10 shrink-0"
+                        />
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1">
+                          <div className="flex items-center gap-2 leading-none">
                             <h3
-                              className={`font-medium truncate ${
+                              className={`font-medium truncate text-sm ${
                                 isUnread ? 'font-semibold' : ''
                               }`}
                             >
-                              {getDisplayName(message)}
+                              {conversation.counterpartyName}
                             </h3>
                             {isUnread && (
                               <Badge variant="destructive" className="text-xs">
-                                New
+                                {conversation.unreadCount} new
                               </Badge>
                             )}
+                            <Badge variant="outline" className="text-[10px] px-1.5 py-0">
+                              {conversation.messageCount}
+                            </Badge>
                           </div>
-                          <h4
-                            className={`text-sm mb-2 ${
-                              isUnread
-                                ? 'font-medium'
-                                : 'text-muted-foreground'
-                            }`}
-                          >
-                            {message.subject}
-                          </h4>
-                          <p className="text-sm text-muted-foreground line-clamp-2">
-                            {message.content}
-                          </p>
-                          <p className="text-xs text-muted-foreground mt-2">
-                            {new Date(message.created_at).toLocaleDateString()}{' '}
-                            at{' '}
-                            {new Date(message.created_at).toLocaleTimeString()}
-                          </p>
+                          <div className="text-sm text-muted-foreground truncate mt-1">
+                            <span className={cn("mr-2", isUnread && "text-foreground font-medium")}>
+                              {message.subject}
+                            </span>
+                            <span className="truncate">{message.content}</span>
+                          </div>
                         </div>
                       </div>
-                      <div className="flex gap-1 ml-2">
+                      <div className="flex items-center gap-2 ml-2 shrink-0">
+                        <div className="text-right text-xs text-muted-foreground leading-tight">
+                          <div>{new Date(message.created_at).toLocaleDateString()}</div>
+                          <div>{new Date(message.created_at).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</div>
+                        </div>
                         <Button
                           size="sm"
                           variant="ghost"
+                          className="h-7 w-7 p-0"
                           onClick={(e) => {
                             e.stopPropagation();
                             openThreadView(message);
@@ -363,10 +398,10 @@ export default function AllMessages() {
                         >
                           <Reply className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="ghost">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                           <Star className="h-4 w-4" />
                         </Button>
-                        <Button size="sm" variant="ghost">
+                        <Button size="sm" variant="ghost" className="h-7 w-7 p-0">
                           <Archive className="h-4 w-4" />
                         </Button>
                       </div>

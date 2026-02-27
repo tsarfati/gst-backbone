@@ -67,8 +67,19 @@ const numOrNull = (v: any): number | null => {
   return Number.isFinite(n) ? n : null;
 };
 
-const getAction = (row: AuditRow) => (row.attempted_action || row.action || "").toString().toLowerCase();
-const getOutcome = (row: AuditRow) => (row.outcome || "").toString().toLowerCase();
+const getAction = (row: AuditRow) => {
+  const raw = (row.attempted_action || row.action || "").toString().toLowerCase();
+  if (raw === "in") return "punch_in";
+  if (raw === "out") return "punch_out";
+  return raw;
+};
+const getOutcome = (row: AuditRow) => {
+  const raw = (row.outcome || "").toString().toLowerCase();
+  if (raw) return raw;
+  // Backward compatibility: legacy table only stored blocked attempts and had no `outcome` column.
+  if (row.block_reason || row.reason) return "blocked";
+  return "";
+};
 const getBlockReason = (row: AuditRow) => (row.block_reason || row.reason || "").toString().toLowerCase();
 const getDistance = (row: AuditRow) =>
   numOrNull(row.distance_from_job_meters) ??

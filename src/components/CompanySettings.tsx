@@ -22,7 +22,19 @@ interface PickupLocation {
   phone?: string;
 }
 
-export default function CompanySettings() {
+interface CompanySettingsProps {
+  showBranding?: boolean;
+  showCheckPickupLocations?: boolean;
+  showBillApprovalSettings?: boolean;
+  showJournalEntrySettings?: boolean;
+}
+
+export default function CompanySettings({
+  showBranding = true,
+  showCheckPickupLocations = true,
+  showBillApprovalSettings = true,
+  showJournalEntrySettings = true,
+}: CompanySettingsProps = {}) {
   const { settings, updateSettings } = useSettings();
   const { currentCompany, refreshCompanies } = useCompany();
   const { toast } = useToast();
@@ -237,6 +249,7 @@ export default function CompanySettings() {
 
   return (
     <div className="space-y-6">
+      {showBranding && (
       <Card>
         <CardHeader>
           <CardTitle>Company Branding</CardTitle>
@@ -336,7 +349,9 @@ export default function CompanySettings() {
           </div>
         </CardContent>
       </Card>
+      )}
 
+      {showCheckPickupLocations && (
       <Card>
         <CardHeader>
           <CardTitle>Check Pickup Locations</CardTitle>
@@ -421,7 +436,9 @@ export default function CompanySettings() {
           )}
         </CardContent>
       </Card>
+      )}
 
+      {showBillApprovalSettings && (
       <Card>
         <CardHeader>
           <CardTitle>Job & Bill Settings</CardTitle>
@@ -430,7 +447,9 @@ export default function CompanySettings() {
           <BillApprovalSettings />
         </CardContent>
       </Card>
+      )}
 
+      {showJournalEntrySettings && (
       <Card>
         <CardHeader>
           <CardTitle>Journal Entry Settings</CardTitle>
@@ -472,6 +491,7 @@ export default function CompanySettings() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <Dialog open={isLocationDialogOpen} onOpenChange={setIsLocationDialogOpen}>
         <DialogContent>

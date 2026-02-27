@@ -5,7 +5,7 @@ import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from '@/components/ui/alert-dialog';
 import { MapPin, Clock, Users, FileText } from 'lucide-react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import { format } from 'date-fns';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
@@ -62,6 +62,7 @@ interface TimeCard {
 }
 
 export default function PunchClockDashboard() {
+  const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const [active, setActive] = useState<CurrentStatus[]>([]);
   const [profiles, setProfiles] = useState<Record<string, Profile>>({});
@@ -97,6 +98,10 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   const { avatarMap } = useUserAvatars(dashboardUserIds);
   
   const isAdmin = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+
+  const openUserTimesheets = (userId: string) => {
+    navigate(`/punch-clock/reports?userId=${encodeURIComponent(userId)}`);
+  };
 
   useEffect(() => {
     const load = async () => {
@@ -830,16 +835,16 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   return (
                      <div 
                        key={row.id} 
-                       className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer transition-colors"
+                       className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer transition-colors"
                        onClick={() => openDetailForActive(row)}
                      >
                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                        <Avatar className="h-10 w-10">
+                        <Avatar className="h-9 w-9">
                             <AvatarImage src={(avatarMap[row.user_id] || prof?.avatar_url || undefined) as string | undefined} />
                            <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                          </Avatar>
                            <div className="min-w-0 flex-1">
-                            <div className="font-semibold truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
+                            <div className="font-semibold truncate text-sm leading-tight">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
                             <div className="flex items-center gap-2 text-xs text-muted-foreground">
                               <span className="truncate">{job?.name || 'Job'}</span>
                               <span className="inline-flex items-center gap-1 shrink-0">
@@ -855,9 +860,21 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                                   {costCodes[row.cost_code_id].code}
                                 </span>
                               )}
-                            </div>
+                           </div>
                           </div>
                        </div>
+                       <Button
+                         type="button"
+                         variant="outline"
+                         size="sm"
+                         className="h-7 px-2 shrink-0 text-xs"
+                         onClick={(e) => {
+                           e.stopPropagation();
+                           openUserTimesheets(row.user_id);
+                         }}
+                       >
+                         Timesheets
+                       </Button>
                      </div>
                   );
                 })}
@@ -882,14 +899,14 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                   const prof = profiles[row.user_id || ''];
                   const job = row.job_id ? jobs[row.job_id] : undefined;
                   return (
-                     <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-3 p-3 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
+                     <div key={row.id} onClick={() => openDetailForOut(row)} role="button" tabIndex={0} className="flex items-center justify-between gap-2 px-3 py-1.5 rounded-lg border bg-card/50 hover:bg-primary/10 hover:border-primary cursor-pointer focus:outline-none focus:ring-2 focus:ring-primary/50">
                        <div className="flex items-center gap-3 min-w-0 flex-1">
-                          <Avatar className="h-10 w-10">
+                          <Avatar className="h-9 w-9">
                             <AvatarImage src={(avatarMap[row.user_id || ''] || prof?.avatar_url || undefined) as string | undefined} />
                             <AvatarFallback>{(prof?.display_name || 'E').substring(0,1).toUpperCase()}</AvatarFallback>
                           </Avatar>
                          <div className="min-w-0 flex-1">
-                           <div className="font-semibold truncate">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
+                           <div className="font-semibold truncate text-sm leading-tight">{prof?.display_name || (prof?.first_name && prof?.last_name ? `${prof.first_name} ${prof.last_name}` : 'Unknown Employee')}</div>
                            <div className="flex items-center gap-2 text-xs text-muted-foreground">
                              <span className="truncate">{job?.name || 'Unknown Job'}</span>
                              <span className="inline-flex items-center gap-1 shrink-0">
@@ -898,6 +915,20 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
                            </div>
                          </div>
                        </div>
+                       {!!row.user_id && (
+                         <Button
+                           type="button"
+                           variant="outline"
+                           size="sm"
+                           className="h-7 px-2 shrink-0 text-xs"
+                           onClick={(e) => {
+                             e.stopPropagation();
+                             openUserTimesheets(row.user_id!);
+                           }}
+                         >
+                           Timesheets
+                         </Button>
+                       )}
                      </div>
                   );
                 })}

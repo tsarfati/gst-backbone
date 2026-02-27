@@ -19,6 +19,7 @@ import { format } from "date-fns";
 import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { generateAIAInvoice, downloadBlob, type AIATemplateData } from "@/utils/aiaTemplateProcessor";
+import ReportEmailModal from "@/components/ReportEmailModal";
 
 interface Job {
   id: string;
@@ -67,9 +68,27 @@ interface AddARInvoiceProps {
   initialCustomerId?: string;
   existingInvoiceId?: string;
   lockJobContext?: boolean;
+  hideEmbeddedHeaderActions?: boolean;
+  onEmbeddedToolbarChange?: (state: EmbeddedDrawToolbarState | null) => void;
   onSaved?: (invoiceId: string) => void;
   onStatusChanged?: (invoiceId: string, status: string) => void;
   onCancel?: () => void;
+}
+
+export interface EmbeddedDrawToolbarState {
+  saving: boolean;
+  canSaveDraft: boolean;
+  canSendForReview: boolean;
+  canExport: boolean;
+  saveDraftLabel: string;
+  statusLabel: string;
+  totalAmount: number;
+  onSaveDraft: () => void;
+  onSendForReview: () => void;
+  onExportTemplate: () => void;
+  onExportPdf: () => void;
+  onEmailPdf: () => void;
+  onEmailExcel: () => void;
 }
 
 export default function AddARInvoice({
@@ -78,6 +97,8 @@ export default function AddARInvoice({
   initialCustomerId,
   existingInvoiceId,
   lockJobContext: lockJobContextProp = false,
+  hideEmbeddedHeaderActions = false,
+  onEmbeddedToolbarChange,
   onSaved,
   onStatusChanged,
   onCancel,
@@ -118,12 +139,46 @@ export default function AddARInvoice({
   const [periodTo, setPeriodTo] = useState(format(new Date(), "yyyy-MM-dd"));
   const [contractDate, setContractDate] = useState("");
   const [retainagePercent, setRetainagePercent] = useState(10);
+  const [lockedRetainagePercent, setLockedRetainagePercent] = useState<number | null>(null);
+  const [emailExportMode, setEmailExportMode] = useState<"pdf" | "excel" | null>(null);
+  const [emailExportOpen, setEmailExportOpen] = useState(false);
 
   useEffect(() => {
     if (currentCompany?.id && !websiteJobAccessLoading) {
       loadInitialData();
     }
   }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+
+  // When launched from Job Billing, refresh job/customer context on tab focus/return
+  // so locked customer/project values reflect any changes made in Job Information.
+  useEffect(() => {
+    if (!launchFromJobBilling) return;
+
+    const refreshFromFocus = () => {
+      if (!currentCompany?.id || websiteJobAccessLoading || saving) return;
+      void loadInitialData();
+    };
+
+    const handleVisibility = () => {
+      if (document.visibilityState === "visible") {
+        refreshFromFocus();
+      }
+    };
+
+    window.addEventListener("focus", refreshFromFocus);
+    document.addEventListener("visibilitychange", handleVisibility);
+    return () => {
+      window.removeEventListener("focus", refreshFromFocus);
+      document.removeEventListener("visibilitychange", handleVisibility);
+    };
+  }, [
+    launchFromJobBilling,
+    currentCompany?.id,
+    websiteJobAccessLoading,
+    saving,
+    isPrivileged,
+    allowedJobIds.join(","),
+  ]);
 
   useEffect(() => {
     if (selectedJobId && currentCompany?.id) {
@@ -141,6 +196,64 @@ export default function AddARInvoice({
       }
     }
   }, [selectedJobId, jobs, currentCompany?.id, currentInvoiceId, isHydratingExistingInvoice]);
+
+  // In Job Billing launch mode, project/customer context is locked to the job.
+  // If the job's customer changes after a draft is saved, always reflect the latest job customer.
+  useEffect(() => {
+    if (!lockJobContext || !selectedJobId) return;
+    const job = jobs.find((j) => j.id === selectedJobId);
+    const nextCustomerId = job?.customer_id ?? "";
+    if (nextCustomerId !== selectedCustomerId) {
+      setSelectedCustomerId(nextCustomerId);
+    }
+  }, [lockJobContext, selectedJobId, selectedCustomerId, jobs]);
+
+  useEffect(() => {
+    if (!lockJobContext || !selectedJobId || !currentCompany?.id) {
+      setLockedRetainagePercent(null);
+      return;
+    }
+
+    if ((applicationNumber || 1) <= 1) {
+      setLockedRetainagePercent(null);
+      return;
+    }
+
+    let cancelled = false;
+
+    const loadDrawOneRetainage = async () => {
+      try {
+        const { data, error } = await supabase
+          .from("ar_invoices")
+          .select("retainage_percent")
+          .eq("company_id", currentCompany.id)
+          .eq("job_id", selectedJobId)
+          .eq("application_number", 1)
+          .order("created_at", { ascending: false })
+          .limit(1)
+          .maybeSingle();
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const drawOneRetainage = data?.retainage_percent == null ? null : Number(data.retainage_percent);
+        setLockedRetainagePercent(drawOneRetainage);
+
+        if (drawOneRetainage != null && Number.isFinite(drawOneRetainage)) {
+          setRetainagePercent((prev) => (prev === drawOneRetainage ? prev : drawOneRetainage));
+        }
+      } catch (error) {
+        console.error("Error loading Draw #1 retainage:", error);
+        if (!cancelled) setLockedRetainagePercent(null);
+      }
+    };
+
+    void loadDrawOneRetainage();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [lockJobContext, selectedJobId, applicationNumber, currentCompany?.id]);
 
   const navigateAfterSave = (invoiceId?: string) => {
     if (embedded) {
@@ -469,6 +582,30 @@ export default function AddARInvoice({
     setLineItems(newItems);
   };
 
+  useEffect(() => {
+    if (lineItems.length === 0) return;
+
+    setLineItems((prevItems) => {
+      let changed = false;
+      const nextItems = prevItems.map((item) => {
+        const previousApp = previousInvoices.find((p) => p.sov_id === item.sov_id);
+        const prevCompleted = previousApp?.total_completed || 0;
+        const next = recalcLineItem(item, prevCompleted, retainagePercent);
+        if (
+          next.previous_applications !== item.previous_applications ||
+          next.total_completed !== item.total_completed ||
+          next.percent_complete !== item.percent_complete ||
+          next.balance_to_finish !== item.balance_to_finish ||
+          next.retainage !== item.retainage
+        ) {
+          changed = true;
+        }
+        return next;
+      });
+      return changed ? nextItems : prevItems;
+    });
+  }, [retainagePercent, previousInvoices]);
+
   // Calculate summary values
   const totals = lineItems.reduce((acc, item) => ({
     scheduledValue: acc.scheduledValue + item.scheduled_value,
@@ -625,9 +762,13 @@ export default function AddARInvoice({
     }
   };
 
-  const generateAIAPdf = async (forReview: boolean = false) => {
+  const generateAIAPdf = async (
+    forReview: boolean = false,
+    exportMode: "auto" | "pdf" = "auto",
+    outputMode: "download" | "attachment" = "download"
+  ): Promise<{ blob: Blob; fileName: string; contentType: string } | null | void> => {
     // First, try to use the uploaded Excel template
-    if (currentCompany?.id) {
+    if (exportMode !== "pdf" && currentCompany?.id) {
       const fmtAiaCurrency = (value: number) => `$${Number.isFinite(value) ? value.toLocaleString("en-US", { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : "0.00"}`;
       // Do not use the internal job UUID as the project number on customer-facing AIA forms.
       // Use a user-defined job number/project number when that field exists in Job Information.
@@ -704,6 +845,13 @@ export default function AddARInvoice({
       const result = await generateAIAInvoice(currentCompany.id, templateData, { forReview });
       
       if (result) {
+        if (outputMode === "attachment") {
+          return {
+            blob: result.blob,
+            fileName: result.fileName,
+            contentType: result.blob.type || "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+          };
+        }
         downloadBlob(result.blob, result.fileName);
         toast({
           title: forReview ? "Template Export for Review" : "Template Export Downloaded",
@@ -968,44 +1116,20 @@ export default function AddARInvoice({
     
     // Save
     const fileName = `AIA_Invoice_${invoiceNumber}_App${applicationNumber}${forReview ? "_REVIEW" : ""}.pdf`;
+    const pdfBlob = doc.output("blob") as Blob;
+    if (outputMode === "attachment") {
+      return {
+        blob: pdfBlob,
+        fileName,
+        contentType: "application/pdf",
+      };
+    }
+
     doc.save(fileName);
-    
     toast({
       title: forReview ? "PDF for Review Generated" : "PDF Downloaded",
       description: `${fileName} has been downloaded`,
     });
-  };
-
-  const handleSaveProgress = async () => {
-    if (!isDraftEditable) {
-      toast({
-        title: "Draw locked",
-        description: "This draw is locked after being sent for review.",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    try {
-      setSaving(true);
-      const invoiceId = await upsertInvoiceAndLineItems("draft");
-
-      toast({
-        title: "Progress Saved",
-        description: "Invoice draft saved successfully",
-      });
-
-      navigateAfterSave(invoiceId);
-    } catch (error: any) {
-      console.error("Error saving progress:", error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to save progress",
-        variant: "destructive",
-      });
-    } finally {
-      setSaving(false);
-    }
   };
 
   const handleSendForReview = async () => {
@@ -1042,6 +1166,51 @@ export default function AddARInvoice({
   const selectedCustomer = customers.find(c => c.id === selectedCustomerId);
   const canCreateDrawInvoice = Boolean(selectedJobId) && !hasNoSOV && isSOVApproved;
   const isReadOnly = !isDraftEditable;
+  const isRetainageLockedToDrawOne =
+    lockJobContext && (applicationNumber || 1) > 1 && lockedRetainagePercent != null;
+
+  useEffect(() => {
+    if (!embedded || !onEmbeddedToolbarChange) return;
+
+    const totalAmountForBadge = currentPaymentDue || totals.thisPeriod || 0;
+    const statusLabel = (currentInvoiceStatus || "draft").toLowerCase() === "draft" ? "Draft" : (currentInvoiceStatus || "draft");
+
+    onEmbeddedToolbarChange({
+      saving,
+      canSaveDraft: !saving && !isReadOnly && canCreateDrawInvoice,
+      canSendForReview: !saving && !isReadOnly && !hasNoSOV && lineItems.length > 0,
+      canExport: !hasNoSOV && lineItems.length > 0,
+      saveDraftLabel: currentInvoiceId ? "Save Draft" : "Create Draw",
+      statusLabel,
+      totalAmount: Number(totalAmountForBadge || 0),
+      onSaveDraft: handleSave,
+      onSendForReview: handleSendForReview,
+      onExportTemplate: () => void generateAIAPdf(false),
+      onExportPdf: () => void generateAIAPdf(false, "pdf"),
+      onEmailPdf: () => {
+        setEmailExportMode("pdf");
+        setEmailExportOpen(true);
+      },
+      onEmailExcel: () => {
+        setEmailExportMode("excel");
+        setEmailExportOpen(true);
+      },
+    });
+
+    return () => onEmbeddedToolbarChange(null);
+  }, [
+    embedded,
+    onEmbeddedToolbarChange,
+    saving,
+    isReadOnly,
+    canCreateDrawInvoice,
+    hasNoSOV,
+    lineItems.length,
+    currentInvoiceId,
+    currentInvoiceStatus,
+    currentPaymentDue,
+    totals.thisPeriod,
+  ]);
 
   if (loading) {
     return (
@@ -1055,53 +1224,78 @@ export default function AddARInvoice({
 
   return (
     <div className={embedded ? "space-y-6" : "container mx-auto py-6 space-y-6"}>
+      <ReportEmailModal
+        open={emailExportOpen}
+        onOpenChange={(open) => {
+          setEmailExportOpen(open);
+          if (!open) setEmailExportMode(null);
+        }}
+        reportName={
+          emailExportMode === "excel"
+            ? `Draw ${applicationNumber} Excel Export`
+            : `Draw ${applicationNumber} PDF Export`
+        }
+        fileName={
+          emailExportMode === "excel"
+            ? `AIA_Invoice_${invoiceNumber}_App${applicationNumber}.xlsx`
+            : `AIA_Invoice_${invoiceNumber}_App${applicationNumber}.pdf`
+        }
+        generateAttachment={async () => {
+          const mode = emailExportMode === "excel" ? "auto" : "pdf";
+          const result = await generateAIAPdf(false, mode, "attachment");
+          if (!result || typeof result === "undefined") return null;
+          return {
+            blob: result.blob,
+            filename: result.fileName,
+            contentType: result.contentType,
+          };
+        }}
+      />
       {/* Header */}
-      <div className="flex items-center gap-4">
+      <div className="flex items-center gap-3 justify-between flex-wrap">
         {!embedded && (
           <Button variant="ghost" onClick={() => navigateAfterSave()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
         )}
-        <div className="flex-1">
-          <h1 className={embedded ? "text-xl font-bold" : "text-3xl font-bold"}>
-            {embedded ? (currentInvoiceId ? "Edit Draw Invoice" : "Create Draw Invoice") : (currentInvoiceId ? "Edit AIA Invoice" : "New AIA Invoice")}
-          </h1>
-          <p className="text-muted-foreground">Application for Payment (G702/G703)</p>
-        </div>
-        <div className="flex gap-2 flex-wrap">
+        {!embedded && (
+          <div className="flex-1">
+            <h1 className="text-3xl font-bold">
+              {currentInvoiceId ? "Edit AIA Invoice" : "New AIA Invoice"}
+            </h1>
+            <p className="text-muted-foreground">Application for Payment (G702/G703)</p>
+          </div>
+        )}
+        <div className="flex gap-2 flex-wrap ml-auto">
           {embedded && onCancel && (
             <Button variant="ghost" onClick={onCancel}>
               Cancel
             </Button>
           )}
-          <Button 
-            variant="outline" 
-            onClick={handleSaveProgress} 
-            disabled={saving || !canCreateDrawInvoice || isReadOnly}
-          >
-            <Save className="h-4 w-4 mr-2" />
-            Save Progress
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => generateAIAPdf(false)} 
-            disabled={hasNoSOV || lineItems.length === 0}
-          >
-            <Download className="h-4 w-4 mr-2" />
-            Export PDF
-          </Button>
-          <Button 
-            variant="secondary" 
-            onClick={handleSendForReview} 
-            disabled={saving || hasNoSOV || lineItems.length === 0 || isReadOnly}
-          >
-            <Send className="h-4 w-4 mr-2" />
-            Send for Review
-          </Button>
-          <Button onClick={handleSave} disabled={saving || !canCreateDrawInvoice || isReadOnly}>
-            <FileText className="h-4 w-4 mr-2" />
-            {saving ? "Saving..." : currentInvoiceId ? "Save Draft" : embedded ? "Create Draw" : "Create Invoice"}
-          </Button>
+          {(!embedded || !hideEmbeddedHeaderActions) && (
+            <>
+              <Button 
+                variant="outline" 
+                onClick={() => generateAIAPdf(false)} 
+                disabled={hasNoSOV || lineItems.length === 0}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Export PDF
+              </Button>
+              <Button 
+                variant="secondary" 
+                onClick={handleSendForReview} 
+                disabled={saving || hasNoSOV || lineItems.length === 0 || isReadOnly}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Send for Review
+              </Button>
+              <Button onClick={handleSave} disabled={saving || !canCreateDrawInvoice || isReadOnly}>
+                <FileText className="h-4 w-4 mr-2" />
+                {saving ? "Saving..." : currentInvoiceId ? "Save Draft" : embedded ? "Create Draw" : "Create Invoice"}
+              </Button>
+            </>
+          )}
         </div>
       </div>
       {isReadOnly && (
@@ -1112,9 +1306,11 @@ export default function AddARInvoice({
 
       {/* Job & Customer Selection */}
       <Card>
-        <CardHeader>
-          <CardTitle>Project Information</CardTitle>
-        </CardHeader>
+        {!embedded && (
+          <CardHeader>
+            <CardTitle>Project Information</CardTitle>
+          </CardHeader>
+        )}
         <CardContent>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
             <div className="space-y-2">
@@ -1186,13 +1382,18 @@ export default function AddARInvoice({
                 min={0}
                 max={100}
                 step={0.5}
-                disabled={isReadOnly}
+                disabled={isReadOnly || isRetainageLockedToDrawOne}
               />
             </div>
           </div>
           {lockJobContext && selectedJobId && (
             <p className="text-xs text-muted-foreground mt-4">
               Project, customer, and application number are locked because this draw was launched from Job Billing for a specific job.
+            </p>
+          )}
+          {isRetainageLockedToDrawOne && (
+            <p className="text-xs text-muted-foreground mt-2">
+              Retainage is locked to Draw #1 ({lockedRetainagePercent}%).
             </p>
           )}
         </CardContent>
@@ -1340,65 +1541,65 @@ export default function AddARInvoice({
                   <Table>
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-16">Item No.</TableHead>
-                        <TableHead>Description of Work</TableHead>
-                        <TableHead className="text-right w-28">Scheduled Value</TableHead>
-                        <TableHead className="text-right w-28">Previous Applications</TableHead>
-                        <TableHead className="text-right w-28">This Period</TableHead>
-                        <TableHead className="text-right w-28">Materials Stored</TableHead>
-                        <TableHead className="text-right w-28">Total Completed</TableHead>
-                        <TableHead className="text-right w-16">%</TableHead>
-                        <TableHead className="text-right w-28">Balance to Finish</TableHead>
-                        <TableHead className="text-right w-28">Retainage</TableHead>
+                        <TableHead className="w-16 py-2 px-2">Item No.</TableHead>
+                        <TableHead className="py-2 px-2">Description of Work</TableHead>
+                        <TableHead className="text-right w-28 py-2 px-2">Scheduled Value</TableHead>
+                        <TableHead className="text-right w-28 py-2 px-2">Previous Applications</TableHead>
+                        <TableHead className="text-right w-28 py-2 px-2">This Period</TableHead>
+                        <TableHead className="text-right w-28 py-2 px-2">Materials Stored</TableHead>
+                        <TableHead className="text-right w-28 py-2 px-2">Total Completed</TableHead>
+                        <TableHead className="text-right w-16 py-2 px-2">%</TableHead>
+                        <TableHead className="text-right w-28 py-2 px-2">Balance to Finish</TableHead>
+                        <TableHead className="text-right w-28 py-2 px-2">Retainage</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {lineItems.map((item, index) => (
-                        <TableRow key={item.sov_id}>
-                          <TableCell className="font-medium">{item.item_number}</TableCell>
-                          <TableCell>{item.description}</TableCell>
-                          <TableCell className="text-right">${formatNumber(item.scheduled_value)}</TableCell>
-                          <TableCell className="text-right">${formatNumber(item.previous_applications)}</TableCell>
-                          <TableCell>
+                        <TableRow key={item.sov_id} className="align-middle">
+                          <TableCell className="font-medium py-1 px-2 leading-none">{item.item_number}</TableCell>
+                          <TableCell className="py-1 px-2 leading-tight">{item.description}</TableCell>
+                          <TableCell className="text-right py-1 px-2 leading-none">${formatNumber(item.scheduled_value)}</TableCell>
+                          <TableCell className="text-right py-1 px-2 leading-none">${formatNumber(item.previous_applications)}</TableCell>
+                          <TableCell className="py-1 px-2">
                             <div className="flex items-center gap-1">
                               <span className="text-muted-foreground text-xs">$</span>
                               <CurrencyInput
                                 value={item.this_period}
                                 onChange={(val) => updateLineItem(index, "this_period", parseFloat(val) || 0)}
-                                className="w-24 text-right text-sm"
+                                className="w-24 h-8 text-right text-sm"
                                 disabled={isReadOnly}
                               />
                             </div>
                           </TableCell>
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             <div className="flex items-center gap-1">
                               <span className="text-muted-foreground text-xs">$</span>
                               <CurrencyInput
                                 value={item.materials_stored}
                                 onChange={(val) => updateLineItem(index, "materials_stored", parseFloat(val) || 0)}
-                                className="w-24 text-right text-sm"
+                                className="w-24 h-8 text-right text-sm"
                                 disabled={isReadOnly}
                               />
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-medium">${formatNumber(item.total_completed)}</TableCell>
-                          <TableCell className="text-right">{item.percent_complete}%</TableCell>
-                          <TableCell className="text-right">${formatNumber(item.balance_to_finish)}</TableCell>
-                          <TableCell className="text-right">${formatNumber(item.retainage)}</TableCell>
+                          <TableCell className="text-right font-medium py-1 px-2 leading-none">${formatNumber(item.total_completed)}</TableCell>
+                          <TableCell className="text-right py-1 px-2 leading-none">{item.percent_complete}%</TableCell>
+                          <TableCell className="text-right py-1 px-2 leading-none">${formatNumber(item.balance_to_finish)}</TableCell>
+                          <TableCell className="text-right py-1 px-2 leading-none">${formatNumber(item.retainage)}</TableCell>
                         </TableRow>
                       ))}
                       
                       {/* Totals Row */}
                       <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={2}>GRAND TOTAL</TableCell>
-                        <TableCell className="text-right">${formatNumber(totals.scheduledValue)}</TableCell>
-                        <TableCell className="text-right">${formatNumber(totals.previousApplications)}</TableCell>
-                        <TableCell className="text-right">${formatNumber(totals.thisPeriod)}</TableCell>
-                        <TableCell className="text-right">${formatNumber(totals.materialsStored)}</TableCell>
-                        <TableCell className="text-right">${formatNumber(totals.totalCompleted)}</TableCell>
-                        <TableCell className="text-right">{overallPercent}%</TableCell>
-                        <TableCell className="text-right">${formatNumber(totals.balanceToFinish)}</TableCell>
-                        <TableCell className="text-right">${formatNumber(totals.retainage)}</TableCell>
+                        <TableCell colSpan={2} className="py-2 px-2">GRAND TOTAL</TableCell>
+                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.scheduledValue)}</TableCell>
+                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.previousApplications)}</TableCell>
+                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.thisPeriod)}</TableCell>
+                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.materialsStored)}</TableCell>
+                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.totalCompleted)}</TableCell>
+                        <TableCell className="text-right py-2 px-2">{overallPercent}%</TableCell>
+                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.balanceToFinish)}</TableCell>
+                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.retainage)}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>

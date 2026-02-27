@@ -39,7 +39,7 @@ serve(async (req: Request) => {
       });
     }
 
-    const { to, subject, body, file_name, file_url, attachments, user_id, pdf_attachment } = await req.json();
+    const { to, subject, body, file_name, file_url, attachments, user_id, pdf_attachment, binary_attachment } = await req.json();
 
     // Get user's SMTP settings
     const { data: emailSettings, error: settingsError } = await supabase
@@ -192,6 +192,21 @@ serve(async (req: Request) => {
         filename: pdf_attachment.filename || 'report.pdf',
         content: bytes,
         contentType: 'application/pdf',
+      });
+    }
+
+    // Handle generic binary attachment (base64 encoded)
+    if (binary_attachment && binary_attachment.content) {
+      if (!mailOptions.attachments) mailOptions.attachments = [];
+      const binaryStr = atob(binary_attachment.content);
+      const bytes = new Uint8Array(binaryStr.length);
+      for (let i = 0; i < binaryStr.length; i++) {
+        bytes[i] = binaryStr.charCodeAt(i);
+      }
+      mailOptions.attachments.push({
+        filename: binary_attachment.filename || "attachment.bin",
+        content: bytes,
+        contentType: binary_attachment.contentType || "application/octet-stream",
       });
     }
 

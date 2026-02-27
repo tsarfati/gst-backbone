@@ -129,65 +129,69 @@ export default function JobForecastingView() {
         return ids && ids.length > 0 ? ids : [fallbackCostCodeId];
       };
 
-      // Helper to get actuals (posted journal entry lines + PAID invoices NOT linked to subcontracts or POs)
-      const getActualAmount = async (costCodeIds: string[]): Promise<number> => {
-        // Posted journal entry lines
-        const { data: journalLines } = await supabase
-          .from("journal_entry_lines")
-          .select("debit_amount, journal_entries!inner(status)")
-          .eq("job_id", id)
-          .in("cost_code_id", costCodeIds)
-          .eq("journal_entries.status", "posted");
+      // Batch-load all cost activity once and aggregate in memory to avoid N+1 queries.
+      const allJobCostCodeIds = [...new Set((jobCostCodes || []).map((cc: any) => cc.id).filter(Boolean))];
+      const actualByCostCodeId = new Map<string, number>();
+      const committedByCostCodeId = new Map<string, number>();
 
-        const journalTotal = (journalLines || []).reduce(
-          (sum, line) => sum + Number((line as any).debit_amount || 0),
-          0
-        );
-
-        // Paid invoices (direct cost_code_id) - EXCLUDE those linked to subcontracts or purchase orders
-        const { data: paidInvoices } = await supabase
-          .from("invoices")
-          .select("amount, subcontract_id, purchase_order_id")
-          .eq("job_id", id)
-          .in("cost_code_id", costCodeIds)
-          .eq("status", "paid")
-          .is("subcontract_id", null)
-          .is("purchase_order_id", null);
-
-        const invoiceTotal = (paidInvoices || []).reduce(
-          (sum, inv) => sum + Number((inv as any).amount || 0),
-          0
-        );
-
-        // Paid invoices (distributed) - EXCLUDE those linked to subcontracts or purchase orders
-        const { data: paidDistributions } = await supabase
-          .from("invoice_cost_distributions")
-          .select("amount, invoices!inner(job_id, status, subcontract_id, purchase_order_id)")
-          .in("cost_code_id", costCodeIds)
-          .eq("invoices.job_id", id)
-          .eq("invoices.status", "paid")
-          .is("invoices.subcontract_id", null)
-          .is("invoices.purchase_order_id", null);
-
-        const distTotal = (paidDistributions || []).reduce(
-          (sum, d) => sum + Number((d as any).amount || 0),
-          0
-        );
-
-        return journalTotal + invoiceTotal + distTotal;
+      const addToMap = (map: Map<string, number>, key: string | null | undefined, amount: number) => {
+        if (!key) return;
+        map.set(key, (map.get(key) || 0) + (Number.isFinite(amount) ? amount : 0));
       };
 
-      // Helper to get committed amounts (Subcontracts + POs only - total commitment value)
-      // Does NOT include unpaid invoices since those are payments against commitments
-      const getCommittedAmount = async (costCodeIds: string[]): Promise<number> => {
-        let total = 0;
+      if (allJobCostCodeIds.length > 0) {
+        const [
+          { data: journalLines },
+          { data: paidInvoicesDirect },
+          { data: paidDistributions },
+          { data: subcontracts },
+          { data: purchaseOrders },
+        ] = await Promise.all([
+          supabase
+            .from("journal_entry_lines")
+            .select("cost_code_id, debit_amount, journal_entries!inner(status)")
+            .eq("job_id", id)
+            .in("cost_code_id", allJobCostCodeIds)
+            .eq("journal_entries.status", "posted"),
+          supabase
+            .from("invoices")
+            .select("cost_code_id, amount, subcontract_id, purchase_order_id")
+            .eq("job_id", id)
+            .in("cost_code_id", allJobCostCodeIds)
+            .eq("status", "paid")
+            .is("subcontract_id", null)
+            .is("purchase_order_id", null),
+          supabase
+            .from("invoice_cost_distributions")
+            .select("cost_code_id, amount, invoices!inner(job_id, status, subcontract_id, purchase_order_id)")
+            .in("cost_code_id", allJobCostCodeIds)
+            .eq("invoices.job_id", id)
+            .eq("invoices.status", "paid")
+            .is("invoices.subcontract_id", null)
+            .is("invoices.purchase_order_id", null),
+          supabase
+            .from("subcontracts")
+            .select("cost_distribution")
+            .eq("job_id", id)
+            .not("status", "eq", "cancelled"),
+          (supabase as any)
+            .from("purchase_orders")
+            .select("amount, status, cost_code_id")
+            .eq("job_id", id)
+            .in("cost_code_id", allJobCostCodeIds),
+        ]);
 
-        // Subcontracts (cost_distribution)
-        const { data: subcontracts } = await supabase
-          .from("subcontracts")
-          .select("cost_distribution")
-          .eq("job_id", id)
-          .not("status", "eq", "cancelled");
+        (journalLines || []).forEach((line: any) => {
+          addToMap(actualByCostCodeId, line.cost_code_id, Number(line.debit_amount || 0));
+        });
+
+        (paidInvoicesDirect || []).forEach((inv: any) => {
+          addToMap(actualByCostCodeId, inv.cost_code_id, Number(inv.amount || 0));
+        });
+
+        (paidDistributions || []).forEach((dist: any) => {
+          addToMap(actualByCostCodeId, dist.cost_code_id, Number(dist.amount || 0));
+        });
 
         (subcontracts || []).forEach((sub: any) => {
           const raw = sub.cost_distribution;
@@ -207,27 +211,22 @@ export default function JobForecastingView() {
               : [];
 
           items.forEach((dist: any) => {
-            if (dist?.cost_code_id && costCodeIds.includes(dist.cost_code_id)) {
-              total += Number(dist?.amount || 0);
-            }
+            addToMap(committedByCostCodeId, dist?.cost_code_id, Number(dist?.amount || 0));
           });
         });
 
-        // Purchase orders
-        const { data: purchaseOrders } = await (supabase as any)
-          .from("purchase_orders")
-          .select("amount, status, cost_code_id")
-          .eq("job_id", id)
-          .in("cost_code_id", costCodeIds);
-
         (purchaseOrders || []).forEach((po: any) => {
           if (po?.status !== "cancelled") {
-            total += Number(po?.amount || 0);
+            addToMap(committedByCostCodeId, po.cost_code_id, Number(po?.amount || 0));
           }
         });
+      }
 
-        return total;
-      };
+      const sumFromMap = (map: Map<string, number>, ids: string[]) =>
+        ids.reduce((sum, ccId) => sum + Number(map.get(ccId) || 0), 0);
+
+      const getActualAmount = (costCodeIds: string[]): number => sumFromMap(actualByCostCodeId, costCodeIds);
+      const getCommittedAmount = (costCodeIds: string[]): number => sumFromMap(committedByCostCodeId, costCodeIds);
 
       let lines: BudgetForecastLine[] = [];
 
@@ -235,8 +234,7 @@ export default function JobForecastingView() {
       const dynamicParentIds = new Set(dynamicParents.map((p: any) => p.id));
 
       // Dynamic parents, aggregated from children
-      const dynamicLines: BudgetForecastLine[] = await Promise.all(
-        dynamicParents.map(async (parent: any) => {
+      const dynamicLines: BudgetForecastLine[] = dynamicParents.map((parent: any) => {
           const children = (budgets || []).filter((b: any) => b.parent_budget_id === parent.id);
 
           let totalActual = 0;
@@ -245,15 +243,15 @@ export default function JobForecastingView() {
           for (const child of children) {
             const code = child.cost_codes?.code || "";
             const idsForCode = getIdsForCode(code, child.cost_code_id);
-            totalActual += await getActualAmount(idsForCode);
-            totalCommitted += await getCommittedAmount(idsForCode);
+            totalActual += getActualAmount(idsForCode);
+            totalCommitted += getCommittedAmount(idsForCode);
           }
 
           if (children.length === 0) {
             const code = parent.cost_codes?.code || "";
             const idsForCode = getIdsForCode(code, parent.cost_code_id);
-            totalActual = await getActualAmount(idsForCode);
-            totalCommitted = await getCommittedAmount(idsForCode);
+            totalActual = getActualAmount(idsForCode);
+            totalCommitted = getCommittedAmount(idsForCode);
           }
 
           const budgeted = Number(parent.budgeted_amount || 0);
@@ -276,12 +274,10 @@ export default function JobForecastingView() {
             updated_at: existingForecast?.updated_at,
             updated_by_name: existingForecast?.updated_by_name,
           };
-        })
-      );
+        });
 
       // Regular (non-dynamic) budget lines should still appear even if dynamic budgets exist
-      const regularLines: BudgetForecastLine[] = await Promise.all(
-        (budgets || [])
+      const regularLines: BudgetForecastLine[] = (budgets || [])
           .filter(
             (b: any) =>
               !b.is_dynamic &&
@@ -290,11 +286,11 @@ export default function JobForecastingView() {
               !b.cost_codes.code?.endsWith(".0") &&
               !dynamicParentIds.has(b.id)
           )
-          .map(async (b: any) => {
+          .map((b: any) => {
             const code = b.cost_codes?.code || "";
             const idsForCode = getIdsForCode(code, b.cost_code_id);
-            const actual = await getActualAmount(idsForCode);
-            const committed = await getCommittedAmount(idsForCode);
+            const actual = getActualAmount(idsForCode);
+            const committed = getCommittedAmount(idsForCode);
 
             const budgeted = Number(b.budgeted_amount || 0);
             const spent = actual + committed;
@@ -315,8 +311,7 @@ export default function JobForecastingView() {
               updated_at: existingForecast?.updated_at,
               updated_by_name: existingForecast?.updated_by_name,
             };
-          })
-      );
+          });
 
       lines = [...dynamicLines, ...regularLines];
 
@@ -520,7 +515,7 @@ export default function JobForecastingView() {
 
       {/* Forecast Table */}
       <Card>
-        <CardHeader className="flex flex-row items-center justify-between">
+        <CardHeader className="flex flex-row items-center justify-between py-3">
           <div>
             <CardTitle>Budget Line Forecasting</CardTitle>
             <CardDescription>
@@ -537,10 +532,10 @@ export default function JobForecastingView() {
             <Table className="w-full">
               <TableHeader>
                 <TableRow className="bg-muted/50">
-                  <TableHead className="w-[80px] font-semibold">Code</TableHead>
-                  <TableHead className="min-w-[180px] font-semibold">Description</TableHead>
-                  <TableHead className="text-right w-[110px] font-semibold px-4">Budgeted</TableHead>
-                  <TableHead className="text-right w-[110px] font-semibold px-4 border-l border-border/50">
+                  <TableHead className="w-[80px] font-semibold py-2">Code</TableHead>
+                  <TableHead className="min-w-[180px] font-semibold py-2">Description</TableHead>
+                  <TableHead className="text-right w-[110px] font-semibold px-3 py-2">Budgeted</TableHead>
+                  <TableHead className="text-right w-[110px] font-semibold px-3 py-2 border-l border-border/50">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger className="flex items-center gap-1 ml-auto">
@@ -553,7 +548,7 @@ export default function JobForecastingView() {
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
-                  <TableHead className="text-right w-[110px] font-semibold px-4">
+                  <TableHead className="text-right w-[110px] font-semibold px-3 py-2">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger className="flex items-center gap-1 ml-auto">
@@ -566,7 +561,7 @@ export default function JobForecastingView() {
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
-                  <TableHead className="text-right w-[110px] font-semibold px-4">
+                  <TableHead className="text-right w-[110px] font-semibold px-3 py-2">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger className="flex items-center gap-1 ml-auto">
@@ -579,7 +574,7 @@ export default function JobForecastingView() {
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
-                  <TableHead className="text-center w-[70px] font-semibold px-3 border-l border-border/50">
+                  <TableHead className="text-center w-[70px] font-semibold px-2 py-2 border-l border-border/50">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger className="flex items-center gap-1 mx-auto">
@@ -591,7 +586,7 @@ export default function JobForecastingView() {
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
-                  <TableHead className="text-center w-[90px] font-semibold px-3">
+                  <TableHead className="text-center w-[90px] font-semibold px-2 py-2">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger className="flex items-center gap-1 mx-auto">
@@ -603,7 +598,7 @@ export default function JobForecastingView() {
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
-                  <TableHead className="text-right w-[120px] font-semibold px-4 border-l border-border/50">
+                  <TableHead className="text-right w-[120px] font-semibold px-3 py-2 border-l border-border/50">
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger className="flex items-center gap-1 ml-auto">
@@ -615,7 +610,7 @@ export default function JobForecastingView() {
                       </Tooltip>
                     </TooltipProvider>
                   </TableHead>
-                  <TableHead className="w-[110px] font-semibold px-3">Updated</TableHead>
+                  <TableHead className="w-[110px] font-semibold px-2 py-2">Updated</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -634,32 +629,32 @@ export default function JobForecastingView() {
                   const isProjectedOver = projectedTotal > line.budgeted_amount;
                   
                   return (
-                    <TableRow key={line.cost_code_id} className={`${isOverBudget ? 'bg-destructive/5' : 'hover:bg-muted/30'}`}>
-                      <TableCell className="font-mono text-sm py-3">{line.code}</TableCell>
-                      <TableCell className="py-3">
-                        <span className="font-medium">{line.description}</span>
+                    <TableRow key={line.cost_code_id} className={`${isOverBudget ? 'bg-destructive/5' : 'hover:bg-muted/30'} h-auto`}>
+                      <TableCell className="font-mono text-xs py-1.5 leading-none">{line.code}</TableCell>
+                      <TableCell className="py-1.5">
+                        <span className="font-medium leading-tight text-sm">{line.description}</span>
                         {isOverBudget && (
-                          <Badge variant="destructive" className="ml-2 text-xs">
+                          <Badge variant="destructive" className="ml-1.5 text-[10px] py-0 leading-none">
                             Over
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums px-4 py-3">
+                      <TableCell className="text-right font-semibold tabular-nums text-xs px-3 py-1.5">
                         {formatCurrency(line.budgeted_amount)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums px-4 py-3 border-l border-border/30">
+                      <TableCell className="text-right tabular-nums text-xs px-3 py-1.5 border-l border-border/30">
                         {formatCurrency(line.actual_amount)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums px-4 py-3">
+                      <TableCell className="text-right tabular-nums text-xs px-3 py-1.5">
                         {formatCurrency(line.committed_amount)}
                       </TableCell>
-                      <TableCell className={`text-right font-medium tabular-nums px-4 py-3 ${remaining < 0 ? 'text-destructive' : 'text-green-600'}`}>
+                      <TableCell className={`text-right font-medium tabular-nums text-xs px-3 py-1.5 ${remaining < 0 ? 'text-destructive' : 'text-green-600'}`}>
                         {formatCurrency(remaining)}
                       </TableCell>
-                      <TableCell className="text-center text-muted-foreground tabular-nums px-3 py-3 border-l border-border/30">
+                      <TableCell className="text-center text-muted-foreground tabular-nums text-xs px-2 py-1.5 border-l border-border/30">
                         {line.calculated_percent.toFixed(0)}%
                       </TableCell>
-                      <TableCell className="px-3 py-3">
+                      <TableCell className="px-2 py-1.5">
                         <div className="flex items-center justify-center gap-1">
                           <Input
                             type="number"
@@ -668,15 +663,15 @@ export default function JobForecastingView() {
                             step={1}
                             value={line.estimated_percent}
                             onChange={(e) => updateEstimatedPercent(line.cost_code_id, parseFloat(e.target.value) || 0)}
-                            className="w-14 text-center h-8 text-sm tabular-nums"
+                            className="w-12 text-center h-7 text-xs tabular-nums"
                           />
                           <span className="text-muted-foreground text-xs">%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right px-4 py-3 border-l border-border/30">
+                      <TableCell className="text-right px-3 py-1.5 border-l border-border/30">
                         {line.estimated_percent > 0 ? (
-                          <div className={`flex items-center justify-end gap-1.5 font-semibold tabular-nums ${isProjectedOver ? 'text-destructive' : 'text-green-600'}`}>
-                            {isProjectedOver ? <TrendingDown className="h-4 w-4" /> : <TrendingUp className="h-4 w-4" />}
+                          <div className={`flex items-center justify-end gap-1 font-semibold tabular-nums text-xs ${isProjectedOver ? 'text-destructive' : 'text-green-600'}`}>
+                            {isProjectedOver ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
                             <span>
                               {isProjectedOver ? '' : '+'}
                               {formatCurrency(overUnder)}
@@ -686,9 +681,9 @@ export default function JobForecastingView() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-xs text-muted-foreground px-3 py-3">
+                      <TableCell className="text-[11px] text-muted-foreground px-2 py-1.5">
                         {line.updated_at ? (
-                          <div className="flex flex-col gap-0.5">
+                          <div className="flex flex-col gap-0 leading-tight">
                             <span className="font-medium">{new Date(line.updated_at).toLocaleDateString()}</span>
                             {line.updated_by_name && (
                               <span className="truncate max-w-[90px] opacity-70">{line.updated_by_name}</span>
@@ -706,7 +701,7 @@ export default function JobForecastingView() {
           </div>
 
           {/* Legend */}
-          <div className="mt-4 p-4 flex flex-wrap gap-6 text-sm text-muted-foreground border-t">
+          <div className="mt-2 px-4 py-3 flex flex-wrap gap-4 text-xs text-muted-foreground border-t">
             <div className="flex items-center gap-2">
               <TrendingUp className="h-4 w-4 text-green-600" />
               <span>Projected under budget</span>

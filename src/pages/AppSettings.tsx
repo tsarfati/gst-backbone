@@ -13,8 +13,6 @@ import { Label } from '@/components/ui/label';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { Separator } from '@/components/ui/separator';
 import { useTheme } from 'next-themes';
-import SearchIndexManager from '@/components/SearchIndexManager';
-import PaymentTermsSettings from '@/components/PaymentTermsSettings';
 
 export default function AppSettings() {
   const { settings, updateSettings, resetSettings } = useSettings();
@@ -74,84 +72,11 @@ export default function AppSettings() {
           <Button onClick={handleSaveSettings}>Save Changes</Button>
         </div>
 
-        <Tabs defaultValue="regional" className="space-y-4">
+        <Tabs defaultValue="navigation" className="space-y-4">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-            <TabsTrigger value="regional" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Regional</TabsTrigger>
             <TabsTrigger value="navigation" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Navigation</TabsTrigger>
             <TabsTrigger value="display" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Display</TabsTrigger>
-            <TabsTrigger value="company" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Company</TabsTrigger>
-            <TabsTrigger value="search" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Search</TabsTrigger>
           </TabsList>
-
-          <TabsContent value="regional" className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Regional Settings</CardTitle>
-                <CardDescription>
-                  Configure date, time, and currency formats
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="date-format">Date Format</Label>
-                    <Select
-                      value={settings.dateFormat}
-                      onValueChange={(value: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD') => 
-                        updateSettings({ dateFormat: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select date format" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                        <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
-                        <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="currency-format">Currency Format</Label>
-                    <Select
-                      value={settings.currencyFormat}
-                      onValueChange={(value: 'USD' | 'EUR' | 'GBP') => 
-                        updateSettings({ currencyFormat: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select currency" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="USD">USD ($)</SelectItem>
-                        <SelectItem value="EUR">EUR (€)</SelectItem>
-                        <SelectItem value="GBP">GBP (£)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label htmlFor="distance-unit">Distance Units</Label>
-                    <Select
-                      value={settings.distanceUnit}
-                      onValueChange={(value: 'meters' | 'feet') =>
-                        updateSettings({ distanceUnit: value })
-                      }
-                    >
-                      <SelectTrigger>
-                        <SelectValue placeholder="Select distance unit" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="meters">Meters (m)</SelectItem>
-                        <SelectItem value="feet">Feet (ft)</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
-          </TabsContent>
 
           <TabsContent value="navigation" className="space-y-6">
             <Card>
@@ -267,13 +192,6 @@ export default function AppSettings() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="company" className="space-y-6">
-            <PaymentTermsSettings />
-          </TabsContent>
-
-          <TabsContent value="search" className="space-y-6">
-            <SearchIndexManager />
-          </TabsContent>
         </Tabs>
       </div>
     </div>

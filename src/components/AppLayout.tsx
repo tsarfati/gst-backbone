@@ -137,7 +137,6 @@ const navigationCategories = [
     icon: Settings,
     items: [
       { name: "Super Admin Dashboard", href: "/super-admin", menuKey: "settings", superAdminOnly: true },
-      { name: "General", href: "/settings", menuKey: "settings" },
       { name: "Company Settings", href: "/settings/company", menuKey: "company-settings" },
       
       
@@ -146,6 +145,7 @@ const navigationCategories = [
       { name: "Data & Security", href: "/settings/security", menuKey: "security-settings" },
       { name: "User Management", href: "/settings/users", menuKey: "user-settings" },
       { name: "Punch Clock", href: "/punch-clock/settings", menuKey: "punch-clock-settings" },
+      { name: "PM Lynk", href: "/settings/pm-lynk", menuKey: "settings" },
       { name: "Subscription", href: "/subscription", menuKey: "settings", ownerOnly: true },
     ],
     collapsible: true,

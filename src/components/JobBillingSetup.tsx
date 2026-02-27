@@ -14,12 +14,13 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
 import { CurrencyInput } from "@/components/ui/currency-input";
-import { Plus, Trash2, Save, GripVertical, FileText, Upload } from "lucide-react";
+import { ChevronDown, Download, Plus, Trash2, Save, GripVertical, FileText, Upload, Send } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
-import AddARInvoice from "@/pages/AddARInvoice";
+import AddARInvoice, { type EmbeddedDrawToolbarState } from "@/pages/AddARInvoice";
 
 interface SOVItem {
   id?: string;
@@ -68,6 +69,7 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
   const [approving, setApproving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [draws, setDraws] = useState<JobDraw[]>([]);
+  const [embeddedToolbarState, setEmbeddedToolbarState] = useState<Record<string, EmbeddedDrawToolbarState | null>>({});
   const [jobCustomerId, setJobCustomerId] = useState<string | null>(null);
   const [activeBillingTab, setActiveBillingTab] = useState<string>("sov");
   const descriptionInputRefs = useRef<Array<HTMLInputElement | null>>([]);
@@ -726,6 +728,12 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
     activeCompanyRole === "super_admin";
   const sovWorkflowStatus = hasDraws ? "Locked" : isSOVApproved ? "Approved" : "Draft";
   const approvedAt = isSOVApproved ? items.find((item) => item.approved_at)?.approved_at || null : null;
+  const activeToolbarKey = activeBillingTab.startsWith("draw:")
+    ? activeBillingTab
+    : activeBillingTab === nextDraftTabValue
+      ? nextDraftTabValue
+      : "";
+  const activeEmbeddedToolbar = activeToolbarKey ? embeddedToolbarState[activeToolbarKey] ?? null : null;
 
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground">Loading billing setup...</div>;
@@ -740,20 +748,7 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
         className="hidden"
         onChange={handleImportFileSelect}
       />
-      <CardHeader>
-        <div className="flex items-center justify-between gap-4 flex-wrap">
-          <div>
-            <CardTitle className="flex items-center gap-2 flex-wrap">
-              <FileText className="h-5 w-5" />
-              Job Billing
-            </CardTitle>
-            <CardDescription>
-              Draw tabs and Schedule of Values for this job.
-            </CardDescription>
-          </div>
-        </div>
-      </CardHeader>
-      <CardContent>
+      <CardContent className="pt-6">
         <Tabs value={activeBillingTab} onValueChange={(value) => {
           setActiveBillingTab(value);
           const next = new URLSearchParams(searchParams);
@@ -766,7 +761,7 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
           }
           setSearchParams(next, { replace: true });
         }} className="space-y-4">
-          <div className="flex items-center gap-3 flex-wrap">
+          <div className="sticky top-0 z-20 -mx-1 px-1 py-2 bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/80 border-b flex items-center gap-3 flex-wrap">
             <TabsList className="h-auto flex-wrap justify-start">
               {drawsAsc.map((draw) => (
                 <TabsTrigger key={draw.id} value={`draw:${draw.id}`}>
@@ -786,40 +781,68 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
               )}
               <TabsTrigger value="sov">Schedule Values</TabsTrigger>
             </TabsList>
+            <div className="ml-auto flex items-center gap-2 flex-wrap">
+              {activeDraw && (
+                <>
+                  <Badge variant="secondary" className="capitalize">{activeEmbeddedToolbar?.statusLabel || activeDraw.status}</Badge>
+                  <span className="text-sm font-medium">
+                    ${formatNumber(activeEmbeddedToolbar?.totalAmount ?? (activeDraw.total_amount || 0))}
+                  </span>
+                </>
+              )}
+              {activeEmbeddedToolbar && (
+                <>
+                  <DropdownMenu>
+                    <DropdownMenuTrigger asChild>
+                      <Button variant="outline" disabled={!activeEmbeddedToolbar.canExport}>
+                        <Download className="h-4 w-4 mr-2" />
+                        Export
+                        <ChevronDown className="h-4 w-4 ml-2" />
+                      </Button>
+                    </DropdownMenuTrigger>
+                    <DropdownMenuContent align="end">
+                      <DropdownMenuItem onClick={activeEmbeddedToolbar.onExportTemplate}>Export Excel</DropdownMenuItem>
+                      <DropdownMenuItem onClick={activeEmbeddedToolbar.onExportPdf}>Export PDF</DropdownMenuItem>
+                      <DropdownMenuItem onClick={activeEmbeddedToolbar.onEmailPdf}>Send as Email (PDF)</DropdownMenuItem>
+                      <DropdownMenuItem onClick={activeEmbeddedToolbar.onEmailExcel}>Send as Email (Excel)</DropdownMenuItem>
+                    </DropdownMenuContent>
+                  </DropdownMenu>
+                  <Button
+                    variant="secondary"
+                    onClick={activeEmbeddedToolbar.onSendForReview}
+                    disabled={!activeEmbeddedToolbar.canSendForReview}
+                  >
+                    <Send className="h-4 w-4 mr-2" />
+                    Send for Review
+                  </Button>
+                  <Button onClick={activeEmbeddedToolbar.onSaveDraft} disabled={!activeEmbeddedToolbar.canSaveDraft}>
+                    <Save className="h-4 w-4 mr-2" />
+                    {activeEmbeddedToolbar.saving ? "Saving..." : activeEmbeddedToolbar.saveDraftLabel}
+                  </Button>
+                </>
+              )}
+            </div>
           </div>
 
+          {activeBillingTab === "sov" && (
           <div className="rounded-lg border p-4 bg-muted/20">
             <div className="flex items-start justify-between gap-4 flex-wrap">
               <div>
-                <h3 className="font-medium">
-                  {activeBillingTab === "sov" ? "Schedule of Values" : activeDraw?.application_number ? `Draw #${activeDraw.application_number}` : "Draw"}
-                </h3>
+                <h3 className="font-medium">Schedule of Values</h3>
                 <p className="text-sm text-muted-foreground">
-                  {activeBillingTab === "sov"
-                    ? "Set up and approve the billing breakdown for AIA G702/G703 invoicing before Draw #1."
-                    : isCreateDrawTab
-                    ? `Draft for Draw #${nextDrawNumber}. Project and customer are prefilled from this job and cannot be changed.`
-                    : "Draws stay tied to this job. Project and customer are prefilled and locked when launched from Job Billing."}
+                  Set up and approve the billing breakdown for AIA G702/G703 invoicing before Draw #1.
                 </p>
-                {activeBillingTab === "sov" && (
-                  <div className="mt-2 flex items-center gap-2 flex-wrap">
-                    <Badge variant={sovWorkflowStatus === "Draft" ? "default" : "secondary"}>
-                      {sovWorkflowStatus}
-                    </Badge>
-                    {approvedAt && (
-                      <span className="text-xs text-muted-foreground">
-                        Approved {new Date(approvedAt).toLocaleString()}
-                      </span>
-                    )}
-                  </div>
-                )}
-              </div>
-              {activeDraw && (
-                <div className="flex items-center gap-2 flex-wrap">
-                  <Badge variant="secondary" className="capitalize">{activeDraw.status}</Badge>
-                  <span className="text-sm font-medium self-center">${formatNumber(activeDraw.total_amount || 0)}</span>
+                <div className="mt-2 flex items-center gap-2 flex-wrap">
+                  <Badge variant={sovWorkflowStatus === "Draft" ? "default" : "secondary"}>
+                    {sovWorkflowStatus}
+                  </Badge>
+                  {approvedAt && (
+                    <span className="text-xs text-muted-foreground">
+                      Approved {new Date(approvedAt).toLocaleString()}
+                    </span>
+                  )}
                 </div>
-              )}
+              </div>
             </div>
             <div className="mt-3 flex gap-2 flex-wrap">
               {activeBillingTab === "sov" && (
@@ -847,24 +870,6 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
                     <Button onClick={saveSOV} disabled={saving || isSOVLocked}>
                       <Save className="h-4 w-4 mr-2" />
                       {saving ? "Saving..." : "Save Changes"}
-                    </Button>
-                  )}
-                </>
-              )}
-              {(activeDraw || isCreateDrawTab) && (
-                <>
-                  {activeDraw && (activeDraw.status || "").toLowerCase() !== "draft" && (
-                    <Button
-                      variant="outline"
-                      onClick={() => navigate(`/receivables/invoices/${activeDraw.id}`)}
-                    >
-                      View in Receivables
-                    </Button>
-                  )}
-                  {!isCreateDrawTab && shouldShowNextDraftTab && (
-                    <Button onClick={() => setActiveBillingTab(nextDraftTabValue)} disabled={!canCreateDraw}>
-                      <Plus className="h-4 w-4 mr-2" />
-                      {hasDraws ? `Create Draw #${nextDrawNumber}` : "Create Draw #1"}
                     </Button>
                   )}
                 </>
@@ -901,6 +906,7 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
               </p>
             )}
           </div>
+          )}
           <TabsContent value="sov" className="mt-0">
             <div ref={sovSectionRef}>
             {items.length === 0 ? (
@@ -997,29 +1003,31 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
           {drawsAsc.map((draw) => (
             <TabsContent key={draw.id} value={`draw:${draw.id}`} className="mt-0">
               {(draw.status || "").toLowerCase() === "draft" ? (
-                <div className="rounded-lg border p-4">
-                  <AddARInvoice
-                    embedded
-                    existingInvoiceId={draw.id}
-                    initialJobId={jobId}
-                    initialCustomerId={jobCustomerId || undefined}
-                    lockJobContext
-                    onSaved={async (invoiceId) => {
-                      await loadDraws();
-                      const next = new URLSearchParams(searchParams);
-                      next.set("drawId", invoiceId);
-                      setSearchParams(next, { replace: true });
-                      setActiveBillingTab(`draw:${invoiceId}`);
-                    }}
-                    onStatusChanged={async (invoiceId) => {
-                      await loadDraws();
-                      const next = new URLSearchParams(searchParams);
-                      next.set("drawId", invoiceId);
-                      setSearchParams(next, { replace: true });
-                      setActiveBillingTab(`draw:${invoiceId}`);
-                    }}
-                  />
-                </div>
+                <AddARInvoice
+                  embedded
+                  hideEmbeddedHeaderActions
+                  onEmbeddedToolbarChange={(toolbar) => {
+                    setEmbeddedToolbarState((prev) => ({ ...prev, [`draw:${draw.id}`]: toolbar }));
+                  }}
+                  existingInvoiceId={draw.id}
+                  initialJobId={jobId}
+                  initialCustomerId={jobCustomerId || undefined}
+                  lockJobContext
+                  onSaved={async (invoiceId) => {
+                    await loadDraws();
+                    const next = new URLSearchParams(searchParams);
+                    next.set("drawId", invoiceId);
+                    setSearchParams(next, { replace: true });
+                    setActiveBillingTab(`draw:${invoiceId}`);
+                  }}
+                  onStatusChanged={async (invoiceId) => {
+                    await loadDraws();
+                    const next = new URLSearchParams(searchParams);
+                    next.set("drawId", invoiceId);
+                    setSearchParams(next, { replace: true });
+                    setActiveBillingTab(`draw:${invoiceId}`);
+                  }}
+                />
               ) : (
                 <div className="rounded-lg border">
                   <div className="p-4 border-b flex items-center justify-between gap-3 flex-wrap">
@@ -1048,34 +1056,38 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
           ))}
 
           <TabsContent value={nextDraftTabValue} className="mt-0">
-            <div className="rounded-lg border p-4">
-              {canCreateDraw ? (
-                <AddARInvoice
-                  key={`draw-draft-${nextDrawNumber}`}
-                  embedded
-                  initialJobId={jobId}
-                  initialCustomerId={jobCustomerId || undefined}
-                  lockJobContext
-                  onSaved={async (invoiceId) => {
-                    await loadDraws();
-                    const next = new URLSearchParams(searchParams);
-                    next.set("drawId", invoiceId);
-                    setSearchParams(next, { replace: true });
-                    setActiveBillingTab(`draw:${invoiceId}`);
-                  }}
-                  onCancel={() => {
-                    const next = new URLSearchParams(searchParams);
-                    next.delete("drawId");
-                    setSearchParams(next, { replace: true });
-                    setActiveBillingTab(drawsAsc[0] ? `draw:${drawsAsc[0].id}` : "sov");
-                  }}
-                />
-              ) : (
+            {canCreateDraw ? (
+              <AddARInvoice
+                key={`draw-draft-${nextDrawNumber}`}
+                embedded
+                hideEmbeddedHeaderActions
+                onEmbeddedToolbarChange={(toolbar) => {
+                  setEmbeddedToolbarState((prev) => ({ ...prev, [nextDraftTabValue]: toolbar }));
+                }}
+                initialJobId={jobId}
+                initialCustomerId={jobCustomerId || undefined}
+                lockJobContext
+                onSaved={async (invoiceId) => {
+                  await loadDraws();
+                  const next = new URLSearchParams(searchParams);
+                  next.set("drawId", invoiceId);
+                  setSearchParams(next, { replace: true });
+                  setActiveBillingTab(`draw:${invoiceId}`);
+                }}
+                onCancel={() => {
+                  const next = new URLSearchParams(searchParams);
+                  next.delete("drawId");
+                  setSearchParams(next, { replace: true });
+                  setActiveBillingTab(drawsAsc[0] ? `draw:${drawsAsc[0].id}` : "sov");
+                }}
+              />
+            ) : (
+              <div className="rounded-lg border p-4">
                 <p className="text-sm text-muted-foreground">
                   Complete and approve the Schedule of Values before creating Draw #{nextDrawNumber}.
                 </p>
-              )}
-            </div>
+              </div>
+            )}
           </TabsContent>
 
           {draws.length === 0 && !shouldShowNextDraftTab && (

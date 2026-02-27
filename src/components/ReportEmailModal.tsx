@@ -15,7 +15,9 @@ interface ReportEmailModalProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** Function that generates the PDF and returns a jsPDF doc (must have .output('blob')) */
-  generatePdf: () => Promise<any> | any;
+  generatePdf?: () => Promise<any> | any;
+  /** Optional generic attachment generator for non-PDF exports */
+  generateAttachment?: () => Promise<{ blob: Blob; filename: string; contentType?: string } | null> | { blob: Blob; filename: string; contentType?: string } | null;
   reportName: string;
   /** Optional default filename for the attachment */
   fileName?: string;
@@ -25,6 +27,7 @@ export default function ReportEmailModal({
   open,
   onOpenChange,
   generatePdf,
+  generateAttachment,
   reportName,
   fileName,
 }: ReportEmailModalProps) {
@@ -46,6 +49,18 @@ export default function ReportEmailModal({
       );
     }
   }, [open, reportName]);
+
+  const attachmentLabel = fileName || `${reportName}${generateAttachment ? "" : ".pdf"}`;
+
+  const blobToBase64 = async (blob: Blob) => {
+    const arrayBuffer = await blob.arrayBuffer();
+    const uint8Array = new Uint8Array(arrayBuffer);
+    let binary = '';
+    for (let i = 0; i < uint8Array.length; i++) {
+      binary += String.fromCharCode(uint8Array[i]);
+    }
+    return btoa(binary);
+  };
 
   const handleSend = async () => {
     if (!to.trim() || !user) return;
@@ -71,36 +86,40 @@ export default function ReportEmailModal({
         return;
       }
 
-      // Generate the PDF
-      const doc = await generatePdf();
-      if (!doc) throw new Error("Failed to generate PDF");
-      
-      setGenerating(false);
+      let invokeBody: any = {
+        to: to.split(',').map(e => e.trim()),
+        subject,
+        body,
+        user_id: user.id,
+      };
 
-      // Convert PDF to base64
-      const pdfBlob = doc.output('blob') as Blob;
-      const arrayBuffer = await pdfBlob.arrayBuffer();
-      const uint8Array = new Uint8Array(arrayBuffer);
-      let binary = '';
-      for (let i = 0; i < uint8Array.length; i++) {
-        binary += String.fromCharCode(uint8Array[i]);
+      if (generateAttachment) {
+        const attachment = await generateAttachment();
+        if (!attachment) throw new Error("Failed to generate attachment");
+        setGenerating(false);
+        const base64 = await blobToBase64(attachment.blob);
+        invokeBody.binary_attachment = {
+          filename: attachment.filename,
+          content: base64,
+          contentType: attachment.contentType,
+        };
+      } else {
+        if (!generatePdf) throw new Error("No export generator provided");
+        const doc = await generatePdf();
+        if (!doc) throw new Error("Failed to generate PDF");
+        setGenerating(false);
+        const pdfBlob = doc.output('blob') as Blob;
+        const pdfBase64 = await blobToBase64(pdfBlob);
+        const attachmentFileName = fileName || `${reportName.replace(/\s+/g, '_')}.pdf`;
+        invokeBody.pdf_attachment = {
+          filename: attachmentFileName,
+          content: pdfBase64,
+        };
       }
-      const pdfBase64 = btoa(binary);
-
-      const attachmentFileName = fileName || `${reportName.replace(/\s+/g, '_')}.pdf`;
 
       // Call edge function
       const { error } = await supabase.functions.invoke('send-file-share-email', {
-        body: {
-          to: to.split(',').map(e => e.trim()),
-          subject,
-          body,
-          user_id: user.id,
-          pdf_attachment: {
-            filename: attachmentFileName,
-            content: pdfBase64,
-          },
-        },
+        body: invokeBody,
       });
 
       if (error) throw error;
@@ -125,7 +144,7 @@ export default function ReportEmailModal({
             Email Report
           </DialogTitle>
           <DialogDescription>
-            Send this report as a PDF attachment from your configured email account.
+            Send this export as an email attachment from your configured email account.
           </DialogDescription>
         </DialogHeader>
 
@@ -133,7 +152,7 @@ export default function ReportEmailModal({
           {/* Attachment indicator */}
           <div className="flex items-center gap-2 p-2 bg-muted rounded-md text-sm">
             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-            <span className="truncate">{fileName || `${reportName}.pdf`}</span>
+            <span className="truncate">{attachmentLabel}</span>
           </div>
 
           <div className="space-y-2">
@@ -172,7 +191,7 @@ export default function ReportEmailModal({
             {sending ? (
               <>
                 <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                {generating ? 'Generating PDF...' : 'Sending...'}
+                {generating ? 'Generating Export...' : 'Sending...'}
               </>
             ) : (
               <>

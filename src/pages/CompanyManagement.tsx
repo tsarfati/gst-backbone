@@ -506,9 +506,10 @@ export default function CompanyManagement() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex items-center gap-6 mb-6">
-            <div className="flex flex-col items-center gap-2">
-              <Avatar className="h-20 w-20">
+          <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
+            <div className="space-y-3">
+              <div className="flex items-center gap-4">
+                <Avatar className="h-20 w-20 shrink-0">
                 <AvatarImage 
                   src={currentCompany.logo_url ? `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/${currentCompany.logo_url}` : undefined}
                   alt={`${currentCompany.name} logo`}
@@ -517,8 +518,15 @@ export default function CompanyManagement() {
                   {currentCompany.name.substring(0, 2).toUpperCase()}
                 </AvatarFallback>
               </Avatar>
+                <div className="min-w-0">
+                  <div className="text-sm font-medium">Company Logo</div>
+                  <div className="text-xs text-muted-foreground">
+                    {currentCompany.logo_url ? 'Logo uploaded' : 'No logo uploaded'}
+                  </div>
+                </div>
+              </div>
               {isCompanyAdmin && (
-                <div className="w-full max-w-sm">
+                <div className="w-full">
                   {uploadingLogo ? (
                     <div className="text-sm text-muted-foreground">Uploading logo...</div>
                   ) : (
@@ -527,8 +535,8 @@ export default function CompanyManagement() {
                       accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
                       maxSize={2}
                       size="compact"
-                      title="Drag logo here"
-                      dropTitle="Drop logo here"
+                      title={currentCompany.logo_url ? "Replace logo" : "Upload logo"}
+                      dropTitle={currentCompany.logo_url ? "Drop logo to replace" : "Drop logo here"}
                       helperText="Company logo image up to 2MB"
                     />
                   )}
@@ -542,27 +550,45 @@ export default function CompanyManagement() {
                 </div>
               )}
             </div>
-            <div className="flex-1">
-              <h3 className="text-xl font-semibold">{currentCompany.display_name || currentCompany.name}</h3>
-              <p className="text-sm text-muted-foreground">Company Logo</p>
-            </div>
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <Label className="text-sm font-medium">Company Name</Label>
-              <p className="text-sm text-muted-foreground">{currentCompany.name}</p>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Display Name</Label>
-              <p className="text-sm text-muted-foreground">{currentCompany.display_name || 'Not set'}</p>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Phone</Label>
-              <p className="text-sm text-muted-foreground">{currentCompany.phone || 'Not set'}</p>
-            </div>
-            <div>
-              <Label className="text-sm font-medium">Email</Label>
-              <p className="text-sm text-muted-foreground">{currentCompany.email || 'Not set'}</p>
+            <div className="space-y-4 min-w-0">
+              <div>
+                <h3 className="text-xl font-semibold leading-tight">{currentCompany.display_name || currentCompany.name}</h3>
+                <p className="text-sm text-muted-foreground">
+                  {currentCompany.name !== (currentCompany.display_name || currentCompany.name) ? currentCompany.name : 'Company Profile'}
+                </p>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-3">
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Company Name</Label>
+                  <p className="text-sm">{currentCompany.name}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Display Name</Label>
+                  <p className="text-sm">{currentCompany.display_name || 'Not set'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Phone</Label>
+                  <p className="text-sm">{currentCompany.phone || 'Not set'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Email</Label>
+                  <p className="text-sm break-all">{currentCompany.email || 'Not set'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Website</Label>
+                  <p className="text-sm break-all">{currentCompany.website || 'Not set'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Address</Label>
+                  <p className="text-sm">
+                    {[
+                      currentCompany.address,
+                      [currentCompany.city, currentCompany.state].filter(Boolean).join(', '),
+                      currentCompany.zip_code
+                    ].filter(Boolean).join(' ') || 'Not set'}
+                  </p>
+                </div>
+              </div>
             </div>
           </div>
         </CardContent>
@@ -646,213 +672,6 @@ export default function CompanyManagement() {
           </CardContent>
         </Card>
       )}
-
-      {/* Journal Entry Settings Card - Only show for company admins */}
-      {isCompanyAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Journal Entry Settings
-            </CardTitle>
-            <CardDescription>
-              Configure how journal entries can be managed
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="space-y-2">
-                <Label className="text-sm font-medium">Allow Journal Entry Deletion</Label>
-                <p className="text-sm text-muted-foreground">
-                  When disabled, journal entries can only be reversed (not deleted). This provides a better audit trail and prevents accidental data loss.
-                </p>
-                <div className="text-xs text-muted-foreground">
-                  <div>• Default: Disabled (entries can only be reversed)</div>
-                  <div>• When enabled: Delete button appears on journal entry details</div>
-                </div>
-              </div>
-              <Switch
-                checked={currentCompany?.allow_journal_entry_deletion || false}
-                onCheckedChange={async (checked) => {
-                  try {
-                    const { error } = await supabase
-                      .from('companies')
-                      .update({ allow_journal_entry_deletion: checked })
-                      .eq('id', currentCompany?.id);
-
-                    if (error) throw error;
-
-                    await refreshCompanies();
-                    
-                    toast({
-                      title: "Setting updated",
-                      description: checked 
-                        ? "Journal entries can now be deleted."
-                        : "Journal entries can only be reversed (provides better audit trail).",
-                    });
-                  } catch (error) {
-                    console.error('Error updating journal entry deletion setting:', error);
-                    toast({
-                      title: "Error",
-                      description: "Failed to update setting",
-                      variant: "destructive"
-                    });
-                  }
-                }}
-              />
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Access Requests Card - Only show for company admins */}
-
-      {/* Access Requests Card - Only show for company admins */}
-      {isCompanyAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Shield className="h-5 w-5" />
-              Access Requests
-            </CardTitle>
-            <CardDescription>
-              Review and approve requests to join this company
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <CompanyAccessApproval />
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Users Management Card */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Company Users ({users.length})
-            </div>
-            {isCompanyAdmin && (
-              <Button onClick={() => setShowAddUserDialog(true)} size="sm">
-                <UserPlus className="h-4 w-4 mr-2" />
-                Add User
-              </Button>
-            )}
-          </CardTitle>
-          <CardDescription>
-            Manage users who have access to this company
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>User</TableHead>
-                <TableHead>Role</TableHead>
-                <TableHead>Access Granted</TableHead>
-                {isCompanyAdmin && <TableHead>Actions</TableHead>}
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              {loading ? (
-                <TableRow>
-                  <TableCell colSpan={isCompanyAdmin ? 4 : 3} className="text-center py-8">
-                    Loading users...
-                  </TableCell>
-                </TableRow>
-              ) : users.length === 0 ? (
-                <TableRow>
-                  <TableCell colSpan={isCompanyAdmin ? 4 : 3} className="text-center py-8">
-                    <div className="flex flex-col items-center gap-2">
-                      <Users className="h-8 w-8 text-muted-foreground" />
-                      <p className="text-muted-foreground">No users found for this company</p>
-                      <p className="text-sm text-muted-foreground">Company admins will be automatically listed here</p>
-                    </div>
-                  </TableCell>
-                </TableRow>
-              ) : (
-                users.map((companyUser) => (
-                  <TableRow 
-                    key={companyUser.id}
-                    className="cursor-pointer hover:bg-primary/10"
-                    onClick={() => {
-                      navigate(`/settings/users/${companyUser.user_id}`, { state: { fromCompanyManagement: true } });
-                    }}
-                  >
-                    <TableCell>
-                       <div>
-                         <p className="font-medium">
-                           {companyUser.profile?.display_name || 
-                            `${companyUser.profile?.first_name || ''} ${companyUser.profile?.last_name || ''}`.trim() ||
-                            'Unknown User'}
-                         </p>
-                        <p className="text-sm text-muted-foreground">
-                          User ID: {companyUser.user_id.substring(0, 8)}...
-                        </p>
-                        <p className="text-xs text-muted-foreground">
-                          {companyUser.user_id === user?.id && '(You)'}
-                        </p>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <Badge 
-                        variant={
-                          companyUser.role === 'admin' ? 'destructive' :
-                          companyUser.role === 'controller' ? 'secondary' :
-                          companyUser.role === 'project_manager' ? 'default' :
-                          'outline'
-                        }
-                      >
-                        <Badge 
-                          variant={
-                            companyUser.role === 'admin' ? 'destructive' :
-                            companyUser.role === 'controller' ? 'secondary' :
-                            companyUser.role === 'project_manager' ? 'default' :
-                            'outline'
-                          }
-                        >
-                          {companyUser.role === 'admin' ? 'Administrator' :
-                           companyUser.role === 'controller' ? 'Controller' :
-                           companyUser.role === 'project_manager' ? 'Project Manager' :
-                           companyUser.role === 'view_only' ? 'View Only' :
-                           companyUser.role === 'company_admin' ? 'Company Admin' :
-                           'Employee'}
-                        </Badge>
-                      </Badge>
-                    </TableCell>
-                    <TableCell>
-                      <p className="text-sm">
-                        {new Date(companyUser.granted_at).toLocaleDateString()}
-                      </p>
-                    </TableCell>
-                    {isCompanyAdmin && (
-                      <TableCell onClick={(e) => e.stopPropagation()}>
-                        <div className="flex items-center gap-2">
-                          {isOwnerOrAdmin && companyUser.user_id !== user?.id && (
-                            <Button
-                              variant="destructive"
-                              size="sm"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setDeleteTargetUser(companyUser);
-                                setDeleteConfirmName('');
-                                setShowDeleteDialog(true);
-                              }}
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          )}
-                        </div>
-                      </TableCell>
-                    )}
-                  </TableRow>
-                ))
-              )}
-            </TableBody>
-          </Table>
-        </CardContent>
-      </Card>
 
       </TabsContent>
 

@@ -4,6 +4,8 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import {
   Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription
 } from "@/components/ui/dialog";
@@ -47,6 +49,10 @@ interface JobFilingCabinetProps {
 }
 
 const SYSTEM_FOLDERS = ["Delivery Tickets", "Permits"];
+type DragItemPayload =
+  | { type: "file"; id: string; sourceFolderId: string }
+  | { type: "folder"; id: string };
+const INTERNAL_DND_MIME = "application/x-job-filing-cabinet-item";
 
 export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const { currentCompany } = useCompany();
@@ -59,6 +65,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const [loading, setLoading] = useState(true);
   const [uploading, setUploading] = useState<string | null>(null);
   const [dragOverFolder, setDragOverFolder] = useState<string | null>(null);
+  const [dragOverRoot, setDragOverRoot] = useState(false);
 
   // Dialog states
   const [newFolderOpen, setNewFolderOpen] = useState(false);
@@ -69,6 +76,9 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const [previewFile, setPreviewFile] = useState<JobFile | null>(null);
   const [inlineEditFileId, setInlineEditFileId] = useState<string | null>(null);
   const [inlineEditName, setInlineEditName] = useState("");
+  const [uploadDestinationOpen, setUploadDestinationOpen] = useState(false);
+  const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
+  const [pendingUploadTargetFolderId, setPendingUploadTargetFolderId] = useState<string>("");
 
   // Multi-select state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
@@ -147,6 +157,27 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   }, [loadFolders, loadFiles]);
 
   const allFiles = Object.values(files).flat();
+  const folderById = new Map(folders.map((f) => [f.id, f]));
+  const childFoldersByParent = folders.reduce<Record<string, Folder[]>>((acc, folder) => {
+    const key = folder.parent_folder_id || "root";
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(folder);
+    return acc;
+  }, {});
+  Object.values(childFoldersByParent).forEach((list) =>
+    list.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
+  );
+
+  const isDescendantFolder = (candidateFolderId: string, ancestorFolderId: string): boolean => {
+    let current = folderById.get(candidateFolderId) || null;
+    let guard = 0;
+    while (current && guard < 200) {
+      if (current.parent_folder_id === ancestorFolderId) return true;
+      current = current.parent_folder_id ? folderById.get(current.parent_folder_id) || null : null;
+      guard += 1;
+    }
+    return false;
+  };
 
   const getSelectedFiles = (): JobFile[] => {
     return allFiles.filter(f => selectedFileIds.has(f.id));
@@ -291,10 +322,65 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     }
   };
 
+  const moveFileToFolder = async (fileId: string, targetFolderId: string) => {
+    const file = allFiles.find((f) => f.id === fileId);
+    if (!file || file.folder_id === targetFolderId) return;
+    const { error } = await supabase.from("job_files").update({ folder_id: targetFolderId }).eq("id", fileId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to move file", variant: "destructive" });
+      return;
+    }
+    toast({ title: "File moved" });
+    loadFiles();
+    setExpandedFolders((prev) => new Set(prev).add(targetFolderId));
+  };
+
+  const moveFolderToParent = async (folderId: string, targetParentFolderId: string | null) => {
+    const folder = folderById.get(folderId);
+    if (!folder) return;
+    if (folder.id === targetParentFolderId) return;
+    if (folder.parent_folder_id === targetParentFolderId) return;
+    if (targetParentFolderId && isDescendantFolder(targetParentFolderId, folderId)) {
+      toast({ title: "Invalid move", description: "Cannot move a folder into its own subfolder", variant: "destructive" });
+      return;
+    }
+    const { error } = await supabase
+      .from("job_folders")
+      .update({ parent_folder_id: targetParentFolderId })
+      .eq("id", folderId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to move folder", variant: "destructive" });
+      return;
+    }
+    toast({ title: "Folder moved" });
+    loadFolders();
+    if (targetParentFolderId) setExpandedFolders((prev) => new Set(prev).add(targetParentFolderId));
+  };
+
+  const parseInternalDropPayload = (e: React.DragEvent): DragItemPayload | null => {
+    try {
+      const raw = e.dataTransfer.getData(INTERNAL_DND_MIME);
+      if (!raw) return null;
+      return JSON.parse(raw) as DragItemPayload;
+    } catch {
+      return null;
+    }
+  };
+
   const handleDrop = (e: React.DragEvent, folderId: string) => {
     e.preventDefault();
     e.stopPropagation();
     setDragOverFolder(null);
+    setDragOverRoot(false);
+    const internalPayload = parseInternalDropPayload(e);
+    if (internalPayload) {
+      if (internalPayload.type === "file") {
+        void moveFileToFolder(internalPayload.id, folderId);
+      } else if (internalPayload.type === "folder") {
+        void moveFolderToParent(internalPayload.id, folderId);
+      }
+      return;
+    }
     const droppedFiles = Array.from(e.dataTransfer.files);
     if (droppedFiles.length > 0) {
       droppedFiles.forEach(f => uploadFile(f, folderId));
@@ -310,6 +396,35 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const handleDragLeave = (e: React.DragEvent) => {
     e.preventDefault();
     setDragOverFolder(null);
+    setDragOverRoot(false);
+  };
+
+  const handleRootDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    setDragOverRoot(false);
+    const internalPayload = parseInternalDropPayload(e);
+    if (!internalPayload) {
+      const droppedFiles = Array.from(e.dataTransfer.files);
+      if (droppedFiles.length > 0) {
+        setPendingUploadFiles(droppedFiles);
+        setPendingUploadTargetFolderId((childFoldersByParent["root"] || [])[0]?.id || "");
+        setUploadDestinationOpen(true);
+      }
+      return;
+    }
+    if (internalPayload.type === "folder") {
+      void moveFolderToParent(internalPayload.id, null);
+    } else {
+      toast({ title: "Move not allowed", description: "Files must stay inside a folder", variant: "destructive" });
+    }
+  };
+
+  const handleRootDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    e.stopPropagation();
+    const internalPayload = parseInternalDropPayload(e);
+    setDragOverRoot(Boolean(internalPayload?.type === "folder") || e.dataTransfer.files.length > 0);
   };
 
   const handleFileInput = (folderId: string) => {
@@ -324,6 +439,32 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
       }
     };
     input.click();
+  };
+
+  const handleGlobalFileInput = () => {
+    const input = document.createElement('input');
+    input.type = 'file';
+    input.multiple = true;
+    input.accept = '.pdf,.jpg,.jpeg,.png,.doc,.docx,.xls,.xlsx,.csv,.txt';
+    input.onchange = (e) => {
+      const target = e.target as HTMLInputElement;
+      const picked = target.files ? Array.from(target.files) : [];
+      if (picked.length === 0) return;
+      setPendingUploadFiles(picked);
+      setPendingUploadTargetFolderId((childFoldersByParent["root"] || [])[0]?.id || "");
+      setUploadDestinationOpen(true);
+    };
+    input.click();
+  };
+
+  const handleUploadToSelectedDestination = async () => {
+    if (!pendingUploadTargetFolderId || pendingUploadFiles.length === 0) return;
+    const filesToUpload = [...pendingUploadFiles];
+    setUploadDestinationOpen(false);
+    setPendingUploadFiles([]);
+    for (const f of filesToUpload) {
+      await uploadFile(f, pendingUploadTargetFolderId);
+    }
   };
 
   const downloadFile = async (file: JobFile) => {
@@ -398,48 +539,81 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
         </div>
       )}
 
-      <div className="space-y-1">
-        {folders.map(folder => {
+      <div
+        className={cn(
+          "space-y-0 rounded-md",
+          dragOverRoot && "ring-1 ring-primary/40 bg-primary/5"
+        )}
+        onDrop={handleRootDrop}
+        onDragOver={handleRootDragOver}
+        onDragLeave={() => setDragOverRoot(false)}
+      >
+        <div className="px-2 py-1.5 mb-1 rounded-md border border-dashed border-border/70 bg-muted/20 flex items-center justify-between gap-2">
+          <div className="text-xs text-muted-foreground">
+            Drop files here
+            <span className="mx-2 text-border">|</span>
+            Drag folders here to move them to top level
+          </div>
+          <Button size="sm" variant="outline" className="h-7" onClick={handleGlobalFileInput}>
+            <Upload className="h-3.5 w-3.5 mr-1.5" />
+            Upload Files
+          </Button>
+        </div>
+        {(childFoldersByParent["root"] || []).map(folder => {
           const isExpanded = expandedFolders.has(folder.id);
           const folderFiles = files[folder.id] || [];
           const isDragOver = dragOverFolder === folder.id;
           const isUploading = uploading === folder.id;
 
-          return (
-            <div key={folder.id}>
+          const renderFolderNode = (node: Folder, depth = 0): React.ReactNode => {
+            const nodeExpanded = expandedFolders.has(node.id);
+            const nodeFiles = files[node.id] || [];
+            const nodeIsDragOver = dragOverFolder === node.id;
+            const nodeIsUploading = uploading === node.id;
+            const childFolders = childFoldersByParent[node.id] || [];
+
+            return (
+              <div key={node.id}>
               {/* Folder Row */}
               <div
                 className={cn(
-                  "flex items-center gap-2 px-3 py-2 rounded-md cursor-pointer transition-colors group",
+                  "flex items-center gap-2 px-2.5 py-0.5 rounded-md cursor-pointer transition-colors group",
                   "hover:bg-muted/50",
-                  isDragOver && "bg-primary/10 border border-dashed border-primary",
-                  isUploading && "opacity-70"
+                  nodeIsDragOver && "bg-primary/10 border border-dashed border-primary",
+                  nodeIsUploading && "opacity-70"
                 )}
-                onClick={() => toggleFolder(folder.id)}
-                onDrop={(e) => handleDrop(e, folder.id)}
-                onDragOver={(e) => handleDragOver(e, folder.id)}
+                style={{ marginLeft: depth * 14 }}
+                draggable={!node.is_system_folder}
+                onDragStart={(e) => {
+                  e.stopPropagation();
+                  e.dataTransfer.setData(INTERNAL_DND_MIME, JSON.stringify({ type: "folder", id: node.id } satisfies DragItemPayload));
+                  e.dataTransfer.effectAllowed = "move";
+                }}
+                onClick={() => toggleFolder(node.id)}
+                onDrop={(e) => handleDrop(e, node.id)}
+                onDragOver={(e) => handleDragOver(e, node.id)}
                 onDragLeave={handleDragLeave}
               >
-                {isExpanded ? (
+                {nodeExpanded ? (
                   <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
                 ) : (
                   <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
                 )}
-                {isExpanded ? (
+                {nodeExpanded ? (
                   <FolderOpen className="h-5 w-5 text-primary shrink-0" />
                 ) : (
                   <FolderClosed className="h-5 w-5 text-primary shrink-0" />
                 )}
-                <span className="flex-1 text-sm font-medium">{folder.name}</span>
-                {folder.is_system_folder && (
+                <span className="flex-1 text-sm font-medium">{node.name}</span>
+                {node.is_system_folder && (
                   <Badge variant="secondary" className="text-xs">System</Badge>
                 )}
-                <Badge variant="outline" className="text-xs">{folderFiles.length}</Badge>
+                <Badge variant="outline" className="text-xs">{nodeFiles.length}</Badge>
 
-                {isUploading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
+                {nodeIsUploading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
 
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center" onClick={e => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleFileInput(folder.id)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleFileInput(node.id)}>
                     <Upload className="h-3.5 w-3.5" />
                   </Button>
                   <DropdownMenu>
@@ -449,13 +623,13 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setRenamingItem({ type: 'folder', id: folder.id, name: folder.name })}>
+                      <DropdownMenuItem onClick={() => setRenamingItem({ type: 'folder', id: node.id, name: node.name })}>
                         <Pencil className="h-4 w-4 mr-2" /> Rename
                       </DropdownMenuItem>
-                      {!folder.is_system_folder && (
+                      {!node.is_system_folder && (
                         <DropdownMenuItem
                           className="text-destructive"
-                          onClick={() => setDeleteItem({ type: 'folder', id: folder.id, name: folder.name })}
+                          onClick={() => setDeleteItem({ type: 'folder', id: node.id, name: node.name })}
                         >
                           <Trash2 className="h-4 w-4 mr-2" /> Delete
                         </DropdownMenuItem>
@@ -466,31 +640,39 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
               </div>
 
               {/* Files inside folder */}
-              {isExpanded && (
+              {nodeExpanded && (
                 <div
                   className={cn(
-                    "ml-6 border-l border-border pl-4 py-1 space-y-0.5",
-                    isDragOver && "border-primary"
+                    "ml-6 border-l border-border pl-2 py-0 space-y-0",
+                    nodeIsDragOver && "border-primary"
                   )}
-                  onDrop={(e) => handleDrop(e, folder.id)}
-                  onDragOver={(e) => handleDragOver(e, folder.id)}
+                  style={{ marginLeft: 24 + depth * 14 }}
+                  onDrop={(e) => handleDrop(e, node.id)}
+                  onDragOver={(e) => handleDragOver(e, node.id)}
                   onDragLeave={handleDragLeave}
                 >
-                  {folderFiles.length === 0 ? (
-                    <div className="py-4 text-center text-xs text-muted-foreground">
-                      <Upload className="h-4 w-4 mx-auto mb-1 opacity-50" />
-                      Drop files here or click upload
-                    </div>
+                  {childFolders.map((child) => renderFolderNode(child, depth + 1))}
+                  {nodeFiles.length === 0 && childFolders.length === 0 ? (
+                    <div className="py-0.5 text-center text-[11px] text-muted-foreground/80">Empty folder</div>
                   ) : (
-                    folderFiles.map(file => {
+                    nodeFiles.map(file => {
                       const isSelected = selectedFileIds.has(file.id);
                       return (
                         <div
                           key={file.id}
                           className={cn(
-                            "flex items-center gap-2 px-3 py-1.5 rounded-md hover:bg-muted/50 group text-sm cursor-pointer",
+                            "flex items-center gap-2 px-2.5 py-0 rounded-md hover:bg-muted/50 group text-sm cursor-pointer",
                             isSelected && "bg-primary/5 ring-1 ring-primary/20"
                           )}
+                          draggable
+                          onDragStart={(e) => {
+                            e.stopPropagation();
+                            e.dataTransfer.setData(
+                              INTERNAL_DND_MIME,
+                              JSON.stringify({ type: "file", id: file.id, sourceFolderId: node.id } satisfies DragItemPayload)
+                            );
+                            e.dataTransfer.effectAllowed = "move";
+                          }}
                           onClick={() => setPreviewFile(file)}
                         >
                           <div onClick={e => e.stopPropagation()}>
@@ -526,7 +708,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                                 onChange={(e) => setInlineEditName(e.target.value)}
                                 onBlur={() => setInlineEditFileId(null)}
                                 onKeyDown={(e) => { if (e.key === 'Escape') setInlineEditFileId(null); }}
-                                className="h-6 text-sm py-0 px-1"
+                              className="h-6 text-sm py-0 px-1"
                                 onClick={(e) => e.stopPropagation()}
                               />
                             </form>
@@ -575,8 +757,11 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                   )}
                 </div>
               )}
-            </div>
-          );
+              </div>
+            );
+          };
+
+          return renderFolderNode(folder, 0);
         })}
       </div>
 
@@ -596,6 +781,49 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewFolderOpen(false)}>Cancel</Button>
             <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={uploadDestinationOpen} onOpenChange={setUploadDestinationOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Choose Upload Destination</DialogTitle>
+            <DialogDescription>
+              Select the folder where {pendingUploadFiles.length} file{pendingUploadFiles.length === 1 ? "" : "s"} should be uploaded.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Destination Folder</Label>
+            <Select value={pendingUploadTargetFolderId} onValueChange={setPendingUploadTargetFolderId}>
+              <SelectTrigger>
+                <SelectValue placeholder="Select folder" />
+              </SelectTrigger>
+              <SelectContent>
+                {folders.map((folder) => (
+                  <SelectItem key={folder.id} value={folder.id}>
+                    {folder.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setUploadDestinationOpen(false);
+                setPendingUploadFiles([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleUploadToSelectedDestination}
+              disabled={!pendingUploadTargetFolderId || pendingUploadFiles.length === 0}
+            >
+              Upload
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

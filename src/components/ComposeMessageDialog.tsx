@@ -12,6 +12,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
+import { useUserAvatars } from '@/hooks/useUserAvatar';
+import UserAvatar from '@/components/UserAvatar';
 
 const CURRENT_USER_ID = 'fa67f9ba-67fc-4708-9526-7bfef906dae3';
 const CURRENT_COMPANY_ID = 'f64fff8d-16f4-4a07-81b3-e470d7e2d560';
@@ -27,6 +29,7 @@ interface UserOption {
   name: string;
   role: string;
   department?: string;
+  avatar_url?: string | null;
 }
 
 export default function ComposeMessageDialog({ children, onMessageSent }: ComposeMessageDialogProps) {
@@ -44,34 +47,58 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
 
   const userId = user?.id || CURRENT_USER_ID;
   const companyId = currentCompany?.id || CURRENT_COMPANY_ID;
+  const availableUserIds = availableUsers.map((u) => u.user_id);
+  const { avatarMap } = useUserAvatars(availableUserIds);
 
   useEffect(() => {
     if (open) {
       fetchUsers();
     }
-  }, [open]);
+  }, [open, companyId, userId]);
 
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      // Fetch regular auth users with company access
+      const { data: accessRows, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('user_id, role')
+        .eq('company_id', companyId)
+        .eq('is_active', true)
+        .neq('user_id', userId);
+
+      if (accessError) throw accessError;
+
+      const userIds = Array.from(new Set((accessRows || []).map((r) => r.user_id).filter(Boolean)));
+      if (userIds.length === 0) {
+        setAvailableUsers([]);
+        return;
+      }
+
+      const roleMap = new Map((accessRows || []).map((r) => [r.user_id, String(r.role || 'employee')]));
+
       const { data: profileData, error: profileError } = await supabase
         .from('profiles')
-        .select(`
-          id, user_id, display_name, role,
-          user_company_access!inner(company_id)
-        `)
-        .eq('user_company_access.company_id', companyId)
-        .neq('user_id', userId);
+        .select('id, user_id, display_name, first_name, last_name, avatar_url, status')
+        .in('user_id', userIds);
 
       if (profileError) throw profileError;
 
-      const authUsers: UserOption[] = (profileData || []).map(profile => ({
-        id: profile.id,
-        user_id: profile.user_id,
-        name: profile.display_name || 'Unknown User',
-        role: profile.role || 'employee'
-      }));
+      const authUsers: UserOption[] = (profileData || [])
+        .filter((profile: any) => {
+          const status = String(profile.status || '').toLowerCase();
+          return !['deleted', 'disabled', 'inactive'].includes(status);
+        })
+        .map((profile: any) => ({
+          id: profile.id,
+          user_id: profile.user_id,
+          name:
+            profile.display_name ||
+            [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
+            'Unknown User',
+          role: roleMap.get(profile.user_id) || 'employee',
+          avatar_url: profile.avatar_url || null,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
 
       setAvailableUsers(authUsers);
     } catch (error) {
@@ -195,7 +222,7 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
 
               <Select value={selectedUser} onValueChange={handleAddRecipient}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select a user to add" />
+                  <SelectValue placeholder={loading ? 'Loading users...' : 'Select a user to add'} />
                 </SelectTrigger>
                 <SelectContent>
                   {availableUsers
@@ -203,7 +230,12 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
                     .map(u => (
                       <SelectItem key={u.user_id} value={u.user_id}>
                         <div className="flex items-center gap-2">
-                          <User className="h-4 w-4" />
+                          <UserAvatar
+                            src={avatarMap[u.user_id] ?? u.avatar_url ?? null}
+                            name={u.name}
+                            className="h-5 w-5"
+                            fallbackClassName="text-[10px]"
+                          />
                           <span>{u.name}</span>
                           <Badge variant="outline" className="text-xs">{u.role}</Badge>
                         </div>
@@ -218,11 +250,12 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
                   <div className="flex flex-wrap gap-2 max-h-32 overflow-y-auto">
                     {recipients.map(recipient => (
                       <div key={recipient.user_id} className="flex items-center gap-2 bg-accent rounded-lg px-3 py-2">
-                        <Avatar className="h-6 w-6">
-                          <AvatarFallback className="text-xs">
-                            {recipient.name.split(' ').map(n => n[0]).join('')}
-                          </AvatarFallback>
-                        </Avatar>
+                        <UserAvatar
+                          src={avatarMap[recipient.user_id] ?? recipient.avatar_url ?? null}
+                          name={recipient.name}
+                          className="h-6 w-6"
+                          fallbackClassName="text-xs"
+                        />
                         <div className="flex-1 min-w-0">
                           <p className="text-sm font-medium truncate">{recipient.name}</p>
                           <p className="text-xs text-muted-foreground">{recipient.role}</p>
