@@ -104,7 +104,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const { data, error: emailError } = await resend.emails.send({
-      from: "System Notifications <system@greenstarteam.com>",
+      from: "System Notifications <system@builderlynk.com>",
       to: [email],
       subject: "✅ Test Email - Email Server Configuration Successful",
       html: htmlContent,

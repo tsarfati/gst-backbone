@@ -172,7 +172,7 @@
  
      // Send the branded email via Resend
      const { error } = await resend.emails.send({
-       from: 'BuilderLYNK <noreply@greenstarteam.com>',
+       from: 'BuilderLYNK <noreply@builderlynk.com>',
        to: [user.email],
        subject,
        html,

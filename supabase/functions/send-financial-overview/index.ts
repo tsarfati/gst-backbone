@@ -96,7 +96,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send email
     const emailResponse = await resend.emails.send({
-      from: "Financial Reports <reports@greenstarteam.com>",
+      from: "Financial Reports <reports@builderlynk.com>",
       to: [userEmail],
       subject: `Financial Overview Report - ${new Date().toLocaleDateString()}`,
       html,
