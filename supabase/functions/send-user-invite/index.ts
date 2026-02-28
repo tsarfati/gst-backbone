@@ -1,6 +1,6 @@
- import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
- import { Resend } from "https://esm.sh/resend@4.0.0";
- import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
+import { Resend } from "https://esm.sh/resend@4.0.0";
+import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
  
  const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
  
@@ -63,17 +63,78 @@ function hslToHex(hsl: string): string {
      return new Response(null, { headers: responseCorsHeaders });
    }
  
-   try {
+  try {
      const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
      const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
      const supabase = createClient(supabaseUrl, supabaseServiceKey);
- 
+
+     const authHeader = req.headers.get("Authorization");
+     if (!authHeader) {
+       return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+         status: 401,
+         headers: { "Content-Type": "application/json", ...responseCorsHeaders },
+       });
+     }
+
+     const supabaseAuth = createClient(supabaseUrl, supabaseAnonKey, {
+       global: { headers: { Authorization: authHeader } },
+     });
+     const token = authHeader.replace("Bearer ", "");
+     const { data: userData, error: userError } = await supabaseAuth.auth.getUser(token);
+     if (userError || !userData?.user) {
+       return new Response(JSON.stringify({ error: "Unauthorized" }), {
+         status: 401,
+         headers: { "Content-Type": "application/json", ...responseCorsHeaders },
+       });
+     }
+
      const { email, firstName, lastName, role, customRoleId, customRoleName, companyId, companyName, companyLogo, primaryColor, invitedBy, resendInvitationId }: InviteRequest = await req.json();
- 
+
      if (!email || !companyId || !companyName) {
        throw new Error("Missing required fields: email, companyId, companyName");
      }
- 
+
+     const requesterUserId = userData.user.id;
+     const effectiveInvitedBy = invitedBy || requesterUserId;
+     if (effectiveInvitedBy !== requesterUserId) {
+       return new Response(JSON.stringify({ error: "invitedBy must match authenticated user" }), {
+         status: 403,
+         headers: { "Content-Type": "application/json", ...responseCorsHeaders },
+       });
+     }
+
+     const { data: accessRows, error: accessError } = await supabase
+       .from("user_company_access")
+       .select("role, is_active")
+       .eq("company_id", companyId)
+       .eq("user_id", requesterUserId);
+     if (accessError) throw accessError;
+
+     const canManageFromCompanyRole = (accessRows || []).some((row: any) => {
+       const normalizedRole = String(row.role || "").toLowerCase();
+       return row.is_active === true && ["admin", "company_admin", "controller", "owner"].includes(normalizedRole);
+     });
+
+     let canManageUsers = canManageFromCompanyRole;
+     if (!canManageUsers) {
+       const { data: profileRow, error: profileError } = await supabase
+         .from("profiles")
+         .select("role")
+         .eq("user_id", requesterUserId)
+         .maybeSingle();
+       if (profileError) throw profileError;
+       const profileRole = String(profileRow?.role || "").toLowerCase();
+       canManageUsers = ["super_admin", "admin", "controller", "owner"].includes(profileRole);
+     }
+
+     if (!canManageUsers) {
+       return new Response(JSON.stringify({ error: "Forbidden" }), {
+         status: 403,
+         headers: { "Content-Type": "application/json", ...responseCorsHeaders },
+       });
+     }
+
      // Generate a unique invite token
      const inviteToken = crypto.randomUUID();
      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
@@ -193,7 +254,13 @@ function hslToHex(hsl: string): string {
        const { error: updateError } = await supabase
          .from('user_invitations')
          .update({
-           expires_at: expiresAt.toISOString(),
+            expires_at: expiresAt.toISOString(),
+            role,
+            custom_role_id: customRoleId ?? null,
+            first_name: firstName || null,
+            last_name: lastName || null,
+            status: 'pending',
+            invited_by: effectiveInvitedBy,
            email_status: 'sent',
            email_delivered_at: null,
            email_opened_at: null,
@@ -218,7 +285,7 @@ function hslToHex(hsl: string): string {
            role,
            custom_role_id: customRoleId ?? null,
            company_id: companyId,
-           invited_by: invitedBy,
+           invited_by: effectiveInvitedBy,
            expires_at: expiresAt.toISOString(),
            status: 'pending',
            email_status: 'sent',
@@ -230,24 +297,35 @@ function hslToHex(hsl: string): string {
          // Don't throw - email was already sent successfully
        }
  
-       // Also store in pending_user_invites for the auth flow
-       const { error: pendingError } = await supabase
-         .from('pending_user_invites')
-         .insert({
-           email,
-           first_name: firstName || null,
-           last_name: lastName || null,
-           role,
-           custom_role_id: customRoleId ?? null,
-           company_id: companyId,
-           invite_token: inviteToken,
-           expires_at: expiresAt.toISOString(),
-           invited_by: invitedBy,
-         });
- 
-       if (pendingError) {
-         console.error("Error storing pending invite:", pendingError);
-       }
+     }
+
+     // Always refresh pending_user_invites with a token matching the email we just sent.
+     // This prevents stale/invalid token loops after resend/cancel flows.
+     const { error: pendingDeleteError } = await supabase
+       .from('pending_user_invites')
+       .delete()
+       .eq('company_id', companyId)
+       .eq('email', email);
+     if (pendingDeleteError) {
+       console.warn("Error deleting stale pending invites:", pendingDeleteError);
+     }
+
+     const { error: pendingInsertError } = await supabase
+       .from('pending_user_invites')
+       .insert({
+         email,
+         first_name: firstName || null,
+         last_name: lastName || null,
+         role,
+         custom_role_id: customRoleId ?? null,
+         company_id: companyId,
+         invite_token: inviteToken,
+         expires_at: expiresAt.toISOString(),
+         invited_by: effectiveInvitedBy,
+         accepted_at: null,
+       });
+     if (pendingInsertError) {
+       console.error("Error storing pending invite:", pendingInsertError);
      }
  
      return new Response(JSON.stringify({ success: true, inviteToken }), {

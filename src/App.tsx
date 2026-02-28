@@ -6,7 +6,7 @@ import { ThemeProvider } from "next-themes";
 import { SettingsProvider } from "@/contexts/SettingsContext";
 import { ReceiptProvider } from "@/contexts/ReceiptContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
-import { TenantProvider } from "@/contexts/TenantContext";
+import { TenantProvider, useTenant } from "@/contexts/TenantContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AccessControl } from "@/components/AccessControl";
 import { RoleGuard } from "@/components/RoleGuard";
@@ -83,6 +83,7 @@ import SecuritySettings from "./pages/SecuritySettings";
 import ProfileSettings from "./pages/ProfileSettings";
 import ThemeSettings from "./pages/ThemeSettings";
 import PMLynkSettings from "./pages/PMLynkSettings";
+import SettingsHelpDatabase from "./pages/SettingsHelpDatabase";
 import CodedReceipts from "./pages/CodedReceipts";
 import NotificationSettings from "./pages/NotificationSettings";
 import EmailTemplateEdit from "./pages/EmailTemplateEdit";
@@ -156,6 +157,7 @@ import EmployeeDashboard from "./pages/EmployeeDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorRegister from "./pages/VendorRegister";
 import SubscriptionPortal from "./pages/SubscriptionPortal";
+import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
 
 const queryClient = new QueryClient();
 
@@ -171,6 +173,35 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
     return <Navigate to="/auth" replace />;
   }
   
+  return <>{children}</>;
+}
+
+function OrganizationOwnerRoute({ children }: { children: React.ReactNode }) {
+  const { tenantMember, isSuperAdmin, loading } = useTenant();
+  const { hasFeature } = useCompanyFeatureAccess(['organization_management']);
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
+
+  if (!isSuperAdmin && tenantMember?.role !== 'owner') {
+    return <Navigate to="/settings/company" replace />;
+  }
+
+  if (!hasFeature('organization_management')) {
+    return <Navigate to="/settings/company" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function PunchClockFeatureRoute({ children }: { children: React.ReactNode }) {
+  const { hasFeature } = useCompanyFeatureAccess(['punch_clock_app']);
+
+  if (!hasFeature('punch_clock_app')) {
+    return <Navigate to="/settings/company" replace />;
+  }
+
   return <>{children}</>;
 }
 
@@ -296,16 +327,22 @@ function AuthenticatedRoutes() {
               <Route path="vendors/reports" element={<VendorReports />} />
               <Route path="vendors/:id" element={<VendorDetails />} />
               <Route path="vendors/:id/edit" element={<VendorEdit />} />
-              <Route path="settings" element={<Navigate to="/settings/company?tab=theme" replace />} />
+              <Route path="settings" element={<Navigate to="/settings/company?tab=overview" replace />} />
               <Route path="settings/company" element={<CompanySettingsPage />} />
               <Route path="settings/company/chart-of-accounts" element={<ChartOfAccounts />} />
               <Route path="settings/company/job-cost-setup" element={<JobCostSetupStandalone />} />
               <Route path="job-cost-setup" element={<JobCostSetupStandalone />} />
-              <Route path="settings/company-management" element={<CompanyManagement />} />
+              <Route path="settings/company-management" element={<Navigate to="/settings/organization-management" replace />} />
+              <Route path="settings/organization-management" element={
+                <OrganizationOwnerRoute>
+                  <CompanyManagement />
+                </OrganizationOwnerRoute>
+              } />
               <Route path="settings/notifications" element={<NotificationSettings />} />
               <Route path="settings/email-templates/:id/edit" element={<EmailTemplateEdit />} />
               <Route path="settings/email-templates/:id/preview" element={<EmailTemplatePreview />} />
               <Route path="settings/security" element={<SecuritySettings />} />
+              <Route path="settings/help" element={<SettingsHelpDatabase />} />
               <Route path="settings/pm-lynk" element={<PMLynkSettings />} />
               <Route path="theme-settings" element={<ThemeSettings />} />
               
@@ -326,16 +363,24 @@ function AuthenticatedRoutes() {
               <Route path="manual-time-entry" element={<ManualTimeEntry />} />
               <Route path="add-employee" element={<AddEmployee />} />
               <Route path="time-sheets" element={<TimeSheets />} />
-              <Route path="punch-clock/timesheets" element={<TimeSheets />} />
+              <Route path="punch-clock/timesheets" element={
+                <PunchClockFeatureRoute>
+                  <TimeSheets />
+                </PunchClockFeatureRoute>
+              } />
               <Route path="punch-clock/dashboard" element={
-                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                  <PunchClockDashboard />
-                </RoleGuard>
+                <PunchClockFeatureRoute>
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <PunchClockDashboard />
+                  </RoleGuard>
+                </PunchClockFeatureRoute>
               } />
               <Route path="punch-clock/reports" element={
-                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                  <TimecardReports />
-                </RoleGuard>
+                <PunchClockFeatureRoute>
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <TimecardReports />
+                  </RoleGuard>
+                </PunchClockFeatureRoute>
               } />
               <Route path="punch-clock/settings" element={
                 <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
