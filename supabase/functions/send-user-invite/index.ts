@@ -238,7 +238,7 @@ function hslToHex(hsl: string): string {
  
      // Send the invitation email
      const emailResponse = await resend.emails.send({
-       from: "BuilderLYNK <invites@greenstarteam.com>",
+       from: "BuilderLYNK <invites@builderlynk.com>",
        to: [email],
        subject: `${companyName} has invited you to join BuilderLYNK`,
        html: emailHtml,
