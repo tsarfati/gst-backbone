@@ -45,7 +45,12 @@ export function AccessControl({ children }: AccessControlProps) {
 
   useEffect(() => {
     const maxAutoAcceptAttempts = 8;
-    if (!user?.id || !profile || profile.status !== 'pending' || isInviteAuthRoute) {
+    const shouldTryAutoAccept =
+      !!user?.id &&
+      !isInviteAuthRoute &&
+      (!hasTenantAccess && !isSuperAdmin && userCompanies.length === 0);
+
+    if (!shouldTryAutoAccept) {
       return;
     }
     if (autoAcceptAttemptCountRef.current >= maxAutoAcceptAttempts) {
@@ -99,7 +104,11 @@ export function AccessControl({ children }: AccessControlProps) {
         if (error) {
           const parsed = await parseInviteFunctionError(error);
           console.warn('Auto invite acceptance skipped/failed', parsed);
-          if (autoAcceptAttemptCountRef.current < maxAutoAcceptAttempts) {
+          const terminalError =
+            parsed.code === 'INVITATION_NOT_FOUND' ||
+            parsed.code === 'INVITATION_EXPIRED' ||
+            parsed.code === 'INVITATION_EMAIL_MISMATCH';
+          if (!terminalError && autoAcceptAttemptCountRef.current < maxAutoAcceptAttempts) {
             retryTimer = window.setTimeout(() => {
               setAutoAcceptRetryTick((n) => n + 1);
             }, 3500);
@@ -129,7 +138,7 @@ export function AccessControl({ children }: AccessControlProps) {
       cancelled = true;
       if (retryTimer) window.clearTimeout(retryTimer);
     };
-  }, [user?.id, profile?.status, isInviteAuthRoute, refreshProfile, autoAcceptRetryTick]);
+  }, [user?.id, profile?.status, hasTenantAccess, isSuperAdmin, userCompanies.length, isInviteAuthRoute, refreshProfile, autoAcceptRetryTick]);
 
   useEffect(() => {
     if (authLoading || companyLoading || tenantLoading) {

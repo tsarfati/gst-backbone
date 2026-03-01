@@ -18,7 +18,7 @@ export function AccountStatusScreen({ status }: AccountStatusScreenProps) {
           </div>
           <h1 className="text-2xl font-bold text-foreground">Account Setup in Progress</h1>
           <p className="text-muted-foreground">
-            Your account is still being set up. You'll be notified once everything is ready. Please check back soon.
+            Your account is pending admin approval. You will receive an email once your access is approved.
           </p>
           <Button variant="outline" onClick={signOut} className="gap-2">
             <LogOut className="h-4 w-4" />

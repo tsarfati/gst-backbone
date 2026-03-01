@@ -199,9 +199,53 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             .limit(1)
         ]);
 
-        const companySettings = ((companyResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
-        setCompanyDefaults(companySettings);
+        let companySettings = ((companyResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
         const userSettings = ((userResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
+
+        // Backward-compatible fallback:
+        // Some companies only have admin/controller user-level theme settings saved (legacy),
+        // but no shared company default (user_id IS NULL). In that case, inherit colors
+        // from the most recent admin/controller user setting so non-admin users still get branding.
+        if (!companySettings?.customColors) {
+          const { data: allCompanyUiRows } = await supabase
+            .from('company_ui_settings')
+            .select('user_id, settings, updated_at')
+            .eq('company_id', currentCompany.id)
+            .not('user_id', 'is', null)
+            .order('updated_at', { ascending: false })
+            .limit(30);
+
+          const settingUserIds = (allCompanyUiRows || [])
+            .map((row: any) => row.user_id)
+            .filter(Boolean);
+
+          if (settingUserIds.length > 0) {
+            const { data: accessRows } = await supabase
+              .from('user_company_access')
+              .select('user_id, role, is_active')
+              .eq('company_id', currentCompany.id)
+              .in('user_id', settingUserIds)
+              .eq('is_active', true);
+
+            const adminUserSet = new Set(
+              (accessRows || [])
+                .filter((row: any) => ['admin', 'company_admin', 'controller'].includes(String(row.role || '').toLowerCase()))
+                .map((row: any) => row.user_id)
+            );
+
+            const fallbackAdminSettings = (allCompanyUiRows || [])
+              .find((row: any) => adminUserSet.has(row.user_id) && row?.settings?.customColors)?.settings || null;
+
+            if (fallbackAdminSettings?.customColors) {
+              companySettings = {
+                ...(companySettings || {}),
+                customColors: fallbackAdminSettings.customColors,
+              };
+            }
+          }
+        }
+
+        setCompanyDefaults(companySettings);
 
         const merged = { ...defaultSettings, ...(companySettings || {}), ...(userSettings || {}) } as AppSettings;
         setSettings(merged);
