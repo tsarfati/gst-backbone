@@ -5,8 +5,8 @@ interface PremiumLoadingScreenProps {
 }
 
 export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScreenProps) {
-  const size = 148;
-  const strokeWidth = 4;
+  const size = 520;
+  const strokeWidth = 10;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const arcLength = circumference / 3; // ~120 degrees
@@ -14,11 +14,17 @@ export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScre
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
       <div className="flex flex-col items-center gap-4">
-        <div className="relative" style={{ width: size, height: size }}>
+        <div
+          className="relative"
+          style={{
+            width: "min(72vw, 520px)",
+            height: "min(72vw, 520px)",
+          }}
+        >
           <svg
             viewBox={`0 0 ${size} ${size}`}
-            width={size}
-            height={size}
+            width="100%"
+            height="100%"
             className="absolute inset-0"
             aria-hidden="true"
           >
@@ -55,15 +61,14 @@ export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScre
             <img
               src={builderLynkShield}
               alt="BuilderLYNK"
-              className="h-16 w-16 object-contain select-none pointer-events-none"
+              className="h-[374px] w-[374px] max-h-[56vw] max-w-[56vw] object-contain select-none pointer-events-none"
               draggable={false}
             />
           </div>
         </div>
 
-        <p className="text-sm text-[#9CA3AF]">{text}</p>
+        <p className="text-lg text-[#9CA3AF]">{text}</p>
       </div>
     </div>
   );
 }
-

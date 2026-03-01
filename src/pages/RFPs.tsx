@@ -113,7 +113,7 @@ export default function RFPs() {
   });
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 md:px-6 pb-6">
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-3xl font-bold">RFPs</h1>

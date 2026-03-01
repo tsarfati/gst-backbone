@@ -228,7 +228,7 @@ export default function AddBid() {
     : null;
 
   return (
-    <div className="space-y-4">
+    <div className="space-y-4 px-4 md:px-6 pb-6">
       <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />

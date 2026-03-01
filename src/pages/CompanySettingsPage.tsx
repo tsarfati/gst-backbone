@@ -89,54 +89,46 @@ export default function CompanySettingsPage() {
           </TabsList>
 
           <TabsContent value="overview">
-            <div className="space-y-6">
-              <Card>
-                <CardHeader>
-                  <CardTitle>Company Information</CardTitle>
-                  <CardDescription>
-                    Primary company details used across the platform.
-                  </CardDescription>
-                </CardHeader>
-                <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground">Company Name</Label>
-                    <p className="text-sm">{currentCompany?.name || 'Not set'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground">Display Name</Label>
-                    <p className="text-sm">{currentCompany?.display_name || 'Not set'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground">Phone</Label>
-                    <p className="text-sm">{currentCompany?.phone || 'Not set'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground">Email</Label>
-                    <p className="text-sm break-all">{currentCompany?.email || 'Not set'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground">Website</Label>
-                    <p className="text-sm break-all">{currentCompany?.website || 'Not set'}</p>
-                  </div>
-                  <div>
-                    <Label className="text-xs font-medium text-muted-foreground">Address</Label>
-                    <p className="text-sm">
-                      {[
-                        currentCompany?.address,
-                        [currentCompany?.city, currentCompany?.state].filter(Boolean).join(', '),
-                        currentCompany?.zip_code,
-                      ].filter(Boolean).join(' ') || 'Not set'}
-                    </p>
-                  </div>
-                </CardContent>
-              </Card>
-
-              <CompanySettings
-                showCheckPickupLocations={false}
-                showBillApprovalSettings={false}
-                showJournalEntrySettings={false}
-              />
-            </div>
+            <Card>
+              <CardHeader>
+                <CardTitle>Company Information</CardTitle>
+                <CardDescription>
+                  Primary company details used across the platform.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Company Name</Label>
+                  <p className="text-sm">{currentCompany?.name || 'Not set'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Display Name</Label>
+                  <p className="text-sm">{currentCompany?.display_name || 'Not set'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Phone</Label>
+                  <p className="text-sm">{currentCompany?.phone || 'Not set'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Email</Label>
+                  <p className="text-sm break-all">{currentCompany?.email || 'Not set'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Website</Label>
+                  <p className="text-sm break-all">{currentCompany?.website || 'Not set'}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Address</Label>
+                  <p className="text-sm">
+                    {[
+                      currentCompany?.address,
+                      [currentCompany?.city, currentCompany?.state].filter(Boolean).join(', '),
+                      currentCompany?.zip_code,
+                    ].filter(Boolean).join(' ') || 'Not set'}
+                  </p>
+                </div>
+              </CardContent>
+            </Card>
           </TabsContent>
 
 
