@@ -1537,68 +1537,68 @@ export default function AddARInvoice({
               </CardHeader>
               <CardContent>
                 <div className="overflow-x-auto">
-                  <Table>
+                  <Table className="[&_th]:h-5 [&_th]:py-0 [&_th]:leading-none [&_th]:text-sm [&_td]:h-7 [&_td]:py-0 [&_td]:leading-none [&_td]:text-sm">
                     <TableHeader>
                       <TableRow>
-                        <TableHead className="w-16 py-2 px-2">Item No.</TableHead>
-                        <TableHead className="py-2 px-2">Description of Work</TableHead>
-                        <TableHead className="text-right w-28 py-2 px-2">Scheduled Value</TableHead>
-                        <TableHead className="text-right w-28 py-2 px-2">Previous Applications</TableHead>
-                        <TableHead className="text-right w-28 py-2 px-2">This Period</TableHead>
-                        <TableHead className="text-right w-28 py-2 px-2">Materials Stored</TableHead>
-                        <TableHead className="text-right w-28 py-2 px-2">Total Completed</TableHead>
-                        <TableHead className="text-right w-16 py-2 px-2">%</TableHead>
-                        <TableHead className="text-right w-28 py-2 px-2">Balance to Finish</TableHead>
-                        <TableHead className="text-right w-28 py-2 px-2">Retainage</TableHead>
+                        <TableHead className="w-16 h-5 py-0 px-2">Item No.</TableHead>
+                        <TableHead className="h-5 py-0 px-2">Description of Work</TableHead>
+                        <TableHead className="text-right w-28 h-5 py-0 px-2">Scheduled Value</TableHead>
+                        <TableHead className="text-right w-28 h-5 py-0 px-2">Previous Applications</TableHead>
+                        <TableHead className="text-right w-28 h-5 py-0 px-2">This Period</TableHead>
+                        <TableHead className="text-right w-28 h-5 py-0 px-2">Materials Stored</TableHead>
+                        <TableHead className="text-right w-28 h-5 py-0 px-2">Total Completed</TableHead>
+                        <TableHead className="text-right w-16 h-5 py-0 px-2">%</TableHead>
+                        <TableHead className="text-right w-28 h-5 py-0 px-2">Balance to Finish</TableHead>
+                        <TableHead className="text-right w-28 h-5 py-0 px-2">Retainage</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
                       {lineItems.map((item, index) => (
-                        <TableRow key={item.sov_id} className="align-middle">
-                          <TableCell className="font-medium py-1 px-2 leading-none">{item.item_number}</TableCell>
-                          <TableCell className="py-1 px-2 leading-tight">{item.description}</TableCell>
-                          <TableCell className="text-right py-1 px-2 leading-none">${formatNumber(item.scheduled_value)}</TableCell>
-                          <TableCell className="text-right py-1 px-2 leading-none">${formatNumber(item.previous_applications)}</TableCell>
-                          <TableCell className="py-1 px-2">
-                            <div className="flex items-center gap-1">
+                        <TableRow key={item.sov_id} className="align-middle h-7 [&>td]:h-7 [&>td]:py-0">
+                          <TableCell className="font-medium py-0 px-2 leading-none">{item.item_number}</TableCell>
+                          <TableCell className="py-0 px-2 leading-tight">{item.description}</TableCell>
+                          <TableCell className="text-right py-0 px-2 leading-none">${formatNumber(item.scheduled_value)}</TableCell>
+                          <TableCell className="text-right py-0 px-2 leading-none">${formatNumber(item.previous_applications)}</TableCell>
+                          <TableCell className="py-0 px-2">
+                            <div className="flex items-center gap-0.5">
                               <span className="text-muted-foreground text-xs">$</span>
                               <CurrencyInput
                                 value={item.this_period}
                                 onChange={(val) => updateLineItem(index, "this_period", parseFloat(val) || 0)}
-                                className="w-24 h-8 text-right text-sm"
+                                className="w-24 h-5 text-right text-sm py-0 px-1 leading-none"
                                 disabled={isReadOnly}
                               />
                             </div>
                           </TableCell>
-                          <TableCell className="py-1 px-2">
-                            <div className="flex items-center gap-1">
+                          <TableCell className="py-0 px-2">
+                            <div className="flex items-center gap-0.5">
                               <span className="text-muted-foreground text-xs">$</span>
                               <CurrencyInput
                                 value={item.materials_stored}
                                 onChange={(val) => updateLineItem(index, "materials_stored", parseFloat(val) || 0)}
-                                className="w-24 h-8 text-right text-sm"
+                                className="w-24 h-5 text-right text-sm py-0 px-1 leading-none"
                                 disabled={isReadOnly}
                               />
                             </div>
                           </TableCell>
-                          <TableCell className="text-right font-medium py-1 px-2 leading-none">${formatNumber(item.total_completed)}</TableCell>
-                          <TableCell className="text-right py-1 px-2 leading-none">{item.percent_complete}%</TableCell>
-                          <TableCell className="text-right py-1 px-2 leading-none">${formatNumber(item.balance_to_finish)}</TableCell>
-                          <TableCell className="text-right py-1 px-2 leading-none">${formatNumber(item.retainage)}</TableCell>
+                          <TableCell className="text-right font-medium py-0 px-2 leading-none">${formatNumber(item.total_completed)}</TableCell>
+                          <TableCell className="text-right py-0 px-2 leading-none">{item.percent_complete}%</TableCell>
+                          <TableCell className="text-right py-0 px-2 leading-none">${formatNumber(item.balance_to_finish)}</TableCell>
+                          <TableCell className="text-right py-0 px-2 leading-none">${formatNumber(item.retainage)}</TableCell>
                         </TableRow>
                       ))}
                       
                       {/* Totals Row */}
-                      <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={2} className="py-2 px-2">GRAND TOTAL</TableCell>
-                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.scheduledValue)}</TableCell>
-                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.previousApplications)}</TableCell>
-                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.thisPeriod)}</TableCell>
-                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.materialsStored)}</TableCell>
-                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.totalCompleted)}</TableCell>
-                        <TableCell className="text-right py-2 px-2">{overallPercent}%</TableCell>
-                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.balanceToFinish)}</TableCell>
-                        <TableCell className="text-right py-2 px-2">${formatNumber(totals.retainage)}</TableCell>
+                      <TableRow className="bg-muted/50 font-bold h-7 [&>td]:h-7">
+                        <TableCell colSpan={2} className="py-0 px-2">GRAND TOTAL</TableCell>
+                        <TableCell className="text-right py-0 px-2">${formatNumber(totals.scheduledValue)}</TableCell>
+                        <TableCell className="text-right py-0 px-2">${formatNumber(totals.previousApplications)}</TableCell>
+                        <TableCell className="text-right py-0 px-2">${formatNumber(totals.thisPeriod)}</TableCell>
+                        <TableCell className="text-right py-0 px-2">${formatNumber(totals.materialsStored)}</TableCell>
+                        <TableCell className="text-right py-0 px-2">${formatNumber(totals.totalCompleted)}</TableCell>
+                        <TableCell className="text-right py-0 px-2">{overallPercent}%</TableCell>
+                        <TableCell className="text-right py-0 px-2">${formatNumber(totals.balanceToFinish)}</TableCell>
+                        <TableCell className="text-right py-0 px-2">${formatNumber(totals.retainage)}</TableCell>
                       </TableRow>
                     </TableBody>
                   </Table>

@@ -680,7 +680,7 @@ export default function Bills() {
         <CardContent>
           {currentView === 'list' ? (
             // List View (Table)
-            <Table className="border-separate border-spacing-0">
+            <Table className="border-separate border-spacing-0 [&_th]:h-6 [&_th]:py-0 [&_th]:text-sm [&_td]:h-7 [&_td]:py-0 [&_td]:text-sm">
               <TableHeader>
                 <TableRow>
                   <TableHead className="w-12">
@@ -767,14 +767,14 @@ export default function Bills() {
                       className="cursor-pointer hover:bg-primary/5 transition-colors border border-transparent hover:border-primary rounded-lg"
                       style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                      >
-                      <TableCell className="py-1" onClick={(e) => e.stopPropagation()}>
+                      <TableCell className="py-0" onClick={(e) => e.stopPropagation()}>
                          <Checkbox
                            checked={selectedBills.includes(bill.id)}
                            onCheckedChange={() => handleSelectBill(bill.id)}
                          />
                        </TableCell>
-                      <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-1 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
-                          <div className="flex items-center gap-3">
+                      <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                          <div className="flex items-center gap-2">
                             <VendorAvatar 
                               name={bill.vendor_name}
                               logoUrl={bill.vendor_logo_url}
@@ -783,16 +783,16 @@ export default function Bills() {
                         <span className="font-medium group-hover:text-primary transition-colors">{bill.vendor_name}</span>
                         </div>
                        </TableCell>
-                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-1 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                          <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
                            {bill.job_name}
                          </Badge>
                        </TableCell>
-                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-1 font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">${bill.amount.toLocaleString()}</TableCell>
-                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-1 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
-                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-1 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.due_date).toLocaleDateString()}</TableCell>
-                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-1 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
-                           <div className="flex items-center gap-2">
+                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">${bill.amount.toLocaleString()}</TableCell>
+                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
+                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.due_date).toLocaleDateString()}</TableCell>
+                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                           <div className="flex items-center gap-1.5">
                              <Badge variant={getStatusVariant(bill.status)}>
                                {getStatusDisplayName(bill.status)}
                             </Badge>
@@ -811,7 +811,7 @@ export default function Bills() {
             </Table>
           ) : currentView === 'compact' ? (
             // Compact View
-            <div className="space-y-2">
+            <div className="space-y-1.5">
               {sortedBills.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -826,7 +826,7 @@ export default function Bills() {
                   return (
                   <div 
                     key={bill.id} 
-                     className={`flex items-center justify-between px-3 py-1 border rounded-lg hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group ${
+                     className={`flex items-center justify-between px-3 py-0.5 border rounded-lg hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group ${
                        billIsOverdue ? 'bg-destructive/10' : ''
                      }`}
                      style={billIsOverdue ? { animation: 'pulse-red 2s infinite' } : undefined}
@@ -847,7 +847,7 @@ export default function Bills() {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right flex flex-col items-end gap-1">
+                    <div className="text-right flex flex-col items-end gap-0.5">
                       <p className="font-semibold text-foreground">${bill.amount.toLocaleString()}</p>
                       <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
                         {bill.job_name}
@@ -865,7 +865,7 @@ export default function Bills() {
             </div>
           ) : (
             // Super Compact View
-            <div className="space-y-1">
+            <div className="space-y-0.5">
               {sortedBills.length === 0 ? (
                 <div className="text-center py-8 text-muted-foreground">
                   <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
@@ -880,7 +880,7 @@ export default function Bills() {
                   return (
                   <div 
                      key={bill.id} 
-                     className="flex items-center justify-between px-2.5 py-1 border rounded hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
+                     className="flex items-center justify-between px-2.5 py-0.5 border rounded hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
                      style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                      onClick={() => navigate(`/bills/${bill.id}`)}
                   >
@@ -897,7 +897,7 @@ export default function Bills() {
                       <span className="font-medium text-foreground truncate">{bill.invoice_number || 'No Invoice #'}</span>
                       <span className="text-sm text-muted-foreground truncate">{bill.vendor_name}</span>
                     </div>
-                    <div className="flex flex-col items-end gap-1">
+                    <div className="flex flex-col items-end gap-0.5">
                       <span className="font-semibold text-foreground whitespace-nowrap">
                         ${bill.amount.toLocaleString()}
                       </span>

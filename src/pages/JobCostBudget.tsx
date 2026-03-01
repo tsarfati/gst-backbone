@@ -365,7 +365,7 @@ export default function JobCostBudget() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <Table>
+              <Table className="[&_th]:h-5 [&_th]:py-0 [&_th]:text-sm [&_td]:h-6 [&_td]:py-0 [&_td]:text-sm">
                 <TableHeader>
                   <TableRow>
                     {viewType === "compact" && (
@@ -402,7 +402,7 @@ export default function JobCostBudget() {
                             <div>
                               {line.cost_code?.description}
                               {line.cost_code?.type && (
-                                <span className="text-xs text-muted-foreground ml-2">
+                                <span className="text-sm text-muted-foreground ml-2">
                                   ({line.cost_code.type})
                                 </span>
                               )}
@@ -416,7 +416,7 @@ export default function JobCostBudget() {
                                 const value = e.target.value.replace(/,/g, '');
                                 updateBudgetLine(index, 'budgeted_amount', parseFloat(value) || 0);
                               }}
-                              className="w-32 text-right"
+                              className="w-32 text-right h-5 py-0 text-sm"
                               placeholder="0"
                               disabled={!canEdit}
                             />
@@ -456,7 +456,7 @@ export default function JobCostBudget() {
                                 const value = e.target.value.replace(/,/g, '');
                                 updateBudgetLine(index, 'budgeted_amount', parseFloat(value) || 0);
                               }}
-                              className="w-28 text-right text-sm"
+                              className="w-28 text-right text-sm h-5 py-0"
                               placeholder="0"
                               disabled={!canEdit}
                             />

@@ -152,11 +152,12 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const { settings } = useSettings();
   const { profile } = useAuth();
-  const { tenantMember } = useTenant();
+  const { tenantMember, isSuperAdmin } = useTenant();
   const { currentCompany } = useCompany();
   const { hasAccess, loading } = useMenuPermissions();
   const { hasFeature } = useCompanyFeatureAccess(['pm_lynk', 'punch_clock_app', 'organization_management']);
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
+  const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
 
   const toggleGroup = (groupTitle: string) => {
     // Dashboard doesn't expand - just navigate
@@ -397,11 +398,11 @@ export default function Layout() {
 
   return (
     <SidebarProvider>
-      <div className="flex min-h-screen w-full">
+      <div className="flex h-screen w-full overflow-hidden">
         <AppSidebar />
-        <SidebarInset className="animate-fade-in">
+        <SidebarInset className="animate-fade-in h-screen overflow-hidden flex flex-col">
           {!isPunchClockPage && (
-            <header className="flex h-12 shrink-0 items-center justify-between gap-2 border-b px-4">
+            <header className="sticky top-0 z-40 flex h-12 shrink-0 items-center justify-between gap-2 border-b bg-background px-4">
               <div className="flex items-center gap-2 flex-1">
                 <SidebarTrigger className="-ml-1" />
                 <div className="flex-1 max-w-lg">
@@ -445,7 +446,7 @@ export default function Layout() {
               </div>
             </header>
           )}
-          <div className="flex-1 overflow-auto">
+          <div className="flex-1 overflow-auto min-h-0">
             <Outlet />
           </div>
         </SidebarInset>

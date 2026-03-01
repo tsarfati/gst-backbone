@@ -529,15 +529,15 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                 <CardTitle className="text-base">Budget Lines</CardTitle>
               </CardHeader>
               <CardContent className="pt-0 pb-3">
-                <Table>
+                <Table className="[&_th]:h-5 [&_th]:py-0 [&_th]:leading-none [&_th]:text-sm [&_td]:h-6 [&_td]:py-0 [&_td]:leading-none [&_td]:text-sm">
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="py-1">Cost Code</TableHead>
-                      <TableHead className="py-1">Description</TableHead>
-                      <TableHead className="py-1">Budgeted Amount</TableHead>
-                      <TableHead className="py-1">Actual Amount</TableHead>
-                      <TableHead className="py-1">Committed Amount</TableHead>
-                      <TableHead className="py-1">Variance</TableHead>
+                      <TableHead className="h-5 py-0">Cost Code</TableHead>
+                      <TableHead className="h-5 py-0">Description</TableHead>
+                      <TableHead className="h-5 py-0">Budgeted Amount</TableHead>
+                      <TableHead className="h-5 py-0">Actual Amount</TableHead>
+                      <TableHead className="h-5 py-0">Committed Amount</TableHead>
+                      <TableHead className="h-5 py-0">Variance</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -567,10 +567,10 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                           key={line.id || line.cost_code_id} 
                           className={cn(
                             (isChild || line.is_dynamic) && "bg-primary/5 hover:bg-primary/10 transition-colors",
-                            "h-auto"
+                            "h-6 [&>td]:h-6"
                           )}
                         >
-                          <TableCell className={cn("py-0.5", isChild ? "pl-12" : "")}>
+                          <TableCell className={cn("py-0", isChild ? "pl-12" : "")}>
                             <div className="flex items-center gap-1.5 leading-none">
                               {line.is_dynamic && childCount !== undefined && childCount > 0 && (
                                 <button
@@ -585,9 +585,9 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                 </button>
                               )}
                               {line.is_dynamic && childCount !== undefined && childCount > 0 && (
-                                <span className="text-[11px] text-muted-foreground">({childCount})</span>
+                                <span className="text-sm text-muted-foreground">({childCount})</span>
                               )}
-                              <span className="font-mono text-xs leading-none">{line.cost_code?.code}</span>
+                              <span className="font-mono text-sm leading-none">{line.cost_code?.code}</span>
                               {line.is_dynamic && (
                                 <>
                                   <Badge variant="secondary" className="text-[10px] px-1.5 py-0 leading-none">Dynamic</Badge>
@@ -600,32 +600,32 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                 </>
                               )}
                               {isChild && (
-                                <span className="text-[11px] text-muted-foreground leading-none">(shares parent budget)</span>
+                                <span className="text-sm text-muted-foreground leading-none">(shares parent budget)</span>
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="py-0.5">
+                          <TableCell className="py-0">
                             <div className="leading-tight">
                               {line.cost_code?.description}
-                              {line.cost_code?.type && <span className="text-[11px] text-muted-foreground ml-1.5">({line.cost_code.type})</span>}
+                              {line.cost_code?.type && <span className="text-sm text-muted-foreground ml-1.5">({line.cost_code.type})</span>}
                             </div>
                           </TableCell>
-                          <TableCell className="py-0.5">
+                          <TableCell className="py-0">
                             {isChild ? (
-                              <span className="font-mono text-xs text-muted-foreground leading-none">
+                              <span className="font-mono text-sm text-muted-foreground leading-none">
                                 {formatCurrency(parentBudget ?? 0)}
                               </span>
                             ) : (
                               <CurrencyInput
                                 value={line.budgeted_amount.toString()}
                                 onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
-                                className="w-28 h-7 text-xs"
+                                className="w-28 h-5 text-sm py-0 px-1 leading-none"
                                 placeholder="0.00"
                                 disabled={!canEditBudget}
                               />
                             )}
                           </TableCell>
-                          <TableCell className="py-0.5">
+                          <TableCell className="py-0">
                             {line.is_dynamic ? (
                               <button
                                 onClick={(e) => {
@@ -639,7 +639,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   navigate(`/banking/general-ledger?${params.toString()}`);
                                 }}
                                 className={cn(
-                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-xs leading-none",
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-sm leading-none",
                                   toneClass
                                 )}
                               >
@@ -658,7 +658,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   navigate(`/banking/general-ledger?${params.toString()}`);
                                 }}
                                 className={cn(
-                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-xs leading-none",
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-sm leading-none",
                                   toneClass
                                 )}
                                 type="button"
@@ -667,7 +667,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                               </button>
                             )}
                           </TableCell>
-                          <TableCell className="py-0.5">
+                          <TableCell className="py-0">
                             {line.is_dynamic ? (
                               <button
                                 onClick={(e) => {
@@ -682,7 +682,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   navigate(`/construction/reports/committed-details?${params.toString()}`);
                                 }}
                                 className={cn(
-                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-xs leading-none",
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-sm leading-none",
                                   toneClass
                                 )}
                                 type="button"
@@ -703,7 +703,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                                   navigate(`/construction/reports/committed-details?${params.toString()}`);
                                 }}
                                 className={cn(
-                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-xs leading-none",
+                                  "font-mono hover:underline cursor-pointer bg-transparent border-none p-0 text-left text-sm leading-none",
                                   toneClass
                                 )}
                                 type="button"
@@ -712,8 +712,8 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                               </button>
                             )}
                           </TableCell>
-                          <TableCell className="py-0.5">
-                            <span className={cn("font-mono font-semibold text-xs leading-none", toneClass)}>
+                          <TableCell className="py-0">
+                            <span className={cn("font-mono font-semibold text-sm leading-none", toneClass)}>
                               {line.is_dynamic ? formatCurrency(remaining ?? 0) : formatCurrency(displayVariance)}
                             </span>
                           </TableCell>

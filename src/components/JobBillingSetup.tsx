@@ -923,31 +923,31 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
           </div>
             ) : (
           <>
-            <Table>
+            <Table className="[&_th]:h-6 [&_th]:py-0 [&_th]:leading-none [&_th]:text-xs [&_td]:py-0 [&_td]:leading-none [&_td]:text-xs">
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12 py-1"></TableHead>
-                  <TableHead className="w-24 py-1">Item #</TableHead>
-                  <TableHead className="py-1">Description of Work</TableHead>
-                  <TableHead className="w-48 text-right py-1">Scheduled Value</TableHead>
-                  <TableHead className="w-16 py-1"></TableHead>
+                  <TableHead className="w-12 h-6 py-0"></TableHead>
+                  <TableHead className="w-24 h-6 py-0">Item #</TableHead>
+                  <TableHead className="h-6 py-0">Description of Work</TableHead>
+                  <TableHead className="w-48 h-6 text-right py-0">Scheduled Value</TableHead>
+                  <TableHead className="w-16 h-6 py-0"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.map((item, index) => (
-                  <TableRow key={item.id || `new-${index}`} className="[&>td]:py-0.5">
-                    <TableCell className="py-0.5">
+                  <TableRow key={item.id || `new-${index}`} className="[&>td]:py-0">
+                    <TableCell className="py-0">
                       <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                     </TableCell>
-                    <TableCell className="py-0.5">
+                    <TableCell className="py-0">
                       <Input
                         value={item.item_number}
                         disabled={isSOVLocked}
                         onChange={(e) => updateItem(index, "item_number", e.target.value)}
-                        className="w-20 h-7"
+                        className="w-20 h-6 py-0 leading-none text-xs"
                       />
                     </TableCell>
-                    <TableCell className="py-0.5">
+                    <TableCell className="py-0">
                       <Input
                         ref={(el) => {
                           descriptionInputRefs.current[index] = el;
@@ -957,10 +957,10 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
                         onChange={(e) => updateItem(index, "description", e.target.value)}
                         onKeyDown={handleDescriptionEnter(index)}
                         placeholder="Enter description of work"
-                        className="h-7"
+                        className="h-6 py-0 leading-none text-xs"
                       />
                     </TableCell>
-                    <TableCell className="py-0.5">
+                    <TableCell className="py-0">
                       <div className="flex items-center gap-1">
                         <span className="text-muted-foreground">$</span>
                         <CurrencyInput
@@ -971,11 +971,11 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
                           disabled={isSOVLocked}
                           onChange={(val) => updateItem(index, "scheduled_value", parseFloat(val) || 0)}
                           onKeyDown={handleScheduledValueEnter(index)}
-                          className="text-right h-7"
+                          className="text-right h-6 py-0 leading-none text-xs"
                         />
                       </div>
                     </TableCell>
-                    <TableCell className="py-0.5">
+                    <TableCell className="py-0">
                       <Button
                         variant="ghost"
                         size="icon"

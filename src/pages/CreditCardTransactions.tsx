@@ -734,7 +734,7 @@ export default function CreditCardTransactions() {
           <CardTitle>Transactions</CardTitle>
         </CardHeader>
         <CardContent>
-          <Table className="border-separate border-spacing-0">
+          <Table className="border-separate border-spacing-0 [&_th]:h-6 [&_th]:py-0 [&_th]:text-sm [&_td]:h-7 [&_td]:py-0 [&_td]:text-sm">
             <TableHeader>
               <TableRow>
                 <TableHead className="w-12">
@@ -797,7 +797,7 @@ export default function CreditCardTransactions() {
                     className="group hover:bg-primary/5 transition-colors"
                   >
                     <TableCell 
-                      className="py-1 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg"
+                      className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Checkbox
@@ -806,24 +806,24 @@ export default function CreditCardTransactions() {
                       />
                     </TableCell>
                     <TableCell 
-                      className="py-1 border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-0 border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       {new Date(trans.transaction_date).toLocaleDateString()}
                     </TableCell>
                     <TableCell 
-                      className="py-1 border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-0 border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       <div>
                         <p className="font-medium group-hover:text-primary transition-colors">{trans.description}</p>
                         {trans.merchant_name && trans.merchant_name !== trans.description && (
-                            <p className="text-xs text-muted-foreground">{trans.merchant_name}</p>
+                          <p className="text-sm text-muted-foreground">{trans.merchant_name}</p>
                           )}
                       </div>
                     </TableCell>
                     <TableCell 
-                      className="py-1 font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-0 font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       {(() => {
@@ -837,13 +837,13 @@ export default function CreditCardTransactions() {
                       })()}
                     </TableCell>
                     <TableCell 
-                      className="py-1 text-right font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-0 text-right font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       {formatCurrency(runningBalances.get(trans.id) || 0)}
                     </TableCell>
                     <TableCell 
-                      className="py-1 text-center border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-0 text-center border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                     {(() => {
@@ -869,7 +869,7 @@ export default function CreditCardTransactions() {
                       })()}
                     </TableCell>
                     <TableCell 
-                      className="py-1 border-y border-transparent group-hover:border-primary cursor-pointer last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg"
+                      className="py-0 border-y border-transparent group-hover:border-primary cursor-pointer last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       {getStatusBadge(trans)}

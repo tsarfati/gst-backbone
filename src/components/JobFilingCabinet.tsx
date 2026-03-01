@@ -713,16 +713,19 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                               />
                             </form>
                           ) : (
-                            <span
-                              className="flex-1 truncate hover:underline cursor-text"
-                              onClick={(e) => {
-                                e.stopPropagation();
-                                setInlineEditFileId(file.id);
-                                setInlineEditName(file.file_name);
-                              }}
-                            >
-                              {file.file_name}
-                            </span>
+                            <div className="flex-1 min-w-0">
+                              <button
+                                type="button"
+                                className="inline-block max-w-full truncate hover:underline cursor-text text-left"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setInlineEditFileId(file.id);
+                                  setInlineEditName(file.file_name);
+                                }}
+                              >
+                                {file.file_name}
+                              </button>
+                            </div>
                           )}
                           <span className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</span>
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center" onClick={e => e.stopPropagation()}>

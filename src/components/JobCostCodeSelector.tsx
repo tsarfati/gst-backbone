@@ -417,7 +417,7 @@ export default function JobCostCodeSelector({
       <CardContent className="space-y-4">
         {/* Quick Actions */}
         <div className="pb-4 border-b">
-          <div className="space-y-2">
+          <div className="space-y-1">
             <label className="text-sm font-medium">Copy from Previous Job</label>
             <div className="flex gap-2">
               <Select value={selectedPreviousJobId} onValueChange={setSelectedPreviousJobId} disabled={disabled}>
@@ -525,32 +525,32 @@ export default function JobCostCodeSelector({
                 return (
                   <div 
                     key={`${costCode.id}-${costCode.code}-${normalizeType(costCode.type)}`} 
-                    className="flex items-center justify-between px-3 py-1.5 border rounded-lg hover:border-primary/50 transition-colors"
+                    className="flex items-center justify-between px-3 py-0.5 border rounded-lg hover:border-primary/50 transition-colors min-h-0"
                   >
-                    <div className="flex items-center gap-3 flex-1">
-                      <span className="font-mono text-sm font-medium min-w-[80px]">{costCode.code}</span>
-                      <span className="text-sm flex-1">{costCode.description}</span>
+                    <div className="flex items-center gap-2 flex-1 leading-none min-h-0">
+                      <span className="font-mono text-xs font-medium min-w-[80px] leading-none">{costCode.code}</span>
+                      <span className="text-xs flex-1 leading-none">{costCode.description}</span>
                       {costCode.type && (
-                        <Badge variant={getBadgeVariant(costCode.type)} className="text-xs">
+                        <Badge variant={getBadgeVariant(costCode.type)} className="text-[10px] py-0 leading-none">
                           {costCode.type}
                         </Badge>
                       )}
                       {budget !== undefined ? (
-                        <span className="text-sm font-medium text-muted-foreground min-w-[100px] text-right">
+                        <span className="text-xs font-medium text-muted-foreground min-w-[100px] text-right leading-none">
                           ${budget.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                         </span>
                       ) : (
-                        <span className="text-xs text-muted-foreground min-w-[100px] text-right">Not set</span>
+                        <span className="text-[10px] text-muted-foreground min-w-[100px] text-right leading-none">Not set</span>
                       )}
                     </div>
                     <Button
                       size="sm"
                       variant="ghost"
-                      className="ml-2 h-8 w-8 p-0 hover:bg-destructive/20 hover:text-destructive"
+                      className="ml-2 h-6 w-6 p-0 hover:bg-destructive/20 hover:text-destructive"
                       onClick={() => handleRemoveCostCode(costCode.id)}
                       disabled={disabled}
                     >
-                      <X className="h-4 w-4" />
+                      <X className="h-3.5 w-3.5" />
                     </Button>
                   </div>
                 );
