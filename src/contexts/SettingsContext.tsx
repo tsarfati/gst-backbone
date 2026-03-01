@@ -233,13 +233,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
                 .map((row: any) => row.user_id)
             );
 
-            const fallbackAdminSettings = (allCompanyUiRows || [])
-              .find((row: any) => adminUserSet.has(row.user_id) && row?.settings?.customColors)?.settings || null;
+          const fallbackAdminSettings = (allCompanyUiRows || [])
+              .find((row: any) => adminUserSet.has(row.user_id) && (row?.settings as any)?.customColors)?.settings as any || null;
 
-            if (fallbackAdminSettings?.customColors) {
+            if ((fallbackAdminSettings as any)?.customColors) {
               companySettings = {
                 ...(companySettings || {}),
-                customColors: fallbackAdminSettings.customColors,
+                customColors: (fallbackAdminSettings as any).customColors,
               };
             }
           }
