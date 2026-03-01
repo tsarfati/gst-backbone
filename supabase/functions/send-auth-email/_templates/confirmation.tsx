@@ -12,15 +12,19 @@
  } from 'npm:@react-email/components@0.0.22'
  import * as React from 'npm:react@18.3.1'
  
- interface ConfirmationEmailProps {
-   confirmUrl: string
-   userEmail: string
- }
- 
- export const ConfirmationEmail = ({
-   confirmUrl,
-   userEmail,
- }: ConfirmationEmailProps) => (
+interface ConfirmationEmailProps {
+  confirmUrl: string
+  userEmail: string
+  companyName?: string
+  companyLogoUrl?: string
+}
+
+export const ConfirmationEmail = ({
+  confirmUrl,
+  userEmail,
+  companyName,
+  companyLogoUrl,
+}: ConfirmationEmailProps) => (
    <Html>
      <Head />
      <Preview>Confirm your BuilderLYNK account</Preview>
@@ -36,9 +40,21 @@
            />
          </Section>
  
-         {/* Content */}
-         <Section style={content}>
-           <Heading style={h1}>Welcome to BuilderLYNK!</Heading>
+        {/* Content */}
+        <Section style={content}>
+          {companyLogoUrl ? (
+            <Section style={companyLogoSection}>
+              <Img
+                src={companyLogoUrl}
+                alt={companyName || "Company"}
+                height="64"
+                style={companyLogo}
+              />
+            </Section>
+          ) : null}
+          <Heading style={h1}>
+            {companyName ? `Join ${companyName} on BuilderLYNK` : "Welcome to BuilderLYNK!"}
+          </Heading>
            
            <Text style={text}>
              Thanks for signing up! Please confirm your email address to get started.
@@ -100,10 +116,22 @@
    borderRadius: '12px 12px 0 0',
  }
  
- const content = {
-   backgroundColor: '#ffffff',
-   padding: '40px 30px',
- }
+const content = {
+  backgroundColor: '#ffffff',
+  padding: '40px 30px',
+}
+
+const companyLogoSection = {
+  textAlign: 'center' as const,
+  margin: '0 0 20px 0',
+}
+
+const companyLogo = {
+  margin: '0 auto',
+  width: 'auto',
+  maxWidth: '240px',
+  objectFit: 'contain' as const,
+}
  
  const h1 = {
    color: '#1e3a5f',

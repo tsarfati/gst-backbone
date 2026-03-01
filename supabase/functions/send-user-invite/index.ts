@@ -149,10 +149,6 @@ function hslToHex(hsl: string): string {
      // Build the invitation URL
      const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.lovable.app";
      const inviteUrl = `${baseUrl}/auth?invite=${inviteToken}`;
-     const displayRoleName = (customRoleName && customRoleName.trim())
-       ? customRoleName.trim()
-       : role.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
- 
     // Use company's primary color or fallback to BuilderLynk orange
     const brandPrimary = primaryColor ? hslToHex(primaryColor) : "#E88A2D";
      const brandNavy = "#1e3a5f";
@@ -199,10 +195,6 @@ function hslToHex(hsl: string): string {
                      
                      <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 20px 0;">
                        <strong>${companyName}</strong> has invited you to join their team on BuilderLYNK, the construction management platform that helps teams stay connected and productive.
-                     </p>
-                     
-                     <p style="color: #374151; font-size: 16px; line-height: 1.6; margin: 0 0 30px 0;">
-                      You've been assigned the role of <strong style="color: ${brandPrimary};">${displayRoleName}</strong>.
                      </p>
                      
                      <!-- CTA Button -->

@@ -12,6 +12,11 @@ import { Loader2, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useRoleBasedRouting } from '@/hooks/useRoleBasedRouting';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 
+type InvitePreview = {
+  companyName: string;
+  companyLogoUrl: string | null;
+};
+
 const parseInviteFunctionError = async (error: any) => {
   let payload: any = null;
   try {
@@ -44,6 +49,7 @@ export default function Auth() {
   const [resetSuccess, setResetSuccess] = useState(false);
   const [inviteAccepting, setInviteAccepting] = useState(false);
   const [inviteAccepted, setInviteAccepted] = useState(false);
+  const [invitePreview, setInvitePreview] = useState<InvitePreview | null>(null);
   const [inviteHandledToken, setInviteHandledToken] = useState<string | null>(null);
   const [inviteRetryTick, setInviteRetryTick] = useState(0);
   const [inviteAcceptFailures, setInviteAcceptFailures] = useState(0);
@@ -58,6 +64,37 @@ export default function Auth() {
   
   // Use role-based routing after successful auth
   useRoleBasedRouting();
+
+  useEffect(() => {
+    if (!inviteToken) {
+      setInvitePreview(null);
+      return;
+    }
+
+    let cancelled = false;
+    const loadInvitePreview = async () => {
+      const { data, error } = await supabase.functions.invoke('get-invite-preview', {
+        body: { inviteToken },
+      });
+      if (cancelled) return;
+
+      if (error || !data?.companyName) {
+        console.warn('Invite preview unavailable', error || data);
+        setInvitePreview(null);
+        return;
+      }
+
+      setInvitePreview({
+        companyName: String(data.companyName),
+        companyLogoUrl: data.companyLogoUrl ? String(data.companyLogoUrl) : null,
+      });
+    };
+
+    loadInvitePreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [inviteToken]);
 
   // Invitation links should default to Sign Up for first-time users.
   // Users can still switch to Sign In manually if they already have an account.
@@ -469,24 +506,45 @@ export default function Auth() {
       <Card className="w-full max-w-md animate-fade-in">
         <CardHeader className="text-center">
           <div className="flex justify-center mb-4">
-            <img 
-              src={builderlynkIcon} 
-              alt="BuilderLYNK" 
-              className="h-20 w-auto drop-shadow-lg"
-            />
+            {inviteToken && invitePreview?.companyLogoUrl ? (
+              <img
+                src={invitePreview.companyLogoUrl}
+                alt={invitePreview.companyName}
+                className="h-20 w-auto max-w-[280px] object-contain"
+              />
+            ) : (
+              <img
+                src={builderlynkIcon}
+                alt="BuilderLYNK"
+                className="h-20 w-auto drop-shadow-lg"
+              />
+            )}
           </div>
           <CardTitle className="text-2xl font-bold">
-            <span className="text-gray-800">Welcome to </span>
-            <span className="text-[#E88A2D]">BuilderLYNK</span>
+            {inviteToken ? (
+              <>
+                <span className="text-gray-800">Join </span>
+                <span className="text-[#E88A2D]">{invitePreview?.companyName || 'Your Team'}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-gray-800">Welcome to </span>
+                <span className="text-[#E88A2D]">BuilderLYNK</span>
+              </>
+            )}
           </CardTitle>
           <CardDescription>
-            {inviteToken ? 'You were invited to join a company. Sign in or create your account to accept the invitation.' : 'Sign in to your account or create a new one'}
+            {inviteToken
+              ? `${invitePreview?.companyName || 'A company'} invited you to join their team on BuilderLYNK. Sign in or create your account to continue.`
+              : 'Sign in to your account or create a new one'}
           </CardDescription>
         </CardHeader>
         <CardContent>
           {inviteToken && (
             <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-              {inviteAccepting ? 'Applying your invitation after sign-in...' : 'This page was opened from a BuilderLYNK invitation link.'}
+              {inviteAccepting
+                ? 'Applying your invitation after sign-in...'
+                : `Invitation link detected${invitePreview?.companyName ? ` for ${invitePreview.companyName}` : ''}.`}
             </div>
           )}
           <Tabs value={activeTab} onValueChange={setActiveTab}>

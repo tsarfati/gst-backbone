@@ -2,6 +2,7 @@
  import { Webhook } from 'https://esm.sh/standardwebhooks@1.0.0'
  import { Resend } from 'npm:resend@4.0.0'
  import { renderAsync } from 'npm:@react-email/components@0.0.22'
+ import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4'
  import { ConfirmationEmail } from './_templates/confirmation.tsx'
  import { MagicLinkEmail } from './_templates/magic-link.tsx'
  import { EMAIL_FROM, resolveBuilderlynkFrom } from '../_shared/emailFrom.ts'
@@ -36,6 +37,51 @@ interface AuthEmailPayload {
      token_new?: string
      token_hash_new?: string
    }
+}
+
+const resolveCompanyLogoUrl = (logoUrl?: string | null): string | null => {
+  if (!logoUrl) return null
+  if (/^https?:\/\//i.test(logoUrl)) return logoUrl
+  const cleaned = String(logoUrl).replace(/^company-logos\//, "").replace(/^\/+/, "")
+  return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${cleaned}`
+}
+
+const extractInviteToken = (redirectTo?: string): string | null => {
+  if (!redirectTo) return null
+  try {
+    const parsed = new URL(redirectTo)
+    const token = parsed.searchParams.get('invite')
+    return token ? token.trim() : null
+  } catch {
+    return null
+  }
+}
+
+const getInviteBranding = async (supabaseUrl: string, serviceRoleKey: string, redirectTo?: string) => {
+  const inviteToken = extractInviteToken(redirectTo)
+  if (!inviteToken) return null
+
+  const supabase = createClient(supabaseUrl, serviceRoleKey)
+  const { data: inviteRow, error: inviteError } = await supabase
+    .from("pending_user_invites")
+    .select("company_id")
+    .eq("invite_token", inviteToken)
+    .maybeSingle()
+
+  if (inviteError || !inviteRow?.company_id) return null
+
+  const { data: companyRow, error: companyError } = await supabase
+    .from("companies")
+    .select("name, display_name, logo_url")
+    .eq("id", inviteRow.company_id)
+    .maybeSingle()
+
+  if (companyError || !companyRow) return null
+
+  return {
+    companyName: companyRow.display_name || companyRow.name || null,
+    companyLogoUrl: resolveCompanyLogoUrl(companyRow.logo_url),
+  }
 }
 
 function getJwtRoleFromAuthHeader(authHeader: string | null): string | null {
@@ -130,8 +176,10 @@ Deno.serve(async (req) => {
  
    try {
      const supabaseUrl = Deno.env.get('SUPABASE_URL') ?? ''
+     const supabaseServiceRoleKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
      let html: string
      let subject: string
+     const inviteBranding = await getInviteBranding(supabaseUrl, supabaseServiceRoleKey, redirect_to)
  
      // Build the verification URL
      const verifyUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}`
@@ -144,6 +192,8 @@ Deno.serve(async (req) => {
            React.createElement(ConfirmationEmail, {
              confirmUrl: verifyUrl,
              userEmail: user.email,
+             companyName: inviteBranding?.companyName || undefined,
+             companyLogoUrl: inviteBranding?.companyLogoUrl || undefined,
            })
          )
          subject = email_action_type === 'email_change' 
