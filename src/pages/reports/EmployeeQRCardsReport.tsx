@@ -352,7 +352,7 @@ export default function EmployeeQRCardsReport() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/employees/reports")}>
           <ArrowLeft className="h-5 w-5" />
@@ -362,9 +362,6 @@ export default function EmployeeQRCardsReport() {
             <QrCode className="h-8 w-8" />
             Employee QR Punch Cards
           </h1>
-          <p className="text-muted-foreground mt-1">
-            Generate customized QR code cards for employees
-          </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={saveCustomization} variant="outline">

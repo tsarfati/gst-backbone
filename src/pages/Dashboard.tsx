@@ -18,6 +18,7 @@ import { useDashboardPermissions } from '@/hooks/useDashboardPermissions';
 import BillsNeedingCoding from '@/components/BillsNeedingCoding';
 import CreditCardCodingRequests from '@/components/CreditCardCodingRequests';
 import UserAvatar from '@/components/UserAvatar';
+import MessageThreadView from '@/components/MessageThreadView';
 
 interface Notification {
   id: string;
@@ -31,10 +32,13 @@ interface Notification {
 interface Message {
   id: string;
   from_user_id: string;
+  to_user_id: string;
   subject: string;
   content: string;
   read: boolean;
   created_at: string;
+  thread_id?: string;
+  is_reply?: boolean;
   from_profile?: {
     display_name: string;
     avatar_url?: string | null;
@@ -167,6 +171,8 @@ export default function Dashboard() {
   const dashboardPermissions = useDashboardPermissions();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
+  const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
+  const [showThreadView, setShowThreadView] = useState(false);
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
     show_stats: true,
     show_recent_activity: true,
@@ -333,10 +339,12 @@ export default function Dashboard() {
       const formattedBillComms = (billCommsWithProfiles || []).map((comm: any) => ({
         id: comm.id,
         from_user_id: comm.user_id,
+        to_user_id: user.id,
         subject: `Bill Discussion`,
         content: comm.message,
         created_at: comm.created_at,
         read: false,
+        is_reply: false,
         from_profile: {
           display_name: comm.profiles?.display_name || 
             `${comm.profiles?.first_name || ''} ${comm.profiles?.last_name || ''}`.trim() || 
@@ -354,6 +362,16 @@ export default function Dashboard() {
     } catch (error) {
       console.error('Error fetching messages:', error);
     }
+  };
+
+  const openMessageThread = (message: Message) => {
+    setSelectedMessage(message);
+    setShowThreadView(true);
+  };
+
+  const closeMessageThread = () => {
+    setShowThreadView(false);
+    setSelectedMessage(null);
   };
 
   const fetchDashboardSettings = async () => {
@@ -511,9 +529,6 @@ export default function Dashboard() {
           <h1 className="text-3xl font-bold text-foreground mb-2">
             Welcome back, {profile?.display_name || profile?.first_name || 'User'}! 👋
           </h1>
-          <p className="text-muted-foreground">
-            Here's what's happening with your projects today
-          </p>
         </div>
       )}
       
@@ -533,9 +548,6 @@ export default function Dashboard() {
             <h1 className="text-3xl font-bold text-foreground mb-2">
               Welcome back, {profile?.display_name || profile?.first_name || 'User'}! 👋
             </h1>
-            <p className="text-muted-foreground">
-              Here's what's happening with your projects today
-            </p>
           </div>
         )}
         <Dialog>
@@ -675,7 +687,7 @@ export default function Dashboard() {
                         }`}
                         onClick={() => {
                           markMessageAsRead(message.id);
-                          navigate(`/messages?thread=${message.id}`);
+                          openMessageThread(message);
                         }}
                       >
                         <div className="flex items-start gap-3">
@@ -697,8 +709,7 @@ export default function Dashboard() {
                                   )}
                                 </div>
                                 <p className="text-sm text-muted-foreground truncate mt-0.5">
-                                  <span className="font-medium text-foreground/90">{message.subject || 'No subject'}</span>
-                                  {message.content ? ` · ${message.content}` : ''}
+                                  {message.content}
                                 </p>
                               </div>
                               <span className="text-[11px] text-muted-foreground shrink-0 pt-0.5">
@@ -729,6 +740,13 @@ export default function Dashboard() {
           )}
         </div>
       )}
+
+      <MessageThreadView
+        message={selectedMessage as any}
+        isOpen={showThreadView}
+        onClose={closeMessageThread}
+        onMessageSent={fetchMessages}
+      />
 
       {/* Bills Needing Approval or Coding - Show based on permissions */}
       {((dashboardPermissions.canViewSection('bills_overview') || dashboardPermissions.canViewSection('credit_card_coding')) && 

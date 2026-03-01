@@ -139,7 +139,6 @@ export default function AddRFP() {
         </Button>
         <div>
           <h1 className="text-3xl font-bold">Create RFP</h1>
-          <p className="text-muted-foreground">Create a new request for proposal</p>
         </div>
       </div>
 

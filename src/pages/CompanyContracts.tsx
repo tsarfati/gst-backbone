@@ -138,7 +138,6 @@ export default function CompanyContracts() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Company Contracts</h1>
-          <p className="text-muted-foreground">Manage all contract documents and agreements</p>
         </div>
         <Button onClick={() => setShowAddDialog(true)}><Plus className="h-4 w-4 mr-2" />Upload Contract</Button>
       </div>

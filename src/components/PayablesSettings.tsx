@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -14,6 +14,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import JobBillApprovalSettings from './JobBillApprovalSettings';
+import { useSettings } from '@/contexts/SettingsContext';
 
 const payablesSettingsSchema = z.object({
   bills_require_approval: z.boolean(),
@@ -122,9 +123,11 @@ export default function PayablesSettings() {
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { settings: appSettings } = useSettings();
   const [settings, setSettings] = useState<PayablesSettingsData>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const autoSaveReadyRef = useRef(false);
 
   useEffect(() => {
     if (currentCompany?.id) {
@@ -171,6 +174,7 @@ export default function PayablesSettings() {
           show_vendor_compliance_warnings: data.show_vendor_compliance_warnings ?? true,
         });
       }
+      autoSaveReadyRef.current = true;
     } catch (error) {
       console.error('Error loading payables settings:', error);
       toast({
@@ -183,7 +187,7 @@ export default function PayablesSettings() {
     }
   };
 
-  const saveSettings = async () => {
+  const saveSettings = async (showToast: boolean = true) => {
     try {
       setSaving(true);
       
@@ -199,17 +203,21 @@ export default function PayablesSettings() {
 
       if (error) throw error;
 
-      toast({
-        title: "Settings saved",
-        description: "Payables settings have been updated successfully.",
-      });
+      if (showToast) {
+        toast({
+          title: "Settings saved",
+          description: "Payables settings have been updated successfully.",
+        });
+      }
     } catch (error) {
       console.error('Error saving payables settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save payables settings",
-        variant: "destructive",
-      });
+      if (showToast) {
+        toast({
+          title: "Error",
+          description: "Failed to save payables settings",
+          variant: "destructive",
+        });
+      }
     } finally {
       setSaving(false);
     }
@@ -230,6 +238,16 @@ export default function PayablesSettings() {
     const currentRoles = settings[settingKey] as string[];
     updateSettings(settingKey, currentRoles.filter(r => r !== role));
   };
+
+  useEffect(() => {
+    if (!appSettings.autoSave || loading || saving || !currentCompany?.id || !autoSaveReadyRef.current) return;
+
+    const timer = setTimeout(() => {
+      void saveSettings(false);
+    }, 900);
+
+    return () => clearTimeout(timer);
+  }, [settings, appSettings.autoSave, loading, saving, currentCompany?.id]);
 
   const RoleSelector = ({ 
     settingKey, 
@@ -629,11 +647,13 @@ export default function PayablesSettings() {
       {/* Job-Specific Bill Approval Settings */}
       <JobBillApprovalSettings />
 
-      <div className="flex justify-end pt-6">
-        <Button onClick={saveSettings} disabled={saving}>
-          {saving ? 'Saving...' : 'Save Payables Settings'}
-        </Button>
-      </div>
+      {!appSettings.autoSave && (
+        <div className="flex justify-end pt-6">
+          <Button onClick={() => void saveSettings()} disabled={saving}>
+            {saving ? 'Saving...' : 'Save Payables Settings'}
+          </Button>
+        </div>
+      )}
     </div>
   );
 }

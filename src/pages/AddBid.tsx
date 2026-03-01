@@ -235,9 +235,6 @@ export default function AddBid() {
         </Button>
         <div>
           <h1 className="text-3xl font-bold">Add Bid</h1>
-          <p className="text-muted-foreground">
-            {rfp ? `${rfp.rfp_number} - ${rfp.title}` : 'Loading...'}
-          </p>
         </div>
       </div>
 

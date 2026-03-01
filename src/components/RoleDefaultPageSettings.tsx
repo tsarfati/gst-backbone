@@ -61,7 +61,7 @@ const AVAILABLE_PAGES = [
   { value: '/banking/reconcile', label: 'Reconcile' },
   { value: '/settings', label: 'General Settings' },
   { value: '/settings/company', label: 'Company Settings' },
-  { value: '/settings/company-management', label: 'Company Management' },
+  { value: '/settings/organization-management', label: 'Organization Management' },
   { value: '/settings/notifications', label: 'Notifications & Email' },
   { value: '/settings/security', label: 'Data & Security' },
   { value: '/settings/users', label: 'User Management' },

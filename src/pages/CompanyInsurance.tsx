@@ -147,7 +147,6 @@ export default function CompanyInsurance() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Company Insurance</h1>
-          <p className="text-muted-foreground">Manage insurance policies, coverage, and renewals</p>
         </div>
         <Button onClick={() => setShowAddDialog(true)}><Plus className="h-4 w-4 mr-2" />Add Policy</Button>
       </div>

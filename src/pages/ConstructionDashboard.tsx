@@ -140,7 +140,7 @@ export default function ConstructionDashboard() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/4"></div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -154,11 +154,10 @@ export default function ConstructionDashboard() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Construction Dashboard</h1>
-          <p className="text-muted-foreground mt-1">Overview of all construction projects and activities</p>
         </div>
       </div>
 

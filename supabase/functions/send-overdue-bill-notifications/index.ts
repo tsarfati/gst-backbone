@@ -242,7 +242,7 @@ const handler = async (req: Request): Promise<Response> => {
         // Send email
         try {
           const { data: emailData, error: emailError } = await resend.emails.send({
-            from: "System Notifications <system@builderlynk.com>",
+            from: "System Notifications <system@greenstarteam.com>",
             to: [email],
             subject: `⚠️ ${userBills.length} Overdue Bill${userBills.length !== 1 ? 's' : ''} - Action Required`,
             html: htmlContent,

@@ -162,9 +162,6 @@ export default function JournalEntryEdit() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Edit Journal Entry</h1>
-            <p className="text-muted-foreground">
-              {entry.reference || 'No reference'}
-            </p>
           </div>
         </div>
         <Button onClick={handleSave}>

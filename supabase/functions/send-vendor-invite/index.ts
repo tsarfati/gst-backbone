@@ -82,7 +82,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send the email
     const emailResponse = await resend.emails.send({
-      from: "BuilderLYNK <noreply@builderlynk.com>",
+      from: "BuilderLynk <noreply@greenstarteam.com>",
       to: [vendorEmail],
       subject: `You've been invited to join ${companyName} on BuilderLynk`,
       html: `

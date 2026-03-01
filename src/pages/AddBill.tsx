@@ -1553,11 +1553,11 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   console.log('isFormValid:', isFormValid);
 
   if (loading) {
-    return <div className="p-6 max-w-4xl mx-auto text-center">Loading...</div>;
+    return <div className="p-4 md:p-6 text-center">Loading...</div>;
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => navigate("/invoices")}>
@@ -1565,7 +1565,6 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Add New Bill</h1>
-          <p className="text-muted-foreground">Fill in the form below and upload the bill document at the bottom</p>
         </div>
       </div>
 

@@ -299,9 +299,6 @@ export default function PayablesDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Payables Dashboard</h1>
-          <p className="text-muted-foreground">
-            Monitor vendor payments and bill management
-          </p>
         </div>
         <div className="flex items-center gap-3">
           <div className="flex items-center gap-2">

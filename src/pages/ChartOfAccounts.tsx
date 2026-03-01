@@ -530,7 +530,7 @@ export default function ChartOfAccounts() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Loading chart of accounts...</p>
@@ -540,12 +540,11 @@ export default function ChartOfAccounts() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Chart of Accounts</h1>
-          <p className="text-muted-foreground">Manage your company's chart of accounts</p>
         </div>
         <div className="flex space-x-2">
           <Dialog open={associationsDialogOpen} onOpenChange={setAssociationsDialogOpen}>

@@ -6,16 +6,12 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Users, UserPlus, Shield, Trash2, Edit, Plus, Upload, Camera, Share2, FileText, AlertTriangle } from 'lucide-react';
+import { Building2, Users, UserPlus, Trash2, Edit, Plus, Upload, Camera, AlertTriangle } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompanyAccessApproval from '@/components/CompanyAccessApproval';
-import PdfTemplateSettings from '@/components/PdfTemplateSettings';
-import AIAInvoiceTemplateSettings from '@/components/AIAInvoiceTemplateSettings';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
@@ -34,7 +30,42 @@ interface CompanyUser {
     display_name?: string;
     first_name?: string;
     last_name?: string;
+    avatar_url?: string;
+    email?: string;
   };
+}
+
+interface OrganizationCompany {
+  id: string;
+  name: string;
+  display_name?: string | null;
+  logo_url?: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  address?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip_code?: string | null;
+  phone?: string | null;
+  email?: string | null;
+  website?: string | null;
+}
+
+interface OrganizationUserProfile {
+  user_id: string;
+  display_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
+  email?: string | null;
+}
+
+interface CompanyDirectoryUser {
+  user_id: string;
+  display_name: string;
+  first_name: string;
+  last_name: string;
+  avatar_url: string;
 }
 
 export default function CompanyManagement() {
@@ -44,12 +75,25 @@ export default function CompanyManagement() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const [users, setUsers] = useState<CompanyUser[]>([]);
+  const [organizationCompanies, setOrganizationCompanies] = useState<OrganizationCompany[]>([]);
+  const [showManageUsersDialog, setShowManageUsersDialog] = useState(false);
+  const [showAssignExistingUserDialog, setShowAssignExistingUserDialog] = useState(false);
+  const [selectedCompanyForUsers, setSelectedCompanyForUsers] = useState<OrganizationCompany | null>(null);
+  const [selectedExistingUserId, setSelectedExistingUserId] = useState<string>('');
+  const [assignUserRole, setAssignUserRole] = useState<string>('employee');
+  const [existingUserSearch, setExistingUserSearch] = useState('');
+  const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
+  const [eligibleOrganizationUsers, setEligibleOrganizationUsers] = useState<OrganizationUserProfile[]>([]);
+  const [loadingCompanyUsers, setLoadingCompanyUsers] = useState(false);
+  const [assigningUser, setAssigningUser] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [deleteTargetUser, setDeleteTargetUser] = useState<CompanyUser | null>(null);
   const [deleteConfirmName, setDeleteConfirmName] = useState('');
   const [loading, setLoading] = useState(true);
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [showEditCompanyDialog, setShowEditCompanyDialog] = useState(false);
+  const [showCompanyDetailDialog, setShowCompanyDetailDialog] = useState(false);
+  const [selectedCompanyDetail, setSelectedCompanyDetail] = useState<OrganizationCompany | null>(null);
   const [showCreateCompanyDialog, setShowCreateCompanyDialog] = useState(false);
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<string>('employee');
@@ -62,8 +106,7 @@ export default function CompanyManagement() {
     zip_code: '',
     phone: '',
     email: '',
-    website: '',
-    enable_shared_vendor_database: false
+    website: ''
   });
   const [newCompanyForm, setNewCompanyForm] = useState({
     name: '',
@@ -74,8 +117,7 @@ export default function CompanyManagement() {
     zip_code: '',
     phone: '',
     email: '',
-    website: '',
-    enable_shared_vendor_database: false
+    website: ''
   });
   const [uploadingLogo, setUploadingLogo] = useState(false);
 
@@ -157,6 +199,271 @@ export default function CompanyManagement() {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchOrganizationCompanies = async () => {
+    if (!currentTenant?.id) return;
+    try {
+      const { data, error } = await supabase
+        .from('companies')
+        .select('id,name,display_name,logo_url,created_by,created_at,address,city,state,zip_code,phone,email,website')
+        .eq('tenant_id', currentTenant.id)
+        .eq('is_active', true)
+        .order('display_name', { ascending: true, nullsFirst: false });
+
+      if (error) throw error;
+      setOrganizationCompanies((data || []) as OrganizationCompany[]);
+    } catch (error) {
+      console.error('Error fetching organization companies:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load organization companies.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const loadCompanyUsersForManagement = async (companyId: string) => {
+    setLoadingCompanyUsers(true);
+    try {
+      const { data: accessRows, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('id,user_id,company_id,role,is_active,granted_at')
+        .eq('company_id', companyId)
+        .eq('is_active', true)
+        .order('granted_at', { ascending: false });
+
+      if (accessError) throw accessError;
+
+      const userIds = (accessRows || []).map((row) => row.user_id);
+      let profiles: OrganizationUserProfile[] = [];
+      if (userIds.length > 0) {
+        const { data: profileRows, error: profileError } = await supabase
+          .from('profiles')
+          .select('user_id,display_name,first_name,last_name,avatar_url,email')
+          .in('user_id', userIds);
+        if (profileError) throw profileError;
+        profiles = (profileRows || []) as OrganizationUserProfile[];
+      }
+
+      let directoryUsers: CompanyDirectoryUser[] = [];
+      const { data: directoryRows, error: directoryError } = await supabase
+        .rpc('get_company_directory', { p_company_id: companyId });
+      if (!directoryError) {
+        directoryUsers = (directoryRows || []) as CompanyDirectoryUser[];
+      } else {
+        console.warn('Company directory lookup failed, using profile fallback only.', directoryError);
+      }
+
+      const merged: CompanyUser[] = (accessRows || []).map((row) => {
+        const profile = profiles.find((p) => p.user_id === row.user_id);
+        const directoryProfile = directoryUsers.find((d) => d.user_id === row.user_id);
+        return {
+          ...row,
+          profile: directoryProfile
+            ? {
+                display_name: directoryProfile.display_name || undefined,
+                first_name: directoryProfile.first_name || undefined,
+                last_name: directoryProfile.last_name || undefined,
+                avatar_url: directoryProfile.avatar_url || undefined,
+                email: undefined,
+              }
+            : profile
+            ? {
+                display_name: profile.display_name || undefined,
+                first_name: profile.first_name || undefined,
+                last_name: profile.last_name || undefined,
+                avatar_url: profile.avatar_url || undefined,
+                email: profile.email || undefined,
+              }
+            : undefined,
+        };
+      });
+      setCompanyUsers(merged);
+    } catch (error) {
+      console.error('Error loading company users for management:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load users for this company.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingCompanyUsers(false);
+    }
+  };
+
+  const loadEligibleOrganizationUsers = async (companyId: string) => {
+    try {
+      const orgCompanyIds = organizationCompanies.map((c) => c.id);
+      if (orgCompanyIds.length === 0) {
+        setEligibleOrganizationUsers([]);
+        return;
+      }
+
+      const { data: accessRows, error: accessError } = await supabase
+        .from('user_company_access')
+        .select('user_id,company_id,is_active')
+        .in('company_id', orgCompanyIds)
+        .eq('is_active', true);
+
+      if (accessError) throw accessError;
+
+      const byUser = new Map<string, Set<string>>();
+      (accessRows || []).forEach((row) => {
+        const current = byUser.get(row.user_id) || new Set<string>();
+        current.add(row.company_id);
+        byUser.set(row.user_id, current);
+      });
+
+      const eligibleIds = Array.from(byUser.entries())
+        .filter(([, companySet]) => !companySet.has(companyId) && companySet.size > 0)
+        .map(([userId]) => userId);
+
+      if (eligibleIds.length === 0) {
+        setEligibleOrganizationUsers([]);
+        return;
+      }
+
+      const { data: profileRows, error: profileError } = await supabase
+        .from('profiles')
+        .select('user_id,display_name,first_name,last_name,avatar_url,email')
+        .in('user_id', eligibleIds);
+      if (profileError) throw profileError;
+
+      const profileMap = new Map<string, OrganizationUserProfile>();
+      ((profileRows || []) as OrganizationUserProfile[]).forEach((p) => profileMap.set(p.user_id, p));
+
+      const directoryMap = new Map<string, OrganizationUserProfile>();
+      await Promise.all(
+        orgCompanyIds.map(async (companyIdForDirectory) => {
+          const { data: directoryRows, error: directoryError } = await supabase
+            .rpc('get_company_directory', { p_company_id: companyIdForDirectory });
+          if (directoryError || !directoryRows) return;
+          (directoryRows as CompanyDirectoryUser[]).forEach((d) => {
+            if (!directoryMap.has(d.user_id)) {
+              directoryMap.set(d.user_id, {
+                user_id: d.user_id,
+                display_name: d.display_name || undefined,
+                first_name: d.first_name || undefined,
+                last_name: d.last_name || undefined,
+                avatar_url: d.avatar_url || undefined,
+              });
+            }
+          });
+        })
+      );
+
+      const mergedEligible = eligibleIds.map((userId) => {
+        return profileMap.get(userId) || directoryMap.get(userId) || { user_id: userId };
+      });
+
+      setEligibleOrganizationUsers(mergedEligible);
+    } catch (error) {
+      console.error('Error loading eligible organization users:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load eligible users.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const openManageUsersForCompany = async (company: OrganizationCompany) => {
+    setSelectedCompanyForUsers(company);
+    setShowManageUsersDialog(true);
+    setSelectedExistingUserId('');
+    setAssignUserRole('employee');
+    setExistingUserSearch('');
+    await Promise.all([
+      loadCompanyUsersForManagement(company.id),
+      loadEligibleOrganizationUsers(company.id),
+    ]);
+  };
+
+  const handleAssignExistingUserToCompany = async () => {
+    if (!selectedCompanyForUsers || !selectedExistingUserId || !user?.id) return;
+    setAssigningUser(true);
+    try {
+      const { data: existing, error: existingError } = await supabase
+        .from('user_company_access')
+        .select('id')
+        .eq('company_id', selectedCompanyForUsers.id)
+        .eq('user_id', selectedExistingUserId)
+        .maybeSingle();
+
+      if (existingError && existingError.code !== 'PGRST116') throw existingError;
+
+      if (existing?.id) {
+        const { error: reactivateError } = await supabase
+          .from('user_company_access')
+          .update({
+            is_active: true,
+            role: assignUserRole,
+            granted_by: user.id,
+          })
+          .eq('id', existing.id);
+        if (reactivateError) throw reactivateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('user_company_access')
+          .insert({
+            company_id: selectedCompanyForUsers.id,
+            user_id: selectedExistingUserId,
+            role: assignUserRole,
+            granted_by: user.id,
+            is_active: true,
+          });
+        if (insertError) throw insertError;
+      }
+
+      toast({
+        title: 'User added',
+        description: 'User was added to the selected company.',
+      });
+
+      await Promise.all([
+        loadCompanyUsersForManagement(selectedCompanyForUsers.id),
+        loadEligibleOrganizationUsers(selectedCompanyForUsers.id),
+      ]);
+      setShowAssignExistingUserDialog(false);
+    } catch (error) {
+      console.error('Error assigning existing user to company:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to add user to company.',
+        variant: 'destructive',
+      });
+    } finally {
+      setAssigningUser(false);
+    }
+  };
+
+  const handleRemoveUserFromManagedCompany = async (companyId: string, userId: string) => {
+    try {
+      const { error } = await supabase
+        .from('user_company_access')
+        .update({ is_active: false })
+        .eq('company_id', companyId)
+        .eq('user_id', userId);
+      if (error) throw error;
+
+      toast({
+        title: 'User removed',
+        description: 'User access to this company was removed.',
+      });
+
+      await Promise.all([
+        loadCompanyUsersForManagement(companyId),
+        loadEligibleOrganizationUsers(companyId),
+      ]);
+    } catch (error) {
+      console.error('Error removing user from managed company:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove user from company.',
+        variant: 'destructive',
+      });
     }
   };
 
@@ -256,8 +563,7 @@ export default function CompanyManagement() {
         zip_code: '',
         phone: '',
         email: '',
-        website: '',
-        enable_shared_vendor_database: false
+        website: ''
       });
       
       await refreshCompanies();
@@ -272,13 +578,14 @@ export default function CompanyManagement() {
   };
 
   const handleUpdateCompany = async () => {
-    if (!currentCompany) return;
+    const companyToEditId = selectedCompanyDetail?.id || currentCompany?.id;
+    if (!companyToEditId) return;
 
     try {
       const { error } = await supabase
         .from('companies')
         .update(companyForm)
-        .eq('id', currentCompany.id);
+        .eq('id', companyToEditId);
 
       if (error) throw error;
 
@@ -288,7 +595,10 @@ export default function CompanyManagement() {
       });
 
       setShowEditCompanyDialog(false);
+      setShowCompanyDetailDialog(false);
+      setSelectedCompanyDetail(null);
       await refreshCompanies();
+      await fetchOrganizationCompanies();
     } catch (error) {
       console.error('Error updating company:', error);
       toast({
@@ -411,15 +721,63 @@ export default function CompanyManagement() {
         zip_code: currentCompany.zip_code || '',
         phone: currentCompany.phone || '',
         email: currentCompany.email || '',
-        website: currentCompany.website || '',
-        enable_shared_vendor_database: currentCompany.enable_shared_vendor_database || false
+        website: currentCompany.website || ''
       });
     }
   }, [currentCompany]);
 
+  useEffect(() => {
+    void fetchOrganizationCompanies();
+  }, [currentTenant?.id]);
+
+  const openCompanyDetail = (company: OrganizationCompany) => {
+    setSelectedCompanyDetail(company);
+    setCompanyForm({
+      name: company.name || '',
+      display_name: company.display_name || '',
+      address: company.address || '',
+      city: company.city || '',
+      state: company.state || '',
+      zip_code: company.zip_code || '',
+      phone: company.phone || '',
+      email: company.email || '',
+      website: company.website || ''
+    });
+    setShowCompanyDetailDialog(true);
+  };
+
+  const startEditFromDetail = () => {
+    setShowCompanyDetailDialog(false);
+    setShowEditCompanyDialog(true);
+  };
+
+  const getProfileDisplayName = (profile?: {
+    display_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    email?: string | null;
+  }) => {
+    if (!profile) return 'Unknown User';
+    const fullName = [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim();
+    return profile.display_name || fullName || profile.email || 'Unknown User';
+  };
+
+  const getDisplayNameForCompanyUser = (companyUser: CompanyUser) => {
+    const baseName = getProfileDisplayName(companyUser.profile);
+    if (baseName !== 'Unknown User') return baseName;
+    return `Unknown User (${companyUser.user_id.slice(0, 8)})`;
+  };
+
+  const filteredEligibleUsers = eligibleOrganizationUsers.filter((profile) => {
+    const name = getProfileDisplayName(profile).toLowerCase();
+    const needle = existingUserSearch.trim().toLowerCase();
+    if (!needle) return true;
+    return name.includes(needle) || profile.user_id.toLowerCase().includes(needle);
+  });
+
   if (!currentCompany && userCompanies.length === 0) {
     return (
-      <div className="container mx-auto py-10 px-4">
+      <div className="p-4 md:p-6">
         <Card>
           <CardHeader>
             <CardTitle>No Companies Found</CardTitle>
@@ -440,7 +798,7 @@ export default function CompanyManagement() {
 
   if (!currentCompany) {
     return (
-      <div className="container mx-auto py-10 px-4">
+      <div className="p-4 md:p-6">
         <Card>
           <CardHeader>
             <CardTitle>No Company Selected</CardTitle>
@@ -454,236 +812,301 @@ export default function CompanyManagement() {
   }
 
   return (
-    <div className="container mx-auto py-10 px-4 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-3xl font-bold">Company Management</h1>
-          <p className="text-muted-foreground">
-            Manage {currentCompany.display_name || currentCompany.name} settings and users
-          </p>
+          <h1 className="text-3xl font-bold">Organization Management</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button variant="outline" onClick={() => setShowCreateCompanyDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Create Company
           </Button>
-          {isCompanyAdmin && (
-            <Button onClick={() => setShowEditCompanyDialog(true)}>
-              <Edit className="h-4 w-4 mr-2" />
-              Edit Company
-            </Button>
-          )}
         </div>
       </div>
 
-      <Tabs defaultValue="overview" className="space-y-6">
-        <TabsList>
-          <TabsTrigger value="overview">
-            <Building2 className="h-4 w-4 mr-2" />
-            Overview
-          </TabsTrigger>
-          <TabsTrigger value="templates">
-            <FileText className="h-4 w-4 mr-2" />
-            PDF Templates
-          </TabsTrigger>
-          <TabsTrigger value="aia-templates">
-            <FileText className="h-4 w-4 mr-2" />
-            AIA Templates
-          </TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="overview" className="space-y-6">
-
-      {/* Company Info Card */}
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Building2 className="h-5 w-5" />
-            Company Information
+            Company Portfolio
           </CardTitle>
           <CardDescription>
-            Basic information about your company
+            Manage the companies you belong to and choose the active company.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid grid-cols-1 lg:grid-cols-[220px_1fr] gap-6 items-start">
-            <div className="space-y-3">
-              <div className="flex items-center gap-4">
-                <Avatar className="h-20 w-20 shrink-0">
-                <AvatarImage 
-                  src={currentCompany.logo_url ? `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/${currentCompany.logo_url}` : undefined}
-                  alt={`${currentCompany.name} logo`}
-                />
-                <AvatarFallback className="text-lg bg-primary/10">
-                  {currentCompany.name.substring(0, 2).toUpperCase()}
-                </AvatarFallback>
-              </Avatar>
-                <div className="min-w-0">
-                  <div className="text-sm font-medium">Company Logo</div>
-                  <div className="text-xs text-muted-foreground">
-                    {currentCompany.logo_url ? 'Logo uploaded' : 'No logo uploaded'}
+          <div className="space-y-3">
+            {organizationCompanies.map((companyItem) => {
+              const accessForCompany = userCompanies.find((access) => access.company_id === companyItem.id);
+              const isActive = companyItem.id === currentCompany.id;
+              return (
+                <div
+                  key={companyItem.id}
+                  className="flex cursor-pointer flex-col gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/30 md:flex-row md:items-start md:justify-between"
+                  onClick={() => openCompanyDetail(companyItem)}
+                >
+                  <div className="min-w-0 space-y-2">
+                    <div className="flex items-center gap-2">
+                      <p className="truncate font-medium">
+                        {companyItem.display_name || companyItem.name || 'Unnamed company'}
+                      </p>
+                      <Badge variant={isActive ? "default" : "secondary"}>
+                        {isActive ? "Active" : "Available"}
+                      </Badge>
+                      {accessForCompany && (
+                        <Badge variant="outline" className="capitalize">
+                          {accessForCompany.role}
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm text-muted-foreground truncate">
+                      {companyItem.name}
+                    </p>
+                    {(companyItem.address || companyItem.city || companyItem.state || companyItem.zip_code) && (
+                      <p className="text-xs text-muted-foreground truncate">
+                        {[companyItem.address, companyItem.city, companyItem.state, companyItem.zip_code].filter(Boolean).join(', ')}
+                      </p>
+                    )}
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
+                      {companyItem.phone && <span>{companyItem.phone}</span>}
+                      {companyItem.email && <span className="truncate">{companyItem.email}</span>}
+                      {companyItem.website && <span className="truncate">{companyItem.website}</span>}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      variant="outline"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        void openManageUsersForCompany(companyItem);
+                      }}
+                    >
+                      <Users className="h-4 w-4 mr-2" />
+                      Manage Users
+                    </Button>
                   </div>
                 </div>
-              </div>
-              {isCompanyAdmin && (
-                <div className="w-full">
-                  {uploadingLogo ? (
-                    <div className="text-sm text-muted-foreground">Uploading logo...</div>
-                  ) : (
-                    <DragDropUpload
-                      onFileSelect={(file) => { void uploadCompanyLogoFile(file); }}
-                      accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
-                      maxSize={2}
-                      size="compact"
-                      title={currentCompany.logo_url ? "Replace logo" : "Upload logo"}
-                      dropTitle={currentCompany.logo_url ? "Drop logo to replace" : "Drop logo here"}
-                      helperText="Company logo image up to 2MB"
-                    />
-                  )}
-                  <input
-                    id="logo-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleLogoUpload}
-                  />
-                </div>
-              )}
-            </div>
-            <div className="space-y-4 min-w-0">
-              <div>
-                <h3 className="text-xl font-semibold leading-tight">{currentCompany.display_name || currentCompany.name}</h3>
-                <p className="text-sm text-muted-foreground">
-                  {currentCompany.name !== (currentCompany.display_name || currentCompany.name) ? currentCompany.name : 'Company Profile'}
-                </p>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-6 gap-y-3">
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Company Name</Label>
-                  <p className="text-sm">{currentCompany.name}</p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Display Name</Label>
-                  <p className="text-sm">{currentCompany.display_name || 'Not set'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Phone</Label>
-                  <p className="text-sm">{currentCompany.phone || 'Not set'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Email</Label>
-                  <p className="text-sm break-all">{currentCompany.email || 'Not set'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Website</Label>
-                  <p className="text-sm break-all">{currentCompany.website || 'Not set'}</p>
-                </div>
-                <div>
-                  <Label className="text-xs font-medium text-muted-foreground">Address</Label>
-                  <p className="text-sm">
-                    {[
-                      currentCompany.address,
-                      [currentCompany.city, currentCompany.state].filter(Boolean).join(', '),
-                      currentCompany.zip_code
-                    ].filter(Boolean).join(' ') || 'Not set'}
-                  </p>
-                </div>
-              </div>
-            </div>
+              );
+            })}
           </div>
         </CardContent>
       </Card>
 
-      {/* Vendor Sharing Settings Card - Only show for company admins */}
-      {isCompanyAdmin && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Share2 className="h-5 w-5" />
-              Vendor Database Sharing
-            </CardTitle>
-            <CardDescription>
-              Configure whether this company participates in shared vendor database
-            </CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="space-y-2">
-                <div className="flex items-center gap-2">
-                  <Share2 className="h-4 w-4 text-blue-600" />
-                  <Label className="text-sm font-medium">Enable Shared Vendor Database</Label>
+      <Dialog open={showCompanyDetailDialog} onOpenChange={setShowCompanyDetailDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>{selectedCompanyDetail?.display_name || selectedCompanyDetail?.name || 'Company Details'}</DialogTitle>
+            <DialogDescription>Company details and contact information.</DialogDescription>
+          </DialogHeader>
+          {selectedCompanyDetail && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+                <div>
+                  <Label>Company Name</Label>
+                  <p className="text-sm">{selectedCompanyDetail.name || '-'}</p>
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  When enabled, your company can access vendor contact information from other companies that also enable this setting. 
-                  Jobs, invoices, and other company-specific data remain separate and private.
-                </p>
-                <div className="text-xs text-muted-foreground space-y-1">
-                  <div>• Share: Vendor names, addresses, phone numbers, emails</div>
-                  <div>• Keep separate: Jobs, invoices, payments, company-specific notes</div>
+                <div>
+                  <Label>Display Name</Label>
+                  <p className="text-sm">{selectedCompanyDetail.display_name || '-'}</p>
+                </div>
+                <div>
+                  <Label>Phone</Label>
+                  <p className="text-sm">{selectedCompanyDetail.phone || '-'}</p>
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <p className="text-sm break-all">{selectedCompanyDetail.email || '-'}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Website</Label>
+                  <p className="text-sm break-all">{selectedCompanyDetail.website || '-'}</p>
+                </div>
+                <div className="md:col-span-2">
+                  <Label>Address</Label>
+                  <p className="text-sm">
+                    {[selectedCompanyDetail.address, selectedCompanyDetail.city, selectedCompanyDetail.state, selectedCompanyDetail.zip_code]
+                      .filter(Boolean)
+                      .join(', ') || '-'}
+                  </p>
+                </div>
+                <div>
+                  <Label>Created</Label>
+                  <p className="text-sm">{selectedCompanyDetail.created_at ? new Date(selectedCompanyDetail.created_at).toLocaleDateString() : '-'}</p>
+                </div>
+                <div>
+                  <Label>Status</Label>
+                  <p className="text-sm">{selectedCompanyDetail.id === currentCompany.id ? 'Active' : 'Available'}</p>
                 </div>
               </div>
-              <Switch
-                checked={currentCompany?.enable_shared_vendor_database || false}
-                onCheckedChange={async (checked) => {
-                  try {
-                    const { error } = await supabase
-                      .from('companies')
-                      .update({ enable_shared_vendor_database: checked })
-                      .eq('id', currentCompany?.id);
+              <DialogFooter className="gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setShowCompanyDetailDialog(false);
+                    void openManageUsersForCompany(selectedCompanyDetail);
+                  }}
+                >
+                  <Users className="h-4 w-4 mr-2" />
+                  Manage Users
+                </Button>
+                {isCompanyAdmin && (
+                  <Button onClick={startEditFromDetail}>
+                    <Edit className="h-4 w-4 mr-2" />
+                    Edit Company
+                  </Button>
+                )}
+              </DialogFooter>
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
 
-                    if (error) throw error;
+      <Dialog open={showManageUsersDialog} onOpenChange={setShowManageUsersDialog}>
+        <DialogContent className="max-w-5xl">
+          <DialogHeader>
+            <DialogTitle>
+              Manage Company Users
+            </DialogTitle>
+            <DialogDescription>
+              {selectedCompanyForUsers
+                ? `Manage users assigned to ${selectedCompanyForUsers.display_name || selectedCompanyForUsers.name}.`
+                : 'Manage users assigned to this company.'}
+              {' '}Removing a user here only removes access to this specific company.
+            </DialogDescription>
+          </DialogHeader>
 
-                    await refreshCompanies();
-                    
-                    toast({
-                      title: checked ? "Shared vendor database enabled" : "Shared vendor database disabled",
-                      description: checked 
-                        ? "Your company can now access shared vendor information from other participating companies."
-                        : "Your company will only see vendors specifically added to your company.",
-                    });
-                  } catch (error) {
-                    console.error('Error updating vendor sharing setting:', error);
-                    toast({
-                      title: "Error",
-                      description: "Failed to update vendor sharing setting",
-                      variant: "destructive"
-                    });
-                  }
-                }}
+          <div className="space-y-4">
+            <div className="flex items-center justify-end">
+              <Button onClick={() => setShowAssignExistingUserDialog(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Add Existing User
+              </Button>
+            </div>
+
+            <div className="max-h-[420px] overflow-y-auto rounded border">
+              {loadingCompanyUsers ? (
+                <div className="p-4 text-sm text-muted-foreground">Loading users...</div>
+              ) : companyUsers.length === 0 ? (
+                <div className="p-4 text-sm text-muted-foreground">No users assigned to this company yet.</div>
+              ) : (
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>User</TableHead>
+                      <TableHead>Role</TableHead>
+                      <TableHead>Granted</TableHead>
+                      <TableHead className="text-right">Action</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {companyUsers.map((companyUser) => (
+                      <TableRow key={`${companyUser.company_id}-${companyUser.user_id}`}>
+                        <TableCell className="font-medium">
+                          <div className="flex items-center gap-3">
+                            <Avatar className="h-8 w-8">
+                              <AvatarImage src={companyUser.profile?.avatar_url || undefined} />
+                              <AvatarFallback>
+                                {getDisplayNameForCompanyUser(companyUser).substring(0, 2).toUpperCase()}
+                              </AvatarFallback>
+                            </Avatar>
+                            <span>{getDisplayNameForCompanyUser(companyUser)}</span>
+                          </div>
+                        </TableCell>
+                        <TableCell>
+                          <Badge variant="outline" className="capitalize">{companyUser.role}</Badge>
+                        </TableCell>
+                        <TableCell className="text-xs text-muted-foreground">
+                          {companyUser.granted_at ? new Date(companyUser.granted_at).toLocaleDateString() : '-'}
+                        </TableCell>
+                        <TableCell className="text-right">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() =>
+                              selectedCompanyForUsers &&
+                              handleRemoveUserFromManagedCompany(selectedCompanyForUsers.id, companyUser.user_id)
+                            }
+                          >
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            Remove
+                          </Button>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showAssignExistingUserDialog} onOpenChange={setShowAssignExistingUserDialog}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Add Existing User</DialogTitle>
+            <DialogDescription>
+              Add a user already in this organization to the selected company.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="existing-user-search">Search users</Label>
+              <Input
+                id="existing-user-search"
+                value={existingUserSearch}
+                onChange={(e) => setExistingUserSearch(e.target.value)}
+                placeholder="Search by name or user id"
               />
             </div>
-            
-            {currentCompany?.enable_shared_vendor_database && (
-              <div className="p-4 bg-blue-50 border border-blue-200 rounded-lg">
-                <div className="flex items-start gap-3">
-                  <Shield className="h-5 w-5 text-blue-600 mt-0.5" />
-                  <div className="space-y-2">
-                    <h4 className="text-sm font-medium text-blue-900">Privacy & Security</h4>
-                    <div className="text-sm text-blue-800 space-y-1">
-                      <p>✓ Only basic vendor contact information is shared between companies</p>
-                      <p>✓ Your jobs, invoices, and financial data remain completely private</p>
-                      <p>✓ You can disable this feature at any time</p>
-                      <p>✓ Shared vendors appear with a "Shared" badge for identification</p>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
 
-      </TabsContent>
+            <div className="space-y-2">
+              <Label htmlFor="existing-user-select">Select user</Label>
+              <Select value={selectedExistingUserId} onValueChange={setSelectedExistingUserId}>
+                <SelectTrigger id="existing-user-select">
+                  <SelectValue placeholder="Choose an existing user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {filteredEligibleUsers.map((profile) => (
+                    <SelectItem key={profile.user_id} value={profile.user_id}>
+                      {getProfileDisplayName(profile)} ({profile.user_id.slice(0, 8)})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
 
-      <TabsContent value="templates">
-        <PdfTemplateSettings />
-      </TabsContent>
-
-      <TabsContent value="aia-templates">
-        <AIAInvoiceTemplateSettings />
-      </TabsContent>
-
-      </Tabs>
+            <div className="space-y-2">
+              <Label htmlFor="existing-user-role">Role for this company</Label>
+              <Select value={assignUserRole} onValueChange={setAssignUserRole}>
+                <SelectTrigger id="existing-user-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="employee">Employee</SelectItem>
+                  <SelectItem value="project_manager">Project Manager</SelectItem>
+                  <SelectItem value="controller">Controller</SelectItem>
+                  <SelectItem value="admin">Admin</SelectItem>
+                  <SelectItem value="company_admin">Company Admin</SelectItem>
+                  <SelectItem value="view_only">View Only</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowAssignExistingUserDialog(false)}>
+              Cancel
+            </Button>
+            <Button
+              disabled={!selectedExistingUserId || assigningUser}
+              onClick={handleAssignExistingUserToCompany}
+            >
+              {assigningUser ? 'Adding...' : 'Add User'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Add User Dialog */}
       <Dialog open={showAddUserDialog} onOpenChange={setShowAddUserDialog}>
@@ -827,21 +1250,6 @@ export default function CompanyManagement() {
                 placeholder="https://company.com"
               />
             </div>
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium">Enable Shared Vendor Database</Label>
-                <p className="text-xs text-muted-foreground">
-                  Share vendor contact information with other companies (jobs and invoices remain private)
-                </p>
-              </div>
-              <Switch
-                checked={newCompanyForm.enable_shared_vendor_database}
-                onCheckedChange={(checked) => setNewCompanyForm(prev => ({ 
-                  ...prev, 
-                  enable_shared_vendor_database: checked 
-                }))}
-              />
-            </div>
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCreateCompanyDialog(false)}>
@@ -944,21 +1352,6 @@ export default function CompanyManagement() {
                 id="website"
                 value={companyForm.website}
                 onChange={(e) => setCompanyForm(prev => ({ ...prev, website: e.target.value }))}
-              />
-            </div>
-            <div className="flex items-center justify-between p-4 border rounded-lg">
-              <div className="space-y-1">
-                <Label className="text-sm font-medium">Enable Shared Vendor Database</Label>
-                <p className="text-xs text-muted-foreground">
-                  Share vendor contact information with other companies (jobs and invoices remain private)
-                </p>
-              </div>
-              <Switch
-                checked={companyForm.enable_shared_vendor_database}
-                onCheckedChange={(checked) => setCompanyForm(prev => ({ 
-                  ...prev, 
-                  enable_shared_vendor_database: checked 
-                }))}
               />
             </div>
           </div>

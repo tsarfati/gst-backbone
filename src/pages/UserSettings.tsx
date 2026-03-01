@@ -464,32 +464,20 @@ export default function UserSettings() {
 
   if (!canManageUsers) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground mb-4">Access Denied</h1>
-          <p className="text-muted-foreground">
-            You don't have permission to access user settings.
-          </p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">User Management</h1>
-          <p className="text-muted-foreground">
-            Manage user roles and permissions for {currentCompany?.display_name || currentCompany?.name || 'your company'}
-          </p>
         </div>
-        {isAdmin && (
-          <Button onClick={() => setShowAddUserDialog(true)}>
-            <UserPlus className="h-4 w-4 mr-2" />
-            Add System User
-          </Button>
-        )}
       </div>
 
       <Tabs defaultValue="users" className="space-y-6">
@@ -499,7 +487,7 @@ export default function UserSettings() {
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
           >
             <Users className="h-4 w-4 mr-2" />
-            Users
+            System Users
           </TabsTrigger>
           <TabsTrigger 
             value="user-roles" 
@@ -532,6 +520,14 @@ export default function UserSettings() {
 
         <TabsContent value="users">
           <div className="space-y-6">
+            {isAdmin && (
+              <div className="flex justify-end">
+                <Button onClick={() => setShowAddUserDialog(true)}>
+                  <UserPlus className="h-4 w-4 mr-2" />
+                  Add System User
+                </Button>
+              </div>
+            )}
             {loading ? (
               <div className="text-center py-8">Loading users...</div>
             ) : (

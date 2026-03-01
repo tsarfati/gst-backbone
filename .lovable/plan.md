@@ -1,39 +1,48 @@
 
+# Fix: Browser Tab Favicon Changing to Wrong Icon
 
-## Build Errors + Email Domain Update Plan
+## Problem Identified
 
-There are **three build errors** to fix, plus your request to update all email sender addresses from `@greenstarteam.com` to `@builderlynk.com`.
+The browser tab favicon (the BuilderLynk logo you uploaded) is being replaced with a "PC in green square" icon after navigating to a few pages. This happens because:
 
----
+1. **The `useDynamicManifest` hook replaces favicons**: When you navigate within the main app, this hook runs in `AppLayout.tsx` and removes all existing favicon `<link>` tags, replacing them with new paths pointing to `/assets/company-icon-192.png`
 
-### 1. Fix Build Errors
+2. **Service Worker not active in preview**: The service worker that's supposed to serve these icons is explicitly disabled in the Lovable preview environment (see `main.tsx`). Without the service worker, requests to `/assets/company-icon-*` return either a placeholder or fail
 
-**Error 1**: `check-subscription/index.ts` — references `npm:@supabase/supabase-js@2.57.2` which doesn't resolve. The function file appears to be missing or was deleted. We need to recreate it (or fix the import to use `https://esm.sh/@supabase/supabase-js@2` like other functions).
+3. **Fallback icon appears**: When the proper icon can't be loaded, the browser may show a cached fallback or error icon (the "PC in green square")
 
-**Error 2**: `src/App.tsx` imports `./pages/SettingsHelpDatabase` which doesn't exist. We need to either create a stub page or remove the import and route.
+## Solution
 
-**Error 3**: `src/App.tsx` imports `@/hooks/useCompanyFeatureAccess` which doesn't exist. We need to create a stub hook or remove the import and usage.
+Separate the favicon behavior for the **main BuilderLynk app** from the **Punch Clock PWA**:
 
-### 2. Update Email Sender Domain
+1. **Preserve the main app's favicon** - Stop `useDynamicManifest` from replacing the favicon in the main app (only needed for Punch Clock pages)
 
-All edge functions currently send from `noreply@greenstarteam.com`. We need to update every occurrence across these functions to `noreply@builderlynk.com`:
+2. **Only run dynamic icons on Punch Clock routes** - The company-specific icon feature should only activate on `/punch-clock-*` and `/pm-mobile-*` routes
 
-- `supabase/functions/send-auth-email/index.ts` — `from: 'BuilderLYNK <noreply@greenstarteam.com>'`
-- `supabase/functions/send-password-reset/index.ts` — `from: 'BuilderLynk <noreply@greenstarteam.com>'`
-- `supabase/functions/send-email/index.ts` — likely has a from address too
-- Any other edge functions that send email (e.g., `send-bill-approval-notification`, `send-credit-card-coding-notification`, `send-file-share-email`, `send-financial-overview`, `send-overdue-bill-notifications`, `send-rfp-invite`, `send-test-email`, `send-user-invite`, `send-vendor-invite`, `send-visitor-sms`)
+3. **Add a stable favicon fallback** - Ensure the main `/favicon.png` is never removed when browsing the main app
 
-All `from:` fields will be changed to use `@builderlynk.com`.
+## Technical Changes
 
-### 3. Redeploy All Affected Edge Functions
+### File: `src/hooks/useDynamicManifest.ts`
 
-After updating, all modified edge functions will be deployed.
+Update the hook to only replace favicon links when on Punch Clock-related routes:
 
----
+- Add a check for the current route before modifying document head
+- If not on a Punch Clock route, skip the icon replacement entirely
+- This keeps the original BuilderLynk favicon stable on main app pages
 
-### Steps
+### File: `src/components/AppLayout.tsx`
 
-1. Fix the three build errors (missing module stubs or import removals)
-2. Update every email-sending edge function's `from` address from `@greenstarteam.com` to `@builderlynk.com`
-3. Deploy all updated edge functions
+Remove the `useDynamicManifest()` call from AppLayout since it's not needed for the main app navigation. The hook should only be used in:
+- `PunchClockLogin.tsx`
+- `PunchClockApp.tsx`  
+- `PMobileLogin.tsx`
+- `PMobileApp.tsx`
+- `EmployeeDashboard.tsx` (if it uses PWA features)
 
+## Expected Result
+
+After this fix:
+- The BuilderLynk favicon will remain stable throughout main app navigation
+- The dynamic company icons will only apply to Punch Clock and PM Mobile pages
+- No more "PC in green square" appearing when navigating between pages

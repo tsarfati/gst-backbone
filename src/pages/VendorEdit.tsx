@@ -160,14 +160,13 @@ export default function VendorEdit() {
   // Only show "not found" if we're in edit mode and vendor doesn't exist after loading
   if (!isAddMode && !loading && !vendor) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/vendors")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Vendor Not Found</h1>
-            <p className="text-muted-foreground">The requested vendor could not be found</p>
           </div>
         </div>
         <div className="text-center py-8">
@@ -459,7 +458,7 @@ export default function VendorEdit() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12">
           <div className="text-muted-foreground">Loading vendor details...</div>
         </div>
@@ -468,7 +467,7 @@ export default function VendorEdit() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -479,9 +478,6 @@ export default function VendorEdit() {
             <h1 className="text-2xl font-bold text-foreground">
               {isAddMode ? "Add New Vendor" : "Edit Vendor"}
             </h1>
-            <p className="text-muted-foreground">
-              {isAddMode ? "Create a new vendor profile" : "Update vendor details and settings"}
-            </p>
           </div>
         </div>
         <div className="flex gap-2">

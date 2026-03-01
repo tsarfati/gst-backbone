@@ -554,7 +554,7 @@ export default function AddSubcontract() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
       </div>
     );
@@ -571,7 +571,7 @@ export default function AddSubcontract() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => navigate(-1)}>
@@ -579,7 +579,6 @@ export default function AddSubcontract() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Add Subcontract</h1>
-          <p className="text-muted-foreground">Create a new subcontract agreement</p>
         </div>
       </div>
 

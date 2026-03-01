@@ -105,7 +105,7 @@ export default function PinEmployeeListReport() {
   };
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/employees/reports")}>
           <ArrowLeft className="h-5 w-5" />
@@ -115,9 +115,6 @@ export default function PinEmployeeListReport() {
             <Users className="h-8 w-8" />
             Employee PIN Access Report
           </h1>
-          <p className="text-muted-foreground mt-1">
-            All employees with PIN access for punch clock and mobile apps
-          </p>
         </div>
         <Button onClick={generatePDF} disabled={loading || employees.length === 0}>
           <Download className="h-4 w-4 mr-2" />

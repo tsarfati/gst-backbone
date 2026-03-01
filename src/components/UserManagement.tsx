@@ -191,24 +191,12 @@ export default function UserManagement() {
 
   const approveUser = async (userId: string) => {
     if (!user) return;
-    if (!currentCompany) return;
     try {
       const { error } = await supabase
         .from('profiles')
         .update({ status: 'approved', approved_by: user.id, approved_at: new Date().toISOString() })
         .eq('user_id', userId);
       if (error) throw error;
-
-      const { error: notifyError } = await supabase.functions.invoke('notify-user-approved', {
-        body: {
-          userId,
-          companyId: currentCompany.id,
-        },
-      });
-      if (notifyError) {
-        console.warn('User approval email notification failed:', notifyError);
-      }
-
       toast({ title: "User Approved", description: "User has been approved successfully" });
       fetchUsers();
     } catch (error) {

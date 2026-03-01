@@ -117,9 +117,6 @@ export default function RFPs() {
       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
         <div>
           <h1 className="text-3xl font-bold">RFPs</h1>
-          <p className="text-muted-foreground">
-            Manage requests for proposals and vendor bids
-          </p>
         </div>
         <Button onClick={() => navigate('/construction/rfps/add')}>
           <Plus className="h-4 w-4 mr-2" />

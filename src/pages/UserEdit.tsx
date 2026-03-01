@@ -460,9 +460,6 @@ export default function UserEdit() {
       <div className="p-6">
         <div className="text-center">
           <h1 className="text-2xl font-bold text-foreground mb-4">Access Denied</h1>
-          <p className="text-muted-foreground">
-            You don't have permission to edit users.
-          </p>
         </div>
       </div>
     );
@@ -491,7 +488,7 @@ export default function UserEdit() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6">
       <div className="flex items-center gap-4 mb-6">
         <Button variant="outline" onClick={() => navigate('/settings/users')}>
           <ArrowLeft className="h-4 w-4 mr-2" />
@@ -499,9 +496,6 @@ export default function UserEdit() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Edit User</h1>
-          <p className="text-muted-foreground">
-            Manage user profile, role, and permissions
-          </p>
         </div>
       </div>
 

@@ -451,10 +451,9 @@ const formatCurrency = (n: number | null | undefined) =>
   };
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6">
       <header className="mb-6">
         <h1 className="text-2xl font-bold">General Ledger</h1>
-        <p className="text-muted-foreground">Filter by date and accounts, then view detailed ledger lines.</p>
         
         {/* Show active job/cost code filter badge */}
         {(filterJobId || filterCostCodeId) && (

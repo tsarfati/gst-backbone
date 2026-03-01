@@ -23,7 +23,6 @@ export default function PrivacyPolicy() {
         <div className="prose prose-sm sm:prose dark:prose-invert max-w-none space-y-8">
           <div>
             <h1 className="text-3xl font-bold mb-2">BuilderLYNK Privacy Policy</h1>
-            <p className="text-muted-foreground">Last updated: {lastUpdated}</p>
           </div>
 
           <section>

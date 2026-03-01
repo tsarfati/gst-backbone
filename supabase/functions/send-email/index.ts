@@ -23,7 +23,7 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, subject, html, from = "System Notifications <system@builderlynk.com>" }: EmailRequest = await req.json();
+    const { to, subject, html, from = "System Notifications <system@greenstarteam.com>" }: EmailRequest = await req.json();
 
     console.log("Sending email to:", to, "Subject:", subject);
 

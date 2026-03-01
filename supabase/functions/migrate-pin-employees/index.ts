@@ -39,7 +39,7 @@ Deno.serve(async (req) => {
     }
 
     const body = await req.json();
-    const emailDomain = body.email_domain || "builderlynk.com";
+    const emailDomain = body.email_domain || "greenstarteam.com";
     const dryRun = body.dry_run === true;
 
     const adminClient = createClient(supabaseUrl, serviceRoleKey);

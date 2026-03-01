@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import CompanySmsSettings from "@/components/CompanySmsSettings";
 
 interface NotificationSettings {
@@ -62,6 +63,7 @@ export default function NotificationSettings() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { settings: appSettings } = useSettings();
   const [settings, setSettings] = useState<NotificationSettings>({
     user_id: user?.id || "",
     company_id: currentCompany?.id || "",
@@ -81,6 +83,7 @@ export default function NotificationSettings() {
   const [loading, setLoading] = useState(true);
   const [testEmail, setTestEmail] = useState("");
   const [sendingTest, setSendingTest] = useState(false);
+  const autoSaveReadyRef = useRef(false);
 
   useEffect(() => {
     if (user && currentCompany) {
@@ -112,6 +115,7 @@ export default function NotificationSettings() {
           bills_paid: data.invoices_paid,
         });
       }
+      autoSaveReadyRef.current = true;
     } catch (error) {
       console.error("Error loading notification settings:", error);
       toast({
@@ -156,7 +160,7 @@ export default function NotificationSettings() {
     }
   };
 
-  const saveSettings = async () => {
+  const saveSettings = async (showToast: boolean = true) => {
     if (!user || !currentCompany) return;
 
     try {
@@ -172,17 +176,21 @@ export default function NotificationSettings() {
 
       if (error) throw error;
 
-      toast({
-        title: "Settings saved",
-        description: "Your notification settings have been updated.",
-      });
+      if (showToast) {
+        toast({
+          title: "Settings saved",
+          description: "Your notification settings have been updated.",
+        });
+      }
     } catch (error) {
       console.error("Error saving settings:", error);
-      toast({
-        title: "Error",
-        description: "Failed to save notification settings",
-        variant: "destructive",
-      });
+      if (showToast) {
+        toast({
+          title: "Error",
+          description: "Failed to save notification settings",
+          variant: "destructive",
+        });
+      }
     }
   };
 
@@ -234,6 +242,16 @@ export default function NotificationSettings() {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
+  useEffect(() => {
+    if (!appSettings.autoSave || loading || !autoSaveReadyRef.current || !user || !currentCompany) return;
+
+    const timer = setTimeout(() => {
+      void saveSettings(false);
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [settings, appSettings.autoSave, loading, user?.id, currentCompany?.id]);
+
   const getStatusBadge = (status: string) => {
     switch (status) {
       case "sent":
@@ -260,7 +278,7 @@ export default function NotificationSettings() {
 
   if (loading) {
     return (
-      <div className="p-6">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/settings")}>
             <ArrowLeft className="h-4 w-4" />
@@ -274,16 +292,13 @@ export default function NotificationSettings() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => navigate("/settings")}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Notifications & Email Settings</h1>
-          <p className="text-muted-foreground">
-            Configure notification preferences, email templates, and messaging settings
-          </p>
         </div>
       </div>
 
@@ -585,11 +600,13 @@ export default function NotificationSettings() {
                 </div>
               </div>
 
-              <div className="flex justify-end">
-                <Button onClick={saveSettings}>
-                  Save Settings
-                </Button>
-              </div>
+              {!appSettings.autoSave && (
+                <div className="flex justify-end">
+                  <Button onClick={saveSettings}>
+                    Save Settings
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

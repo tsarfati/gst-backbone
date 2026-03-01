@@ -6140,11 +6140,8 @@ export type Database = {
           company_id: string
           container_opacity: number | null
           created_at: string
-          custom_daily_message: string | null
-          daily_message_type: string | null
           dark_mode_default: boolean | null
           default_dashboard_style: string | null
-          highlight_color: string | null
           id: string
           mobile_logo_url: string | null
           primary_color: string | null
@@ -6155,11 +6152,8 @@ export type Database = {
           company_id: string
           container_opacity?: number | null
           created_at?: string
-          custom_daily_message?: string | null
-          daily_message_type?: string | null
           dark_mode_default?: boolean | null
           default_dashboard_style?: string | null
-          highlight_color?: string | null
           id?: string
           mobile_logo_url?: string | null
           primary_color?: string | null
@@ -6170,11 +6164,8 @@ export type Database = {
           company_id?: string
           container_opacity?: number | null
           created_at?: string
-          custom_daily_message?: string | null
-          daily_message_type?: string | null
           dark_mode_default?: boolean | null
           default_dashboard_style?: string | null
-          highlight_color?: string | null
           id?: string
           mobile_logo_url?: string | null
           primary_color?: string | null

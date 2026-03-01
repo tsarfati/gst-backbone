@@ -254,9 +254,6 @@ export default function AllMessages() {
             <MessageSquare className="h-7 w-7" />
             Messages
           </h1>
-          <p className="text-muted-foreground">
-            Manage your team communications
-          </p>
         </div>
         <ComposeMessageDialog onMessageSent={handleMessageSent}>
           <Button>
@@ -374,10 +371,7 @@ export default function AllMessages() {
                               {conversation.messageCount}
                             </Badge>
                           </div>
-                          <div className="text-sm text-muted-foreground truncate mt-1">
-                            <span className={cn("mr-2", isUnread && "text-foreground font-medium")}>
-                              {message.subject}
-                            </span>
+                          <div className={cn("text-sm truncate mt-1", isUnread ? "text-foreground font-medium" : "text-muted-foreground")}>
                             <span className="truncate">{message.content}</span>
                           </div>
                         </div>

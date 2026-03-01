@@ -157,7 +157,6 @@ export default function JobDetails() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Job Not Found</h1>
-            <p className="text-muted-foreground">The requested job could not be found</p>
           </div>
         </div>
         
@@ -191,7 +190,6 @@ export default function JobDetails() {
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
-          <p className="text-muted-foreground">Job Details</p>
         </div>
         {job.status === 'completed' && (
           <Button variant="outline" size="sm" onClick={() => setExportModalOpen(true)}>

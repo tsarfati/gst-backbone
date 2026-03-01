@@ -75,7 +75,6 @@ export default function AddEmployee() {
     return (
       <div className="p-6 text-center">
         <h1 className="text-2xl font-bold text-foreground mb-4">Access Denied</h1>
-        <p className="text-muted-foreground">You don't have permission to add employees.</p>
       </div>
     );
   }
@@ -145,9 +144,6 @@ export default function AddEmployee() {
           <UserPlus className="h-7 w-7" />
           Add Employee
         </h1>
-        <p className="text-muted-foreground">
-          Create a new employee account with optional punch clock PIN access
-        </p>
       </div>
 
       <Card className="max-w-2xl">

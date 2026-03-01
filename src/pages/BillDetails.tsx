@@ -426,14 +426,13 @@ export default function BillDetails() {
 
   if (!bill) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/invoices")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Bill Not Found</h1>
-            <p className="text-muted-foreground">The requested bill could not be found</p>
           </div>
         </div>
         <Card>
@@ -457,7 +456,7 @@ export default function BillDetails() {
   const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6">
       {/* Overdue Banner */}
       {billIsOverdue && (
         <div 
@@ -489,9 +488,6 @@ export default function BillDetails() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Bill Details</h1>
-            <p className="text-muted-foreground">
-              {bill?.vendors?.name} - {bill?.invoice_number || 'No Invoice Number'}
-            </p>
           </div>
         </div>
         <div className="flex gap-2">

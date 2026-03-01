@@ -309,7 +309,7 @@ export default function ReconciliationReport() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto print:p-4">
+    <div className="p-4 md:p-6 print:p-4">
       <div className="mb-6 print:hidden flex items-center justify-between">
         <Button
           variant="ghost"

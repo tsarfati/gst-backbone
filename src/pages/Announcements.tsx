@@ -125,9 +125,6 @@ export default function Announcements() {
         <div className="flex items-center justify-between mb-4">
           <div>
             <h1 className="text-2xl font-bold text-foreground mb-2">Announcements</h1>
-            <p className="text-muted-foreground">
-              Stay updated with the latest company news and important information
-            </p>
           </div>
           <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
             <DialogTrigger asChild>

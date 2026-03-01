@@ -213,7 +213,7 @@ export default function VendorDashboard() {
 
   if (!profile?.vendor_id) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12">
             <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
@@ -233,9 +233,6 @@ export default function VendorDashboard() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Vendor Dashboard</h1>
-          <p className="text-muted-foreground">
-            Welcome, {vendorInfo?.name || 'Vendor'}
-          </p>
         </div>
         <Button onClick={() => navigate('/vendor/compliance')}>
           <Upload className="h-4 w-4 mr-2" />

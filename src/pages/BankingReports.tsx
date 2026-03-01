@@ -173,9 +173,6 @@ export default function BankingReports() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Banking Reports</h1>
-          <p className="text-muted-foreground">
-            Analyze banking transactions, account balances, and cash flow
-          </p>
         </div>
         <div className="flex space-x-2">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>

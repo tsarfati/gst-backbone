@@ -263,7 +263,7 @@ export default function AddChangeOrder() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
       </div>
     );
@@ -271,7 +271,7 @@ export default function AddChangeOrder() {
 
   if (!subcontract) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Subcontract not found</p>
           <Button onClick={() => navigate('/subcontracts')} className="mt-4">
@@ -283,16 +283,13 @@ export default function AddChangeOrder() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6">
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => navigate(`/subcontracts/${subcontractId}`)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Add Change Order</h1>
-          <p className="text-muted-foreground">
-            For: {subcontract.name} - {subcontract.vendors?.name}
-          </p>
         </div>
       </div>
 

@@ -285,14 +285,13 @@ export default function CreditCardTransactionReport() {
   const totalAmount = transactions.reduce((sum, txn) => sum + Number(txn.amount), 0);
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
           <h1 className="text-3xl font-bold">Credit Card Transaction Report</h1>
-          <p className="text-muted-foreground">Generate detailed transaction reports by credit card</p>
         </div>
       </div>
 

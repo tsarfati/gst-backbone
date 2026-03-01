@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
@@ -9,6 +9,7 @@ import { Switch } from '@/components/ui/switch';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Loader2, MessageSquare } from 'lucide-react';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface SmsSettings {
   id?: string;
@@ -22,8 +23,10 @@ interface SmsSettings {
 export default function CompanySmsSettings() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { settings: appSettings } = useSettings();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const autoSaveReadyRef = useRef(false);
   const [settings, setSettings] = useState<SmsSettings>({
     sms_enabled: false,
     provider: 'twilio',
@@ -59,6 +62,7 @@ export default function CompanySmsSettings() {
           phone_number: data.phone_number || '',
         });
       }
+      autoSaveReadyRef.current = true;
     } catch (error) {
       console.error('Error loading SMS settings:', error);
       toast({
@@ -71,7 +75,7 @@ export default function CompanySmsSettings() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (showToast: boolean = true) => {
     try {
       setSaving(true);
 
@@ -100,23 +104,37 @@ export default function CompanySmsSettings() {
         if (error) throw error;
       }
 
-      toast({
-        title: 'Success',
-        description: 'SMS settings saved successfully',
-      });
+      if (showToast) {
+        toast({
+          title: 'Success',
+          description: 'SMS settings saved successfully',
+        });
+      }
 
       await loadSettings();
     } catch (error) {
       console.error('Error saving SMS settings:', error);
-      toast({
-        title: 'Error',
-        description: 'Failed to save SMS settings',
-        variant: 'destructive',
-      });
+      if (showToast) {
+        toast({
+          title: 'Error',
+          description: 'Failed to save SMS settings',
+          variant: 'destructive',
+        });
+      }
     } finally {
       setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!appSettings.autoSave || loading || saving || !currentCompany?.id || !autoSaveReadyRef.current) return;
+
+    const timer = setTimeout(() => {
+      void handleSave(false);
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [settings, appSettings.autoSave, loading, saving, currentCompany?.id]);
 
   if (loading) {
     return (
@@ -227,12 +245,14 @@ export default function CompanySmsSettings() {
             </>
           )}
 
-          <div className="flex justify-end pt-4">
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              Save SMS Settings
-            </Button>
-          </div>
+          {!appSettings.autoSave && (
+            <div className="flex justify-end pt-4">
+              <Button onClick={() => void handleSave()} disabled={saving}>
+                {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                Save SMS Settings
+              </Button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

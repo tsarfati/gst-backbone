@@ -149,7 +149,7 @@ export default function EmailTemplateEdit() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={() => navigate("/settings/notifications")}>
@@ -159,9 +159,6 @@ export default function EmailTemplateEdit() {
             <h1 className="text-2xl font-bold text-foreground">
               {id === "new" ? "Create Email Template" : "Edit Email Template"}
             </h1>
-            <p className="text-muted-foreground">
-              {id === "new" ? "Create a new email template" : "Modify the email template"}
-            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">

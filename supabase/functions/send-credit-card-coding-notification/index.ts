@@ -112,7 +112,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const emailResponse = await resend.emails.send({
-      from: "Credit Card Notifications <notifications@builderlynk.com>",
+      from: "Credit Card Notifications <notifications@greenstarteam.com>",
       to: [userEmail],
       subject: `Credit Card Transaction Coding Required - ${transaction.merchant_name || 'Transaction'}`,
       html,

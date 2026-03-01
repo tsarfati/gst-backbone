@@ -700,7 +700,6 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
           <div className="flex items-center justify-between">
             <div>
               <h1 className="text-2xl md:text-3xl font-bold text-foreground mb-2">Punch Clock Dashboard</h1>
-              <p className="text-sm md:text-base text-muted-foreground">Live overview of employee punch activity</p>
             </div>
             <div className="flex gap-2">
               <Button asChild variant="outline">

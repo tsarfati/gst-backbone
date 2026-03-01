@@ -148,7 +148,6 @@ export default function Subcontracts() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Subcontracts</h1>
-          <p className="text-muted-foreground">Manage your subcontract agreements</p>
         </div>
         <div className="flex gap-2">
           <PayablesViewSelector

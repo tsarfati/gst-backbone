@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { useSettings } from '@/contexts/SettingsContext';
@@ -19,7 +19,17 @@ import { Palette, SlidersHorizontal } from 'lucide-react';
 import DragDropUpload from '@/components/DragDropUpload';
 
 
-export default function ThemeSettings({ embedded = false }: { embedded?: boolean }) {
+interface ThemeSettingsProps {
+  embedded?: boolean;
+  hideSaveButtons?: boolean;
+  onRegisterSaveHandler?: (handler: () => void) => void;
+}
+
+export default function ThemeSettings({
+  embedded = false,
+  hideSaveButtons = false,
+  onRegisterSaveHandler,
+}: ThemeSettingsProps) {
   const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
   const { setTheme } = useTheme();
@@ -34,6 +44,11 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
       description: "Your appearance preferences have been updated successfully.",
     });
   };
+
+  useEffect(() => {
+    if (!onRegisterSaveHandler) return;
+    onRegisterSaveHandler(handleSaveSettings);
+  }, [onRegisterSaveHandler, settings.theme]);
 
   const uploadThemeLogoFile = async (file?: File | null) => {
     if (!file || !user) return;
@@ -120,14 +135,11 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
   };
 
   return (
-    <div className={embedded ? '' : 'container mx-auto py-10 px-4'}>
+    <div className={embedded ? '' : 'p-4 md:p-6'}>
       <div className="space-y-6">
         {!embedded && (
           <div>
             <h1 className="text-3xl font-bold">Theme & Appearance</h1>
-            <p className="text-muted-foreground">
-              Customize the look and feel for {currentCompany?.display_name || currentCompany?.name || 'your company'}
-            </p>
           </div>
         )}
         
@@ -144,9 +156,11 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
-            <div className="flex items-center justify-end">
-              <Button onClick={handleSaveSettings}>Save Changes</Button>
-            </div>
+            {!hideSaveButtons && !settings.autoSave && (
+              <div className="flex items-center justify-end">
+                <Button onClick={handleSaveSettings}>Save Changes</Button>
+              </div>
+            )}
 
             <Card>
               <CardHeader>
@@ -189,6 +203,39 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
                       updateSettings({ compactMode: checked })
                     }
                   />
+                </div>
+
+                <Separator />
+
+                <div className="space-y-3">
+                  <Label>Sidebar Categories</Label>
+                  <RadioGroup
+                    value={settings.navigationMode}
+                    onValueChange={(value: 'single' | 'multiple') => updateSettings({ navigationMode: value })}
+                  >
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="multiple" id="theme-general-nav-multiple" />
+                      <Label htmlFor="theme-general-nav-multiple" className="flex-1">
+                        <div>
+                          <div className="font-medium">Multiple Categories Open</div>
+                          <div className="text-sm text-muted-foreground">
+                            Allow multiple navigation categories to be expanded simultaneously
+                          </div>
+                        </div>
+                      </Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <RadioGroupItem value="single" id="theme-general-nav-single" />
+                      <Label htmlFor="theme-general-nav-single" className="flex-1">
+                        <div>
+                          <div className="font-medium">Single Category Open</div>
+                          <div className="text-sm text-muted-foreground">
+                            Only one navigation category can be open at a time (accordion style)
+                          </div>
+                        </div>
+                      </Label>
+                    </div>
+                  </RadioGroup>
                 </div>
               </CardContent>
             </Card>
@@ -343,10 +390,6 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
           </TabsContent>
 
           <TabsContent value="display-operation" className="space-y-6">
-            <div className="flex items-center justify-end">
-              <Button onClick={handleSaveSettings}>Save Changes</Button>
-            </div>
-
             <Card>
               <CardHeader>
                 <CardTitle>Navigation Behavior</CardTitle>
@@ -396,7 +439,7 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
                 </CardDescription>
               </CardHeader>
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                   <div className="space-y-2">
                     <Label htmlFor="theme-default-view">Default View</Label>
                     <Select
@@ -431,20 +474,78 @@ export default function ThemeSettings({ embedded = false }: { embedded?: boolean
                       </SelectContent>
                     </Select>
                   </div>
-                </div>
 
-                <div className="flex items-center justify-between">
-                  <div className="space-y-0.5">
+                  <div className="space-y-2">
                     <Label htmlFor="theme-auto-save">Auto-save Forms</Label>
-                    <div className="text-sm text-muted-foreground">
-                      Automatically save form data while typing
+                    <div className="flex h-10 items-center justify-between rounded-md border border-input bg-background px-3">
+                      <span className="text-sm text-muted-foreground">Save while typing</span>
+                      <Switch
+                        id="theme-auto-save"
+                        checked={settings.autoSave}
+                        onCheckedChange={(checked) => updateSettings({ autoSave: checked })}
+                      />
                     </div>
                   </div>
-                  <Switch
-                    id="theme-auto-save"
-                    checked={settings.autoSave}
-                    onCheckedChange={(checked) => updateSettings({ autoSave: checked })}
-                  />
+                </div>
+
+                <Separator />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="theme-date-format">Date Format</Label>
+                    <Select
+                      value={settings.dateFormat}
+                      onValueChange={(value: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD') =>
+                        updateSettings({ dateFormat: value })
+                      }
+                    >
+                      <SelectTrigger id="theme-date-format">
+                        <SelectValue placeholder="Select date format" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
+                        <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
+                        <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="theme-currency-format">Currency Format</Label>
+                    <Select
+                      value={settings.currencyFormat}
+                      onValueChange={(value: 'USD' | 'EUR' | 'GBP') =>
+                        updateSettings({ currencyFormat: value })
+                      }
+                    >
+                      <SelectTrigger id="theme-currency-format">
+                        <SelectValue placeholder="Select currency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="EUR">EUR (€)</SelectItem>
+                        <SelectItem value="GBP">GBP (£)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="theme-distance-unit">Distance Units</Label>
+                    <Select
+                      value={settings.distanceUnit}
+                      onValueChange={(value: 'meters' | 'feet') =>
+                        updateSettings({ distanceUnit: value })
+                      }
+                    >
+                      <SelectTrigger id="theme-distance-unit">
+                        <SelectValue placeholder="Select distance unit" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="meters">Meters (m)</SelectItem>
+                        <SelectItem value="feet">Feet (ft)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
                 </div>
               </CardContent>
             </Card>

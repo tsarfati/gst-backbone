@@ -352,9 +352,6 @@ export default function JournalEntryDetails() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Journal Entry Details</h1>
-            <p className="text-muted-foreground">
-              {entry.reference || 'No reference'}
-            </p>
           </div>
         </div>
         <div className="flex gap-2">

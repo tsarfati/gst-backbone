@@ -183,9 +183,6 @@ export default function CreditCards() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Credit Cards</h1>
-          <p className="text-muted-foreground">
-            Manage company credit cards and track expenses
-          </p>
         </div>
         <div className="flex gap-2">
           <Dialog open={uploadDialogOpen} onOpenChange={setUploadDialogOpen}>

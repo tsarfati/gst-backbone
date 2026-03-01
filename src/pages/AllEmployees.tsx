@@ -163,9 +163,6 @@ export default function AllEmployees() {
             <Users className="h-7 w-7" />
             Employee Management
           </h1>
-          <p className="text-muted-foreground">
-            Manage all employees with punch clock and mobile app access
-          </p>
         </div>
         {canCreateEmployees() && (
           <div className="flex gap-2">

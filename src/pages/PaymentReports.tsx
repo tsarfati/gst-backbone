@@ -37,9 +37,6 @@ export default function PaymentReports() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Payment Reports</h1>
-          <p className="text-muted-foreground">
-            Analyze payment trends, vendor spending, and financial insights
-          </p>
         </div>
         <div className="flex space-x-2">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>

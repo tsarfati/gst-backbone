@@ -120,9 +120,6 @@ export default function BankAccounts() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Bank Accounts</h1>
-        <p className="text-muted-foreground">
-          Manage your company bank accounts and account details
-        </p>
       </div>
 
       {/* Summary Cards */}

@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
@@ -12,14 +12,17 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useSettings } from '@/contexts/SettingsContext';
 
 export default function PMMobileSettings() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { settings: appSettings } = useSettings();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const autoSaveReadyRef = useRef(false);
 
   const [mobileLogoUrl, setMobileLogoUrl] = useState<string | null>(null);
   const [backgroundImageUrl, setBackgroundImageUrl] = useState<string | null>(null);
@@ -74,6 +77,7 @@ export default function PMMobileSettings() {
       setDailyMessageType((data as any).daily_message_type || 'none');
       setCustomDailyMessage((data as any).custom_daily_message || '');
     }
+    autoSaveReadyRef.current = true;
     setLoading(false);
   };
 
@@ -111,7 +115,7 @@ export default function PMMobileSettings() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (showToast: boolean = true) => {
     if (!currentCompany?.id) return;
 
     setSaving(true);
@@ -134,22 +138,50 @@ export default function PMMobileSettings() {
 
     if (error) {
       console.error('PM Lynk settings save error:', error);
-      toast({
-        title: 'Save failed',
-        description: error.message.includes('column') && (error.message.includes('daily_message_type') || error.message.includes('highlight_color') || error.message.includes('custom_daily_message'))
-          ? 'Some PM Lynk settings columns are not in the database yet. Ask me for the SQL migration and then save again.'
-          : error.message,
-        variant: 'destructive',
-      });
+      if (showToast) {
+        toast({
+          title: 'Save failed',
+          description: error.message.includes('column') && (error.message.includes('daily_message_type') || error.message.includes('highlight_color') || error.message.includes('custom_daily_message'))
+            ? 'Some PM Lynk settings columns are not in the database yet. Ask me for the SQL migration and then save again.'
+            : error.message,
+          variant: 'destructive',
+        });
+      }
     } else {
-      toast({
-        title: 'Settings saved',
-        description: 'PM Lynk mobile settings updated successfully.',
-      });
+      if (showToast) {
+        toast({
+          title: 'Settings saved',
+          description: 'PM Lynk mobile settings updated successfully.',
+        });
+      }
     }
 
     setSaving(false);
   };
+
+  useEffect(() => {
+    if (!appSettings.autoSave || loading || saving || !currentCompany?.id || !autoSaveReadyRef.current) return;
+
+    const timer = setTimeout(() => {
+      void handleSave(false);
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [
+    appSettings.autoSave,
+    loading,
+    saving,
+    currentCompany?.id,
+    mobileLogoUrl,
+    backgroundImageUrl,
+    defaultDashboardStyle,
+    primaryColor,
+    highlightColor,
+    darkModeDefault,
+    containerOpacity,
+    dailyMessageType,
+    customDailyMessage,
+  ]);
 
   const handleBackgroundUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
@@ -192,14 +224,13 @@ export default function PMMobileSettings() {
   return (
     <div className="space-y-6">
       <div className="flex flex-wrap items-start gap-3">
-        <Button onClick={handleSave} disabled={saving} className="shrink-0">
-          {saving ? 'Saving...' : 'Save Changes'}
-        </Button>
+        {!appSettings.autoSave && (
+          <Button onClick={() => void handleSave()} disabled={saving} className="shrink-0">
+            {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        )}
         <div className="min-w-0">
           <h1 className="text-3xl font-bold">PM Lynk Settings</h1>
-          <p className="text-muted-foreground">
-            Configure PM Lynk mobile branding, layout, and appearance settings.
-          </p>
         </div>
       </div>
 

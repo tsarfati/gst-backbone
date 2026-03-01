@@ -327,14 +327,13 @@ export default function TenantDetails() {
   return (
     <div className="min-h-screen bg-background">
       <div className="border-b">
-        <div className="container mx-auto px-4 py-4">
+        <div className="p-4 md:p-6">
           <div className="flex items-center gap-4">
             <Button variant="ghost" size="icon" onClick={() => navigate('/super-admin')}>
               <ArrowLeft className="h-4 w-4" />
             </Button>
             <div className="flex-1">
               <h1 className="text-2xl font-bold">{tenant.name}</h1>
-              <p className="text-muted-foreground text-sm">Organization Details</p>
             </div>
             <Badge variant={tenant.is_active ? 'default' : 'destructive'}>
               {tenant.is_active ? 'Active' : 'Inactive'}
@@ -346,7 +345,7 @@ export default function TenantDetails() {
         </div>
       </div>
 
-      <div className="container mx-auto px-4 py-6 space-y-6">
+      <div className="p-4 md:p-6 space-y-6">
         {/* Stats Cards */}
         <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
           <Card>

@@ -140,9 +140,6 @@ export default function TaskDeadlines() {
             <AlarmClock className="h-7 w-7" />
             Task Deadlines
           </h1>
-          <p className="text-muted-foreground">
-            Track and manage upcoming task deadlines
-          </p>
         </div>
       </div>
 

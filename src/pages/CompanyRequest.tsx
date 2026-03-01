@@ -175,9 +175,6 @@ export default function CompanyRequest() {
 
           <div className="text-center mb-8">
             <h1 className="text-3xl font-bold mb-2">Select a Company</h1>
-            <p className="text-muted-foreground text-lg">
-              Choose which company you want to work with
-            </p>
           </div>
 
           <div className="space-y-4">

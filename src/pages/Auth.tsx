@@ -172,8 +172,9 @@ export default function Auth() {
 
         toast({
           title: 'Invitation accepted',
-          description:
-            'Your account is pending admin approval. You will receive an email once access is approved.',
+          description: data?.customRoleId
+            ? 'Your company access and custom role have been applied.'
+            : 'Your company access has been applied.',
         });
         console.info('Invite accepted on /auth', {
           requestId: data?.requestId || null,

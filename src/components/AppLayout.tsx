@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
-import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, HardHat, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package, Search, HandCoins, Shield } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, HardHat, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package, Search, HandCoins, Shield, CircleHelp } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
@@ -14,6 +14,7 @@ import { DateTimeDisplay } from '@/components/DateTimeDisplay';
 import { useNavigate } from 'react-router-dom';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
+import { useCompanyFeatureAccess } from '@/hooks/useCompanyFeatureAccess';
 import { CompanySwitcher } from '@/components/CompanySwitcher';
 // useDynamicManifest is only used in Punch Clock and PM Mobile pages, not in main app
 import { supabase } from '@/integrations/supabase/client';
@@ -93,7 +94,7 @@ const navigationCategories = [
     icon: Users,
     items: [
       { name: "All Employees", href: "/employees", menuKey: "employees" },
-      { name: "Punch Clock", href: "/punch-clock/dashboard", menuKey: "punch-clock-dashboard" },
+      { name: "Punch Clock", href: "/punch-clock/dashboard", menuKey: "punch-clock-dashboard", featureKey: "punch_clock_app" },
       { name: "Payroll", href: "/employees/payroll", menuKey: "employees" },
       { name: "Performance", href: "/employees/performance", menuKey: "employees" },
       { name: "Reports", href: "/employees/reports", menuKey: "employees" },
@@ -137,15 +138,13 @@ const navigationCategories = [
     icon: Settings,
     items: [
       { name: "Super Admin Dashboard", href: "/super-admin", menuKey: "settings", superAdminOnly: true },
+      { name: "Organization Management", href: "/settings/organization-management", ownerOnly: true, featureKey: "organization_management" },
       { name: "Company Settings", href: "/settings/company", menuKey: "company-settings" },
-      
-      
-      { name: "Company Management", href: "/settings/company-management", menuKey: "company-management" },
       { name: "Notifications & Email", href: "/settings/notifications", menuKey: "notification-settings" },
       { name: "Data & Security", href: "/settings/security", menuKey: "security-settings" },
       { name: "User Management", href: "/settings/users", menuKey: "user-settings" },
-      { name: "Punch Clock", href: "/punch-clock/settings", menuKey: "punch-clock-settings" },
-      { name: "PM Lynk", href: "/settings/pm-lynk", menuKey: "settings" },
+      { name: "Punch Clock", href: "/punch-clock/settings", menuKey: "punch-clock-settings", featureKey: "punch_clock_app" },
+      { name: "PM Lynk", href: "/settings/pm-lynk", menuKey: "settings", featureKey: "pm_lynk" },
       { name: "Subscription", href: "/subscription", menuKey: "settings", ownerOnly: true },
     ],
     collapsible: true,
@@ -158,15 +157,12 @@ export function AppSidebar() {
   const { state } = useSidebar();
   const { settings } = useSettings();
   const { signOut, profile } = useAuth();
-  const { isSuperAdmin } = useTenant();
+  const { isSuperAdmin, tenantMember } = useTenant();
   const { currentCompany } = useCompany();
   const activeCompanyRole = useActiveCompanyRole();
   const effectiveRole = activeCompanyRole ?? profile?.role ?? null;
-  const showRoleLabel =
-    !!isSuperAdmin ||
-    effectiveRole === 'admin' ||
-    effectiveRole === 'company_admin';
   const { hasAccess, loading } = useMenuPermissions();
+  const { hasFeature } = useCompanyFeatureAccess(['pm_lynk', 'punch_clock_app', 'organization_management']);
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
   const [fallbackAvatar, setFallbackAvatar] = useState<string | null>(null);
 
@@ -292,12 +288,14 @@ export function AppSidebar() {
              if (superAdminOnly && !isSuperAdmin) return false;
 
               const ownerOnly = 'ownerOnly' in item && !!(item as any).ownerOnly;
-              if (ownerOnly && profile?.user_id !== currentCompany?.created_by) return false;
+              if (ownerOnly && tenantMember?.role !== 'owner' && !isSuperAdmin) return false;
 
               const employeeHidden = 'employeeHidden' in item && !!(item as any).employeeHidden;
               if (employeeHidden && effectiveRole === 'employee') return false;
 
              const menuKey = ('menuKey' in item ? (item as any).menuKey : undefined) as string | undefined;
+             const featureKey = ('featureKey' in item ? (item as any).featureKey : undefined) as string | undefined;
+             if (featureKey && !hasFeature(featureKey)) return false;
              return !menuKey || hasAccess(menuKey);
            });
           
@@ -426,11 +424,7 @@ export function AppSidebar() {
               </div>
               <div className="text-left group-data-[collapsible=icon]:hidden">
                 <p className="font-medium text-sm">{profile?.display_name || 'User'}</p>
-                {showRoleLabel && (
-                  <p className="text-muted-foreground text-xs capitalize">
-                    {isSuperAdmin ? 'Super Admin' : (effectiveRole || '')}
-                  </p>
-                )}
+                <p className="text-muted-foreground text-xs capitalize">{isSuperAdmin ? 'Super Admin' : (effectiveRole || '')}</p>
               </div>
             </Button>
             <Button
@@ -472,6 +466,12 @@ export default function Layout() {
                 </div>
               </div>
               <div className="flex items-center gap-4">
+                <Button asChild variant="outline" size="sm" className="h-8">
+                  <Link to="/settings/help" className="flex items-center gap-1.5">
+                    <CircleHelp className="h-4 w-4" />
+                    Help
+                  </Link>
+                </Button>
                 <CompanySwitcher />
                 <DateTimeDisplay />
               </div>
