@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 
@@ -23,12 +24,17 @@ const handler = async (req: Request): Promise<Response> => {
   }
 
   try {
-    const { to, subject, html, from = "System Notifications <system@builderlynk.com>" }: EmailRequest = await req.json();
+    const { to, subject, html, from }: EmailRequest = await req.json();
+    const safeFrom = resolveBuilderlynkFrom(
+      from,
+      EMAIL_FROM.SYSTEM,
+      "send-email",
+    );
 
     console.log("Sending email to:", to, "Subject:", subject);
 
     const emailResponse = await resend.emails.send({
-      from,
+      from: safeFrom,
       to: [to],
       subject,
       html,

@@ -5,8 +5,8 @@ interface PremiumLoadingScreenProps {
 }
 
 export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScreenProps) {
-  const size = 520;
-  const strokeWidth = 10;
+  const size = 260;
+  const strokeWidth = 14;
   const radius = (size - strokeWidth) / 2;
   const circumference = 2 * Math.PI * radius;
   const arcLength = circumference / 3; // ~120 degrees
@@ -17,8 +17,8 @@ export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScre
         <div
           className="relative"
           style={{
-            width: "min(72vw, 520px)",
-            height: "min(72vw, 520px)",
+            width: "min(72vw, 260px)",
+            height: "min(72vw, 260px)",
           }}
         >
           <svg
@@ -61,7 +61,7 @@ export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScre
             <img
               src={builderLynkShield}
               alt="BuilderLYNK"
-              className="h-[374px] w-[374px] max-h-[56vw] max-w-[56vw] object-contain select-none pointer-events-none"
+              className="h-[187px] w-[187px] max-h-[28vw] max-w-[28vw] object-contain select-none pointer-events-none"
               draggable={false}
             />
           </div>

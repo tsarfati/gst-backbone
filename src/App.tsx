@@ -178,9 +178,9 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 
 function OrganizationOwnerRoute({ children }: { children: React.ReactNode }) {
   const { tenantMember, isSuperAdmin, loading } = useTenant();
-  const { hasFeature } = useCompanyFeatureAccess(['organization_management']);
+  const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess(['organization_management']);
 
-  if (loading) {
+  if (loading || featureLoading) {
     return <div className="flex items-center justify-center h-screen">Loading...</div>;
   }
 
@@ -196,9 +196,27 @@ function OrganizationOwnerRoute({ children }: { children: React.ReactNode }) {
 }
 
 function PunchClockFeatureRoute({ children }: { children: React.ReactNode }) {
-  const { hasFeature } = useCompanyFeatureAccess(['punch_clock_app']);
+  const { hasFeature, loading } = useCompanyFeatureAccess(['punch_clock_app']);
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
 
   if (!hasFeature('punch_clock_app')) {
+    return <Navigate to="/settings/company" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function PMLynkFeatureRoute({ children }: { children: React.ReactNode }) {
+  const { hasFeature, loading } = useCompanyFeatureAccess(['pm_lynk']);
+
+  if (loading) {
+    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+  }
+
+  if (!hasFeature('pm_lynk')) {
     return <Navigate to="/settings/company" replace />;
   }
 
@@ -343,7 +361,11 @@ function AuthenticatedRoutes() {
               <Route path="settings/email-templates/:id/preview" element={<EmailTemplatePreview />} />
               <Route path="settings/security" element={<SecuritySettings />} />
               <Route path="settings/help" element={<SettingsHelpDatabase />} />
-              <Route path="settings/pm-lynk" element={<PMLynkSettings />} />
+              <Route path="settings/pm-lynk" element={
+                <PMLynkFeatureRoute>
+                  <PMLynkSettings />
+                </PMLynkFeatureRoute>
+              } />
               <Route path="theme-settings" element={<ThemeSettings />} />
               
               <Route path="profile-settings" element={<ProfileSettings />} />
@@ -387,9 +409,11 @@ function AuthenticatedRoutes() {
                 </PunchClockFeatureRoute>
               } />
               <Route path="punch-clock/settings" element={
-                <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
-                  <PunchClockSettings />
-                </RoleGuard>
+                <PunchClockFeatureRoute>
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <PunchClockSettings />
+                  </RoleGuard>
+                </PunchClockFeatureRoute>
               } />
               <Route path="messages" element={<AllMessages />} />
               <Route path="team-chat" element={<TeamChat />} />

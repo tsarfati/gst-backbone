@@ -1,8 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const reportsFrom = resolveBuilderlynkFrom(
+  Deno.env.get("REPORTS_EMAIL_FROM"),
+  EMAIL_FROM.REPORTS,
+  "send-financial-overview",
+);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -96,7 +102,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send email
     const emailResponse = await resend.emails.send({
-      from: "Financial Reports <reports@builderlynk.com>",
+      from: reportsFrom,
       to: [userEmail],
       subject: `Financial Overview Report - ${new Date().toLocaleDateString()}`,
       html,

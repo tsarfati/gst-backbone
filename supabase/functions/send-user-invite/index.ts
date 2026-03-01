@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
  
  const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
  
@@ -16,7 +17,11 @@ const buildCorsHeaders = (req: Request) => ({
   "Access-Control-Allow-Headers":
     req.headers.get("Access-Control-Request-Headers") || corsHeaders["Access-Control-Allow-Headers"],
 });
-const inviteEmailFrom = Deno.env.get("INVITE_EMAIL_FROM") || Deno.env.get("AUTH_EMAIL_FROM") || "BuilderLYNK <no-reply@builderlynk.com>";
+const inviteEmailFrom = resolveBuilderlynkFrom(
+  Deno.env.get("INVITE_EMAIL_FROM") || Deno.env.get("AUTH_EMAIL_FROM"),
+  EMAIL_FROM.INVITE,
+  "send-user-invite",
+);
  
 interface InviteRequest {
   email: string;

@@ -1,8 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { Resend } from "npm:resend@4.0.0";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const notificationFrom = resolveBuilderlynkFrom(
+  Deno.env.get("SYSTEM_EMAIL_FROM") || Deno.env.get("OVERDUE_BILLS_EMAIL_FROM"),
+  EMAIL_FROM.SYSTEM,
+  "send-overdue-bill-notifications",
+);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -242,7 +248,7 @@ const handler = async (req: Request): Promise<Response> => {
         // Send email
         try {
           const { data: emailData, error: emailError } = await resend.emails.send({
-            from: "System Notifications <system@builderlynk.com>",
+            from: notificationFrom,
             to: [email],
             subject: `⚠️ ${userBills.length} Overdue Bill${userBills.length !== 1 ? 's' : ''} - Action Required`,
             html: htmlContent,

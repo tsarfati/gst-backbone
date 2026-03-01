@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -126,10 +127,11 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
     const resend = resendApiKey ? new Resend(resendApiKey) : null;
-    const inviteEmailFrom =
-      Deno.env.get("INVITE_EMAIL_FROM") ||
-      Deno.env.get("AUTH_EMAIL_FROM") ||
-      "BuilderLYNK <no-reply@builderlynk.com>";
+    const inviteEmailFrom = resolveBuilderlynkFrom(
+      Deno.env.get("INVITE_EMAIL_FROM") || Deno.env.get("AUTH_EMAIL_FROM"),
+      EMAIL_FROM.INVITE,
+      "accept-user-invite",
+    );
     const authHeader = req.headers.get("Authorization");
 
     if (!authHeader) return sendError(401, "MISSING_AUTH_HEADER", "Missing Authorization header");

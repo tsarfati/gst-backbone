@@ -1,8 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
 import { Resend } from "npm:resend@4.0.0";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const testEmailFrom = resolveBuilderlynkFrom(
+  Deno.env.get("SYSTEM_EMAIL_FROM") || Deno.env.get("TEST_EMAIL_FROM"),
+  EMAIL_FROM.TEST,
+  "send-test-email",
+);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -104,7 +110,7 @@ const handler = async (req: Request): Promise<Response> => {
     `;
 
     const { data, error: emailError } = await resend.emails.send({
-      from: "System Notifications <system@builderlynk.com>",
+      from: testEmailFrom,
       to: [email],
       subject: "✅ Test Email - Email Server Configuration Successful",
       html: htmlContent,

@@ -4,6 +4,7 @@
  import { renderAsync } from 'npm:@react-email/components@0.0.22'
  import { ConfirmationEmail } from './_templates/confirmation.tsx'
  import { MagicLinkEmail } from './_templates/magic-link.tsx'
+ import { EMAIL_FROM, resolveBuilderlynkFrom } from '../_shared/emailFrom.ts'
  
 const resend = new Resend(Deno.env.get('RESEND_API_KEY') as string)
 const rawHookSecret = (Deno.env.get('SEND_EMAIL_HOOK_SECRET') as string) || ''
@@ -11,7 +12,11 @@ const rawHookSecret = (Deno.env.get('SEND_EMAIL_HOOK_SECRET') as string) || ''
 const hookSecret = rawHookSecret.includes(',')
   ? rawHookSecret.split(',').pop()!.trim()
   : rawHookSecret.trim()
-const authEmailFrom = Deno.env.get('AUTH_EMAIL_FROM') || Deno.env.get('INVITE_EMAIL_FROM') || 'BuilderLYNK <no-reply@builderlynk.com>'
+const authEmailFrom = resolveBuilderlynkFrom(
+  Deno.env.get('AUTH_EMAIL_FROM') || Deno.env.get('INVITE_EMAIL_FROM'),
+  EMAIL_FROM.AUTH,
+  'send-auth-email',
+)
  
 interface AuthEmailPayload {
    user: {
