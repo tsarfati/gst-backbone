@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
+import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -165,8 +166,12 @@ serve(async (req: Request): Promise<Response> => {
       String(profileRow.display_name || `${profileRow.first_name || ""} ${profileRow.last_name || ""}`.trim() || userEmail);
     const appUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
 
-    await resend.emails.send({
-      from: inviteEmailFrom,
+    await sendTransactionalEmailWithFallback({
+      supabaseUrl,
+      serviceRoleKey: supabaseServiceKey,
+      resend,
+      companyId,
+      defaultFrom: inviteEmailFrom,
       to: [userEmail],
       subject: `Your ${companyDisplayName} access has been approved`,
       html: buildBrandedEmailHtml({
@@ -180,6 +185,7 @@ serve(async (req: Request): Promise<Response> => {
         ctaLabel: "Sign in to BuilderLYNK",
         ctaUrl: `${appUrl}/auth`,
       }),
+      context: "notify-user-approved",
     });
 
     return send(200, { success: true });

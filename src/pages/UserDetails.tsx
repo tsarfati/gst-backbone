@@ -10,6 +10,7 @@ import { Switch } from "@/components/ui/switch";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
   User, 
   Mail, 
@@ -30,7 +31,10 @@ import {
   Save,
   X,
   Trash2,
-  Key
+  Key,
+  Upload,
+  Eye,
+  FileText
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -41,6 +45,7 @@ import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
 import UserWebsiteJobAssignments from "@/components/UserWebsiteJobAssignments";
+import DocumentPreviewModal from "@/components/DocumentPreviewModal";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -103,6 +108,18 @@ interface LoginAudit {
   app_source?: string;
 }
 
+interface UserProfileFile {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_type: string | null;
+  file_size: number | null;
+  label: string | null;
+  description: string | null;
+  created_at: string;
+  uploaded_by: string | null;
+}
+
 const roleLabels: Record<string, string> = {
   admin: 'Administrator',
   controller: 'Controller',
@@ -135,6 +152,15 @@ export default function UserDetails() {
   const [companyRole, setCompanyRole] = useState<string | null>(null);
   const [removeConfirmName, setRemoveConfirmName] = useState('');
   const [removing, setRemoving] = useState(false);
+  const [activeTab, setActiveTab] = useState<'profile' | 'files'>('profile');
+  const [userFiles, setUserFiles] = useState<UserProfileFile[]>([]);
+  const [filesLoading, setFilesLoading] = useState(false);
+  const [uploadingUserFile, setUploadingUserFile] = useState(false);
+  const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
+  const [fileLabel, setFileLabel] = useState('');
+  const [fileDescription, setFileDescription] = useState('');
+  const [previewOpen, setPreviewOpen] = useState(false);
+  const [previewDoc, setPreviewDoc] = useState<{ fileName: string; url: string; type: string } | null>(null);
   
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
   const fromEmployees = location.state?.fromEmployees || false;
@@ -164,6 +190,7 @@ export default function UserDetails() {
       fetchUserJobs();
       fetchLoginAudit();
       fetchUserEmail();
+      fetchUserFiles();
       if (currentCompany) fetchCustomRoles();
     }
   }, [userId, currentCompany, isSuperAdmin]);
@@ -279,6 +306,121 @@ export default function UserDetails() {
     } catch (error) {
       console.error('Error fetching user email:', error);
     }
+  };
+
+  const fetchUserFiles = async () => {
+    if (!currentCompany?.id || !userId) return;
+    setFilesLoading(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('user_profile_files')
+        .select('id,file_name,file_url,file_type,file_size,label,description,created_at,uploaded_by')
+        .eq('company_id', currentCompany.id)
+        .eq('user_id', userId)
+        .eq('is_active', true)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+      setUserFiles((data || []) as UserProfileFile[]);
+    } catch (error) {
+      console.error('Error fetching user profile files:', error);
+    } finally {
+      setFilesLoading(false);
+    }
+  };
+
+  const handleUploadUserFile = async () => {
+    if (!selectedUploadFile || !currentCompany?.id || !userId || !profile?.user_id) {
+      toast({
+        title: 'Missing information',
+        description: 'Select a file before uploading.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setUploadingUserFile(true);
+    try {
+      const sanitizedName = selectedUploadFile.name.replace(/[^a-zA-Z0-9._-]/g, '_');
+      const filePath = `${currentCompany.id}/user-profile-files/${userId}/${Date.now()}-${sanitizedName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('company-files')
+        .upload(filePath, selectedUploadFile, {
+          upsert: false,
+          contentType: selectedUploadFile.type || undefined,
+        });
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = supabase.storage.from('company-files').getPublicUrl(filePath);
+      const fileUrl = publicData?.publicUrl || '';
+
+      const { error: insertError } = await (supabase as any)
+        .from('user_profile_files')
+        .insert({
+          company_id: currentCompany.id,
+          user_id: userId,
+          file_name: selectedUploadFile.name,
+          file_url: fileUrl,
+          file_path: filePath,
+          file_type: selectedUploadFile.type || null,
+          file_size: selectedUploadFile.size || null,
+          label: fileLabel || null,
+          description: fileDescription || null,
+          uploaded_by: profile.user_id,
+          is_active: true,
+        });
+      if (insertError) throw insertError;
+
+      toast({
+        title: 'Uploaded',
+        description: `${selectedUploadFile.name} uploaded.`,
+      });
+      setSelectedUploadFile(null);
+      setFileLabel('');
+      setFileDescription('');
+      await fetchUserFiles();
+    } catch (error) {
+      console.error('Error uploading user file:', error);
+      toast({
+        title: 'Upload failed',
+        description: 'Failed to upload file.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingUserFile(false);
+    }
+  };
+
+  const handleDeleteUserFile = async (fileId: string) => {
+    try {
+      const { error } = await (supabase as any)
+        .from('user_profile_files')
+        .update({ is_active: false })
+        .eq('id', fileId);
+      if (error) throw error;
+
+      toast({
+        title: 'Removed',
+        description: 'File removed from this user profile.',
+      });
+      await fetchUserFiles();
+    } catch (error) {
+      console.error('Error removing user profile file:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove file.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const handleOpenPreview = (file: UserProfileFile) => {
+    setPreviewDoc({
+      fileName: file.file_name,
+      url: file.file_url,
+      type: file.file_type || '',
+    });
+    setPreviewOpen(true);
   };
 
   const handleSendPasswordReset = async () => {
@@ -484,6 +626,13 @@ export default function UserDetails() {
         </div>
       </div>
 
+      <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'profile' | 'files')} className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="profile">User Profile</TabsTrigger>
+          <TabsTrigger value="files">Files</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="profile" className="space-y-6">
       {/* User Profile Card */}
       <Card>
         <CardHeader>
@@ -820,6 +969,96 @@ export default function UserDetails() {
           )}
         </CardContent>
       </Card>
+      </TabsContent>
+
+      <TabsContent value="files" className="space-y-6">
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              User Files
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {(canManage || isSelf) ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-3 p-3 border rounded-lg">
+                <Input
+                  type="file"
+                  onChange={(e) => setSelectedUploadFile(e.target.files?.[0] || null)}
+                  className="md:col-span-2"
+                />
+                <Select value={fileLabel} onValueChange={setFileLabel}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Label" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="W-9">W-9</SelectItem>
+                    <SelectItem value="W-2">W-2</SelectItem>
+                    <SelectItem value="Photo ID">Photo ID</SelectItem>
+                    <SelectItem value="Write-up">Write-up</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                <Button onClick={handleUploadUserFile} disabled={!selectedUploadFile || uploadingUserFile}>
+                  <Upload className="h-4 w-4 mr-2" />
+                  {uploadingUserFile ? 'Uploading...' : 'Upload'}
+                </Button>
+                <Input
+                  placeholder="Description (optional)"
+                  value={fileDescription}
+                  onChange={(e) => setFileDescription(e.target.value)}
+                  className="md:col-span-4"
+                />
+              </div>
+            ) : (
+              <div className="text-sm text-muted-foreground">You do not have access to upload files for this user.</div>
+            )}
+
+            {filesLoading ? (
+              <div className="text-sm text-muted-foreground">Loading files...</div>
+            ) : userFiles.length === 0 ? (
+              <div className="text-sm text-muted-foreground py-6 text-center">No files uploaded for this user.</div>
+            ) : (
+              <div className="space-y-2">
+                {userFiles.map((file) => (
+                  <div key={file.id} className="flex items-center justify-between border rounded-md p-3">
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <p className="font-medium truncate">{file.file_name}</p>
+                        {file.label && (
+                          <Badge variant="outline">{file.label}</Badge>
+                        )}
+                      </div>
+                      <p className="text-xs text-muted-foreground">
+                        {file.description || 'No description'} • {new Date(file.created_at).toLocaleString()}
+                      </p>
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button variant="outline" size="sm" onClick={() => handleOpenPreview(file)}>
+                        <Eye className="h-4 w-4 mr-1" />
+                        Preview
+                      </Button>
+                      {canManage && (
+                        <Button variant="destructive" size="sm" onClick={() => handleDeleteUserFile(file.id)}>
+                          <Trash2 className="h-4 w-4 mr-1" />
+                          Remove
+                        </Button>
+                      )}
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </TabsContent>
+      </Tabs>
+
+      <DocumentPreviewModal
+        isOpen={previewOpen}
+        onClose={() => setPreviewOpen(false)}
+        document={previewDoc}
+      />
     </div>
   );
 }

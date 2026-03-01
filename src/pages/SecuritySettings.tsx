@@ -13,6 +13,7 @@ import AuditLog from '@/components/AuditLog';
 import FileUploadSettings from '@/components/FileUploadSettings';
 import ThirdPartyStorageSettings from '@/components/ThirdPartyStorageSettings';
 import SearchIndexManager from '@/components/SearchIndexManager';
+import EmailHistoryPanel from '@/components/EmailHistoryPanel';
 
 export default function SecuritySettings() {
   const { toast } = useToast();
@@ -63,6 +64,7 @@ export default function SecuritySettings() {
             <TabsTrigger value="files" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">File Uploads</TabsTrigger>
             <TabsTrigger value="storage" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Third-Party Storage</TabsTrigger>
             <TabsTrigger value="search" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Search</TabsTrigger>
+            <TabsTrigger value="email-history" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Email History</TabsTrigger>
             <TabsTrigger value="audit" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors">Audit Log</TabsTrigger>
           </TabsList>
 
@@ -203,6 +205,10 @@ export default function SecuritySettings() {
 
           <TabsContent value="search" className="space-y-6">
             <SearchIndexManager />
+          </TabsContent>
+
+          <TabsContent value="email-history" className="space-y-6">
+            <EmailHistoryPanel />
           </TabsContent>
 
           <TabsContent value="audit" className="space-y-6">

@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
+import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -418,79 +419,85 @@ serve(async (req: Request): Promise<Response> => {
 
     // Notify invited user + company approvers that account is pending approval.
     // Approval is handled in User Management (status transition pending -> approved).
-    if (resend) {
-      try {
-        const companyDisplayName =
-          String(companyRow?.display_name || companyRow?.name || "your company").trim();
-        const companyLogoUrl = resolveCompanyLogoUrl((companyRow as any)?.logo_url);
-        const appUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
+    try {
+      const companyDisplayName =
+        String(companyRow?.display_name || companyRow?.name || "your company").trim();
+      const companyLogoUrl = resolveCompanyLogoUrl((companyRow as any)?.logo_url);
+      const appUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
 
-        await resend.emails.send({
-          from: inviteEmailFrom,
-          to: [normalizedEmail],
-          subject: `Your ${companyDisplayName} account is pending approval`,
+      await sendTransactionalEmailWithFallback({
+        supabaseUrl,
+        serviceRoleKey: supabaseServiceKey,
+        resend,
+        companyId: pendingInvite.company_id,
+        defaultFrom: inviteEmailFrom,
+        to: [normalizedEmail],
+        subject: `Your ${companyDisplayName} account is pending approval`,
+        html: buildBrandedEmailHtml({
+          title: "Account Setup in Progress",
+          greeting: "Hello,",
+          companyLogoUrl,
+          paragraphs: [
+            `Your invitation for <strong>${companyDisplayName}</strong> was accepted and your account was created.`,
+            `Your account is now <strong>pending admin approval</strong>.`,
+            `You will receive another email once an administrator approves your access.`,
+          ],
+        }),
+        context: "accept-user-invite:pending-user",
+      });
+
+      const { data: approverRows, error: approverRowsError } = await supabaseAdmin
+        .from("user_company_access")
+        .select("user_id, role")
+        .eq("company_id", pendingInvite.company_id)
+        .eq("is_active", true);
+      if (approverRowsError) throw approverRowsError;
+
+      const approverIds = Array.from(
+        new Set(
+          (approverRows || [])
+            .filter((row: any) => ADMIN_ROLES.has(String(row.role || "").toLowerCase()))
+            .map((row: any) => row.user_id)
+            .filter(Boolean),
+        ),
+      );
+
+      const approverEmails: string[] = [];
+      for (const approverId of approverIds) {
+        const { data: approverUser, error: approverUserError } = await supabaseAdmin.auth.admin.getUserById(
+          approverId,
+        );
+        if (approverUserError) continue;
+        const email = approverUser?.user?.email?.trim().toLowerCase();
+        if (email) approverEmails.push(email);
+      }
+
+      if (approverEmails.length > 0) {
+        await sendTransactionalEmailWithFallback({
+          supabaseUrl,
+          serviceRoleKey: supabaseServiceKey,
+          resend,
+          companyId: pendingInvite.company_id,
+          defaultFrom: inviteEmailFrom,
+          to: approverEmails,
+          subject: `Approval needed: ${normalizedEmail} (${companyDisplayName})`,
           html: buildBrandedEmailHtml({
-            title: "Account Setup in Progress",
+            title: "User Pending Approval",
             greeting: "Hello,",
             companyLogoUrl,
             paragraphs: [
-              `Your invitation for <strong>${companyDisplayName}</strong> was accepted and your account was created.`,
-              `Your account is now <strong>pending admin approval</strong>.`,
-              `You will receive another email once an administrator approves your access.`,
+              `<strong>${normalizedEmail}</strong> has completed invite signup for <strong>${companyDisplayName}</strong>.`,
+              `The account is currently <strong>pending approval</strong>.`,
+              `Go to <strong>Settings → User Management</strong> and approve or reject this user.`,
             ],
+            ctaLabel: "Open User Management",
+            ctaUrl: `${appUrl}/settings/users`,
           }),
+          context: "accept-user-invite:approver-notify",
         });
-
-        const { data: approverRows, error: approverRowsError } = await supabaseAdmin
-          .from("user_company_access")
-          .select("user_id, role")
-          .eq("company_id", pendingInvite.company_id)
-          .eq("is_active", true);
-        if (approverRowsError) throw approverRowsError;
-
-        const approverIds = Array.from(
-          new Set(
-            (approverRows || [])
-              .filter((row: any) => ADMIN_ROLES.has(String(row.role || "").toLowerCase()))
-              .map((row: any) => row.user_id)
-              .filter(Boolean),
-          ),
-        );
-
-        const approverEmails: string[] = [];
-        for (const approverId of approverIds) {
-          const { data: approverUser, error: approverUserError } = await supabaseAdmin.auth.admin.getUserById(
-            approverId,
-          );
-          if (approverUserError) continue;
-          const email = approverUser?.user?.email?.trim().toLowerCase();
-          if (email) approverEmails.push(email);
-        }
-
-        if (approverEmails.length > 0) {
-          await resend.emails.send({
-            from: inviteEmailFrom,
-            to: approverEmails,
-            subject: `Approval needed: ${normalizedEmail} (${companyDisplayName})`,
-            html: buildBrandedEmailHtml({
-              title: "User Pending Approval",
-              greeting: "Hello,",
-              companyLogoUrl,
-              paragraphs: [
-                `<strong>${normalizedEmail}</strong> has completed invite signup for <strong>${companyDisplayName}</strong>.`,
-                `The account is currently <strong>pending approval</strong>.`,
-                `Go to <strong>Settings → User Management</strong> and approve or reject this user.`,
-              ],
-              ctaLabel: "Open User Management",
-              ctaUrl: `${appUrl}/settings/users`,
-            }),
-          });
-        }
-      } catch (notifyError) {
-        console.error("Pending approval notification error:", notifyError);
       }
-    } else {
-      console.warn("RESEND_API_KEY is missing; skipping pending approval notifications.");
+    } catch (notifyError) {
+      console.error("Pending approval notification error:", notifyError);
     }
 
     return sendJson(200, {

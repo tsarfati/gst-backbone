@@ -135,27 +135,33 @@ export default function CreditCardCodingRequests() {
               className="px-3 py-2 rounded-md border bg-card hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
               onClick={() => handleOpenTransaction(request.transaction_id)}
             >
-              <div className="flex items-center gap-3 text-sm">
-                <CreditCard className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                <span className="font-medium min-w-[120px] truncate group-hover:text-primary transition-colors">
-                  {request.credit_card_transactions.credit_cards.card_name}
+              <div className="grid grid-cols-[minmax(260px,1.8fr)_minmax(120px,.8fr)_minmax(110px,.7fr)_minmax(130px,.8fr)_minmax(95px,.6fr)] items-center gap-2 text-sm">
+                <div className="flex items-center gap-2 min-w-0">
+                  <CreditCard className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <span className="font-medium truncate group-hover:text-primary transition-colors">
+                    {request.credit_card_transactions.credit_cards.card_name}
+                  </span>
+                  <span className="truncate text-muted-foreground">
+                    {request.credit_card_transactions.description}
+                    {request.credit_card_transactions.merchant_name
+                      ? ` • ${request.credit_card_transactions.merchant_name}`
+                      : ""}
+                  </span>
+                </div>
+
+                <span className="text-xs text-muted-foreground truncate">
+                  {new Date(request.credit_card_transactions.transaction_date).toLocaleDateString()}
                 </span>
-                <span className="truncate flex-1 text-muted-foreground">
-                  {request.credit_card_transactions.description}
-                  {request.credit_card_transactions.merchant_name
-                    ? ` • ${request.credit_card_transactions.merchant_name}`
-                    : ""}
-                </span>
+
                 <span className="font-medium whitespace-nowrap">
                   ${Number(request.credit_card_transactions.amount).toLocaleString()}
                 </span>
-                <span className="text-xs text-muted-foreground whitespace-nowrap">
-                  {new Date(request.credit_card_transactions.transaction_date).toLocaleDateString()}
-                </span>
-                <span className="text-xs text-muted-foreground whitespace-nowrap truncate max-w-[180px]">
+
+                <span className="text-xs text-muted-foreground whitespace-nowrap truncate">
                   {request.profiles.first_name} {request.profiles.last_name}
                 </span>
-                <span className="text-xs text-muted-foreground whitespace-nowrap ml-auto">
+
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
                 </span>
               </div>

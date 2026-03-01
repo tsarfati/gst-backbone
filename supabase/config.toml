@@ -30,6 +30,9 @@ verify_jwt = false
 [functions.send-file-share-email]
 verify_jwt = false
 
+[functions.send-auth-email]
+verify_jwt = false
+
 [functions.google-drive-auth]
 verify_jwt = false
 

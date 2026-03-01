@@ -139,6 +139,21 @@ export function useMenuPermissions() {
     if (typeof permissions[menuItem] === 'boolean') {
       return permissions[menuItem];
     }
+
+    // Backward-compatibility for renamed settings keys.
+    const legacyAliases: Record<string, string[]> = {
+      'organization-management': ['organization-management-access', 'company-management', 'company-management-access'],
+      'pm-lynk-settings': ['settings'],
+      'subscription-settings': ['settings'],
+    };
+    const aliases = legacyAliases[menuItem];
+    if (aliases) {
+      for (const legacyKey of aliases) {
+        if (typeof permissions[legacyKey] === 'boolean') {
+          return permissions[legacyKey];
+        }
+      }
+    }
     return false;
   };
 

@@ -74,7 +74,7 @@ export default function EmailTemplatePreview() {
         <div>
           <Button
             variant="ghost"
-            onClick={() => navigate('/settings/notifications')}
+            onClick={() => navigate('/settings/company?tab=email-templates')}
             className="mb-4"
           >
             <ArrowLeft className="h-4 w-4 mr-2" />

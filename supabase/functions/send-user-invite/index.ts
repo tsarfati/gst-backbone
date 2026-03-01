@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
+import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
  
  const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
  
@@ -243,17 +244,22 @@ function hslToHex(hsl: string): string {
      `;
  
      // Send the invitation email
-     const emailResponse = await resend.emails.send({
-       from: inviteEmailFrom,
+     const emailResponse = await sendTransactionalEmailWithFallback({
+       supabaseUrl,
+       serviceRoleKey: supabaseServiceKey,
+       resend,
+       companyId,
+       defaultFrom: inviteEmailFrom,
        to: [email],
        subject: `${companyName} has invited you to join BuilderLYNK`,
        html: emailHtml,
+       context: "send-user-invite",
      });
  
      console.log("Invitation email sent successfully:", emailResponse);
  
      // Get Resend message ID
-     const resendMessageId = emailResponse?.data?.id || null;
+     const resendMessageId = emailResponse?.providerMessageId || null;
  
      // If this is a resend, update the existing invitation
      if (resendInvitationId) {

@@ -43,11 +43,8 @@ export default function PhotoLocationMap({ latitude, longitude, className }: Pho
       style: 'mapbox://styles/mapbox/streets-v12',
       center: [longitude, latitude],
       zoom: 15,
-      interactive: true,
+      interactive: false,
     });
-
-    // Add navigation controls
-    map.current.addControl(new mapboxgl.NavigationControl(), 'top-right');
 
     // Add marker at photo location
     new mapboxgl.Marker({ color: '#E88A2D' })

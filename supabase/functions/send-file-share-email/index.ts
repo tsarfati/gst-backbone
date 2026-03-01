@@ -1,6 +1,8 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import nodemailer from "npm:nodemailer@6.9.10";
+import { Resend } from "https://esm.sh/resend@4.0.0";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -40,19 +42,62 @@ serve(async (req: Request) => {
     }
 
     const { to, subject, body, file_name, file_url, attachments, user_id, pdf_attachment, binary_attachment } = await req.json();
+    const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
+    const resend = resendApiKey ? new Resend(resendApiKey) : null;
+    const defaultFrom = resolveBuilderlynkFrom(
+      Deno.env.get("SYSTEM_EMAIL_FROM"),
+      EMAIL_FROM.SYSTEM,
+      "send-file-share-email",
+    );
 
     // Get user's SMTP settings
     const { data: emailSettings, error: settingsError } = await supabase
       .from("user_email_settings")
       .select("*")
       .eq("user_id", user_id)
-      .single();
+      .maybeSingle();
 
-    if (settingsError || !emailSettings?.is_configured) {
-      return new Response(
-        JSON.stringify({ error: "Email settings not configured" }),
-        { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
-      );
+    if (settingsError) {
+      console.warn("Error loading user email settings:", settingsError);
+    }
+
+    let activeMailer: any = null;
+    let mailerSource: "user" | "company" | "builderlynk" = "builderlynk";
+
+    if (emailSettings?.is_configured && emailSettings?.smtp_host && emailSettings?.smtp_username) {
+      activeMailer = emailSettings;
+      mailerSource = "user";
+    } else {
+      // Fallback to company email settings (if available)
+      try {
+        const { data: profileRow } = await supabase
+          .from("profiles")
+          .select("current_company_id")
+          .eq("user_id", user.id)
+          .maybeSingle();
+        const companyId = profileRow?.current_company_id;
+        if (companyId) {
+          const { data: companyMailerRow } = await (supabase as any)
+            .from("company_email_settings")
+            .select("*")
+            .eq("company_id", companyId)
+            .maybeSingle();
+
+          if (
+            companyMailerRow?.is_configured &&
+            companyMailerRow?.smtp_host &&
+            companyMailerRow?.smtp_username
+          ) {
+            activeMailer = {
+              ...companyMailerRow,
+              smtp_password_encrypted: companyMailerRow.smtp_password_encrypted,
+            };
+            mailerSource = "company";
+          }
+        }
+      } catch (companyMailerError) {
+        console.warn("Company email settings fallback unavailable:", companyMailerError);
+      }
     }
 
     // Get user's profile for sender name
@@ -64,9 +109,9 @@ serve(async (req: Request) => {
 
     const senderName = profileData?.first_name && profileData?.last_name
       ? `${profileData.first_name} ${profileData.last_name}`
-      : emailSettings.from_email || null;
-    const senderEmail = emailSettings.smtp_username;
-    const fromField = senderName ? `${senderName} <${senderEmail}>` : senderEmail;
+      : activeMailer?.from_email || null;
+    const senderEmail = activeMailer?.smtp_username || activeMailer?.from_email || null;
+    const fromField = senderEmail ? (senderName ? `${senderName} <${senderEmail}>` : senderEmail) : defaultFrom;
 
     // Build email HTML body
     let emailHtml = `
@@ -152,17 +197,6 @@ serve(async (req: Request) => {
 
     emailHtml += '</div>';
 
-    // Create nodemailer transporter
-    const transporter = nodemailer.createTransport({
-      host: emailSettings.smtp_host,
-      port: emailSettings.smtp_port,
-      secure: emailSettings.use_ssl,
-      auth: {
-        user: emailSettings.smtp_username,
-        pass: emailSettings.smtp_password_encrypted,
-      },
-    });
-
     const recipients = Array.isArray(to) ? to.join(", ") : to;
 
     // Build mail options
@@ -210,10 +244,48 @@ serve(async (req: Request) => {
       });
     }
 
-    await transporter.sendMail(mailOptions);
+    if (activeMailer?.smtp_host && activeMailer?.smtp_username && activeMailer?.smtp_password_encrypted) {
+      const transporter = nodemailer.createTransport({
+        host: activeMailer.smtp_host,
+        port: activeMailer.smtp_port || 587,
+        secure: activeMailer.use_ssl !== false,
+        auth: {
+          user: activeMailer.smtp_username,
+          pass: activeMailer.smtp_password_encrypted,
+        },
+      });
+      await transporter.sendMail(mailOptions);
+    } else {
+      if (!resend) {
+        return new Response(
+          JSON.stringify({ error: "No configured SMTP server and BuilderLYNK mailer is unavailable." }),
+          { status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        );
+      }
+
+      const resendAttachments = (mailOptions.attachments || []).map((att: any) => {
+        const bytes = att?.content instanceof Uint8Array ? att.content : new Uint8Array();
+        let binary = "";
+        for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+        return {
+          filename: att.filename,
+          content: btoa(binary),
+          content_type: att.contentType || "application/octet-stream",
+        };
+      });
+
+      await resend.emails.send({
+        from: defaultFrom,
+        to: Array.isArray(to) ? to : [to],
+        subject,
+        html: emailHtml,
+        text: body,
+        attachments: resendAttachments,
+      });
+    }
 
     return new Response(
-      JSON.stringify({ success: true }),
+      JSON.stringify({ success: true, mailer_source: mailerSource }),
       { status: 200, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   } catch (error: any) {

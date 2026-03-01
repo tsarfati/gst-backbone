@@ -63,7 +63,7 @@ export default function EmailTemplateEdit() {
         description: "Failed to load email template",
         variant: "destructive",
       });
-      navigate("/settings/notifications");
+      navigate("/settings/company?tab=email-templates");
     } finally {
       setLoading(false);
     }
@@ -99,7 +99,7 @@ export default function EmailTemplateEdit() {
         description: "Email template has been saved successfully.",
       });
       
-      navigate("/settings/notifications");
+      navigate("/settings/company?tab=email-templates");
     } catch (error: any) {
       console.error("Error saving template:", error);
       toast({
@@ -137,7 +137,7 @@ export default function EmailTemplateEdit() {
     return (
       <div className="p-6">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" onClick={() => navigate("/settings/notifications")}>
+          <Button variant="ghost" onClick={() => navigate("/settings/company?tab=email-templates")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -152,7 +152,7 @@ export default function EmailTemplateEdit() {
     <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => navigate("/settings/notifications")}>
+          <Button variant="ghost" onClick={() => navigate("/settings/company?tab=email-templates")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>

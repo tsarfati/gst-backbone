@@ -797,7 +797,7 @@ export default function CreditCardTransactions() {
                     className="group hover:bg-primary/5 transition-colors"
                   >
                     <TableCell 
-                      className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg"
+                      className="py-2 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg"
                       onClick={(e) => e.stopPropagation()}
                     >
                       <Checkbox
@@ -806,24 +806,24 @@ export default function CreditCardTransactions() {
                       />
                     </TableCell>
                     <TableCell 
-                      className="border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-2 border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       {new Date(trans.transaction_date).toLocaleDateString()}
                     </TableCell>
                     <TableCell 
-                      className="border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-2 border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       <div>
                         <p className="font-medium group-hover:text-primary transition-colors">{trans.description}</p>
                         {trans.merchant_name && trans.merchant_name !== trans.description && (
-                          <p className="text-sm text-muted-foreground">{trans.merchant_name}</p>
-                        )}
+                            <p className="text-xs text-muted-foreground">{trans.merchant_name}</p>
+                          )}
                       </div>
                     </TableCell>
                     <TableCell 
-                      className="font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-2 font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       {(() => {
@@ -837,13 +837,13 @@ export default function CreditCardTransactions() {
                       })()}
                     </TableCell>
                     <TableCell 
-                      className="text-right font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-2 text-right font-semibold border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       {formatCurrency(runningBalances.get(trans.id) || 0)}
                     </TableCell>
                     <TableCell 
-                      className="text-center border-y border-transparent group-hover:border-primary cursor-pointer"
+                      className="py-2 text-center border-y border-transparent group-hover:border-primary cursor-pointer"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                     {(() => {
@@ -869,7 +869,7 @@ export default function CreditCardTransactions() {
                       })()}
                     </TableCell>
                     <TableCell 
-                      className="border-y border-transparent group-hover:border-primary cursor-pointer last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg"
+                      className="py-2 border-y border-transparent group-hover:border-primary cursor-pointer last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg"
                       onClick={() => openTransactionDetail(trans.id)}
                     >
                       {getStatusBadge(trans)}

@@ -9,7 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Users, UserPlus, Shield, Trash2, Edit, Plus, Upload, Camera, Share2, FileText, AlertTriangle, CircleHelp } from 'lucide-react';
+import { Building2, Users, UserPlus, Shield, Trash2, Edit, Plus, Upload, Camera, Share2, FileText, AlertTriangle, CircleHelp, Mail, Loader2 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import CompanyAccessApproval from '@/components/CompanyAccessApproval';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -18,6 +18,8 @@ import { useTenant } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import DragDropUpload from '@/components/DragDropUpload';
+import { Switch } from '@/components/ui/switch';
+import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 
 interface CompanyUser {
   id: string;
@@ -68,6 +70,22 @@ interface CompanyDirectoryUser {
   avatar_url: string;
 }
 
+interface CompanyEmailSettingsForm {
+  from_email: string;
+  from_name: string;
+  smtp_host: string;
+  smtp_port: number;
+  smtp_username: string;
+  smtp_password: string;
+  incoming_protocol: 'imap' | 'pop3';
+  incoming_host: string;
+  incoming_port: number;
+  incoming_username: string;
+  incoming_password: string;
+  use_ssl: boolean;
+  is_configured: boolean;
+}
+
 export default function CompanyManagement() {
   const { currentCompany, userCompanies, refreshCompanies } = useCompany();
   const { user } = useAuth();
@@ -95,6 +113,25 @@ export default function CompanyManagement() {
   const [showCompanyDetailDialog, setShowCompanyDetailDialog] = useState(false);
   const [selectedCompanyDetail, setSelectedCompanyDetail] = useState<OrganizationCompany | null>(null);
   const [showCreateCompanyDialog, setShowCreateCompanyDialog] = useState(false);
+  const [showCompanyEmailDialog, setShowCompanyEmailDialog] = useState(false);
+  const [selectedCompanyForEmail, setSelectedCompanyForEmail] = useState<OrganizationCompany | null>(null);
+  const [loadingCompanyEmailSettings, setLoadingCompanyEmailSettings] = useState(false);
+  const [savingCompanyEmailSettings, setSavingCompanyEmailSettings] = useState(false);
+  const [companyEmailSettings, setCompanyEmailSettings] = useState<CompanyEmailSettingsForm>({
+    from_email: '',
+    from_name: '',
+    smtp_host: '',
+    smtp_port: 587,
+    smtp_username: '',
+    smtp_password: '',
+    incoming_protocol: 'imap',
+    incoming_host: '',
+    incoming_port: 993,
+    incoming_username: '',
+    incoming_password: '',
+    use_ssl: true,
+    is_configured: false,
+  });
   const [newUserEmail, setNewUserEmail] = useState('');
   const [newUserRole, setNewUserRole] = useState<string>('employee');
   const [companyForm, setCompanyForm] = useState({
@@ -746,6 +783,121 @@ export default function CompanyManagement() {
     setShowCompanyDetailDialog(true);
   };
 
+  const openCompanyEmailSetup = async (company: OrganizationCompany) => {
+    setSelectedCompanyForEmail(company);
+    setShowCompanyEmailDialog(true);
+    setLoadingCompanyEmailSettings(true);
+    try {
+      const { data, error } = await (supabase as any)
+        .from('company_email_settings')
+        .select('*')
+        .eq('company_id', company.id)
+        .maybeSingle();
+      if (error) throw error;
+
+      setCompanyEmailSettings({
+        from_email: data?.from_email || '',
+        from_name: data?.from_name || '',
+        smtp_host: data?.smtp_host || '',
+        smtp_port: Number(data?.smtp_port || 587),
+        smtp_username: data?.smtp_username || '',
+        smtp_password: '',
+        incoming_protocol: data?.incoming_protocol === 'pop3' ? 'pop3' : 'imap',
+        incoming_host: data?.incoming_host || data?.imap_host || '',
+        incoming_port: Number(data?.incoming_port || data?.imap_port || 993),
+        incoming_username: data?.incoming_username || data?.imap_username || '',
+        incoming_password: '',
+        use_ssl: data?.use_ssl !== false,
+        is_configured: data?.is_configured === true,
+      });
+    } catch (error) {
+      console.error('Error loading company email settings:', error);
+      setCompanyEmailSettings({
+        from_email: '',
+        from_name: '',
+        smtp_host: '',
+        smtp_port: 587,
+        smtp_username: '',
+        smtp_password: '',
+        incoming_protocol: 'imap',
+        incoming_host: '',
+        incoming_port: 993,
+        incoming_username: '',
+        incoming_password: '',
+        use_ssl: true,
+        is_configured: false,
+      });
+      toast({
+        title: 'Setup unavailable',
+        description: 'Company email settings table is not available yet. Run migrations first.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoadingCompanyEmailSettings(false);
+    }
+  };
+
+  const saveCompanyEmailSetup = async () => {
+    if (!selectedCompanyForEmail) return;
+    setSavingCompanyEmailSettings(true);
+    try {
+      const { data: existing } = await (supabase as any)
+        .from('company_email_settings')
+        .select('*')
+        .eq('company_id', selectedCompanyForEmail.id)
+        .maybeSingle();
+
+      const payload: any = {
+        company_id: selectedCompanyForEmail.id,
+        from_email: companyEmailSettings.from_email || null,
+        from_name: companyEmailSettings.from_name || null,
+        smtp_host: companyEmailSettings.smtp_host || null,
+        smtp_port: companyEmailSettings.smtp_port || null,
+        smtp_username: companyEmailSettings.smtp_username || null,
+        smtp_password_encrypted: companyEmailSettings.smtp_password || existing?.smtp_password_encrypted || null,
+        incoming_protocol: companyEmailSettings.incoming_protocol || 'imap',
+        incoming_host: companyEmailSettings.incoming_host || null,
+        incoming_port: companyEmailSettings.incoming_port || null,
+        incoming_username: companyEmailSettings.incoming_username || null,
+        incoming_password_encrypted: companyEmailSettings.incoming_password || existing?.incoming_password_encrypted || null,
+        imap_host: companyEmailSettings.incoming_protocol === 'imap' ? (companyEmailSettings.incoming_host || null) : null,
+        imap_port: companyEmailSettings.incoming_protocol === 'imap' ? (companyEmailSettings.incoming_port || null) : null,
+        imap_username: companyEmailSettings.incoming_protocol === 'imap' ? (companyEmailSettings.incoming_username || null) : null,
+        imap_password_encrypted:
+          companyEmailSettings.incoming_protocol === 'imap'
+            ? (companyEmailSettings.incoming_password || existing?.imap_password_encrypted || null)
+            : null,
+        use_ssl: companyEmailSettings.use_ssl,
+        is_configured:
+          companyEmailSettings.is_configured &&
+          !!companyEmailSettings.smtp_host &&
+          !!companyEmailSettings.smtp_username &&
+          !!(companyEmailSettings.smtp_password || existing?.smtp_password_encrypted) &&
+          !!companyEmailSettings.from_email,
+      };
+
+      const { error } = await (supabase as any)
+        .from('company_email_settings')
+        .upsert(payload, { onConflict: 'company_id' });
+      if (error) throw error;
+
+      toast({
+        title: 'Saved',
+        description: 'Company email server settings were saved.',
+      });
+      setShowCompanyEmailDialog(false);
+    } catch (error) {
+      console.error('Error saving company email settings:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save company email settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingCompanyEmailSettings(false);
+    }
+  };
+
   const startEditFromDetail = () => {
     setShowCompanyDetailDialog(false);
     setShowEditCompanyDialog(true);
@@ -836,59 +988,43 @@ export default function CompanyManagement() {
             Company Portfolio
           </CardTitle>
           <CardDescription>
-            Manage the companies you belong to and choose the active company.
+            Create and view companies in your organization.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="space-y-3">
+          <div className="grid gap-4 grid-cols-1 sm:grid-cols-2 md:grid-cols-3 xl:grid-cols-4">
             {organizationCompanies.map((companyItem) => {
-              const accessForCompany = userCompanies.find((access) => access.company_id === companyItem.id);
-              const isActive = companyItem.id === currentCompany.id;
+              const companyLogo = resolveCompanyLogoUrl(companyItem.logo_url || undefined);
               return (
                 <div
                   key={companyItem.id}
-                  className="flex cursor-pointer flex-col gap-3 rounded-lg border p-4 transition-colors hover:bg-accent/30 md:flex-row md:items-start md:justify-between"
+                  className="cursor-pointer rounded-lg border p-3 transition-colors hover:bg-accent/30"
                   onClick={() => openCompanyDetail(companyItem)}
                 >
-                  <div className="min-w-0 space-y-2">
-                    <div className="flex items-center gap-2">
-                      <p className="truncate font-medium">
-                        {companyItem.display_name || companyItem.name || 'Unnamed company'}
-                      </p>
-                      <Badge variant={isActive ? "default" : "secondary"}>
-                        {isActive ? "Active" : "Available"}
-                      </Badge>
-                      {accessForCompany && (
-                        <Badge variant="outline" className="capitalize">
-                          {accessForCompany.role}
-                        </Badge>
+                  <div className="flex flex-col gap-3">
+                    <div className="relative aspect-[4/3] w-full overflow-hidden rounded-md border bg-muted/30">
+                      {companyLogo ? (
+                        <img
+                          src={companyLogo}
+                          alt={companyItem.display_name || companyItem.name || 'Company'}
+                          className="h-full w-full object-contain p-2"
+                        />
+                      ) : (
+                        <div className="h-full w-full flex items-center justify-center text-2xl font-semibold text-muted-foreground">
+                          {(companyItem.display_name || companyItem.name || 'C').slice(0, 2).toUpperCase()}
+                        </div>
                       )}
                     </div>
-                    <p className="text-sm text-muted-foreground truncate">
-                      {companyItem.name}
-                    </p>
-                    {(companyItem.address || companyItem.city || companyItem.state || companyItem.zip_code) && (
-                      <p className="text-xs text-muted-foreground truncate">
-                        {[companyItem.address, companyItem.city, companyItem.state, companyItem.zip_code].filter(Boolean).join(', ')}
+                    <div className="space-y-1 text-sm">
+                      <p className="font-medium truncate">{companyItem.display_name || companyItem.name || 'Unnamed company'}</p>
+                      <p className="truncate text-muted-foreground">{companyItem.name || '-'}</p>
+                      <p className="truncate text-muted-foreground">
+                        {[companyItem.address, companyItem.city, companyItem.state, companyItem.zip_code].filter(Boolean).join(', ') || 'No address set'}
                       </p>
-                    )}
-                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                      {companyItem.phone && <span>{companyItem.phone}</span>}
-                      {companyItem.email && <span className="truncate">{companyItem.email}</span>}
-                      {companyItem.website && <span className="truncate">{companyItem.website}</span>}
+                      <p className="truncate text-muted-foreground">{companyItem.phone || 'No phone set'}</p>
+                      <p className="truncate text-muted-foreground">{companyItem.email || 'No email set'}</p>
+                      <p className="truncate text-muted-foreground">{companyItem.website || 'No website set'}</p>
                     </div>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button
-                      variant="outline"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void openManageUsersForCompany(companyItem);
-                      }}
-                    >
-                      <Users className="h-4 w-4 mr-2" />
-                      Manage Users
-                    </Button>
                   </div>
                 </div>
               );
@@ -938,22 +1074,8 @@ export default function CompanyManagement() {
                   <Label>Created</Label>
                   <p className="text-sm">{selectedCompanyDetail.created_at ? new Date(selectedCompanyDetail.created_at).toLocaleDateString() : '-'}</p>
                 </div>
-                <div>
-                  <Label>Status</Label>
-                  <p className="text-sm">{selectedCompanyDetail.id === currentCompany.id ? 'Active' : 'Available'}</p>
-                </div>
               </div>
               <DialogFooter className="gap-2">
-                <Button
-                  variant="outline"
-                  onClick={() => {
-                    setShowCompanyDetailDialog(false);
-                    void openManageUsersForCompany(selectedCompanyDetail);
-                  }}
-                >
-                  <Users className="h-4 w-4 mr-2" />
-                  Manage Users
-                </Button>
                 {isCompanyAdmin && (
                   <Button onClick={startEditFromDetail}>
                     <Edit className="h-4 w-4 mr-2" />
@@ -963,6 +1085,169 @@ export default function CompanyManagement() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showCompanyEmailDialog} onOpenChange={setShowCompanyEmailDialog}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>
+              Company Email Setup
+            </DialogTitle>
+            <DialogDescription>
+              Configure a company-wide email server for system emails. Fallback order is: user email settings, then company email settings, then BuilderLYNK default mailer.
+            </DialogDescription>
+          </DialogHeader>
+
+          {loadingCompanyEmailSettings ? (
+            <div className="py-12 flex items-center justify-center text-muted-foreground">
+              <Loader2 className="h-5 w-5 mr-2 animate-spin" />
+              Loading settings...
+            </div>
+          ) : (
+            <div className="space-y-5">
+              <div className="flex items-center justify-between rounded border p-3">
+                <div>
+                  <Label className="text-base">Use company email server</Label>
+                  <p className="text-sm text-muted-foreground">
+                    If enabled and configured, system emails for this company send from this server.
+                  </p>
+                </div>
+                <Switch
+                  checked={companyEmailSettings.is_configured}
+                  onCheckedChange={(checked) => setCompanyEmailSettings((prev) => ({ ...prev, is_configured: checked }))}
+                />
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
+                  <Label htmlFor="company-email-from-name">From Name</Label>
+                  <Input
+                    id="company-email-from-name"
+                    value={companyEmailSettings.from_name}
+                    onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, from_name: e.target.value }))}
+                    placeholder="Sigma Construction"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="company-email-from-email">From Email</Label>
+                  <Input
+                    id="company-email-from-email"
+                    value={companyEmailSettings.from_email}
+                    onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, from_email: e.target.value }))}
+                    placeholder="notifications@yourdomain.com"
+                  />
+                </div>
+              </div>
+
+              <div className="rounded border p-4 space-y-4">
+                <Label className="text-base">Outgoing SMTP (required for sending)</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>SMTP Host</Label>
+                    <Input
+                      value={companyEmailSettings.smtp_host}
+                      onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, smtp_host: e.target.value }))}
+                      placeholder="smtp.office365.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>SMTP Port</Label>
+                    <Input
+                      type="number"
+                      value={companyEmailSettings.smtp_port}
+                      onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, smtp_port: Number(e.target.value) || 587 }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>SMTP Username</Label>
+                    <Input
+                      value={companyEmailSettings.smtp_username}
+                      onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, smtp_username: e.target.value }))}
+                      placeholder="notifications@yourdomain.com"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>SMTP Password</Label>
+                    <Input
+                      type="password"
+                      value={companyEmailSettings.smtp_password}
+                      onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, smtp_password: e.target.value }))}
+                      placeholder="Leave blank to keep existing"
+                    />
+                  </div>
+                </div>
+              </div>
+
+              <div className="rounded border p-4 space-y-4">
+                <Label className="text-base">Incoming Mail (optional, IMAP/POP)</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Incoming Protocol</Label>
+                    <Select
+                      value={companyEmailSettings.incoming_protocol}
+                      onValueChange={(value: 'imap' | 'pop3') => {
+                        setCompanyEmailSettings((prev) => ({
+                          ...prev,
+                          incoming_protocol: value,
+                          incoming_port: value === 'pop3' ? 995 : 993,
+                        }));
+                      }}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="imap">IMAP</SelectItem>
+                        <SelectItem value="pop3">POP3</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Incoming Host</Label>
+                    <Input
+                      value={companyEmailSettings.incoming_host}
+                      onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, incoming_host: e.target.value }))}
+                      placeholder={companyEmailSettings.incoming_protocol === 'pop3' ? 'pop.yourdomain.com' : 'imap.yourdomain.com'}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Incoming Port</Label>
+                    <Input
+                      type="number"
+                      value={companyEmailSettings.incoming_port}
+                      onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, incoming_port: Number(e.target.value) || (prev.incoming_protocol === 'pop3' ? 995 : 993) }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Incoming Username</Label>
+                    <Input
+                      value={companyEmailSettings.incoming_username}
+                      onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, incoming_username: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2 md:col-span-2">
+                    <Label>Incoming Password</Label>
+                    <Input
+                      type="password"
+                      value={companyEmailSettings.incoming_password}
+                      onChange={(e) => setCompanyEmailSettings((prev) => ({ ...prev, incoming_password: e.target.value }))}
+                      placeholder="Leave blank to keep existing"
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowCompanyEmailDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveCompanyEmailSetup} disabled={savingCompanyEmailSettings || loadingCompanyEmailSettings}>
+              {savingCompanyEmailSettings ? 'Saving...' : 'Save Email Setup'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

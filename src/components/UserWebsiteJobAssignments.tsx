@@ -1,13 +1,11 @@
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Label } from "@/components/ui/label";
-import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
-import { Building2, Loader2, Save } from "lucide-react";
+import { Building2, Loader2 } from "lucide-react";
 
 interface UserWebsiteJobAssignmentsProps {
   userId: string;
@@ -71,12 +69,12 @@ export default function UserWebsiteJobAssignments({ userId, canManage = true }: 
     }
   };
 
-  const handleSave = async () => {
+  const persistJobAccess = async (nextAccess: Record<string, boolean>, showSuccessToast = false) => {
     setSaving(true);
     try {
       await supabase.from("user_job_access").delete().eq("user_id", userId);
 
-      const rows = Object.entries(jobAccess)
+      const rows = Object.entries(nextAccess)
         .filter(([_, checked]) => checked)
         .map(([jobId]) => ({
           user_id: userId,
@@ -89,10 +87,12 @@ export default function UserWebsiteJobAssignments({ userId, canManage = true }: 
         if (insertError) throw insertError;
       }
 
-      toast({
-        title: "Saved",
-        description: "Website / PM Lynk job access updated successfully",
-      });
+      if (showSuccessToast) {
+        toast({
+          title: "Saved",
+          description: "Website / PM Lynk job access updated successfully",
+        });
+      }
     } catch (error) {
       console.error("Error saving website job access:", error);
       const e = error as any;
@@ -104,6 +104,13 @@ export default function UserWebsiteJobAssignments({ userId, canManage = true }: 
     } finally {
       setSaving(false);
     }
+  };
+
+  const handleToggleJob = async (jobId: string) => {
+    if (!canManage) return;
+    const nextAccess = { ...jobAccess, [jobId]: !jobAccess[jobId] };
+    setJobAccess(nextAccess);
+    await persistJobAccess(nextAccess);
   };
 
   if (loading) {
@@ -144,11 +151,9 @@ export default function UserWebsiteJobAssignments({ userId, canManage = true }: 
                   <input
                     type="checkbox"
                     checked={!!jobAccess[job.id]}
-                    onChange={() =>
-                      setJobAccess((prev) => ({ ...prev, [job.id]: !prev[job.id] }))
-                    }
+                    onChange={() => void handleToggleJob(job.id)}
                     className="rounded"
-                    disabled={!canManage}
+                    disabled={!canManage || saving}
                   />
                   <span className="font-medium">{job.name}</span>
                 </div>
@@ -168,12 +173,9 @@ export default function UserWebsiteJobAssignments({ userId, canManage = true }: 
           </p>
         )}
 
-        <div className="flex justify-end">
-          <Button onClick={handleSave} disabled={saving || !canManage}>
-            <Save className="h-4 w-4 mr-2" />
-            {saving ? "Saving..." : "Save Website Job Access"}
-          </Button>
-        </div>
+        {saving && (
+          <p className="text-xs text-muted-foreground">Saving website job access...</p>
+        )}
       </CardContent>
     </Card>
   );

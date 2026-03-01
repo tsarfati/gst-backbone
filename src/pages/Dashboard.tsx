@@ -479,6 +479,35 @@ export default function Dashboard() {
     }
   };
 
+  const markConversationAsRead = async (message: Message) => {
+    if (!user) return;
+
+    const senderId = message.from_user_id;
+
+    try {
+      // Mark all unread direct messages from this sender as read for current user.
+      await supabase
+        .from('messages')
+        .update({ read: true })
+        .eq('from_user_id', senderId)
+        .eq('to_user_id', user.id)
+        .eq('read', false);
+
+      // Immediately clear unread entries from this sender in dashboard state.
+      setMessages((prev) =>
+        prev.map((m) =>
+          m.from_user_id === senderId && m.to_user_id === user.id
+            ? { ...m, read: true }
+            : m
+        )
+      );
+    } catch (error) {
+      console.error('Error marking conversation as read:', error);
+    }
+  };
+
+  const unreadMessages = messages.filter((m) => !m.read);
+
   // Filter stats based on permissions
   const allStats = [
     {
@@ -664,29 +693,29 @@ export default function Dashboard() {
               <CardHeader>
                 <CardTitle className="flex items-center gap-2">
                   <MessageSquare className="h-5 w-5" />
-                  Messages
-                  {messages.filter(m => !m.read).length > 0 && (
+                  Unread Messages
+                  {unreadMessages.length > 0 && (
                     <Badge variant="destructive" className="ml-2">
-                      {messages.filter(m => !m.read).length}
+                      {unreadMessages.length}
                     </Badge>
                   )}
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {messages.length === 0 ? (
+                {unreadMessages.length === 0 ? (
                   <p className="text-muted-foreground text-center py-4">
-                    No messages
+                    No unread messages
                   </p>
                 ) : (
                   <div className="space-y-2">
-                    {messages.map((message) => (
+                    {unreadMessages.map((message) => (
                       <div
                         key={message.id}
                         className={`px-3 py-2 rounded-lg border cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors ${
                           !message.read ? 'bg-accent/70 border-primary/30' : 'bg-background'
                         }`}
-                        onClick={() => {
-                          markMessageAsRead(message.id);
+                        onClick={async () => {
+                          await markConversationAsRead(message);
                           openMessageThread(message);
                         }}
                       >

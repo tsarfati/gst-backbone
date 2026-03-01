@@ -767,13 +767,13 @@ export default function Bills() {
                       className="cursor-pointer hover:bg-primary/5 transition-colors border border-transparent hover:border-primary rounded-lg"
                       style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                      >
-                       <TableCell onClick={(e) => e.stopPropagation()}>
+                       <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
                          <Checkbox
                            checked={selectedBills.includes(bill.id)}
                            onCheckedChange={() => handleSelectBill(bill.id)}
                          />
                        </TableCell>
-                      <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                      <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-2 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                           <div className="flex items-center gap-3">
                             <VendorAvatar 
                               name={bill.vendor_name}
@@ -783,15 +783,15 @@ export default function Bills() {
                         <span className="font-medium group-hover:text-primary transition-colors">{bill.vendor_name}</span>
                         </div>
                        </TableCell>
-                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                       <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-2 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                          <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
                            {bill.job_name}
                          </Badge>
                        </TableCell>
-                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">${bill.amount.toLocaleString()}</TableCell>
-                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
-                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.due_date).toLocaleDateString()}</TableCell>
-                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
+                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-2 font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">${bill.amount.toLocaleString()}</TableCell>
+                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-2 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
+                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-2 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.due_date).toLocaleDateString()}</TableCell>
+                          <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-2 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
                            <div className="flex items-center gap-2">
                              <Badge variant={getStatusVariant(bill.status)}>
                                {getStatusDisplayName(bill.status)}
@@ -826,13 +826,13 @@ export default function Bills() {
                   return (
                   <div 
                     key={bill.id} 
-                     className={`flex items-center justify-between p-4 border rounded-lg hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group ${
+                     className={`flex items-center justify-between px-3 py-2 border rounded-lg hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group ${
                        billIsOverdue ? 'bg-destructive/10' : ''
                      }`}
                      style={billIsOverdue ? { animation: 'pulse-red 2s infinite' } : undefined}
                      onClick={() => navigate(`/bills/${bill.id}`)}
                   >
-                    <div className="flex items-center gap-4 flex-1">
+                    <div className="flex items-center gap-3 flex-1">
                       <div onClick={(e) => e.stopPropagation()}>
                         <Checkbox
                           checked={selectedBills.includes(bill.id)}
@@ -847,7 +847,7 @@ export default function Bills() {
                         </p>
                       </div>
                     </div>
-                    <div className="text-right flex flex-col items-end gap-2">
+                    <div className="text-right flex flex-col items-end gap-1">
                       <p className="font-semibold text-foreground">${bill.amount.toLocaleString()}</p>
                       <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
                         {bill.job_name}
@@ -880,7 +880,7 @@ export default function Bills() {
                   return (
                   <div 
                      key={bill.id} 
-                     className="flex items-center justify-between p-3 border rounded hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
+                     className="flex items-center justify-between px-2.5 py-1.5 border rounded hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
                      style={billIsOverdue ? { animation: 'pulse-red 2s ease-in-out infinite' } : undefined}
                      onClick={() => navigate(`/bills/${bill.id}`)}
                   >

@@ -593,15 +593,6 @@ const menuCategories: MenuCategory[] = [
           { key: 'employees-reports-view', label: 'View Reports', description: 'Access employee reports' },
         ]
       },
-      { 
-        key: 'punch-clock-settings', 
-        label: 'Punch Clock Settings', 
-        description: 'Configure punch clock',
-        actions: [
-          { key: 'punch-clock-settings-view', label: 'View Settings', description: 'Access punch clock settings' },
-          { key: 'punch-clock-settings-edit', label: 'Edit Settings', description: 'Modify punch clock settings' },
-        ]
-      },
     ],
   },
   {
@@ -817,15 +808,6 @@ const menuCategories: MenuCategory[] = [
     description: 'Application settings',
     items: [
       { 
-        key: 'settings', 
-        label: 'General Settings', 
-        description: 'Application configuration',
-        actions: [
-          { key: 'settings-view', label: 'View Settings', description: 'Access general settings' },
-          { key: 'settings-edit', label: 'Edit Settings', description: 'Modify general settings' },
-        ]
-      },
-      { 
         key: 'company-settings', 
         label: 'Company Settings', 
         description: 'Company configuration',
@@ -835,11 +817,11 @@ const menuCategories: MenuCategory[] = [
         ]
       },
       { 
-        key: 'company-management', 
+        key: 'organization-management', 
         label: 'Organization Management', 
         description: 'Organization and company portfolio management',
         actions: [
-          { key: 'company-management-access', label: 'Access Management', description: 'Manage organization scope and company context' },
+          { key: 'organization-management-access', label: 'Access Management', description: 'Manage organization scope and company context' },
         ]
       },
       { 
@@ -850,6 +832,33 @@ const menuCategories: MenuCategory[] = [
           { key: 'user-settings-view', label: 'View Users', description: 'Access user list' },
           { key: 'user-settings-edit', label: 'Edit Users', description: 'Modify user roles' },
           { key: 'user-settings-permissions', label: 'Manage Permissions', description: 'Configure role permissions' },
+        ]
+      },
+      { 
+        key: 'punch-clock-settings', 
+        label: 'PunchClock Link Settings', 
+        description: 'Punch clock mobile app settings',
+        actions: [
+          { key: 'punch-clock-settings-view', label: 'View Settings', description: 'Access punch clock settings' },
+          { key: 'punch-clock-settings-edit', label: 'Edit Settings', description: 'Modify punch clock settings' },
+        ]
+      },
+      { 
+        key: 'pm-lynk-settings', 
+        label: 'PM Lynk Settings', 
+        description: 'PM Lynk mobile app settings',
+        actions: [
+          { key: 'pm-lynk-settings-view', label: 'View Settings', description: 'Access PM Lynk settings' },
+          { key: 'pm-lynk-settings-edit', label: 'Edit Settings', description: 'Modify PM Lynk settings' },
+        ]
+      },
+      { 
+        key: 'subscription-settings', 
+        label: 'Subscription', 
+        description: 'Billing and subscription settings',
+        actions: [
+          { key: 'subscription-settings-view', label: 'View Subscription', description: 'Access subscription details' },
+          { key: 'subscription-settings-edit', label: 'Manage Subscription', description: 'Modify subscription settings' },
         ]
       },
       { 

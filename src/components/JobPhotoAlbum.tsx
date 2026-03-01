@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -15,8 +15,10 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import PhotoLocationMap from './PhotoLocationMap';
+import { ChevronDown, Star } from 'lucide-react';
 
 interface JobPhoto {
   id: string;
@@ -116,6 +118,18 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const [dragOverAlbumId, setDragOverAlbumId] = useState<string | null>(null);
   const [isDraggingOverPhotos, setIsDraggingOverPhotos] = useState(false);
+  const [albumViewMode, setAlbumViewMode] = useState<'regular' | 'small'>('regular');
+  const [photoViewMode, setPhotoViewMode] = useState<'cards' | 'compact' | 'super-compact'>('cards');
+  const [photoDateFrom, setPhotoDateFrom] = useState('');
+  const [photoDateTo, setPhotoDateTo] = useState('');
+  const [uploaderFilter, setUploaderFilter] = useState<'all' | string>('all');
+  const [activeGroupKey, setActiveGroupKey] = useState<string | null>(null);
+  const [isScrubbing, setIsScrubbing] = useState(false);
+  const [savedDefaultPhotoView, setSavedDefaultPhotoView] = useState<'cards' | 'compact' | 'super-compact'>('cards');
+  const [photoViewPickerOpen, setPhotoViewPickerOpen] = useState(false);
+  const timelineRailRef = useRef<HTMLDivElement | null>(null);
+  const scrubVirtualIndexRef = useRef<number>(0);
+  const scrubLastYRef = useRef<number | null>(null);
 
   useEffect(() => {
     loadPhotos();
@@ -152,6 +166,17 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       stopCamera();
     };
   }, [jobId]);
+
+  useEffect(() => {
+    const storageKey = `job-photo-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+    const stored = window.localStorage.getItem(storageKey);
+    if (stored === 'cards' || stored === 'compact' || stored === 'super-compact') {
+      setPhotoViewMode(stored);
+      setSavedDefaultPhotoView(stored);
+    } else {
+      setSavedDefaultPhotoView('cards');
+    }
+  }, [currentCompany?.id, user?.id]);
 
   const [resolvedDetailUrl, setResolvedDetailUrl] = useState<string | null>(null);
 
@@ -758,6 +783,219 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
     e.target.value = '';
   };
 
+  const getUploaderName = (photo: JobPhoto) =>
+    photo.profiles?.display_name ||
+    `${photo.profiles?.first_name || ''} ${photo.profiles?.last_name || ''}`.trim() ||
+    'Unknown User';
+
+  const uploaderOptions = useMemo(() => {
+    const unique = new Map<string, string>();
+    photos.forEach((photo) => {
+      unique.set(photo.uploaded_by, getUploaderName(photo));
+    });
+    return Array.from(unique.entries())
+      .map(([id, name]) => ({ id, name }))
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [photos]);
+
+  const filteredPhotos = useMemo(() => {
+    return photos.filter((photo) => {
+      const photoDate = new Date(photo.created_at);
+      if (photoDateFrom) {
+        const from = new Date(`${photoDateFrom}T00:00:00`);
+        if (photoDate < from) return false;
+      }
+      if (photoDateTo) {
+        const to = new Date(`${photoDateTo}T23:59:59`);
+        if (photoDate > to) return false;
+      }
+      if (uploaderFilter !== 'all' && photo.uploaded_by !== uploaderFilter) {
+        return false;
+      }
+      return true;
+    });
+  }, [photos, photoDateFrom, photoDateTo, uploaderFilter]);
+
+  const groupedPhotos = useMemo(() => {
+    const groups = new Map<string, { label: string; photos: JobPhoto[]; sortDate: Date }>();
+    filteredPhotos.forEach((photo) => {
+      const d = new Date(photo.created_at);
+      const key = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`;
+      const label = format(d, 'MMMM yyyy');
+      if (!groups.has(key)) {
+        groups.set(key, { label, photos: [], sortDate: new Date(d.getFullYear(), d.getMonth(), 1) });
+      }
+      groups.get(key)!.photos.push(photo);
+    });
+    return Array.from(groups.entries())
+      .sort((a, b) => b[1].sortDate.getTime() - a[1].sortDate.getTime())
+      .map(([key, value]) => ({ key, ...value }));
+  }, [filteredPhotos]);
+
+  const timelineMarkers = useMemo(() => {
+    if (groupedPhotos.length === 0) return [] as { key: string; label: string; sortDate: Date }[];
+
+    const newest = groupedPhotos[0].sortDate;
+    const oldest = groupedPhotos[groupedPhotos.length - 1].sortDate;
+    const spanDays = Math.max(
+      1,
+      Math.round((newest.getTime() - oldest.getTime()) / (1000 * 60 * 60 * 24))
+    );
+
+    let labelFormat = 'MMM yyyy';
+    if (spanDays <= 31) labelFormat = 'MMM d';
+    else if (spanDays <= 180) labelFormat = 'MMM';
+    else if (spanDays <= 730) labelFormat = 'MMM yy';
+    else labelFormat = 'yyyy';
+
+    const maxMarkers = 12;
+    if (groupedPhotos.length <= maxMarkers) {
+      return groupedPhotos.map((g) => ({
+        key: g.key,
+        sortDate: g.sortDate,
+        label: format(g.sortDate, labelFormat),
+      }));
+    }
+
+    const sampled: { key: string; label: string; sortDate: Date }[] = [];
+    for (let i = 0; i < maxMarkers; i++) {
+      const idx = Math.round((i * (groupedPhotos.length - 1)) / (maxMarkers - 1));
+      const g = groupedPhotos[idx];
+      if (!sampled.some((m) => m.key === g.key)) {
+        sampled.push({
+          key: g.key,
+          sortDate: g.sortDate,
+          label: format(g.sortDate, labelFormat),
+        });
+      }
+    }
+    return sampled;
+  }, [groupedPhotos]);
+
+  useEffect(() => {
+    if (groupedPhotos.length === 0) {
+      setActiveGroupKey(null);
+      return;
+    }
+
+    const updateActiveGroup = () => {
+      let bestKey = groupedPhotos[0].key;
+      let bestDistance = Number.POSITIVE_INFINITY;
+
+      groupedPhotos.forEach((group) => {
+        const el = document.getElementById(`photos-month-${group.key}`);
+        if (!el) return;
+        const rect = el.getBoundingClientRect();
+        const distance = Math.abs(rect.top - 180);
+        if (distance < bestDistance) {
+          bestDistance = distance;
+          bestKey = group.key;
+        }
+      });
+
+      setActiveGroupKey(bestKey);
+    };
+
+    updateActiveGroup();
+    window.addEventListener('scroll', updateActiveGroup, { passive: true });
+    window.addEventListener('resize', updateActiveGroup);
+    return () => {
+      window.removeEventListener('scroll', updateActiveGroup);
+      window.removeEventListener('resize', updateActiveGroup);
+    };
+  }, [groupedPhotos]);
+
+  const saveDefaultPhotoView = () => {
+    const storageKey = `job-photo-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+    window.localStorage.setItem(storageKey, photoViewMode);
+    setSavedDefaultPhotoView(photoViewMode);
+    toast({
+      title: 'Default view saved',
+      description: `Photo view default set to ${photoViewMode}.`,
+    });
+  };
+
+  const photoViewOptions: Array<{ value: 'cards' | 'compact' | 'super-compact'; label: string }> = [
+    { value: 'cards', label: 'Cards' },
+    { value: 'compact', label: 'Compact Grid' },
+    { value: 'super-compact', label: 'Super Compact Grid' },
+  ];
+
+  const scrubTimelineToClientPoint = useCallback((clientX: number, clientY: number, smooth = false) => {
+    if (!timelineRailRef.current || groupedPhotos.length === 0) return;
+    const rect = timelineRailRef.current.getBoundingClientRect();
+    const clamped = Math.max(rect.top, Math.min(clientY, rect.bottom));
+    const ratio = rect.height <= 0 ? 0 : (clamped - rect.top) / rect.height;
+    const absoluteIndex = Math.max(0, Math.min(groupedPhotos.length - 1, ratio * (groupedPhotos.length - 1)));
+
+    // Google Photos-like variable scrub precision:
+    // - close to rail => faster / direct jumping
+    // - drag finger/mouse left away from rail => finer control
+    const horizontalDistance = Math.max(0, rect.left - clientX);
+    const precision = Math.max(0, Math.min(1, horizontalDistance / 280)); // 0 near rail, 1 far left
+    const directThreshold = 20;
+
+    if (horizontalDistance <= directThreshold || scrubLastYRef.current === null) {
+      scrubVirtualIndexRef.current = absoluteIndex;
+      scrubLastYRef.current = clamped;
+    } else {
+      const lastY = scrubLastYRef.current;
+      const deltaY = clamped - lastY;
+      scrubLastYRef.current = clamped;
+
+      // Speed scales down as pointer moves left (fine scrub)
+      const speedMultiplier = 1 - precision * 0.88; // ~1.0 near rail -> ~0.12 far left
+      const deltaIndex = rect.height <= 0
+        ? 0
+        : (deltaY / rect.height) * (groupedPhotos.length - 1) * speedMultiplier;
+
+      scrubVirtualIndexRef.current = Math.max(
+        0,
+        Math.min(groupedPhotos.length - 1, scrubVirtualIndexRef.current + deltaIndex)
+      );
+
+      // Keep some attraction to absolute position to avoid drift getting stale.
+      const attraction = Math.max(0.03, 0.18 - precision * 0.12);
+      scrubVirtualIndexRef.current =
+        scrubVirtualIndexRef.current * (1 - attraction) + absoluteIndex * attraction;
+    }
+
+    const index = Math.max(0, Math.min(groupedPhotos.length - 1, Math.round(scrubVirtualIndexRef.current)));
+    const target = groupedPhotos[index];
+    setActiveGroupKey(target.key);
+    document
+      .getElementById(`photos-month-${target.key}`)
+      ?.scrollIntoView({ behavior: smooth ? 'smooth' : 'auto', block: 'start' });
+  }, [groupedPhotos]);
+
+  useEffect(() => {
+    if (!isScrubbing) return;
+
+    const handleMouseMove = (e: MouseEvent) => {
+      scrubTimelineToClientPoint(e.clientX, e.clientY, false);
+    };
+    const handleTouchMove = (e: TouchEvent) => {
+      if (!e.touches[0]) return;
+      e.preventDefault();
+      scrubTimelineToClientPoint(e.touches[0].clientX, e.touches[0].clientY, false);
+    };
+    const endScrub = () => {
+      setIsScrubbing(false);
+      scrubLastYRef.current = null;
+    };
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', endScrub);
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', endScrub);
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', endScrub);
+      window.removeEventListener('touchmove', handleTouchMove);
+      window.removeEventListener('touchend', endScrub);
+    };
+  }, [isScrubbing, scrubTimelineToClientPoint]);
+
   if (loading) {
     return <div className="text-center py-8 text-muted-foreground">Loading photos...</div>;
   }
@@ -818,10 +1056,24 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
             )
           ) : (
             // Album list view - only show Create Album
-            <Button variant="outline" onClick={() => setShowCreateAlbumDialog(true)}>
-              <FolderPlus className="h-4 w-4 mr-2" />
-              Create Album
-            </Button>
+            <>
+              <Select
+                value={albumViewMode}
+                onValueChange={(v: 'regular' | 'small') => setAlbumViewMode(v)}
+              >
+                <SelectTrigger className="w-[180px]">
+                  <SelectValue placeholder="Album view" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="regular">Regular Grid</SelectItem>
+                  <SelectItem value="small">Small Grid</SelectItem>
+                </SelectContent>
+              </Select>
+              <Button variant="outline" onClick={() => setShowCreateAlbumDialog(true)}>
+                <FolderPlus className="h-4 w-4 mr-2" />
+                Create Album
+              </Button>
+            </>
           )}
         </div>
       </div>
@@ -845,7 +1097,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       {/* Album Icons Grid */}
       {!selectedAlbumId || selectedAlbumId === 'all' ? (
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+        <div className={`grid ${albumViewMode === 'small' ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4'}`}>
           {albums.map((album) => (
             <Card 
               key={album.id} 
@@ -858,8 +1110,8 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); setDragOverAlbumId(null); }}
               onDrop={(e) => handleDropOnAlbum(e, album.id)}
             >
-              <CardContent className="p-3 flex flex-col items-center text-center">
-                <div className="w-full aspect-square rounded-lg bg-muted flex items-center justify-center mb-2 overflow-hidden group-hover:ring-2 ring-primary transition-all relative">
+              <CardContent className={`${albumViewMode === 'small' ? 'p-2' : 'p-3'} flex flex-col items-center text-center`}>
+                <div className={`w-full aspect-square rounded-lg bg-muted flex items-center justify-center ${albumViewMode === 'small' ? 'mb-1' : 'mb-2'} overflow-hidden group-hover:ring-2 ring-primary transition-all relative`}>
                   {dragOverAlbumId === album.id ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-primary/10 z-10">
                       <Upload className="h-8 w-8 text-primary animate-bounce" />
@@ -875,7 +1127,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                     <FolderPlus className="h-8 w-8 text-muted-foreground" />
                   )}
                 </div>
-                <p className="text-sm font-medium line-clamp-2">{album.name}</p>
+                <p className={`${albumViewMode === 'small' ? 'text-xs' : 'text-sm'} font-medium line-clamp-2`}>{album.name}</p>
                 {album.is_auto_employee_album && (
                   <span className="text-xs text-muted-foreground mt-1">Employee Uploads</span>
                 )}
@@ -895,6 +1147,102 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           onDrop={handleDropOnPhotoArea}
           className="relative"
         >
+          <Card className="mb-4">
+            <CardContent className="p-3">
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-3">
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Date from</label>
+                  <Input type="date" value={photoDateFrom} onChange={(e) => setPhotoDateFrom(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Date to</label>
+                  <Input type="date" value={photoDateTo} onChange={(e) => setPhotoDateTo(e.target.value)} />
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Uploader</label>
+                  <Select value={uploaderFilter} onValueChange={(v) => setUploaderFilter(v)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="All uploaders" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All uploaders</SelectItem>
+                      {uploaderOptions.map((u) => (
+                        <SelectItem key={u.id} value={u.id}>
+                          {u.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <label className="text-xs text-muted-foreground mb-1 block">Photo view</label>
+                  <Popover open={photoViewPickerOpen} onOpenChange={setPhotoViewPickerOpen}>
+                    <PopoverTrigger asChild>
+                      <Button variant="outline" className="w-full justify-between">
+                        <span>{photoViewOptions.find((opt) => opt.value === photoViewMode)?.label || 'Photo view'}</span>
+                        <ChevronDown className="h-4 w-4 opacity-60" />
+                      </Button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-[260px] p-1" align="start">
+                      <div className="space-y-1">
+                        {photoViewOptions.map((opt) => (
+                          <div key={opt.value} className="flex items-center gap-1 rounded-md hover:bg-muted">
+                            <button
+                              type="button"
+                              className={`flex-1 text-left px-2 py-1.5 text-sm rounded-md ${photoViewMode === opt.value ? 'font-medium text-foreground' : 'text-muted-foreground'}`}
+                              onClick={() => {
+                                setPhotoViewMode(opt.value);
+                                setPhotoViewPickerOpen(false);
+                              }}
+                            >
+                              {opt.label}
+                            </button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7 mr-1"
+                              onClick={() => {
+                                setPhotoViewMode(opt.value);
+                                const storageKey = `job-photo-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+                                window.localStorage.setItem(storageKey, opt.value);
+                                setSavedDefaultPhotoView(opt.value);
+                                toast({
+                                  title: 'Default view saved',
+                                  description: `${opt.label} is now your default.`,
+                                });
+                              }}
+                              title={`Set ${opt.label} as default`}
+                            >
+                              <Star
+                                className={`h-4 w-4 ${savedDefaultPhotoView === opt.value ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`}
+                              />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                </div>
+                <div className="flex items-end">
+                  <div className="flex w-full gap-2">
+                    <Button
+                      variant="outline"
+                      className="w-full"
+                      onClick={() => {
+                        setPhotoDateFrom('');
+                        setPhotoDateTo('');
+                        setUploaderFilter('all');
+                      }}
+                    >
+                      Clear Filters
+                    </Button>
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           {isDraggingOverPhotos && (
             <div className="absolute inset-0 z-20 bg-primary/10 border-2 border-dashed border-primary rounded-lg flex items-center justify-center pointer-events-none">
               <div className="text-center">
@@ -921,21 +1269,36 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
             <span className="text-sm text-muted-foreground">or drag & drop images here</span>
           </div>
 
-      {photos.length === 0 ? (
+      {filteredPhotos.length === 0 ? (
         <Card>
           <CardContent className="p-8 text-center">
             <Camera className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-            <h3 className="text-xl font-semibold mb-2">No Photos Yet</h3>
+            <h3 className="text-xl font-semibold mb-2">No Photos Found</h3>
             <p className="text-muted-foreground mb-4">
-              Drag & drop photos here or click Upload to add them.
+              Drag & drop photos here or click Upload to add them. If filters are active, clear filters to see all photos.
             </p>
           </CardContent>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {photos.map((photo) => (
+        <div className="grid grid-cols-1 lg:grid-cols-[1fr_96px] gap-3">
+          <div className="space-y-5">
+            {groupedPhotos.map((group) => (
+              <div key={group.key} id={`photos-month-${group.key}`} className="space-y-3">
+                <div className="sticky top-0 z-10 bg-background/90 backdrop-blur px-1 py-1 border-b">
+                  <p className="text-sm font-semibold">{group.label}</p>
+                </div>
+                <div
+                  className={
+                    photoViewMode === 'super-compact'
+                      ? 'grid grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-7 xl:grid-cols-8 gap-1.5'
+                      : photoViewMode === 'compact'
+                      ? 'grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-2'
+                      : 'grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4'
+                  }
+                >
+                  {group.photos.map((photo) => (
             <Card key={photo.id} className="overflow-hidden">
-              <div className="relative aspect-video">
+              <div className={`relative ${photoViewMode === 'super-compact' ? 'aspect-square' : 'aspect-video'}`}>
                 <ResolvedImage
                   src={photo.photo_url}
                   alt="Job photo"
@@ -958,27 +1321,29 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                   </div>
                 )}
               </div>
-              <CardContent className="p-3 space-y-2">
-                <div className="flex items-center gap-2">
-                  <Avatar className="h-6 w-6">
-                    <AvatarImage src={photo.profiles?.avatar_url} />
-                    <AvatarFallback>
-                      {`${photo.profiles?.first_name?.[0] || ''}${photo.profiles?.last_name?.[0] || ''}`}
-                    </AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">
-                      {photo.profiles?.display_name || `${photo.profiles?.first_name || ''} ${photo.profiles?.last_name || ''}`}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {format(new Date(photo.created_at), 'MMM d, yyyy h:mm a')}
-                    </p>
+              <CardContent className={`${photoViewMode === 'super-compact' ? 'p-1 space-y-1' : photoViewMode === 'compact' ? 'p-2 space-y-1' : 'p-3 space-y-2'}`}>
+                {photoViewMode !== 'super-compact' && (
+                  <div className="flex items-center gap-2">
+                    <Avatar className="h-6 w-6">
+                      <AvatarImage src={photo.profiles?.avatar_url} />
+                      <AvatarFallback>
+                        {`${photo.profiles?.first_name?.[0] || ''}${photo.profiles?.last_name?.[0] || ''}`}
+                      </AvatarFallback>
+                    </Avatar>
+                    <div className="flex-1 min-w-0">
+                      <p className={`${photoViewMode === 'compact' ? 'text-xs' : 'text-sm'} font-medium truncate`}>
+                        {getUploaderName(photo)}
+                      </p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(photo.created_at), 'MMM d, yyyy h:mm a')}
+                      </p>
+                    </div>
                   </div>
-                </div>
-                {photo.note && (
-                  <p className="text-sm text-muted-foreground line-clamp-2">{photo.note}</p>
                 )}
-                {photo.location_lat && photo.location_lng && (
+                {photo.note && photoViewMode !== 'super-compact' && (
+                  <p className={`${photoViewMode === 'compact' ? 'text-xs' : 'text-sm'} text-muted-foreground line-clamp-2`}>{photo.note}</p>
+                )}
+                {photo.location_lat && photo.location_lng && photoViewMode !== 'super-compact' && (
                   <div className="flex items-center gap-1 text-xs text-muted-foreground">
                     <MapPin className="h-3 w-3" />
                     <span>Location captured</span>
@@ -986,7 +1351,66 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                 )}
               </CardContent>
             </Card>
-          ))}
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+          <div className="sticky top-4 h-[calc(100vh-132px)]">
+            <div className="h-full rounded-2xl border bg-card/80 backdrop-blur-sm px-2 py-2 flex flex-col">
+              <div className="min-h-[48px] px-1 py-1">
+                {activeGroupKey && (
+                  <div className="text-right">
+                    <div className="text-xl leading-none font-semibold tabular-nums">
+                      {format(
+                        groupedPhotos.find((g) => g.key === activeGroupKey)?.sortDate || new Date(),
+                        'MMM yyyy'
+                      )}
+                    </div>
+                    <div className="mt-1 h-0.5 bg-primary rounded-full ml-4" />
+                  </div>
+                )}
+              </div>
+              <div
+                ref={timelineRailRef}
+                className={`relative flex-1 grid gap-0.5 ${isScrubbing ? 'cursor-ns-resize select-none' : 'cursor-ns-resize'}`}
+                style={{ gridTemplateRows: `repeat(${Math.max(timelineMarkers.length, 1)}, minmax(0, 1fr))` }}
+                onMouseDown={(e) => {
+                  setIsScrubbing(true);
+                  scrubLastYRef.current = null;
+                  scrubTimelineToClientPoint(e.clientX, e.clientY, false);
+                }}
+                onTouchStart={(e) => {
+                  if (!e.touches[0]) return;
+                  setIsScrubbing(true);
+                  scrubLastYRef.current = null;
+                  scrubTimelineToClientPoint(e.touches[0].clientX, e.touches[0].clientY, false);
+                }}
+              >
+                <div className="absolute right-[7px] top-0 bottom-0 w-px bg-border/70" />
+                {timelineMarkers.map((marker) => {
+                  const activeDate = groupedPhotos.find((g) => g.key === activeGroupKey)?.sortDate;
+                  const isActiveMarker =
+                    !!activeDate && marker.key === activeGroupKey;
+                  return (
+                    <button
+                      key={`timeline-${marker.key}`}
+                      type="button"
+                      className="relative w-full h-full flex items-center justify-end gap-2 rounded-md px-1 hover:bg-muted/60 transition-colors"
+                      onClick={() => {
+                        document.getElementById(`photos-month-${marker.key}`)?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                      }}
+                    >
+                      <span className={`text-sm tabular-nums ${isActiveMarker ? 'text-foreground font-semibold' : 'text-muted-foreground'}`}>
+                        {marker.label}
+                      </span>
+                      <span className={`h-2 w-2 rounded-full ${isActiveMarker ? 'bg-primary' : 'bg-muted-foreground/50'}`} />
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
         </div>
       )}
         </div>
@@ -1052,7 +1476,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       {/* Photo Detail Dialog */}
       <Dialog open={!!selectedPhoto} onOpenChange={() => setSelectedPhoto(null)}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-[96vw] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>Photo Details</span>
@@ -1071,23 +1495,24 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           </DialogHeader>
           {selectedPhoto && (
             <div className="space-y-6">
-              {/* Full resolution image - no max constraints, natural size up to container */}
+              {/* Full resolution image - render at native size inside a scrollable viewport */}
               <a 
                 href={resolvedDetailUrl || '#'} 
                 target="_blank" 
                 rel="noopener noreferrer"
                 className="block cursor-zoom-in"
               >
-                {resolvedDetailUrl ? (
-                  <img
-                    src={resolvedDetailUrl}
-                    alt="Job photo"
-                    className="w-full rounded-lg"
-                    style={{ maxHeight: '60vh', objectFit: 'contain' }}
-                  />
-                ) : (
-                  <div className="w-full rounded-lg bg-muted animate-pulse" style={{ height: '40vh' }} />
-                )}
+                <div className="w-full max-h-[72vh] overflow-auto rounded-lg border bg-black/5">
+                  {resolvedDetailUrl ? (
+                    <img
+                      src={resolvedDetailUrl}
+                      alt="Job photo"
+                      className="block max-w-none h-auto rounded-lg"
+                    />
+                  ) : (
+                    <div className="w-full rounded-lg bg-muted animate-pulse" style={{ height: '40vh' }} />
+                  )}
+                </div>
               </a>
               
               {/* Uploader Info */}

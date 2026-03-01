@@ -138,14 +138,14 @@ const navigationCategories = [
     icon: Settings,
     items: [
       { name: "Super Admin Dashboard", href: "/super-admin", menuKey: "settings", superAdminOnly: true },
-      { name: "Organization Management", href: "/settings/organization-management", ownerOnly: true, featureKey: "organization_management" },
+      { name: "Organization Management", href: "/settings/organization-management", menuKey: "organization-management", ownerOnly: true, featureKey: "organization_management" },
       { name: "Company Settings", href: "/settings/company", menuKey: "company-settings" },
       { name: "Notifications & Email", href: "/settings/notifications", menuKey: "notification-settings" },
       { name: "Data & Security", href: "/settings/security", menuKey: "security-settings" },
       { name: "User Management", href: "/settings/users", menuKey: "user-settings" },
-      { name: "Punch Clock", href: "/punch-clock/settings", menuKey: "punch-clock-settings", featureKey: "punch_clock_app" },
-      { name: "PM Lynk", href: "/settings/pm-lynk", menuKey: "settings", featureKey: "pm_lynk" },
-      { name: "Subscription", href: "/subscription", menuKey: "settings", ownerOnly: true },
+      { name: "PunchClock Link", href: "/punch-clock/settings", menuKey: "punch-clock-settings", featureKey: "punch_clock_app", mobileAppBadge: true },
+      { name: "PM Lynk", href: "/settings/pm-lynk", menuKey: "pm-lynk-settings", featureKey: "pm_lynk", mobileAppBadge: true },
+      { name: "Subscription", href: "/subscription", menuKey: "subscription-settings", ownerOnly: true },
     ],
     collapsible: true,
   },
@@ -391,7 +391,14 @@ export function AppSidebar() {
                                       className={isActive ? "hover:opacity-95" : `hover:bg-primary/10 transition-colors duration-150`}
                                     >
                                       <Link to={item.href}>
-                                        <span className="ml-2">{item.name}</span>
+                                        <span className="ml-2 flex items-center gap-2">
+                                          <span>{item.name}</span>
+                                          {('mobileAppBadge' in item && (item as any).mobileAppBadge) && (
+                                            <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                                              Mobile App
+                                            </span>
+                                          )}
+                                        </span>
                                       </Link>
                                     </SidebarMenuButton>
                                   </SidebarMenuItem>

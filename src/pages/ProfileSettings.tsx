@@ -15,7 +15,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Textarea } from '@/components/ui/textarea';
 import DragDropUpload from '@/components/DragDropUpload';
 import { ArrowLeft, User, Bell, Save, Camera, Upload, X, Mail, SendHorizonal, Loader2, FileSignature } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 
 interface ProfileData {
   first_name: string;
@@ -36,14 +36,15 @@ interface NotificationSettings {
   vendor_invitations: boolean;
   job_assignments: boolean;
   receipt_uploaded: boolean;
-  financial_overview_enabled?: boolean;
   financial_overview_interval?: string;
-  bill_approval_requests?: boolean;
-  credit_card_coding_requests?: boolean;
+  chat_mention_notifications?: boolean;
+  chat_channel_notifications?: boolean;
+  chat_direct_message_notifications?: boolean;
 }
 
 export default function ProfileSettings() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, profile, refreshProfile } = useAuth();
   const { currentCompany } = useCompany();
   const activeCompanyRole = useActiveCompanyRole();
@@ -77,11 +78,13 @@ export default function ProfileSettings() {
     vendor_invitations: true,
     job_assignments: true,
     receipt_uploaded: true,
-    financial_overview_enabled: false,
     financial_overview_interval: 'weekly',
-    bill_approval_requests: false,
-    credit_card_coding_requests: false,
+    chat_mention_notifications: true,
+    chat_channel_notifications: true,
+    chat_direct_message_notifications: true,
   });
+
+  const initialTab = searchParams.get('tab') || 'profile';
 
   useEffect(() => {
     if (profile) {
@@ -119,6 +122,9 @@ export default function ProfileSettings() {
           ...data,
           overdue_bills: data.overdue_invoices,
           bills_paid: data.invoices_paid,
+          chat_mention_notifications: data.chat_mention_notifications ?? true,
+          chat_channel_notifications: data.chat_channel_notifications ?? true,
+          chat_direct_message_notifications: data.chat_direct_message_notifications ?? true,
         });
       }
     } catch (error) {
@@ -309,13 +315,22 @@ export default function ProfileSettings() {
 
     setLoading(true);
     try {
-      // Map interface fields back to database fields
+      // Map UI fields to DB schema fields
       const dbSettings = {
-        ...notificationSettings,
         user_id: user.id,
         company_id: currentCompany.id,
+        email_enabled: notificationSettings.email_enabled,
+        in_app_enabled: notificationSettings.in_app_enabled,
         overdue_invoices: notificationSettings.overdue_bills,
+        overdue_bills_interval: notificationSettings.overdue_bills_interval || 'daily',
         invoices_paid: notificationSettings.bills_paid,
+        vendor_invitations: notificationSettings.vendor_invitations,
+        job_assignments: notificationSettings.job_assignments,
+        receipt_uploaded: notificationSettings.receipt_uploaded,
+        financial_overview_interval: notificationSettings.financial_overview_interval || 'weekly',
+        chat_mention_notifications: notificationSettings.chat_mention_notifications ?? true,
+        chat_channel_notifications: notificationSettings.chat_channel_notifications ?? true,
+        chat_direct_message_notifications: notificationSettings.chat_direct_message_notifications ?? true,
       };
       
       const { error } = await supabase
@@ -355,7 +370,7 @@ export default function ProfileSettings() {
         </div>
       </div>
 
-      <Tabs defaultValue="profile" className="space-y-6">
+      <Tabs defaultValue={initialTab} className="space-y-6">
         <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
           <TabsTrigger 
             value="profile" 
@@ -679,11 +694,20 @@ export default function ProfileSettings() {
                       </div>
                       <Switch
                         id="financial-overview"
-                        checked={notificationSettings.financial_overview_enabled || false}
-                        onCheckedChange={(checked) => updateNotificationSetting('financial_overview_enabled', checked)}
+                        checked={(notificationSettings.financial_overview_interval || 'off') !== 'off'}
+                        onCheckedChange={(checked) =>
+                          setNotificationSettings((prev) => ({
+                            ...prev,
+                            financial_overview_interval: checked
+                              ? (prev.financial_overview_interval && prev.financial_overview_interval !== 'off'
+                                  ? prev.financial_overview_interval
+                                  : 'weekly')
+                              : 'off',
+                          }))
+                        }
                       />
                     </div>
-                    {notificationSettings.financial_overview_enabled && (
+                    {(notificationSettings.financial_overview_interval || 'off') !== 'off' && (
                       <div className="pl-6">
                         <Label htmlFor="financial-overview-interval">Report Frequency</Label>
                         <Select
@@ -704,24 +728,35 @@ export default function ProfileSettings() {
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label htmlFor="bill-approval">Bill Approval & Coding Requests</Label>
-                      <p className="text-sm text-muted-foreground">Get notified when you're asked to approve or code a bill</p>
+                      <Label htmlFor="chat-mentions">@Mention Notifications</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when someone @mentions you in team chat</p>
                     </div>
                     <Switch
-                      id="bill-approval"
-                      checked={notificationSettings.bill_approval_requests || false}
-                      onCheckedChange={(checked) => updateNotificationSetting('bill_approval_requests', checked)}
+                      id="chat-mentions"
+                      checked={notificationSettings.chat_mention_notifications !== false}
+                      onCheckedChange={(checked) => updateNotificationSetting('chat_mention_notifications', checked)}
                     />
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <Label htmlFor="credit-card-coding">Credit Card Coding Requests</Label>
-                      <p className="text-sm text-muted-foreground">Get notified when you're requested to code a credit card transaction</p>
+                      <Label htmlFor="chat-channels">Channel Messages</Label>
+                      <p className="text-sm text-muted-foreground">Get notified about new messages in channels you follow</p>
                     </div>
                     <Switch
-                      id="credit-card-coding"
-                      checked={notificationSettings.credit_card_coding_requests || false}
-                      onCheckedChange={(checked) => updateNotificationSetting('credit_card_coding_requests', checked)}
+                      id="chat-channels"
+                      checked={notificationSettings.chat_channel_notifications !== false}
+                      onCheckedChange={(checked) => updateNotificationSetting('chat_channel_notifications', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="chat-direct">Direct Messages</Label>
+                      <p className="text-sm text-muted-foreground">Get notified about direct messages</p>
+                    </div>
+                    <Switch
+                      id="chat-direct"
+                      checked={notificationSettings.chat_direct_message_notifications !== false}
+                      onCheckedChange={(checked) => updateNotificationSetting('chat_direct_message_notifications', checked)}
                     />
                   </div>
                 </div>
@@ -750,7 +785,9 @@ function EmailSettingsTab() {
   const { toast } = useToast();
   const [loading, setLoading] = useState(false);
   const [sendingTest, setSendingTest] = useState(false);
+  const [uploadingSignatureImage, setUploadingSignatureImage] = useState(false);
   const [testEmail, setTestEmail] = useState('');
+  const signatureImageInputRef = useRef<HTMLInputElement>(null);
   const [settings, setSettings] = useState({
     smtp_host: '',
     smtp_port: 587,
@@ -766,6 +803,18 @@ function EmailSettingsTab() {
     is_configured: false,
     email_signature: '',
   });
+
+  const escapeHtml = (value: string) =>
+    value
+      .replaceAll('&', '&amp;')
+      .replaceAll('<', '&lt;')
+      .replaceAll('>', '&gt;')
+      .replaceAll('"', '&quot;')
+      .replaceAll("'", '&#039;');
+
+  const signaturePreviewHtml = settings.email_signature.includes('<')
+    ? settings.email_signature
+    : escapeHtml(settings.email_signature).replace(/\n/g, '<br />');
 
   useEffect(() => {
     if (!user) return;
@@ -864,6 +913,58 @@ function EmailSettingsTab() {
       toast({ title: 'Failed to send test email', description: err.message, variant: 'destructive' });
     } finally {
       setSendingTest(false);
+    }
+  };
+
+  const handleSignatureImageUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!user) return;
+    const file = event.target.files?.[0];
+    event.target.value = '';
+
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file',
+        description: 'Please select an image file.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setUploadingSignatureImage(true);
+      const fileExt = file.name.split('.').pop() || 'png';
+      const filePath = `${user.id}/email-signatures/${Date.now()}-${crypto.randomUUID()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: false });
+
+      if (uploadError) throw uploadError;
+
+      const { data: publicData } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      const imageTag = `<img src="${publicData.publicUrl}" alt="Signature image" style="max-width:220px;height:auto;" />`;
+
+      setSettings((prev) => ({
+        ...prev,
+        email_signature: prev.email_signature
+          ? `${prev.email_signature}\n${imageTag}`
+          : imageTag,
+      }));
+
+      toast({
+        title: 'Image uploaded',
+        description: 'Signature image added. Save signature to persist changes.',
+      });
+    } catch (error: any) {
+      console.error('Error uploading signature image:', error);
+      toast({
+        title: 'Upload failed',
+        description: error?.message || 'Could not upload signature image.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingSignatureImage(false);
     }
   };
 
@@ -1002,6 +1103,31 @@ function EmailSettingsTab() {
           <p className="text-sm text-muted-foreground">
             Set your email signature that will be automatically appended to all outgoing emails.
           </p>
+          <input
+            ref={signatureImageInputRef}
+            type="file"
+            accept="image/*"
+            onChange={handleSignatureImageUpload}
+            className="hidden"
+          />
+          <div className="flex items-center justify-between gap-3">
+            <p className="text-xs text-muted-foreground">
+              You can add text, HTML, and uploaded images to your signature.
+            </p>
+            <Button
+              type="button"
+              variant="outline"
+              onClick={() => signatureImageInputRef.current?.click()}
+              disabled={uploadingSignatureImage}
+            >
+              {uploadingSignatureImage ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="h-4 w-4 mr-2" />
+              )}
+              {uploadingSignatureImage ? 'Uploading...' : 'Upload Image'}
+            </Button>
+          </div>
           <Textarea
             value={settings.email_signature}
             onChange={e => setSettings(p => ({ ...p, email_signature: e.target.value }))}
@@ -1011,7 +1137,10 @@ function EmailSettingsTab() {
           {settings.email_signature && (
             <div className="border rounded-md p-4 bg-muted/50">
               <p className="text-xs font-medium text-muted-foreground mb-2">Preview</p>
-              <div className="text-sm whitespace-pre-wrap">{settings.email_signature}</div>
+              <div
+                className="text-sm break-words [&_img]:inline-block [&_img]:align-middle"
+                dangerouslySetInnerHTML={{ __html: signaturePreviewHtml }}
+              />
             </div>
           )}
           <div className="flex justify-end">

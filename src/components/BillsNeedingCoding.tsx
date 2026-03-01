@@ -189,32 +189,38 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
                 className="px-3 py-2 rounded-md border bg-card hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
                 onClick={() => handleBillClick(bill.id, bill.status === 'pending_coding')}
               >
-                <div className="flex items-center gap-3 text-sm">
-                  <FileText className="h-4 w-4 text-muted-foreground flex-shrink-0" />
-                  <span className="font-medium min-w-[120px] truncate group-hover:text-primary transition-colors">
-                    {bill.invoice_number || 'No Invoice #'}
-                  </span>
-                  <span className="text-muted-foreground truncate flex-1">
-                    {bill.vendor?.name || 'Unknown'}
-                  </span>
-                  {!jobId && bill.job && (
-                    <span className="text-muted-foreground text-xs truncate max-w-[150px]">
-                      {bill.job.name}
+                <div className="grid grid-cols-[minmax(260px,1.8fr)_minmax(120px,.8fr)_minmax(110px,.7fr)_minmax(130px,.8fr)_minmax(95px,.6fr)] items-center gap-2 text-sm">
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <span className="font-medium truncate group-hover:text-primary transition-colors">
+                      {bill.invoice_number || 'No Invoice #'}
                     </span>
-                  )}
+                    <span className="text-muted-foreground truncate">
+                      {bill.vendor?.name || 'Unknown'}
+                    </span>
+                  </div>
+
+                  <span className="text-muted-foreground text-xs truncate">
+                    {!jobId ? (bill.job?.name || 'No Job') : (bill.job?.name || 'Current Job')}
+                  </span>
+
                   <span className="font-medium text-foreground whitespace-nowrap">
                     ${bill.amount.toLocaleString()}
                   </span>
-                  {bill.status === 'pending_coding' ? (
-                    <Badge variant="secondary" className="text-xs whitespace-nowrap">
-                      Needs Coding
-                    </Badge>
-                  ) : (
-                    <Badge variant="outline" className="text-xs whitespace-nowrap">
-                      Needs Approval
-                    </Badge>
-                  )}
-                  <span className="text-xs text-muted-foreground whitespace-nowrap ml-auto">
+
+                  <div className="flex">
+                    {bill.status === 'pending_coding' ? (
+                      <Badge variant="secondary" className="text-xs whitespace-nowrap">
+                        Needs Coding
+                      </Badge>
+                    ) : (
+                      <Badge variant="outline" className="text-xs whitespace-nowrap">
+                        Needs Approval
+                      </Badge>
+                    )}
+                  </div>
+
+                  <span className="text-xs text-muted-foreground whitespace-nowrap">
                     {formatDistanceToNow(new Date(bill.created_at), { addSuffix: true })}
                   </span>
                 </div>

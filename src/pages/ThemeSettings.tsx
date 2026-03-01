@@ -13,10 +13,8 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
-import { useCompany } from '@/contexts/CompanyContext';
 import ColorPicker from '@/components/ColorPicker';
 import { Palette, SlidersHorizontal } from 'lucide-react';
-import DragDropUpload from '@/components/DragDropUpload';
 
 
 interface ThemeSettingsProps {
@@ -34,7 +32,6 @@ export default function ThemeSettings({
   const { toast } = useToast();
   const { setTheme } = useTheme();
   const { user } = useAuth();
-  const { currentCompany } = useCompany();
   const [uploading, setUploading] = useState(false);
 
   const handleSaveSettings = () => {
@@ -49,48 +46,6 @@ export default function ThemeSettings({
     if (!onRegisterSaveHandler) return;
     onRegisterSaveHandler(handleSaveSettings);
   }, [onRegisterSaveHandler, settings.theme]);
-
-  const uploadThemeLogoFile = async (file?: File | null) => {
-    if (!file || !user) return;
-
-    setUploading(true);
-    try {
-      const fileExt = file.name.split('.').pop();
-      const fileName = `logo-${Date.now()}.${fileExt}`;
-      const filePath = `${user.id}/theme-logos/${fileName}`;
-
-      const { error: uploadError } = await supabase.storage
-        .from('company-logos')
-        .upload(filePath, file);
-
-      if (uploadError) throw uploadError;
-
-      const { data } = supabase.storage
-        .from('company-logos')
-        .getPublicUrl(filePath);
-
-      updateSettings({ customLogo: data.publicUrl });
-      
-      toast({
-        title: "Logo uploaded successfully",
-        description: "Your custom logo has been saved.",
-      });
-    } catch (error) {
-      console.error('Error uploading logo:', error);
-      toast({
-        title: "Upload failed",
-        description: "Failed to upload logo. Please try again.",
-        variant: "destructive",
-      });
-    } finally {
-      setUploading(false);
-    }
-  };
-
-  const handleLogoUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    await uploadThemeLogoFile(event.target.files?.[0]);
-    event.target.value = '';
-  };
 
   const uploadThemeBannerFile = async (file?: File | null) => {
     if (!file || !user) return;
@@ -237,53 +192,6 @@ export default function ThemeSettings({
                     </div>
                   </RadioGroup>
                 </div>
-              </CardContent>
-            </Card>
-
-            <Card>
-              <CardHeader>
-                <CardTitle>Logo & Branding</CardTitle>
-                <CardDescription>
-                  Customize your company branding for {currentCompany?.display_name || currentCompany?.name || 'your company'}
-                </CardDescription>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div className="space-y-4">
-                  <Label>Logo Upload</Label>
-                  <div className="flex items-center gap-4">
-                    {settings.customLogo && (
-                      <div className="flex items-center gap-2">
-                        <img 
-                          src={settings.customLogo} 
-                          alt="Custom Logo" 
-                          className="h-8 w-8 object-contain border rounded"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateSettings({ customLogo: undefined })}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    )}
-                    <div className="min-w-[260px]">
-                      <DragDropUpload
-                        onFileSelect={(file) => { void uploadThemeLogoFile(file); }}
-                        accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
-                        maxSize={10}
-                        size="compact"
-                        disabled={uploading}
-                        title="Drag logo here"
-                        dropTitle="Drop logo here"
-                        helperText="Image file up to 10MB"
-                      />
-                    </div>
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Upload a logo to replace the default icon in the sidebar header
-                  </div>
-                </div>
 
                 <Separator />
 
@@ -306,18 +214,13 @@ export default function ThemeSettings({
                         </Button>
                       </div>
                     )}
-                    <div className="min-w-[260px]">
-                      <DragDropUpload
-                        onFileSelect={(file) => { void uploadThemeBannerFile(file); }}
-                        accept=".png,.jpg,.jpeg,.webp,.gif,.svg"
-                        maxSize={10}
-                        size="compact"
-                        disabled={uploading}
-                        title="Drag banner image here"
-                        dropTitle="Drop banner image here"
-                        helperText="Image file up to 10MB"
-                      />
-                    </div>
+                    <Input
+                      type="file"
+                      accept="image/*"
+                      onChange={handleBannerUpload}
+                      disabled={uploading}
+                      className="max-w-sm"
+                    />
                   </div>
                   <div className="text-sm text-muted-foreground">
                     Upload a banner image to display at the top of your dashboard
