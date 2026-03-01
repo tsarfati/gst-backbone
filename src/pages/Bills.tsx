@@ -397,6 +397,7 @@ export default function Bills() {
 
   const handleBulkApprove = async () => {
     try {
+      const approvedBillIds = [...selectedBills];
       const { error } = await supabase
         .from('invoices')
         .update({ status: 'pending_payment' })
@@ -410,6 +411,10 @@ export default function Bills() {
       });
 
       setSelectedBills([]);
+      if (approvedBillIds.length === 1) {
+        navigate(`/invoices/${approvedBillIds[0]}`);
+        return;
+      }
       loadBills();
     } catch (error) {
       console.error('Error approving bills:', error);
