@@ -42,11 +42,15 @@ export function AccessControl({ children }: AccessControlProps) {
   const lastAutoAcceptAttemptAtRef = useRef<number>(0);
   const autoAcceptAttemptCountRef = useRef(0);
   const isInviteAuthRoute = location.pathname === '/auth' && new URLSearchParams(location.search).has('invite');
+  const inviteAutoAcceptFlag = typeof window !== 'undefined'
+    ? window.sessionStorage.getItem('pending_invite_auto_accept') === '1'
+    : false;
 
   useEffect(() => {
     const maxAutoAcceptAttempts = 8;
     const shouldTryAutoAccept =
       !!user?.id &&
+      inviteAutoAcceptFlag &&
       !isInviteAuthRoute &&
       (!hasTenantAccess && !isSuperAdmin && userCompanies.length === 0);
 
@@ -107,11 +111,16 @@ export function AccessControl({ children }: AccessControlProps) {
           const terminalError =
             parsed.code === 'INVITATION_NOT_FOUND' ||
             parsed.code === 'INVITATION_EXPIRED' ||
-            parsed.code === 'INVITATION_EMAIL_MISMATCH';
+            parsed.code === 'INVITATION_EMAIL_MISMATCH' ||
+            parsed.message?.toLowerCase?.().includes?.('404') ||
+            parsed.message?.toLowerCase?.().includes?.('not found');
           if (!terminalError && autoAcceptAttemptCountRef.current < maxAutoAcceptAttempts) {
             retryTimer = window.setTimeout(() => {
               setAutoAcceptRetryTick((n) => n + 1);
             }, 3500);
+          }
+          if (terminalError) {
+            window.sessionStorage.removeItem('pending_invite_auto_accept');
           }
           return;
         }
@@ -121,12 +130,14 @@ export function AccessControl({ children }: AccessControlProps) {
             requestId: data?.requestId || null,
             debug: data?.debug || null,
           });
+          window.sessionStorage.removeItem('pending_invite_auto_accept');
           await refreshProfile();
         }
       } catch (err) {
         if (!cancelled) {
           console.warn('Auto invite acceptance error:', err);
         }
+        window.sessionStorage.removeItem('pending_invite_auto_accept');
       } finally {
         if (!cancelled) setAutoAcceptingInvite(false);
       }
@@ -138,7 +149,7 @@ export function AccessControl({ children }: AccessControlProps) {
       cancelled = true;
       if (retryTimer) window.clearTimeout(retryTimer);
     };
-  }, [user?.id, profile?.status, hasTenantAccess, isSuperAdmin, userCompanies.length, isInviteAuthRoute, refreshProfile, autoAcceptRetryTick]);
+  }, [user?.id, profile?.status, hasTenantAccess, isSuperAdmin, userCompanies.length, isInviteAuthRoute, inviteAutoAcceptFlag, refreshProfile, autoAcceptRetryTick]);
 
   useEffect(() => {
     if (authLoading || companyLoading || tenantLoading) {

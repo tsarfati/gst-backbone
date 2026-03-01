@@ -237,6 +237,9 @@ export default function Auth() {
         variant: 'destructive',
       });
     } else {
+      if (inviteToken) {
+        window.sessionStorage.setItem('pending_invite_auto_accept', '1');
+      }
       toast({
         title: 'Success',
         description: 'Signed in successfully!',

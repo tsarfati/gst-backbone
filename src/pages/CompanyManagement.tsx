@@ -10,7 +10,7 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, Users, UserPlus, Shield, Trash2, Edit, Plus, Upload, Camera, Share2, FileText, AlertTriangle } from 'lucide-react';
+import { Building2, Users, UserPlus, Shield, Trash2, Edit, Plus, Upload, Camera, Share2, FileText, AlertTriangle, CircleHelp } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import CompanyAccessApproval from '@/components/CompanyAccessApproval';
@@ -463,6 +463,10 @@ export default function CompanyManagement() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => navigate('/settings/help')}>
+            <CircleHelp className="h-4 w-4 mr-2" />
+            Help
+          </Button>
           <Button variant="outline" onClick={() => setShowCreateCompanyDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             Create Company
