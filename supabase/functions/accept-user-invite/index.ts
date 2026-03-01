@@ -246,6 +246,48 @@ serve(async (req: Request): Promise<Response> => {
       if (insertAccessError) throw insertAccessError;
     }
 
+    // Ensure tenant membership exists for the invited company's tenant.
+    // Without this, users can be redirected to /tenant-request even after invite acceptance.
+    const { data: companyRow, error: companyLookupError } = await supabaseAdmin
+      .from("companies")
+      .select("tenant_id")
+      .eq("id", pendingInvite.company_id)
+      .maybeSingle();
+    if (companyLookupError) throw companyLookupError;
+
+    if (companyRow?.tenant_id) {
+      const { data: tenantMemberRow, error: tenantMemberLookupError } = await supabaseAdmin
+        .from("tenant_members")
+        .select("tenant_id, user_id, role")
+        .eq("tenant_id", companyRow.tenant_id)
+        .eq("user_id", userData.user.id)
+        .maybeSingle();
+      if (tenantMemberLookupError) throw tenantMemberLookupError;
+
+      const shouldBeTenantAdmin = ["admin", "company_admin", "controller", "owner", "super_admin"]
+        .includes(baseRole);
+      const tenantRole = shouldBeTenantAdmin ? "admin" : "member";
+
+      if (!tenantMemberRow) {
+        const { error: tenantMemberInsertError } = await supabaseAdmin
+          .from("tenant_members")
+          .insert({
+            tenant_id: companyRow.tenant_id,
+            user_id: userData.user.id,
+            role: tenantRole,
+            invited_by: pendingInvite.invited_by,
+          });
+        if (tenantMemberInsertError) throw tenantMemberInsertError;
+      } else if (tenantMemberRow.role !== tenantRole) {
+        const { error: tenantMemberUpdateError } = await supabaseAdmin
+          .from("tenant_members")
+          .update({ role: tenantRole })
+          .eq("tenant_id", companyRow.tenant_id)
+          .eq("user_id", userData.user.id);
+        if (tenantMemberUpdateError) throw tenantMemberUpdateError;
+      }
+    }
+
     // Apply custom role to profile (if present on invite).
     // Be robust to missing profile rows (can happen with invite/account race conditions).
     const profilePatch: Record<string, unknown> = {
