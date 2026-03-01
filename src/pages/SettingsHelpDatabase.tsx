@@ -144,7 +144,7 @@ const SettingsHelpDatabase = () => {
                 key={category}
                 variant={selectedCategory === category ? "default" : "outline"}
                 size="sm"
-                onClick={() => setSelectedCategory(category)}
+                onClick={() => setSelectedCategory(category as HelpCategory)}
               >
                 {category}
               </Button>

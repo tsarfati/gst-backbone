@@ -1254,6 +1254,86 @@ export type Database = {
           },
         ]
       }
+      company_email_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          from_email: string | null
+          from_name: string | null
+          id: string
+          imap_host: string | null
+          imap_password_encrypted: string | null
+          imap_port: number | null
+          imap_username: string | null
+          incoming_host: string | null
+          incoming_password_encrypted: string | null
+          incoming_port: number | null
+          incoming_protocol: string | null
+          incoming_username: string | null
+          is_configured: boolean | null
+          smtp_host: string | null
+          smtp_password_encrypted: string | null
+          smtp_port: number | null
+          smtp_username: string | null
+          updated_at: string
+          use_ssl: boolean | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          imap_host?: string | null
+          imap_password_encrypted?: string | null
+          imap_port?: number | null
+          imap_username?: string | null
+          incoming_host?: string | null
+          incoming_password_encrypted?: string | null
+          incoming_port?: number | null
+          incoming_protocol?: string | null
+          incoming_username?: string | null
+          is_configured?: boolean | null
+          smtp_host?: string | null
+          smtp_password_encrypted?: string | null
+          smtp_port?: number | null
+          smtp_username?: string | null
+          updated_at?: string
+          use_ssl?: boolean | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          from_email?: string | null
+          from_name?: string | null
+          id?: string
+          imap_host?: string | null
+          imap_password_encrypted?: string | null
+          imap_port?: number | null
+          imap_username?: string | null
+          incoming_host?: string | null
+          incoming_password_encrypted?: string | null
+          incoming_port?: number | null
+          incoming_protocol?: string | null
+          incoming_username?: string | null
+          is_configured?: boolean | null
+          smtp_host?: string | null
+          smtp_password_encrypted?: string | null
+          smtp_port?: number | null
+          smtp_username?: string | null
+          updated_at?: string
+          use_ssl?: boolean | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_email_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_files: {
         Row: {
           category: string
