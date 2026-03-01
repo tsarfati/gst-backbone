@@ -21,6 +21,7 @@ interface Employee {
   display_name: string;
   first_name: string;
   last_name: string;
+  group_id?: string;
 }
 
 interface Job {
@@ -107,6 +108,18 @@ export default function TimecardReports() {
 
   const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes(profile?.role as string);
 
+  const getEffectiveEmployeeFilter = () => {
+    if (filters.groups.length === 0) return [...filters.employees];
+    const usersFromMembershipTable = groupMemberships
+      .filter((m) => filters.groups.includes(m.group_id))
+      .map((m) => m.user_id);
+    const usersFromEmployeeProfileGroup = employees
+      .filter((e) => e.group_id && filters.groups.includes(e.group_id))
+      .map((e) => e.user_id);
+    const usersFromGroups = [...usersFromMembershipTable, ...usersFromEmployeeProfileGroup];
+    return [...new Set([...filters.employees, ...usersFromGroups])];
+  };
+
   useEffect(() => {
     if (currentCompany?.id) {
       loadInitialData();
@@ -120,6 +133,25 @@ export default function TimecardReports() {
       return { ...prev, employees: [preselectedUserId] };
     });
   }, [preselectedUserId]);
+
+  // Ensure selected groups always include their members in employee filter state.
+  useEffect(() => {
+    if (filters.groups.length === 0) return;
+    const groupUsersFromMembershipTable = groupMemberships
+      .filter((m) => filters.groups.includes(m.group_id))
+      .map((m) => m.user_id);
+    const groupUsersFromEmployeeProfileGroup = employees
+      .filter((e) => e.group_id && filters.groups.includes(e.group_id))
+      .map((e) => e.user_id);
+    const groupUsers = [...groupUsersFromMembershipTable, ...groupUsersFromEmployeeProfileGroup];
+    if (groupUsers.length === 0) return;
+
+    setFilters((prev) => {
+      const mergedEmployees = [...new Set([...prev.employees, ...groupUsers])];
+      if (mergedEmployees.length === prev.employees.length) return prev;
+      return { ...prev, employees: mergedEmployees };
+    });
+  }, [filters.groups.join(','), groupMemberships, employees]);
 
   const loadInitialData = async () => {
     await Promise.all([
@@ -149,7 +181,7 @@ export default function TimecardReports() {
       const profilesRes = companyUserIds.length > 0
         ? await supabase
             .from('profiles')
-            .select('user_id, display_name, first_name, last_name')
+            .select('user_id, display_name, first_name, last_name, group_id')
             .in('user_id', companyUserIds)
         : { data: [], error: null };
 
@@ -161,6 +193,7 @@ export default function TimecardReports() {
           display_name: p.display_name,
           first_name: p.first_name,
           last_name: p.last_name,
+          group_id: p.group_id || undefined,
         });
       });
 
@@ -254,7 +287,9 @@ export default function TimecardReports() {
 
       setGroups(result || []);
 
-      // Load group memberships from employee_group_members table
+      // Load group memberships from both sources:
+      // 1) employee_group_members (new junction model)
+      // 2) profiles.group_id (legacy/current assignment path in parts of the app)
       if (result && result.length > 0) {
         const groupIds = result.map(g => g.id);
         
@@ -262,13 +297,30 @@ export default function TimecardReports() {
           .from('employee_group_members')
           .select('group_id, user_id')
           .in('group_id', groupIds);
-        
-        const allMemberships: GroupMembership[] = (tableMemberships || []).map(m => ({
-          group_id: m.group_id,
-          user_id: m.user_id
-        }));
-        
-        setGroupMemberships(allMemberships);
+
+        const { data: profileMemberships } = await supabase
+          .from('profiles')
+          .select('user_id, group_id')
+          .in('group_id', groupIds as any);
+
+        const merged = [
+          ...((tableMemberships || []).map((m: any) => ({
+            group_id: m.group_id,
+            user_id: m.user_id
+          })) as GroupMembership[]),
+          ...((profileMemberships || [])
+            .filter((p: any) => !!p.group_id)
+            .map((p: any) => ({
+              group_id: p.group_id as string,
+              user_id: p.user_id as string
+            })) as GroupMembership[])
+        ];
+
+        const deduped = Array.from(
+          new Map(merged.map((m) => [`${m.group_id}:${m.user_id}`, m])).values()
+        );
+
+        setGroupMemberships(deduped);
       } else {
         setGroupMemberships([]);
       }
@@ -325,7 +377,7 @@ export default function TimecardReports() {
       }
 
       // Apply filters
-      let employeeFilter = [...filters.employees];
+      const employeeFilter = getEffectiveEmployeeFilter();
       
       if (employeeFilter.length > 0) {
         query = query.in('user_id', employeeFilter);
@@ -577,7 +629,7 @@ export default function TimecardReports() {
       }
 
       // Apply employee filters if they exist
-      let employeeFilter = [...filters.employees];
+      const employeeFilter = getEffectiveEmployeeFilter();
       
       if (employeeFilter.length > 0) {
         query = query.in('user_id', employeeFilter);
@@ -611,7 +663,7 @@ export default function TimecardReports() {
         .order('punch_time', { ascending: false });
 
       // Apply employee filters
-      let employeeFilter = [...filters.employees];
+      const employeeFilter = getEffectiveEmployeeFilter();
 
       if (employeeFilter.length > 0) {
         query = query.in('user_id', employeeFilter);
@@ -665,8 +717,9 @@ export default function TimecardReports() {
           .eq('company_id', currentCompany.id)
           .gte('punch_time', fallbackStart.toISOString())
           .order('punch_time', { ascending: false });
-        if (filters.employees.length > 0) {
-          q2 = q2.in('user_id', filters.employees);
+        const fallbackEmployeeFilter = getEffectiveEmployeeFilter();
+        if (fallbackEmployeeFilter.length > 0) {
+          q2 = q2.in('user_id', fallbackEmployeeFilter);
         }
         if (filters.jobs.length > 0) q2 = q2.in('job_id', filters.jobs);
         const { data: d2 } = await q2;
@@ -777,8 +830,8 @@ export default function TimecardReports() {
     try {
       // Build filter details for PDF
       const filterDetails = {
-        employeeNames: filters.employees.length > 0 
-          ? filters.employees.map(empId => 
+        employeeNames: getEffectiveEmployeeFilter().length > 0 
+          ? getEffectiveEmployeeFilter().map(empId => 
               employees.find(e => e.user_id === empId)?.display_name || 'Unknown'
             )
           : undefined,
@@ -845,8 +898,8 @@ export default function TimecardReports() {
         dateRange: filters.startDate && filters.endDate 
           ? `${filters.startDate.toLocaleDateString()} - ${filters.endDate.toLocaleDateString()}`
           : 'All Time',
-        employee: filters.employees.length === 1 
-          ? employees.find(e => e.user_id === filters.employees[0])?.display_name 
+        employee: getEffectiveEmployeeFilter().length === 1 
+          ? employees.find(e => e.user_id === getEffectiveEmployeeFilter()[0])?.display_name 
           : undefined,
         data: dataForExport,
         summary: exportSummary,
@@ -885,8 +938,8 @@ export default function TimecardReports() {
         dateRange: filters.startDate && filters.endDate 
           ? `${filters.startDate.toLocaleDateString()} - ${filters.endDate.toLocaleDateString()}`
           : 'All Time',
-        employee: filters.employees.length === 1 
-          ? employees.find(e => e.user_id === filters.employees[0])?.display_name 
+        employee: getEffectiveEmployeeFilter().length === 1 
+          ? employees.find(e => e.user_id === getEffectiveEmployeeFilter()[0])?.display_name 
           : undefined,
         data,
         summary: {

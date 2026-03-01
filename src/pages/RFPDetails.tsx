@@ -17,6 +17,8 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessJobIds } from '@/utils/jobAccess';
 interface RFP {
   id: string;
   rfp_number: string;
@@ -76,6 +78,7 @@ export default function RFPDetails() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [rfp, setRfp] = useState<RFP | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
@@ -91,14 +94,10 @@ export default function RFPDetails() {
   const [resendingInvite, setResendingInvite] = useState<string | null>(null);
 
   useEffect(() => {
-    if (id && currentCompany?.id) {
+    if (id && currentCompany?.id && !websiteJobAccessLoading) {
       loadRFP();
-      loadBids();
-      loadCriteria();
-      loadVendors();
-      loadInvitedVendors();
     }
-  }, [id, currentCompany?.id]);
+  }, [id, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
   const loadRFP = async () => {
     try {
@@ -112,7 +111,18 @@ export default function RFPDetails() {
         .single();
 
       if (error) throw error;
+
+      if (!canAccessJobIds([data.job_id], isPrivileged, allowedJobIds)) {
+        toast({
+          title: 'Access denied',
+          description: 'You do not have access to this job.',
+          variant: 'destructive'
+        });
+        navigate('/construction/rfps');
+        return;
+      }
       setRfp(data);
+      await Promise.all([loadBids(), loadCriteria(), loadVendors(), loadInvitedVendors()]);
     } catch (error) {
       console.error('Error loading RFP:', error);
       toast({

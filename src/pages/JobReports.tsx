@@ -6,17 +6,19 @@ import { Badge } from "@/components/ui/badge";
 import { BarChart3, Building2, Calendar, FolderOpen, Layers, PieChart, TrendingUp } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 export default function JobReports() {
   const [period, setPeriod] = useState("6months");
   const [groupBy, setGroupBy] = useState("status");
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [jobs, setJobs] = useState<any[]>([]);
   const [loadingJobs, setLoadingJobs] = useState(true);
 
   useEffect(() => {
     const load = async () => {
-      if (!currentCompany?.id) { setJobs([]); setLoadingJobs(false); return; }
+      if (!currentCompany?.id || websiteJobAccessLoading) { setJobs([]); setLoadingJobs(false); return; }
       setLoadingJobs(true);
       const { data } = await supabase
         .from('jobs')
@@ -24,11 +26,14 @@ export default function JobReports() {
         .eq('company_id', currentCompany.id)
         .order('created_at', { ascending: false })
         .limit(30);
-      setJobs(data || []);
+      const visibleJobs = isPrivileged
+        ? (data || [])
+        : (data || []).filter((job: any) => allowedJobIds.includes(job.id));
+      setJobs(visibleJobs);
       setLoadingJobs(false);
     };
     load();
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   return (
     <div className="p-6">

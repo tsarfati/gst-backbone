@@ -11,6 +11,8 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessJobIds, ensureAllowedJobFilter } from '@/utils/jobAccess';
 
 interface Job {
   id: string;
@@ -23,11 +25,12 @@ export default function AddRFP() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   
-  const preselectedJobId = searchParams.get('jobId');
+  const preselectedJobId = ensureAllowedJobFilter(searchParams.get('jobId'), isPrivileged, allowedJobIds);
   
   const [formData, setFormData] = useState({
     rfp_number: '',
@@ -40,11 +43,11 @@ export default function AddRFP() {
   });
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadJobs();
       generateRFPNumber();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
   const loadJobs = async () => {
     try {
@@ -56,7 +59,8 @@ export default function AddRFP() {
         .order('name');
 
       if (error) throw error;
-      setJobs(data || []);
+      const filteredJobs = (data || []).filter((job) => canAccessJobIds([job.id], isPrivileged, allowedJobIds));
+      setJobs(filteredJobs);
     } catch (error) {
       console.error('Error loading jobs:', error);
     }
@@ -86,6 +90,15 @@ export default function AddRFP() {
       toast({
         title: 'Validation Error',
         description: 'Please enter a title for the RFP',
+        variant: 'destructive'
+      });
+      return;
+    }
+
+    if (formData.job_id && !canAccessJobIds([formData.job_id], isPrivileged, allowedJobIds)) {
+      toast({
+        title: 'Access denied',
+        description: 'You do not have access to the selected job.',
         variant: 'destructive'
       });
       return;

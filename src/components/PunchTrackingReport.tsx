@@ -26,6 +26,8 @@ interface PunchRecord {
   latitude: number | null;
   longitude: number | null;
   photo_url: string | null;
+  ip_address: string | null;
+  user_agent: string | null;
   notes: string | null;
 }
 
@@ -330,6 +332,8 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
                       latitude: record.latitude ?? undefined,
                       longitude: record.longitude ?? undefined,
                       photo_url: record.photo_url ?? undefined,
+                      ip_address: record.ip_address ?? undefined,
+                      user_agent: record.user_agent ?? undefined,
                       notes: record.notes ?? undefined,
                       user_id: record.user_id ?? undefined,
                       job_id: record.job_id ?? undefined,
@@ -359,7 +363,7 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
                   <TableCell>{record.job_name || "-"}</TableCell>
                   <TableCell className="text-muted-foreground">{record.cost_code || "-"}</TableCell>
                   <TableCell>
-                    {record.latitude && record.longitude ? (
+                    {record.latitude != null && record.longitude != null ? (
                       <div className="flex items-center gap-1 text-green-600">
                         <MapPin className="h-4 w-4" />
                         Yes

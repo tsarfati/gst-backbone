@@ -17,6 +17,7 @@ interface Employee {
   display_name: string;
   first_name: string;
   last_name: string;
+  group_id?: string;
 }
 
 interface Job {
@@ -63,6 +64,72 @@ interface TimecardReportFiltersProps {
   loading?: boolean;
 }
 
+interface MultiSelectDropdownProps {
+  label: string;
+  icon?: ReactNode;
+  selectedCount: number;
+  searchValue: string;
+  setSearchValue: (value: string) => void;
+  onSelectAll: () => void;
+  onClearAll: () => void;
+  children: ReactNode;
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  triggerClassName?: string;
+}
+
+function MultiSelectDropdown({
+  label,
+  icon,
+  selectedCount,
+  searchValue,
+  setSearchValue,
+  onSelectAll,
+  onClearAll,
+  children,
+  open,
+  onOpenChange,
+  triggerClassName = '',
+}: MultiSelectDropdownProps) {
+  return (
+    <Popover open={open} onOpenChange={onOpenChange}>
+      <PopoverTrigger asChild>
+        <Button variant="outline" className={`w-full justify-between ${triggerClassName}`}>
+          <span className="flex items-center gap-2 truncate">
+            {icon}
+            <span className="truncate">{label}</span>
+          </span>
+          <Badge variant="secondary" className="ml-2">{selectedCount}</Badge>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[320px] p-0"
+        onEscapeKeyDown={() => onOpenChange(false)}
+      >
+        <div className="p-3 border-b space-y-2">
+          <div className="relative">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              placeholder={`Search ${label.toLowerCase()}...`}
+              className="pl-9 h-9"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={onSelectAll}>Select All</Button>
+            <Button size="sm" variant="outline" onClick={onClearAll}>Clear All</Button>
+          </div>
+        </div>
+        <div className="max-h-72 overflow-y-auto p-3 space-y-2">
+          {children}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+}
+
 export default function TimecardReportFilters({
   filters,
   onFiltersChange,
@@ -83,6 +150,16 @@ export default function TimecardReportFilters({
   const [jobsOpen, setJobsOpen] = useState(false);
   const [locationsOpen, setLocationsOpen] = useState(false);
   const [groupsOpen, setGroupsOpen] = useState(false);
+
+  const allGroupMemberships: GroupMembership[] = (() => {
+    const fromEmployees = employees
+      .filter((e) => !!e.group_id)
+      .map((e) => ({ group_id: e.group_id as string, user_id: e.user_id }));
+    const merged = [...groupMemberships, ...fromEmployees];
+    return Array.from(
+      new Map(merged.map((m) => [`${m.group_id}:${m.user_id}`, m])).values()
+    );
+  })();
 
   useEffect(() => {
     // Load unique locations from jobs
@@ -126,7 +203,7 @@ export default function TimecardReportFilters({
     const isAdding = !filters.groups.includes(groupId);
     
     // Get all employees in this group
-    const groupEmployees = groupMemberships
+    const groupEmployees = allGroupMemberships
       .filter(m => m.group_id === groupId)
       .map(m => m.user_id);
     
@@ -143,7 +220,7 @@ export default function TimecardReportFilters({
       
       // Get employees from remaining selected groups
       const remainingGroupEmployees = new Set(
-        groupMemberships
+        allGroupMemberships
           .filter(m => updatedGroups.includes(m.group_id))
           .map(m => m.user_id)
       );
@@ -186,80 +263,6 @@ export default function TimecardReportFilters({
   const filteredJobs = jobs.filter((job) => job.name.toLowerCase().includes(jobSearch.toLowerCase()));
   const filteredLocations = locations.filter((location) => location.toLowerCase().includes(locationSearch.toLowerCase()));
   const filteredGroups = groups.filter((group) => group.name.toLowerCase().includes(groupSearch.toLowerCase()));
-
-  const MultiSelectDropdown = ({
-    label,
-    icon,
-    selectedCount,
-    searchValue,
-    setSearchValue,
-    onSelectAll,
-    onClearAll,
-    children,
-    open,
-    onOpenChange,
-    triggerClassName = '',
-  }: {
-    label: string;
-    icon?: ReactNode;
-    selectedCount: number;
-    searchValue: string;
-    setSearchValue: (value: string) => void;
-    onSelectAll: () => void;
-    onClearAll: () => void;
-    children: ReactNode;
-    open: boolean;
-    onOpenChange: (open: boolean) => void;
-    triggerClassName?: string;
-  }) => (
-    <Popover
-      open={open}
-      onOpenChange={(nextOpen) => {
-        // Keep dropdown stable/open during checkbox interactions.
-        // Only allow automatic open; closing is handled explicitly by trigger toggle or Escape.
-        if (nextOpen) onOpenChange(true);
-      }}
-    >
-      <PopoverTrigger asChild>
-        <Button
-          variant="outline"
-          className={`w-full justify-between ${triggerClassName}`}
-          onClick={() => onOpenChange(!open)}
-        >
-          <span className="flex items-center gap-2 truncate">
-            {icon}
-            <span className="truncate">{label}</span>
-          </span>
-          <Badge variant="secondary" className="ml-2">{selectedCount}</Badge>
-        </Button>
-      </PopoverTrigger>
-      <PopoverContent
-        align="start"
-        className="w-[320px] p-0"
-        onEscapeKeyDown={() => onOpenChange(false)}
-        onCloseAutoFocus={(e) => e.preventDefault()}
-      >
-        <div className="p-3 border-b space-y-2">
-          <div className="relative">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
-              value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
-              placeholder={`Search ${label.toLowerCase()}...`}
-              className="pl-9 h-9"
-            />
-          </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={onSelectAll}>Select All</Button>
-            <Button size="sm" variant="outline" onClick={onClearAll}>Clear All</Button>
-          </div>
-        </div>
-        <div className="max-h-72 overflow-y-auto p-3 space-y-2">
-          {children}
-        </div>
-      </PopoverContent>
-    </Popover>
-  );
 
   return (
     <Card>
@@ -404,7 +407,7 @@ export default function TimecardReportFilters({
             setSearchValue={setGroupSearch}
             onSelectAll={() => {
               const allGroupIds = groups.map(g => g.id);
-              const allGroupEmployees = groupMemberships
+              const allGroupEmployees = allGroupMemberships
                 .filter(m => allGroupIds.includes(m.group_id))
                 .map(m => m.user_id);
               updateFilters({

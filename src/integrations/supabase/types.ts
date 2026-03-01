@@ -7299,6 +7299,77 @@ export type Database = {
         }
         Relationships: []
       }
+      submittals: {
+        Row: {
+          assigned_to: string | null
+          attachment_url: string | null
+          company_id: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          job_id: string
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          spec_section: string | null
+          status: Database["public"]["Enums"]["submittal_status"]
+          submitted_at: string | null
+          submitted_by: string
+          submittal_number: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          attachment_url?: string | null
+          company_id: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          job_id: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          spec_section?: string | null
+          status?: Database["public"]["Enums"]["submittal_status"]
+          submitted_at?: string | null
+          submitted_by: string
+          submittal_number: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          attachment_url?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          job_id?: string
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          spec_section?: string | null
+          status?: Database["public"]["Enums"]["submittal_status"]
+          submitted_at?: string | null
+          submitted_by?: string
+          submittal_number?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submittals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rfp_attachments: {
         Row: {
           company_id: string
@@ -10014,6 +10085,13 @@ export type Database = {
       punch_status: "punched_in" | "punched_out"
       rfi_ball_status: "manager" | "design_professional"
       rfi_status: "draft" | "submitted" | "in_review" | "responded" | "closed"
+      submittal_status:
+        | "draft"
+        | "submitted"
+        | "in_review"
+        | "approved"
+        | "rejected"
+        | "closed"
       subscription_tier: "free" | "starter" | "professional" | "enterprise"
       template_editor: "richtext" | "html"
       tenant_request_status: "pending" | "approved" | "rejected"
@@ -10173,6 +10251,14 @@ export const Constants = {
       punch_status: ["punched_in", "punched_out"],
       rfi_ball_status: ["manager", "design_professional"],
       rfi_status: ["draft", "submitted", "in_review", "responded", "closed"],
+      submittal_status: [
+        "draft",
+        "submitted",
+        "in_review",
+        "approved",
+        "rejected",
+        "closed",
+      ],
       subscription_tier: ["free", "starter", "professional", "enterprise"],
       template_editor: ["richtext", "html"],
       tenant_request_status: ["pending", "approved", "rejected"],

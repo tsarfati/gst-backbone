@@ -6,9 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, BarChart3, Clock, MapPin, Eye } from "lucide-react";
 import { format } from "date-fns";
-import { supabase } from "@/integrations/supabase/client";
-import { useToast } from "@/hooks/use-toast";
-import PunchDetailView from "@/components/PunchDetailView";
+import TimeCardDetailView from "@/components/TimeCardDetailView";
 
 interface TimeCardRecord {
   id: string;
@@ -59,9 +57,8 @@ export default function TimecardReportViews({
   showNotes = false
 }: TimecardReportViewsProps) {
   const [selectedView, setSelectedView] = useState('detailed');
-  const [selectedPunch, setSelectedPunch] = useState<any>(null);
-  const [showPunchDetail, setShowPunchDetail] = useState(false);
-  const { toast } = useToast();
+  const [selectedTimeCardId, setSelectedTimeCardId] = useState<string | null>(null);
+  const [showTimeCardDetail, setShowTimeCardDetail] = useState(false);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -82,55 +79,9 @@ export default function TimecardReportViews({
     return `${h}h ${m}m`;
   };
 
-  const handleViewPunchDetails = async (record: TimeCardRecord) => {
-    try {
-      const { data: timecard } = await supabase
-        .from('time_cards')
-        .select('*')
-        .eq('id', record.id)
-        .single();
-
-      if (timecard) {
-        let jobData = null;
-        if (timecard.job_id) {
-          const { data: job } = await supabase
-            .from('jobs')
-            .select('job_name, job_number, address, city, state, zip_code')
-            .eq('id', timecard.job_id)
-            .single();
-          jobData = job;
-        }
-
-        setSelectedPunch({
-          id: record.id,
-          punch_time: timecard.punch_in_time,
-          punch_type: 'punched_in',
-          employee_name: record.employee_name,
-          job_name: record.job_name,
-          job_data: jobData,
-          cost_code: record.cost_code,
-          latitude: timecard.punch_in_location_lat,
-          longitude: timecard.punch_in_location_lng,
-          photo_url: timecard.punch_in_photo_url,
-          notes: timecard.notes,
-          punch_out_time: timecard.punch_out_time,
-          punch_out_latitude: timecard.punch_out_location_lat,
-          punch_out_longitude: timecard.punch_out_location_lng,
-          punch_out_photo_url: timecard.punch_out_photo_url,
-          total_hours: timecard.total_hours,
-          overtime_hours: timecard.overtime_hours,
-          status: timecard.status
-        });
-        setShowPunchDetail(true);
-      }
-    } catch (error) {
-      console.error('Error loading punch details:', error);
-      toast({
-        title: "Error",
-        description: "Failed to load punch details",
-        variant: "destructive"
-      });
-    }
+  const handleViewPunchDetails = (record: TimeCardRecord) => {
+    setSelectedTimeCardId(record.id);
+    setShowTimeCardDetail(true);
   };
 
   const employeeSummary = records.reduce((acc, record) => {
@@ -536,12 +487,14 @@ export default function TimecardReportViews({
         </CardContent>
       </Card>
 
-      {/* Punch Detail Modal */}
-      <PunchDetailView
-        punch={selectedPunch}
-        open={showPunchDetail}
-        onOpenChange={setShowPunchDetail}
-      />
+      {/* Full Time Card Detail Modal */}
+      {selectedTimeCardId && (
+        <TimeCardDetailView
+          open={showTimeCardDetail}
+          onOpenChange={setShowTimeCardDetail}
+          timeCardId={selectedTimeCardId}
+        />
+      )}
     </div>
   );
 }

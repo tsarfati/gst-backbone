@@ -25,6 +25,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface PayableMetrics {
   totalOutstanding: number;
@@ -63,21 +65,22 @@ export default function PayablesDashboard() {
   const [selectedJobId, setSelectedJobId] = useState<string>("all");
   const [userDefaultJob, setUserDefaultJob] = useState<string>("all");
   const [jobs, setJobs] = useState<any[]>([]);
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   useEffect(() => {
-    if (user && (currentCompany?.id || profile?.current_company_id)) {
+    if (user && (currentCompany?.id || profile?.current_company_id) && !websiteJobAccessLoading) {
       loadUserJobPreference();
     }
-  }, [user, currentCompany]);
+  }, [user, currentCompany, profile?.current_company_id, websiteJobAccessLoading]);
 
   useEffect(() => {
-    if (user && (currentCompany?.id || profile?.current_company_id)) {
+    if (user && (currentCompany?.id || profile?.current_company_id) && !websiteJobAccessLoading) {
       loadDashboardData();
     }
-  }, [user, currentCompany, profile?.current_company_id, selectedPeriod, selectedJobId]);
+  }, [user, currentCompany, profile?.current_company_id, selectedPeriod, selectedJobId, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadUserJobPreference = async () => {
-    if (!user || !currentCompany?.id) return;
+    if (!user || !currentCompany?.id || websiteJobAccessLoading) return;
     
     try {
       const { data } = await supabase
@@ -90,8 +93,13 @@ export default function PayablesDashboard() {
       const settings = data?.settings as Record<string, any> | null;
       if (settings?.payables_dashboard_default_job) {
         const defaultJob = settings.payables_dashboard_default_job as string;
-        setSelectedJobId(defaultJob);
-        setUserDefaultJob(defaultJob);
+        if (defaultJob === "all" || isPrivileged || allowedJobIds.includes(defaultJob)) {
+          setSelectedJobId(defaultJob);
+          setUserDefaultJob(defaultJob);
+        } else {
+          setSelectedJobId("all");
+          setUserDefaultJob("all");
+        }
       }
     } catch (error) {
       console.error('Error loading job preference:', error);
@@ -100,6 +108,10 @@ export default function PayablesDashboard() {
 
   const saveJobPreference = async (jobId: string, setAsDefault: boolean = false) => {
     if (!user || !currentCompany?.id) return;
+    if (jobId !== "all" && !isPrivileged && !allowedJobIds.includes(jobId)) {
+      setSelectedJobId("all");
+      return;
+    }
     
     setSelectedJobId(jobId);
     
@@ -141,7 +153,7 @@ export default function PayablesDashboard() {
   };
 
   const loadDashboardData = async () => {
-    if (!user || !(currentCompany?.id || profile?.current_company_id)) return;
+    if (!user || !(currentCompany?.id || profile?.current_company_id) || websiteJobAccessLoading) return;
     
     try {
       setLoading(true);
@@ -154,7 +166,15 @@ export default function PayablesDashboard() {
         .eq('is_active', true)
         .order('name');
       
-      setJobs(jobsData || []);
+      const allJobs = jobsData || [];
+      const visibleJobs = isPrivileged
+        ? allJobs
+        : allJobs.filter((job: any) => allowedJobIds.includes(job.id));
+      setJobs(visibleJobs);
+
+      if (selectedJobId !== "all" && !isPrivileged && !allowedJobIds.includes(selectedJobId)) {
+        setSelectedJobId("all");
+      }
       
       // Load vendors count
       const { data: vendorsData } = await supabase
@@ -163,31 +183,61 @@ export default function PayablesDashboard() {
         .eq('company_id', currentCompany?.id || profile?.current_company_id);
 
       // Load invoices for calculations (filtered by company and job)
+      const effectiveSelectedJobId = (selectedJobId !== "all" && !isPrivileged && !allowedJobIds.includes(selectedJobId))
+        ? "all"
+        : selectedJobId;
+
       let query = supabase
         .from('invoices')
-        .select('*, vendors!inner(company_id)')
+        .select('id, status, amount, created_at, job_id, vendors!inner(company_id)')
         .eq('vendors.company_id', currentCompany?.id || profile?.current_company_id);
       
       // Filter by job if not "all"
-      if (selectedJobId !== "all") {
-        query = query.eq('job_id', selectedJobId);
+      if (effectiveSelectedJobId !== "all") {
+        query = query.eq('job_id', effectiveSelectedJobId);
       }
       
       const { data: invoicesData } = await query.order('created_at', { ascending: false });
 
+      const invoiceRows = invoicesData || [];
+      const invoiceIds = invoiceRows.map((row: any) => row.id);
+      const distResponse: any = invoiceIds.length > 0
+        ? await supabase
+          .from("invoice_cost_distributions")
+          .select("invoice_id, cost_codes(job_id)")
+          .in("invoice_id", invoiceIds)
+        : { data: [], error: null };
+      const distributionJobMap: Record<string, string[]> = {};
+      if (!distResponse?.error) {
+        (distResponse?.data || []).forEach((row: any) => {
+          const invoiceId = row.invoice_id;
+          const jobId = row.cost_codes?.job_id;
+          if (!invoiceId || !jobId) return;
+          if (!distributionJobMap[invoiceId]) distributionJobMap[invoiceId] = [];
+          if (!distributionJobMap[invoiceId].includes(jobId)) {
+            distributionJobMap[invoiceId].push(jobId);
+          }
+        });
+      }
+
+      const visibleInvoices = invoiceRows.filter((row: any) => {
+        const distJobs = distributionJobMap[row.id] || [];
+        return canAccessAssignedJobOnly([row.job_id, ...distJobs], isPrivileged, allowedJobIds);
+      });
+
       // Calculate metrics
-      const totalOutstanding = (invoicesData || [])
+      const totalOutstanding = visibleInvoices
         .filter(inv => inv.status !== 'paid')
         .reduce((sum, inv) => sum + (inv.amount || 0), 0);
 
-      const overdueBills = (invoicesData || [])
+      const overdueBills = visibleInvoices
         .filter(inv => inv.status === 'overdue').length;
 
-      const pendingApproval = (invoicesData || [])
+      const pendingApproval = visibleInvoices
         .filter(inv => inv.status === 'pending').length;
 
       const currentMonth = new Date();
-      const paidThisMonth = (invoicesData || [])
+      const paidThisMonth = visibleInvoices
         .filter(inv => {
           if (inv.status !== 'paid') return false;
           const invDate = new Date(inv.created_at);

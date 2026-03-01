@@ -34,9 +34,15 @@ interface UserProfile {
   approved_at?: string;
   approved_by?: string;
   vendor_id?: string;
+  group_id?: string | null;
 }
 
 interface Vendor {
+  id: string;
+  name: string;
+}
+
+interface EmployeeGroup {
   id: string;
   name: string;
 }
@@ -83,6 +89,8 @@ export default function UserEdit() {
   const [loginHistory, setLoginHistory] = useState<any[]>([]);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
+  const [groups, setGroups] = useState<EmployeeGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
 
   const isAdmin = profile?.role === 'admin';
   const isController = profile?.role === 'controller';
@@ -97,6 +105,7 @@ export default function UserEdit() {
       fetchLoginHistory();
       fetchTimecardSettings();
       fetchVendors();
+      fetchGroups();
     }
   }, [userId, currentCompany]);
 
@@ -138,6 +147,7 @@ export default function UserEdit() {
         ...profileData.data,
         role: companyRole
       });
+      setSelectedGroupId(profileData.data.group_id || null);
       setOriginalStatus(String(profileData.data.status || '').toLowerCase());
       // Set the vendor_id if user is a vendor
       if (profileData.data.vendor_id) {
@@ -171,6 +181,24 @@ export default function UserEdit() {
       setVendors(data || []);
     } catch (error) {
       console.error('Error fetching vendors:', error);
+    }
+  };
+
+  const fetchGroups = async () => {
+    if (!currentCompany) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('employee_groups')
+        .select('id, name')
+        .eq('company_id', currentCompany.id)
+        .order('name');
+
+      if (error) throw error;
+      setGroups((data as EmployeeGroup[]) || []);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      setGroups([]);
     }
   };
 
@@ -300,11 +328,45 @@ export default function UserEdit() {
           role: user.role,
           has_global_job_access: user.has_global_job_access,
           status: user.status,
-          vendor_id: user.role === 'vendor' ? selectedVendorId : null
+          vendor_id: user.role === 'vendor' ? selectedVendorId : null,
+          group_id: selectedGroupId || null
         })
         .eq('user_id', user.user_id);
 
       if (error) throw error;
+
+      // Keep legacy and new group-membership models in sync for report/group filters.
+      const { data: companyGroups, error: companyGroupsError } = await supabase
+        .from('employee_groups')
+        .select('id')
+        .eq('company_id', currentCompany.id);
+
+      if (companyGroupsError) throw companyGroupsError;
+
+      const companyGroupIds = (companyGroups || []).map((g: any) => g.id);
+      if (companyGroupIds.length > 0) {
+        const { error: clearMembershipError } = await supabase
+          .from('employee_group_members')
+          .delete()
+          .eq('user_id', user.user_id)
+          .in('group_id', companyGroupIds);
+
+        if (clearMembershipError) throw clearMembershipError;
+      }
+
+      if (selectedGroupId) {
+        const { error: insertMembershipError } = await supabase
+          .from('employee_group_members')
+          .insert({
+            group_id: selectedGroupId,
+            user_id: user.user_id,
+            created_by: profile?.user_id || user.user_id
+          });
+
+        if (insertMembershipError && insertMembershipError.code !== '23505') {
+          throw insertMembershipError;
+        }
+      }
 
       // Update job and cost code assignments
       const { error: settingsError } = await supabase
@@ -611,7 +673,7 @@ export default function UserEdit() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
                 <div>
                   <Label htmlFor="role">Role</Label>
                   <Select 
@@ -645,6 +707,25 @@ export default function UserEdit() {
                       <SelectItem value="approved">Approved</SelectItem>
                       <SelectItem value="pending">Pending</SelectItem>
                       <SelectItem value="suspended">Suspended</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div>
+                  <Label htmlFor="group_id">Group</Label>
+                  <Select
+                    value={selectedGroupId || '__none__'}
+                    onValueChange={(value) => setSelectedGroupId(value === '__none__' ? null : value)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select group" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="__none__">No Group</SelectItem>
+                      {groups.map((group) => (
+                        <SelectItem key={group.id} value={group.id}>
+                          {group.name}
+                        </SelectItem>
+                      ))}
                     </SelectContent>
                   </Select>
                 </div>

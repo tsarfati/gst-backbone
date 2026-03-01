@@ -16,6 +16,8 @@ import { cn } from "@/lib/utils";
 import { useNavigate } from "react-router-dom";
 import { exportCreditCardTransactionReport } from "@/utils/pdfExport";
 import * as XLSX from "xlsx";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface CreditCard {
   id: string;
@@ -41,6 +43,7 @@ export default function CreditCardTransactionReport() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [creditCards, setCreditCards] = useState<CreditCard[]>([]);
   const [selectedCard, setSelectedCard] = useState<string>("");
@@ -51,13 +54,13 @@ export default function CreditCardTransactionReport() {
   const [exporting, setExporting] = useState(false);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       fetchCreditCards();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const fetchCreditCards = async () => {
-    if (!currentCompany?.id) return;
+    if (!currentCompany?.id || websiteJobAccessLoading) return;
 
     const { data, error } = await supabase
       .from("credit_cards")
@@ -95,12 +98,13 @@ export default function CreditCardTransactionReport() {
         .from("credit_card_transactions")
         .select(`
           id,
+          job_id,
           transaction_date,
           amount,
           merchant_name,
           description,
           vendors (name),
-          jobs (name),
+          jobs:job_id(id, name),
           cost_codes (code, description, type),
           chart_of_accounts (account_name)
         `)
@@ -139,7 +143,15 @@ export default function CreditCardTransactionReport() {
         });
       }
 
-      const formattedData: TransactionData[] = (data || []).map((txn: any) => {
+      const visibleTransactions = (data || []).filter((txn: any) => {
+        const distGroup = distsByTransaction[txn.id] || [];
+        const distJobIds = distGroup
+          .map((row: any) => row.job_id)
+          .filter((jobId: any): jobId is string => !!jobId);
+        return canAccessAssignedJobOnly([txn.job_id, ...distJobIds], isPrivileged, allowedJobIds);
+      });
+
+      const formattedData: TransactionData[] = visibleTransactions.map((txn: any) => {
         const distGroup = distsByTransaction[txn.id] || [];
         const firstDist = distGroup[0];
 

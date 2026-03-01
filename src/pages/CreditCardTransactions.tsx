@@ -20,6 +20,8 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { CreditCardTransactionModal } from "@/components/CreditCardTransactionModal";
 import { formatCurrency } from "@/utils/formatNumber";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function CreditCardTransactions() {
   const { id } = useParams();
@@ -46,6 +48,7 @@ export default function CreditCardTransactions() {
   const [sortColumn, setSortColumn] = useState<'date' | 'amount' | 'attachment' | 'status' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const scrollPositionRef = useRef<number>(0);
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -58,10 +61,10 @@ export default function CreditCardTransactions() {
   });
 
   useEffect(() => {
-    if (id && currentCompany) {
+    if (id && currentCompany && !websiteJobAccessLoading) {
       fetchData();
     }
-  }, [id, currentCompany]);
+  }, [id, currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (transactions.length > 0) {
@@ -70,6 +73,7 @@ export default function CreditCardTransactions() {
   }, [transactions]);
 
   const fetchData = async () => {
+    if (websiteJobAccessLoading) return;
     try {
       setLoading(true);
       
@@ -99,7 +103,7 @@ export default function CreditCardTransactions() {
         .order("transaction_date", { ascending: false });
 
       if (transError) throw transError;
-      setTransactions(transData || []);
+      const allTransactions = transData || [];
 
       // Fetch jobs
       const { data: jobsData } = await supabase
@@ -109,7 +113,11 @@ export default function CreditCardTransactions() {
         .eq("status", "active")
         .order("name");
 
-      setJobs(jobsData || []);
+      const allJobs = jobsData || [];
+      const visibleJobs = isPrivileged
+        ? allJobs
+        : allJobs.filter((job: any) => allowedJobIds.includes(job.id));
+      setJobs(visibleJobs);
 
       // Fetch cost codes (company-wide only, job-specific codes are handled separately)
       const { data: costCodesData } = await supabase
@@ -123,7 +131,7 @@ export default function CreditCardTransactions() {
       setCostCodes(costCodesData || []);
 
       // Fetch distributions for all listed transactions and hydrate with cost code metadata
-      const txIds = (transData || []).map((t: any) => t.id);
+      const txIds = allTransactions.map((t: any) => t.id);
       if (txIds.length > 0) {
         const { data: distRows } = await supabase
           .from('credit_card_transaction_distributions')
@@ -134,7 +142,25 @@ export default function CreditCardTransactions() {
           if (!map[row.transaction_id]) map[row.transaction_id] = [];
           map[row.transaction_id].push(row);
         });
-        setDistsByTx(map);
+        const filteredTransactions = allTransactions.filter((transaction: any) => {
+          const distRowsForTransaction = map[transaction.id] || [];
+          const distributionJobIds = distRowsForTransaction
+            .map((row: any) => row.job_id)
+            .filter((jobId: any): jobId is string => !!jobId);
+          return canAccessAssignedJobOnly([transaction.job_id, ...distributionJobIds], isPrivileged, allowedJobIds);
+        });
+        const filteredTransactionIds = new Set(filteredTransactions.map((t: any) => t.id));
+        const filteredDistMap: Record<string, any[]> = {};
+        Object.entries(map).forEach(([transactionId, rows]) => {
+          if (filteredTransactionIds.has(transactionId)) {
+            filteredDistMap[transactionId] = rows;
+          }
+        });
+        setTransactions(filteredTransactions);
+        setDistsByTx(filteredDistMap);
+      } else {
+        setTransactions(allTransactions.filter((transaction: any) => canAccessAssignedJobOnly([transaction.job_id], isPrivileged, allowedJobIds)));
+        setDistsByTx({});
       }
 
       // Fetch users for coding requests (admins, controllers, project managers)

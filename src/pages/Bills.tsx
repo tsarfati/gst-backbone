@@ -17,6 +17,8 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 type SortColumn = 'vendor_name' | 'job_name' | 'amount' | 'issue_date' | 'due_date' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -125,6 +127,7 @@ export default function Bills() {
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const { canCreate, canDelete, canEdit } = useActionPermissions();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   // Initialize filters from navigation state if provided
   const initialVendorFilter = (location.state as any)?.vendorFilter || "all";
@@ -144,10 +147,10 @@ export default function Bills() {
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
 
   useEffect(() => {
-    if (currentCompany) {
+    if (currentCompany && !websiteJobAccessLoading) {
       loadBills();
     }
-  }, [currentCompany]);
+  }, [currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
   const loadBills = async () => {
     if (!currentCompany) return;
@@ -167,7 +170,7 @@ export default function Bills() {
           description,
           payment_terms,
           vendors!inner(name, logo_url, company_id),
-          jobs(name),
+          jobs(id, name),
           cost_codes(description)
         `)
         .eq('vendors.company_id', currentCompany.id)
@@ -188,28 +191,34 @@ export default function Bills() {
         .in('invoice_id', invoiceIds);
 
       // Build a map of invoice_id -> job names from distributions
-      const distributionJobMap = new Map<string, string[]>();
+      const distributionJobMap = new Map<string, { id: string; name: string }[]>();
       distributions?.forEach((dist: any) => {
         const invoiceId = dist.invoice_id;
-        const jobName = dist.cost_codes?.jobs?.name;
-        if (jobName) {
+        const job = dist.cost_codes?.jobs;
+        if (job?.id && job?.name) {
           if (!distributionJobMap.has(invoiceId)) {
             distributionJobMap.set(invoiceId, []);
           }
           const existing = distributionJobMap.get(invoiceId)!;
-          if (!existing.includes(jobName)) {
-            existing.push(jobName);
+          if (!existing.find((j) => j.id === job.id)) {
+            existing.push({ id: job.id, name: job.name });
           }
         }
       });
 
-      const formattedBills: Bill[] = data?.map(bill => {
+      const formattedBills: Bill[] = (data || [])
+      .filter((bill: any) => {
+        const directJobId = bill.jobs?.id || bill.job_id || null;
+        const distJobIds = (distributionJobMap.get(bill.id) || []).map((j) => j.id);
+        return canAccessAssignedJobOnly([directJobId, ...distJobIds], isPrivileged, allowedJobIds);
+      })
+      .map((bill: any) => {
         // Use direct job name if available, otherwise get from distributions
         let jobName = (bill.jobs as any)?.name;
         if (!jobName) {
           const distJobs = distributionJobMap.get(bill.id);
           if (distJobs && distJobs.length > 0) {
-            jobName = distJobs.length === 1 ? distJobs[0] : `${distJobs[0]} (+${distJobs.length - 1})`;
+            jobName = distJobs.length === 1 ? distJobs[0].name : `${distJobs[0].name} (+${distJobs.length - 1})`;
           } else {
             jobName = 'No Job';
           }
@@ -229,7 +238,7 @@ export default function Bills() {
           description: bill.description || '',
           payment_terms: bill.payment_terms
         };
-      }) || [];
+      });
 
       // Sync invoices that were paid via posted credit card transactions
       let finalBills = formattedBills;

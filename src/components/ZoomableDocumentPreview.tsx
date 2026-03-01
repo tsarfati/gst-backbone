@@ -47,7 +47,12 @@ export default function ZoomableDocumentPreview({
     clamp: clampZoom,
   });
 
-  const isPdf = url?.toLowerCase().includes(".pdf");
+  const normalizedUrl = (url || "").toLowerCase();
+  const normalizedName = (fileName || "").toLowerCase();
+  const isPdf =
+    normalizedName.endsWith(".pdf") ||
+    normalizedUrl.includes(".pdf") ||
+    normalizedUrl.includes("application/pdf");
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (zoomLevel > 100 && previewScrollRef.current) {

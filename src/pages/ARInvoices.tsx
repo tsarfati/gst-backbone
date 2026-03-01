@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Plus, Search, FileText, Filter } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface ARInvoice {
   id: string;
@@ -34,6 +36,7 @@ export default function ARInvoices() {
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [invoices, setInvoices] = useState<ARInvoice[]>([]);
   const [loading, setLoading] = useState(true);
@@ -41,10 +44,10 @@ export default function ARInvoices() {
   const [statusFilter, setStatusFilter] = useState("all");
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadInvoices();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadInvoices = async () => {
     try {
@@ -52,7 +55,7 @@ export default function ARInvoices() {
       const { data, error } = await supabase
         .from("ar_invoices")
         .select(`
-          id, invoice_number, issue_date, due_date, total_amount, paid_amount, balance_due, status,
+          id, invoice_number, issue_date, due_date, total_amount, paid_amount, balance_due, status, job_id,
           customers(name),
           jobs(name)
         `)
@@ -61,7 +64,11 @@ export default function ARInvoices() {
 
       if (error) throw error;
       
-      setInvoices((data || []).map((inv: any) => ({
+      const visible = (data || []).filter((inv: any) =>
+        canAccessAssignedJobOnly([inv.job_id], isPrivileged, allowedJobIds)
+      );
+
+      setInvoices(visible.map((inv: any) => ({
         ...inv,
         customer: inv.customers,
         job: inv.jobs

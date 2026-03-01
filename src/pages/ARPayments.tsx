@@ -11,6 +11,8 @@ import { Badge } from "@/components/ui/badge";
 import { Plus, Search, DollarSign } from "lucide-react";
 import { formatNumber } from "@/utils/formatNumber";
 import { format } from "date-fns";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface ARPayment {
   id: string;
@@ -32,16 +34,17 @@ export default function ARPayments() {
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [payments, setPayments] = useState<ARPayment[]>([]);
   const [loading, setLoading] = useState(true);
   const [search, setSearch] = useState("");
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadPayments();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadPayments = async () => {
     try {
@@ -51,14 +54,18 @@ export default function ARPayments() {
         .select(`
           id, payment_number, payment_date, amount, payment_method, reference_number, status,
           customers(name),
-          ar_invoices(invoice_number)
+          ar_invoices(invoice_number, job_id)
         `)
         .eq("company_id", currentCompany!.id)
         .order("payment_date", { ascending: false });
 
       if (error) throw error;
       
-      setPayments((data || []).map((pmt: any) => ({
+      const visible = (data || []).filter((pmt: any) =>
+        canAccessAssignedJobOnly([pmt.ar_invoices?.job_id], isPrivileged, allowedJobIds)
+      );
+
+      setPayments(visible.map((pmt: any) => ({
         ...pmt,
         customer: pmt.customers,
         ar_invoice: pmt.ar_invoices

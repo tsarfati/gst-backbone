@@ -26,12 +26,15 @@ import { Label } from "@/components/ui/label";
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessJobIds } from "@/utils/jobAccess";
+import { resolveStorageUrl } from "@/utils/storageUtils";
 import VendorAvatar from "@/components/VendorAvatar";
 import BillCommunications from "@/components/BillCommunications";
 import BillAuditTrail from "@/components/BillAuditTrail";
 import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 import CommitmentInfo from "@/components/CommitmentInfo";
-import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
+import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import BillInternalNotes from "@/components/BillInternalNotes";
 
   const getStatusVariant = (status: string) => {
@@ -70,6 +73,7 @@ export default function BillDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -85,6 +89,8 @@ export default function BillDetails() {
   const [totalPaid, setTotalPaid] = useState<number>(0);
   const [balanceDue, setBalanceDue] = useState<number>(0);
   const [distributions, setDistributions] = useState<any[]>([]);
+  const [selectedPreviewKey, setSelectedPreviewKey] = useState<string | null>(null);
+  const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string | null>(null);
   
   const calculateDaysOverdue = (dueDate: string): number => {
     const due = new Date(dueDate);
@@ -102,12 +108,31 @@ export default function BillDetails() {
   };
 
   useEffect(() => {
-    if (id) {
+    if (id && !websiteJobAccessLoading) {
       fetchBillDetails();
     }
-  }, [id]);
+  }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+
+  useEffect(() => {
+    if (selectedPreviewKey === 'bill' && bill?.file_url) return;
+    if (selectedPreviewKey && selectedPreviewKey !== 'bill') {
+      const exists = documents.some((doc) => doc.id === selectedPreviewKey);
+      if (exists) return;
+    }
+
+    if (documents.length > 0) {
+      setSelectedPreviewKey(documents[0].id);
+      return;
+    }
+    if (bill?.file_url) {
+      setSelectedPreviewKey('bill');
+      return;
+    }
+    setSelectedPreviewKey(null);
+  }, [documents, bill?.file_url, selectedPreviewKey]);
 
   const fetchBillDetails = async () => {
+    if (websiteJobAccessLoading) return;
     try {
       const { data, error } = await supabase
         .from('invoices')
@@ -140,6 +165,37 @@ export default function BillDetails() {
         console.error('Error fetching bill:', error);
         setBill(null);
       } else {
+        const directJobId = data?.job_id || data?.jobs?.id || null;
+        let distributionJobIds: string[] = [];
+
+        if (data?.id) {
+          const { data: precheckDistData } = await supabase
+            .from('invoice_cost_distributions')
+            .select(`
+              cost_codes (
+                job_id
+              )
+            `)
+            .eq('invoice_id', data.id);
+
+          distributionJobIds = (precheckDistData || [])
+            .map((row: any) => row.cost_codes?.job_id)
+            .filter((jobId: any): jobId is string => !!jobId);
+        }
+
+        const canAccessBill = canAccessJobIds([directJobId, ...distributionJobIds], isPrivileged, allowedJobIds);
+        if (!canAccessBill) {
+          setBill(null);
+          setDistributions([]);
+          toast({
+            title: "Access denied",
+            description: "You do not have access to this job.",
+            variant: "destructive",
+          });
+          navigate("/bills");
+          return;
+        }
+
         setBill(data || null);
         
         // Load documents
@@ -451,6 +507,28 @@ export default function BillDetails() {
     );
   }
 
+  const selectedDocument = selectedPreviewKey && selectedPreviewKey !== 'bill'
+    ? documents.find((doc) => doc.id === selectedPreviewKey)
+    : null;
+  const activePreviewUrl = selectedDocument?.file_url || (selectedPreviewKey === 'bill' ? bill?.file_url : null) || null;
+  const activePreviewName = selectedDocument?.file_name || 'Bill Document';
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolvePreview = async () => {
+      if (!activePreviewUrl) {
+        if (!cancelled) setResolvedPreviewUrl(null);
+        return;
+      }
+      const resolved = await resolveStorageUrl('receipts', activePreviewUrl);
+      if (!cancelled) setResolvedPreviewUrl(resolved || activePreviewUrl);
+    };
+    resolvePreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePreviewUrl]);
+
   const StatusIcon = getStatusIcon(bill?.status || "pending");
   const billIsOverdue = isOverdue();
   const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
@@ -589,9 +667,11 @@ export default function BillDetails() {
         </div>
       </div>
 
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
+        <div className="xl:col-span-1 xl:order-2 space-y-6">
       {/* Bill Information */}
-      <div className="grid grid-cols-1 lg:grid-cols-10 gap-6 mb-6">
-        <Card className="lg:col-span-7">
+      <div className="grid grid-cols-1 2xl:grid-cols-10 gap-6 mb-6">
+        <Card className="2xl:col-span-7">
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building className="h-5 w-5" />
@@ -819,7 +899,7 @@ export default function BillDetails() {
           </CardContent>
         </Card>
 
-        <div className="lg:col-span-3">
+        <div className="2xl:col-span-3">
           <BillCommunications 
             billId={bill?.id || ''}
             vendorId={bill?.vendor_id || ''}
@@ -894,106 +974,82 @@ export default function BillDetails() {
         />
       )}
 
+      </div>
+
       {/* File Preview Section */}
-      <Card className="mb-6">
+      <div className="xl:col-span-3 xl:order-1">
+      <Card className="mb-6 xl:sticky xl:top-20">
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <FileText className="h-5 w-5" />
             Bill Documents
           </CardTitle>
         </CardHeader>
-        <CardContent>
-          {documents.length > 0 ? (
-            <div className="space-y-4 max-h-[800px] overflow-y-auto">
+        <CardContent className="space-y-4">
+          <div className="h-[calc(100vh-18rem)] min-h-[520px] border rounded-lg overflow-hidden bg-muted/20">
+            <ZoomableDocumentPreview
+              url={resolvedPreviewUrl}
+              fileName={activePreviewName}
+              className="h-full"
+              emptyMessage="No documents available"
+              emptySubMessage="Attach a bill document to preview it here"
+            />
+          </div>
+
+          {(documents.length > 0 || bill?.file_url) && (
+            <div className="space-y-2 max-h-52 overflow-y-auto">
               {documents.map((doc) => (
-                <div key={doc.id} className="border rounded-lg overflow-hidden">
-                  <div className="flex items-center justify-between p-3 bg-muted">
-                    <div className="flex items-center gap-2">
-                      <FileText className="h-4 w-4" />
-                      <span className="font-medium">{doc.file_name}</span>
-                    </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    if (doc.file_url) {
-                      window.open(doc.file_url, '_blank', 'noopener,noreferrer');
-                    } else {
-                      toast({
-                        title: "Error",
-                        description: "Document URL not available",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
+                <div
+                  key={doc.id}
+                  className={`flex items-center justify-between gap-2 p-2 border rounded-md cursor-pointer ${selectedPreviewKey === doc.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                  onClick={() => setSelectedPreviewKey(doc.id)}
                 >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Open Document
-                </Button>
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span className="text-sm truncate">{doc.file_name}</span>
                   </div>
-                  {doc.file_url.endsWith('.pdf') ? (
-                    <div className="max-h-[800px] overflow-y-auto bg-muted/20">
-                      <UrlPdfInlinePreview url={doc.file_url} />
-                    </div>
-                  ) : (
-                    <img 
-                      src={doc.file_url} 
-                      alt={doc.file_name}
-                      className="w-full h-auto"
-                    />
-                  )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(doc.file_url, '_blank', 'noopener,noreferrer');
+                    }}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Open
+                  </Button>
                 </div>
               ))}
-            </div>
-          ) : bill?.file_url ? (
-            <div className="border rounded-lg overflow-hidden">
-              <div className="flex items-center justify-between p-3 bg-muted">
-                <div className="flex items-center gap-2">
-                  <FileText className="h-4 w-4" />
-                  <span className="font-medium">Bill Document</span>
-                </div>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    if (bill.file_url) {
-                      window.open(bill.file_url, '_blank', 'noopener,noreferrer');
-                    } else {
-                      toast({
-                        title: "Error",
-                        description: "Document URL not available",
-                        variant: "destructive",
-                      });
-                    }
-                  }}
+
+              {bill?.file_url && (
+                <div
+                  className={`flex items-center justify-between gap-2 p-2 border rounded-md cursor-pointer ${selectedPreviewKey === 'bill' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                  onClick={() => setSelectedPreviewKey('bill')}
                 >
-                  <Eye className="h-4 w-4 mr-2" />
-                  Open Document
-                </Button>
-              </div>
-              {bill.file_url.endsWith('.pdf') ? (
-                <div className="max-h-[800px] overflow-y-auto bg-muted/20">
-                  <UrlPdfInlinePreview url={bill.file_url} />
+                  <div className="flex items-center gap-2 min-w-0">
+                    <FileText className="h-4 w-4 shrink-0" />
+                    <span className="text-sm truncate">Bill Document</span>
+                  </div>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      window.open(bill.file_url, '_blank', 'noopener,noreferrer');
+                    }}
+                  >
+                    <Eye className="h-4 w-4 mr-2" />
+                    Open
+                  </Button>
                 </div>
-              ) : (
-                <img 
-                  src={bill.file_url} 
-                  alt="Bill document"
-                  className="w-full h-auto"
-                />
               )}
-            </div>
-          ) : (
-            <div className="border-2 border-dashed border-muted-foreground/25 rounded-lg p-12 text-center">
-              <FileText className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-              <h3 className="text-lg font-medium mb-2">No Documents Available</h3>
-              <p className="text-muted-foreground">
-                No bill documents have been uploaded for this bill
-              </p>
             </div>
           )}
         </CardContent>
       </Card>
+      </div>
+      </div>
 
     </div>
   );

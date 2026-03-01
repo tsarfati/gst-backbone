@@ -226,9 +226,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         const userSettings = ((userResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
 
         // Backward-compatible fallback:
-        // Some companies only have admin/controller user-level theme settings saved (legacy),
+        // Some companies only have user-level theme settings saved (legacy),
         // but no shared company default (user_id IS NULL). In that case, inherit colors
-        // from the most recent admin/controller user setting so non-admin users still get branding.
+        // from the most recent row with customColors.
         if (!companySettings?.customColors) {
           const { data: allCompanyUiRows } = await supabase
             .from('company_ui_settings')
@@ -238,46 +238,42 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             .order('updated_at', { ascending: false })
             .limit(30);
 
-          const settingUserIds = (allCompanyUiRows || [])
-            .map((row: any) => row.user_id)
-            .filter(Boolean);
+          const fallbackThemeSettings = (allCompanyUiRows || [])
+            .find((row: any) => (row?.settings as any)?.customColors)?.settings as any || null;
 
-          if (settingUserIds.length > 0) {
-            const { data: accessRows } = await supabase
-              .from('user_company_access')
-              .select('user_id, role, is_active')
-              .eq('company_id', currentCompany.id)
-              .in('user_id', settingUserIds)
-              .eq('is_active', true);
+          if ((fallbackThemeSettings as any)?.customColors) {
+            companySettings = {
+              ...(companySettings || {}),
+              customColors: (fallbackThemeSettings as any).customColors,
+            };
+          }
+        }
 
-            const adminUserSet = new Set(
-              (accessRows || [])
-                .filter((row: any) => ['admin', 'company_admin', 'controller'].includes(String(row.role || '').toLowerCase()))
-                .map((row: any) => row.user_id)
-            );
-
-          const fallbackAdminSettings = (allCompanyUiRows || [])
-              .find((row: any) => adminUserSet.has(row.user_id) && (row?.settings as any)?.customColors)?.settings as any || null;
-
-            if ((fallbackAdminSettings as any)?.customColors) {
-              companySettings = {
-                ...(companySettings || {}),
-                customColors: (fallbackAdminSettings as any).customColors,
-              };
-            }
+        // Final fallback: server-side resolver (SECURITY DEFINER) so non-settings users
+        // still receive company branding even when direct table reads are restricted.
+        if (!companySettings?.customColors) {
+          const { data: rpcTheme } = await supabase.rpc('get_company_theme_defaults', {
+            _company_id: currentCompany.id
+          });
+          if ((rpcTheme as any)?.customColors) {
+            companySettings = {
+              ...(companySettings || {}),
+              customColors: (rpcTheme as any).customColors,
+            };
           }
         }
 
         setCompanyDefaults(companySettings);
 
+        const effectiveUserSettings = isCompanyAdminRole ? (userSettings || {}) : {};
         const merged = {
           ...defaultSettings,
           ...(companySettings || {}),
-          ...(userSettings || {}),
+          ...effectiveUserSettings,
           customColors: {
             ...defaultSettings.customColors,
             ...((companySettings as any)?.customColors || {}),
-            ...((userSettings as any)?.customColors || {}),
+            ...((effectiveUserSettings as any)?.customColors || {}),
           },
         } as AppSettings;
         setSettings(merged);
@@ -358,7 +354,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         // Use explicit check + insert/update since PostgreSQL UNIQUE treats NULL as distinct
         if (isCompanyAdmin) {
           const companySettingsForStorage: Partial<AppSettings> = {
+            navigationMode: settings.navigationMode,
+            theme: settings.theme,
+            themeVariant: settings.themeVariant,
+            dateFormat: settings.dateFormat,
+            currencyFormat: settings.currencyFormat,
+            distanceUnit: settings.distanceUnit,
+            defaultView: settings.defaultView,
+            itemsPerPage: settings.itemsPerPage,
+            notifications: settings.notifications,
+            autoSave: settings.autoSave,
+            compactMode: settings.compactMode,
+            sidebarHighlightOpacity: settings.sidebarHighlightOpacity,
+            customLogo: settings.customLogo,
+            dashboardBanner: settings.dashboardBanner,
             customColors: settings.customColors,
+            companyLogo: settings.companyLogo,
+            headerLogo: settings.headerLogo,
+            companySettings: settings.companySettings,
           };
           
           // Check if company-wide row exists
@@ -371,19 +384,25 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           
           if (existingCompanyRow?.id) {
             // Update existing row
-            await supabase
+            const { error: companyDefaultsUpdateError } = await supabase
               .from('company_ui_settings')
               .update({ settings: companySettingsForStorage })
               .eq('id', existingCompanyRow.id);
+            if (companyDefaultsUpdateError) {
+              console.warn('Failed to update company default theme settings:', companyDefaultsUpdateError);
+            }
           } else {
             // Insert new company-wide row
-            await supabase
+            const { error: companyDefaultsInsertError } = await supabase
               .from('company_ui_settings')
               .insert({
                 company_id: currentCompany.id,
                 user_id: null,
                 settings: companySettingsForStorage
               });
+            if (companyDefaultsInsertError) {
+              console.warn('Failed to insert company default theme settings:', companyDefaultsInsertError);
+            }
           }
         }
 

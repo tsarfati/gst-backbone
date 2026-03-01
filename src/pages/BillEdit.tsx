@@ -1,6 +1,6 @@
 import { useParams, useNavigate } from "react-router-dom";
-import { getStoragePathForDb } from '@/utils/storageUtils';
-import { useEffect, useState } from "react";
+import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
+import { useEffect, useMemo, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -18,9 +18,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { cn } from "@/lib/utils";
 import CommitmentInfo from "@/components/CommitmentInfo";
-import PdfInlinePreview from "@/components/PdfInlinePreview";
-import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
-import BillApprovalActions from "@/components/BillApprovalActions";
+import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import BillDistributionSection from "@/components/BillDistributionSection";
 import BillCostDistribution from "@/components/BillCostDistribution";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
@@ -44,6 +42,25 @@ interface CostCode {
   is_dynamic_group?: boolean;
   require_attachment?: boolean;
 }
+
+const getStatusBadgeVariant = (status?: string): "default" | "secondary" | "destructive" | "outline" => {
+  switch (status) {
+    case 'approved':
+    case 'paid':
+    case 'pending_payment':
+      return 'default';
+    case 'pending_approval':
+    case 'pending_coding':
+      return 'secondary';
+    case 'rejected':
+      return 'destructive';
+    default:
+      return 'outline';
+  }
+};
+
+const formatStatus = (status?: string) =>
+  status ? status.replace(/_/g, ' ').replace(/\b\w/g, (l) => l.toUpperCase()) : 'Unknown';
 
 export default function BillEdit() {
   const { id } = useParams();
@@ -71,6 +88,8 @@ export default function BillEdit() {
   const [commitmentDistribution, setCommitmentDistribution] = useState<any[]>([]);
   const [billDistribution, setBillDistribution] = useState<any[]>([]);
   const [showMultiDistribution, setShowMultiDistribution] = useState(false);
+  const [selectedDocument, setSelectedDocument] = useState<{ kind: 'existing' | 'new'; key: string } | null>(null);
+  const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string | null>(null);
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -533,6 +552,72 @@ export default function BillEdit() {
 
   const attachmentRequired = !canBypassAttachment();
 
+  useEffect(() => {
+    if (selectedDocument?.kind === 'existing') {
+      const exists = existingDocuments.some((doc) => doc.id === selectedDocument.key);
+      if (exists) return;
+    }
+    if (selectedDocument?.kind === 'new') {
+      const exists = billFiles.some((_, index) => `new-${index}` === selectedDocument.key);
+      if (exists) return;
+    }
+
+    if (existingDocuments.length > 0) {
+      setSelectedDocument({ kind: 'existing', key: existingDocuments[0].id });
+      return;
+    }
+    if (billFiles.length > 0) {
+      setSelectedDocument({ kind: 'new', key: 'new-0' });
+      return;
+    }
+    setSelectedDocument(null);
+  }, [existingDocuments, billFiles, selectedDocument]);
+
+  const selectedExistingDocument = selectedDocument?.kind === 'existing'
+    ? existingDocuments.find((doc) => doc.id === selectedDocument.key)
+    : null;
+  const selectedNewFileIndex = selectedDocument?.kind === 'new'
+    ? Number(selectedDocument.key.replace('new-', ''))
+    : -1;
+  const selectedNewFile = selectedNewFileIndex >= 0 ? billFiles[selectedNewFileIndex] : null;
+
+  const selectedNewFileUrl = useMemo(
+    () => (selectedNewFile ? URL.createObjectURL(selectedNewFile) : null),
+    [selectedNewFile]
+  );
+
+  useEffect(() => {
+    return () => {
+      if (selectedNewFileUrl) URL.revokeObjectURL(selectedNewFileUrl);
+    };
+  }, [selectedNewFileUrl]);
+
+  const activePreviewUrl = selectedExistingDocument?.file_url || selectedNewFileUrl || bill?.file_url || null;
+  const activePreviewName = selectedExistingDocument?.file_name || selectedNewFile?.name || 'Bill Document';
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolvePreview = async () => {
+      if (!activePreviewUrl) {
+        if (!cancelled) setResolvedPreviewUrl(null);
+        return;
+      }
+
+      if (activePreviewUrl.startsWith('blob:') || activePreviewUrl.startsWith('data:')) {
+        if (!cancelled) setResolvedPreviewUrl(activePreviewUrl);
+        return;
+      }
+
+      const resolved = await resolveStorageUrl('receipts', activePreviewUrl);
+      if (!cancelled) setResolvedPreviewUrl(resolved || activePreviewUrl);
+    };
+
+    resolvePreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePreviewUrl]);
+
   const handleSave = async (overrideStatus?: string, processDistribution: boolean = false) => {
     try {
       // Validate attachments if required
@@ -751,6 +836,29 @@ export default function BillEdit() {
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Badge variant={getStatusBadgeVariant(bill?.status)}>
+            {formatStatus(bill?.status)}
+          </Badge>
+          {bill?.status === 'pending_approval' && (
+            <>
+              <Button
+                variant="default"
+                onClick={() => handleSave('pending_payment')}
+                disabled={saving}
+              >
+                <Check className="h-4 w-4 mr-2" />
+                Approve Bill
+              </Button>
+              <Button
+                variant="destructive"
+                onClick={() => handleSave('rejected')}
+                disabled={saving}
+              >
+                <X className="h-4 w-4 mr-2" />
+                Reject Bill
+              </Button>
+            </>
+          )}
           <Button variant="outline" onClick={() => handleSave()} disabled={saving}>
             {saving ? (
               <Loader2 className="h-4 w-4 mr-2 animate-spin" />
@@ -773,7 +881,124 @@ export default function BillEdit() {
       </div>
 
       {/* Form */}
-      <div className="space-y-6">
+      <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
+        <div className="xl:col-span-3">
+        <Card className="xl:sticky xl:top-20">
+          <CardContent className="space-y-4">
+            <div className="h-[calc(100vh-18rem)] min-h-[520px] border rounded-lg overflow-hidden bg-muted/20">
+              <ZoomableDocumentPreview
+                url={resolvedPreviewUrl}
+                fileName={activePreviewName}
+                className="h-full"
+                emptyMessage="No attachment uploaded"
+                emptySubMessage="Upload or select a document to preview"
+              />
+            </div>
+
+            <div className="border-2 border-dashed rounded-lg p-3 space-y-3">
+              <div className="text-sm font-medium">Select Document</div>
+              {(existingDocuments.length > 0 || billFiles.length > 0) ? (
+                <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
+                  {existingDocuments.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className={cn(
+                        "flex items-center justify-between gap-2 p-2 border rounded-md cursor-pointer",
+                        selectedDocument?.kind === 'existing' && selectedDocument.key === doc.id
+                          ? "border-primary bg-primary/5"
+                          : "hover:bg-muted/50"
+                      )}
+                      onClick={() => setSelectedDocument({ kind: 'existing', key: doc.id })}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="text-sm truncate">{doc.file_name}</span>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeExistingDocument(doc.id);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                  {billFiles.map((file, index) => (
+                    <div
+                      key={`new-${index}`}
+                      className={cn(
+                        "flex items-center justify-between gap-2 p-2 border rounded-md cursor-pointer",
+                        selectedDocument?.kind === 'new' && selectedDocument.key === `new-${index}`
+                          ? "border-primary bg-primary/5"
+                          : "hover:bg-muted/50"
+                      )}
+                      onClick={() => setSelectedDocument({ kind: 'new', key: `new-${index}` })}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="text-sm truncate">{file.name}</span>
+                        <Badge variant="outline" className="text-[10px]">New</Badge>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          removeFile(index);
+                        }}
+                      >
+                        <X className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-sm text-muted-foreground">No documents selected</div>
+              )}
+              {attachmentRequired && existingDocuments.length === 0 && billFiles.length === 0 && (
+                <div className="flex items-center gap-2 text-sm text-destructive">
+                  <AlertCircle className="h-4 w-4" />
+                  <span>At least one document is required</span>
+                </div>
+              )}
+              <div
+                onDragOver={handleDragOver}
+                onDragLeave={handleDragLeave}
+                onDrop={handleDrop}
+                className={`border rounded-lg p-4 text-center cursor-pointer transition-colors ${
+                  isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                }`}
+                onClick={() => document.getElementById('bill-file-input')?.click()}
+              >
+                <Upload className="h-6 w-6 mx-auto mb-2 text-muted-foreground" />
+                <p className="text-sm text-muted-foreground mb-1">Drag and drop or click to upload</p>
+                <p className="text-xs text-muted-foreground">PDF, JPG, PNG, WEBP (max 10MB)</p>
+                <input
+                  id="bill-file-input"
+                  type="file"
+                  multiple
+                  accept=".pdf,image/jpeg,image/png,image/webp"
+                  onChange={(e) => {
+                    const files = e.target.files;
+                    if (files) handleFileUpload(Array.from(files));
+                  }}
+                  className="hidden"
+                />
+              </div>
+              {!attachmentRequired && (
+                <div className="text-xs text-muted-foreground">Attachments are optional for the selected cost code/account</div>
+              )}
+            </div>
+          </CardContent>
+        </Card>
+        </div>
+
+        <div className="xl:col-span-1 space-y-6">
         <Card>
           <CardHeader>
             <CardTitle>
@@ -1018,27 +1243,6 @@ export default function BillEdit() {
           />
         )}
 
-        {/* Bill Approval Section - Only show when pending_approval, not during coding */}
-        {bill?.status === 'pending_approval' && (
-          <Card>
-            <CardHeader>
-              <CardTitle>Bill Approval</CardTitle>
-            </CardHeader>
-            <CardContent>
-              <BillApprovalActions
-                billId={bill.id}
-                currentStatus={bill.status}
-                jobRequiresPmApproval={jobData?.require_pm_bill_approval}
-                currentUserRole={profile?.role}
-                currentUserId={user?.id}
-                jobPmUserId={jobData?.project_manager_user_id}
-                onStatusUpdate={loadBillAndOptions}
-                onApproved={() => navigate(`/invoices/${id}`)}
-              />
-            </CardContent>
-          </Card>
-        )}
-
         <Card>
           <CardHeader>
             <CardTitle>Description & Notes</CardTitle>
@@ -1067,144 +1271,8 @@ export default function BillEdit() {
           </CardContent>
         </Card>
 
-        {/* Document Section */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              Bill Documents
-              {attachmentRequired && existingDocuments.length === 0 && billFiles.length === 0 && (
-                <Badge variant="destructive" className="text-xs">Required</Badge>
-              )}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Show info message when attachments are not required */}
-            {!attachmentRequired && (existingDocuments.length > 0 || billFiles.length > 0 || true) && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground bg-muted/50 p-3 rounded-lg">
-                <FileText className="h-4 w-4" />
-                <span>Attachments are optional for the selected cost code/account</span>
-              </div>
-            )}
-            
-            {/* Existing documents */}
-            {existingDocuments.length > 0 && (
-              <div className="space-y-3">
-                <Label>Uploaded Documents</Label>
-                <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                  {existingDocuments.map((doc) => (
-                    <div key={doc.id} className="border rounded-lg overflow-hidden">
-                      <div className="flex items-center justify-between p-3 bg-muted">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          <span className="text-sm font-medium">{doc.file_name}</span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeExistingDocument(doc.id)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      {doc.file_url.endsWith('.pdf') ? (
-                        <UrlPdfInlinePreview url={doc.file_url} className="w-full" />
-                      ) : (
-                        <img 
-                          src={doc.file_url} 
-                          alt={doc.file_name}
-                          className="w-full h-auto"
-                        />
-                      )}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* New files preview */}
-            {billFiles.length > 0 && (
-              <div className="space-y-3">
-                <Label>New Documents to Upload</Label>
-                <div className="space-y-3 max-h-[600px] overflow-y-auto">
-                  {billFiles.map((file, index) => (
-                    <div key={index} className="border rounded-lg overflow-hidden">
-                      <div className="flex items-center justify-between p-3 bg-muted">
-                        <div className="flex items-center gap-2">
-                          <FileText className="h-4 w-4" />
-                          <span className="text-sm font-medium">{file.name}</span>
-                        </div>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFile(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                      {file.type === 'application/pdf' ? (
-                        <PdfInlinePreview file={file} />
-                      ) : file.type.startsWith('image/') ? (
-                        <img 
-                          src={URL.createObjectURL(file)} 
-                          alt="Preview"
-                          className="w-full h-auto"
-                        />
-                      ) : null}
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-
-            {/* Upload area */}
-            <div>
-              {attachmentRequired && existingDocuments.length === 0 && billFiles.length === 0 && (
-                <div className="mb-2 flex items-center gap-2 text-sm text-muted-foreground">
-                  <AlertCircle className="h-4 w-4 text-destructive" />
-                  <span>At least one document is required</span>
-                </div>
-              )}
-              <Label>
-                {existingDocuments.length > 0 || billFiles.length > 0 
-                  ? 'Upload Additional Documents' 
-                  : attachmentRequired 
-                    ? 'Upload Documents *' 
-                    : 'Upload Documents (Optional)'}
-              </Label>
-              <div
-                onDragOver={handleDragOver}
-                onDragLeave={handleDragLeave}
-                onDrop={handleDrop}
-                className={`mt-2 border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
-                  isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-                }`}
-                onClick={() => document.getElementById('bill-file-input')?.click()}
-              >
-                <Upload className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-                <p className="text-sm text-muted-foreground mb-1">
-                  Drag and drop or click to upload
-                </p>
-                <p className="text-xs text-muted-foreground">
-                  PDF, JPG, PNG, or WEBP (max 10MB per file)
-                </p>
-                <input
-                  id="bill-file-input"
-                  type="file"
-                  multiple
-                  accept=".pdf,image/jpeg,image/png,image/webp"
-                  onChange={(e) => {
-                    const files = e.target.files;
-                    if (files) handleFileUpload(Array.from(files));
-                  }}
-                  className="hidden"
-                />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
       </div>
+    </div>
     </div>
   );
 }

@@ -65,6 +65,7 @@ interface UserProfile {
   last_name: string;
   email?: string;
   phone?: string;
+  birthday?: string | null;
   role: string;
   custom_role_id?: string | null;
   status: string;
@@ -75,6 +76,7 @@ interface UserProfile {
   department?: string;
   notes?: string;
   vendor_id?: string;
+  group_id?: string | null;
   pin_code?: string;
   punch_clock_access?: boolean;
   pm_lynk_access?: boolean;
@@ -95,6 +97,11 @@ interface CustomRole {
   role_name: string;
   role_key: string;
   color?: string | null;
+}
+
+interface EmployeeGroup {
+  id: string;
+  name: string;
 }
 
 interface LoginAudit {
@@ -147,7 +154,17 @@ export default function UserDetails() {
   const [sendingReset, setSendingReset] = useState(false);
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
-  const [editForm, setEditForm] = useState({ first_name: '', last_name: '', display_name: '', role: '', status: '' });
+  const [editForm, setEditForm] = useState({
+    first_name: '',
+    last_name: '',
+    display_name: '',
+    phone: '',
+    birthday: '',
+    role: '',
+    status: '',
+  });
+  const [groups, setGroups] = useState<EmployeeGroup[]>([]);
+  const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [companyRole, setCompanyRole] = useState<string | null>(null);
   const [removeConfirmName, setRemoveConfirmName] = useState('');
@@ -192,6 +209,7 @@ export default function UserDetails() {
       fetchUserEmail();
       fetchUserFiles();
       if (currentCompany) fetchCustomRoles();
+      if (currentCompany) fetchGroups();
     }
   }, [userId, currentCompany, isSuperAdmin]);
 
@@ -209,6 +227,22 @@ export default function UserDetails() {
     } catch (error) {
       console.error('Error fetching custom roles:', error);
       setCustomRoles([]);
+    }
+  };
+
+  const fetchGroups = async () => {
+    if (!currentCompany) return;
+    try {
+      const { data, error } = await supabase
+        .from('employee_groups')
+        .select('id, name')
+        .eq('company_id', currentCompany.id)
+        .order('name');
+      if (error) throw error;
+      setGroups((data as EmployeeGroup[]) || []);
+    } catch (error) {
+      console.error('Error fetching groups:', error);
+      setGroups([]);
     }
   };
 
@@ -243,10 +277,13 @@ export default function UserDetails() {
 
         const userData = { ...profileRes.data, role, avatar_url: avatarUrl };
         setUser(userData);
+        setSelectedGroupId(profileRes.data.group_id || null);
         setEditForm({
           first_name: userData.first_name || '',
           last_name: userData.last_name || '',
           display_name: userData.display_name || '',
+          phone: userData.phone || '',
+          birthday: userData.birthday || '',
           role: userData.custom_role_id ? `custom_${userData.custom_role_id}` : role,
           status: userData.status || 'approved',
         });
@@ -447,9 +484,12 @@ export default function UserDetails() {
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       display_name: user.display_name || '',
+      phone: user.phone || '',
+      birthday: user.birthday || '',
       role: user.custom_role_id ? `custom_${user.custom_role_id}` : user.role,
       status: user.status || 'approved',
     });
+    setSelectedGroupId(user.group_id || null);
     setEditing(true);
   };
 
@@ -472,7 +512,10 @@ export default function UserDetails() {
           first_name: editForm.first_name,
           last_name: editForm.last_name,
           display_name: editForm.display_name,
+          phone: editForm.phone || null,
+          birthday: editForm.birthday || null,
           status: editForm.status,
+          group_id: selectedGroupId || null,
         })
         .eq('user_id', user.user_id);
       if (profileError) throw profileError;
@@ -494,6 +537,34 @@ export default function UserDetails() {
         .eq('user_id', user.user_id);
       if (customRoleError) throw customRoleError;
 
+      // Keep legacy and junction group membership models aligned
+      const { data: companyGroupRows } = await supabase
+        .from('employee_groups')
+        .select('id')
+        .eq('company_id', currentCompany.id);
+
+      const companyGroupIds = (companyGroupRows || []).map((g: any) => g.id);
+      if (companyGroupIds.length > 0) {
+        await supabase
+          .from('employee_group_members')
+          .delete()
+          .eq('user_id', user.user_id)
+          .in('group_id', companyGroupIds);
+      }
+
+      if (selectedGroupId) {
+        if (!profile?.user_id) {
+          throw new Error('Missing current user context for group membership save');
+        }
+        await supabase
+          .from('employee_group_members')
+          .insert({
+            group_id: selectedGroupId,
+            user_id: user.user_id,
+            created_by: profile.user_id,
+          });
+      }
+
       if (becameApproved) {
         const { error: notifyError } = await supabase.functions.invoke('notify-user-approved', {
           body: {
@@ -511,9 +582,12 @@ export default function UserDetails() {
         first_name: editForm.first_name,
         last_name: editForm.last_name,
         display_name: editForm.display_name,
+        phone: editForm.phone || null,
+        birthday: editForm.birthday || null,
         status: editForm.status,
         role: isCustomRoleSelection ? 'employee' : editForm.role,
         custom_role_id: selectedCustomRoleId,
+        group_id: selectedGroupId || null,
       } : null);
       setEditing(false);
       toast({ title: "Success", description: "User updated successfully" });
@@ -681,7 +755,21 @@ export default function UserDetails() {
                     <Label htmlFor="edit_display_name">Display Name</Label>
                     <Input id="edit_display_name" value={editForm.display_name} onChange={(e) => setEditForm(f => ({ ...f, display_name: e.target.value }))} />
                   </div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div>
+                      <Label>Email</Label>
+                      <Input value={userEmail || user.email || ''} disabled />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit_phone">Phone</Label>
+                      <Input id="edit_phone" value={editForm.phone} onChange={(e) => setEditForm(f => ({ ...f, phone: e.target.value }))} />
+                    </div>
+                    <div>
+                      <Label htmlFor="edit_birthday">Birthdate</Label>
+                      <Input id="edit_birthday" type="date" value={editForm.birthday || ''} onChange={(e) => setEditForm(f => ({ ...f, birthday: e.target.value }))} />
+                    </div>
+                  </div>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label>Role</Label>
                       <Select value={editForm.role} onValueChange={(v) => setEditForm(f => ({ ...f, role: v }))}>
@@ -720,6 +808,21 @@ export default function UserDetails() {
                         </SelectContent>
                       </Select>
                     </div>
+                    <div>
+                      <Label>Group</Label>
+                      <Select
+                        value={selectedGroupId || '__none__'}
+                        onValueChange={(v) => setSelectedGroupId(v === '__none__' ? null : v)}
+                      >
+                        <SelectTrigger><SelectValue placeholder="Select group" /></SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No Group</SelectItem>
+                          {groups.map((group) => (
+                            <SelectItem key={group.id} value={group.id}>{group.name}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
                   </div>
                 </div>
               ) : (
@@ -739,18 +842,18 @@ export default function UserDetails() {
                   <Separator />
 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    {(userEmail || user.email) && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Mail className="h-4 w-4" />
-                        <span>{userEmail || user.email}</span>
-                      </div>
-                    )}
-                    {user.phone && (
-                      <div className="flex items-center gap-2 text-muted-foreground">
-                        <Phone className="h-4 w-4" />
-                        <span>{user.phone}</span>
-                      </div>
-                    )}
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Mail className="h-4 w-4" />
+                      <span>{userEmail || user.email || 'Not set'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Phone className="h-4 w-4" />
+                      <span>{user.phone || 'Not set'}</span>
+                    </div>
+                    <div className="flex items-center gap-2 text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>{user.birthday ? new Date(user.birthday).toLocaleDateString() : 'Not set'}</span>
+                    </div>
                     {user.department && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <MapPin className="h-4 w-4" />

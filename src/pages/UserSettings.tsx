@@ -10,12 +10,12 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveStorageUrl } from '@/utils/storageUtils';
 import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight, Mail, MailCheck, MailOpen, MailX, Clock, RefreshCw, Loader2, X, Briefcase, HardHat } from 'lucide-react';
-import UserJobAccess from "@/components/UserJobAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
 import CompanyAccessRequests from "@/components/CompanyAccessRequests";
 import { useNavigate } from 'react-router-dom';
 import UserRoleManagement from "@/components/UserRoleManagement";
 import RolePermissionsManager from "@/components/RolePermissionsManager";
+import EmployeeGroupManager from "@/components/EmployeeGroupManager";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddSystemUserDialog from "@/components/AddSystemUserDialog";
@@ -108,7 +108,6 @@ export default function UserSettings() {
   const [loading, setLoading] = useState(true);
   const [editingUser, setEditingUser] = useState<string | null>(null);
   const [editRole, setEditRole] = useState('');
-  const [selectedUserForJobAccess, setSelectedUserForJobAccess] = useState<string | null>(null);
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
@@ -511,10 +510,11 @@ export default function UserSettings() {
             Role Definitions
           </TabsTrigger>
           <TabsTrigger 
-            value="job-access" 
+            value="groups" 
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
           >
-            Job Access
+            <Users className="h-4 w-4 mr-2" />
+            Groups
           </TabsTrigger>
         </TabsList>
 
@@ -793,45 +793,10 @@ export default function UserSettings() {
           <RolePermissionsManager />
         </TabsContent>
 
-
-        <TabsContent value="job-access">
-          <div className="space-y-6">
-            <Card>
-              <CardHeader>
-                <CardTitle>Select User</CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Select
-                  value={selectedUserForJobAccess || ''}
-                  onValueChange={setSelectedUserForJobAccess}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select a user to manage job access" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {users.map((user) => (
-                      <SelectItem key={user.user_id} value={user.user_id}>
-                        {user.display_name || `${user.first_name} ${user.last_name}`} - {(() => {
-                          const customRoleForUser = getCustomRoleForUser(user);
-                          return customRoleForUser
-                            ? `${customRoleForUser.role_name} (Custom)`
-                            : (roleLabels[user.role as keyof typeof roleLabels] || user.role);
-                        })()}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </CardContent>
-            </Card>
-            
-            {selectedUserForJobAccess && (
-              <UserJobAccess 
-                userId={selectedUserForJobAccess}
-                userRole={users.find(u => u.user_id === selectedUserForJobAccess)?.role || 'employee'}
-              />
-            )}
-          </div>
+        <TabsContent value="groups">
+          <EmployeeGroupManager onGroupChange={fetchUsers} />
         </TabsContent>
+
       </Tabs>
 
       <AddSystemUserDialog

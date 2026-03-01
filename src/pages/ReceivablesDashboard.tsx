@@ -9,10 +9,13 @@ import {
   Users, FileText, DollarSign, TrendingUp, 
   Clock, AlertTriangle, ArrowRight 
 } from "lucide-react";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function ReceivablesDashboard() {
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [stats, setStats] = useState({
     totalCustomers: 0,
     activeCustomers: 0,
@@ -27,10 +30,10 @@ export default function ReceivablesDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadStats();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadStats = async () => {
     try {
@@ -45,7 +48,7 @@ export default function ReceivablesDashboard() {
       // Get invoice totals
       const { data: invoices } = await supabase
         .from("ar_invoices")
-        .select("id, total_amount, balance_due, status, invoice_number, issue_date, customers(name)")
+        .select("id, total_amount, balance_due, status, invoice_number, issue_date, customers(name), job_id")
         .eq("company_id", currentCompany!.id)
         .order("issue_date", { ascending: false })
         .limit(5);
@@ -53,13 +56,17 @@ export default function ReceivablesDashboard() {
       // Get payment totals
       const { data: payments } = await supabase
         .from("ar_payments")
-        .select("id, amount, payment_date, customers(name)")
+        .select("id, amount, payment_date, customers(name), ar_invoices(job_id)")
         .eq("company_id", currentCompany!.id)
         .order("payment_date", { ascending: false })
         .limit(5);
 
-      const allInvoices = invoices || [];
-      const allPayments = payments || [];
+      const allInvoices = (invoices || []).filter((inv: any) =>
+        canAccessAssignedJobOnly([inv.job_id], isPrivileged, allowedJobIds)
+      );
+      const allPayments = (payments || []).filter((pmt: any) =>
+        canAccessAssignedJobOnly([pmt.ar_invoices?.job_id], isPrivileged, allowedJobIds)
+      );
       const allCustomers = customers || [];
 
       // Calculate this month's payments

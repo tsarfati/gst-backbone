@@ -50,6 +50,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
   const [mapReady, setMapReady] = useState(false);
   const [mapToken, setMapToken] = useState<string | null>(null);
   const [displayCostCode, setDisplayCostCode] = useState<string | undefined>(undefined);
+  const [resolvedJobCoords, setResolvedJobCoords] = useState<{ latitude?: number; longitude?: number; address?: string } | null>(null);
 
   useEffect(() => {
     if (!open || !punch) return;
@@ -79,6 +80,39 @@ const mapContainer = useRef<HTMLDivElement>(null);
     
     loadPhotoUrl();
   }, [open, punch]);
+
+  useEffect(() => {
+    if (!open || !punch?.job_id) return;
+    if (punch.job_latitude != null && punch.job_longitude != null && punch.job_address) {
+      setResolvedJobCoords(null);
+      return;
+    }
+
+    const loadJobCoords = async () => {
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('latitude, longitude, address, city, state, zip_code')
+          .eq('id', punch.job_id!)
+          .maybeSingle();
+        if (error) {
+          console.warn('Failed to load job coordinates for punch detail:', error);
+          return;
+        }
+        if (!data) return;
+        const fullAddress = [data.address, data.city, data.state, data.zip_code].filter(Boolean).join(', ');
+        setResolvedJobCoords({
+          latitude: data.latitude ?? undefined,
+          longitude: data.longitude ?? undefined,
+          address: fullAddress || undefined,
+        });
+      } catch (error) {
+        console.warn('Unexpected error loading job coordinates for punch detail:', error);
+      }
+    };
+
+    loadJobCoords();
+  }, [open, punch?.job_id, punch?.job_latitude, punch?.job_longitude, punch?.job_address]);
 
   // Resolve and display an accurate cost code if missing or unknown
   useEffect(() => {
@@ -233,12 +267,16 @@ const mapContainer = useRef<HTMLDivElement>(null);
         setMapToken(fallback);
       }
 
+      const effectiveJobLatitude = punch.job_latitude ?? resolvedJobCoords?.latitude;
+      const effectiveJobLongitude = punch.job_longitude ?? resolvedJobCoords?.longitude;
+      const effectiveJobAddress = punch.job_address ?? resolvedJobCoords?.address;
+
       // Determine job site coordinates first (from coords or by geocoding address)
       let jobLngLat: [number, number] | null = null;
-      if (punch.job_latitude && punch.job_longitude) {
-        jobLngLat = [Number(punch.job_longitude), Number(punch.job_latitude)];
-      } else if (punch.job_address) {
-        const geo = await geocodeAddress(punch.job_address);
+      if (effectiveJobLatitude != null && effectiveJobLongitude != null) {
+        jobLngLat = [Number(effectiveJobLongitude), Number(effectiveJobLatitude)];
+      } else if (effectiveJobAddress) {
+        const geo = await geocodeAddress(effectiveJobAddress);
         if (geo) jobLngLat = [geo.longitude, geo.latitude];
       }
 
@@ -343,7 +381,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
         map.current = null;
       }
     };
-  }, [open, punch]);
+  }, [open, punch, displayCostCode, resolvedJobCoords]);
 
   if (!punch) return null;
 
@@ -521,10 +559,10 @@ const mapContainer = useRef<HTMLDivElement>(null);
           </Card>
 
           {/* Location and Photo side by side */}
-          {(((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude) || punch.job_address) || photoUrl) && (
+          {(((punch.latitude != null && punch.longitude != null) || (punch.job_latitude != null && punch.job_longitude != null) || (resolvedJobCoords?.latitude != null && resolvedJobCoords?.longitude != null) || punch.job_address || resolvedJobCoords?.address) || photoUrl) && (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               {/* Location Information */}
-              {((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude) || punch.job_address) && (
+              {((punch.latitude != null && punch.longitude != null) || (punch.job_latitude != null && punch.job_longitude != null) || (resolvedJobCoords?.latitude != null && resolvedJobCoords?.longitude != null) || punch.job_address || resolvedJobCoords?.address) && (
                 <Card>
                   <CardHeader>
                     <CardTitle className="flex items-center gap-2">
@@ -533,7 +571,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
                     </CardTitle>
                   </CardHeader>
                   <CardContent>
-                    {punch.latitude && punch.longitude ? (
+                    {punch.latitude != null && punch.longitude != null ? (
                       <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
                           <span className="text-sm text-muted-foreground">Latitude</span>
@@ -553,9 +591,9 @@ const mapContainer = useRef<HTMLDivElement>(null);
                     
                     <div className="relative w-full h-[300px] rounded-md border overflow-hidden">
                       {/* Static placeholder while map loads */}
-                      {!mapReady && ((punch.latitude && punch.longitude) || (punch.job_latitude && punch.job_longitude)) && (
+                      {!mapReady && ((punch.latitude != null && punch.longitude != null) || (punch.job_latitude != null && punch.job_longitude != null) || (resolvedJobCoords?.latitude != null && resolvedJobCoords?.longitude != null)) && (
                         <img
-                          src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-circle+${punch.punch_type === 'punched_in' ? '10b981' : 'ef4444'}(${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude})/${punch.longitude || punch.job_longitude},${punch.latitude || punch.job_latitude},15,0/600x300?access_token=${mapToken || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg'}`}
+                          src={`https://api.mapbox.com/styles/v1/mapbox/streets-v12/static/pin-s-circle+${punch.punch_type === 'punched_in' ? '10b981' : 'ef4444'}(${(punch.longitude ?? punch.job_longitude ?? resolvedJobCoords?.longitude)},${(punch.latitude ?? punch.job_latitude ?? resolvedJobCoords?.latitude)})/${(punch.longitude ?? punch.job_longitude ?? resolvedJobCoords?.longitude)},${(punch.latitude ?? punch.job_latitude ?? resolvedJobCoords?.latitude)},15,0/600x300?access_token=${mapToken || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg'}`}
                           alt="Map preview of punch location"
                           className="absolute inset-0 w-full h-full object-cover"
                           loading="lazy"

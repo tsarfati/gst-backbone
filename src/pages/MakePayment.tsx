@@ -33,6 +33,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
 import DragDropUpload from "@/components/DragDropUpload";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface Vendor {
   id: string;
@@ -253,7 +254,13 @@ export default function MakePayment() {
         paidByInvoice[pl.invoice_id] = (paidByInvoice[pl.invoice_id] || 0) + Number(pl.amount_paid || 0);
       });
       
-      const formattedInvoices = (invoicesData || []).map(invoice => {
+      const formattedInvoices = (invoicesData || [])
+      .filter((invoice: any) => {
+        const directJobId = invoice.job_id || invoice.jobs?.id || null;
+        const distJobIds = (distributionJobMap.get(invoice.id) || []).map((j) => j.id);
+        return canAccessAssignedJobOnly([directJobId, ...distJobIds], isPrivileged, allowedJobIds);
+      })
+      .map(invoice => {
         const amountPaid = paidByInvoice[invoice.id] || 0;
         const balanceDue = Number(invoice.amount) - amountPaid;
         
@@ -275,8 +282,7 @@ export default function MakePayment() {
           amount_paid: amountPaid,
           balance_due: balanceDue
         };
-      }).filter(inv => inv.balance_due > 0)
-        .filter(inv => isPrivileged || !inv.job_id || allowedJobIds.includes(inv.job_id)); // job access filter, keep company-level invoices
+      }).filter(inv => inv.balance_due > 0);
       
       setAllInvoices(formattedInvoices);
       setInvoices(formattedInvoices);

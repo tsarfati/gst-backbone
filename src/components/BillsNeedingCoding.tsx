@@ -8,6 +8,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { formatDistanceToNow } from 'date-fns';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 
 interface Bill {
   id: string;
@@ -37,15 +38,16 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
   const [bills, setBills] = useState<Bill[]>([]);
   const [loading, setLoading] = useState(true);
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   useEffect(() => {
     fetchBillsNeedingCoding();
-  }, [user, currentCompany, jobId]);
+  }, [user, currentCompany, jobId, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const fetchBillsNeedingCoding = async () => {
-    if (!user || !currentCompany) return;
+    if (!user || !currentCompany || websiteJobAccessLoading) return;
 
     try {
       // Build base query
@@ -81,25 +83,15 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
         query = query.eq('job_id', jobId);
       }
 
-      // For project managers, only show bills for their jobs
-      if (profile?.role === 'project_manager') {
-        const { data: pmJobs } = await supabase
-          .from('jobs')
-          .select('id')
-          .or(`project_manager_user_id.eq.${user.id},created_by.eq.${user.id}`)
-          .eq('company_id', currentCompany.id);
-
-        if (pmJobs && pmJobs.length > 0) {
-          const jobIds = pmJobs.map(j => j.id);
-          query = query.in('job_id', jobIds);
-        } else {
-          // PM has no jobs, return empty
+      // Strict job visibility: non-privileged users only see bills tied to assigned jobs.
+      if (!isPrivileged) {
+        if (!allowedJobIds.length) {
           setBills([]);
           setLoading(false);
           return;
         }
+        query = query.in('job_id', allowedJobIds);
       } else {
-        // For other roles, show all bills in company
         const { data: companyJobs, error: jobsError } = await supabase
           .from('jobs')
           .select('id')
@@ -116,7 +108,6 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
           const jobIds = companyJobs.map(j => j.id);
           query = query.in('job_id', jobIds);
         } else {
-          // Company has no jobs, return empty
           setBills([]);
           setLoading(false);
           return;

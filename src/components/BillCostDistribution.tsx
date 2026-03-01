@@ -214,36 +214,34 @@ export default function BillCostDistribution({
 
   return (
     <Card>
-      <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="flex items-center gap-2">
-            Cost Distribution
-            <Badge variant="secondary" className="text-xs">
-              {distribution.length} Line{distribution.length > 1 ? 's' : ''}
-            </Badge>
-          </CardTitle>
-          <div className="flex items-center gap-2">
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={distributeEvenly}
-              disabled={disabled || distribution.length === 0}
-            >
-              <Calculator className="h-4 w-4 mr-1" />
-              Distribute Evenly
-            </Button>
-            <Button
-              type="button"
-              variant="outline"
-              size="sm"
-              onClick={addDistribution}
-              disabled={disabled}
-            >
-              <Plus className="h-4 w-4 mr-1" />
-              Add Line
-            </Button>
-          </div>
+      <CardHeader className="space-y-3">
+        <CardTitle className="flex items-center gap-2 flex-wrap">
+          Cost Distribution
+          <Badge variant="secondary" className="text-xs">
+            {distribution.length} Line{distribution.length > 1 ? 's' : ''}
+          </Badge>
+        </CardTitle>
+        <div className="flex flex-wrap items-center gap-2">
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={addDistribution}
+            disabled={disabled}
+          >
+            <Plus className="h-4 w-4 mr-1" />
+            Add Line
+          </Button>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={distributeEvenly}
+            disabled={disabled || distribution.length === 0}
+          >
+            <Calculator className="h-4 w-4 mr-1" />
+            Distribute Evenly
+          </Button>
         </div>
       </CardHeader>
       <CardContent className="space-y-4">

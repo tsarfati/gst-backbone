@@ -4,7 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate, Download } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate, Download, FileCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +22,7 @@ import JobBillingSetup from "@/components/JobBillingSetup";
 import JobRFIs from "@/components/JobRFIs";
 import JobProjectTeam from "@/components/JobProjectTeam";
 import JobExportModal from "@/components/JobExportModal";
+import JobSubmittals from "@/components/JobSubmittals";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface Job {
@@ -245,6 +246,13 @@ export default function JobDetails() {
               <ClipboardList className="h-4 w-4 mr-2" />
               RFIs
             </TabsTrigger>
+            <TabsTrigger
+              value="submittals"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <FileCheck className="h-4 w-4 mr-2" />
+              Submittals
+            </TabsTrigger>
             <TabsTrigger 
               value="billing"
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
@@ -393,6 +401,10 @@ export default function JobDetails() {
 
           <TabsContent value="rfis" className="p-6">
             <JobRFIs jobId={id!} />
+          </TabsContent>
+
+          <TabsContent value="submittals" className="p-6">
+            <JobSubmittals jobId={id!} />
           </TabsContent>
 
           <TabsContent value="billing" className="p-6">

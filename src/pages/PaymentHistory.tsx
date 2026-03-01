@@ -14,6 +14,8 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { format } from "date-fns";
 import { cn } from "@/lib/utils";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface PaymentRow {
   id: string;
@@ -67,6 +69,7 @@ export default function PaymentHistory() {
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -78,7 +81,7 @@ export default function PaymentHistory() {
 
   useEffect(() => {
     const load = async () => {
-      if (!currentCompany) return;
+      if (!currentCompany || websiteJobAccessLoading) return;
       setLoading(true);
       try {
         // Fetch payments for current company through vendors
@@ -139,20 +142,45 @@ export default function PaymentHistory() {
         // Fetch invoice numbers (optional)
         const invoiceResponse: any = invoiceIds.length > 0
           // @ts-ignore - bills table may not be in generated types for some environments
-          ? await supabase.from("invoices").select("id, invoice_number").in("id", invoiceIds)
+          ? await supabase.from("invoices").select("id, invoice_number, job_id").in("id", invoiceIds)
           : { data: [], error: null };
         
         const invoiceNumberMap: Record<string, string> = {};
+        const invoiceJobMap: Record<string, string | null> = {};
         if (invoiceResponse?.error) {
           console.warn("Could not fetch invoice numbers from bills table", invoiceResponse.error);
         } else {
           invoiceResponse?.data?.forEach((inv: any) => {
             invoiceNumberMap[inv.id] = inv.invoice_number;
+            invoiceJobMap[inv.id] = inv.job_id || null;
+          });
+        }
+
+        const distResponse: any = invoiceIds.length > 0
+          ? await supabase
+            .from("invoice_cost_distributions")
+            .select("invoice_id, cost_codes(job_id)")
+            .in("invoice_id", invoiceIds)
+          : { data: [], error: null };
+        const invoiceDistributionJobs: Record<string, string[]> = {};
+        if (!distResponse?.error) {
+          (distResponse?.data || []).forEach((row: any) => {
+            const invoiceId = row.invoice_id;
+            const jobId = row.cost_codes?.job_id;
+            if (!invoiceId || !jobId) return;
+            if (!invoiceDistributionJobs[invoiceId]) invoiceDistributionJobs[invoiceId] = [];
+            if (!invoiceDistributionJobs[invoiceId].includes(jobId)) {
+              invoiceDistributionJobs[invoiceId].push(jobId);
+            }
           });
         }
 
         const mapped: PaymentRow[] = paymentData.map((p: any) => {
           const invoiceId = invoiceMap[p.id];
+          const invoiceJobId = invoiceId ? invoiceJobMap[invoiceId] : null;
+          const distJobIds = invoiceId ? (invoiceDistributionJobs[invoiceId] || []) : [];
+          const canAccessPayment = canAccessAssignedJobOnly([invoiceJobId, ...distJobIds], isPrivileged, allowedJobIds);
+          if (!canAccessPayment) return null as any;
           return {
             id: p.id,
             payment_number: p.payment_number || "",
@@ -165,9 +193,9 @@ export default function PaymentHistory() {
             invoiceId: invoiceId,
             invoiceNumber: invoiceId ? invoiceNumberMap[invoiceId] : undefined,
           };
-        });
+        }).filter(Boolean);
 
-        setRows(mapped);
+        setRows(mapped as PaymentRow[]);
       } catch (e) {
         console.error("Error loading payments", e);
         toast({ title: "Error", description: "Failed to load payment history", variant: "destructive" });
@@ -176,7 +204,7 @@ export default function PaymentHistory() {
       }
     };
     load();
-  }, [currentCompany, toast]);
+  }, [currentCompany, toast, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
   const filteredPayments = useMemo(() => {
     let list = [...rows];

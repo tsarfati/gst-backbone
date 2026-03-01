@@ -12,6 +12,8 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessJobIds } from '@/utils/jobAccess';
 
 interface RFP {
   id: string;
@@ -35,6 +37,7 @@ export default function RFPs() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [rfps, setRfps] = useState<RFP[]>([]);
   const [loading, setLoading] = useState(true);
@@ -44,10 +47,10 @@ export default function RFPs() {
   const jobIdFilter = searchParams.get('jobId');
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadRFPs();
     }
-  }, [currentCompany?.id, jobIdFilter]);
+  }, [currentCompany?.id, jobIdFilter, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
   const loadRFPs = async () => {
     try {
@@ -70,7 +73,9 @@ export default function RFPs() {
 
       if (error) throw error;
 
-      const rfpsWithCount = (data || []).map(rfp => ({
+      const rfpsWithCount = (data || [])
+        .filter((rfp: any) => canAccessJobIds([rfp.job_id], isPrivileged, allowedJobIds))
+        .map(rfp => ({
         ...rfp,
         bid_count: rfp.bids?.length || 0,
         bids: undefined
