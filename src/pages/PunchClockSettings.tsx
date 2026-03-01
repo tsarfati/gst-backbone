@@ -265,7 +265,8 @@ export default function PunchClockSettings() {
     }
   };
 
-  const saveSettings = async (showToast: boolean = true) => {
+  const saveSettings = async (_eventOrShowToast?: React.MouseEvent | boolean) => {
+    const showToast = typeof _eventOrShowToast === 'boolean' ? _eventOrShowToast : true;
     if (!currentCompany) return;
 
     try {

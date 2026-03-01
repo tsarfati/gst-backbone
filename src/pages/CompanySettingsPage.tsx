@@ -103,7 +103,7 @@ export default function CompanySettingsPage() {
   const [eligibleUsers, setEligibleUsers] = useState<OrganizationUserProfile[]>([]);
   const [eligibleUserSearch, setEligibleUserSearch] = useState('');
   const [selectedExistingUserId, setSelectedExistingUserId] = useState('');
-  const [assignUserRole, setAssignUserRole] = useState('employee');
+  const [assignUserRole, setAssignUserRole] = useState<"admin" | "company_admin" | "controller" | "employee" | "project_manager" | "vendor" | "view_only">('employee');
   const [assigningUser, setAssigningUser] = useState(false);
   const [customRoles, setCustomRoles] = useState<CustomRoleRecord[]>([]);
 
@@ -909,7 +909,7 @@ export default function CompanySettingsPage() {
             </div>
             <div className="space-y-2">
               <Label>Role for this company</Label>
-              <Select value={assignUserRole} onValueChange={setAssignUserRole}>
+              <Select value={assignUserRole} onValueChange={(v) => setAssignUserRole(v as typeof assignUserRole)}>
                 <SelectTrigger>
                   <SelectValue />
                 </SelectTrigger>

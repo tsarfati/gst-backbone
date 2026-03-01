@@ -98,7 +98,7 @@ export default function CompanyManagement() {
   const [showAssignExistingUserDialog, setShowAssignExistingUserDialog] = useState(false);
   const [selectedCompanyForUsers, setSelectedCompanyForUsers] = useState<OrganizationCompany | null>(null);
   const [selectedExistingUserId, setSelectedExistingUserId] = useState<string>('');
-  const [assignUserRole, setAssignUserRole] = useState<string>('employee');
+  const [assignUserRole, setAssignUserRole] = useState<"admin" | "company_admin" | "controller" | "employee" | "project_manager" | "vendor" | "view_only">('employee');
   const [existingUserSearch, setExistingUserSearch] = useState('');
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [eligibleOrganizationUsers, setEligibleOrganizationUsers] = useState<OrganizationUserProfile[]>([]);
@@ -1368,7 +1368,7 @@ export default function CompanyManagement() {
 
             <div className="space-y-2">
               <Label htmlFor="existing-user-role">Role for this company</Label>
-              <Select value={assignUserRole} onValueChange={setAssignUserRole}>
+              <Select value={assignUserRole} onValueChange={(v) => setAssignUserRole(v as typeof assignUserRole)}>
                 <SelectTrigger id="existing-user-role">
                   <SelectValue />
                 </SelectTrigger>
