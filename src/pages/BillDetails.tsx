@@ -472,6 +472,28 @@ export default function BillDetails() {
     }
   };
 
+  const selectedDocument = selectedPreviewKey && selectedPreviewKey !== 'bill'
+    ? documents.find((doc) => doc.id === selectedPreviewKey)
+    : null;
+  const activePreviewUrl = selectedDocument?.file_url || (selectedPreviewKey === 'bill' ? bill?.file_url : null) || null;
+  const activePreviewName = selectedDocument?.file_name || 'Bill Document';
+
+  useEffect(() => {
+    let cancelled = false;
+    const resolvePreview = async () => {
+      if (!activePreviewUrl) {
+        if (!cancelled) setResolvedPreviewUrl(null);
+        return;
+      }
+      const resolved = await resolveStorageUrl('receipts', activePreviewUrl);
+      if (!cancelled) setResolvedPreviewUrl(resolved || activePreviewUrl);
+    };
+    resolvePreview();
+    return () => {
+      cancelled = true;
+    };
+  }, [activePreviewUrl]);
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center">
@@ -506,28 +528,6 @@ export default function BillDetails() {
       </div>
     );
   }
-
-  const selectedDocument = selectedPreviewKey && selectedPreviewKey !== 'bill'
-    ? documents.find((doc) => doc.id === selectedPreviewKey)
-    : null;
-  const activePreviewUrl = selectedDocument?.file_url || (selectedPreviewKey === 'bill' ? bill?.file_url : null) || null;
-  const activePreviewName = selectedDocument?.file_name || 'Bill Document';
-
-  useEffect(() => {
-    let cancelled = false;
-    const resolvePreview = async () => {
-      if (!activePreviewUrl) {
-        if (!cancelled) setResolvedPreviewUrl(null);
-        return;
-      }
-      const resolved = await resolveStorageUrl('receipts', activePreviewUrl);
-      if (!cancelled) setResolvedPreviewUrl(resolved || activePreviewUrl);
-    };
-    resolvePreview();
-    return () => {
-      cancelled = true;
-    };
-  }, [activePreviewUrl]);
 
   const StatusIcon = getStatusIcon(bill?.status || "pending");
   const billIsOverdue = isOverdue();
