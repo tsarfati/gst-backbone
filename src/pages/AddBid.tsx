@@ -228,8 +228,8 @@ export default function AddBid() {
     : null;
 
   return (
-    <div className="space-y-6">
-      <div className="flex items-center gap-4">
+    <div className="space-y-4">
+      <div className="flex items-center gap-3">
         <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
@@ -238,13 +238,13 @@ export default function AddBid() {
         </div>
       </div>
 
-      <form onSubmit={handleSubmit} className="space-y-6">
+      <form onSubmit={handleSubmit} className="space-y-4">
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <CardTitle>Bid Details</CardTitle>
             <CardDescription>Enter the vendor's bid information</CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-3">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="vendor_id">Vendor *</Label>
@@ -334,7 +334,7 @@ export default function AddBid() {
 
         {/* Attachments Section */}
         <Card>
-          <CardHeader>
+          <CardHeader className="pb-3">
             <div className="flex items-center justify-between">
               <div>
                 <CardTitle className="flex items-center gap-2">
@@ -360,7 +360,7 @@ export default function AddBid() {
               </label>
             </div>
           </CardHeader>
-          <CardContent>
+          <CardContent className="space-y-3">
             {pendingFiles.length === 0 ? (
               <label className="cursor-pointer">
                 <input
@@ -453,7 +453,7 @@ export default function AddBid() {
           </CardContent>
         </Card>
 
-        <div className="flex justify-end gap-4">
+        <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>
             Cancel
           </Button>

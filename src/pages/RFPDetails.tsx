@@ -425,9 +425,9 @@ export default function RFPDetails() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate('/construction/rfps')}>
             <ArrowLeft className="h-5 w-5" />
@@ -591,10 +591,10 @@ export default function RFPDetails() {
       </Dialog>
 
       {/* Info Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         {rfp.job && (
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4">
               <div className="flex items-center gap-3">
                 <Building2 className="h-5 w-5 text-muted-foreground" />
               <div>
@@ -606,7 +606,7 @@ export default function RFPDetails() {
           </Card>
         )}
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-muted-foreground" />
               <div>
@@ -619,7 +619,7 @@ export default function RFPDetails() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <Calendar className="h-5 w-5 text-muted-foreground" />
               <div>
@@ -632,7 +632,7 @@ export default function RFPDetails() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <Users className="h-5 w-5 text-muted-foreground" />
               <div>
@@ -645,7 +645,7 @@ export default function RFPDetails() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="overview" className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-3">
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="invited">Invited ({invitedVendors.length})</TabsTrigger>
@@ -703,25 +703,25 @@ export default function RFPDetails() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Vendor</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Invited</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="py-2">Vendor</TableHead>
+                    <TableHead className="py-2">Email</TableHead>
+                    <TableHead className="py-2">Invited</TableHead>
+                    <TableHead className="py-2">Status</TableHead>
+                    <TableHead className="py-2 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {invitedVendors.map(inv => (
                     <TableRow key={inv.id}>
-                      <TableCell className="font-medium">{inv.vendor?.name}</TableCell>
-                      <TableCell>{inv.vendor?.email || '-'}</TableCell>
-                      <TableCell>{format(new Date(inv.invited_at), 'MMM d, yyyy')}</TableCell>
-                      <TableCell>
+                      <TableCell className="py-2 font-medium">{inv.vendor?.name}</TableCell>
+                      <TableCell className="py-2">{inv.vendor?.email || '-'}</TableCell>
+                      <TableCell className="py-2">{format(new Date(inv.invited_at), 'MMM d, yyyy')}</TableCell>
+                      <TableCell className="py-2">
                         <Badge variant={inv.response_status === 'bid_submitted' ? 'default' : 'secondary'}>
                           {inv.response_status === 'pending' || !inv.response_status ? 'Pending' : inv.response_status === 'bid_submitted' ? 'Bid Submitted' : inv.response_status}
                         </Badge>
                       </TableCell>
-                      <TableCell className="text-right">
+                      <TableCell className="py-2 text-right">
                         {inv.vendor?.email && inv.response_status !== 'bid_submitted' && (
                           <Button
                             variant="ghost"
@@ -768,23 +768,23 @@ export default function RFPDetails() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Vendor</TableHead>
-                    <TableHead>Bid Amount</TableHead>
-                    <TableHead>Timeline</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead>Submitted</TableHead>
-                    <TableHead></TableHead>
+                    <TableHead className="py-2">Vendor</TableHead>
+                    <TableHead className="py-2">Bid Amount</TableHead>
+                    <TableHead className="py-2">Timeline</TableHead>
+                    <TableHead className="py-2">Status</TableHead>
+                    <TableHead className="py-2">Submitted</TableHead>
+                    <TableHead className="py-2"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {bids.map(bid => (
                     <TableRow key={bid.id}>
-                      <TableCell className="font-medium">{bid.vendor.name}</TableCell>
-                      <TableCell>${bid.bid_amount.toLocaleString()}</TableCell>
-                      <TableCell>{bid.proposed_timeline || '-'}</TableCell>
-                      <TableCell>{getBidStatusBadge(bid.status)}</TableCell>
-                      <TableCell>{format(new Date(bid.submitted_at), 'MMM d, yyyy')}</TableCell>
-                      <TableCell>
+                      <TableCell className="py-2 font-medium">{bid.vendor.name}</TableCell>
+                      <TableCell className="py-2">${bid.bid_amount.toLocaleString()}</TableCell>
+                      <TableCell className="py-2">{bid.proposed_timeline || '-'}</TableCell>
+                      <TableCell className="py-2">{getBidStatusBadge(bid.status)}</TableCell>
+                      <TableCell className="py-2">{format(new Date(bid.submitted_at), 'MMM d, yyyy')}</TableCell>
+                      <TableCell className="py-2">
                         <Button 
                           variant="ghost" 
                           size="sm"
@@ -830,19 +830,19 @@ export default function RFPDetails() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Criterion</TableHead>
-                    <TableHead>Description</TableHead>
-                    <TableHead>Weight</TableHead>
-                    <TableHead>Max Score</TableHead>
+                    <TableHead className="py-2">Criterion</TableHead>
+                    <TableHead className="py-2">Description</TableHead>
+                    <TableHead className="py-2">Weight</TableHead>
+                    <TableHead className="py-2">Max Score</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {criteria.map(c => (
                     <TableRow key={c.id}>
-                      <TableCell className="font-medium">{c.criterion_name}</TableCell>
-                      <TableCell>{c.description || '-'}</TableCell>
-                      <TableCell>{c.weight}x</TableCell>
-                      <TableCell>{c.max_score}</TableCell>
+                      <TableCell className="py-2 font-medium">{c.criterion_name}</TableCell>
+                      <TableCell className="py-2">{c.description || '-'}</TableCell>
+                      <TableCell className="py-2">{c.weight}x</TableCell>
+                      <TableCell className="py-2">{c.max_score}</TableCell>
                     </TableRow>
                   ))}
                 </TableBody>

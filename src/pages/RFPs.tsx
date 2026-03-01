@@ -113,8 +113,8 @@ export default function RFPs() {
   });
 
   return (
-    <div className="space-y-6">
-      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4">
+    <div className="space-y-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-3">
         <div>
           <h1 className="text-3xl font-bold">RFPs</h1>
         </div>
@@ -126,7 +126,7 @@ export default function RFPs() {
 
       {/* Filters */}
       <Card>
-        <CardContent className="pt-6">
+        <CardContent className="p-4">
           <div className="flex flex-col sm:flex-row gap-4">
             <div className="relative flex-1">
               <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
@@ -156,11 +156,11 @@ export default function RFPs() {
       </Card>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-primary/10">
+              <div className="p-2.5 rounded-lg bg-primary/10">
                 <FileText className="h-6 w-6 text-primary" />
               </div>
               <div>
@@ -171,9 +171,9 @@ export default function RFPs() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-blue-500/10">
+              <div className="p-2.5 rounded-lg bg-blue-500/10">
                 <Calendar className="h-6 w-6 text-blue-500" />
               </div>
               <div>
@@ -184,9 +184,9 @@ export default function RFPs() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-green-500/10">
+              <div className="p-2.5 rounded-lg bg-green-500/10">
                 <Users className="h-6 w-6 text-green-500" />
               </div>
               <div>
@@ -197,9 +197,9 @@ export default function RFPs() {
           </CardContent>
         </Card>
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-4">
-              <div className="p-3 rounded-lg bg-amber-500/10">
+              <div className="p-2.5 rounded-lg bg-amber-500/10">
                 <Building2 className="h-6 w-6 text-amber-500" />
               </div>
               <div>
@@ -213,7 +213,7 @@ export default function RFPs() {
 
       {/* RFPs Table */}
       <Card>
-        <CardHeader>
+        <CardHeader className="pb-3">
           <CardTitle>All RFPs</CardTitle>
           <CardDescription>
             {filteredRFPs.length} RFP{filteredRFPs.length !== 1 ? 's' : ''} found
@@ -242,25 +242,25 @@ export default function RFPs() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead>RFP #</TableHead>
-                  <TableHead>Title</TableHead>
-                  <TableHead>Job</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Due Date</TableHead>
-                  <TableHead>Bids</TableHead>
-                  <TableHead></TableHead>
+                  <TableHead className="py-2">RFP #</TableHead>
+                  <TableHead className="py-2">Title</TableHead>
+                  <TableHead className="py-2">Job</TableHead>
+                  <TableHead className="py-2">Status</TableHead>
+                  <TableHead className="py-2">Due Date</TableHead>
+                  <TableHead className="py-2">Bids</TableHead>
+                  <TableHead className="py-2"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {filteredRFPs.map((rfp) => (
                   <TableRow 
                     key={rfp.id} 
-                    className="cursor-pointer hover:bg-muted/50"
+                    className="cursor-pointer hover:bg-muted/40"
                     onClick={() => navigate(`/construction/rfps/${rfp.id}`)}
                   >
-                    <TableCell className="font-medium">{rfp.rfp_number}</TableCell>
-                    <TableCell>{rfp.title}</TableCell>
-                    <TableCell>
+                    <TableCell className="py-2 font-medium">{rfp.rfp_number}</TableCell>
+                    <TableCell className="py-2">{rfp.title}</TableCell>
+                    <TableCell className="py-2">
                       {rfp.job ? (
                         <span className="text-sm">
                           {rfp.job.name}
@@ -269,14 +269,14 @@ export default function RFPs() {
                         <span className="text-muted-foreground">-</span>
                       )}
                     </TableCell>
-                    <TableCell>{getStatusBadge(rfp.status)}</TableCell>
-                    <TableCell>
+                    <TableCell className="py-2">{getStatusBadge(rfp.status)}</TableCell>
+                    <TableCell className="py-2">
                       {rfp.due_date ? format(new Date(rfp.due_date), 'MMM d, yyyy') : '-'}
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2">
                       <Badge variant="outline">{rfp.bid_count || 0}</Badge>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-2">
                       <ChevronRight className="h-4 w-4 text-muted-foreground" />
                     </TableCell>
                   </TableRow>

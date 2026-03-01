@@ -2,7 +2,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { Navigate } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
+import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 
 interface RoleGuardProps {
   children: React.ReactNode;
@@ -21,11 +21,7 @@ export function RoleGuard({
 
   // Show loading while authentication is in progress
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <PremiumLoadingScreen text="Loading your access..." />;
   }
 
   // If no user is authenticated, redirect to auth
@@ -40,11 +36,7 @@ export function RoleGuard({
 
   // If profile is not loaded yet, show loading
   if (!profile) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <PremiumLoadingScreen text="Loading your profile..." />;
   }
 
   // Use company-specific role if available, otherwise fall back to profile role

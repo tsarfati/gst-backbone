@@ -273,9 +273,9 @@ export default function BidComparison() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       {/* Header */}
-      <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
+      <div className="flex flex-col sm:flex-row justify-between items-start gap-3">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(`/construction/rfps/${id}`)}>
             <ArrowLeft className="h-5 w-5" />
@@ -297,9 +297,9 @@ export default function BidComparison() {
       </div>
 
       {/* Summary Cards */}
-      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-lg bg-primary/10">
                 <FileSpreadsheet className="h-6 w-6 text-primary" />
@@ -314,7 +314,7 @@ export default function BidComparison() {
         
         {lowestBid && (
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 rounded-lg bg-green-500/10">
                   <DollarSign className="h-6 w-6 text-green-500" />
@@ -331,7 +331,7 @@ export default function BidComparison() {
 
         {highestScore && criteria.length > 0 && (
           <Card>
-            <CardContent className="pt-6">
+            <CardContent className="pt-4">
               <div className="flex items-center gap-3">
                 <div className="p-3 rounded-lg bg-amber-500/10">
                   <Trophy className="h-6 w-6 text-amber-500" />
@@ -347,7 +347,7 @@ export default function BidComparison() {
         )}
 
         <Card>
-          <CardContent className="pt-6">
+          <CardContent className="pt-4">
             <div className="flex items-center gap-3">
               <div className="p-3 rounded-lg bg-blue-500/10">
                 <Star className="h-6 w-6 text-blue-500" />

@@ -3,8 +3,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useNavigate, useLocation } from 'react-router-dom';
-import { Loader2 } from 'lucide-react';
 import { AccountStatusScreen } from '@/components/AccountStatusScreen';
+import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import { supabase } from '@/integrations/supabase/client';
 
 interface AccessControlProps {
@@ -262,11 +262,7 @@ export function AccessControl({ children }: AccessControlProps) {
 
   // Show account status splash screens
   if (autoAcceptingInvite) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <PremiumLoadingScreen text="Applying invitation..." />;
   }
 
   if (!isInviteAuthRoute && profile && (profile.status === 'pending' || profile.status === 'suspended')) {
@@ -274,11 +270,7 @@ export function AccessControl({ children }: AccessControlProps) {
   }
 
   if (!initialized && (authLoading || companyLoading || tenantLoading || checking)) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin" />
-      </div>
-    );
+    return <PremiumLoadingScreen text="Loading your workspace..." />;
   }
 
   return <>{children}</>;
