@@ -284,7 +284,6 @@ export default function PaymentHistory() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Payment History</h1>
-          <p className="text-muted-foreground">Track all payment transactions and history</p>
         </div>
         <div className="flex space-x-2">
           <Button variant="outline">

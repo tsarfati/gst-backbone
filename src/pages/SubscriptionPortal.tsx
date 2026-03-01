@@ -181,24 +181,23 @@ export default function SubscriptionPortal() {
 
   if (loading) {
     return (
-      <div className="p-6 flex justify-center">
+      <div className="p-4 md:p-6 flex justify-center">
         <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-5xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold flex items-center gap-2">
             <Shield className="h-6 w-6 text-primary" />
             Subscription Management
           </h1>
-          <p className="text-muted-foreground text-sm mt-1">
-            Manage your plan, billing, and payment methods
+          <div className="mt-1">
             <HelpTooltip text="This portal shows your current subscription status, past invoices, and lets you update your payment method or change plans." />
-          </p>
+          </div>
         </div>
         <Button variant="outline" size="sm" onClick={fetchDetails} className="gap-2">
           <RefreshCw className="h-4 w-4" />

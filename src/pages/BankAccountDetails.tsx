@@ -400,7 +400,7 @@ export default function BankAccountDetails() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6">
       <div className="mb-6">
         <Button
           variant="ghost"
@@ -413,7 +413,6 @@ export default function BankAccountDetails() {
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">{account.account_name}</h1>
-            <p className="text-muted-foreground">{account.bank_name}</p>
           </div>
           <div className="flex gap-2">
             <Button

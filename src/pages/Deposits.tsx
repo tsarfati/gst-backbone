@@ -34,9 +34,6 @@ export default function Deposits() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Deposits</h1>
-          <p className="text-muted-foreground">
-            Record and manage bank deposits and incoming funds
-          </p>
         </div>
         <Button>
           <Plus className="h-4 w-4 mr-2" />

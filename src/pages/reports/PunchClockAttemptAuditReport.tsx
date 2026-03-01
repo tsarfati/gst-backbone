@@ -361,7 +361,7 @@ export default function PunchClockAttemptAuditReport() {
 
   if (!canView) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="p-4 md:p-6">
         <Card>
           <CardContent className="pt-6">
             <div className="flex items-start gap-3">
@@ -380,16 +380,13 @@ export default function PunchClockAttemptAuditReport() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Button variant="ghost" size="icon" onClick={() => navigate("/employees/reports")}>
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div className="flex-1 min-w-0">
           <h1 className="text-2xl font-bold">Punch Clock Attempt Audit</h1>
-          <p className="text-muted-foreground mt-1">
-            Blocked punch-in attempts and geofence-related audit events for {currentCompany?.display_name || currentCompany?.name || "current company"}
-          </p>
         </div>
         <Button variant="outline" onClick={exportCsv} disabled={filteredRows.length === 0}>
           <Download className="h-4 w-4 mr-2" />

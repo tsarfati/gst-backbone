@@ -725,14 +725,13 @@ export default function BillEdit() {
 
   if (!bill) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => window.history.back()}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Bill Not Found</h1>
-            <p className="text-muted-foreground">The requested bill could not be found</p>
           </div>
         </div>
       </div>
@@ -740,7 +739,7 @@ export default function BillEdit() {
   }
 
   return (
-    <div className="p-6 max-w-4xl mx-auto">
+    <div className="p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -749,9 +748,6 @@ export default function BillEdit() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Edit Bill</h1>
-            <p className="text-muted-foreground">
-              {formData.invoice_number || 'No Invoice Number'}
-            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">

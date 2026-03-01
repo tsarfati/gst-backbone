@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import DragDropUpload from '@/components/DragDropUpload';
 
 // Default empty settings for new companies
@@ -33,8 +34,11 @@ const defaultSettings = {
 export function PunchClockLoginSettings() {
   const [settings, setSettings] = useState(defaultSettings);
   const [loading, setLoading] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const autoSaveReadyRef = useRef(false);
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
+  const { settings: appSettings } = useSettings();
   const { toast } = useToast();
 
   useEffect(() => {
@@ -81,6 +85,7 @@ export function PunchClockLoginSettings() {
         // No settings exist for this company yet - use defaults (blank)
         setSettings(defaultSettings);
       }
+      autoSaveReadyRef.current = true;
     } catch (error) {
       console.error('Error loading settings:', error);
     }
@@ -125,17 +130,19 @@ export function PunchClockLoginSettings() {
     }
   };
 
-  const handleSave = async () => {
+  const handleSave = async (showToast: boolean = true) => {
     if (!profile?.user_id) {
-      toast({
-        title: "Error",
-        description: "User not authenticated",
-        variant: "destructive",
-      });
+      if (showToast) {
+        toast({
+          title: "Error",
+          description: "User not authenticated",
+          variant: "destructive",
+        });
+      }
       return;
     }
 
-    setLoading(true);
+    setSaving(true);
 
     try {
       // Use user_id as company_id as fallback, or get the first company from user_company_access
@@ -175,21 +182,35 @@ export function PunchClockLoginSettings() {
         throw error;
       }
 
-      toast({
-        title: "Settings saved",
-        description: "Punch clock login settings updated successfully",
-      });
+      if (showToast) {
+        toast({
+          title: "Settings saved",
+          description: "Punch clock login settings updated successfully",
+        });
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
-      toast({
-        title: "Save failed",
-        description: error instanceof Error ? error.message : "Failed to save settings",
-        variant: "destructive",
-      });
+      if (showToast) {
+        toast({
+          title: "Save failed",
+          description: error instanceof Error ? error.message : "Failed to save settings",
+          variant: "destructive",
+        });
+      }
     } finally {
-      setLoading(false);
+      setSaving(false);
     }
   };
+
+  useEffect(() => {
+    if (!appSettings.autoSave || saving || loading || !currentCompany?.id || !autoSaveReadyRef.current) return;
+
+    const timer = setTimeout(() => {
+      void handleSave(false);
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [settings, appSettings.autoSave, saving, loading, currentCompany?.id]);
 
   const handlePreview = () => {
     window.open('/punch-clock-login', '_blank');
@@ -440,9 +461,11 @@ export function PunchClockLoginSettings() {
           </Select>
         </div>
 
-        <Button onClick={handleSave} disabled={loading} className="w-full">
-          {loading ? 'Saving...' : 'Save Settings'}
-        </Button>
+        {!appSettings.autoSave && (
+          <Button onClick={() => void handleSave()} disabled={saving} className="w-full">
+            {saving ? 'Saving...' : 'Save Settings'}
+          </Button>
+        )}
       </CardContent>
     </Card>
   );

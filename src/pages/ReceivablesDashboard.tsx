@@ -100,18 +100,17 @@ export default function ReceivablesDashboard() {
 
   if (loading) {
     return (
-      <div className="container mx-auto py-6">
+      <div className="p-4 md:p-6">
         <div className="text-center py-8 text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold">Accounts Receivable</h1>
-          <p className="text-muted-foreground">Manage customers, invoices, and payments</p>
         </div>
       </div>
 

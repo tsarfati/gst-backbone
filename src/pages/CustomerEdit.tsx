@@ -189,14 +189,14 @@ export default function CustomerEdit() {
 
   if (loading) {
     return (
-      <div className="container mx-auto py-6">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground">Loading...</div>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" onClick={() => navigate(isNew ? "/receivables/customers" : `/receivables/customers/${id}`)}>
@@ -209,7 +209,6 @@ export default function CustomerEdit() {
             </div>
             <div>
               <h1 className="text-2xl font-bold">{isNew ? "Add Customer" : "Edit Customer"}</h1>
-              <p className="text-muted-foreground">{isNew ? "Create a new customer account" : form.name}</p>
             </div>
           </div>
         </div>

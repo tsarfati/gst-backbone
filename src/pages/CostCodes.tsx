@@ -303,9 +303,6 @@ export default function CostCodes() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Cost Codes</h1>
-        <p className="text-muted-foreground">
-          Manage company-wide cost codes for job tracking and reporting
-        </p>
       </div>
 
       {/* Manual Add Section */}

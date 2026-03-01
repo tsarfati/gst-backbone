@@ -100,11 +100,10 @@ export default function ARInvoices() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold">Invoices</h1>
-          <p className="text-muted-foreground">Manage customer invoices</p>
         </div>
         <Button onClick={() => navigate("/receivables/invoices/add")}>
           <Plus className="h-4 w-4 mr-2" />

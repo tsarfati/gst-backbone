@@ -39,13 +39,10 @@ export default function AppSettings() {
   };
 
   return (
-    <div className="container mx-auto py-10 px-4">
+    <div className="p-4 md:p-6">
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">General Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your application preferences and regional settings.
-          </p>
         </div>
         
         <div className="flex items-center justify-end gap-2">

@@ -8,7 +8,7 @@ export default function JobCostSetupStandalone() {
   const navigate = useNavigate();
 
   return (
-    <div className="container mx-auto py-6 px-4">
+    <div className="p-4 md:p-6">
       <div className="mb-6">
         <div className="flex items-center gap-4 mb-4">
           <Button variant="ghost" onClick={() => navigate(-1)}>
@@ -16,9 +16,6 @@ export default function JobCostSetupStandalone() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">Job Cost Setup</h1>
-            <p className="text-muted-foreground">
-              Configure cost code templates and job costing settings for your company
-            </p>
           </div>
         </div>
       </div>

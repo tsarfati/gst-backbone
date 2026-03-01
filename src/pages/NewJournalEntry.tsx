@@ -325,9 +325,6 @@ export default function NewJournalEntry() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">New Journal Entry</h1>
-            <p className="text-muted-foreground">
-              Create a new accounting journal entry
-            </p>
           </div>
         </div>
       </div>

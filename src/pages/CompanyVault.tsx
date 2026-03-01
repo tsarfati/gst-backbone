@@ -154,7 +154,6 @@ export default function CompanyVault() {
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Lock className="h-6 w-6" /> Vault
           </h1>
-          <p className="text-muted-foreground">Encrypted storage for credentials and sensitive notes (admins/controllers only)</p>
         </div>
       </div>
 

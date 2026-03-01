@@ -336,7 +336,7 @@ export default function VendorDetails() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground">Loading vendor details...</div>
       </div>
     );
@@ -344,14 +344,13 @@ export default function VendorDetails() {
 
   if (!vendor) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/vendors")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Vendor Not Found</h1>
-            <p className="text-muted-foreground">The requested vendor could not be found</p>
           </div>
         </div>
         
@@ -374,7 +373,7 @@ export default function VendorDetails() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -393,7 +392,6 @@ export default function VendorDetails() {
             )}
             <div>
               <h1 className="text-2xl font-bold text-foreground">{vendor.name}</h1>
-              <p className="text-muted-foreground">Vendor Details</p>
             </div>
           </div>
         </div>

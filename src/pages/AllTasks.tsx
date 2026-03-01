@@ -94,9 +94,6 @@ export default function AllTasks() {
             <CheckSquare className="h-7 w-7" />
             All Tasks
           </h1>
-          <p className="text-muted-foreground">
-            Manage and track all project tasks
-          </p>
         </div>
         <Button>
           <Plus className="h-4 w-4 mr-2" />

@@ -287,7 +287,6 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
           </Button>
           <div>
             <h1 className="text-3xl font-bold text-foreground">{subcontract.name}</h1>
-            <p className="text-muted-foreground">Subcontract Details</p>
           </div>
         </div>
         <div className="flex gap-2">

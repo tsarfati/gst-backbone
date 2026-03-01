@@ -62,7 +62,7 @@ export default function JobBudget() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground">Loading budget details...</div>
       </div>
     );
@@ -70,14 +70,13 @@ export default function JobBudget() {
 
   if (!job) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate(`/jobs/${id}`)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Job Not Found</h1>
-            <p className="text-muted-foreground">Unable to load budget details</p>
           </div>
         </div>
       </div>
@@ -85,7 +84,7 @@ export default function JobBudget() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -94,7 +93,6 @@ export default function JobBudget() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">{job.name} - Budget</h1>
-            <p className="text-muted-foreground">Manage job budget and cost allocations</p>
           </div>
         </div>
       </div>

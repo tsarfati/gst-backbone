@@ -3,48 +3,34 @@ import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Label } from '@/components/ui/label';
-import { useSettings } from '@/contexts/SettingsContext';
-import { useToast } from '@/hooks/use-toast';
 import CompanySettings from '@/components/CompanySettings';
 import PayablesSettings from '@/components/PayablesSettings';
 import PaymentTermsSettings from '@/components/PaymentTermsSettings';
-import JobSettings from '@/components/JobSettings';
 import CreditCardSettings from '@/components/CreditCardSettings';
-import PunchClockSettingsComponent from '@/components/PunchClockSettingsComponent';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
-import JobCostSetup from '@/pages/JobCostSetup';
-import { Building, CreditCard, Briefcase, DollarSign, Banknote, Palette } from 'lucide-react';
-import ThemeSettings from '@/pages/ThemeSettings';
+import { CreditCard, DollarSign, Banknote, FileText, Building2, Palette } from 'lucide-react';
 import AccrualAccountingSettings from '@/components/AccrualAccountingSettings';
+import AIAInvoiceTemplateSettings from '@/components/AIAInvoiceTemplateSettings';
+import PdfTemplateSettings from '@/components/PdfTemplateSettings';
+import ThemeSettings from '@/pages/ThemeSettings';
+import { useCompany } from '@/contexts/CompanyContext';
 
 export default function CompanySettingsPage() {
-  const { settings, updateSettings } = useSettings();
-  const { toast } = useToast();
   const navigate = useNavigate();
+  const { currentCompany } = useCompany();
   
   // Check URL params for initial tab
   const urlParams = new URLSearchParams(window.location.search);
-  const initialTab = urlParams.get('tab') || 'company';
+  const initialTab = urlParams.get('tab') || 'overview';
   const [activeTab, setActiveTab] = useState(initialTab);
 
-  const handleSaveSettings = () => {
-    toast({
-      title: "Company settings saved",
-      description: "Your company preferences have been updated successfully.",
-    });
-  };
-
   return (
-    <div className="container mx-auto py-10 px-4">
+    <div className="p-4 md:p-6">
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-3xl font-bold">Company Settings</h1>
-            <p className="text-muted-foreground">
-              Manage your company-specific configurations and preferences
-            </p>
           </div>
           <CompanySettingsSaveButton />
         </div>
@@ -52,18 +38,32 @@ export default function CompanySettingsPage() {
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
             <TabsTrigger 
-              value="company" 
+              value="overview" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
-              <Building className="h-4 w-4" />
-              Company Info
+              <Building2 className="h-4 w-4" />
+              Overview
             </TabsTrigger>
             <TabsTrigger 
               value="payables" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
               <CreditCard className="h-4 w-4" />
-              Payables Settings
+              Payables
+            </TabsTrigger>
+            <TabsTrigger 
+              value="receivable-settings" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
+            >
+              <FileText className="h-4 w-4" />
+              Receivables
+            </TabsTrigger>
+            <TabsTrigger 
+              value="banking" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
+            >
+              <DollarSign className="h-4 w-4" />
+              Banking
             </TabsTrigger>
             <TabsTrigger 
               value="credit-cards" 
@@ -73,94 +73,60 @@ export default function CompanySettingsPage() {
               Credit Cards
             </TabsTrigger>
             <TabsTrigger 
-              value="jobs" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
-            >
-              <Briefcase className="h-4 w-4" />
-              Job Settings
-            </TabsTrigger>
-            <TabsTrigger 
               value="theme" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
               <Palette className="h-4 w-4" />
-              Theme & Appearance
+              Themes & Appearance
             </TabsTrigger>
             <TabsTrigger 
-              value="banking" 
+              value="pdf-templates" 
               className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2"
             >
-              <DollarSign className="h-4 w-4" />
-              Banking Settings
+              <FileText className="h-4 w-4" />
+              PDF Templates
             </TabsTrigger>
           </TabsList>
 
-          <TabsContent value="company">
+          <TabsContent value="overview">
             <div className="space-y-6">
               <Card>
                 <CardHeader>
-                  <CardTitle>Regional Settings</CardTitle>
+                  <CardTitle>Company Information</CardTitle>
                   <CardDescription>
-                    Configure date, currency, and distance display formats for your company users
+                    Primary company details used across the platform.
                   </CardDescription>
                 </CardHeader>
-                <CardContent className="space-y-4">
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="space-y-2">
-                      <Label htmlFor="company-date-format">Date Format</Label>
-                      <Select
-                        value={settings.dateFormat}
-                        onValueChange={(value: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD') =>
-                          updateSettings({ dateFormat: value })
-                        }
-                      >
-                        <SelectTrigger id="company-date-format">
-                          <SelectValue placeholder="Select date format" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="MM/DD/YYYY">MM/DD/YYYY</SelectItem>
-                          <SelectItem value="DD/MM/YYYY">DD/MM/YYYY</SelectItem>
-                          <SelectItem value="YYYY-MM-DD">YYYY-MM-DD</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="company-currency-format">Currency Format</Label>
-                      <Select
-                        value={settings.currencyFormat}
-                        onValueChange={(value: 'USD' | 'EUR' | 'GBP') =>
-                          updateSettings({ currencyFormat: value })
-                        }
-                      >
-                        <SelectTrigger id="company-currency-format">
-                          <SelectValue placeholder="Select currency" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="USD">USD ($)</SelectItem>
-                          <SelectItem value="EUR">EUR (€)</SelectItem>
-                          <SelectItem value="GBP">GBP (£)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-
-                    <div className="space-y-2">
-                      <Label htmlFor="company-distance-unit">Distance Units</Label>
-                      <Select
-                        value={settings.distanceUnit}
-                        onValueChange={(value: 'meters' | 'feet') =>
-                          updateSettings({ distanceUnit: value })
-                        }
-                      >
-                        <SelectTrigger id="company-distance-unit">
-                          <SelectValue placeholder="Select distance unit" />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="meters">Meters (m)</SelectItem>
-                          <SelectItem value="feet">Feet (ft)</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Company Name</Label>
+                    <p className="text-sm">{currentCompany?.name || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Display Name</Label>
+                    <p className="text-sm">{currentCompany?.display_name || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Phone</Label>
+                    <p className="text-sm">{currentCompany?.phone || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Email</Label>
+                    <p className="text-sm break-all">{currentCompany?.email || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Website</Label>
+                    <p className="text-sm break-all">{currentCompany?.website || 'Not set'}</p>
+                  </div>
+                  <div>
+                    <Label className="text-xs font-medium text-muted-foreground">Address</Label>
+                    <p className="text-sm">
+                      {[
+                        currentCompany?.address,
+                        [currentCompany?.city, currentCompany?.state].filter(Boolean).join(', '),
+                        currentCompany?.zip_code,
+                      ].filter(Boolean).join(' ') || 'Not set'}
+                    </p>
                   </div>
                 </CardContent>
               </Card>
@@ -172,6 +138,7 @@ export default function CompanySettingsPage() {
               />
             </div>
           </TabsContent>
+
 
           <TabsContent value="payables">
             <div className="space-y-6">
@@ -196,6 +163,25 @@ export default function CompanySettingsPage() {
             </div>
           </TabsContent>
 
+          <TabsContent value="receivable-settings">
+            <Tabs defaultValue="aia-invoice-templates" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="aia-invoice-templates">AIA Invoice Templates</TabsTrigger>
+              </TabsList>
+              <TabsContent value="aia-invoice-templates">
+                <AIAInvoiceTemplateSettings />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+
+          <TabsContent value="theme">
+            <ThemeSettings embedded />
+          </TabsContent>
+
+          <TabsContent value="pdf-templates">
+            <PdfTemplateSettings />
+          </TabsContent>
+
           <TabsContent value="credit-cards">
             <Card>
               <CardHeader>
@@ -208,24 +194,6 @@ export default function CompanySettingsPage() {
                 <CreditCardSettings />
               </CardContent>
             </Card>
-          </TabsContent>
-
-          <TabsContent value="jobs">
-            <Card>
-              <CardHeader>
-                <CardTitle>Job Management Settings</CardTitle>
-                <CardDescription>
-                  Configure job creation, budget approvals, time tracking, and workflow settings
-                </CardDescription>
-              </CardHeader>
-              <CardContent>
-                <JobSettings />
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="theme">
-            <ThemeSettings embedded />
           </TabsContent>
 
           <TabsContent value="banking">

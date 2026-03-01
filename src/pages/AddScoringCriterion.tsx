@@ -120,7 +120,6 @@ export default function AddScoringCriterion() {
         </Button>
         <div>
           <h1 className="text-3xl font-bold">Add Scoring Criteria</h1>
-          <p className="text-muted-foreground">Define criteria for evaluating bids</p>
         </div>
       </div>
 

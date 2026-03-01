@@ -28,7 +28,7 @@ type SortDir = "asc" | "desc";
 
 interface ReportCatalogPageProps {
   title: string;
-  description: string;
+  description?: string;
   reports: ReportCatalogItem[];
   favoriteScope: "employee" | "construction" | "receivables";
   viewPreferenceKey: string;
@@ -41,7 +41,7 @@ export default function ReportCatalogPage({
   reports,
   favoriteScope,
   viewPreferenceKey,
-  containerClassName = "container mx-auto p-6 space-y-6",
+  containerClassName = "p-4 md:p-6 space-y-6",
 }: ReportCatalogPageProps) {
   const navigate = useNavigate();
   const [searchTerm, setSearchTerm] = useState("");
@@ -171,7 +171,6 @@ export default function ReportCatalogPage({
     <div className={containerClassName}>
       <div>
         <h1 className="text-3xl font-bold">{title}</h1>
-        <p className="text-muted-foreground mt-1">{description}</p>
       </div>
 
       <div className="flex flex-col sm:flex-row gap-3">

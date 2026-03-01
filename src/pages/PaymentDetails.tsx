@@ -361,7 +361,7 @@ export default function PaymentDetails() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="p-4 md:p-6">
         <div className="animate-pulse space-y-4">
           <div className="h-8 bg-muted rounded w-1/4"></div>
           <div className="h-64 bg-muted rounded"></div>
@@ -372,14 +372,14 @@ export default function PaymentDetails() {
 
   if (!payment) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="p-4 md:p-6">
         <p className="text-muted-foreground">Payment not found</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="icon" onClick={() => navigate(-1)}>
@@ -387,9 +387,6 @@ export default function PaymentDetails() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">Payment {payment.payment_number}</h1>
-            <p className="text-muted-foreground">
-              {format(new Date(payment.payment_date), "MMMM d, yyyy")}
-            </p>
           </div>
         </div>
         <div className="flex items-center gap-2">

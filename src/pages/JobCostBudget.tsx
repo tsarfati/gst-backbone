@@ -284,7 +284,7 @@ export default function JobCostBudget() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Loading job data...</p>
@@ -295,7 +295,7 @@ export default function JobCostBudget() {
 
   if (!job) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-8">
           <p className="text-muted-foreground mb-4">Job not found</p>
           <Button onClick={() => navigate("/jobs")}>Return to Jobs</Button>
@@ -305,7 +305,7 @@ export default function JobCostBudget() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">
@@ -314,10 +314,6 @@ export default function JobCostBudget() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Cost Codes & Budget</h1>
-            <p className="text-muted-foreground">
-              {job.name} • Status: <span className="font-semibold capitalize">{job.status}</span>
-              {!isPlanning && <span className="ml-2 text-xs">(Read-only)</span>}
-            </p>
           </div>
         </div>
         <div className="flex gap-2">

@@ -310,9 +310,6 @@ export default function Jobs() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Jobs</h1>
-          <p className="text-muted-foreground">
-            Manage projects and view associated receipts
-          </p>
           {customerId && customerName && (
             <div className="flex items-center gap-2 mt-2">
               <span className="text-sm text-muted-foreground">Filtered by customer:</span>

@@ -174,9 +174,6 @@ export default function ReceiptReports() {
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold">Receipt Reports</h1>
-          <p className="text-muted-foreground">
-            Analyze and export receipt data across all projects
-          </p>
         </div>
         <Button>
           <Download className="h-4 w-4 mr-2" />

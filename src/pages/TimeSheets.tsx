@@ -716,16 +716,13 @@ export default function TimeSheets() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground flex items-center gap-3">
             <FileText className="h-8 w-8" />
             Time Sheets
           </h1>
-          <p className="text-muted-foreground text-lg">
-            {isManager ? 'Manage employee time sheets and approvals' : 'View your time tracking history'}
-          </p>
         </div>
         <div className="flex gap-3">
           {isManager && (

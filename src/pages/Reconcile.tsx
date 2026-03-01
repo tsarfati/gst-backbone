@@ -1042,9 +1042,6 @@ export default function Reconcile() {
         <div className="flex items-start justify-between">
           <div>
             <h1 className="text-2xl font-bold text-foreground">Bank Reconciliation</h1>
-            <p className="text-muted-foreground">
-              {account.account_name} - {account.bank_name}
-            </p>
           </div>
           <div className="flex gap-2">
             <Button

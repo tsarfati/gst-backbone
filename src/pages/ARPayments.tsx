@@ -96,11 +96,10 @@ export default function ARPayments() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>
           <h1 className="text-3xl font-bold">Payments Received</h1>
-          <p className="text-muted-foreground">Track payments from customers</p>
         </div>
         <Button onClick={() => navigate("/receivables/payments/add")}>
           <Plus className="h-4 w-4 mr-2" />

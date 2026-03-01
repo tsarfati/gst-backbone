@@ -56,7 +56,7 @@ export default function JobVisitorLogs() {
 
   if (!id) {
     return (
-      <div className="p-6 max-w-6xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground">Invalid job ID</div>
       </div>
     );
@@ -64,7 +64,7 @@ export default function JobVisitorLogs() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6">
         <Card>
           <CardContent className="p-6">
             <div className="text-center">Loading visitor logs...</div>
@@ -75,7 +75,7 @@ export default function JobVisitorLogs() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => navigate(`/jobs/${id}`)}>
@@ -83,7 +83,6 @@ export default function JobVisitorLogs() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Visitor Management</h1>
-          <p className="text-muted-foreground">{jobName}</p>
         </div>
       </div>
 

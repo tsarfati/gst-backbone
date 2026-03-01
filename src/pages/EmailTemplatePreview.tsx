@@ -54,7 +54,7 @@ export default function EmailTemplatePreview() {
 
   if (loading) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="p-4 md:p-6">
         <p>Loading preview...</p>
       </div>
     );
@@ -62,14 +62,14 @@ export default function EmailTemplatePreview() {
 
   if (!template) {
     return (
-      <div className="container mx-auto p-6">
+      <div className="p-4 md:p-6">
         <p>Template not found</p>
       </div>
     );
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between">
         <div>
           <Button

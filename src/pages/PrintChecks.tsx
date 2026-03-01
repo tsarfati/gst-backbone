@@ -125,7 +125,7 @@ export default function PrintChecks() {
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -134,7 +134,6 @@ export default function PrintChecks() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Print Checks</h1>
-            <p className="text-muted-foreground">Select and print checks for vendor payments</p>
           </div>
         </div>
         <div className="flex gap-2">

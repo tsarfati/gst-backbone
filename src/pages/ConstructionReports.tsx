@@ -44,11 +44,10 @@ export default function ConstructionReports() {
   return (
     <ReportCatalogPage
       title="Construction Reports"
-      description="Access detailed reports and analytics for your construction projects"
       reports={reports}
       favoriteScope="construction"
       viewPreferenceKey="construction-reports-view"
-      containerClassName="p-6 max-w-7xl mx-auto space-y-6"
+      containerClassName="p-4 md:p-6 space-y-6"
     />
   );
 }

@@ -6,7 +6,6 @@ export default function EmployeePerformance() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Employee Performance</h1>
-        <p className="text-muted-foreground">Track and review employee performance metrics</p>
       </div>
 
       <Card>

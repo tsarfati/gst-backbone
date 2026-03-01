@@ -247,7 +247,7 @@ export default function ARInvoiceDetails() {
 
   if (loading) {
     return (
-      <div className="container mx-auto py-6">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/receivables/invoices")}>
             <ArrowLeft className="h-4 w-4" />
@@ -265,7 +265,7 @@ export default function ARInvoiceDetails() {
 
   if (!invoice) {
     return (
-      <div className="container mx-auto py-6">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/receivables/invoices")}>
             <ArrowLeft className="h-4 w-4" />
@@ -284,7 +284,7 @@ export default function ARInvoiceDetails() {
   }
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">

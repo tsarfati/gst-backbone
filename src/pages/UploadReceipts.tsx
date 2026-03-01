@@ -155,9 +155,6 @@ export default function UploadReceipts() {
     <div className="p-6">
       <div className="mb-6">
         <h1 className="text-2xl font-bold text-foreground">Upload Receipts</h1>
-        <p className="text-muted-foreground">
-          Batch upload receipts for project coding
-        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">

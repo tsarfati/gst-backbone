@@ -14,7 +14,6 @@ export default function VendorReports() {
       <header className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Vendor Reports</h1>
-          <p className="text-muted-foreground">Analyze vendors by spend, invoices, categories, and timelines</p>
         </div>
         <div className="flex gap-2">
           <Select value={period} onValueChange={setPeriod}>

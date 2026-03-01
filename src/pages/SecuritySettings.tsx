@@ -9,7 +9,6 @@ import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Download, Upload, Shield, Key, Trash2, FileText, HardDrive } from 'lucide-react';
-import { useCompany } from '@/contexts/CompanyContext';
 import AuditLog from '@/components/AuditLog';
 import FileUploadSettings from '@/components/FileUploadSettings';
 import ThirdPartyStorageSettings from '@/components/ThirdPartyStorageSettings';
@@ -17,7 +16,6 @@ import SearchIndexManager from '@/components/SearchIndexManager';
 
 export default function SecuritySettings() {
   const { toast } = useToast();
-  const { currentCompany } = useCompany();
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [twoFactorEnabled, setTwoFactorEnabled] = useState(false);
 
@@ -52,13 +50,10 @@ export default function SecuritySettings() {
   };
 
   return (
-    <div className="container mx-auto py-10 px-4">
+    <div className="p-4 md:p-6">
       <div className="space-y-6">
         <div>
           <h1 className="text-3xl font-bold">Data & Security</h1>
-          <p className="text-muted-foreground">
-            Manage your account security and data preferences for {currentCompany?.display_name || currentCompany?.name || 'your company'}
-          </p>
         </div>
 
         <Tabs defaultValue="security" className="space-y-6">

@@ -820,9 +820,6 @@ export default function UncodedReceipts() {
                       ← Back to List
                     </Button>
                     <h1 className="text-xl font-bold">Receipt Preview</h1>
-                    <p className="text-sm text-muted-foreground">
-                      {selectedReceipt.filename} • {selectedReceipt.amount}
-                    </p>
                   </div>
                   <div className="flex items-center gap-2">
                     {/* Zoom controls for images */}

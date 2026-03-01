@@ -80,9 +80,6 @@ export default function JournalEntries() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Journal Entries</h1>
-          <p className="text-muted-foreground">
-            Create and manage accounting journal entries
-          </p>
         </div>
         <Button asChild>
           <Link to="/banking/journal-entries/new">

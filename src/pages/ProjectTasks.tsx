@@ -117,9 +117,6 @@ export default function ProjectTasks() {
             <Target className="h-7 w-7" />
             Project Tasks
           </h1>
-          <p className="text-muted-foreground">
-            Manage tasks organized by project
-          </p>
         </div>
         <AddTaskDialog onTaskCreated={loadTasks} />
       </div>

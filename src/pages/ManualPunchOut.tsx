@@ -253,7 +253,7 @@ export default function ManualPunchOut() {
   }
 
   return (
-    <div className="container mx-auto p-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-4">
         <Button
           variant="ghost"
@@ -266,9 +266,6 @@ export default function ManualPunchOut() {
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Manual Punch Out</h1>
-          <p className="text-muted-foreground">
-            Manually punch out employees who are currently clocked in
-          </p>
         </div>
       </div>
 

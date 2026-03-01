@@ -900,7 +900,7 @@ export default function ProjectCostTransactionHistory() {
   }, [filteredTransactions, jobBudgetSummary]);
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div>

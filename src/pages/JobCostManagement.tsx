@@ -286,7 +286,7 @@ export default function JobCostManagement() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-7xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
           <p className="text-muted-foreground">Loading job cost data...</p>
@@ -296,12 +296,11 @@ export default function JobCostManagement() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-3xl font-bold text-foreground">Job Cost Management</h1>
-          <p className="text-muted-foreground">Manage job cost codes and their chart of account associations</p>
         </div>
         <Dialog open={addDialogOpen} onOpenChange={setAddDialogOpen}>
           <DialogTrigger asChild>

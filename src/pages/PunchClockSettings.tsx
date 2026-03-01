@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -21,6 +21,7 @@ import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import DragDropUpload from '@/components/DragDropUpload';
 import { useSettings } from '@/contexts/SettingsContext';
 import { formatDistanceLabel } from '@/lib/distanceUnits';
+import { useCompanyFeatureAccess } from '@/hooks/useCompanyFeatureAccess';
 
 // Helper to resize any image to square PNG (contain) at desired size
 async function resizeImageToPng(file: File, size: number): Promise<Blob> {
@@ -147,12 +148,14 @@ export default function PunchClockSettings() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { settings: appSettings } = useSettings();
+  const { hasFeature } = useCompanyFeatureAccess(['punch_clock_app']);
   const [settings, setSettings] = useState<PunchClockSettings>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState<string>('');
   const [recalculating, setRecalculating] = useState(false);
   const distanceUnit = appSettings.distanceUnit ?? 'meters';
+  const autoSaveReadyRef = useRef(false);
 
   // Use the company-specific role, not the global profile.role
   const activeCompanyRole = useActiveCompanyRole();
@@ -248,6 +251,7 @@ export default function PunchClockSettings() {
         });
         console.log('PunchClockSettings: loaded settings', data);
       }
+      autoSaveReadyRef.current = true;
       
       setLoading(false);
     } catch (error) {
@@ -261,7 +265,7 @@ export default function PunchClockSettings() {
     }
   };
 
-  const saveSettings = async () => {
+  const saveSettings = async (showToast: boolean = true) => {
     if (!currentCompany) return;
 
     try {
@@ -318,17 +322,21 @@ export default function PunchClockSettings() {
 
       if (error) throw error;
       
-      toast({
-        title: "Settings Saved",
-        description: "Punch clock settings have been updated successfully.",
-      });
+      if (showToast) {
+        toast({
+          title: "Settings Saved",
+          description: "Punch clock settings have been updated successfully.",
+        });
+      }
     } catch (error) {
       console.error('Error saving settings:', error);
-      toast({
-        title: "Error",
-        description: "Failed to save punch clock settings",
-        variant: "destructive",
-      });
+      if (showToast) {
+        toast({
+          title: "Error",
+          description: "Failed to save punch clock settings",
+          variant: "destructive",
+        });
+      }
     } finally {
       setSaving(false);
     }
@@ -340,6 +348,16 @@ export default function PunchClockSettings() {
       [key]: value
     }));
   };
+
+  useEffect(() => {
+    if (!appSettings.autoSave || loading || !autoSaveReadyRef.current || saving || !currentCompany) return;
+
+    const timer = setTimeout(() => {
+      void saveSettings(false);
+    }, 800);
+
+    return () => clearTimeout(timer);
+  }, [settings, appSettings.autoSave, loading, currentCompany?.id]);
 
   const handlePwaIconUpload = async (file: File, size: 192 | 512) => {
     if (!file || !currentCompany) return;
@@ -405,30 +423,46 @@ export default function PunchClockSettings() {
   };
 
   if (loading) {
-    return <div className="p-6 text-center">Loading punch clock settings...</div>;
+    return <div className="p-4 md:p-6 text-center">Loading punch clock settings...</div>;
   }
 
   if (!isManager) {
     return (
-      <div className="p-6 text-center">
+      <div className="p-4 md:p-6 text-center">
         <h2 className="text-lg font-semibold mb-2">Access Denied</h2>
         <p className="text-muted-foreground">Only managers can access punch clock settings.</p>
       </div>
     );
   }
 
+  if (!hasFeature('punch_clock_app')) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="rounded-lg border bg-card p-6">
+          <h1 className="text-2xl font-bold">Punch Clock Settings</h1>
+          <p className="mt-2 text-sm text-muted-foreground">
+            Punch Clock mobile app settings are not included in your current subscription tier. Enable Punch Clock App access in your tier to use this page.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   return (
-    <div className="p-6 max-w-6xl mx-auto">
+    <div className="p-4 md:p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
             <Settings className="h-7 w-7" />
             Punch Clock Settings
           </h1>
-          <p className="text-muted-foreground">
-            Configure time tracking rules and employee settings for {currentCompany?.display_name || currentCompany?.name || 'your company'}
-          </p>
         </div>
+        {!appSettings.autoSave && (
+          <Button onClick={saveSettings} disabled={saving}>
+            <Save className="h-4 w-4 mr-2" />
+            {saving ? 'Saving...' : 'Save Changes'}
+          </Button>
+        )}
       </div>
 
       <Tabs defaultValue="general" className="space-y-6">
@@ -441,26 +475,21 @@ export default function PunchClockSettings() {
         </TabsList>
 
         <TabsContent value="general" className="space-y-6">
-          <div className="flex gap-4 justify-end mb-4">
-            <Button onClick={saveSettings} disabled={saving}>
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-            {(profile?.role === 'admin' || profile?.role === 'controller') && (
-              <Button onClick={handleRecalculate} disabled={recalculating} variant="outline">
-                <RefreshCw className={`h-4 w-4 mr-2 ${recalculating ? 'animate-spin' : ''}`} />
-                {recalculating ? 'Recalculating...' : 'Recalculate Time Cards'}
-              </Button>
-            )}
-          </div>
-
           {/* Time Tracking Settings */}
           <Card>
             <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Clock className="h-5 w-5" />
-                Time Tracking Rules
-              </CardTitle>
+              <div className="flex items-center justify-between gap-4">
+                <CardTitle className="flex items-center gap-2">
+                  <Clock className="h-5 w-5" />
+                  Time Tracking Rules
+                </CardTitle>
+                {(profile?.role === 'admin' || profile?.role === 'controller') && (
+                  <Button onClick={handleRecalculate} disabled={recalculating} variant="outline">
+                    <RefreshCw className={`h-4 w-4 mr-2 ${recalculating ? 'animate-spin' : ''}`} />
+                    {recalculating ? 'Recalculating...' : 'Recalculate Time Cards'}
+                  </Button>
+                )}
+              </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -530,7 +559,128 @@ export default function PunchClockSettings() {
                   />
                   <p className="text-xs text-muted-foreground">Hours worked before automatic break deduction</p>
                 </div>
+              </div>
 
+              <Separator />
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold">Shift Schedule & Punch Windows</h4>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label htmlFor="shift-start-time">Shift Start Time</Label>
+                    <Input
+                      id="shift-start-time"
+                      type="time"
+                      value={settings.shift_start_time}
+                      onChange={(e) => updateSetting('shift_start_time', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Default scheduled shift start time</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="shift-end-time">Shift End Time</Label>
+                    <Input
+                      id="shift-end-time"
+                      type="time"
+                      value={settings.shift_end_time}
+                      onChange={(e) => updateSetting('shift_end_time', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Default scheduled shift end time</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="punch-window-start">Punch-In Window Start</Label>
+                    <Input
+                      id="punch-window-start"
+                      type="time"
+                      value={settings.punch_time_window_start}
+                      onChange={(e) => updateSetting('punch_time_window_start', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Earliest allowed time for punch in</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="punch-window-end">Punch-Out Window End</Label>
+                    <Input
+                      id="punch-window-end"
+                      type="time"
+                      value={settings.punch_time_window_end}
+                      onChange={(e) => updateSetting('punch_time_window_end', e.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">Latest allowed time for punch out</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="shift-hours">Standard Shift Hours</Label>
+                    <Input
+                      id="shift-hours"
+                      type="number"
+                      min="1"
+                      max="24"
+                      step="0.5"
+                      value={settings.shift_hours}
+                      onChange={(e) => updateSetting('shift_hours', parseFloat(e.target.value) || 8)}
+                    />
+                    <p className="text-xs text-muted-foreground">Expected daily work hours for shift calculations</p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="ot-grace">Overtime Grace Period (minutes)</Label>
+                    <Input
+                      id="ot-grace"
+                      type="number"
+                      min="0"
+                      max="120"
+                      value={settings.overtime_grace_period_minutes}
+                      onChange={(e) => updateSetting('overtime_grace_period_minutes', parseInt(e.target.value) || 0)}
+                    />
+                    <p className="text-xs text-muted-foreground">Grace period before overtime penalties/flags</p>
+                  </div>
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-4">
+                <h4 className="text-sm font-semibold">Late/Early Punch Handling</h4>
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Count Early Punch Time</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Include minutes punched before shift start in payable time
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.count_early_punch_time}
+                    onCheckedChange={(checked) => updateSetting('count_early_punch_time', checked)}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="space-y-0.5">
+                    <Label>Count Late Punch-In</Label>
+                    <p className="text-sm text-muted-foreground">
+                      Track/report punches after shift start as late punch-ins
+                    </p>
+                  </div>
+                  <Switch
+                    checked={settings.count_late_punch_in}
+                    onCheckedChange={(checked) => updateSetting('count_late_punch_in', checked)}
+                  />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="late-grace">Late Punch Grace (minutes)</Label>
+                  <Input
+                    id="late-grace"
+                    type="number"
+                    min="0"
+                    max="60"
+                    value={settings.late_grace_period_minutes}
+                    onChange={(e) => updateSetting('late_grace_period_minutes', parseInt(e.target.value) || 0)}
+                  />
+                  <p className="text-xs text-muted-foreground">Allowed lateness before marking punch as late</p>
+                </div>
               </div>
 
               <Separator />
@@ -962,12 +1112,14 @@ export default function PunchClockSettings() {
         </TabsContent>
 
         <TabsContent value="pwa" className="space-y-6">
-          <div className="flex justify-end mb-4">
-            <Button onClick={saveSettings} disabled={saving}>
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
-          </div>
+          {!appSettings.autoSave && (
+            <div className="flex justify-end mb-4">
+              <Button onClick={saveSettings} disabled={saving}>
+                <Save className="h-4 w-4 mr-2" />
+                {saving ? 'Saving...' : 'Save Changes'}
+              </Button>
+            </div>
+          )}
 
           <Card>
             <CardHeader>

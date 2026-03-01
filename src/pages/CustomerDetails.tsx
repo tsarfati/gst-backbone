@@ -127,7 +127,7 @@ export default function CustomerDetails() {
 
   if (loading) {
     return (
-      <div className="container mx-auto py-6">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground">Loading customer details...</div>
       </div>
     );
@@ -135,7 +135,7 @@ export default function CustomerDetails() {
 
   if (!customer) {
     return (
-      <div className="container mx-auto py-6">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/receivables/customers")}>
             <ArrowLeft className="h-4 w-4" />
@@ -159,7 +159,7 @@ export default function CustomerDetails() {
   const totalOutstanding = invoices.reduce((sum, inv) => sum + (inv.balance_due || 0), 0);
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
       <div className="flex items-center gap-4">
         <Button variant="ghost" onClick={() => navigate("/receivables/customers")}>

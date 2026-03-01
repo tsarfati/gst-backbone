@@ -21,7 +21,7 @@ export default function Vendors() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { canCreate } = useActionPermissions();
-  const { currentView, setCurrentView } = useVendorViewPreference();
+  const { currentView, setCurrentView, setDefaultView, isDefault } = useVendorViewPreference();
   const [letter, setLetter] = useState<string>('All');
   const letters = useMemo(() => ['All', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), '#'], []);
 
@@ -111,16 +111,18 @@ export default function Vendors() {
   };
 
   return (
-    <div className="p-6">
+    <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Vendors</h1>
-          <p className="text-muted-foreground">
-            Manage vendor relationships and track spending
-          </p>
         </div>
         <div className="flex items-center gap-4">
-          <VendorViewSelector currentView={currentView} onViewChange={setCurrentView} />
+          <VendorViewSelector
+            currentView={currentView}
+            onViewChange={setCurrentView}
+            onSetDefault={setDefaultView}
+            isDefault={isDefault}
+          />
           {canCreate('vendors') && (
             <Button onClick={() => navigate("/vendors/add")}>
               <Plus className="h-4 w-4 mr-2" />

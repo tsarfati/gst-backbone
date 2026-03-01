@@ -936,9 +936,6 @@ export default function TimecardReports() {
             <BarChart3 className="h-7 w-7" />
             Timecard Reports
           </h1>
-          <p className="text-muted-foreground">
-            Comprehensive timecard reporting and analytics
-          </p>
         </div>
         <Button variant="outline" onClick={() => { setLoading(true); Promise.all([loadTimecardRecords(), loadPunchRecords()]).finally(() => setLoading(false)); }} disabled={loading}>
           <RefreshCw className={`h-4 w-4 mr-2 ${loading ? 'animate-spin' : ''}`} />

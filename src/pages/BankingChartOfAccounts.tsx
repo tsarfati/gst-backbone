@@ -231,7 +231,7 @@ export default function BankingChartOfAccounts() {
   }
 
   return (
-    <div className="p-6 max-w-7xl mx-auto">
+    <div className="p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <Button variant="ghost" onClick={() => navigate(-1)}>
@@ -239,7 +239,6 @@ export default function BankingChartOfAccounts() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Chart of Accounts</h1>
-            <p className="text-muted-foreground">Manage your accounting structure</p>
           </div>
         </div>
         

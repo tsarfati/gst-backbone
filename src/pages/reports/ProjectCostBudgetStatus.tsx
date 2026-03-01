@@ -564,7 +564,7 @@ export default function ProjectCostBudgetStatus() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center justify-between flex-wrap gap-4">
         <div className="flex items-center gap-4">
           <Button variant="outline" size="sm" onClick={() => navigate(-1)}>
@@ -573,7 +573,6 @@ export default function ProjectCostBudgetStatus() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold">Project Cost Budget Status</h1>
-            <p className="text-muted-foreground text-sm">Budget vs actual costs comparison</p>
           </div>
         </div>
         

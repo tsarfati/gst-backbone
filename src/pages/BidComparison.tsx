@@ -282,9 +282,6 @@ export default function BidComparison() {
           </Button>
           <div>
             <h1 className="text-3xl font-bold">Bid Comparison</h1>
-            <p className="text-muted-foreground">
-              {rfp.rfp_number} - {rfp.title}
-            </p>
           </div>
         </div>
         <div className="flex gap-2">

@@ -190,14 +190,16 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
           <div>
             <Label>Project (Optional)</Label>
             <Select
-              value={formData.job_id}
-              onValueChange={(value) => setFormData(prev => ({ ...prev, job_id: value }))}
+              value={formData.job_id || NO_PROJECT_VALUE}
+              onValueChange={(value) =>
+                setFormData(prev => ({ ...prev, job_id: value === NO_PROJECT_VALUE ? '' : value }))
+              }
             >
               <SelectTrigger>
                 <SelectValue placeholder={websiteJobAccessLoading ? "Loading projects..." : "Select a project"} />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="">No Project</SelectItem>
+                <SelectItem value={NO_PROJECT_VALUE}>No Project</SelectItem>
                 {jobs.map(job => (
                   <SelectItem key={job.id} value={job.id}>{job.name}</SelectItem>
                 ))}
@@ -240,3 +242,4 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
     </Dialog>
   );
 }
+  const NO_PROJECT_VALUE = '__no_project__';

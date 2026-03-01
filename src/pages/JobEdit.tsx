@@ -142,7 +142,7 @@ export default function JobEdit() {
 
   if (loading) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground">Loading job details...</div>
       </div>
     );
@@ -150,14 +150,13 @@ export default function JobEdit() {
 
   if (!job) {
     return (
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
         <div className="flex items-center gap-4 mb-6">
           <Button variant="ghost" onClick={() => navigate("/jobs")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Job Not Found</h1>
-            <p className="text-muted-foreground">The requested job could not be found</p>
           </div>
         </div>
         <div className="text-center py-8">
@@ -413,7 +412,7 @@ export default function JobEdit() {
 
   return (
     <DevelopmentFreezeGuard>
-      <div className="p-6 max-w-4xl mx-auto">
+      <div className="p-4 md:p-6">
       {/* Header */}
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
@@ -422,7 +421,6 @@ export default function JobEdit() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Edit Job</h1>
-            <p className="text-muted-foreground">Update job details and settings</p>
           </div>
         </div>
         <Button onClick={handleSave} disabled={!permissions.canEditJobs()}>

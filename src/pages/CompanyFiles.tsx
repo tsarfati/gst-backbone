@@ -58,9 +58,6 @@ export default function CompanyFiles() {
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Company Files</h1>
-          <p className="text-muted-foreground">
-            Manage contracts, permits, insurance, and other company documents
-          </p>
         </div>
         <div className="flex gap-2">
           <Button onClick={() => navigate('/company-files/vault')} variant="outline">

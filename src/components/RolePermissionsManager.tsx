@@ -836,10 +836,10 @@ const menuCategories: MenuCategory[] = [
       },
       { 
         key: 'company-management', 
-        label: 'Company Management', 
-        description: 'Company user management',
+        label: 'Organization Management', 
+        description: 'Organization and company portfolio management',
         actions: [
-          { key: 'company-management-access', label: 'Access Management', description: 'Manage company' },
+          { key: 'company-management-access', label: 'Access Management', description: 'Manage organization scope and company context' },
         ]
       },
       { 

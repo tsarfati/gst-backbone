@@ -511,7 +511,7 @@ export default function VisitorLogin() {
     >
       {/* Header */}
       <div className={`${headerBgClass} backdrop-blur-sm border-b shadow-sm`}>
-        <div className="container mx-auto px-4 py-4">
+        <div className="p-4 md:p-6">
           <div className="flex items-center justify-between">
             {settings?.header_logo_url ? (
               <img src={settings.header_logo_url} alt="Company Logo" className="h-10 object-contain" />

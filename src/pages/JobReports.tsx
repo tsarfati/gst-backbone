@@ -35,7 +35,6 @@ export default function JobReports() {
       <header className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Job Reports</h1>
-          <p className="text-muted-foreground">Analyze jobs by status, cost codes, vendors, and timelines</p>
         </div>
         <div className="flex gap-2">
           <Select value={period} onValueChange={setPeriod}>

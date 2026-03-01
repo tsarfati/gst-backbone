@@ -2,6 +2,7 @@ import { Button } from '@/components/ui/button';
 import { Save } from 'lucide-react';
 import { useState } from 'react';
 import { useToast } from '@/hooks/use-toast';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface CompanySettingsSaveButtonProps {
   onSave?: () => Promise<void> | void;
@@ -9,7 +10,12 @@ interface CompanySettingsSaveButtonProps {
 
 export default function CompanySettingsSaveButton({ onSave }: CompanySettingsSaveButtonProps) {
   const { toast } = useToast();
+  const { settings } = useSettings();
   const [saving, setSaving] = useState(false);
+
+  if (settings.autoSave) {
+    return null;
+  }
 
   const handleSave = async () => {
     setSaving(true);

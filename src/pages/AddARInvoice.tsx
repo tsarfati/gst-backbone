@@ -1263,7 +1263,6 @@ export default function AddARInvoice({
             <h1 className="text-3xl font-bold">
               {currentInvoiceId ? "Edit AIA Invoice" : "New AIA Invoice"}
             </h1>
-            <p className="text-muted-foreground">Application for Payment (G702/G703)</p>
           </div>
         )}
         <div className="flex gap-2 flex-wrap ml-auto">

@@ -345,16 +345,13 @@ export default function ProfileSettings() {
   };
 
   return (
-    <div className="p-6 max-w-4xl mx-auto space-y-6">
+    <div className="p-4 md:p-6 space-y-6">
       <div className="flex items-center gap-4 mb-6">
         <Button variant="ghost" onClick={() => navigate(-1)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div>
           <h1 className="text-2xl font-bold text-foreground">Profile Settings</h1>
-          <p className="text-muted-foreground">
-            Manage your profile information and notification preferences for {currentCompany?.display_name || currentCompany?.name || 'your company'}
-          </p>
         </div>
       </div>
 
