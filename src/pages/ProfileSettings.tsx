@@ -7,13 +7,12 @@ import { Switch } from '@/components/ui/switch';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Separator } from '@/components/ui/separator';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
-import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Textarea } from '@/components/ui/textarea';
-import DragDropUpload from '@/components/DragDropUpload';
 import { ArrowLeft, User, Bell, Save, Camera, Upload, X, Mail, SendHorizonal, Loader2, FileSignature } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 
@@ -21,6 +20,8 @@ interface ProfileData {
   first_name: string;
   last_name: string;
   display_name: string;
+  phone: string;
+  birthday: string;
   avatar_url?: string;
 }
 
@@ -47,23 +48,23 @@ export default function ProfileSettings() {
   const [searchParams] = useSearchParams();
   const { user, profile, refreshProfile } = useAuth();
   const { currentCompany } = useCompany();
-  const activeCompanyRole = useActiveCompanyRole();
   const { toast } = useToast();
-  
-  // Use company-specific role, fallback to profile role
-  const displayRole = activeCompanyRole || profile?.role || '';
+
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const [showCamera, setShowCamera] = useState(false);
+  const [showAvatarOptions, setShowAvatarOptions] = useState(false);
   const [stream, setStream] = useState<MediaStream | null>(null);
   
   const [profileData, setProfileData] = useState<ProfileData>({
     first_name: '',
     last_name: '',
     display_name: '',
+    phone: '',
+    birthday: '',
     avatar_url: ''
   });
 
@@ -92,6 +93,8 @@ export default function ProfileSettings() {
         first_name: profile.first_name || '',
         last_name: profile.last_name || '',
         display_name: profile.display_name || '',
+        phone: profile.phone || '',
+        birthday: profile.birthday || '',
         avatar_url: profile.avatar_url || ''
       });
     }
@@ -203,23 +206,31 @@ export default function ProfileSettings() {
     event.target.value = '';
   };
 
-  const handleAvatarFile = (file?: File | null) => {
+  const handleAvatarDrop = (event: React.DragEvent<HTMLDivElement>) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files?.[0];
     if (file && file.type.startsWith('image/')) {
       void uploadAvatar(file);
       return;
     }
     toast({
       title: 'Error',
-      description: 'Please select a valid image file',
+      description: 'Please drop a valid image file',
       variant: 'destructive',
     });
   };
 
   const startCamera = async () => {
     try {
-      const mediaStream = await navigator.mediaDevices.getUserMedia({ 
-        video: { facingMode: 'user' } 
-      });
+      let mediaStream: MediaStream;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'user' } },
+        });
+      } catch {
+        // Fallback for environments that do not support facingMode constraints.
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
       setStream(mediaStream);
       setShowCamera(true);
       
@@ -283,9 +294,8 @@ export default function ProfileSettings() {
       const { error } = await supabase
         .from('profiles')
         .update({
-          first_name: profileData.first_name,
-          last_name: profileData.last_name,
           display_name: profileData.display_name,
+          phone: profileData.phone || null,
           avatar_url: profileData.avatar_url
         })
         .eq('user_id', user.id);
@@ -397,16 +407,15 @@ export default function ProfileSettings() {
 
         <TabsContent value="profile">
           <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <User className="h-5 w-5" />
-                General Information
-              </CardTitle>
-            </CardHeader>
             <CardContent className="space-y-4">
               {/* Avatar Section */}
-              <div className="flex flex-col items-center space-y-4">
-                <div className="relative">
+              <div className="flex flex-col items-start space-y-3">
+                <div
+                  className="relative group h-24 w-24 rounded-full overflow-hidden cursor-pointer"
+                  onClick={() => setShowAvatarOptions(true)}
+                  onDragOver={(e) => e.preventDefault()}
+                  onDrop={handleAvatarDrop}
+                >
                   <div className="h-24 w-24 rounded-full bg-muted flex items-center justify-center overflow-hidden">
                     {profileData.avatar_url ? (
                       <img 
@@ -418,34 +427,16 @@ export default function ProfileSettings() {
                       <User className="h-8 w-8 text-muted-foreground" />
                     )}
                   </div>
+                  <div className="absolute inset-0 bg-black/55 text-white text-[10px] leading-tight px-2 text-center flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                    Drag here or click to upload
+                  </div>
                   {uploadingAvatar && (
                     <div className="absolute inset-0 bg-black/50 rounded-full flex items-center justify-center">
                       <div className="animate-spin rounded-full h-6 w-6 border-b-2 border-white"></div>
                     </div>
                   )}
                 </div>
-                
-                <div className="flex gap-2">
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={() => fileInputRef.current?.click()}
-                    disabled={uploadingAvatar}
-                  >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Photo
-                  </Button>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={startCamera}
-                    disabled={uploadingAvatar}
-                  >
-                    <Camera className="h-4 w-4 mr-2" />
-                    Take Photo
-                  </Button>
-                </div>
-                
+
                 <input
                   ref={fileInputRef}
                   type="file"
@@ -453,19 +444,51 @@ export default function ProfileSettings() {
                   onChange={handleFileUpload}
                   className="hidden"
                 />
-                <div className="w-full max-w-xs">
-                  <DragDropUpload
-                    onFileSelect={handleAvatarFile}
-                    accept=".png,.jpg,.jpeg,.webp,.gif"
-                    maxSize={10}
-                    size="compact"
-                    disabled={uploadingAvatar}
-                    title="Drag profile photo here"
-                    dropTitle="Drop profile photo here"
-                    helperText="Image file up to 10MB"
-                  />
+                <div className="w-full max-w-xl">
+                  <div className="flex items-center gap-4">
+                    <Label htmlFor="display-name" className="w-32 shrink-0">Display Name</Label>
+                    <Input
+                      id="display-name"
+                      value={profileData.display_name}
+                      onChange={(e) => setProfileData(prev => ({ ...prev, display_name: e.target.value }))}
+                      className="flex-1"
+                    />
+                  </div>
                 </div>
               </div>
+
+              <Dialog open={showAvatarOptions} onOpenChange={setShowAvatarOptions}>
+                <DialogContent className="max-w-sm">
+                  <DialogHeader>
+                    <DialogTitle>Update Profile Photo</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-3">
+                    <Button
+                      className="w-full"
+                      variant="outline"
+                      onClick={() => {
+                        setShowAvatarOptions(false);
+                        fileInputRef.current?.click();
+                      }}
+                      disabled={uploadingAvatar}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Photo
+                    </Button>
+                    <Button
+                      className="w-full"
+                      onClick={() => {
+                        setShowAvatarOptions(false);
+                        startCamera();
+                      }}
+                      disabled={uploadingAvatar}
+                    >
+                      <Camera className="h-4 w-4 mr-2" />
+                      Take Photo
+                    </Button>
+                  </div>
+                </DialogContent>
+              </Dialog>
 
               {/* Camera Modal */}
               {showCamera && (
@@ -504,59 +527,59 @@ export default function ProfileSettings() {
               <canvas ref={canvasRef} className="hidden" />
               
               <Separator />
-              
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-2">
-                  <Label htmlFor="first-name">First Name</Label>
+
+              <div className="w-full max-w-xl space-y-3">
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="first-name" className="w-32 shrink-0">First Name</Label>
                   <Input
                     id="first-name"
                     value={profileData.first_name}
-                    onChange={(e) => setProfileData(prev => ({ ...prev, first_name: e.target.value }))}
+                    disabled
+                    className="flex-1 bg-muted"
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="last-name">Last Name</Label>
+
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="last-name" className="w-32 shrink-0">Last Name</Label>
                   <Input
                     id="last-name"
                     value={profileData.last_name}
-                    onChange={(e) => setProfileData(prev => ({ ...prev, last_name: e.target.value }))}
+                    disabled
+                    className="flex-1 bg-muted"
                   />
                 </div>
-              </div>
-              
-              <div className="space-y-2">
-                <Label htmlFor="display-name">Display Name</Label>
-                <Input
-                  id="display-name"
-                  value={profileData.display_name}
-                  onChange={(e) => setProfileData(prev => ({ ...prev, display_name: e.target.value }))}
-                />
-              </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="email">Email Address</Label>
-                <Input
-                  id="email"
-                  value={user?.email || ''}
-                  disabled
-                  className="bg-muted"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Email cannot be changed from this page
-                </p>
-              </div>
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="phone" className="w-32 shrink-0">Phone Number</Label>
+                  <Input
+                    id="phone"
+                    value={profileData.phone || ''}
+                    onChange={(e) => setProfileData(prev => ({ ...prev, phone: e.target.value }))}
+                    placeholder="(555) 123-4567"
+                    className="flex-1"
+                  />
+                </div>
 
-              <div className="space-y-2">
-                <Label htmlFor="role">Role (for {currentCompany?.display_name || currentCompany?.name || 'current company'})</Label>
-                <Input
-                  id="role"
-                  value={displayRole}
-                  disabled
-                  className="bg-muted capitalize"
-                />
-                <p className="text-xs text-muted-foreground">
-                  Role is managed by administrators for each company
-                </p>
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="email" className="w-32 shrink-0">Email Address</Label>
+                  <Input
+                    id="email"
+                    value={user?.email || ''}
+                    disabled
+                    className="flex-1 bg-muted"
+                  />
+                </div>
+
+                <div className="flex items-center gap-4">
+                  <Label htmlFor="birthday" className="w-32 shrink-0">Birthdate</Label>
+                  <Input
+                    id="birthday"
+                    type="date"
+                    value={profileData.birthday || ''}
+                    disabled
+                    className="flex-1 bg-muted"
+                  />
+                </div>
               </div>
 
               <div className="flex justify-end">

@@ -748,10 +748,6 @@ export default function TimecardReports() {
 
       setPunches(transformed);
       console.log('Transformed punch records:', transformed.length);
-      if (records.length === 0 && transformed.length > 0 && activeTab !== 'punches') {
-        setActiveTab('punches');
-        toast({ title: 'Showing punches', description: 'No time cards found for filters; showing punch records.'});
-      }
     } catch (error) {
       console.error('Error loading punch records:', error);
     }

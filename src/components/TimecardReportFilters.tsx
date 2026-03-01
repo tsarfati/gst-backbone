@@ -1,14 +1,13 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, type ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { CalendarIcon, MapPin, Search, Users, Filter, X } from 'lucide-react';
+import { CalendarIcon, MapPin, Search, Users, Filter, X, Briefcase, Layers } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -76,6 +75,14 @@ export default function TimecardReportFilters({
   loading = false
 }: TimecardReportFiltersProps) {
   const [locations, setLocations] = useState<string[]>([]);
+  const [employeeSearch, setEmployeeSearch] = useState('');
+  const [jobSearch, setJobSearch] = useState('');
+  const [locationSearch, setLocationSearch] = useState('');
+  const [groupSearch, setGroupSearch] = useState('');
+  const [employeesOpen, setEmployeesOpen] = useState(false);
+  const [jobsOpen, setJobsOpen] = useState(false);
+  const [locationsOpen, setLocationsOpen] = useState(false);
+  const [groupsOpen, setGroupsOpen] = useState(false);
 
   useEffect(() => {
     // Load unique locations from jobs
@@ -171,6 +178,89 @@ export default function TimecardReportFilters({
     { value: 'corrected', label: 'Corrected' }
   ];
 
+  const filteredEmployees = employees.filter((employee) => {
+    const name = (employee.display_name || `${employee.first_name} ${employee.last_name}` || '').toLowerCase();
+    return name.includes(employeeSearch.toLowerCase());
+  });
+
+  const filteredJobs = jobs.filter((job) => job.name.toLowerCase().includes(jobSearch.toLowerCase()));
+  const filteredLocations = locations.filter((location) => location.toLowerCase().includes(locationSearch.toLowerCase()));
+  const filteredGroups = groups.filter((group) => group.name.toLowerCase().includes(groupSearch.toLowerCase()));
+
+  const MultiSelectDropdown = ({
+    label,
+    icon,
+    selectedCount,
+    searchValue,
+    setSearchValue,
+    onSelectAll,
+    onClearAll,
+    children,
+    open,
+    onOpenChange,
+    triggerClassName = '',
+  }: {
+    label: string;
+    icon?: ReactNode;
+    selectedCount: number;
+    searchValue: string;
+    setSearchValue: (value: string) => void;
+    onSelectAll: () => void;
+    onClearAll: () => void;
+    children: ReactNode;
+    open: boolean;
+    onOpenChange: (open: boolean) => void;
+    triggerClassName?: string;
+  }) => (
+    <Popover
+      open={open}
+      onOpenChange={(nextOpen) => {
+        // Keep dropdown stable/open during checkbox interactions.
+        // Only allow automatic open; closing is handled explicitly by trigger toggle or Escape.
+        if (nextOpen) onOpenChange(true);
+      }}
+    >
+      <PopoverTrigger asChild>
+        <Button
+          variant="outline"
+          className={`w-full justify-between ${triggerClassName}`}
+          onClick={() => onOpenChange(!open)}
+        >
+          <span className="flex items-center gap-2 truncate">
+            {icon}
+            <span className="truncate">{label}</span>
+          </span>
+          <Badge variant="secondary" className="ml-2">{selectedCount}</Badge>
+        </Button>
+      </PopoverTrigger>
+      <PopoverContent
+        align="start"
+        className="w-[320px] p-0"
+        onEscapeKeyDown={() => onOpenChange(false)}
+        onCloseAutoFocus={(e) => e.preventDefault()}
+      >
+        <div className="p-3 border-b space-y-2">
+          <div className="relative">
+            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={searchValue}
+              onChange={(e) => setSearchValue(e.target.value)}
+              placeholder={`Search ${label.toLowerCase()}...`}
+              className="pl-9 h-9"
+            />
+          </div>
+          <div className="flex items-center gap-2">
+            <Button size="sm" variant="outline" onClick={onSelectAll}>Select All</Button>
+            <Button size="sm" variant="outline" onClick={onClearAll}>Clear All</Button>
+          </div>
+        </div>
+        <div className="max-h-72 overflow-y-auto p-3 space-y-2">
+          {children}
+        </div>
+      </PopoverContent>
+    </Popover>
+  );
+
   return (
     <Card>
       <CardHeader>
@@ -193,284 +283,209 @@ export default function TimecardReportFilters({
           </div>
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-6">
-        {/* Date Range */}
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-          <div className="space-y-2">
-            <Label>Start Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filters.startDate ? format(filters.startDate, "PPP") : "Select start date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={filters.startDate}
-                  onSelect={(date) => updateFilters({ startDate: date })}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-          
-          <div className="space-y-2">
-            <Label>End Date</Label>
-            <Popover>
-              <PopoverTrigger asChild>
-                <Button variant="outline" className="w-full justify-start text-left font-normal">
-                  <CalendarIcon className="mr-2 h-4 w-4" />
-                  {filters.endDate ? format(filters.endDate, "PPP") : "Select end date"}
-                </Button>
-              </PopoverTrigger>
-              <PopoverContent className="w-auto p-0" align="start">
-                <Calendar
-                  mode="single"
-                  selected={filters.endDate}
-                  onSelect={(date) => updateFilters({ endDate: date })}
-                  initialFocus
-                  className={cn("p-3 pointer-events-auto")}
-                />
-              </PopoverContent>
-            </Popover>
-          </div>
-        </div>
+      <CardContent className="space-y-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-6 gap-3">
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-start text-left font-normal h-10">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {filters.startDate ? format(filters.startDate, "M/d/yy") : "Start date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={filters.startDate}
+                onSelect={(date) => updateFilters({ startDate: date })}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
 
-        {/* Employee Groups Selection */}
-        <div className="space-y-2">
-          <Label className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Employee Groups ({filters.groups.length} selected)
-          </Label>
-          {groups.length === 0 ? (
-            <div className="border rounded-lg p-3 text-sm text-muted-foreground">
-              No employee groups found. You can create groups in Employee Groups settings.
-            </div>
-          ) : (
-            <>
-              <div className="flex gap-2 mb-2">
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => {
-                    const allGroupIds = groups.map(g => g.id);
-                    const allGroupEmployees = groupMemberships
-                      .filter(m => allGroupIds.includes(m.group_id))
-                      .map(m => m.user_id);
-                    updateFilters({ 
-                      groups: allGroupIds,
-                      employees: [...new Set([...filters.employees, ...allGroupEmployees])]
-                    });
-                  }}
-                >
-                  Select All
-                </Button>
-                <Button 
-                  variant="outline" 
-                  size="sm"
-                  onClick={() => updateFilters({ groups: [], employees: [] })}
-                >
-                  Clear All
-                </Button>
-              </div>
-              <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
-                <div className="space-y-2">
-                  {groups.map((group) => (
-                    <div key={group.id} className="flex items-center space-x-2">
-                      <Checkbox
-                        id={`group-${group.id}`}
-                        checked={filters.groups.includes(group.id)}
-                        onCheckedChange={() => toggleGroup(group.id)}
-                      />
-                      <Label htmlFor={`group-${group.id}`} className="text-sm flex items-center gap-2">
-                        <span 
-                          className="w-3 h-3 rounded-full" 
-                          style={{ backgroundColor: group.color || '#3b82f6' }}
-                        />
-                        {group.name}
-                        {group.description && (
-                          <span className="text-muted-foreground">- {group.description}</span>
-                        )}
-                      </Label>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            </>
-          )}
-        </div>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" className="w-full justify-start text-left font-normal h-10">
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {filters.endDate ? format(filters.endDate, "M/d/yy") : "End date"}
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-auto p-0" align="start">
+              <Calendar
+                mode="single"
+                selected={filters.endDate}
+                onSelect={(date) => updateFilters({ endDate: date })}
+                initialFocus
+                className={cn("p-3 pointer-events-auto")}
+              />
+            </PopoverContent>
+          </Popover>
 
-        {/* Employee Selection */}
-        <div className="space-y-2">
-          <Label className="flex items-center gap-2">
-            <Users className="h-4 w-4" />
-            Individual Employees ({filters.employees.length} selected)
-          </Label>
-          <div className="flex gap-2 mb-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => updateFilters({ employees: employees.map(emp => emp.user_id) })}
-            >
-              Select All
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => updateFilters({ employees: [] })}
-            >
-              Clear All
-            </Button>
-          </div>
-          <div className="border rounded-lg p-3 max-h-40 overflow-y-auto">
-            <div className="space-y-2">
-              {employees.map((employee) => (
-                <div key={employee.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`employee-${employee.id}`}
-                    checked={filters.employees.includes(employee.user_id)}
-                    onCheckedChange={() => toggleEmployee(employee.user_id)}
-                  />
-                  <Label htmlFor={`employee-${employee.id}`} className="text-sm">
-                    {employee.display_name || `${employee.first_name} ${employee.last_name}`}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Job Selection */}
-        <div className="space-y-2">
-          <Label>Jobs ({filters.jobs.length} selected)</Label>
-          <div className="flex gap-2 mb-2">
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => updateFilters({ jobs: jobs.map(job => job.id) })}
-            >
-              Select All
-            </Button>
-            <Button 
-              variant="outline" 
-              size="sm"
-              onClick={() => updateFilters({ jobs: [] })}
-            >
-              Clear All
-            </Button>
-          </div>
-          <div className="border rounded-lg p-3 max-h-40 overflow-y-auto">
-            <div className="space-y-2">
-              {jobs.map((job) => (
-                <div key={job.id} className="flex items-center space-x-2">
-                  <Checkbox
-                    id={`job-${job.id}`}
-                    checked={filters.jobs.includes(job.id)}
-                    onCheckedChange={() => toggleJob(job.id)}
-                  />
-                  <Label htmlFor={`job-${job.id}`} className="text-sm">
-                    {job.name}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {/* Location Selection */}
-        {locations.length > 0 && (
-          <div className="space-y-2">
-            <Label className="flex items-center gap-2">
-              <MapPin className="h-4 w-4" />
-              Locations ({filters.locations.length} selected)
-            </Label>
-            <div className="border rounded-lg p-3 max-h-32 overflow-y-auto">
-              <div className="space-y-2">
-                {locations.map((location) => (
-                  <div key={location} className="flex items-center space-x-2">
-                    <Checkbox
-                      id={`location-${location}`}
-                      checked={filters.locations.includes(location)}
-                      onCheckedChange={() => toggleLocation(location)}
-                    />
-                    <Label htmlFor={`location-${location}`} className="text-sm">
-                      {location}
-                    </Label>
-                  </div>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Status Selection */}
-        <div className="space-y-2">
-          <Label>Status ({filters.status.length} selected)</Label>
-          <div className="flex flex-wrap gap-2">
-            {statusOptions.map((status) => (
-              <div key={status.value} className="flex items-center space-x-2">
+          <MultiSelectDropdown
+            label="Employees"
+            icon={<Users className="h-4 w-4" />}
+            selectedCount={filters.employees.length}
+            searchValue={employeeSearch}
+            setSearchValue={setEmployeeSearch}
+            onSelectAll={() => updateFilters({ employees: employees.map((emp) => emp.user_id) })}
+            onClearAll={() => updateFilters({ employees: [] })}
+            open={employeesOpen}
+            onOpenChange={setEmployeesOpen}
+          >
+            {filteredEmployees.map((employee) => (
+              <div key={employee.id} className="flex items-center space-x-2">
                 <Checkbox
-                  id={`status-${status.value}`}
-                  checked={filters.status.includes(status.value)}
-                  onCheckedChange={() => toggleStatus(status.value)}
+                  id={`employee-${employee.id}`}
+                  checked={filters.employees.includes(employee.user_id)}
+                  onCheckedChange={() => toggleEmployee(employee.user_id)}
                 />
-                <Label htmlFor={`status-${status.value}`} className="text-sm">
-                  {status.label}
+                <Label htmlFor={`employee-${employee.id}`} className="text-sm">
+                  {employee.display_name || `${employee.first_name} ${employee.last_name}`}
                 </Label>
               </div>
             ))}
-          </div>
+          </MultiSelectDropdown>
+
+          <MultiSelectDropdown
+            label="Jobs"
+            icon={<Briefcase className="h-4 w-4" />}
+            selectedCount={filters.jobs.length}
+            searchValue={jobSearch}
+            setSearchValue={setJobSearch}
+            onSelectAll={() => updateFilters({ jobs: jobs.map((job) => job.id) })}
+            onClearAll={() => updateFilters({ jobs: [] })}
+            open={jobsOpen}
+            onOpenChange={setJobsOpen}
+          >
+            {filteredJobs.map((job) => (
+              <div key={job.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`job-${job.id}`}
+                  checked={filters.jobs.includes(job.id)}
+                  onCheckedChange={() => toggleJob(job.id)}
+                />
+                <Label htmlFor={`job-${job.id}`} className="text-sm">
+                  {job.name}
+                </Label>
+              </div>
+            ))}
+          </MultiSelectDropdown>
+
+          <MultiSelectDropdown
+            label="Locations"
+            icon={<MapPin className="h-4 w-4" />}
+            selectedCount={filters.locations.length}
+            searchValue={locationSearch}
+            setSearchValue={setLocationSearch}
+            onSelectAll={() => updateFilters({ locations: [...locations] })}
+            onClearAll={() => updateFilters({ locations: [] })}
+            open={locationsOpen}
+            onOpenChange={setLocationsOpen}
+          >
+            {filteredLocations.map((location) => (
+              <div key={location} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`location-${location}`}
+                  checked={filters.locations.includes(location)}
+                  onCheckedChange={() => toggleLocation(location)}
+                />
+                <Label htmlFor={`location-${location}`} className="text-sm truncate">
+                  {location}
+                </Label>
+              </div>
+            ))}
+          </MultiSelectDropdown>
+
+          <MultiSelectDropdown
+            label="Groups"
+            icon={<Layers className="h-4 w-4" />}
+            selectedCount={filters.groups.length}
+            searchValue={groupSearch}
+            setSearchValue={setGroupSearch}
+            onSelectAll={() => {
+              const allGroupIds = groups.map(g => g.id);
+              const allGroupEmployees = groupMemberships
+                .filter(m => allGroupIds.includes(m.group_id))
+                .map(m => m.user_id);
+              updateFilters({
+                groups: allGroupIds,
+                employees: [...new Set([...filters.employees, ...allGroupEmployees])],
+              });
+            }}
+            onClearAll={() => updateFilters({ groups: [], employees: [] })}
+            open={groupsOpen}
+            onOpenChange={setGroupsOpen}
+          >
+            {filteredGroups.map((group) => (
+              <div key={group.id} className="flex items-center space-x-2">
+                <Checkbox
+                  id={`group-${group.id}`}
+                  checked={filters.groups.includes(group.id)}
+                  onCheckedChange={() => toggleGroup(group.id)}
+                />
+                <Label htmlFor={`group-${group.id}`} className="text-sm flex items-center gap-2 truncate">
+                  <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: group.color || '#3b82f6' }} />
+                  <span className="truncate">{group.name}</span>
+                </Label>
+              </div>
+            ))}
+          </MultiSelectDropdown>
         </div>
 
-        {/* Additional Filters */}
-        <div className="space-y-3">
-          <Label>Additional Filters</Label>
+        <div className="grid grid-cols-1 xl:grid-cols-2 gap-4">
           <div className="space-y-2">
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="has-notes"
-                checked={filters.hasNotes}
-                onCheckedChange={(checked) => updateFilters({ hasNotes: !!checked })}
-              />
-              <Label htmlFor="has-notes" className="text-sm">
-                Only records with notes
-              </Label>
+            <Label>Status ({filters.status.length} selected)</Label>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              {statusOptions.map((status) => (
+                <div key={status.value} className="flex items-center space-x-2">
+                  <Checkbox
+                    id={`status-${status.value}`}
+                    checked={filters.status.includes(status.value)}
+                    onCheckedChange={() => toggleStatus(status.value)}
+                  />
+                  <Label htmlFor={`status-${status.value}`} className="text-sm">
+                    {status.label}
+                  </Label>
+                </div>
+              ))}
             </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="has-overtime"
-                checked={filters.hasOvertime}
-                onCheckedChange={(checked) => updateFilters({ hasOvertime: !!checked })}
-              />
-              <Label htmlFor="has-overtime" className="text-sm">
-                Only records with overtime
-              </Label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="show-deleted"
-                checked={filters.showDeleted}
-                onCheckedChange={(checked) => updateFilters({ showDeleted: !!checked })}
-              />
-              <Label htmlFor="show-deleted" className="text-sm">
-                Show deleted records
-              </Label>
-            </div>
-            
-            <div className="flex items-center space-x-2">
-              <Checkbox
-                id="show-notes"
-                checked={filters.showNotes}
-                onCheckedChange={(checked) => updateFilters({ showNotes: !!checked })}
-              />
-              <Label htmlFor="show-notes" className="text-sm">
-                Show notes column in reports
-              </Label>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Additional Filters</Label>
+            <div className="flex flex-wrap gap-x-4 gap-y-2">
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="has-notes"
+                  checked={filters.hasNotes}
+                  onCheckedChange={(checked) => updateFilters({ hasNotes: !!checked })}
+                />
+                <Label htmlFor="has-notes" className="text-sm">Only records with notes</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="has-overtime"
+                  checked={filters.hasOvertime}
+                  onCheckedChange={(checked) => updateFilters({ hasOvertime: !!checked })}
+                />
+                <Label htmlFor="has-overtime" className="text-sm">Only records with overtime</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="show-deleted"
+                  checked={filters.showDeleted}
+                  onCheckedChange={(checked) => updateFilters({ showDeleted: !!checked })}
+                />
+                <Label htmlFor="show-deleted" className="text-sm">Show deleted records</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="show-notes"
+                  checked={filters.showNotes}
+                  onCheckedChange={(checked) => updateFilters({ showNotes: !!checked })}
+                />
+                <Label htmlFor="show-notes" className="text-sm">Show notes column in reports</Label>
+              </div>
             </div>
           </div>
         </div>

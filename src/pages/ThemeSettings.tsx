@@ -129,7 +129,7 @@ export default function ThemeSettings({
                   <Label htmlFor="theme">Theme</Label>
                   <Select
                     value={settings.theme}
-                    onValueChange={(value: 'light' | 'dark' | 'system') => 
+                    onValueChange={(value: 'light' | 'dark' | 'system') =>
                       updateSettings({ theme: value })
                     }
                   >
@@ -158,6 +158,25 @@ export default function ThemeSettings({
                       updateSettings({ compactMode: checked })
                     }
                   />
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="sidebar-highlight-opacity">Left Navigation Highlight Intensity</Label>
+                  <Select
+                    value={String(settings.sidebarHighlightOpacity ?? 0.14)}
+                    onValueChange={(value) => updateSettings({ sidebarHighlightOpacity: Number(value) })}
+                  >
+                    <SelectTrigger id="sidebar-highlight-opacity">
+                      <SelectValue placeholder="Select highlight intensity" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="0.08">Subtle (8%)</SelectItem>
+                      <SelectItem value="0.12">Soft (12%)</SelectItem>
+                      <SelectItem value="0.14">Balanced (14%)</SelectItem>
+                      <SelectItem value="0.18">Strong (18%)</SelectItem>
+                      <SelectItem value="0.24">High (24%)</SelectItem>
+                    </SelectContent>
+                  </Select>
                 </div>
 
                 <Separator />
@@ -285,6 +304,13 @@ export default function ThemeSettings({
                     value={settings.customColors.buttonHover}
                     onChange={(value) => updateSettings({ 
                       customColors: { ...settings.customColors, buttonHover: value }
+                    })}
+                  />
+                  <ColorPicker
+                    label="Left Navigation Background"
+                    value={settings.customColors.sidebarBackground}
+                    onChange={(value) => updateSettings({
+                      customColors: { ...settings.customColors, sidebarBackground: value }
                     })}
                   />
                 </div>

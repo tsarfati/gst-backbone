@@ -33,56 +33,51 @@ export default function VendorCompactView({ vendors, onVendorClick }: VendorComp
   const { warnings } = useComplianceWarnings(vendors.map(v => v.id));
   
   return (
-    <div className="space-y-2">
+    <div className="space-y-1">
       {vendors.map((vendor) => (
         <Card key={vendor.id} className="hover-lift cursor-pointer animate-fade-in" onClick={() => onVendorClick(vendor)}>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3 flex-1">
+          <CardContent className="px-3 py-1.5">
+            <div className="flex items-center justify-between gap-2">
+              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden whitespace-nowrap">
                 {vendor.logo_url ? (
-                  <img src={vendor.logo_url} alt={vendor.name} className="h-8 w-8 rounded object-cover" />
+                  <img src={vendor.logo_url} alt={vendor.name} className="h-6 w-6 rounded object-cover flex-shrink-0" />
                 ) : (
-                  <Building className="h-5 w-5 text-primary" />
+                  <Building className="h-4 w-4 text-primary flex-shrink-0" />
                 )}
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
-                    <span className="font-medium">{vendor.name}</span>
-                    <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]} className="text-xs">
-                      {vendor.category}
-                    </Badge>
-                    {warnings[vendor.id] && (
-                      <Badge variant="destructive" className="flex items-center gap-1 text-xs">
-                        <AlertTriangle className="h-3 w-3" />
-                        {warnings[vendor.id]} Missing
-                      </Badge>
-                    )}
+                <span className="font-medium truncate max-w-[220px]">{vendor.name}</span>
+                <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]} className="text-xs">
+                  {vendor.category}
+                </Badge>
+                {warnings[vendor.id] && (
+                  <Badge variant="destructive" className="flex items-center gap-1 text-xs">
+                    <AlertTriangle className="h-3 w-3" />
+                    {warnings[vendor.id]} Missing
+                  </Badge>
+                )}
+                <div className="flex items-center gap-3 text-xs text-muted-foreground min-w-0">
+                  <div className="flex items-center gap-1">
+                    <Phone className="h-3 w-3" />
+                    <span className="truncate">{vendor.phone}</span>
                   </div>
-                  <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                    <div className="flex items-center gap-1">
-                      <Phone className="h-3 w-3" />
-                      <span>{vendor.phone}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Mail className="h-3 w-3" />
-                      <span>{vendor.email}</span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <Receipt className="h-3 w-3" />
-                      <span>{vendor.bills} bills</span>
-                    </div>
+                  <div className="flex items-center gap-1">
+                    <Mail className="h-3 w-3" />
+                    <span className="truncate max-w-[220px]">{vendor.email}</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <Receipt className="h-3 w-3" />
+                    <span>{vendor.bills} bills</span>
                   </div>
                 </div>
               </div>
-              
-              <div className="flex items-center gap-3">
-                <div className="text-right">
-                  <div className="text-sm text-muted-foreground">Total Spent</div>
-                  <div className="font-semibold">{vendor.totalSpent}</div>
+              <div className="flex items-center gap-2 flex-shrink-0">
+                <div className="text-right leading-none">
+                  <div className="text-[11px] text-muted-foreground">Total</div>
+                  <div className="font-semibold text-sm">{vendor.totalSpent}</div>
                 </div>
-                
                 <Button 
                   variant="outline" 
                   size="sm"
+                  className="h-7 px-2"
                   onClick={(e) => {
                     e.stopPropagation();
                     onVendorClick(vendor);

@@ -926,28 +926,28 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="w-12"></TableHead>
-                  <TableHead className="w-24">Item #</TableHead>
-                  <TableHead>Description of Work</TableHead>
-                  <TableHead className="w-48 text-right">Scheduled Value</TableHead>
-                  <TableHead className="w-16"></TableHead>
+                  <TableHead className="w-12 py-1"></TableHead>
+                  <TableHead className="w-24 py-1">Item #</TableHead>
+                  <TableHead className="py-1">Description of Work</TableHead>
+                  <TableHead className="w-48 text-right py-1">Scheduled Value</TableHead>
+                  <TableHead className="w-16 py-1"></TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {items.map((item, index) => (
-                  <TableRow key={item.id || `new-${index}`}>
-                    <TableCell>
+                  <TableRow key={item.id || `new-${index}`} className="[&>td]:py-0.5">
+                    <TableCell className="py-0.5">
                       <GripVertical className="h-4 w-4 text-muted-foreground cursor-grab" />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-0.5">
                       <Input
                         value={item.item_number}
                         disabled={isSOVLocked}
                         onChange={(e) => updateItem(index, "item_number", e.target.value)}
-                        className="w-20"
+                        className="w-20 h-7"
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-0.5">
                       <Input
                         ref={(el) => {
                           descriptionInputRefs.current[index] = el;
@@ -957,9 +957,10 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
                         onChange={(e) => updateItem(index, "description", e.target.value)}
                         onKeyDown={handleDescriptionEnter(index)}
                         placeholder="Enter description of work"
+                        className="h-7"
                       />
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-0.5">
                       <div className="flex items-center gap-1">
                         <span className="text-muted-foreground">$</span>
                         <CurrencyInput
@@ -970,11 +971,11 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
                           disabled={isSOVLocked}
                           onChange={(val) => updateItem(index, "scheduled_value", parseFloat(val) || 0)}
                           onKeyDown={handleScheduledValueEnter(index)}
-                          className="text-right"
+                          className="text-right h-7"
                         />
                       </div>
                     </TableCell>
-                    <TableCell>
+                    <TableCell className="py-0.5">
                       <Button
                         variant="ghost"
                         size="icon"

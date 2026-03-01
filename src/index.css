@@ -77,6 +77,7 @@ All colors MUST be HSL.
 
     /* Menu Hover Effects */
     --menu-hover-subtle: 0 1px 2px 0 hsl(0 0% 0% / 0.03);
+    --sidebar-highlight-opacity: 0.14;
 
     --sidebar-background: 210 52% 20%;
     --sidebar-foreground: 0 0% 95%;
@@ -125,6 +126,274 @@ All colors MUST be HSL.
     --sidebar-border: 240 3.7% 15.9%;
     --sidebar-ring: 217.2 91.2% 59.8%;
   }
+
+  /* Theme variants */
+  .theme-variant-builderlynk {
+    --radius: 0.5rem;
+    --primary: 210 52% 28%;
+    --primary-glow: 210 52% 35%;
+    --accent: 28 85% 52%;
+    --ring: 210 52% 28%;
+    --sidebar-primary: 28 85% 52%;
+  }
+
+  .theme-variant-slate {
+    --radius: 0.25rem;
+    --primary: 218 35% 34%;
+    --primary-glow: 218 35% 40%;
+    --accent: 199 89% 48%;
+    --ring: 199 89% 48%;
+    --sidebar-primary: 199 89% 48%;
+  }
+
+  .theme-variant-forest {
+    --radius: 0.875rem;
+    --primary: 160 64% 26%;
+    --primary-glow: 160 64% 32%;
+    --accent: 43 90% 52%;
+    --ring: 160 64% 32%;
+    --sidebar-primary: 43 90% 52%;
+  }
+
+  .theme-variant-sunset {
+    --radius: 1rem;
+    --primary: 12 72% 45%;
+    --primary-glow: 12 72% 52%;
+    --accent: 271 81% 56%;
+    --ring: 12 72% 52%;
+    --sidebar-primary: 12 72% 52%;
+  }
+
+  .theme-variant-mono {
+    --radius: 0.1rem;
+    --primary: 220 8% 30%;
+    --primary-glow: 220 8% 40%;
+    --accent: 220 10% 45%;
+    --ring: 220 10% 45%;
+    --sidebar-primary: 220 10% 45%;
+  }
+
+  .theme-variant-macos {
+    --radius: 0.85rem;
+    --primary: 214 84% 56%;
+    --primary-glow: 214 84% 64%;
+    --accent: 199 89% 48%;
+    --ring: 214 84% 56%;
+    --sidebar-primary: 214 84% 56%;
+  }
+
+  .theme-variant-android {
+    --radius: 0.6rem;
+    --primary: 142 70% 34%;
+    --primary-glow: 142 70% 42%;
+    --accent: 160 84% 39%;
+    --ring: 142 70% 34%;
+    --sidebar-primary: 142 70% 34%;
+  }
+
+  .dark.theme-variant-slate {
+    --primary: 200 78% 70%;
+    --accent: 200 78% 62%;
+    --ring: 200 78% 62%;
+  }
+
+  .dark.theme-variant-forest {
+    --primary: 148 52% 64%;
+    --accent: 43 90% 60%;
+    --ring: 148 52% 64%;
+  }
+
+  .dark.theme-variant-sunset {
+    --primary: 18 88% 66%;
+    --accent: 271 81% 68%;
+    --ring: 18 88% 66%;
+  }
+
+  .dark.theme-variant-mono {
+    --primary: 220 10% 86%;
+    --accent: 220 10% 78%;
+    --ring: 220 10% 78%;
+  }
+
+  .dark.theme-variant-macos {
+    --primary: 210 90% 70%;
+    --accent: 195 90% 64%;
+    --ring: 210 90% 70%;
+  }
+
+  .dark.theme-variant-android {
+    --primary: 142 56% 68%;
+    --accent: 160 66% 60%;
+    --ring: 142 56% 68%;
+  }
+
+  /* Visual language per theme variant (beyond color) */
+  .theme-variant-slate [data-slot="card"] {
+    border-width: 1px;
+    box-shadow: none;
+  }
+  .theme-variant-slate [data-slot="button"] {
+    border-radius: 0.25rem;
+    transform: none !important;
+    box-shadow: none;
+    font-weight: 600;
+  }
+  .theme-variant-slate [data-slot="input"] {
+    border-radius: 0.25rem;
+    border-width: 1px;
+  }
+
+  .theme-variant-forest [data-slot="card"] {
+    border-width: 0;
+    box-shadow: 0 8px 20px hsl(160 35% 20% / 0.12);
+  }
+  .theme-variant-forest [data-slot="button"] {
+    border-radius: 9999px;
+    letter-spacing: 0.01em;
+    box-shadow: 0 6px 16px hsl(160 35% 20% / 0.22);
+  }
+  .theme-variant-forest [data-slot="button"]:hover {
+    transform: translateY(-1px);
+  }
+  .theme-variant-forest [data-slot="input"] {
+    border-radius: 9999px;
+    padding-left: 0.9rem;
+    padding-right: 0.9rem;
+  }
+
+  .theme-variant-sunset [data-slot="card"] {
+    border: 1px solid hsl(var(--accent) / 0.35);
+    box-shadow: 0 10px 24px hsl(271 60% 45% / 0.16);
+  }
+  .theme-variant-sunset [data-slot="button"] {
+    border-radius: 0.8rem;
+    border: 0;
+    background-image: linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)));
+    color: hsl(0 0% 100%);
+    box-shadow: 0 10px 22px hsl(271 60% 45% / 0.3);
+  }
+  .theme-variant-sunset [data-slot="button"]:hover {
+    filter: saturate(1.08) brightness(1.02);
+  }
+  .theme-variant-sunset [data-slot="input"] {
+    border-width: 1px;
+    border-color: hsl(var(--accent) / 0.35);
+    background: linear-gradient(180deg, hsl(var(--background)), hsl(var(--muted) / 0.55));
+  }
+
+  .theme-variant-mono [data-slot="card"] {
+    border-color: hsl(var(--foreground) / 0.22);
+    box-shadow: none;
+  }
+  .theme-variant-mono [data-slot="button"] {
+    border: 1px solid hsl(var(--foreground) / 0.3);
+    background: hsl(var(--background));
+    color: hsl(var(--foreground));
+    border-radius: 0.1rem;
+    box-shadow: none;
+    transform: none !important;
+  }
+  .theme-variant-mono [data-slot="button"]:hover {
+    background: hsl(var(--muted));
+  }
+  .theme-variant-mono [data-slot="input"] {
+    border-radius: 0.1rem;
+    border-color: hsl(var(--foreground) / 0.25);
+  }
+
+  .theme-variant-macos [data-slot="card"] {
+    border: 1px solid hsl(var(--border) / 0.65);
+    backdrop-filter: blur(10px);
+    background: linear-gradient(180deg, hsl(var(--card) / 0.92), hsl(var(--card) / 0.86));
+    box-shadow: 0 14px 30px hsl(220 40% 30% / 0.16);
+  }
+  .theme-variant-macos [data-slot="button"] {
+    border-radius: 0.95rem;
+    border: 1px solid hsl(var(--foreground) / 0.14);
+    box-shadow: 0 6px 14px hsl(220 40% 30% / 0.16);
+    font-weight: 600;
+    letter-spacing: 0.005em;
+  }
+  .theme-variant-macos [data-slot="button"]:hover {
+    transform: translateY(-1px);
+  }
+  .theme-variant-macos [data-slot="input"] {
+    border-radius: 0.95rem;
+    border: 1px solid hsl(var(--border) / 0.7);
+    background: hsl(var(--background) / 0.88);
+  }
+
+  .theme-variant-android [data-slot="card"] {
+    border: 1px solid hsl(var(--border) / 0.8);
+    box-shadow: 0 4px 12px hsl(142 40% 20% / 0.12);
+  }
+  .theme-variant-android [data-slot="button"] {
+    border-radius: 9999px;
+    text-transform: uppercase;
+    letter-spacing: 0.025em;
+    font-weight: 600;
+    box-shadow: 0 2px 8px hsl(142 50% 22% / 0.2);
+  }
+  .theme-variant-android [data-slot="button"]:hover {
+    transform: translateY(-1px) scale(1.01);
+  }
+  .theme-variant-android [data-slot="input"] {
+    border-radius: 9999px;
+    border-width: 1.5px;
+    padding-left: 0.95rem;
+    padding-right: 0.95rem;
+  }
+}
+
+@layer utilities {
+  .sidebar-highlight-hover:hover {
+    background-color: hsl(var(--primary) / var(--sidebar-highlight-opacity, 0.14));
+  }
+
+  .sidebar-highlight-bg {
+    background-color: hsl(var(--primary) / var(--sidebar-highlight-opacity, 0.14));
+  }
+
+  .sidebar-scroll-area {
+    scrollbar-width: thin; /* Firefox */
+    scrollbar-color: hsl(var(--primary) / 0.35) transparent;
+  }
+
+  .sidebar-scroll-area::-webkit-scrollbar {
+    width: 6px;
+    height: 6px;
+    background: transparent;
+  }
+
+  .sidebar-scroll-area::-webkit-scrollbar-thumb {
+    background: hsl(var(--primary) / 0.35);
+    border-radius: 999px;
+  }
+
+  .sidebar-scroll-area::-webkit-scrollbar-track {
+    background: transparent;
+  }
+}
+
+/* Global scrollbar styling (matches sidebar style and respects company theme color) */
+* {
+  scrollbar-width: thin; /* Firefox */
+  scrollbar-color: hsl(var(--primary) / 0.35) transparent;
+}
+
+*::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+  background: transparent;
+}
+
+*::-webkit-scrollbar-thumb {
+  background: hsl(var(--primary) / 0.35);
+  border-radius: 999px;
+}
+
+*::-webkit-scrollbar-track {
+  background: transparent;
 }
 
 @layer base {
@@ -141,6 +410,55 @@ All colors MUST be HSL.
     user-select: none;
     -webkit-user-select: none;
     -webkit-tap-highlight-color: transparent;
+  }
+
+  .compact-mode body {
+    font-size: 14px;
+    line-height: 1.35;
+  }
+
+  .compact-mode .text-sm {
+    font-size: 0.8rem;
+    line-height: 1.2rem;
+  }
+
+  .compact-mode .text-base {
+    font-size: 0.9rem;
+    line-height: 1.3rem;
+  }
+
+  .compact-mode .p-6 {
+    padding: 1rem;
+  }
+
+  .compact-mode .p-4 {
+    padding: 0.75rem;
+  }
+
+  .compact-mode .py-6 {
+    padding-top: 1rem;
+    padding-bottom: 1rem;
+  }
+
+  .compact-mode .py-4 {
+    padding-top: 0.5rem;
+    padding-bottom: 0.5rem;
+  }
+
+  .compact-mode .h-10 {
+    height: 2.1rem;
+  }
+
+  .compact-mode .h-12 {
+    height: 2.5rem;
+  }
+
+  .compact-mode .space-y-4 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.625rem;
+  }
+
+  .compact-mode .space-y-6 > :not([hidden]) ~ :not([hidden]) {
+    margin-top: 0.875rem;
   }
 
   /* Mobile-specific styles */

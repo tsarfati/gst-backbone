@@ -532,12 +532,12 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                 <Table>
                   <TableHeader>
                     <TableRow>
-                      <TableHead className="py-2">Cost Code</TableHead>
-                      <TableHead className="py-2">Description</TableHead>
-                      <TableHead className="py-2">Budgeted Amount</TableHead>
-                      <TableHead className="py-2">Actual Amount</TableHead>
-                      <TableHead className="py-2">Committed Amount</TableHead>
-                      <TableHead className="py-2">Variance</TableHead>
+                      <TableHead className="py-1">Cost Code</TableHead>
+                      <TableHead className="py-1">Description</TableHead>
+                      <TableHead className="py-1">Budgeted Amount</TableHead>
+                      <TableHead className="py-1">Actual Amount</TableHead>
+                      <TableHead className="py-1">Committed Amount</TableHead>
+                      <TableHead className="py-1">Variance</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -570,7 +570,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                             "h-auto"
                           )}
                         >
-                          <TableCell className={cn("py-1.5", isChild ? "pl-12" : "")}>
+                          <TableCell className={cn("py-0.5", isChild ? "pl-12" : "")}>
                             <div className="flex items-center gap-1.5 leading-none">
                               {line.is_dynamic && childCount !== undefined && childCount > 0 && (
                                 <button
@@ -604,13 +604,13 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                               )}
                             </div>
                           </TableCell>
-                          <TableCell className="py-1.5">
+                          <TableCell className="py-0.5">
                             <div className="leading-tight">
                               {line.cost_code?.description}
                               {line.cost_code?.type && <span className="text-[11px] text-muted-foreground ml-1.5">({line.cost_code.type})</span>}
                             </div>
                           </TableCell>
-                          <TableCell className="py-1.5">
+                          <TableCell className="py-0.5">
                             {isChild ? (
                               <span className="font-mono text-xs text-muted-foreground leading-none">
                                 {formatCurrency(parentBudget ?? 0)}
@@ -619,13 +619,13 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                               <CurrencyInput
                                 value={line.budgeted_amount.toString()}
                                 onChange={(value) => updateBudgetLine(line.cost_code_id, 'budgeted_amount', parseFloat(value) || 0)}
-                                className="w-28 h-8 text-xs"
+                                className="w-28 h-7 text-xs"
                                 placeholder="0.00"
                                 disabled={!canEditBudget}
                               />
                             )}
                           </TableCell>
-                          <TableCell className="py-1.5">
+                          <TableCell className="py-0.5">
                             {line.is_dynamic ? (
                               <button
                                 onClick={(e) => {
@@ -667,7 +667,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                               </button>
                             )}
                           </TableCell>
-                          <TableCell className="py-1.5">
+                          <TableCell className="py-0.5">
                             {line.is_dynamic ? (
                               <button
                                 onClick={(e) => {
@@ -712,7 +712,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
                               </button>
                             )}
                           </TableCell>
-                          <TableCell className="py-1.5">
+                          <TableCell className="py-0.5">
                             <span className={cn("font-mono font-semibold text-xs leading-none", toneClass)}>
                               {line.is_dynamic ? formatCurrency(remaining ?? 0) : formatCurrency(displayVariance)}
                             </span>

@@ -2,7 +2,7 @@ import { useState, useEffect } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, SidebarFooter, useSidebar } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, HardHat, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package, Search, HandCoins, Shield, CircleHelp } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -11,13 +11,9 @@ import { useTenant } from '@/contexts/TenantContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import GlobalSearch from '@/components/GlobalSearch';
 import { DateTimeDisplay } from '@/components/DateTimeDisplay';
-import { useNavigate } from 'react-router-dom';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
-import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { useCompanyFeatureAccess } from '@/hooks/useCompanyFeatureAccess';
 import { CompanySwitcher } from '@/components/CompanySwitcher';
-// useDynamicManifest is only used in Punch Clock and PM Mobile pages, not in main app
-import { supabase } from '@/integrations/supabase/client';
 
 const navigationCategories = [
   {
@@ -152,44 +148,15 @@ const navigationCategories = [
 ];
 
 export function AppSidebar() {
-  const navigate = useNavigate();
   const location = useLocation();
   const { state } = useSidebar();
   const { settings } = useSettings();
-  const { signOut, profile } = useAuth();
-  const { isSuperAdmin, tenantMember } = useTenant();
+  const { profile } = useAuth();
+  const { tenantMember } = useTenant();
   const { currentCompany } = useCompany();
-  const activeCompanyRole = useActiveCompanyRole();
-  const effectiveRole = activeCompanyRole ?? profile?.role ?? null;
-  const showRoleLabel =
-    !!isSuperAdmin ||
-    effectiveRole === 'admin' ||
-    effectiveRole === 'company_admin';
   const { hasAccess, loading } = useMenuPermissions();
   const { hasFeature } = useCompanyFeatureAccess(['pm_lynk', 'punch_clock_app', 'organization_management']);
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
-  const [fallbackAvatar, setFallbackAvatar] = useState<string | null>(null);
-
-  useEffect(() => {
-    const fetchFallback = async () => {
-      try {
-        if (!profile?.avatar_url && profile?.user_id) {
-          const { data } = await supabase
-            .from('current_punch_status')
-            .select('punch_in_photo_url, punch_in_time')
-            .eq('user_id', profile.user_id)
-            .eq('is_active', true)
-            .order('punch_in_time', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-          setFallbackAvatar(data?.punch_in_photo_url || null);
-        }
-      } catch (e) {
-        console.error('Failed to load fallback avatar:', e);
-      }
-    };
-    fetchFallback();
-  }, [profile?.avatar_url, profile?.user_id]);
 
   const toggleGroup = (groupTitle: string) => {
     // Dashboard doesn't expand - just navigate
@@ -281,7 +248,7 @@ export function AppSidebar() {
         </div>
       </SidebarHeader>
       
-      <SidebarContent className="gap-0">
+      <SidebarContent className="gap-0 sidebar-scroll-area">
         {!loading && navigationCategories.map((category) => {
           const isDashboard = category.title === "Dashboard";
           const isDirectLink = !category.collapsible;
@@ -322,7 +289,7 @@ export function AppSidebar() {
                             isActive={isActive}
                             tooltip={state === "collapsed" ? category.title : undefined}
                             style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' } : {}}
-                            className={isActive ? "hover:opacity-95" : `hover:bg-primary/10 transition-colors duration-150`}
+                            className={isActive ? "hover:opacity-95" : "sidebar-highlight-hover transition-colors duration-150"}
                           >
                             <Link to={item.href}>
                               <category.icon className="h-4 w-4" />
@@ -344,7 +311,7 @@ export function AppSidebar() {
                     <CollapsibleTrigger asChild>
                        <Button 
                          variant="ghost" 
-                         className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 hover:bg-primary/10 hover:text-sidebar-foreground transition-colors duration-150 group-data-[collapsible=icon]:justify-center"
+                         className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 sidebar-highlight-hover hover:text-sidebar-foreground transition-colors duration-150 group-data-[collapsible=icon]:justify-center"
                        >
                         <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
                           <category.icon className={`h-4 w-4 transition-colors ${allOpenGroups.includes(category.title) ? 'text-primary' : ''}`} />
@@ -359,7 +326,7 @@ export function AppSidebar() {
                   
                   <CollapsibleContent>
                         <SidebarGroupContent>
-                          <SidebarMenu className={allOpenGroups.includes(category.title) ? "bg-primary/5 rounded-md p-1" : ""}>
+                          <SidebarMenu className={allOpenGroups.includes(category.title) ? "sidebar-highlight-bg rounded-md p-1" : ""}>
                             {(() => {
                               // Determine the single most specific active item within this category
                               const matches = allowedItems.filter((itm) => {
@@ -388,7 +355,7 @@ export function AppSidebar() {
                                       isActive={isActive}
                                       tooltip={state === "collapsed" ? item.name : undefined}
                                       style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' } : {}}
-                                      className={isActive ? "hover:opacity-95" : `hover:bg-primary/10 transition-colors duration-150`}
+                                      className={isActive ? "hover:opacity-95" : "sidebar-highlight-hover transition-colors duration-150"}
                                     >
                                       <Link to={item.href}>
                                         <span className="ml-2 flex items-center gap-2">
@@ -414,52 +381,13 @@ export function AppSidebar() {
           );
         }).filter(Boolean)}
       </SidebarContent>
-      <SidebarFooter>
-        <div className="p-4 border-t">
-          <div className="flex items-center justify-between">
-            <Button
-              variant="ghost"
-              className="flex items-center gap-3 h-auto p-2 justify-start flex-1"
-              onClick={() => navigate('/profile-settings')}
-            >
-              <div className="h-8 w-8 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
-                {(profile?.avatar_url || fallbackAvatar) ? (
-                  <img 
-                    src={(profile?.avatar_url || fallbackAvatar) as string}
-                    alt="Profile" 
-                    className="h-full w-full object-cover"
-                  />
-                ) : (
-                  <User className="h-4 w-4" />
-                )}
-              </div>
-              <div className="text-left group-data-[collapsible=icon]:hidden">
-                <p className="font-medium text-sm">{profile?.display_name || 'User'}</p>
-                {showRoleLabel && (
-                  <p className="text-muted-foreground text-xs capitalize">
-                    {isSuperAdmin ? 'Super Admin' : (effectiveRole || '')}
-                  </p>
-                )}
-              </div>
-            </Button>
-            <Button
-              size="sm"
-              variant="ghost"
-              onClick={signOut}
-              className="h-8 w-8 p-0 group-data-[collapsible=icon]:hidden"
-            >
-              <LogOut className="h-4 w-4" />
-            </Button>
-          </div>
-        </div>
-      </SidebarFooter>
     </Sidebar>
   );
 }
 
 export default function Layout() {
   const location = useLocation();
-  const { isSuperAdmin } = useTenant();
+  const { profile, signOut } = useAuth();
   const isPunchClockPage = location.pathname === '/time-tracking';
 
   // NOTE: Super admins can access both the Super Admin Dashboard and company dashboards.
@@ -489,6 +417,31 @@ export default function Layout() {
                 </Button>
                 <CompanySwitcher />
                 <DateTimeDisplay />
+                <Button asChild variant="ghost" className="flex items-center gap-2 h-8 px-2">
+                  <Link to="/profile-settings">
+                    <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
+                      {profile?.avatar_url ? (
+                        <img
+                          src={profile.avatar_url as string}
+                          alt="Profile"
+                          className="h-full w-full object-cover"
+                        />
+                      ) : (
+                        <User className="h-4 w-4" />
+                      )}
+                    </div>
+                    <span className="text-sm font-medium max-w-[160px] truncate">{profile?.display_name || 'User'}</span>
+                  </Link>
+                </Button>
+                <Button
+                  size="sm"
+                  variant="ghost"
+                  onClick={signOut}
+                  className="h-8 w-8 p-0"
+                  title="Sign out"
+                >
+                  <LogOut className="h-4 w-4" />
+                </Button>
               </div>
             </header>
           )}

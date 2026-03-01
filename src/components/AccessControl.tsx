@@ -6,6 +6,7 @@ import { useNavigate, useLocation } from 'react-router-dom';
 import { AccountStatusScreen } from '@/components/AccountStatusScreen';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import { supabase } from '@/integrations/supabase/client';
+import { useSettings } from '@/contexts/SettingsContext';
 
 interface AccessControlProps {
   children: React.ReactNode;
@@ -33,6 +34,7 @@ export function AccessControl({ children }: AccessControlProps) {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const { userCompanies, loading: companyLoading } = useCompany();
   const { hasTenantAccess, hasPendingRequest, isSuperAdmin, loading: tenantLoading } = useTenant();
+  const { loading: settingsLoading } = useSettings();
   const navigate = useNavigate();
   const location = useLocation();
   const [checking, setChecking] = useState(false);
@@ -152,7 +154,7 @@ export function AccessControl({ children }: AccessControlProps) {
   }, [user?.id, profile?.status, hasTenantAccess, isSuperAdmin, userCompanies.length, isInviteAuthRoute, inviteAutoAcceptFlag, refreshProfile, autoAcceptRetryTick]);
 
   useEffect(() => {
-    if (authLoading || companyLoading || tenantLoading) {
+    if (authLoading || companyLoading || tenantLoading || settingsLoading) {
       return;
     }
 
@@ -258,7 +260,7 @@ export function AccessControl({ children }: AccessControlProps) {
     if (!initialized) {
       setInitialized(true);
     }
-  }, [user?.id, profile?.profile_completed, profile?.current_company_id, profile?.status, userCompanies.length, authLoading, companyLoading, tenantLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute]);
+  }, [user?.id, profile?.profile_completed, profile?.current_company_id, profile?.status, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute]);
 
   // Show account status splash screens
   if (autoAcceptingInvite) {
@@ -269,7 +271,7 @@ export function AccessControl({ children }: AccessControlProps) {
     return <AccountStatusScreen status={profile.status as 'pending' | 'suspended'} />;
   }
 
-  if (!initialized && (authLoading || companyLoading || tenantLoading || checking)) {
+  if (authLoading || companyLoading || tenantLoading || settingsLoading || checking) {
     return <PremiumLoadingScreen text="Loading your workspace..." />;
   }
 

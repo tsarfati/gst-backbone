@@ -3,13 +3,43 @@ import mapboxgl from 'mapbox-gl';
 import 'mapbox-gl/dist/mapbox-gl.css';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { MapPin } from 'lucide-react';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 
 interface JobLocationMapProps {
   address?: string;
 }
+
+interface ForecastDay {
+  date: string;
+  minTemp: number;
+  maxTemp: number;
+  weatherCode: number;
+  precipitationChance: number;
+}
+
+const getWeatherLabel = (code: number): string => {
+  if (code === 0) return 'Clear';
+  if ([1, 2].includes(code)) return 'Partly cloudy';
+  if (code === 3) return 'Cloudy';
+  if ([45, 48].includes(code)) return 'Fog';
+  if ([51, 53, 55, 56, 57].includes(code)) return 'Drizzle';
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return 'Rain';
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return 'Snow';
+  if ([95, 96, 99].includes(code)) return 'Thunderstorm';
+  return 'Mixed';
+};
+
+const getWeatherIcon = (code: number): string => {
+  if (code === 0) return '☀️';
+  if ([1, 2].includes(code)) return '⛅';
+  if (code === 3) return '☁️';
+  if ([45, 48].includes(code)) return '🌫️';
+  if ([51, 53, 55, 56, 57].includes(code)) return '🌦️';
+  if ([61, 63, 65, 66, 67, 80, 81, 82].includes(code)) return '🌧️';
+  if ([71, 73, 75, 77, 85, 86].includes(code)) return '❄️';
+  if ([95, 96, 99].includes(code)) return '⛈️';
+  return '🌤️';
+};
 
 export default function JobLocationMap({ address }: JobLocationMapProps) {
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -17,6 +47,10 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
   const marker = useRef<mapboxgl.Marker | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [coordinates, setCoordinates] = useState<{ lat: number; lng: number } | null>(null);
+  const [forecast, setForecast] = useState<ForecastDay[]>([]);
+  const [weatherLoading, setWeatherLoading] = useState(false);
+  const [weatherError, setWeatherError] = useState<string | null>(null);
 
   // Mapbox token will be fetched from Supabase Edge Function
 
@@ -53,6 +87,15 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
     if (!mapContainer.current) return;
 
     try {
+      if (marker.current) {
+        marker.current.remove();
+        marker.current = null;
+      }
+      if (map.current) {
+        map.current.remove();
+        map.current = null;
+      }
+
       const { data: tokenResp } = await supabase.functions.invoke('get-mapbox-token');
       mapboxgl.accessToken = tokenResp?.MAPBOX_PUBLIC_TOKEN || 'pk.eyJ1IjoibXRzYXJmYXRpIiwiYSI6ImNtZnN5d2UyNTBwNzQyb3B3M2k2YWpmNnMifQ.7IGj882ISgFZt7wgGLBTKg';
       
@@ -67,6 +110,9 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
         if (coordinates) {
           center = [coordinates.lng, coordinates.lat];
           zoom = 14;
+          setCoordinates(coordinates);
+        } else {
+          setCoordinates(null);
         }
       }
 
@@ -107,12 +153,52 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
     }
   };
 
+  const loadForecast = async (lat: number, lng: number) => {
+    setWeatherLoading(true);
+    setWeatherError(null);
+    try {
+      const response = await fetch(
+        `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lng}&daily=weather_code,temperature_2m_max,temperature_2m_min,precipitation_probability_max&temperature_unit=fahrenheit&timezone=auto&forecast_days=7`
+      );
+      if (!response.ok) throw new Error('Failed to fetch weather');
+      const data = await response.json();
+      const daily = data?.daily;
+      if (!daily?.time || !daily?.temperature_2m_max || !daily?.temperature_2m_min || !daily?.weather_code) {
+        throw new Error('Weather data unavailable');
+      }
+
+      const mapped: ForecastDay[] = daily.time.map((date: string, idx: number) => ({
+        date,
+        minTemp: Number(daily.temperature_2m_min[idx] ?? 0),
+        maxTemp: Number(daily.temperature_2m_max[idx] ?? 0),
+        weatherCode: Number(daily.weather_code[idx] ?? 0),
+        precipitationChance: Number(daily.precipitation_probability_max?.[idx] ?? 0),
+      }));
+
+      setForecast(mapped.slice(0, 7));
+    } catch (err) {
+      console.error('Weather forecast error:', err);
+      setWeatherError('Unable to load weather forecast');
+      setForecast([]);
+    } finally {
+      setWeatherLoading(false);
+    }
+  };
+
   // Auto-initialize map when component mounts if address is available
   useEffect(() => {
     if (address) {
       initializeMap();
     }
   }, [address]);
+
+  useEffect(() => {
+    if (!coordinates) {
+      setForecast([]);
+      return;
+    }
+    loadForecast(coordinates.lat, coordinates.lng);
+  }, [coordinates]);
 
   // Cleanup on unmount
   useEffect(() => {
@@ -181,6 +267,44 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
           className={`w-full h-[300px] rounded-lg overflow-hidden relative ${isLoading || error ? 'hidden' : ''}`}
           style={{ position: 'relative', width: '100%', height: '300px' }}
         />
+
+        <div className="space-y-2 pt-2">
+          <p className="text-sm font-medium text-muted-foreground">7-Day Forecast</p>
+
+          {weatherLoading && (
+            <div className="text-sm text-muted-foreground">Loading forecast...</div>
+          )}
+
+          {!weatherLoading && weatherError && (
+            <div className="text-sm text-muted-foreground">{weatherError}</div>
+          )}
+
+          {!weatherLoading && !weatherError && forecast.length > 0 && (
+            <div className="space-y-1.5">
+              {forecast.map((day) => (
+                <div
+                  key={day.date}
+                  className="grid grid-cols-[78px_1fr_auto] items-center gap-2 rounded-md border px-2.5 py-2"
+                >
+                  <span className="text-xs text-muted-foreground">
+                    {new Date(`${day.date}T00:00:00`).toLocaleDateString(undefined, {
+                      weekday: 'short',
+                      month: 'numeric',
+                      day: 'numeric',
+                    })}
+                  </span>
+                  <span className="text-sm truncate">
+                    {getWeatherIcon(day.weatherCode)} {getWeatherLabel(day.weatherCode)}
+                    {day.precipitationChance > 0 ? ` · ${Math.round(day.precipitationChance)}% rain` : ''}
+                  </span>
+                  <span className="text-xs font-medium whitespace-nowrap">
+                    {Math.round(day.maxTemp)}° / {Math.round(day.minTemp)}°
+                  </span>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </CardContent>
     </Card>
   );

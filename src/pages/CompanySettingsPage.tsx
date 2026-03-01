@@ -723,7 +723,10 @@ export default function CompanySettingsPage() {
                 ) : (
                   <div className="space-y-2">
                     {companyUsers.map((companyUser) => (
-                      <div key={`${companyUser.company_id}-${companyUser.user_id}`} className="flex items-center justify-between rounded border p-3">
+                      <div
+                        key={`${companyUser.company_id}-${companyUser.user_id}`}
+                        className="rounded border p-3 grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_10rem_auto] gap-3 md:items-center"
+                      >
                         <div className="flex items-center gap-3 min-w-0">
                           <Avatar className="h-8 w-8">
                             <AvatarImage src={companyUser.profile?.avatar_url || undefined} />
@@ -731,14 +734,16 @@ export default function CompanySettingsPage() {
                               {getProfileDisplayName(companyUser.profile).substring(0, 2).toUpperCase()}
                             </AvatarFallback>
                           </Avatar>
-                          <div className="min-w-0 flex items-center gap-2">
+                          <div className="min-w-0">
                             <p className="text-sm font-medium truncate">{getProfileDisplayName(companyUser.profile)}</p>
-                            <Badge variant="outline" className={`capitalize ${getRoleBadgeClass(companyUser)}`}>
-                              {getRoleLabel(companyUser)}
-                            </Badge>
                           </div>
                         </div>
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center md:justify-center">
+                          <Badge variant="outline" className={`capitalize ${getRoleBadgeClass(companyUser)}`}>
+                            {getRoleLabel(companyUser)}
+                          </Badge>
+                        </div>
+                        <div className="flex items-center gap-2 md:justify-end">
                           <Button
                             size="sm"
                             variant="outline"

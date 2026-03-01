@@ -525,7 +525,7 @@ export default function JobCostCodeSelector({
                 return (
                   <div 
                     key={`${costCode.id}-${costCode.code}-${normalizeType(costCode.type)}`} 
-                    className="flex items-center justify-between p-3 border rounded-lg hover:border-primary/50 transition-colors"
+                    className="flex items-center justify-between px-3 py-1.5 border rounded-lg hover:border-primary/50 transition-colors"
                   >
                     <div className="flex items-center gap-3 flex-1">
                       <span className="font-mono text-sm font-medium min-w-[80px]">{costCode.code}</span>

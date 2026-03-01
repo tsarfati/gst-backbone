@@ -1,10 +1,15 @@
+import { useState } from 'react';
 import builderLynkShield from '@/assets/builderlynk-icon-shield.png';
+import builderLynkIcon from '@/assets/builderlynk-icon.png';
+import builderLynkLogo from '@/assets/builderlynk-logo-new.png';
 
 interface PremiumLoadingScreenProps {
   text?: string;
 }
 
 export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScreenProps) {
+  const logoFallbacks = [builderLynkShield, builderLynkIcon, builderLynkLogo];
+  const [logoIndex, setLogoIndex] = useState(0);
   const size = 260;
   const strokeWidth = 14;
   const radius = (size - strokeWidth) / 2;
@@ -59,10 +64,13 @@ export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScre
 
           <div className="absolute inset-0 flex items-center justify-center">
             <img
-              src={builderLynkShield}
+              src={logoFallbacks[logoIndex]}
               alt="BuilderLYNK"
-              className="h-[187px] w-[187px] max-h-[28vw] max-w-[28vw] object-contain select-none pointer-events-none"
+              className="h-[202px] w-[202px] max-h-[32vw] max-w-[32vw] object-contain select-none pointer-events-none"
               draggable={false}
+              onError={() => {
+                setLogoIndex((current) => (current < logoFallbacks.length - 1 ? current + 1 : current));
+              }}
             />
           </div>
         </div>

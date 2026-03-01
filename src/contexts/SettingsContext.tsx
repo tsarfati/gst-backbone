@@ -2,9 +2,11 @@ import { createContext, useContext, useState, useEffect, useMemo, useRef, type R
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTheme } from 'next-themes';
 export interface AppSettings {
   navigationMode: 'single' | 'multiple';
   theme: 'light' | 'dark' | 'system';
+  themeVariant: 'builderlynk' | 'slate' | 'forest' | 'sunset' | 'mono' | 'macos' | 'android';
   dateFormat: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
   currencyFormat: 'USD' | 'EUR' | 'GBP';
   distanceUnit: 'meters' | 'feet';
@@ -19,6 +21,7 @@ export interface AppSettings {
   };
   autoSave: boolean;
   compactMode: boolean;
+  sidebarHighlightOpacity: number;
   customLogo?: string;
   dashboardBanner?: string;
   customColors: {
@@ -29,6 +32,7 @@ export interface AppSettings {
     warning: string;
     destructive: string;
     buttonHover: string;
+    sidebarBackground: string;
   };
   companyLogo?: string;
   headerLogo?: string;
@@ -46,6 +50,7 @@ export interface AppSettings {
 const defaultSettings: AppSettings = {
   navigationMode: 'multiple',
   theme: 'system',
+  themeVariant: 'builderlynk',
   dateFormat: 'MM/DD/YYYY',
   currencyFormat: 'USD',
   distanceUnit: 'meters',
@@ -60,6 +65,7 @@ const defaultSettings: AppSettings = {
   },
   autoSave: true,
   compactMode: false,
+  sidebarHighlightOpacity: 0.14,
   customColors: {
     primary: '210 100% 45%',
     secondary: '210 17% 95%',
@@ -68,11 +74,13 @@ const defaultSettings: AppSettings = {
     warning: '38 100% 55%',
     destructive: '0 84% 60%',
     buttonHover: '210 100% 40%',
+    sidebarBackground: '210 52% 20%',
   },
 };
 
 interface SettingsContextType {
   settings: AppSettings;
+  loading: boolean;
   updateSettings: (updates: Partial<AppSettings>) => void;
   resetSettings: () => Promise<void>;
   applyCustomColors: () => void;
@@ -83,8 +91,10 @@ const SettingsContext = createContext<SettingsContextType | undefined>(undefined
 export function SettingsProvider({ children }: { children: ReactNode }) {
   const { currentCompany, userCompanies } = useCompany();
   const { user, profile } = useAuth();
+  const { setTheme } = useTheme();
   const [settings, setSettings] = useState<AppSettings>(defaultSettings);
   const [isLoaded, setIsLoaded] = useState(false);
+  const [loadedScopeKey, setLoadedScopeKey] = useState<string | null>(null);
   const [companyDefaults, setCompanyDefaults] = useState<Partial<AppSettings> | null>(null);
   // Prevent saving settings for a newly-selected company before we've actually loaded that company's settings.
   // (Otherwise we can accidentally persist the previous company's colors into the new company.)
@@ -102,6 +112,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const access = userCompanies.find((uc) => uc.company_id === companyId);
     return access?.role ?? null;
   }, [currentCompany?.id, profile?.current_company_id, userCompanies]);
+
+  const isCompanyAdminRole = useMemo(() => {
+    const role = (activeCompanyRole || '').toLowerCase();
+    return role === 'admin' || role === 'company_admin' || role === 'controller';
+  }, [activeCompanyRole]);
 
   const hexToHsl = (hex: string): string => {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -124,12 +139,22 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   };
 
   const toHslToken = (val: string) => (val?.trim().startsWith('#') ? hexToHsl(val.trim()) : val?.trim());
+  const applyColorVarsToRoot = (colors: AppSettings['customColors']) => {
+    const root = document.documentElement;
+    Object.entries(colors).forEach(([key, value]) => {
+      const hsl = toHslToken(value as string);
+      root.style.setProperty(`--${key}`, hsl);
+    });
+    // Keep CSS token used by sidebar components in sync immediately (prevents first-paint flash).
+    root.style.setProperty('--sidebar-background', toHslToken(colors.sidebarBackground || defaultSettings.customColors.sidebarBackground));
+  };
 
   // Load settings from database when company or user changes
   useEffect(() => {
     const loadSettings = async () => {
       setIsLoaded(false);
       loadedScopeKeyRef.current = null;
+      setLoadedScopeKey(null);
       // Clear company defaults immediately when company changes to prevent stale colors
       setCompanyDefaults(null);
 
@@ -140,11 +165,14 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         setSettings(defaultSettings);
         const root = document.documentElement;
         // Remove custom color overrides so the base CSS variables from index.css apply
-        ['primary', 'secondary', 'accent', 'success', 'warning', 'destructive', 'buttonHover'].forEach((key) => {
+        ['primary', 'secondary', 'accent', 'success', 'warning', 'destructive', 'buttonHover', 'sidebarBackground'].forEach((key) => {
           root.style.removeProperty(`--${key}`);
         });
+        root.style.removeProperty('--sidebar-background');
+        root.style.removeProperty('--sidebar-highlight-opacity');
         setIsLoaded(true);
         loadedScopeKeyRef.current = null;
+        setLoadedScopeKey(null);
         return;
       }
 
@@ -155,29 +183,24 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       if (cachedRaw) {
         try {
           const cached = JSON.parse(cachedRaw) as Partial<AppSettings>;
-          const mergedCached = { ...defaultSettings, ...cached } as AppSettings;
+          const mergedCached = {
+            ...defaultSettings,
+            ...cached,
+            customColors: {
+              ...defaultSettings.customColors,
+              ...(cached.customColors || {}),
+            },
+          } as AppSettings;
           setSettings(mergedCached);
-          const root = document.documentElement;
           const colors = mergedCached.customColors || defaultSettings.customColors;
-          Object.entries(colors).forEach(([key, value]) => {
-            const hsl = toHslToken(value as string);
-            root.style.setProperty(`--${key}`, hsl);
-          });
+          applyColorVarsToRoot(colors);
         } catch (_) {
           // ignore cache parse errors - apply defaults
-          const root = document.documentElement;
-          Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
-            const hsl = toHslToken(value as string);
-            root.style.setProperty(`--${key}`, hsl);
-          });
+          applyColorVarsToRoot(defaultSettings.customColors);
         }
       } else {
         // No cache for this company - reset to defaults immediately to clear previous company colors
-        const root = document.documentElement;
-        Object.entries(defaultSettings.customColors).forEach(([key, value]) => {
-          const hsl = toHslToken(value as string);
-          root.style.setProperty(`--${key}`, hsl);
-        });
+        applyColorVarsToRoot(defaultSettings.customColors);
       }
 
       try {
@@ -247,19 +270,27 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
         setCompanyDefaults(companySettings);
 
-        const merged = { ...defaultSettings, ...(companySettings || {}), ...(userSettings || {}) } as AppSettings;
+        const merged = {
+          ...defaultSettings,
+          ...(companySettings || {}),
+          ...(userSettings || {}),
+          customColors: {
+            ...defaultSettings.customColors,
+            ...((companySettings as any)?.customColors || {}),
+            ...((userSettings as any)?.customColors || {}),
+          },
+        } as AppSettings;
         setSettings(merged);
 
         // Apply effective colors: enforce company colors for ALL users when company colors exist
         const effectiveColors = companySettings?.customColors
-          ? (companySettings.customColors as AppSettings['customColors'])
+          ? ({
+              ...defaultSettings.customColors,
+              ...(companySettings.customColors as Partial<AppSettings['customColors']>),
+            } as AppSettings['customColors'])
           : (merged.customColors || defaultSettings.customColors);
 
-        const root = document.documentElement;
-        Object.entries(effectiveColors).forEach(([key, value]) => {
-          const hsl = toHslToken(value as string);
-          root.style.setProperty(`--${key}`, hsl);
-        });
+        applyColorVarsToRoot(effectiveColors);
 
         // Refresh cache
         localStorage.setItem(cacheKey, JSON.stringify(merged));
@@ -272,11 +303,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         // Only allow future saves once we've loaded this company's settings from DB.
         // If the fetch fails, keep writes blocked to avoid persisting stale/cached colors into the company.
         loadedScopeKeyRef.current = didLoadFromDb ? currentScopeKey : null;
+        // Mark the current scope as finished loading to prevent first-paint flashes
+        // when switching from no-company scope to company scope.
+        setLoadedScopeKey(currentScopeKey);
       }
     };
 
     loadSettings();
   }, [currentCompany?.id, user?.id, activeCompanyRole]);
+
+  const settingsLoadingForScope = !isLoaded || (currentScopeKey !== null && loadedScopeKey !== currentScopeKey);
 
   // Save settings to database
   useEffect(() => {
@@ -380,22 +416,41 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       notifications: updates.notifications 
         ? { ...prev.notifications, ...updates.notifications }
         : prev.notifications,
-      // Company colors always take precedence when they exist
-      customColors: companyDefaults?.customColors
-        ? (companyDefaults.customColors as AppSettings['customColors'])
-        : updates.customColors
-          ? { ...prev.customColors, ...updates.customColors }
-          : prev.customColors
+      // Non-admin users inherit company colors; admins can edit and preview colors live.
+      customColors: (() => {
+        if (updates.customColors) {
+          return { ...prev.customColors, ...updates.customColors };
+        }
+        if (!isCompanyAdminRole && companyDefaults?.customColors) {
+          return {
+            ...prev.customColors,
+            ...(companyDefaults.customColors as AppSettings['customColors']),
+          };
+        }
+        return prev.customColors;
+      })()
     }));
   };
 
 
   const applyCustomColors = () => {
     const root = document.documentElement;
-    // Always use company colors if they exist, regardless of role
-    const effectiveColors = companyDefaults?.customColors
-      ? (companyDefaults.customColors as AppSettings['customColors'])
-      : settings.customColors;
+
+    // Admins should see their in-progress edits live; non-admins inherit company colors.
+    const effectiveColors = isCompanyAdminRole
+      ? ({
+          ...defaultSettings.customColors,
+          ...settings.customColors,
+        } as AppSettings['customColors'])
+      : companyDefaults?.customColors
+        ? ({
+            ...defaultSettings.customColors,
+            ...(companyDefaults.customColors as Partial<AppSettings['customColors']>),
+          } as AppSettings['customColors'])
+        : ({
+            ...defaultSettings.customColors,
+            ...settings.customColors,
+          } as AppSettings['customColors']);
 
     Object.entries(effectiveColors).forEach(([key, value]) => {
       const hsl = toHslToken(value as string);
@@ -403,6 +458,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     });
     // Ensure hover var is set explicitly as well
     root.style.setProperty('--buttonHover', toHslToken(effectiveColors.buttonHover));
+    root.style.setProperty('--sidebar-background', toHslToken(effectiveColors.sidebarBackground || defaultSettings.customColors.sidebarBackground));
+    root.style.setProperty('--sidebar-highlight-opacity', `${settings.sidebarHighlightOpacity ?? defaultSettings.sidebarHighlightOpacity}`);
   };
 
   const resetSettings = async () => {
@@ -427,10 +484,34 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (isLoaded) {
       applyCustomColors();
     }
-  }, [settings.customColors, companyDefaults, isLoaded]);
+  }, [settings.customColors, settings.themeVariant, settings.sidebarHighlightOpacity, companyDefaults, isCompanyAdminRole, isLoaded]);
+
+  // Apply light/dark/system theme immediately from settings
+  useEffect(() => {
+    if (!isLoaded) return;
+    setTheme(settings.theme);
+  }, [settings.theme, setTheme, isLoaded]);
+
+  // Keep base BuilderLYNK style + compact mode classes globally
+  useEffect(() => {
+    if (!isLoaded) return;
+    const root = document.documentElement;
+    const variantClasses = [
+      'theme-variant-builderlynk',
+      'theme-variant-slate',
+      'theme-variant-forest',
+      'theme-variant-sunset',
+      'theme-variant-mono',
+      'theme-variant-macos',
+      'theme-variant-android',
+    ];
+    root.classList.remove(...variantClasses);
+    root.classList.add('theme-variant-builderlynk');
+    root.classList.toggle('compact-mode', !!settings.compactMode);
+  }, [settings.compactMode, isLoaded]);
 
   return (
-    <SettingsContext.Provider value={{ settings, updateSettings, resetSettings, applyCustomColors }}>
+    <SettingsContext.Provider value={{ settings, loading: settingsLoadingForScope, updateSettings, resetSettings, applyCustomColors }}>
       {children}
     </SettingsContext.Provider>
   );

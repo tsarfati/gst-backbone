@@ -630,8 +630,8 @@ export default function JobForecastingView() {
                   
                   return (
                     <TableRow key={line.cost_code_id} className={`${isOverBudget ? 'bg-destructive/5' : 'hover:bg-muted/30'} h-auto`}>
-                      <TableCell className="font-mono text-xs py-1.5 leading-none">{line.code}</TableCell>
-                      <TableCell className="py-1.5">
+                      <TableCell className="font-mono text-xs py-0.5 leading-none">{line.code}</TableCell>
+                      <TableCell className="py-0.5">
                         <span className="font-medium leading-tight text-sm">{line.description}</span>
                         {isOverBudget && (
                           <Badge variant="destructive" className="ml-1.5 text-[10px] py-0 leading-none">
@@ -639,22 +639,22 @@ export default function JobForecastingView() {
                           </Badge>
                         )}
                       </TableCell>
-                      <TableCell className="text-right font-semibold tabular-nums text-xs px-3 py-1.5">
+                      <TableCell className="text-right font-semibold tabular-nums text-xs px-3 py-0.5">
                         {formatCurrency(line.budgeted_amount)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-xs px-3 py-1.5 border-l border-border/30">
+                      <TableCell className="text-right tabular-nums text-xs px-3 py-0.5 border-l border-border/30">
                         {formatCurrency(line.actual_amount)}
                       </TableCell>
-                      <TableCell className="text-right tabular-nums text-xs px-3 py-1.5">
+                      <TableCell className="text-right tabular-nums text-xs px-3 py-0.5">
                         {formatCurrency(line.committed_amount)}
                       </TableCell>
-                      <TableCell className={`text-right font-medium tabular-nums text-xs px-3 py-1.5 ${remaining < 0 ? 'text-destructive' : 'text-green-600'}`}>
+                      <TableCell className={`text-right font-medium tabular-nums text-xs px-3 py-0.5 ${remaining < 0 ? 'text-destructive' : 'text-green-600'}`}>
                         {formatCurrency(remaining)}
                       </TableCell>
-                      <TableCell className="text-center text-muted-foreground tabular-nums text-xs px-2 py-1.5 border-l border-border/30">
+                      <TableCell className="text-center text-muted-foreground tabular-nums text-xs px-2 py-0.5 border-l border-border/30">
                         {line.calculated_percent.toFixed(0)}%
                       </TableCell>
-                      <TableCell className="px-2 py-1.5">
+                      <TableCell className="px-2 py-0.5">
                         <div className="flex items-center justify-center gap-1">
                           <Input
                             type="number"
@@ -663,12 +663,12 @@ export default function JobForecastingView() {
                             step={1}
                             value={line.estimated_percent}
                             onChange={(e) => updateEstimatedPercent(line.cost_code_id, parseFloat(e.target.value) || 0)}
-                            className="w-12 text-center h-7 text-xs tabular-nums"
+                            className="w-12 text-center h-6 text-xs tabular-nums"
                           />
                           <span className="text-muted-foreground text-xs">%</span>
                         </div>
                       </TableCell>
-                      <TableCell className="text-right px-3 py-1.5 border-l border-border/30">
+                      <TableCell className="text-right px-3 py-0.5 border-l border-border/30">
                         {line.estimated_percent > 0 ? (
                           <div className={`flex items-center justify-end gap-1 font-semibold tabular-nums text-xs ${isProjectedOver ? 'text-destructive' : 'text-green-600'}`}>
                             {isProjectedOver ? <TrendingDown className="h-3.5 w-3.5" /> : <TrendingUp className="h-3.5 w-3.5" />}
@@ -681,7 +681,7 @@ export default function JobForecastingView() {
                           <span className="text-muted-foreground">—</span>
                         )}
                       </TableCell>
-                      <TableCell className="text-[11px] text-muted-foreground px-2 py-1.5">
+                      <TableCell className="text-[11px] text-muted-foreground px-2 py-0.5">
                         {line.updated_at ? (
                           <div className="flex flex-col gap-0 leading-tight">
                             <span className="font-medium">{new Date(line.updated_at).toLocaleDateString()}</span>

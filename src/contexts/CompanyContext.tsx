@@ -57,6 +57,32 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
   const [userCompanies, setUserCompanies] = useState<UserCompanyAccess[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const getCompanyLogoUrl = (logoUrl?: string | null): string | null => {
+    if (!logoUrl) return null;
+    if (logoUrl.includes('http')) return logoUrl;
+    return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${logoUrl.replace('company-logos/', '')}`;
+  };
+
+  const preloadCompanyLogo = async (logoUrl?: string | null): Promise<void> => {
+    const resolved = getCompanyLogoUrl(logoUrl);
+    if (!resolved) return;
+
+    await new Promise<void>((resolve) => {
+      const img = new Image();
+      const done = () => resolve();
+      const timeout = window.setTimeout(done, 2500);
+      img.onload = () => {
+        window.clearTimeout(timeout);
+        done();
+      };
+      img.onerror = () => {
+        window.clearTimeout(timeout);
+        done();
+      };
+      img.src = resolved;
+    });
+  };
+
   const fetchUserCompanies = async () => {
     if (!user) return;
 
@@ -134,6 +160,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
           .single();
 
         if (!companyError && companyData) {
+          await preloadCompanyLogo(companyData.logo_url);
           setCurrentCompany(companyData);
         } else {
           console.error('Error fetching company details:', companyError);
@@ -196,6 +223,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
 
       if (companyError) throw companyError;
 
+      await preloadCompanyLogo(companyData.logo_url);
       setCurrentCompany(companyData);
 
       toast({
