@@ -11,6 +11,15 @@ type AcceptInviteRequest = {
   inviteToken?: string;
 };
 
+type InviteErrorCode =
+  | "MISSING_AUTH_HEADER"
+  | "UNAUTHORIZED"
+  | "MISSING_AUTH_EMAIL"
+  | "INVITATION_NOT_FOUND"
+  | "INVITATION_EXPIRED"
+  | "INVITATION_EMAIL_MISMATCH"
+  | "INTERNAL_ERROR";
+
 const ALLOWED_BASE_ROLES = new Set([
   "admin",
   "company_admin",
@@ -22,32 +31,72 @@ const ALLOWED_BASE_ROLES = new Set([
 ]);
 
 serve(async (req: Request): Promise<Response> => {
+  const requestId = crypto.randomUUID();
+  const startedAt = Date.now();
+
+  const sendJson = (status: number, payload: Record<string, unknown>) =>
+    new Response(JSON.stringify(payload), {
+      status,
+      headers: { "Content-Type": "application/json", ...corsHeaders },
+    });
+
+  const sendError = (
+    status: number,
+    code: InviteErrorCode,
+    message: string,
+    debug: Record<string, unknown> = {},
+  ) =>
+    sendJson(status, {
+      success: false,
+      code,
+      error: message,
+      requestId,
+      debug,
+    });
+
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
   }
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const authHeader = req.headers.get("Authorization");
 
-    if (!authHeader) {
-      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
+    if (!authHeader) return sendError(401, "MISSING_AUTH_HEADER", "Missing Authorization header");
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    if (!token) return sendError(401, "MISSING_AUTH_HEADER", "Missing bearer token");
 
     const supabaseAuthed = createClient(supabaseUrl, supabaseServiceKey, {
       global: { headers: { Authorization: authHeader } },
     });
+    const supabaseAnon = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
     const supabaseAdmin = createClient(supabaseUrl, supabaseServiceKey);
 
-    const { data: userData, error: userError } = await supabaseAuthed.auth.getUser();
-    if (userError || !userData?.user) {
-      return new Response(JSON.stringify({ error: "Unauthorized" }), {
-        status: 401,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+    // Try both auth resolution paths for better compatibility across environments.
+    let userData: any = null;
+    let userError: any = null;
+
+    const serviceGetUser = await supabaseAuthed.auth.getUser().catch((err) => ({ data: null, error: err }));
+    if (serviceGetUser?.data?.user) {
+      userData = serviceGetUser.data;
+    } else {
+      userError = serviceGetUser?.error || null;
+      const anonGetUser = await supabaseAnon.auth.getUser(token).catch((err) => ({ data: null, error: err }));
+      if (anonGetUser?.data?.user) {
+        userData = anonGetUser.data;
+        userError = null;
+      } else {
+        userError = anonGetUser?.error || userError;
+      }
+    }
+
+    if (!userData?.user) {
+      return sendError(401, "UNAUTHORIZED", "Unauthorized", {
+        authError: userError?.message || String(userError || ""),
       });
     }
 
@@ -55,14 +104,20 @@ serve(async (req: Request): Promise<Response> => {
 
     const normalizedEmail = (userData.user.email || "").trim().toLowerCase();
     if (!normalizedEmail) {
-      return new Response(JSON.stringify({ error: "Authenticated user has no email" }), {
-        status: 400,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+      return sendError(400, "MISSING_AUTH_EMAIL", "Authenticated user has no email", {
+        userId: userData.user.id,
+        hasInviteToken: !!inviteToken,
       });
     }
 
     let pendingInvite: any = null;
     let inviteWasAlreadyAccepted = false;
+    let inviteSource: "token" | "email_fallback" = inviteToken ? "token" : "email_fallback";
+    let inviteCounts = {
+      active: 0,
+      activeUnaccepted: 0,
+      activeAccepted: 0,
+    };
 
     if (inviteToken) {
       const { data, error: pendingError } = await supabaseAdmin
@@ -92,6 +147,11 @@ serve(async (req: Request): Promise<Response> => {
 
       const unacceptedActiveInvites = activeInvites.filter((inv: any) => !inv.accepted_at);
       const acceptedActiveInvites = activeInvites.filter((inv: any) => !!inv.accepted_at);
+      inviteCounts = {
+        active: activeInvites.length,
+        activeUnaccepted: unacceptedActiveInvites.length,
+        activeAccepted: acceptedActiveInvites.length,
+      };
 
       if (unacceptedActiveInvites.length === 1) {
         pendingInvite = unacceptedActiveInvites[0];
@@ -112,9 +172,12 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (!pendingInvite) {
-      return new Response(JSON.stringify({ error: "Invitation not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+      return sendError(404, "INVITATION_NOT_FOUND", "Invitation not found", {
+        userId: userData.user.id,
+        email: normalizedEmail,
+        inviteSource,
+        inviteCounts,
+        hasInviteToken: !!inviteToken,
       });
     }
 
@@ -123,17 +186,24 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     if (new Date(pendingInvite.expires_at).getTime() < Date.now()) {
-      return new Response(JSON.stringify({ error: "Invitation has expired" }), {
-        status: 410,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+      return sendError(410, "INVITATION_EXPIRED", "Invitation has expired", {
+        userId: userData.user.id,
+        email: normalizedEmail,
+        inviteId: pendingInvite.id,
+        companyId: pendingInvite.company_id,
+        inviteSource,
       });
     }
 
     const inviteEmail = String(pendingInvite.email || "").trim().toLowerCase();
     if (inviteEmail !== normalizedEmail) {
-      return new Response(JSON.stringify({ error: "This invite is for a different email address" }), {
-        status: 403,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+      return sendError(403, "INVITATION_EMAIL_MISMATCH", "This invite is for a different email address", {
+        userId: userData.user.id,
+        authEmail: normalizedEmail,
+        inviteEmail,
+        inviteId: pendingInvite.id,
+        companyId: pendingInvite.company_id,
+        inviteSource,
       });
     }
 
@@ -176,7 +246,8 @@ serve(async (req: Request): Promise<Response> => {
       if (insertAccessError) throw insertAccessError;
     }
 
-    // Apply custom role to profile (if present on invite)
+    // Apply custom role to profile (if present on invite).
+    // Be robust to missing profile rows (can happen with invite/account race conditions).
     const profilePatch: Record<string, unknown> = {
       custom_role_id: pendingInvite.custom_role_id ?? null,
       status: "approved",
@@ -189,11 +260,31 @@ serve(async (req: Request): Promise<Response> => {
       profilePatch.role = "employee";
     }
 
-    const { error: profileUpdateError } = await supabaseAdmin
+    const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
       .from("profiles")
-      .update(profilePatch)
-      .eq("user_id", userData.user.id);
-    if (profileUpdateError) throw profileUpdateError;
+      .select("user_id")
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+    if (existingProfileError) throw existingProfileError;
+
+    if (existingProfile?.user_id) {
+      const { error: profileUpdateError } = await supabaseAdmin
+        .from("profiles")
+        .update(profilePatch)
+        .eq("user_id", userData.user.id);
+      if (profileUpdateError) throw profileUpdateError;
+    } else {
+      const profileInsertPayload: Record<string, unknown> = {
+        user_id: userData.user.id,
+        email: userData.user.email ?? null,
+        role: pendingInvite.custom_role_id ? "employee" : baseRole,
+        ...profilePatch,
+      };
+      const { error: profileInsertError } = await supabaseAdmin
+        .from("profiles")
+        .insert(profileInsertPayload);
+      if (profileInsertError) throw profileInsertError;
+    }
 
     // Mark invitation accepted in both tracking tables
     await supabaseAdmin
@@ -213,24 +304,28 @@ serve(async (req: Request): Promise<Response> => {
       .eq("email", pendingInvite.email)
       .eq("status", "pending");
 
-    return new Response(
-      JSON.stringify({
-        success: true,
-        alreadyAccepted: inviteWasAlreadyAccepted,
-        companyId: pendingInvite.company_id,
-        role: baseRole,
-        customRoleId: pendingInvite.custom_role_id ?? null,
-      }),
-      {
-        status: 200,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+    return sendJson(200, {
+      success: true,
+      requestId,
+      alreadyAccepted: inviteWasAlreadyAccepted,
+      companyId: pendingInvite.company_id,
+      role: baseRole,
+      customRoleId: pendingInvite.custom_role_id ?? null,
+      debug: {
+        elapsedMs: Date.now() - startedAt,
+        inviteId: pendingInvite.id,
+        inviteSource,
+        inviteCounts,
       },
-    );
+    });
   } catch (error: any) {
-    console.error("Error in accept-user-invite:", error);
-    return new Response(JSON.stringify({ error: error?.message ?? "Unknown error" }), {
-      status: 500,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
+    console.error("Error in accept-user-invite:", {
+      requestId,
+      error: error?.message ?? "Unknown error",
+      stack: error?.stack,
+    });
+    return sendError(500, "INTERNAL_ERROR", error?.message ?? "Unknown error", {
+      elapsedMs: Date.now() - startedAt,
     });
   }
 });

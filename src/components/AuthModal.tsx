@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Dialog, DialogContent } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -18,6 +19,7 @@ interface AuthModalProps {
 type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
 
 export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthModalProps) {
+  const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -61,6 +63,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
       });
       resetForm();
       onOpenChange(false);
+      navigate('/dashboard', { replace: true });
     }
     setLoading(false);
   };

@@ -5,10 +5,15 @@
  import { ConfirmationEmail } from './_templates/confirmation.tsx'
  import { MagicLinkEmail } from './_templates/magic-link.tsx'
  
- const resend = new Resend(Deno.env.get('RESEND_API_KEY') as string)
- const hookSecret = Deno.env.get('SEND_EMAIL_HOOK_SECRET') as string
+const resend = new Resend(Deno.env.get('RESEND_API_KEY') as string)
+const rawHookSecret = (Deno.env.get('SEND_EMAIL_HOOK_SECRET') as string) || ''
+// Supabase UI may expose hook secrets as "v1,whsec_xxx". standardwebhooks expects "whsec_xxx".
+const hookSecret = rawHookSecret.includes(',')
+  ? rawHookSecret.split(',').pop()!.trim()
+  : rawHookSecret.trim()
+const authEmailFrom = Deno.env.get('AUTH_EMAIL_FROM') || Deno.env.get('INVITE_EMAIL_FROM') || 'BuilderLYNK <no-reply@builderlynk.com>'
  
- interface AuthEmailPayload {
+interface AuthEmailPayload {
    user: {
      id: string
      email: string
@@ -26,24 +31,82 @@
      token_new?: string
      token_hash_new?: string
    }
- }
+}
+
+function getJwtRoleFromAuthHeader(authHeader: string | null): string | null {
+  if (!authHeader) return null
+  const token = authHeader.replace(/^Bearer\s+/i, '').trim()
+  if (!token) return null
+  const parts = token.split('.')
+  if (parts.length < 2) return null
+  try {
+    const payload = JSON.parse(atob(parts[1]))
+    return typeof payload?.role === 'string' ? payload.role : null
+  } catch {
+    return null
+  }
+}
  
- Deno.serve(async (req) => {
+Deno.serve(async (req) => {
    if (req.method !== 'POST') {
      return new Response('Method not allowed', { status: 405 })
    }
  
    const payload = await req.text()
-   const headers = Object.fromEntries(req.headers)
+   const rawHeaders = Object.fromEntries(req.headers)
+   const headers: Record<string, string> = { ...(rawHeaders as Record<string, string>) }
+
+   // Supabase/Svix senders may provide either standard-webhooks headers
+   // (`webhook-id`, `webhook-timestamp`, `webhook-signature`) or Svix-style
+   // headers (`svix-id`, `svix-timestamp`, `svix-signature`).
+   // Normalize so verification works in both cases.
+   if (!headers['webhook-id'] && headers['svix-id']) headers['webhook-id'] = headers['svix-id']
+   if (!headers['webhook-timestamp'] && headers['svix-timestamp']) headers['webhook-timestamp'] = headers['svix-timestamp']
+   if (!headers['webhook-signature'] && headers['svix-signature']) headers['webhook-signature'] = headers['svix-signature']
    
-   // Verify the webhook signature
+   // Verify the webhook signature when present. Some internal/service-role invocations
+   // may not include webhook headers; for those, allow trusted service_role calls.
+   const hasWebhookSignature =
+     !!headers['webhook-id'] && !!headers['webhook-timestamp'] && !!headers['webhook-signature']
+   const callerRole = getJwtRoleFromAuthHeader(req.headers.get('authorization'))
+   const isServiceRoleCaller = callerRole === 'service_role'
    const wh = new Webhook(hookSecret)
    let data: AuthEmailPayload
-   
-   try {
-     data = wh.verify(payload, headers) as AuthEmailPayload
-   } catch (error) {
-     console.error('Webhook verification failed:', error)
+
+   if (hasWebhookSignature) {
+     try {
+       data = wh.verify(payload, headers) as AuthEmailPayload
+     } catch (error) {
+       console.error('Webhook verification failed:', {
+         error,
+         hasWebhookHeaders: {
+           id: !!headers['webhook-id'],
+           timestamp: !!headers['webhook-timestamp'],
+           signature: !!headers['webhook-signature'],
+         },
+         hasSvixHeaders: {
+           id: !!headers['svix-id'],
+           timestamp: !!headers['svix-timestamp'],
+           signature: !!headers['svix-signature'],
+         },
+       })
+       return new Response(
+         JSON.stringify({ error: { http_code: 401, message: 'Invalid signature' } }),
+         { status: 401, headers: { 'Content-Type': 'application/json' } }
+       )
+     }
+   } else if (isServiceRoleCaller) {
+     try {
+       data = JSON.parse(payload) as AuthEmailPayload
+     } catch (error) {
+       console.error('Invalid JSON payload for service_role auth-email invocation:', error)
+       return new Response(
+         JSON.stringify({ error: { http_code: 400, message: 'Invalid payload' } }),
+         { status: 400, headers: { 'Content-Type': 'application/json' } }
+       )
+     }
+   } else {
+     console.error('Missing required webhook signature headers')
      return new Response(
        JSON.stringify({ error: { http_code: 401, message: 'Invalid signature' } }),
        { status: 401, headers: { 'Content-Type': 'application/json' } }
@@ -170,13 +233,13 @@
          })
      }
  
-     // Send the branded email via Resend
-     const { error } = await resend.emails.send({
-       from: 'BuilderLYNK <noreply@builderlynk.com>',
-       to: [user.email],
-       subject,
-       html,
-     })
+    // Send the branded email via Resend
+    const { error } = await resend.emails.send({
+      from: authEmailFrom,
+      to: [user.email],
+      subject,
+      html,
+    })
  
      if (error) {
        console.error('Resend error:', error)

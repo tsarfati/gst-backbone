@@ -16,6 +16,7 @@ const buildCorsHeaders = (req: Request) => ({
   "Access-Control-Allow-Headers":
     req.headers.get("Access-Control-Request-Headers") || corsHeaders["Access-Control-Allow-Headers"],
 });
+const inviteEmailFrom = Deno.env.get("INVITE_EMAIL_FROM") || Deno.env.get("AUTH_EMAIL_FROM") || "BuilderLYNK <no-reply@builderlynk.com>";
  
 interface InviteRequest {
   email: string;
@@ -238,7 +239,7 @@ function hslToHex(hsl: string): string {
  
      // Send the invitation email
      const emailResponse = await resend.emails.send({
-       from: "BuilderLYNK <invites@builderlynk.com>",
+       from: inviteEmailFrom,
        to: [email],
        subject: `${companyName} has invited you to join BuilderLYNK`,
        html: emailHtml,

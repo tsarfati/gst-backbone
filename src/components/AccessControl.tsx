@@ -11,6 +11,24 @@ interface AccessControlProps {
   children: React.ReactNode;
 }
 
+const parseInviteFunctionError = async (error: any) => {
+  let payload: any = null;
+  try {
+    if (typeof error?.context?.json === 'function') {
+      payload = await error.context.json();
+    }
+  } catch {
+    payload = null;
+  }
+  return {
+    message: payload?.error || payload?.message || error?.message || 'Unknown invite error',
+    code: payload?.code || null,
+    requestId: payload?.requestId || null,
+    debug: payload?.debug || null,
+    raw: payload,
+  };
+};
+
 export function AccessControl({ children }: AccessControlProps) {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
   const { userCompanies, loading: companyLoading } = useCompany();
@@ -20,23 +38,30 @@ export function AccessControl({ children }: AccessControlProps) {
   const [checking, setChecking] = useState(false);
   const [initialized, setInitialized] = useState(false);
   const [autoAcceptingInvite, setAutoAcceptingInvite] = useState(false);
-  const autoAcceptAttemptedForUser = useRef<string | null>(null);
+  const [autoAcceptRetryTick, setAutoAcceptRetryTick] = useState(0);
+  const lastAutoAcceptAttemptAtRef = useRef<number>(0);
+  const autoAcceptAttemptCountRef = useRef(0);
   const isInviteAuthRoute = location.pathname === '/auth' && new URLSearchParams(location.search).has('invite');
 
   useEffect(() => {
+    const maxAutoAcceptAttempts = 8;
     if (!user?.id || !profile || profile.status !== 'pending' || isInviteAuthRoute) {
-      if (!user?.id || profile?.status !== 'pending') {
-        autoAcceptAttemptedForUser.current = null;
-      }
+      return;
+    }
+    if (autoAcceptAttemptCountRef.current >= maxAutoAcceptAttempts) {
       return;
     }
 
-    if (autoAcceptAttemptedForUser.current === user.id) return;
-    autoAcceptAttemptedForUser.current = user.id;
+    const now = Date.now();
+    // Avoid hot-loop retries while still allowing recovery from transient 401/session timing failures.
+    if (now - lastAutoAcceptAttemptAtRef.current < 4000) return;
+    lastAutoAcceptAttemptAtRef.current = now;
 
     let cancelled = false;
+    let retryTimer: number | null = null;
 
     const tryAutoAcceptInvite = async () => {
+      autoAcceptAttemptCountRef.current += 1;
       setAutoAcceptingInvite(true);
       try {
         const invokeWithRetry = async () => {
@@ -53,7 +78,8 @@ export function AccessControl({ children }: AccessControlProps) {
             if (!result.error) return result;
 
             lastError = result.error;
-            const msg = String(result.error?.message || '');
+            const parsed = await parseInviteFunctionError(result.error);
+            const msg = String(parsed.message || '');
             const unauthorized = msg.includes('401') || msg.toLowerCase().includes('unauthorized');
             if (!unauthorized || attempt === 3) return result;
 
@@ -71,11 +97,21 @@ export function AccessControl({ children }: AccessControlProps) {
 
         if (cancelled) return;
         if (error) {
-          console.warn('Auto invite acceptance skipped/failed:', error.message);
+          const parsed = await parseInviteFunctionError(error);
+          console.warn('Auto invite acceptance skipped/failed', parsed);
+          if (autoAcceptAttemptCountRef.current < maxAutoAcceptAttempts) {
+            retryTimer = window.setTimeout(() => {
+              setAutoAcceptRetryTick((n) => n + 1);
+            }, 3500);
+          }
           return;
         }
 
         if (data?.success || data?.alreadyAccepted) {
+          console.info('Auto invite acceptance succeeded', {
+            requestId: data?.requestId || null,
+            debug: data?.debug || null,
+          });
           await refreshProfile();
         }
       } catch (err) {
@@ -91,8 +127,9 @@ export function AccessControl({ children }: AccessControlProps) {
 
     return () => {
       cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
     };
-  }, [user?.id, profile?.status, isInviteAuthRoute, refreshProfile]);
+  }, [user?.id, profile?.status, isInviteAuthRoute, refreshProfile, autoAcceptRetryTick]);
 
   useEffect(() => {
     if (authLoading || companyLoading || tenantLoading) {

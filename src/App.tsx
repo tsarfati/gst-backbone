@@ -362,7 +362,11 @@ function AuthenticatedRoutes() {
               <Route path="manual-punch-out" element={<ManualPunchOut />} />
               <Route path="manual-time-entry" element={<ManualTimeEntry />} />
               <Route path="add-employee" element={<AddEmployee />} />
-              <Route path="time-sheets" element={<TimeSheets />} />
+              <Route path="time-sheets" element={
+                <PunchClockFeatureRoute>
+                  <TimeSheets />
+                </PunchClockFeatureRoute>
+              } />
               <Route path="punch-clock/timesheets" element={
                 <PunchClockFeatureRoute>
                   <TimeSheets />

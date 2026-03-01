@@ -8,6 +8,8 @@ import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { CreditCard, AlertCircle } from "lucide-react";
 import { CreditCardTransactionModal } from "./CreditCardTransactionModal";
+import { formatDistanceToNow } from "date-fns";
+import { useNavigate } from "react-router-dom";
 
 interface CodingRequest {
   id: string;
@@ -36,10 +38,12 @@ export default function CreditCardCodingRequests() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [requests, setRequests] = useState<CodingRequest[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectedTransactionId, setSelectedTransactionId] = useState<string | null>(null);
   const [showModal, setShowModal] = useState(false);
+  const displayLimit = 5;
 
   useEffect(() => {
     if (user && currentCompany) {
@@ -110,6 +114,8 @@ export default function CreditCardCodingRequests() {
     return null;
   }
 
+  const visibleRequests = requests.slice(0, displayLimit);
+
   return (
     <Card>
       <CardHeader>
@@ -122,45 +128,53 @@ export default function CreditCardCodingRequests() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        <div className="space-y-3">
-          {requests.map((request) => (
+        <div className="space-y-2">
+          {visibleRequests.map((request) => (
             <div
               key={request.id}
-              className="p-4 border rounded-lg hover:bg-accent transition-colors cursor-pointer"
+              className="px-3 py-2 rounded-md border bg-card hover:bg-primary/5 hover:border-primary hover:shadow-md cursor-pointer transition-all duration-200 group"
               onClick={() => handleOpenTransaction(request.transaction_id)}
             >
-              <div className="flex items-center gap-2 mb-2">
-                <CreditCard className="h-4 w-4 text-muted-foreground" />
-                <span className="font-medium">
+              <div className="flex items-center gap-3 text-sm">
+                <CreditCard className="h-4 w-4 text-muted-foreground flex-shrink-0" />
+                <span className="font-medium min-w-[120px] truncate group-hover:text-primary transition-colors">
                   {request.credit_card_transactions.credit_cards.card_name}
                 </span>
-              </div>
-              <p className="text-sm font-semibold mb-1">
-                {request.credit_card_transactions.description}
-              </p>
-              {request.credit_card_transactions.merchant_name && (
-                <p className="text-sm text-muted-foreground">
-                  {request.credit_card_transactions.merchant_name}
-                </p>
-              )}
-              <div className="flex items-center gap-4 mt-2 text-sm text-muted-foreground">
-                <span>
+                <span className="truncate flex-1 text-muted-foreground">
+                  {request.credit_card_transactions.description}
+                  {request.credit_card_transactions.merchant_name
+                    ? ` • ${request.credit_card_transactions.merchant_name}`
+                    : ""}
+                </span>
+                <span className="font-medium whitespace-nowrap">
                   ${Number(request.credit_card_transactions.amount).toLocaleString()}
                 </span>
-                <span>
+                <span className="text-xs text-muted-foreground whitespace-nowrap">
                   {new Date(request.credit_card_transactions.transaction_date).toLocaleDateString()}
                 </span>
-                <span>
-                  Requested by: {request.profiles.first_name} {request.profiles.last_name}
+                <span className="text-xs text-muted-foreground whitespace-nowrap truncate max-w-[180px]">
+                  {request.profiles.first_name} {request.profiles.last_name}
+                </span>
+                <span className="text-xs text-muted-foreground whitespace-nowrap ml-auto">
+                  {formatDistanceToNow(new Date(request.created_at), { addSuffix: true })}
                 </span>
               </div>
               {request.message && (
-                <p className="text-sm text-muted-foreground mt-2 italic">
+                <p className="text-xs text-muted-foreground mt-1 italic line-clamp-1">
                   "{request.message}"
                 </p>
               )}
             </div>
           ))}
+          {requests.length >= displayLimit && (
+            <Button
+              variant="outline"
+              className="w-full"
+              onClick={() => navigate('/payables/credit-cards')}
+            >
+              View All Credit Card Requests Needing Action
+            </Button>
+          )}
         </div>
       </CardContent>
 

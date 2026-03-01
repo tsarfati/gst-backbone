@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -11,6 +11,25 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useRoleBasedRouting } from '@/hooks/useRoleBasedRouting';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
+
+const parseInviteFunctionError = async (error: any) => {
+  let payload: any = null;
+  try {
+    if (typeof error?.context?.json === 'function') {
+      payload = await error.context.json();
+    }
+  } catch {
+    payload = null;
+  }
+  const message = payload?.error || payload?.message || error?.message || 'Unknown invite error';
+  return {
+    message,
+    code: payload?.code || null,
+    requestId: payload?.requestId || null,
+    debug: payload?.debug || null,
+    raw: payload,
+  };
+};
 
 export default function Auth() {
   const [email, setEmail] = useState('');
@@ -26,6 +45,10 @@ export default function Auth() {
   const [inviteAccepting, setInviteAccepting] = useState(false);
   const [inviteAccepted, setInviteAccepted] = useState(false);
   const [inviteHandledToken, setInviteHandledToken] = useState<string | null>(null);
+  const [inviteRetryTick, setInviteRetryTick] = useState(0);
+  const [inviteAcceptFailures, setInviteAcceptFailures] = useState(0);
+  const lastInviteAcceptAttemptAtRef = useRef<number>(0);
+  const inviteAttemptCountRef = useRef(0);
   
   const { signIn, signUp, signInWithGoogle, user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
@@ -35,6 +58,14 @@ export default function Auth() {
   
   // Use role-based routing after successful auth
   useRoleBasedRouting();
+
+  // Invitation links should default to Sign Up for first-time users.
+  // Users can still switch to Sign In manually if they already have an account.
+  useEffect(() => {
+    if (inviteToken && !user) {
+      setActiveTab('signup');
+    }
+  }, [inviteToken, user]);
 
   // Check for recovery token in URL
   useEffect(() => {
@@ -69,11 +100,10 @@ export default function Auth() {
   useEffect(() => {
     if (isRecoveryMode) return;
     if (!user) return;
-    if (inviteToken && (inviteAccepting || (!inviteAccepted && inviteHandledToken !== inviteToken))) return;
+    // Do not trap users on /auth while invite acceptance retries.
+    // Only pause redirect while an accept attempt is actively running.
+    if (inviteToken && inviteAccepting) return;
     
-    // Wait for profile to load
-    if (profile === null && user) return;
-
     // User is authenticated — redirect away from auth page
     if (profile?.profile_completed === false) {
       navigate('/profile-completion', { replace: true });
@@ -81,14 +111,21 @@ export default function Auth() {
       // Let useRoleBasedRouting handle it, but if no role yet just go to dashboard
       navigate('/dashboard', { replace: true });
     }
-  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, inviteAccepted, inviteHandledToken]);
+  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting]);
 
   useEffect(() => {
+    const maxInviteAttempts = 6;
     if (!inviteToken || !user || inviteAccepted || inviteAccepting || inviteHandledToken === inviteToken) return;
+    if (inviteAttemptCountRef.current >= maxInviteAttempts) return;
+    const now = Date.now();
+    if (now - lastInviteAcceptAttemptAtRef.current < 3000) return;
 
     let cancelled = false;
+    let retryTimer: number | null = null;
 
     const acceptInvite = async () => {
+      inviteAttemptCountRef.current += 1;
+      lastInviteAcceptAttemptAtRef.current = Date.now();
       setInviteAccepting(true);
       try {
         const invokeAcceptInvite = async () => {
@@ -120,10 +157,15 @@ export default function Auth() {
 
         const { data, error } = await invokeAcceptInvite();
 
-        if (error) throw error;
+        if (error) {
+          const parsed = await parseInviteFunctionError(error);
+          console.error('Invite acceptance failed on /auth', parsed);
+          throw parsed;
+        }
         if (cancelled) return;
 
         setInviteAccepted(true);
+        setInviteAcceptFailures(0);
         setInviteHandledToken(inviteToken);
         await new Promise((r) => setTimeout(r, 0));
         await refreshProfile();
@@ -134,18 +176,42 @@ export default function Auth() {
             ? 'Your company access and custom role have been applied.'
             : 'Your company access has been applied.',
         });
+        console.info('Invite accepted on /auth', {
+          requestId: data?.requestId || null,
+          code: data?.code || null,
+          debug: data?.debug || null,
+        });
 
         const url = new URL(window.location.href);
         url.searchParams.delete('invite');
         window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
       } catch (err: any) {
         if (cancelled) return;
-        setInviteHandledToken(inviteToken);
+        setInviteAcceptFailures((n) => n + 1);
+        const message = String(err?.message || '').toLowerCase();
+        const code = String(err?.code || '').toLowerCase();
+        const terminalError =
+          code === 'invitation_not_found' ||
+          code === 'invitation_expired' ||
+          code === 'invitation_email_mismatch' ||
+          message.includes('invitation not found') ||
+          message.includes('expired') ||
+          message.includes('different email');
+        if (terminalError) {
+          setInviteHandledToken(inviteToken);
+        }
         toast({
           title: 'Invitation issue',
-          description: err?.message || 'Unable to apply this invitation automatically. Please contact your administrator.',
+          description: `${err?.message || 'Unable to apply this invitation automatically.'}${err?.code ? ` (code: ${err.code})` : ''}${err?.requestId ? ` [request: ${err.requestId}]` : ''}`,
           variant: 'destructive',
         });
+        console.error('Invitation issue shown to user', err);
+
+        if (!terminalError && inviteAttemptCountRef.current < maxInviteAttempts) {
+          retryTimer = window.setTimeout(() => {
+            setInviteRetryTick((n) => n + 1);
+          }, 2500);
+        }
       } finally {
         if (!cancelled) setInviteAccepting(false);
       }
@@ -155,8 +221,9 @@ export default function Auth() {
 
     return () => {
       cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
     };
-  }, [inviteToken, user, inviteAccepted, inviteAccepting, inviteHandledToken, toast]);
+  }, [inviteToken, user, inviteAccepted, inviteAccepting, inviteHandledToken, toast, inviteRetryTick]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -175,6 +242,9 @@ export default function Auth() {
         title: 'Success',
         description: 'Signed in successfully!',
       });
+      // Fallback redirect: prevents rare cases where profile hydration lags
+      // and leaves the user visually stuck on /auth after successful sign-in.
+      navigate('/dashboard', { replace: true });
     }
     setLoading(false);
   };
