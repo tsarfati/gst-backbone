@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { Resend } from "https://esm.sh/resend@4.0.0";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -29,6 +30,8 @@ const ALLOWED_BASE_ROLES = new Set([
   "view_only",
   "vendor",
 ]);
+
+const ADMIN_ROLES = new Set(["admin", "company_admin", "controller", "owner", "super_admin"]);
 
 serve(async (req: Request): Promise<Response> => {
   const requestId = crypto.randomUUID();
@@ -62,6 +65,12 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
+    const resend = resendApiKey ? new Resend(resendApiKey) : null;
+    const inviteEmailFrom =
+      Deno.env.get("INVITE_EMAIL_FROM") ||
+      Deno.env.get("AUTH_EMAIL_FROM") ||
+      "BuilderLYNK <no-reply@builderlynk.com>";
     const authHeader = req.headers.get("Authorization");
 
     if (!authHeader) return sendError(401, "MISSING_AUTH_HEADER", "Missing Authorization header");
@@ -250,7 +259,7 @@ serve(async (req: Request): Promise<Response> => {
     // Without this, users can be redirected to /tenant-request even after invite acceptance.
     const { data: companyRow, error: companyLookupError } = await supabaseAdmin
       .from("companies")
-      .select("tenant_id")
+      .select("tenant_id, name, display_name")
       .eq("id", pendingInvite.company_id)
       .maybeSingle();
     if (companyLookupError) throw companyLookupError;
@@ -292,9 +301,9 @@ serve(async (req: Request): Promise<Response> => {
     // Be robust to missing profile rows (can happen with invite/account race conditions).
     const profilePatch: Record<string, unknown> = {
       custom_role_id: pendingInvite.custom_role_id ?? null,
-      status: "approved",
-      approved_at: nowIso,
-      approved_by: pendingInvite.invited_by,
+      status: "pending",
+      approved_at: null,
+      approved_by: null,
       current_company_id: pendingInvite.company_id,
     };
     if (pendingInvite.custom_role_id) {
@@ -345,6 +354,74 @@ serve(async (req: Request): Promise<Response> => {
       .eq("company_id", pendingInvite.company_id)
       .eq("email", pendingInvite.email)
       .eq("status", "pending");
+
+    // Notify invited user + company approvers that account is pending approval.
+    // Approval is handled in User Management (status transition pending -> approved).
+    if (resend) {
+      try {
+        const companyDisplayName =
+          String(companyRow?.display_name || companyRow?.name || "your company").trim();
+        const roleDisplay = String(baseRole || "employee")
+          .replace(/_/g, " ")
+          .replace(/\b\w/g, (c) => c.toUpperCase());
+
+        await resend.emails.send({
+          from: inviteEmailFrom,
+          to: [normalizedEmail],
+          subject: `Your ${companyDisplayName} account is pending approval`,
+          html: `
+            <p>Hello,</p>
+            <p>Your invitation for <strong>${companyDisplayName}</strong> was accepted and your account was created.</p>
+            <p>Your role request is <strong>${roleDisplay}</strong>. Your account is now <strong>pending admin approval</strong>.</p>
+            <p>You will receive another email once an administrator approves your access.</p>
+          `,
+        });
+
+        const { data: approverRows, error: approverRowsError } = await supabaseAdmin
+          .from("user_company_access")
+          .select("user_id, role")
+          .eq("company_id", pendingInvite.company_id)
+          .eq("is_active", true);
+        if (approverRowsError) throw approverRowsError;
+
+        const approverIds = Array.from(
+          new Set(
+            (approverRows || [])
+              .filter((row: any) => ADMIN_ROLES.has(String(row.role || "").toLowerCase()))
+              .map((row: any) => row.user_id)
+              .filter(Boolean),
+          ),
+        );
+
+        const approverEmails: string[] = [];
+        for (const approverId of approverIds) {
+          const { data: approverUser, error: approverUserError } = await supabaseAdmin.auth.admin.getUserById(
+            approverId,
+          );
+          if (approverUserError) continue;
+          const email = approverUser?.user?.email?.trim().toLowerCase();
+          if (email) approverEmails.push(email);
+        }
+
+        if (approverEmails.length > 0) {
+          await resend.emails.send({
+            from: inviteEmailFrom,
+            to: approverEmails,
+            subject: `Approval needed: ${normalizedEmail} (${companyDisplayName})`,
+            html: `
+              <p>Hello,</p>
+              <p><strong>${normalizedEmail}</strong> has completed invite signup for <strong>${companyDisplayName}</strong>.</p>
+              <p>The account is currently <strong>pending approval</strong>.</p>
+              <p>Go to <strong>Settings → User Management</strong> and approve or reject this user.</p>
+            `,
+          });
+        }
+      } catch (notifyError) {
+        console.error("Pending approval notification error:", notifyError);
+      }
+    } else {
+      console.warn("RESEND_API_KEY is missing; skipping pending approval notifications.");
+    }
 
     return sendJson(200, {
       success: true,

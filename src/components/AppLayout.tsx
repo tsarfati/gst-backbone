@@ -162,6 +162,10 @@ export function AppSidebar() {
   const { currentCompany } = useCompany();
   const activeCompanyRole = useActiveCompanyRole();
   const effectiveRole = activeCompanyRole ?? profile?.role ?? null;
+  const showRoleLabel =
+    !!isSuperAdmin ||
+    effectiveRole === 'admin' ||
+    effectiveRole === 'company_admin';
   const { hasAccess, loading } = useMenuPermissions();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
   const [fallbackAvatar, setFallbackAvatar] = useState<string | null>(null);
@@ -422,7 +426,11 @@ export function AppSidebar() {
               </div>
               <div className="text-left group-data-[collapsible=icon]:hidden">
                 <p className="font-medium text-sm">{profile?.display_name || 'User'}</p>
-                <p className="text-muted-foreground text-xs capitalize">{isSuperAdmin ? 'Super Admin' : (effectiveRole || '')}</p>
+                {showRoleLabel && (
+                  <p className="text-muted-foreground text-xs capitalize">
+                    {isSuperAdmin ? 'Super Admin' : (effectiveRole || '')}
+                  </p>
+                )}
               </div>
             </Button>
             <Button
