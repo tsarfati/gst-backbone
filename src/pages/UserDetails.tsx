@@ -319,6 +319,10 @@ export default function UserDetails() {
     if (!user || !currentCompany) return;
     setSaving(true);
     try {
+      const previousStatus = String(user.status || '').toLowerCase();
+      const nextStatus = String(editForm.status || '').toLowerCase();
+      const becameApproved = previousStatus !== 'approved' && nextStatus === 'approved';
+
       // Update profile
       const { error: profileError } = await supabase
         .from('profiles')
@@ -347,6 +351,18 @@ export default function UserDetails() {
         .update({ custom_role_id: selectedCustomRoleId })
         .eq('user_id', user.user_id);
       if (customRoleError) throw customRoleError;
+
+      if (becameApproved) {
+        const { error: notifyError } = await supabase.functions.invoke('notify-user-approved', {
+          body: {
+            userId: user.user_id,
+            companyId: currentCompany.id,
+          },
+        });
+        if (notifyError) {
+          console.warn('User approval email notification failed:', notifyError);
+        }
+      }
 
       setUser(prev => prev ? {
         ...prev,

@@ -10,6 +10,65 @@ const corsHeaders = {
 };
 
 const ADMIN_ROLES = new Set(["admin", "company_admin", "controller", "owner", "super_admin"]);
+const BUILDERLYNK_EMAIL_LOGO =
+  "https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png";
+
+const resolveCompanyLogoUrl = (logoUrl?: string | null): string | null => {
+  if (!logoUrl) return null;
+  if (/^https?:\/\//i.test(logoUrl)) return logoUrl;
+  const cleaned = String(logoUrl).replace(/^company-logos\//, "").replace(/^\/+/, "");
+  return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${cleaned}`;
+};
+
+const buildBrandedEmailHtml = ({
+  title,
+  greeting,
+  paragraphs,
+  ctaLabel,
+  ctaUrl,
+  companyLogoUrl,
+  brandPrimary = "#E88A2D",
+  brandNavy = "#1e3a5f",
+}: {
+  title: string;
+  greeting: string;
+  paragraphs: string[];
+  ctaLabel?: string;
+  ctaUrl?: string;
+  companyLogoUrl?: string | null;
+  brandPrimary?: string;
+  brandNavy?: string;
+}) => `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f4f4f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+        <tr>
+          <td style="background-color:${brandNavy};padding:16px 20px;text-align:center;">
+            <img src="${BUILDERLYNK_EMAIL_LOGO}" alt="BuilderLYNK" style="display:block;margin:0 auto;height:150px;width:auto;max-width:420px;" />
+          </td>
+        </tr>
+        <tr>
+          <td style="padding:32px 28px;">
+            ${companyLogoUrl ? `<div style="text-align:center;margin-bottom:24px;"><img src="${companyLogoUrl}" alt="Company logo" style="max-height:72px;max-width:240px;object-fit:contain;" /></div>` : ""}
+            <h1 style="color:${brandNavy};font-size:24px;font-weight:700;margin:0 0 16px 0;text-align:center;">${title}</h1>
+            <p style="color:#374151;font-size:16px;line-height:1.6;margin:0 0 16px 0;">${greeting}</p>
+            ${paragraphs.map((p) => `<p style="color:#374151;font-size:16px;line-height:1.6;margin:0 0 14px 0;">${p}</p>`).join("")}
+            ${ctaLabel && ctaUrl ? `<table width="100%" cellpadding="0" cellspacing="0" style="margin-top:8px;"><tr><td align="center"><a href="${ctaUrl}" style="display:inline-block;background-color:${brandPrimary};color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:12px 26px;border-radius:8px;">${ctaLabel}</a></td></tr></table>` : ""}
+          </td>
+        </tr>
+        <tr>
+          <td style="background-color:${brandNavy};padding:18px 24px;text-align:center;">
+            <p style="color:#ffffff;font-size:12px;margin:0;">© ${new Date().getFullYear()} BuilderLYNK. All rights reserved.</p>
+          </td>
+        </tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
 
 type NotifyPayload = {
   userId?: string;
@@ -83,7 +142,7 @@ serve(async (req: Request): Promise<Response> => {
 
     const { data: companyRow, error: companyError } = await admin
       .from("companies")
-      .select("name, display_name")
+      .select("name, display_name, logo_url")
       .eq("id", companyId)
       .maybeSingle();
     if (companyError) throw companyError;
@@ -99,6 +158,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const companyDisplayName = String(companyRow?.display_name || companyRow?.name || "your company").trim();
+    const companyLogoUrl = resolveCompanyLogoUrl((companyRow as any)?.logo_url);
     const userDisplayName =
       String(profileRow.display_name || `${profileRow.first_name || ""} ${profileRow.last_name || ""}`.trim() || userEmail);
     const appUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
@@ -107,12 +167,17 @@ serve(async (req: Request): Promise<Response> => {
       from: inviteEmailFrom,
       to: [userEmail],
       subject: `Your ${companyDisplayName} access has been approved`,
-      html: `
-        <p>Hello ${userDisplayName},</p>
-        <p>Your account for <strong>${companyDisplayName}</strong> has been approved.</p>
-        <p>You can now sign in and start using BuilderLYNK.</p>
-        <p><a href="${appUrl}/auth">Sign in to BuilderLYNK</a></p>
-      `,
+      html: buildBrandedEmailHtml({
+        title: "Access Approved",
+        greeting: `Hello ${userDisplayName},`,
+        companyLogoUrl,
+        paragraphs: [
+          `Your account for <strong>${companyDisplayName}</strong> has been approved.`,
+          `You can now sign in and start using BuilderLYNK.`,
+        ],
+        ctaLabel: "Sign in to BuilderLYNK",
+        ctaUrl: `${appUrl}/auth`,
+      }),
     });
 
     return send(200, { success: true });
@@ -121,4 +186,3 @@ serve(async (req: Request): Promise<Response> => {
     return send(500, { error: error?.message || "Unknown error" });
   }
 });
-

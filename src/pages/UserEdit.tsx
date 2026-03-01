@@ -68,6 +68,7 @@ export default function UserEdit() {
   const { toast } = useToast();
   
   const [user, setUser] = useState<UserProfile | null>(null);
+  const [originalStatus, setOriginalStatus] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -137,6 +138,7 @@ export default function UserEdit() {
         ...profileData.data,
         role: companyRole
       });
+      setOriginalStatus(String(profileData.data.status || '').toLowerCase());
       // Set the vendor_id if user is a vendor
       if (profileData.data.vendor_id) {
         setSelectedVendorId(profileData.data.vendor_id);
@@ -284,6 +286,9 @@ export default function UserEdit() {
 
     try {
       setSaving(true);
+      const previousStatus = originalStatus;
+      const nextStatus = String(user.status || '').toLowerCase();
+      const becameApproved = previousStatus !== 'approved' && nextStatus === 'approved';
       
       // Update user profile
       const { error } = await supabase
@@ -316,10 +321,23 @@ export default function UserEdit() {
 
       if (settingsError) throw settingsError;
 
+      if (becameApproved) {
+        const { error: notifyError } = await supabase.functions.invoke('notify-user-approved', {
+          body: {
+            userId: user.user_id,
+            companyId: currentCompany.id,
+          },
+        });
+        if (notifyError) {
+          console.warn('User approval email notification failed:', notifyError);
+        }
+      }
+
       toast({
         title: 'Success',
         description: 'User updated successfully',
       });
+      setOriginalStatus(nextStatus);
     } catch (error) {
       console.error('Error updating user:', error);
       toast({
