@@ -516,7 +516,7 @@ export default function PaymentHistory() {
                 filteredPayments.map((p) => (
                   <TableRow 
                     key={p.id} 
-                    className="cursor-pointer group hover:bg-primary/5 transition-colors"
+                    className="cursor-pointer group transition-colors hover:bg-primary/5 hover:shadow-[inset_0_0_0_1px_hsl(var(--primary))]"
                     onClick={() => navigate(`/payables/payments/${p.id}`)}
                   >
                     <TableCell className="font-medium border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg">{p.payment_number}</TableCell>
