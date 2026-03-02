@@ -33,6 +33,11 @@ interface TimeCardData {
   cost_codes?: { code: string; description: string; type?: string };
 }
 
+interface JobOption {
+  id: string;
+  name: string;
+}
+
 interface EditTimeCardDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
@@ -55,6 +60,8 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
   const [breakMinutes, setBreakMinutes] = useState('');
   const [notes, setNotes] = useState('');
   const [correctionReason, setCorrectionReason] = useState('');
+  const [selectedJobId, setSelectedJobId] = useState<string>('');
+  const [availableJobs, setAvailableJobs] = useState<JobOption[]>([]);
 
   const [selectedCostCodeId, setSelectedCostCodeId] = useState<string>('');
   const [jobCostCodes, setJobCostCodes] = useState<Array<{ id: string; code: string; description: string }>>([]);
@@ -69,16 +76,17 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
   }, [open, timeCardId]);
 
   useEffect(() => {
-    if (timeCard?.job_id) {
+    if (selectedJobId) {
       supabase
         .from('cost_codes')
         .select('id, code, description')
-        .eq('job_id', timeCard.job_id)
+        .eq('job_id', selectedJobId)
         .eq('is_active', true)
         .then(({ data }) => setJobCostCodes(data || []));
+    } else {
+      setJobCostCodes([]);
     }
-    setSelectedCostCodeId(timeCard?.cost_code_id || '');
-  }, [timeCard?.job_id, timeCard?.cost_code_id]);
+  }, [selectedJobId]);
 
   const loadTimeCard = async () => {
     if (!timeCardId) return;
@@ -129,6 +137,8 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
       };
 
       setTimeCard(data as any);
+      setSelectedJobId(data.job_id || '');
+      setSelectedCostCodeId(data.cost_code_id || '');
       
       // Initialize form fields
       setPunchInTime(format(new Date(data.punch_in_time), "yyyy-MM-dd'T'HH:mm"));
@@ -136,6 +146,14 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
       setBreakMinutes(data.break_minutes?.toString() || '0');
       setNotes(data.notes || '');
       setCorrectionReason(data.correction_reason || '');
+
+      // Load available jobs for this time card's company
+      const { data: jobsData } = await supabase
+        .from('jobs')
+        .select('id, name')
+        .eq('company_id', data.company_id)
+        .order('name');
+      setAvailableJobs(jobsData || []);
     } catch (error) {
       console.error('Error loading time card:', error);
       toast({
@@ -213,6 +231,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
       const { error } = await supabase
         .from('time_cards')
         .update({
+          job_id: selectedJobId || null,
           punch_in_time: punchInDate.toISOString(),
           punch_out_time: punchOutDate.toISOString(),
           total_hours: totalHours,
@@ -351,7 +370,28 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
             <CardContent className="grid grid-cols-2 gap-4">
               <div>
                 <Label className="text-sm text-muted-foreground">Job</Label>
-                <div className="font-medium">{timeCard.jobs?.name}</div>
+                {canEdit ? (
+                  <Select
+                    value={selectedJobId || ''}
+                    onValueChange={(value) => {
+                      setSelectedJobId(value);
+                      setSelectedCostCodeId('');
+                    }}
+                  >
+                    <SelectTrigger className="w-full">
+                      <SelectValue placeholder="Select job" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableJobs.map((job) => (
+                        <SelectItem key={job.id} value={job.id}>
+                          {job.name}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <div className="font-medium">{timeCard.jobs?.name}</div>
+                )}
               </div>
               <div>
                 <Label className="text-sm text-muted-foreground">Cost Code</Label>
