@@ -334,8 +334,26 @@ export default function ManualTimeEntry() {
   const overtimeHours = calculateOvertime(totalHours);
 
   return (
-    <div className="space-y-4">
-      <form onSubmit={handleSubmit} className="space-y-4">
+    <div className="p-4 md:p-6">
+      <div className="mx-auto max-w-3xl space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">Manual Time Entry</h1>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            onClick={() => navigate('/time-sheets')}
+            className="gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back
+          </Button>
+        </div>
+
+        <Card className="shadow-elevation-lg">
+          <CardContent className="p-5 md:p-6">
+      <form onSubmit={handleSubmit} className="space-y-5">
         {/* Employee Selection (for managers only) */}
         {isManager && (
           <div className="space-y-2">
@@ -516,6 +534,9 @@ export default function ManualTimeEntry() {
           {loading ? 'Creating...' : 'Submit Time Entry'}
         </Button>
       </form>
+          </CardContent>
+        </Card>
+      </div>
     </div>
   );
 }
