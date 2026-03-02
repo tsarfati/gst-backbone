@@ -599,7 +599,7 @@ export default function TimeSheets() {
     </TableHead>
   );
 
-  const PhotoDisplay = ({ url, type }: { url?: string; type: 'in' | 'out' }) => {
+  const PhotoDisplay = ({ url, type, className }: { url?: string; type: 'in' | 'out'; className?: string }) => {
     // Normalize photo URL to handle Supabase storage paths
     const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
     
@@ -609,8 +609,22 @@ export default function TimeSheets() {
         if (url.startsWith('http') && !url.includes('supabase.co/storage')) {
           setResolvedUrl(url);
         } else {
-          const signed = await resolveStorageUrl('punch-photos', url);
-          setResolvedUrl(signed);
+          // Some legacy rows store full storage URLs with an old bucket.
+          // Extract path and retry against punch-photos to avoid "bucket not found".
+          let candidatePath = url;
+          if (url.includes('/storage/v1/object/public/') || url.includes('/storage/v1/object/sign/')) {
+            const marker = url.includes('/storage/v1/object/public/')
+              ? '/storage/v1/object/public/'
+              : '/storage/v1/object/sign/';
+            const afterMarker = url.split(marker)[1] || '';
+            const slashIndex = afterMarker.indexOf('/');
+            if (slashIndex >= 0) {
+              candidatePath = afterMarker.slice(slashIndex + 1).split('?')[0];
+            }
+          }
+
+          const signed = await resolveStorageUrl('punch-photos', candidatePath);
+          setResolvedUrl(signed || url);
         }
       };
       resolve();
@@ -623,7 +637,7 @@ export default function TimeSheets() {
         <img 
           src={resolvedUrl} 
           alt={`Punch ${type} photo`}
-          className="h-8 w-8 rounded object-cover cursor-pointer hover:scale-110 transition-transform"
+          className={className || "h-8 w-8 rounded object-cover cursor-pointer hover:scale-110 transition-transform"}
           onClick={() => window.open(resolvedUrl, '_blank')}
         />
         <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full p-1">
@@ -1125,22 +1139,20 @@ export default function TimeSheets() {
                            {timeCard.punch_in_photo_url && (
                              <div className="space-y-2">
                                <div className="text-xs text-muted-foreground">Punch In</div>
-                               <img 
-                                 src={timeCard.punch_in_photo_url} 
-                                 alt="Punch in photo"
+                               <PhotoDisplay
+                                 url={timeCard.punch_in_photo_url}
+                                 type="in"
                                  className="w-20 h-20 rounded object-cover cursor-pointer hover:scale-105 transition-transform"
-                                 onClick={() => window.open(timeCard.punch_in_photo_url, '_blank')}
                                />
                              </div>
                            )}
                            {timeCard.punch_out_photo_url && (
                              <div className="space-y-2">
                                <div className="text-xs text-muted-foreground">Punch Out</div>
-                               <img 
-                                 src={timeCard.punch_out_photo_url} 
-                                 alt="Punch out photo"
+                               <PhotoDisplay
+                                 url={timeCard.punch_out_photo_url}
+                                 type="out"
                                  className="w-20 h-20 rounded object-cover cursor-pointer hover:scale-105 transition-transform"
-                                 onClick={() => window.open(timeCard.punch_out_photo_url, '_blank')}
                                />
                              </div>
                            )}
