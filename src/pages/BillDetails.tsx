@@ -1003,14 +1003,8 @@ export default function BillDetails() {
       {/* File Preview Section */}
       <div className="xl:col-span-3 xl:order-1">
       <Card className="mb-6 xl:sticky xl:top-20">
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <FileText className="h-5 w-5" />
-            Bill Documents
-          </CardTitle>
-        </CardHeader>
         <CardContent className="space-y-4">
-          <div className="h-[calc(100vh-18rem)] min-h-[520px] border rounded-lg overflow-hidden bg-muted/20">
+          <div className="h-[calc(100vh-18rem)] min-h-[520px] rounded-lg overflow-hidden bg-muted/20">
             <ZoomableDocumentPreview
               url={resolvedPreviewUrl}
               fileName={activePreviewName}
@@ -1025,7 +1019,7 @@ export default function BillDetails() {
               {documents.map((doc) => (
                 <div
                   key={doc.id}
-                  className={`flex items-center justify-between gap-2 p-2 border rounded-md cursor-pointer ${selectedPreviewKey === doc.id ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                  className={`flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer ${selectedPreviewKey === doc.id ? 'bg-primary/10 ring-1 ring-primary/50' : 'bg-muted/40 hover:bg-muted/70'}`}
                   onClick={() => setSelectedPreviewKey(doc.id)}
                 >
                   <div className="flex items-center gap-2 min-w-0">
@@ -1048,7 +1042,7 @@ export default function BillDetails() {
 
               {bill?.file_url && (
                 <div
-                  className={`flex items-center justify-between gap-2 p-2 border rounded-md cursor-pointer ${selectedPreviewKey === 'bill' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}
+                  className={`flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer ${selectedPreviewKey === 'bill' ? 'bg-primary/10 ring-1 ring-primary/50' : 'bg-muted/40 hover:bg-muted/70'}`}
                   onClick={() => setSelectedPreviewKey('bill')}
                 >
                   <div className="flex items-center gap-2 min-w-0">
