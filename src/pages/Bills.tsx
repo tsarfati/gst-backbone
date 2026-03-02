@@ -19,6 +19,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
 
 type SortColumn = 'vendor_name' | 'job_name' | 'amount' | 'issue_date' | 'due_date' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -397,6 +398,53 @@ export default function Bills() {
 
   const handleBulkApprove = async () => {
     try {
+      const { data: invoiceRows, error: invoiceError } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, amount, job_id, cost_code_id')
+        .in('id', selectedBills);
+      if (invoiceError) throw invoiceError;
+
+      const { data: distributionRows, error: distError } = await supabase
+        .from('invoice_cost_distributions')
+        .select(`
+          invoice_id,
+          amount,
+          cost_code_id,
+          cost_codes (job_id, jobs(id))
+        `)
+        .in('invoice_id', selectedBills);
+      if (distError) throw distError;
+
+      const distributionMap = new Map<string, any[]>();
+      (distributionRows || []).forEach((dist: any) => {
+        const rows = distributionMap.get(dist.invoice_id) || [];
+        rows.push(dist);
+        distributionMap.set(dist.invoice_id, rows);
+      });
+
+      const invalidInvoices = (invoiceRows || []).filter((invoice: any) => {
+        const validation = evaluateInvoiceCoding({
+          amount: invoice.amount,
+          job_id: invoice.job_id,
+          cost_code_id: invoice.cost_code_id,
+          distributions: distributionMap.get(invoice.id) || [],
+        });
+        return !validation.isComplete;
+      });
+
+      if (invalidInvoices.length > 0) {
+        const sample = invalidInvoices
+          .slice(0, 3)
+          .map((inv: any) => inv.invoice_number || inv.id.slice(0, 8))
+          .join(', ');
+        toast({
+          title: "Approval blocked",
+          description: `Complete coding first. Incomplete bill(s): ${sample}${invalidInvoices.length > 3 ? ', ...' : ''}.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const approvedBillIds = [...selectedBills];
       const { error } = await supabase
         .from('invoices')

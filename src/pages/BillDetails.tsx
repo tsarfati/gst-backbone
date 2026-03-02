@@ -36,6 +36,7 @@ import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import BillInternalNotes from "@/components/BillInternalNotes";
+import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -402,6 +403,20 @@ export default function BillDetails() {
 
   const handleApproveBill = async () => {
     if (!id) return;
+    const codingValidation = evaluateInvoiceCoding({
+      amount: bill?.amount,
+      job_id: bill?.job_id,
+      cost_code_id: bill?.cost_code_id,
+      distributions: distributions as any[],
+    });
+    if (!codingValidation.isComplete) {
+      toast({
+        title: "Bill is not fully coded",
+        description: codingValidation.issues[0] || "Complete job/cost coding and 100% distribution before approval.",
+        variant: "destructive",
+      });
+      return;
+    }
     
     setApprovingBill(true);
     try {
@@ -532,6 +547,12 @@ export default function BillDetails() {
   const StatusIcon = getStatusIcon(bill?.status || "pending");
   const billIsOverdue = isOverdue();
   const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
+  const codingValidation = evaluateInvoiceCoding({
+    amount: bill?.amount,
+    job_id: bill?.job_id,
+    cost_code_id: bill?.cost_code_id,
+    distributions: distributions as any[],
+  });
 
   return (
     <div className="p-4 md:p-6">
@@ -637,7 +658,7 @@ export default function BillDetails() {
                     </Button>
                     <Button 
                       onClick={handleApproveBill}
-                      disabled={approvingBill}
+                      disabled={approvingBill || !codingValidation.isComplete}
                     >
                       {approvingBill ? (
                         <>
@@ -920,29 +941,27 @@ export default function BillDetails() {
             {distributions.length > 0 ? (
               <div className="space-y-3">
                 {distributions.map((dist, index) => (
-                  <div key={dist.id || index} className="flex items-center justify-between p-3 border rounded-lg bg-muted/30">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-1">
-                        {(dist.jobs?.name || dist.cost_codes?.jobs?.name) && (
-                          <Badge variant="outline">{dist.jobs?.name || dist.cost_codes?.jobs?.name}</Badge>
-                        )}
-                        {dist.cost_codes && (
-                          <span className="text-sm font-medium">
-                            {dist.cost_codes.code} - {dist.cost_codes.description}
-                          </span>
-                        )}
-                        {dist.cost_codes?.type && (
-                          <Badge variant="secondary" className="text-xs capitalize">
-                            {dist.cost_codes.type}
-                          </Badge>
-                        )}
-                      </div>
+                  <div key={dist.id || index} className="p-3 border rounded-lg bg-muted/30 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      {(dist.jobs?.name || dist.cost_codes?.jobs?.name) && (
+                        <Badge variant="outline">{dist.jobs?.name || dist.cost_codes?.jobs?.name}</Badge>
+                      )}
+                      {dist.cost_codes?.type && (
+                        <Badge variant="secondary" className="text-xs capitalize">
+                          {dist.cost_codes.type}
+                        </Badge>
+                      )}
                     </div>
-                    <div className="text-right">
+                    {dist.cost_codes && (
+                      <div className="text-sm font-medium break-words">
+                        {dist.cost_codes.code} - {dist.cost_codes.description}
+                      </div>
+                    )}
+                    <div className="flex items-center justify-between gap-3 text-sm">
                       <p className="font-medium">
                         ${Number(dist.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
-                      <p className="text-xs text-muted-foreground">
+                      <p className="text-muted-foreground">
                         {Number(dist.percentage || 0).toFixed(1)}%
                       </p>
                     </div>
@@ -959,6 +978,11 @@ export default function BillDetails() {
               </div>
             ) : (
               <p className="text-muted-foreground text-center py-4">No cost distribution set</p>
+            )}
+            {!codingValidation.isComplete && (
+              <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
+                {codingValidation.issues[0] || "Bill must be fully coded before approval."}
+              </div>
             )}
           </CardContent>
         </Card>

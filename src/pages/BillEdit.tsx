@@ -22,6 +22,7 @@ import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import BillDistributionSection from "@/components/BillDistributionSection";
 import BillCostDistribution from "@/components/BillCostDistribution";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
 
 interface Vendor {
   id: string;
@@ -595,6 +596,13 @@ export default function BillEdit() {
   const activePreviewUrl = selectedExistingDocument?.file_url || selectedNewFileUrl || bill?.file_url || null;
   const activePreviewName = selectedExistingDocument?.file_name || selectedNewFile?.name || 'Bill Document';
 
+  const codingValidation = evaluateInvoiceCoding({
+    amount: parseFloat(formData.amount) || 0,
+    job_id: formData.job_id || bill?.job_id || null,
+    cost_code_id: formData.cost_code_id || bill?.cost_code_id || null,
+    distributions: billDistribution as any[],
+  });
+
   useEffect(() => {
     let cancelled = false;
     const resolvePreview = async () => {
@@ -620,6 +628,15 @@ export default function BillEdit() {
 
   const handleSave = async (overrideStatus?: string, processDistribution: boolean = false) => {
     try {
+      if ((overrideStatus === 'pending_payment' || overrideStatus === 'approved') && !codingValidation.isComplete) {
+        toast({
+          title: "Bill is not fully coded",
+          description: codingValidation.issues[0] || "Complete job/cost coding and 100% distribution before approval.",
+          variant: "destructive",
+        });
+        return;
+      }
+
       // Validate attachments if required
       if (attachmentRequired && existingDocuments.length === 0 && billFiles.length === 0) {
         toast({
@@ -844,7 +861,7 @@ export default function BillEdit() {
               <Button
                 variant="default"
                 onClick={() => handleSave('pending_payment')}
-                disabled={saving}
+                disabled={saving || !codingValidation.isComplete}
               >
                 <Check className="h-4 w-4 mr-2" />
                 Approve Bill
@@ -858,6 +875,11 @@ export default function BillEdit() {
                 Reject Bill
               </Button>
             </>
+          )}
+          {!codingValidation.isComplete && bill?.status === 'pending_approval' && (
+            <span className="text-xs text-destructive">
+              {codingValidation.issues[0]}
+            </span>
           )}
           <Button variant="outline" onClick={() => handleSave()} disabled={saving}>
             {saving ? (

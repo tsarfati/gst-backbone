@@ -34,6 +34,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import DragDropUpload from "@/components/DragDropUpload";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
 
 interface Vendor {
   id: string;
@@ -572,45 +573,28 @@ export default function MakePayment() {
       const invoice = invoices.find(inv => inv.id === invoiceId);
       if (!invoice) continue;
 
-      // Check if bill has cost distributions (multi-line coding)
       const { data: distributionCheck } = await supabase
         .from('invoice_cost_distributions')
-        .select('id, cost_code_id, amount')
+        .select(`
+          amount,
+          cost_code_id,
+          cost_codes(job_id, jobs(id))
+        `)
         .eq('invoice_id', invoiceId);
 
-      const hasDistributions = distributionCheck && distributionCheck.length > 0;
-
-      if (hasDistributions) {
-        // Validate all distribution lines have cost codes
-        for (const dist of distributionCheck!) {
-          if (!dist.cost_code_id) {
-            toast({
-              title: "Uncoded Bill",
-              description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} has distribution lines that are not coded to cost codes. Please code all lines before paying.`,
-              variant: "destructive",
-            });
-            return;
-          }
-        }
-      } else {
-        // Single-line bill - validate the main invoice fields
-        if (invoice.job_id && !invoice.cost_code_id) {
-          toast({
-            title: "Uncoded Bill",
-            description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} is assigned to a job but has no cost code. Please code the bill before paying.`,
-            variant: "destructive",
-          });
-          return;
-        }
-
-        if (!invoice.job_id && !invoice.chart_account_id) {
-          toast({
-            title: "Uncoded Bill",
-            description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)} is not assigned to a job or expense account. Please code the bill before paying.`,
-            variant: "destructive",
-          });
-          return;
-        }
+      const codingValidation = evaluateInvoiceCoding({
+        amount: invoice.amount,
+        job_id: invoice.job_id,
+        cost_code_id: invoice.cost_code_id,
+        distributions: (distributionCheck || []) as any[],
+      });
+      if (!codingValidation.isComplete) {
+        toast({
+          title: "Uncoded Bill",
+          description: `Bill #${invoice.invoice_number || invoiceId.substring(0, 8)}: ${codingValidation.issues[0] || "Complete coding before payment."}`,
+          variant: "destructive",
+        });
+        return;
       }
     }
 
