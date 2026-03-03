@@ -1102,7 +1102,7 @@ export default function CompanyManagement() {
           {loadingCompanyEmailSettings ? (
             <div className="py-12 flex items-center justify-center text-muted-foreground">
               <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              Loading settings...
+              <span className="loading-dots">Loading settings</span>
             </div>
           ) : (
             <div className="space-y-5">
@@ -1275,7 +1275,7 @@ export default function CompanyManagement() {
 
             <div className="max-h-[420px] overflow-y-auto rounded border">
               {loadingCompanyUsers ? (
-                <div className="p-4 text-sm text-muted-foreground">Loading users...</div>
+                <div className="p-4 text-sm text-muted-foreground"><span className="loading-dots">Loading users</span></div>
               ) : companyUsers.length === 0 ? (
                 <div className="p-4 text-sm text-muted-foreground">No users assigned to this company yet.</div>
               ) : (

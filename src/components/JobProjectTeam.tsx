@@ -357,7 +357,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center text-muted-foreground">Loading project team...</div>
+          <div className="text-center text-muted-foreground"><span className="loading-dots">Loading project team</span></div>
         </CardContent>
       </Card>
     );

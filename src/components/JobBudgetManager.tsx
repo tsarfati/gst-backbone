@@ -502,7 +502,7 @@ export default function JobBudgetManager({ jobId, jobName, selectedCostCodes, jo
     .reduce((sum, line) => sum + (line.budgeted_amount || 0), 0);
 
   if (loading) {
-    return <div>Loading budget data...</div>;
+    return <div><span className="loading-dots">Loading budget data</span></div>;
   }
 
   return (

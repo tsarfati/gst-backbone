@@ -309,7 +309,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl">
           <div className="flex items-center justify-center p-8">
-            <div>Loading time card...</div>
+            <div><span className="loading-dots">Loading time card</span></div>
           </div>
         </DialogContent>
       </Dialog>

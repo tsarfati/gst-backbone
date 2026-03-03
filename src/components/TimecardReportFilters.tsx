@@ -296,7 +296,7 @@ export default function TimecardReportFilters({
               Clear
             </Button>
             <Button size="sm" onClick={onApplyFilters} disabled={loading}>
-              {loading ? 'Loading...' : 'Apply Filters'}
+              {loading ? <span className="loading-dots">Loading</span> : 'Apply Filters'}
             </Button>
           </div>
         </CardTitle>

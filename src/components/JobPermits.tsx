@@ -235,7 +235,7 @@ export default function JobPermits({ jobId }: JobPermitsProps) {
   if (loading) {
     return (
       <div className="text-center py-8">
-        <p className="text-muted-foreground">Loading permits...</p>
+        <p className="text-muted-foreground"><span className="loading-dots">Loading permits</span></p>
       </div>
     );
   }

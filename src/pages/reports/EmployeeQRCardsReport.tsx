@@ -552,7 +552,7 @@ export default function EmployeeQRCardsReport() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-muted-foreground text-center py-8">Loading...</p>
+            <p className="text-muted-foreground text-center py-8"><span className="loading-dots">Loading</span></p>
           ) : pinEmployees.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No PIN employees found</p>
           ) : (

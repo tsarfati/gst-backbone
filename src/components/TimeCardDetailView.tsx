@@ -864,7 +864,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             <DialogDescription>Fetching the latest data…</DialogDescription>
           </DialogHeader>
           <div className="flex items-center justify-center p-8">
-            <div className="text-center">Loading time card details...</div>
+            <div className="text-center"><span className="loading-dots">Loading time card details</span></div>
           </div>
         </DialogContent>
       </Dialog>

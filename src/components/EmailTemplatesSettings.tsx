@@ -49,7 +49,7 @@ export default function EmailTemplatesSettings() {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="py-8 text-center text-muted-foreground">Loading templates...</div>
+          <div className="py-8 text-center text-muted-foreground"><span className="loading-dots">Loading templates</span></div>
         ) : (
           <div className="space-y-4">
             {templates.map((template) => (

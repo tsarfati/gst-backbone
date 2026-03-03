@@ -287,7 +287,7 @@ export default function JobCostBudget() {
       <div className="p-4 md:p-6">
         <div className="text-center py-12">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading job data...</p>
+          <p className="text-muted-foreground"><span className="loading-dots">Loading job data</span></p>
         </div>
       </div>
     );

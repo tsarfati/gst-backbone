@@ -227,7 +227,7 @@ export default function CreditCardMakePayment() {
   };
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return <div className="flex items-center justify-center h-screen"><span className="loading-dots">Loading</span></div>;
   }
 
   if (!creditCard) {

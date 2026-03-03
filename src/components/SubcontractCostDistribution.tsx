@@ -159,7 +159,7 @@ export default function SubcontractCostDistribution({
   };
 
   if (loading) {
-    return <div className="text-center text-muted-foreground py-4">Loading cost codes...</div>;
+    return <div className="text-center text-muted-foreground py-4"><span className="loading-dots">Loading cost codes</span></div>;
   }
 
   return (

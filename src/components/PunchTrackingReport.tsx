@@ -253,7 +253,7 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
   if (loading) {
     return (
       <Card className="p-6">
-        <div className="text-center text-muted-foreground">Loading punch records...</div>
+        <div className="text-center text-muted-foreground"><span className="loading-dots">Loading punch records</span></div>
       </Card>
     );
   }

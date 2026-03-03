@@ -1,0 +1,309 @@
+import { useEffect, useMemo, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Building2, CheckCircle2, XCircle } from 'lucide-react';
+import { supabase } from '@/integrations/supabase/client';
+import { useToast } from '@/hooks/use-toast';
+import builderlynkLogo from '@/assets/builderlynk-icon-shield.png';
+import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
+import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
+
+type PublicCompany = {
+  id: string;
+  name: string;
+  display_name: string | null;
+  logo_url: string | null;
+  design_professional_portal_enabled: boolean | null;
+  design_professional_signup_background_image_url: string | null;
+  design_professional_signup_logo_url: string | null;
+  design_professional_signup_header_title: string | null;
+  design_professional_signup_header_subtitle: string | null;
+};
+
+export default function DesignProfessionalSignup() {
+  const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const { toast } = useToast();
+
+  const preselectedCompanyId = searchParams.get('company');
+  const isCompanyLocked = Boolean(preselectedCompanyId);
+
+  const [loadingCompanies, setLoadingCompanies] = useState(true);
+  const [submitting, setSubmitting] = useState(false);
+  const [submitted, setSubmitted] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [companies, setCompanies] = useState<PublicCompany[]>([]);
+
+  const [form, setForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    phone: '',
+    companyId: preselectedCompanyId || '',
+    businessName: '',
+    password: '',
+    confirmPassword: '',
+  });
+
+  useEffect(() => {
+    const loadCompanies = async () => {
+      try {
+        const { data, error: fnError } = await supabase.functions.invoke('list-public-signup-companies', {
+          body: { limit: 150 },
+        });
+        if (fnError) throw fnError;
+
+        const rows = Array.isArray(data?.companies) ? data.companies : [];
+        setCompanies(rows.filter((company: any) => company.design_professional_portal_enabled !== false));
+      } catch (e: any) {
+        console.error('Failed to load companies for design professional signup', e);
+        setError('Unable to load companies right now.');
+      } finally {
+        setLoadingCompanies(false);
+      }
+    };
+
+    void loadCompanies();
+  }, []);
+
+  useEffect(() => {
+    if (!isCompanyLocked || loadingCompanies || !preselectedCompanyId) return;
+    const exists = companies.some((c) => c.id === preselectedCompanyId);
+    if (!exists) {
+      setError('This company signup link is invalid or unavailable.');
+      return;
+    }
+    setForm((prev) => ({ ...prev, companyId: preselectedCompanyId }));
+  }, [companies, isCompanyLocked, loadingCompanies, preselectedCompanyId]);
+
+  const selectedCompany = useMemo(
+    () => companies.find((c) => c.id === form.companyId) || null,
+    [companies, form.companyId],
+  );
+
+  const signupLogoUrl = useMemo(
+    () => resolveCompanyLogoUrl(selectedCompany?.design_professional_signup_logo_url || selectedCompany?.logo_url),
+    [selectedCompany?.design_professional_signup_logo_url, selectedCompany?.logo_url],
+  );
+
+  const backgroundImageUrl = useMemo(
+    () => resolveCompanyLogoUrl(selectedCompany?.design_professional_signup_background_image_url),
+    [selectedCompany?.design_professional_signup_background_image_url],
+  );
+
+  const pageTitle = selectedCompany?.display_name || selectedCompany?.name
+    ? `Join ${selectedCompany.display_name || selectedCompany.name}`
+    : 'Design Professional Signup';
+
+  const signupHeader = selectedCompany?.design_professional_signup_header_title?.trim() || pageTitle;
+  const signupSubheader = selectedCompany?.design_professional_signup_header_subtitle?.trim()
+    || (selectedCompany
+      ? `Create your BuilderLYNK design professional account for ${selectedCompany.display_name || selectedCompany.name}.`
+      : 'Create your BuilderLYNK design professional account and request approval.');
+
+  const onSubmit = async (event: React.FormEvent) => {
+    event.preventDefault();
+    setError(null);
+
+    if (!form.companyId) {
+      setError('Please select the company you want to request access to.');
+      return;
+    }
+    if (!form.firstName.trim() || !form.lastName.trim()) {
+      setError('First name and last name are required.');
+      return;
+    }
+    if (form.password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
+    if (form.password !== form.confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+
+    setSubmitting(true);
+    try {
+      const normalizedEmail = form.email.trim().toLowerCase();
+
+      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
+        email: normalizedEmail,
+        password: form.password,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth`,
+          data: {
+            first_name: form.firstName.trim(),
+            last_name: form.lastName.trim(),
+            requested_role: 'design_professional',
+            requested_company_id: form.companyId,
+            business_name: form.businessName.trim() || null,
+          },
+        },
+      });
+
+      if (signUpError) throw signUpError;
+      if (!signUpData.user?.id) throw new Error('Signup completed but no user id was returned.');
+
+      const { error: requestError } = await supabase.functions.invoke('create-vendor-signup-request', {
+        body: {
+          userId: signUpData.user.id,
+          email: normalizedEmail,
+          firstName: form.firstName.trim(),
+          lastName: form.lastName.trim(),
+          phone: form.phone.trim() || null,
+          companyId: form.companyId,
+          requestedRole: 'design_professional',
+          businessName: form.businessName.trim() || null,
+        },
+      });
+
+      if (requestError) throw requestError;
+
+      setSubmitted(true);
+      toast({ title: 'Request submitted', description: 'Your account is now pending approval.' });
+    } catch (e: any) {
+      console.error('Design professional signup failed', e);
+      const message = e?.message || 'Failed to submit your signup request.';
+      setError(message);
+      toast({ title: 'Signup failed', description: message, variant: 'destructive' });
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  if (loadingCompanies) {
+    return <PremiumLoadingScreen text="Loading signup options..." />;
+  }
+
+  if (submitted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
+        <Card className="w-full max-w-lg border-slate-700 bg-[#071231] text-slate-100">
+          <CardContent className="pt-6 text-center">
+            <CheckCircle2 className="mx-auto h-14 w-14 text-green-500 mb-4" />
+            <h2 className="text-2xl font-semibold mb-2">Request Submitted</h2>
+            <p className="text-slate-300 mb-6">
+              Your design professional signup is pending approval for{' '}
+              <strong>{selectedCompany?.display_name || selectedCompany?.name || 'the selected company'}</strong>.
+            </p>
+            <Button onClick={() => navigate('/auth')}>Go to Sign In</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  return (
+    <div
+      className="relative min-h-screen flex items-center justify-center p-4 bg-cover bg-center"
+      style={backgroundImageUrl
+        ? { backgroundImage: `linear-gradient(rgba(3,11,32,0.82), rgba(3,11,32,0.88)), url(${backgroundImageUrl})` }
+        : { backgroundColor: '#030B20' }}
+    >
+      <Card className="w-full max-w-2xl border-slate-700 bg-[#071231] text-slate-100">
+        <CardHeader className="text-center">
+          {signupLogoUrl ? (
+            <img
+              src={signupLogoUrl}
+              alt={`${selectedCompany?.display_name || selectedCompany?.name || 'Company'} logo`}
+              className="mx-auto h-24 w-auto max-w-[320px] object-contain sm:h-28"
+            />
+          ) : (
+            <div className="mx-auto h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
+              <Building2 className="h-9 w-9 text-primary" />
+            </div>
+          )}
+        </CardHeader>
+        <CardContent>
+          <form onSubmit={onSubmit} className="space-y-4">
+            {error && (
+              <div className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200 flex items-start gap-2">
+                <XCircle className="h-4 w-4 mt-0.5" />
+                <span>{error}</span>
+              </div>
+            )}
+
+            <div className="space-y-2 text-center pb-1">
+              <CardTitle className="text-xl sm:text-2xl">{signupHeader}</CardTitle>
+              <CardDescription className="text-slate-300">{signupSubheader}</CardDescription>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="signup-company">Company</Label>
+              {isCompanyLocked ? (
+                <Input id="signup-company" value={selectedCompany?.display_name || selectedCompany?.name || 'Loading company...'} disabled />
+              ) : (
+                <Select value={form.companyId} onValueChange={(value) => setForm((prev) => ({ ...prev, companyId: value }))}>
+                  <SelectTrigger id="signup-company"><SelectValue placeholder="Select company" /></SelectTrigger>
+                  <SelectContent>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>{company.display_name || company.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-first-name">First Name</Label>
+                <Input id="signup-first-name" value={form.firstName} onChange={(e) => setForm((prev) => ({ ...prev, firstName: e.target.value }))} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-last-name">Last Name</Label>
+                <Input id="signup-last-name" value={form.lastName} onChange={(e) => setForm((prev) => ({ ...prev, lastName: e.target.value }))} required />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-email">Email</Label>
+                <Input id="signup-email" type="email" value={form.email} onChange={(e) => setForm((prev) => ({ ...prev, email: e.target.value }))} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-phone">Phone</Label>
+                <Input id="signup-phone" type="tel" value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Optional" />
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="signup-business-name">Business Name</Label>
+              <Input id="signup-business-name" value={form.businessName} onChange={(e) => setForm((prev) => ({ ...prev, businessName: e.target.value }))} placeholder="Optional" />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-password">Password</Label>
+                <Input id="signup-password" type="password" value={form.password} onChange={(e) => setForm((prev) => ({ ...prev, password: e.target.value }))} required />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                <Input id="signup-confirm-password" type="password" value={form.confirmPassword} onChange={(e) => setForm((prev) => ({ ...prev, confirmPassword: e.target.value }))} required />
+              </div>
+            </div>
+
+            <div className="flex flex-col items-center gap-2 pt-2">
+              <Button type="submit" disabled={submitting}>
+                {submitting ? 'Submitting...' : 'Submit For Approval'}
+              </Button>
+            </div>
+          </form>
+        </CardContent>
+      </Card>
+
+      <a
+        href="https://builderlink.com"
+        target="_blank"
+        rel="noreferrer"
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-2 text-xs text-slate-100 transition-colors hover:bg-black/45"
+      >
+        <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain" />
+        <span>Powered by BuilderLYNK</span>
+      </a>
+    </div>
+  );
+}

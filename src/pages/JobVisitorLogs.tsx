@@ -67,7 +67,7 @@ export default function JobVisitorLogs() {
       <div className="p-4 md:p-6">
         <Card>
           <CardContent className="p-6">
-            <div className="text-center">Loading visitor logs...</div>
+            <div className="text-center"><span className="loading-dots">Loading visitor logs</span></div>
           </CardContent>
         </Card>
       </div>

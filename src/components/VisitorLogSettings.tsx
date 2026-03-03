@@ -171,7 +171,7 @@ export function VisitorLogSettings() {
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center">Loading visitor login settings...</div>
+          <div className="text-center"><span className="loading-dots">Loading visitor login settings</span></div>
         </CardContent>
       </Card>
     );

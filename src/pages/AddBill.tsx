@@ -1592,7 +1592,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   console.log('isFormValid:', isFormValid);
 
   if (loading) {
-    return <div className="p-4 md:p-6 text-center">Loading...</div>;
+    return <div className="p-4 md:p-6 text-center"><span className="loading-dots">Loading</span></div>;
   }
 
   return (

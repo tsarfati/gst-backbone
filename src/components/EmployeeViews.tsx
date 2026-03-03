@@ -47,7 +47,7 @@ export default function EmployeeViews({ employees, currentView, canManageEmploye
   const { avatarMap } = useUserAvatars(employeeUserIds);
 
   if (loading) {
-    return <div className="text-center py-8">Loading employees...</div>;
+    return <div className="text-center py-8"><span className="loading-dots">Loading employees</span></div>;
   }
 
   if (employees.length === 0) {

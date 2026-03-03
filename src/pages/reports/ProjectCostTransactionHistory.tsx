@@ -1103,7 +1103,7 @@ export default function ProjectCostTransactionHistory() {
               Select a job to view transactions
             </div>
           ) : loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <div className="text-center py-8 text-muted-foreground"><span className="loading-dots">Loading</span></div>
           ) : filteredTransactions.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No transactions found

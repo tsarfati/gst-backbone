@@ -73,7 +73,7 @@ export default function JobVisitorLogsView() {
     return (
       <Card>
         <CardContent className="p-6 text-center text-muted-foreground">
-          Loading visitor logs...
+          <span className="loading-dots">Loading visitor logs</span>
         </CardContent>
       </Card>
     );

@@ -324,7 +324,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center">Loading settings...</div>
+          <div className="text-center"><span className="loading-dots">Loading settings</span></div>
         </CardContent>
       </Card>
     );

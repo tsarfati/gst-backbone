@@ -256,7 +256,7 @@ export default function ARInvoiceDetails() {
         </div>
         <Card>
           <CardContent className="py-12">
-            <div className="text-center text-muted-foreground">Loading invoice...</div>
+            <div className="text-center text-muted-foreground"><span className="loading-dots">Loading invoice</span></div>
           </CardContent>
         </Card>
       </div>

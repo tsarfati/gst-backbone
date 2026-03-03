@@ -250,7 +250,7 @@ export default function EmployeeTimecardSettings({
     return (
       <Card>
         <CardContent className="p-6 text-center">
-          <div className="text-muted-foreground">Loading employee settings...</div>
+          <div className="text-muted-foreground"><span className="loading-dots">Loading employee settings</span></div>
         </CardContent>
       </Card>
     );

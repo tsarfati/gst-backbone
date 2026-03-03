@@ -218,7 +218,7 @@ export default function PMMobileSettings() {
   };
 
   if (loading) {
-    return <div className="p-4 text-sm text-muted-foreground">Loading PM Lynk settings...</div>;
+    return <div className="p-4 text-sm text-muted-foreground"><span className="loading-dots">Loading PM Lynk settings</span></div>;
   }
 
   return (

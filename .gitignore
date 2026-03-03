@@ -22,3 +22,11 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local backup artifacts
+backups/
+*.bundle
+*.tar.gz
+
+# Supabase local temp metadata
+supabase/.temp/

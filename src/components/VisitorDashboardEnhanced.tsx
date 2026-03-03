@@ -197,7 +197,7 @@ export function VisitorDashboardEnhanced({ jobId, companyName, onOpenSettings }:
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center">Loading on-site data...</div>
+          <div className="text-center"><span className="loading-dots">Loading on-site data</span></div>
         </CardContent>
       </Card>
     );

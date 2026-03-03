@@ -251,7 +251,7 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center text-muted-foreground">Loading...</div>
+          <div className="text-center text-muted-foreground"><span className="loading-dots">Loading</span></div>
         </CardContent>
       </Card>
     );

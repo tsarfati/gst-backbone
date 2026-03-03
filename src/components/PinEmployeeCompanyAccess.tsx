@@ -223,7 +223,7 @@ export default function PinEmployeeCompanyAccess({ pinEmployeeId }: PinEmployeeC
   );
 
   if (loading) {
-    return <div className="text-center p-4">Loading company access...</div>;
+    return <div className="text-center p-4"><span className="loading-dots">Loading company access</span></div>;
   }
 
   return (

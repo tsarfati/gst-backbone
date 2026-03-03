@@ -374,7 +374,7 @@ export default function AuditLog() {
   if (loading) {
     return (
       <div className="p-6">
-        <div className="text-center py-12 text-muted-foreground">Loading audit log...</div>
+        <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading audit log</span></div>
       </div>
     );
   }

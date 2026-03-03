@@ -135,7 +135,7 @@ export default function JobCostCodeAssignments({
     return (
       <Card>
         <CardContent className="p-6 text-center text-muted-foreground">
-          Loading job assignments...
+          <span className="loading-dots">Loading job assignments</span>
         </CardContent>
       </Card>
     );

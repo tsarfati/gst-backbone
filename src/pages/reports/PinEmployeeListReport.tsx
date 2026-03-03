@@ -129,7 +129,7 @@ export default function PinEmployeeListReport() {
       <Card>
         <CardContent className="pt-6">
           {loading ? (
-            <p className="text-muted-foreground text-center py-8">Loading...</p>
+            <p className="text-muted-foreground text-center py-8"><span className="loading-dots">Loading</span></p>
           ) : employees.length === 0 ? (
             <p className="text-muted-foreground text-center py-8">No employees with PIN access found</p>
           ) : (

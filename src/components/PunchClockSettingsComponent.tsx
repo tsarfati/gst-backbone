@@ -317,7 +317,7 @@ export default function PunchClockSettingsComponent() {
   const isRoleReady = activeCompanyRole !== null || !currentCompany;
   
   if (loading || companyLoading || !isRoleReady) {
-    return <div className="text-center py-8">Loading punch clock settings...</div>;
+    return <div className="text-center py-8"><span className="loading-dots">Loading punch clock settings</span></div>;
   }
 
   // Debug: log role information

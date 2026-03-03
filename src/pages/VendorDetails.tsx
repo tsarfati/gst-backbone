@@ -587,7 +587,7 @@ export default function VendorDetails() {
   if (loading) {
     return (
       <div className="p-4 md:p-6">
-        <div className="text-center py-12 text-muted-foreground">Loading vendor details...</div>
+        <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading vendor details</span></div>
       </div>
     );
   }
@@ -1340,7 +1340,7 @@ export default function VendorDetails() {
             </DialogDescription>
           </DialogHeader>
           {scopeEditorLoading ? (
-            <div className="py-8 text-center text-sm text-muted-foreground">Loading scope options...</div>
+            <div className="py-8 text-center text-sm text-muted-foreground"><span className="loading-dots">Loading scope options</span></div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="rounded border">

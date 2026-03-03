@@ -287,7 +287,7 @@ export default function JobSubmittals({ jobId }: JobSubmittalsProps) {
   };
 
   if (loading) {
-    return <div className="p-4 text-muted-foreground">Loading submittals...</div>;
+    return <div className="p-4 text-muted-foreground"><span className="loading-dots">Loading submittals</span></div>;
   }
 
   if (tableMissing) {

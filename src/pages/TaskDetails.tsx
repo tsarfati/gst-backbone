@@ -385,7 +385,7 @@ export default function TaskDetails() {
   if (loading) {
     return (
       <div className="p-6 flex items-center justify-center">
-        <div className="text-center">Loading task details...</div>
+        <div className="text-center"><span className="loading-dots">Loading task details</span></div>
       </div>
     );
   }

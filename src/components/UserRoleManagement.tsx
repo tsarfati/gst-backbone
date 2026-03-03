@@ -341,7 +341,7 @@ export default function UserRoleManagement() {
       <div className="p-6">
         <Card>
           <CardContent className="py-8">
-            <p className="text-center text-muted-foreground">Loading users...</p>
+            <p className="text-center text-muted-foreground"><span className="loading-dots">Loading users</span></p>
           </CardContent>
         </Card>
       </div>

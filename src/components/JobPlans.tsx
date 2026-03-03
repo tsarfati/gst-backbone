@@ -570,7 +570,7 @@ export default function JobPlans({ jobId }: JobPlansProps) {
   );
 
   if (loading) {
-    return <div className="p-6">Loading plans...</div>;
+    return <div className="p-6"><span className="loading-dots">Loading plans</span></div>;
   }
 
   return (

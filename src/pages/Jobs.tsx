@@ -339,7 +339,7 @@ export default function Jobs() {
       </div>
 
       {loading ? (
-        <div className="text-center py-12 text-muted-foreground">Loading jobs...</div>
+        <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading jobs</span></div>
       ) : (
         renderJobs()
       )}

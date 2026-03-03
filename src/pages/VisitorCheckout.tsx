@@ -153,7 +153,7 @@ export default function VisitorCheckout() {
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4 text-primary" />
-          <p className="text-muted-foreground">Loading checkout information...</p>
+          <p className="text-muted-foreground"><span className="loading-dots">Loading checkout information</span></p>
         </div>
       </div>
     );

@@ -424,7 +424,7 @@ export default function PunchClockSettings() {
   };
 
   if (loading) {
-    return <div className="p-4 md:p-6 text-center">Loading punch clock settings...</div>;
+    return <div className="p-4 md:p-6 text-center"><span className="loading-dots">Loading punch clock settings</span></div>;
   }
 
   if (!isManager) {

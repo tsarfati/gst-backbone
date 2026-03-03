@@ -190,7 +190,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
           {loading && (
             <div className="flex flex-col items-center justify-center h-96 gap-3">
               <Loader2 className="h-8 w-8 animate-spin text-primary" />
-              <p className="text-sm text-muted-foreground">Loading PDF pages...</p>
+              <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading PDF pages</span></p>
             </div>
           )}
 

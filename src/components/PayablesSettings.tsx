@@ -574,7 +574,7 @@ export default function PayablesSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading payables settings...</div>
+        <div className="text-muted-foreground"><span className="loading-dots">Loading payables settings</span></div>
       </div>
     );
   }

@@ -91,7 +91,7 @@ export default function JobCostBudgetView() {
     return (
       <div className="text-center py-12">
         <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-        <p className="text-muted-foreground">Loading budget data...</p>
+        <p className="text-muted-foreground"><span className="loading-dots">Loading budget data</span></p>
       </div>
     );
   }

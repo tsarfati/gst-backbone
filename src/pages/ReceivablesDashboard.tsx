@@ -108,7 +108,7 @@ export default function ReceivablesDashboard() {
   if (loading) {
     return (
       <div className="p-4 md:p-6">
-        <div className="text-center py-8 text-muted-foreground">Loading...</div>
+        <div className="text-center py-8 text-muted-foreground"><span className="loading-dots">Loading</span></div>
       </div>
     );
   }

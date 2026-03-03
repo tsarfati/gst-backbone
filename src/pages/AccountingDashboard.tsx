@@ -170,7 +170,7 @@ export default function AccountingDashboard() {
       <div className="min-h-screen flex items-center justify-center">
         <div className="text-center">
           <Calculator className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p>Loading accounting data...</p>
+          <p><span className="loading-dots">Loading accounting data</span></p>
         </div>
       </div>
     );

@@ -110,7 +110,7 @@ export default function BankAccounts() {
       <div className="p-6">
         <div className="text-center py-12">
           <Building className="h-8 w-8 animate-pulse mx-auto mb-4 text-muted-foreground" />
-          <p className="text-muted-foreground">Loading bank accounts...</p>
+          <p className="text-muted-foreground"><span className="loading-dots">Loading bank accounts</span></p>
         </div>
       </div>
     );

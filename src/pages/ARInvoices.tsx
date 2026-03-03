@@ -189,7 +189,7 @@ export default function ARInvoices() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <div className="text-center py-8 text-muted-foreground"><span className="loading-dots">Loading</span></div>
           ) : filteredInvoices.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               {search || statusFilter !== "all" ? "No invoices match your filters" : "No invoices found"}

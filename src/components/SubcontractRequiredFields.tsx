@@ -148,7 +148,7 @@ export default function SubcontractRequiredFields() {
   };
 
   if (loading) {
-    return <div className="text-muted-foreground">Loading...</div>;
+    return <div className="text-muted-foreground"><span className="loading-dots">Loading</span></div>;
   }
 
   return (

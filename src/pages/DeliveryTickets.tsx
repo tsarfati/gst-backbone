@@ -488,7 +488,7 @@ export default function DeliveryTickets() {
             <Card>
               <CardContent className="p-6 text-center">
                 <Loader2 className="h-6 w-6 animate-spin mx-auto mb-2" />
-                <p className="text-muted-foreground">Loading delivery tickets...</p>
+                <p className="text-muted-foreground"><span className="loading-dots">Loading delivery tickets</span></p>
               </CardContent>
             </Card>
           ) : deliveryTickets.length === 0 ? (

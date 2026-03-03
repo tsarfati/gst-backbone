@@ -239,7 +239,7 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center">Loading visitor reports...</div>
+          <div className="text-center"><span className="loading-dots">Loading visitor reports</span></div>
         </CardContent>
       </Card>
     );

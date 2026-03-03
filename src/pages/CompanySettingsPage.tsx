@@ -12,9 +12,10 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import CompanySettings from '@/components/CompanySettings';
 import PayablesSettings from '@/components/PayablesSettings';
+import DesignProfessionalPortalSettings from '@/components/DesignProfessionalPortalSettings';
 import CreditCardSettings from '@/components/CreditCardSettings';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
-import { CreditCard, DollarSign, Banknote, FileText, Building2, Palette, Mail, Upload, Users, UserPlus, Trash2, Loader2 } from 'lucide-react';
+import { CreditCard, DollarSign, Banknote, FileText, Building2, Palette, Mail, Upload, Users, UserPlus, Trash2, Loader2, Briefcase } from 'lucide-react';
 import AccrualAccountingSettings from '@/components/AccrualAccountingSettings';
 import AIAInvoiceTemplateSettings from '@/components/AIAInvoiceTemplateSettings';
 import PdfTemplateSettings from '@/components/PdfTemplateSettings';
@@ -585,6 +586,10 @@ export default function CompanySettingsPage() {
               <CreditCard className="h-4 w-4" />
               Payables
             </TabsTrigger>
+            <TabsTrigger value="jobs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
+              <Briefcase className="h-4 w-4" />
+              Jobs
+            </TabsTrigger>
             <TabsTrigger value="receivable-settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
               <FileText className="h-4 w-4" />
               Receivables
@@ -718,7 +723,7 @@ export default function CompanySettingsPage() {
                 {loadingCompanyUsers ? (
                   <div className="py-8 text-muted-foreground flex items-center">
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Loading users...
+                    <span className="loading-dots">Loading users</span>
                   </div>
                 ) : companyUsers.length === 0 ? (
                   <div className="py-8 text-sm text-muted-foreground">No users assigned to this company.</div>
@@ -785,6 +790,17 @@ export default function CompanySettingsPage() {
                 showJournalEntrySettings={false}
               />
             </div>
+          </TabsContent>
+
+          <TabsContent value="jobs">
+            <Tabs defaultValue="design-professional-portal" className="space-y-4">
+              <TabsList>
+                <TabsTrigger value="design-professional-portal">Design Professional Portal</TabsTrigger>
+              </TabsList>
+              <TabsContent value="design-professional-portal">
+                <DesignProfessionalPortalSettings />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="receivable-settings">
@@ -951,7 +967,7 @@ export default function CompanySettingsPage() {
           {loadingCompanyEmailSettings ? (
             <div className="py-12 flex items-center justify-center text-muted-foreground">
               <Loader2 className="h-5 w-5 mr-2 animate-spin" />
-              Loading settings...
+              <span className="loading-dots">Loading settings</span>
             </div>
           ) : (
             <div className="space-y-5">

@@ -1022,7 +1022,7 @@ export default function Reconcile() {
     return (
       <div className="p-6">
         <p className="text-center text-muted-foreground">
-          {loading ? "Loading..." : "Bank account not found"}
+          {loading ? <span className="loading-dots">Loading</span> : "Bank account not found"}
         </p>
       </div>
     );

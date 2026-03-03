@@ -150,7 +150,7 @@ export default function DocumentPreviewModal({
     if (refreshing) {
       return (
         <div className="flex items-center justify-center h-[600px]">
-          <p className="text-muted-foreground">Loading preview...</p>
+          <p className="text-muted-foreground"><span className="loading-dots">Loading preview</span></p>
         </div>
       );
     }

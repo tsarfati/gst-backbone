@@ -258,7 +258,7 @@ export default function BillAttachmentsModal({ invoiceId, open, onOpenChange }: 
         {loading ? (
           <div className="flex items-center justify-center py-16 text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            Loading bill review...
+            <span className="loading-dots">Loading bill review</span>
           </div>
         ) : (
           <div className="grid grid-cols-1 xl:grid-cols-3 gap-4 h-full min-h-0">
@@ -442,4 +442,3 @@ export default function BillAttachmentsModal({ invoiceId, open, onOpenChange }: 
     </Dialog>
   );
 }
-

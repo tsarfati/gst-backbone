@@ -25,7 +25,8 @@ import {
   ClipboardList,
   HelpCircle,
   Settings2,
-  Sparkles
+  Sparkles,
+  Gavel
 } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -115,6 +116,35 @@ interface VendorContract {
   jobs?: { id: string; name: string } | null;
 }
 
+interface VendorRFP {
+  id: string;
+  rfp_number: string;
+  title: string;
+  description: string | null;
+  scope_of_work: string | null;
+  status: string;
+  issue_date: string | null;
+  due_date: string | null;
+  job?: { id: string; name: string } | null;
+  response_status: string | null;
+  invited_at: string;
+  attachments: Array<{
+    id: string;
+    file_name: string;
+    file_url: string;
+    file_type: string | null;
+    file_size: number | null;
+  }>;
+  my_bid: {
+    id: string;
+    bid_amount: number;
+    proposed_timeline: string | null;
+    notes: string | null;
+    status: string;
+    submitted_at: string;
+  } | null;
+}
+
 export default function VendorDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -126,6 +156,7 @@ export default function VendorDashboard() {
   const [vendorInfo, setVendorInfo] = useState<any>(null);
   const [complianceDocs, setComplianceDocs] = useState<ComplianceDocument[]>([]);
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [rfps, setRfps] = useState<VendorRFP[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [assignedRFIs, setAssignedRFIs] = useState<AssignedRFI[]>([]);
   const [assignedSubmittals, setAssignedSubmittals] = useState<AssignedSubmittal[]>([]);
@@ -165,6 +196,14 @@ export default function VendorDashboard() {
   const [signatureConsent, setSignatureConsent] = useState(false);
   const [invoiceFlowDialogOpen, setInvoiceFlowDialogOpen] = useState(false);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [bidDialogOpen, setBidDialogOpen] = useState(false);
+  const [selectedRfpForBid, setSelectedRfpForBid] = useState<VendorRFP | null>(null);
+  const [submittingBid, setSubmittingBid] = useState(false);
+  const [bidForm, setBidForm] = useState({
+    bid_amount: '',
+    proposed_timeline: '',
+    notes: '',
+  });
   const [invoiceForm, setInvoiceForm] = useState({
     invoiceNumber: '',
     amount: '',
@@ -290,6 +329,104 @@ export default function VendorDashboard() {
       
       if (invoiceData) {
         setInvoices(invoiceData);
+      }
+
+      const { data: invitedRfpsData, error: invitedRfpsError } = await supabase
+        .from('rfp_invited_vendors')
+        .select(`
+          rfp_id,
+          invited_at,
+          response_status,
+          rfp:rfps(
+            id,
+            rfp_number,
+            title,
+            description,
+            scope_of_work,
+            status,
+            issue_date,
+            due_date,
+            job:jobs(id, name)
+          )
+        `)
+        .eq('vendor_id', profile.vendor_id)
+        .eq('company_id', currentCompany.id)
+        .order('invited_at', { ascending: false });
+
+      if (invitedRfpsError) {
+        console.error('Error loading invited RFPs:', invitedRfpsError);
+        setRfps([]);
+      } else {
+        const invitedRows = (invitedRfpsData || []) as any[];
+        const rfpIds = Array.from(
+          new Set(
+            invitedRows
+              .map((row) => row?.rfp?.id as string | undefined)
+              .filter((value): value is string => Boolean(value))
+          )
+        );
+
+        let attachmentsByRfp = new Map<string, any[]>();
+        if (rfpIds.length > 0) {
+          const { data: rfpAttachmentsData, error: rfpAttachmentsError } = await supabase
+            .from('rfp_attachments')
+            .select('id, rfp_id, file_name, file_url, file_type, file_size')
+            .in('rfp_id', rfpIds);
+          if (rfpAttachmentsError) {
+            console.error('Error loading RFP attachments:', rfpAttachmentsError);
+          } else {
+            attachmentsByRfp = new Map<string, any[]>();
+            (rfpAttachmentsData || []).forEach((attachment) => {
+              const list = attachmentsByRfp.get(attachment.rfp_id) || [];
+              list.push(attachment);
+              attachmentsByRfp.set(attachment.rfp_id, list);
+            });
+          }
+        }
+
+        let bidByRfp = new Map<string, any>();
+        if (rfpIds.length > 0) {
+          const { data: myBidsData, error: myBidsError } = await supabase
+            .from('bids')
+            .select('id, rfp_id, bid_amount, proposed_timeline, notes, status, submitted_at')
+            .eq('vendor_id', profile.vendor_id)
+            .in('rfp_id', rfpIds);
+          if (myBidsError) {
+            console.error('Error loading vendor bids:', myBidsError);
+          } else {
+            bidByRfp = new Map((myBidsData || []).map((bid: any) => [bid.rfp_id, bid]));
+          }
+        }
+
+        const mappedRfps: VendorRFP[] = invitedRows
+          .map((row: any) => {
+            const baseRfp = row.rfp;
+            if (!baseRfp?.id) return null;
+            return {
+              id: baseRfp.id,
+              rfp_number: baseRfp.rfp_number,
+              title: baseRfp.title,
+              description: baseRfp.description,
+              scope_of_work: baseRfp.scope_of_work,
+              status: baseRfp.status,
+              issue_date: baseRfp.issue_date,
+              due_date: baseRfp.due_date,
+              job: baseRfp.job || null,
+              response_status: row.response_status || null,
+              invited_at: row.invited_at,
+              attachments: (attachmentsByRfp.get(baseRfp.id) || []).map((item: any) => ({
+                id: item.id,
+                file_name: item.file_name,
+                file_url: item.file_url,
+                file_type: item.file_type || null,
+                file_size: item.file_size || null,
+              })),
+              my_bid: bidByRfp.get(baseRfp.id) || null,
+            } as VendorRFP;
+          })
+          .filter((value): value is VendorRFP => value !== null);
+
+        setRfps(mappedRfps);
       }
 
       const { data: contractData } = await supabase
@@ -581,6 +718,11 @@ export default function VendorDashboard() {
   });
 
   const unreadMessages = messages.filter(m => !m.read).length;
+  const openRfps = rfps.filter((rfp) => {
+    const status = String(rfp.status || '').toLowerCase();
+    return status !== 'closed' && status !== 'awarded' && status !== 'cancelled';
+  });
+  const rfpWithoutBidCount = rfps.filter((rfp) => !rfp.my_bid).length;
   const isDesignProfessionalVendor = String(vendorInfo?.vendor_type || '').toLowerCase() === 'design_professional';
   const canOpenInvoiceDetails = profile?.role !== 'vendor' && profile?.role !== 'design_professional';
   const actionRequiredRFIs = assignedRFIs.filter((rfi) => {
@@ -798,6 +940,65 @@ export default function VendorDashboard() {
     };
     const config = statusConfig[status] || { variant: "secondary", label: status };
     return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
+  const openBidDialog = (rfp: VendorRFP) => {
+    setSelectedRfpForBid(rfp);
+    setBidForm({
+      bid_amount: rfp.my_bid?.bid_amount ? String(rfp.my_bid.bid_amount) : '',
+      proposed_timeline: rfp.my_bid?.proposed_timeline || '',
+      notes: rfp.my_bid?.notes || '',
+    });
+    setBidDialogOpen(true);
+  };
+
+  const submitVendorBid = async () => {
+    if (!selectedRfpForBid || !currentCompany?.id || !profile?.vendor_id) return;
+
+    const amount = Number(bidForm.bid_amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast({
+        title: 'Invalid bid amount',
+        description: 'Enter a valid bid amount greater than 0.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setSubmittingBid(true);
+      const payload = {
+        rfp_id: selectedRfpForBid.id,
+        company_id: currentCompany.id,
+        vendor_id: profile.vendor_id,
+        bid_amount: amount,
+        proposed_timeline: bidForm.proposed_timeline?.trim() || null,
+        notes: bidForm.notes?.trim() || null,
+        status: 'submitted',
+      };
+
+      const { error } = await supabase
+        .from('bids')
+        .upsert(payload, { onConflict: 'rfp_id,vendor_id' });
+
+      if (error) throw error;
+
+      toast({
+        title: selectedRfpForBid.my_bid ? 'Bid updated' : 'Bid submitted',
+        description: 'Your bid has been saved.',
+      });
+      setBidDialogOpen(false);
+      await fetchVendorData();
+    } catch (error: any) {
+      console.error('Error submitting vendor bid:', error);
+      toast({
+        title: 'Bid submission failed',
+        description: error?.message || 'Unable to submit bid at this time.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmittingBid(false);
+    }
   };
 
   const getRFIStatusBadge = (status: string, ballInCourt: string | null) => {
@@ -1229,6 +1430,19 @@ export default function VendorDashboard() {
           </CardContent>
         </Card>
 
+        <Card className={rfpWithoutBidCount > 0 ? "border-primary bg-primary/5" : ""}>
+          <CardHeader className="flex flex-row items-center justify-between pb-2">
+            <CardTitle className="text-sm font-medium">RFP Invitations</CardTitle>
+            <Gavel className={`h-4 w-4 ${rfpWithoutBidCount > 0 ? 'text-primary' : 'text-muted-foreground'}`} />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{openRfps.length}</div>
+            <p className="text-xs text-muted-foreground">
+              {rfpWithoutBidCount > 0 ? `${rfpWithoutBidCount} need bids` : 'All invited RFPs covered'}
+            </p>
+          </CardContent>
+        </Card>
+
         {isDesignProfessionalVendor && (
           <Card className={actionRequiredSubmittals.length > 0 ? "border-primary bg-primary/5" : ""}>
             <CardHeader className="flex flex-row items-center justify-between pb-2">
@@ -1262,7 +1476,7 @@ export default function VendorDashboard() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${isDesignProfessionalVendor ? 'grid-cols-9' : 'grid-cols-6'}`}>
+        <TabsList className={`grid w-full ${isDesignProfessionalVendor ? 'grid-cols-10' : 'grid-cols-7'}`}>
           {isDesignProfessionalVendor && (
             <TabsTrigger value="rfis" className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
@@ -1308,6 +1522,15 @@ export default function VendorDashboard() {
           <TabsTrigger value="invoices" className="flex items-center gap-2">
             <DollarSign className="h-4 w-4" />
             Invoices
+          </TabsTrigger>
+          <TabsTrigger value="rfps" className="flex items-center gap-2">
+            <Gavel className="h-4 w-4" />
+            RFPs
+            {rfpWithoutBidCount > 0 && (
+              <Badge variant="destructive" className="ml-1 h-5 min-w-5 px-1 text-xs flex items-center justify-center">
+                {rfpWithoutBidCount}
+              </Badge>
+            )}
           </TabsTrigger>
           <TabsTrigger value="contracts" className="flex items-center gap-2">
             <FileCheck className="h-4 w-4" />
@@ -1671,6 +1894,109 @@ export default function VendorDashboard() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="rfps" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>RFP Invitations</CardTitle>
+              <CardDescription>
+                View invited RFP overview, download attachments, and submit your bid.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {rfps.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  No RFP invitations available
+                </p>
+              ) : (
+                <ScrollArea className="h-[440px]">
+                  <div className="space-y-3">
+                    {rfps.map((rfp) => {
+                      const dueDate = rfp.due_date ? new Date(rfp.due_date) : null;
+                      const isDuePast = dueDate ? isPast(dueDate) : false;
+                      return (
+                        <div key={rfp.id} className="rounded-lg border p-3 space-y-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1 min-w-0">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium truncate">{rfp.rfp_number} - {rfp.title}</p>
+                                <Badge variant="outline">{rfp.status}</Badge>
+                                {rfp.my_bid ? (
+                                  <Badge className="bg-green-600 text-white">Bid Submitted</Badge>
+                                ) : (
+                                  <Badge variant="secondary">No Bid Yet</Badge>
+                                )}
+                              </div>
+                              <p className="text-sm text-muted-foreground">
+                                Job: {rfp.job?.name || 'No job assigned'}
+                              </p>
+                              {rfp.description && (
+                                <p className="text-sm text-muted-foreground line-clamp-2">
+                                  {rfp.description}
+                                </p>
+                              )}
+                            </div>
+                            <div className="text-right space-y-1">
+                              <p className="text-xs text-muted-foreground">
+                                Invited {format(new Date(rfp.invited_at), 'MMM d, yyyy')}
+                              </p>
+                              {dueDate && (
+                                <p className={`text-xs ${isDuePast ? 'text-destructive font-medium' : 'text-muted-foreground'}`}>
+                                  Due {format(dueDate, 'MMM d, yyyy')}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+
+                          <div className="rounded-md border bg-muted/20 p-2">
+                            <p className="text-xs font-medium mb-2">Attachments</p>
+                            {rfp.attachments.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No attachments</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {rfp.attachments.map((attachment) => (
+                                  <a
+                                    key={attachment.id}
+                                    href={resolveStorageUrl(attachment.file_url)}
+                                    target="_blank"
+                                    rel="noreferrer"
+                                    className="flex items-center justify-between rounded-sm px-2 py-1 text-xs hover:bg-background/70"
+                                  >
+                                    <span className="truncate pr-2">{attachment.file_name}</span>
+                                    <span className="text-muted-foreground shrink-0">
+                                      {attachment.file_size ? `${Math.max(1, Math.round(attachment.file_size / 1024))} KB` : ''}
+                                    </span>
+                                  </a>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {rfp.my_bid && (
+                            <div className="rounded-md border bg-green-500/5 p-2 text-xs">
+                              <p className="font-medium">
+                                Current bid: ${Number(rfp.my_bid.bid_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-muted-foreground">
+                                Submitted {format(new Date(rfp.my_bid.submitted_at), 'MMM d, yyyy h:mm a')}
+                              </p>
+                            </div>
+                          )}
+
+                          <div className="flex justify-end">
+                            <Button size="sm" onClick={() => openBidDialog(rfp)}>
+                              {rfp.my_bid ? 'Update Bid' : 'Submit Bid'}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         <TabsContent value="contracts" className="space-y-4">
           <Card>
             <CardHeader>
@@ -1999,6 +2325,55 @@ export default function VendorDashboard() {
             </Button>
             <Button onClick={submitSignedContractUpload} disabled={submittingContractAction}>
               {submittingContractAction ? 'Uploading...' : 'Submit Signed Contract'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={bidDialogOpen} onOpenChange={setBidDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>{selectedRfpForBid?.my_bid ? 'Update Bid' : 'Submit Bid'}</DialogTitle>
+            <DialogDescription>
+              {selectedRfpForBid ? `${selectedRfpForBid.rfp_number} - ${selectedRfpForBid.title}` : 'Provide your bid details.'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Bid Amount *</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={bidForm.bid_amount}
+                onChange={(e) => setBidForm((prev) => ({ ...prev, bid_amount: e.target.value }))}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Proposed Timeline</Label>
+              <Input
+                value={bidForm.proposed_timeline}
+                onChange={(e) => setBidForm((prev) => ({ ...prev, proposed_timeline: e.target.value }))}
+                placeholder="e.g. 4 weeks"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Notes</Label>
+              <textarea
+                className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={bidForm.notes}
+                onChange={(e) => setBidForm((prev) => ({ ...prev, notes: e.target.value }))}
+                placeholder="Include clarifications, inclusions, or assumptions."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setBidDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitVendorBid} disabled={submittingBid}>
+              {submittingBid ? 'Saving...' : selectedRfpForBid?.my_bid ? 'Update Bid' : 'Submit Bid'}
             </Button>
           </DialogFooter>
         </DialogContent>

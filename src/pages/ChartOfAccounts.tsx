@@ -533,7 +533,7 @@ export default function ChartOfAccounts() {
       <div className="p-4 md:p-6">
         <div className="text-center py-12">
           <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-          <p className="text-muted-foreground">Loading chart of accounts...</p>
+          <p className="text-muted-foreground"><span className="loading-dots">Loading chart of accounts</span></p>
         </div>
       </div>
     );

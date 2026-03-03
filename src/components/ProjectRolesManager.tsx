@@ -210,7 +210,7 @@ export default function ProjectRolesManager() {
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center text-muted-foreground">Loading project roles...</div>
+          <div className="text-center text-muted-foreground"><span className="loading-dots">Loading project roles</span></div>
         </CardContent>
       </Card>
     );

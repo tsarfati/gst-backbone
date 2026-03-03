@@ -119,7 +119,7 @@ export default function UserWebsiteJobAssignments({ userId, canManage = true }: 
         <CardContent className="p-6">
           <div className="flex items-center justify-center text-muted-foreground">
             <Loader2 className="h-5 w-5 animate-spin mr-2" />
-            Loading website job access...
+            <span className="loading-dots">Loading website job access</span>
           </div>
         </CardContent>
       </Card>

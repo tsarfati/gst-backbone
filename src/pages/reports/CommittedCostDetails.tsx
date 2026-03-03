@@ -534,7 +534,7 @@ export default function CommittedCostDetails() {
               Select a job to view committed costs
             </div>
           ) : loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <div className="text-center py-8 text-muted-foreground"><span className="loading-dots">Loading</span></div>
           ) : filteredItems.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               No committed costs found

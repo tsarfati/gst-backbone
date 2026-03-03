@@ -208,7 +208,7 @@ export default function EmployeeDetailDialog({ open, onOpenChange, employee }: E
             </CardHeader>
             <CardContent>
               {loading ? (
-                <p className="text-sm text-muted-foreground">Loading job assignments...</p>
+                <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading job assignments</span></p>
               ) : assignedJobs.length > 0 ? (
                 <div className="flex flex-wrap gap-2">
                   {assignedJobs.map((access: any) => (

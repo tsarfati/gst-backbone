@@ -2,12 +2,13 @@ import { useState } from 'react';
 import builderLynkShield from '@/assets/builderlynk-icon-shield.png';
 import builderLynkIcon from '@/assets/builderlynk-icon.png';
 import builderLynkLogo from '@/assets/builderlynk-logo-new.png';
+import LoadingDotsText from '@/components/ui/LoadingDotsText';
 
 interface PremiumLoadingScreenProps {
   text?: string;
 }
 
-export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScreenProps) {
+export function PremiumLoadingScreen({ text: _text }: PremiumLoadingScreenProps) {
   const logoFallbacks = [builderLynkShield, builderLynkIcon, builderLynkLogo];
   const [logoIndex, setLogoIndex] = useState(0);
   const size = 260;
@@ -75,7 +76,7 @@ export function PremiumLoadingScreen({ text = 'Loading...' }: PremiumLoadingScre
           </div>
         </div>
 
-        <p className="text-lg text-[#9CA3AF]">{text}</p>
+        <LoadingDotsText label="Loading" className="text-lg text-[#9CA3AF]" />
       </div>
     </div>
   );

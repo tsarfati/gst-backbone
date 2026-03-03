@@ -16,6 +16,7 @@ type PublicCompany = {
   name: string;
   display_name: string | null;
   logo_url: string | null;
+  vendor_portal_enabled: boolean | null;
   vendor_portal_signup_background_image_url: string | null;
   vendor_portal_signup_background_color: string | null;
   vendor_portal_signup_company_logo_url: string | null;
@@ -76,7 +77,8 @@ export default function VendorSignup() {
           body: { limit: 150 },
         });
         if (fnError) throw fnError;
-        setCompanies(Array.isArray(data?.companies) ? data.companies : []);
+        const rows = Array.isArray(data?.companies) ? data.companies : [];
+        setCompanies(rows.filter((company: any) => company.vendor_portal_enabled !== false));
       } catch (e: any) {
         console.error("Failed to load companies for vendor signup", e);
         setError("Unable to load companies right now.");
@@ -216,7 +218,24 @@ export default function VendorSignup() {
           businessName: form.businessName.trim(),
         },
       });
-      if (requestError) throw requestError;
+      if (requestError) {
+        let fnPayload: any = null;
+        try {
+          if (typeof (requestError as any)?.context?.json === "function") {
+            fnPayload = await (requestError as any).context.json();
+          }
+        } catch {
+          fnPayload = null;
+        }
+        const enrichedMessage =
+          fnPayload?.error ||
+          requestError.message ||
+          "Failed to submit your signup request.";
+        const enrichedError = new Error(enrichedMessage);
+        (enrichedError as any).code = fnPayload?.code || null;
+        (enrichedError as any).details = fnPayload?.details || null;
+        throw enrichedError;
+      }
 
       setSubmitted(true);
       toast({
@@ -233,6 +252,7 @@ export default function VendorSignup() {
       const message = isRateLimited
         ? "Email service is temporarily rate-limited. Please wait a few minutes, then try again."
         : (rawMessage || "Failed to submit your signup request.");
+      const suffix = e?.details ? ` (${e.details})` : "";
 
       if (isRateLimited) {
         const cooldownMs = 2 * 60 * 1000;
@@ -243,7 +263,7 @@ export default function VendorSignup() {
       setError(message);
       toast({
         title: "Signup failed",
-        description: message,
+        description: `${message}${suffix}`,
         variant: "destructive",
       });
     } finally {

@@ -295,7 +295,7 @@ export default function ReconciliationReport() {
   if (loading) {
     return (
       <div className="p-6">
-        <p className="text-center text-muted-foreground">Loading reconciliation report...</p>
+        <p className="text-center text-muted-foreground"><span className="loading-dots">Loading reconciliation report</span></p>
       </div>
     );
   }

@@ -206,7 +206,7 @@ export default function BillCostDistribution({
           <CardTitle>Cost Distribution</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center text-muted-foreground py-4">Loading...</div>
+          <div className="text-center text-muted-foreground py-4"><span className="loading-dots">Loading</span></div>
         </CardContent>
       </Card>
     );

@@ -117,7 +117,7 @@ function ActiveJobsList() {
       <CardContent>
         {loading ? (
           <div className="text-center py-8">
-            <p className="text-muted-foreground">Loading...</p>
+            <p className="text-muted-foreground"><span className="loading-dots">Loading</span></p>
           </div>
         ) : jobs.length === 0 ? (
           <div className="text-center py-8">

@@ -151,7 +151,7 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center p-4">
-            <div>Loading audit trail...</div>
+            <div><span className="loading-dots">Loading audit trail</span></div>
           </div>
         </CardContent>
       </Card>

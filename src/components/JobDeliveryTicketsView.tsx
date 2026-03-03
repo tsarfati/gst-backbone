@@ -53,7 +53,7 @@ export default function JobDeliveryTicketsView() {
   };
 
   if (loading) {
-    return <div className="p-6 text-center text-muted-foreground">Loading delivery tickets...</div>;
+    return <div className="p-6 text-center text-muted-foreground"><span className="loading-dots">Loading delivery tickets</span></div>;
   }
 
   return (

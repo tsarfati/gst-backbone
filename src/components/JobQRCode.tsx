@@ -51,7 +51,7 @@ function QRCodeDisplay({ qrCode }: { qrCode: string }) {
       <div className="w-32 h-32 bg-gray-100 border flex items-center justify-center rounded">
         <div className="text-center">
           <QrCode className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-          <p className="text-xs text-gray-500">Loading...</p>
+          <p className="text-xs text-gray-500"><span className="loading-dots">Loading</span></p>
         </div>
       </div>
     );
@@ -220,7 +220,7 @@ export function JobQRCode({ jobId, jobName, visitorQrCode, onQrCodeUpdate }: Job
     return (
       <Card>
         <CardContent className="p-6">
-          <div className="text-center">Loading QR code...</div>
+          <div className="text-center"><span className="loading-dots">Loading QR code</span></div>
         </CardContent>
       </Card>
     );

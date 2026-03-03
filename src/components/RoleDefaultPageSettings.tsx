@@ -178,7 +178,7 @@ export default function RoleDefaultPageSettings() {
     return (
       <Card>
         <CardContent className="p-6 text-center">
-          <div className="text-muted-foreground">Loading role settings...</div>
+          <div className="text-muted-foreground"><span className="loading-dots">Loading role settings</span></div>
         </CardContent>
       </Card>
     );

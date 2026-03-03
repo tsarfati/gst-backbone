@@ -60,7 +60,7 @@ export default function PhotoLocationMap({ latitude, longitude, className }: Pho
   if (!mapboxToken) {
     return (
       <div className={`bg-muted rounded-lg flex items-center justify-center ${className}`}>
-        <span className="text-muted-foreground text-sm">Loading map...</span>
+        <span className="text-muted-foreground text-sm"><span className="loading-dots">Loading map</span></span>
       </div>
     );
   }

@@ -504,7 +504,7 @@ export default function Bills() {
     return (
       <div className="p-6">
         <div className="flex items-center justify-center h-64">
-          <div className="text-muted-foreground">Loading bills...</div>
+          <div className="text-muted-foreground"><span className="loading-dots">Loading bills</span></div>
         </div>
       </div>
     );

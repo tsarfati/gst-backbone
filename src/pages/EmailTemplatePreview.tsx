@@ -55,7 +55,7 @@ export default function EmailTemplatePreview() {
   if (loading) {
     return (
       <div className="p-4 md:p-6">
-        <p>Loading preview...</p>
+        <p><span className="loading-dots">Loading preview</span></p>
       </div>
     );
   }

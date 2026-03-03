@@ -374,7 +374,7 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
   };
 
   if (loading) {
-    return <div className="p-6">Loading RFIs...</div>;
+    return <div className="p-6"><span className="loading-dots">Loading RFIs</span></div>;
   }
 
   return (

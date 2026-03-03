@@ -157,8 +157,10 @@ import EmployeeDashboard from "./pages/EmployeeDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorRegister from "./pages/VendorRegister";
 import VendorSignup from "./pages/VendorSignup";
+import DesignProfessionalSignup from "./pages/DesignProfessionalSignup";
 import SubscriptionPortal from "./pages/SubscriptionPortal";
 import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
+import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 
 const queryClient = new QueryClient();
 
@@ -167,7 +169,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return <PremiumLoadingScreen />;
   }
   
   if (!user) {
@@ -182,7 +184,7 @@ function OrganizationOwnerRoute({ children }: { children: React.ReactNode }) {
   const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess(['organization_management']);
 
   if (loading || featureLoading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return <PremiumLoadingScreen />;
   }
 
   if (!isSuperAdmin && tenantMember?.role !== 'owner') {
@@ -200,7 +202,7 @@ function PunchClockFeatureRoute({ children }: { children: React.ReactNode }) {
   const { hasFeature, loading } = useCompanyFeatureAccess(['punch_clock_app']);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return <PremiumLoadingScreen />;
   }
 
   if (!hasFeature('punch_clock_app')) {
@@ -214,7 +216,7 @@ function PMLynkFeatureRoute({ children }: { children: React.ReactNode }) {
   const { hasFeature, loading } = useCompanyFeatureAccess(['pm_lynk']);
 
   if (loading) {
-    return <div className="flex items-center justify-center h-screen">Loading...</div>;
+    return <PremiumLoadingScreen />;
   }
 
   if (!hasFeature('pm_lynk')) {
@@ -243,6 +245,7 @@ function PublicRoutes() {
                 <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
                 <Route path="/vendor-register" element={<VendorRegister />} />
                 <Route path="/vendor-signup" element={<VendorSignup />} />
+                <Route path="/design-professional-signup" element={<DesignProfessionalSignup />} />
                 <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
               </Routes>
             </ReceiptProvider>
@@ -549,10 +552,12 @@ function AppRoutes() {
     '/pm-lynk',
     '/vendor-register',
     '/vendor-signup',
+    '/design-professional-signup',
   ];
   const isPublicRoute = publicExactPaths.includes(location.pathname)
     || location.pathname.startsWith('/vendor-signup')
     || location.pathname.startsWith('/vendor-register')
+    || location.pathname.startsWith('/design-professional-signup')
     || location.pathname.startsWith('/visitor/')
     || location.pathname.includes('/visitor-logs')
     || /^\/jobs\/[^/]+\/visitor-logs\/?$/.test(location.pathname)

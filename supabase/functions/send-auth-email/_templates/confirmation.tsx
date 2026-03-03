@@ -27,34 +27,30 @@ export const ConfirmationEmail = ({
 }: ConfirmationEmailProps) => (
    <Html>
      <Head />
-     <Preview>Confirm your BuilderLYNK account</Preview>
+     <Preview>{companyName ? `Confirm your ${companyName} BuilderLYNK account` : 'Confirm your BuilderLYNK account'}</Preview>
      <Body style={main}>
        <Container style={container}>
-         {/* Header */}
          <Section style={header}>
            <Img
-             src="https://builderlynk.lovable.app/email-assets/builderlynk-logo.png?v=2"
+             src="https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png"
              alt="BuilderLYNK"
-             height="50"
-             style={{ margin: '0 auto' }}
+             height="150"
+             style={{ margin: '0 auto', width: 'auto', maxWidth: '420px' }}
            />
          </Section>
  
-        {/* Content */}
         <Section style={content}>
           {companyLogoUrl ? (
             <Section style={companyLogoSection}>
               <Img
                 src={companyLogoUrl}
                 alt={companyName || "Company"}
-                height="64"
+                height="72"
                 style={companyLogo}
               />
             </Section>
           ) : null}
-          <Heading style={h1}>
-            {companyName ? `Join ${companyName} on BuilderLYNK` : "Welcome to BuilderLYNK!"}
-          </Heading>
+          <Heading style={h1}>{companyName ? `Join ${companyName} on BuilderLYNK` : "Welcome to BuilderLYNK"}</Heading>
            
            <Text style={text}>
              Thanks for signing up! Please confirm your email address to get started.
@@ -66,13 +62,11 @@ export const ConfirmationEmail = ({
  
            <Section style={buttonContainer}>
              <Link href={confirmUrl} style={button}>
-               Confirm Email Address
+               Confirm Your Email
              </Link>
            </Section>
  
-           <Text style={smallText}>
-             Or copy and paste this link into your browser:
-           </Text>
+           <Text style={smallText}>Or copy and paste this link into your browser:</Text>
            <Text style={linkText}>
              <Link href={confirmUrl} style={link}>
                {confirmUrl}
@@ -84,7 +78,6 @@ export const ConfirmationEmail = ({
            </Text>
          </Section>
  
-         {/* Footer */}
          <Section style={footer}>
            <Text style={footerText}>
              © {new Date().getFullYear()} BuilderLYNK. All rights reserved.
@@ -97,33 +90,33 @@ export const ConfirmationEmail = ({
  
  export default ConfirmationEmail
  
- const main = {
-   backgroundColor: '#f4f4f5',
-   fontFamily:
-     "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
- }
+const main = {
+  backgroundColor: '#f4f4f5',
+  fontFamily:
+    "-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif",
+}
  
- const container = {
-   margin: '40px auto',
-   padding: '0',
-   maxWidth: '600px',
- }
+const container = {
+  margin: '40px auto',
+  padding: '0',
+  maxWidth: '600px',
+}
  
- const header = {
-   backgroundColor: '#1e3a5f',
-   padding: '30px',
-   textAlign: 'center' as const,
-   borderRadius: '12px 12px 0 0',
- }
- 
+const header = {
+  backgroundColor: '#1e3a5f',
+  padding: '16px 20px',
+  textAlign: 'center' as const,
+  borderRadius: '12px 12px 0 0',
+}
+
 const content = {
   backgroundColor: '#ffffff',
-  padding: '40px 30px',
+  padding: '32px 28px',
 }
 
 const companyLogoSection = {
   textAlign: 'center' as const,
-  margin: '0 0 20px 0',
+  margin: '0 0 24px 0',
 }
 
 const companyLogo = {
@@ -137,7 +130,7 @@ const companyLogo = {
    color: '#1e3a5f',
    fontSize: '24px',
    fontWeight: '700',
-   margin: '0 0 20px 0',
+   margin: '0 0 16px 0',
    textAlign: 'center' as const,
  }
  
@@ -145,12 +138,12 @@ const companyLogo = {
    color: '#374151',
    fontSize: '16px',
    lineHeight: '1.6',
-   margin: '0 0 20px 0',
+   margin: '0 0 14px 0',
  }
  
  const buttonContainer = {
    textAlign: 'center' as const,
-   margin: '30px 0',
+   margin: '8px 0 20px 0',
  }
  
  const button = {
@@ -160,21 +153,21 @@ const companyLogo = {
    display: 'inline-block',
    fontSize: '16px',
    fontWeight: '600',
-   padding: '14px 32px',
+   padding: '12px 26px',
    textDecoration: 'none',
  }
  
  const smallText = {
    color: '#6b7280',
-   fontSize: '14px',
+   fontSize: '13px',
    lineHeight: '1.6',
-   margin: '20px 0 10px 0',
+   margin: '10px 0 8px 0',
    textAlign: 'center' as const,
  }
  
  const linkText = {
    textAlign: 'center' as const,
-   margin: '0 0 20px 0',
+   margin: '0 0 12px 0',
  }
  
  const link = {
@@ -185,7 +178,7 @@ const companyLogo = {
  
  const footer = {
    backgroundColor: '#1e3a5f',
-   padding: '20px 30px',
+   padding: '18px 24px',
    textAlign: 'center' as const,
    borderRadius: '0 0 12px 12px',
  }

@@ -396,7 +396,7 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
   const DirectoryContent = () => (
     <>
       {loading ? (
-        <div className="text-center text-muted-foreground py-8">Loading...</div>
+        <div className="text-center text-muted-foreground py-8"><span className="loading-dots">Loading</span></div>
       ) : members.length === 0 ? (
         <div className="text-center py-8 text-muted-foreground">
           <FolderOpen className="h-10 w-10 mx-auto mb-2 opacity-50" />

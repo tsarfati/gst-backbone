@@ -159,7 +159,7 @@ export default function Customers() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+            <div className="text-center py-8 text-muted-foreground"><span className="loading-dots">Loading</span></div>
           ) : filteredCustomers.length === 0 ? (
             <div className="text-center py-8 text-muted-foreground">
               {search ? "No customers match your search" : "No customers found. Add your first customer to get started."}

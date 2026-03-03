@@ -550,7 +550,7 @@ export default function UserEdit() {
   if (loading) {
     return (
       <div className="p-6">
-        <div className="text-center">Loading user details...</div>
+        <div className="text-center"><span className="loading-dots">Loading user details</span></div>
       </div>
     );
   }

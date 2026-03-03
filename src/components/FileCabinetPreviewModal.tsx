@@ -118,7 +118,7 @@ export default function FileCabinetPreviewModal({ open, onOpenChange, file, onSh
           {loading ? (
             <div className="flex flex-col items-center gap-3 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin" />
-              <span className="text-sm">Loading preview...</span>
+              <span className="text-sm"><span className="loading-dots">Loading preview</span></span>
             </div>
           ) : !signedUrl ? (
             <div className="flex flex-col items-center gap-3 text-muted-foreground">

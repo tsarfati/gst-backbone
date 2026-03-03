@@ -482,7 +482,7 @@ export default function CostCodes() {
           {loading ? (
             <div className="text-center py-8">
               <Loader2 className="h-8 w-8 animate-spin mx-auto mb-4" />
-              <p className="text-muted-foreground">Loading cost codes...</p>
+              <p className="text-muted-foreground"><span className="loading-dots">Loading cost codes</span></p>
             </div>
           ) : costCodes.length === 0 ? (
             <div className="text-center py-8">

@@ -736,7 +736,7 @@ export default function JobBillingSetup({ jobId }: JobBillingSetupProps) {
   const activeEmbeddedToolbar = activeToolbarKey ? embeddedToolbarState[activeToolbarKey] ?? null : null;
 
   if (loading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading billing setup...</div>;
+    return <div className="text-center py-8 text-muted-foreground"><span className="loading-dots">Loading billing setup</span></div>;
   }
 
   return (

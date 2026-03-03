@@ -279,7 +279,7 @@ export default function JobSettings() {
   if (loading) {
     return (
       <div className="flex items-center justify-center h-64">
-        <div className="text-muted-foreground">Loading job settings...</div>
+        <div className="text-muted-foreground"><span className="loading-dots">Loading job settings</span></div>
       </div>
     );
   }

@@ -1149,7 +1149,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   }, [isScrubbing, scrubTimelineToClientPoint]);
 
   if (loading) {
-    return <div className="text-center py-8 text-muted-foreground">Loading photos...</div>;
+    return <div className="text-center py-8 text-muted-foreground"><span className="loading-dots">Loading photos</span></div>;
   }
 
   return (

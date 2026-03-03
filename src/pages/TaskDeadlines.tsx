@@ -243,7 +243,7 @@ export default function TaskDeadlines() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Loading deadlines...</div>
+            <div className="text-center py-8"><span className="loading-dots">Loading deadlines</span></div>
           ) : sortedDeadlines.length === 0 ? (
             <div className="text-center py-8">
               <AlarmClock className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

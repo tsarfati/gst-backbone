@@ -233,7 +233,7 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
               <ScrollArea className="h-48 w-full border rounded-lg p-3">
                 {loading ? (
                   <div className="text-center py-4 text-muted-foreground">
-                    Loading messages...
+                    <span className="loading-dots">Loading messages</span>
                   </div>
                 ) : messages.length === 0 ? (
                   <div className="text-center py-4 text-muted-foreground">

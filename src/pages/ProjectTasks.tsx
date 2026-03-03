@@ -223,7 +223,7 @@ export default function ProjectTasks() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Loading project tasks...</div>
+            <div className="text-center py-8"><span className="loading-dots">Loading project tasks</span></div>
           ) : filteredTasks.length === 0 ? (
             <div className="text-center py-8">
               <Target className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

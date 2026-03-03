@@ -237,7 +237,7 @@ export function CreditCardPaymentModal({
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent>
-          <div className="flex items-center justify-center py-8">Loading...</div>
+          <div className="flex items-center justify-center py-8"><span className="loading-dots">Loading</span></div>
         </DialogContent>
       </Dialog>
     );

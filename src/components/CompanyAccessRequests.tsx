@@ -178,7 +178,7 @@ export default function CompanyAccessRequests() {
   };
 
   if (loading) {
-    return <div className="text-center p-4">Loading access requests...</div>;
+    return <div className="text-center p-4"><span className="loading-dots">Loading access requests</span></div>;
   }
 
   const pendingRequests = requests.filter(r => r.status === 'pending');

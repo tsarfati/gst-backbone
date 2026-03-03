@@ -248,7 +248,7 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
           <div className="h-[300px] bg-muted rounded-lg flex items-center justify-center">
             <div className="text-center">
               <div className="animate-spin h-8 w-8 border-2 border-primary border-t-transparent rounded-full mx-auto mb-2"></div>
-              <p className="text-muted-foreground">Loading map...</p>
+              <p className="text-muted-foreground"><span className="loading-dots">Loading map</span></p>
             </div>
           </div>
         )}
@@ -272,7 +272,7 @@ export default function JobLocationMap({ address }: JobLocationMapProps) {
           <p className="text-sm font-medium text-muted-foreground">7-Day Forecast</p>
 
           {weatherLoading && (
-            <div className="text-sm text-muted-foreground">Loading forecast...</div>
+            <div className="text-sm text-muted-foreground"><span className="loading-dots">Loading forecast</span></div>
           )}
 
           {!weatherLoading && weatherError && (

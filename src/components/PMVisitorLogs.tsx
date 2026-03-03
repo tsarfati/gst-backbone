@@ -122,7 +122,7 @@ export default function PMVisitorLogs({ companyId }: PMVisitorLogsProps) {
           <CardTitle>Today's Visitors by Location</CardTitle>
         </CardHeader>
         <CardContent>
-          <div className="text-center py-4 text-muted-foreground">Loading...</div>
+          <div className="text-center py-4 text-muted-foreground"><span className="loading-dots">Loading</span></div>
         </CardContent>
       </Card>
     );

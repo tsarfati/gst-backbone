@@ -209,7 +209,7 @@ export default function AllEmployees() {
           </Card>
 
           {loading ? (
-            <div className="text-center py-8">Loading employees...</div>
+            <div className="text-center py-8"><span className="loading-dots">Loading employees</span></div>
           ) : (
             <EmployeeViews 
               employees={filteredEmployees}

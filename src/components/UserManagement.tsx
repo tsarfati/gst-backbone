@@ -473,7 +473,7 @@ export default function UserManagement() {
   );
 
   if (loading) {
-    return <div className="p-6 text-center">Loading users...</div>;
+    return <div className="p-6 text-center"><span className="loading-dots">Loading users</span></div>;
   }
 
   if (!currentCompany) {

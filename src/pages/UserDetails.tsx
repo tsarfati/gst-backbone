@@ -661,7 +661,7 @@ export default function UserDetails() {
     }
   };
 
-  if (loading) return <div className="p-6 text-center">Loading user details...</div>;
+  if (loading) return <div className="p-6 text-center"><span className="loading-dots">Loading user details</span></div>;
   if (!user) return <div className="p-6 text-center">User not found</div>;
 
   const displayName = user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User';
@@ -1164,7 +1164,7 @@ export default function UserDetails() {
             )}
 
             {filesLoading ? (
-              <div className="text-sm text-muted-foreground">Loading files...</div>
+              <div className="text-sm text-muted-foreground"><span className="loading-dots">Loading files</span></div>
             ) : userFiles.length === 0 ? (
               <div className="text-sm text-muted-foreground py-6 text-center">No files uploaded for this user.</div>
             ) : (

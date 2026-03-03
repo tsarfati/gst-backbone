@@ -62,7 +62,7 @@ export function CompanySwitcher() {
     return (
       <div className="flex items-center gap-2 px-3 py-2">
         <Building2 className="h-4 w-4 text-muted-foreground" />
-        <span className="text-sm text-muted-foreground">Loading...</span>
+        <span className="text-sm text-muted-foreground"><span className="loading-dots">Loading</span></span>
       </div>
     );
   }

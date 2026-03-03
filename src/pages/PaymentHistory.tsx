@@ -500,7 +500,7 @@ export default function PaymentHistory() {
             <TableBody>
               {loading ? (
                 <TableRow>
-                  <TableCell colSpan={8} className="text-center py-8">Loading...</TableCell>
+                  <TableCell colSpan={8} className="text-center py-8"><span className="loading-dots">Loading</span></TableCell>
                 </TableRow>
               ) : filteredPayments.length === 0 ? (
                 <TableRow>

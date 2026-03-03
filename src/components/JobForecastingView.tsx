@@ -440,7 +440,7 @@ export default function JobForecastingView() {
   };
 
   if (loading) {
-    return <div className="p-6 text-center text-muted-foreground">Loading forecast data...</div>;
+    return <div className="p-6 text-center text-muted-foreground"><span className="loading-dots">Loading forecast data</span></div>;
   }
 
   if (forecastLines.length === 0) {

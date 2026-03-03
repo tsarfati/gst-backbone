@@ -380,7 +380,7 @@ export default function BankAccountDetails() {
     return (
       <div className="p-6">
         <div className="text-center py-12">
-          <p className="text-muted-foreground">Loading bank account...</p>
+          <p className="text-muted-foreground"><span className="loading-dots">Loading bank account</span></p>
         </div>
       </div>
     );

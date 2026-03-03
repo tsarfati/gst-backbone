@@ -509,7 +509,7 @@ export default function PunchClockAttemptAuditReport() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <p className="text-sm text-muted-foreground py-8 text-center">Loading attempt audit events…</p>
+            <p className="text-sm text-muted-foreground py-8 text-center"><span className="loading-dots">Loading attempt audit events</span></p>
           ) : filteredRows.length === 0 ? (
             <p className="text-sm text-muted-foreground py-8 text-center">No punch clock attempts found for selected filters</p>
           ) : (

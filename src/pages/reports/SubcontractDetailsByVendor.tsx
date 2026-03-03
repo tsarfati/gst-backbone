@@ -335,7 +335,7 @@ export default function SubcontractDetailsByVendor() {
 
       {loading ? (
         <Card>
-          <CardContent className="py-8 text-center text-muted-foreground">Loading...</CardContent>
+          <CardContent className="py-8 text-center text-muted-foreground"><span className="loading-dots">Loading</span></CardContent>
         </Card>
       ) : vendorGroups.length === 0 ? (
         <Card>

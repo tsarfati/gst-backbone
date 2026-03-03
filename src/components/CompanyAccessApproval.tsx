@@ -198,7 +198,7 @@ export default function CompanyAccessApproval() {
   const processedRequests = requests.filter(r => r.status !== 'pending');
 
   if (companyLoading || loading) {
-    return <div className="text-center">Loading access requests...</div>;
+    return <div className="text-center"><span className="loading-dots">Loading access requests</span></div>;
   }
 
   if (!currentCompany) {

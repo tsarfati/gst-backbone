@@ -532,7 +532,7 @@ export default function UserSettings() {
               </div>
             )}
             {loading ? (
-              <div className="text-center py-8">Loading users...</div>
+              <div className="text-center py-8"><span className="loading-dots">Loading users</span></div>
             ) : (
               <>
                 {/* Pending Invitations */}

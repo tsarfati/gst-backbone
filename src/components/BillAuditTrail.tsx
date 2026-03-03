@@ -226,7 +226,7 @@ export default function BillAuditTrail({ billId }: BillAuditTrailProps) {
         </CardHeader>
         <CardContent>
           <div className="flex items-center justify-center py-8">
-            <div className="text-muted-foreground">Loading audit trail...</div>
+            <div className="text-muted-foreground"><span className="loading-dots">Loading audit trail</span></div>
           </div>
         </CardContent>
       </Card>

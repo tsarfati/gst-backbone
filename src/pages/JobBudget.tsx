@@ -63,7 +63,7 @@ export default function JobBudget() {
   if (loading) {
     return (
       <div className="p-4 md:p-6">
-        <div className="text-center py-12 text-muted-foreground">Loading budget details...</div>
+        <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading budget details</span></div>
       </div>
     );
   }

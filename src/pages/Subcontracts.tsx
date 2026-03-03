@@ -137,7 +137,7 @@ export default function Subcontracts() {
   if (loading) {
     return (
       <div className="p-6">
-        <div className="text-center py-12 text-muted-foreground">Loading...</div>
+        <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading</span></div>
       </div>
     );
   }

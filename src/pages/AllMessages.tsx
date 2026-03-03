@@ -319,7 +319,7 @@ export default function AllMessages() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Loading messages...</div>
+            <div className="text-center py-8"><span className="loading-dots">Loading messages</span></div>
           ) : groupedConversations.length === 0 ? (
             <div className="text-center py-8">
               <MessageSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

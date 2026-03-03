@@ -460,7 +460,7 @@ export default function VendorEdit() {
     return (
       <div className="p-4 md:p-6">
         <div className="text-center py-12">
-          <div className="text-muted-foreground">Loading vendor details...</div>
+          <div className="text-muted-foreground"><span className="loading-dots">Loading vendor details</span></div>
         </div>
       </div>
     );

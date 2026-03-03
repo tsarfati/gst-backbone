@@ -400,7 +400,7 @@ export default function JobCostCodeSelector({
     return (
       <Card>
         <CardContent className="py-6">
-          <div className="text-center text-muted-foreground">Loading cost codes...</div>
+          <div className="text-center text-muted-foreground"><span className="loading-dots">Loading cost codes</span></div>
         </CardContent>
       </Card>
     );

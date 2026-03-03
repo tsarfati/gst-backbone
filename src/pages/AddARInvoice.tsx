@@ -1215,7 +1215,7 @@ export default function AddARInvoice({
   if (loading) {
     return (
       <div className={embedded ? "py-2" : "container mx-auto py-6"}>
-        <div className="text-center py-12 text-muted-foreground">Loading...</div>
+        <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading</span></div>
       </div>
     );
   }

@@ -148,7 +148,7 @@ export default function BillsNeedingCoding({ jobId, limit = 5 }: BillsNeedingCod
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <p className="text-muted-foreground text-center py-4">Loading...</p>
+          <p className="text-muted-foreground text-center py-4"><span className="loading-dots">Loading</span></p>
         </CardContent>
       </Card>
     );

@@ -367,7 +367,7 @@ export default function DeliveryTicketDetailView({
                 {loadingAudit ? (
                   <div className="flex items-center justify-center py-4">
                     <Loader2 className="h-4 w-4 animate-spin mr-2" />
-                    Loading audit trail...
+                    <span className="loading-dots">Loading audit trail</span>
                   </div>
                 ) : auditTrail.length === 0 ? (
                   <p className="text-sm text-muted-foreground text-center py-4">

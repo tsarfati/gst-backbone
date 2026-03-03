@@ -73,7 +73,7 @@ export default function CommittedCosts({ jobId }: CommittedCostsProps) {
   };
 
   if (loading) {
-    return <div className="text-center py-4">Loading committed costs...</div>;
+    return <div className="text-center py-4"><span className="loading-dots">Loading committed costs</span></div>;
   }
 
   return (

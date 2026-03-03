@@ -167,7 +167,7 @@ export default function SearchIndexManager() {
         <CardContent className="p-6">
           <div className="flex items-center justify-center">
             <RefreshCw className="h-6 w-6 animate-spin" />
-            <span className="ml-2">Loading search settings...</span>
+            <span className="ml-2"><span className="loading-dots">Loading search settings</span></span>
           </div>
         </CardContent>
       </Card>

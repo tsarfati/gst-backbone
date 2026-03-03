@@ -162,7 +162,7 @@ export default function AllTasks() {
         </CardHeader>
         <CardContent>
           {loading ? (
-            <div className="text-center py-8">Loading tasks...</div>
+            <div className="text-center py-8"><span className="loading-dots">Loading tasks</span></div>
           ) : filteredTasks.length === 0 ? (
             <div className="text-center py-8">
               <CheckSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />

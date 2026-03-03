@@ -121,7 +121,7 @@ export default function PrintChecks() {
   };
 
   if (loading) {
-    return <div>Loading payments...</div>;
+    return <div><span className="loading-dots">Loading payments</span></div>;
   }
 
   return (

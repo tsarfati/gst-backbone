@@ -175,7 +175,7 @@ export default function CreditCards() {
   const activeCards = creditCards.filter(card => card.is_active).length;
 
   if (loading) {
-    return <div className="p-6">Loading...</div>;
+    return <div className="p-6"><span className="loading-dots">Loading</span></div>;
   }
 
   return (

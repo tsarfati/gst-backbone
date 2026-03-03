@@ -59,7 +59,12 @@ serve(async (req: Request): Promise<Response> => {
           vendor_portal_signup_header_title,
           vendor_portal_signup_header_subtitle,
           vendor_portal_signup_modal_color,
-          vendor_portal_signup_modal_opacity
+          vendor_portal_signup_modal_opacity,
+          design_professional_portal_enabled,
+          design_professional_signup_background_image_url,
+          design_professional_signup_logo_url,
+          design_professional_signup_header_title,
+          design_professional_signup_header_subtitle
         `)
         .in("company_id", companyIds);
 
@@ -71,14 +76,16 @@ serve(async (req: Request): Promise<Response> => {
     const mergedCompanies = companies
       .map((company: any) => {
         const vendorSettings = settingsByCompany.get(company.id) || {};
-        const enabled = vendorSettings.vendor_portal_enabled ?? true;
-        if (!enabled) return null;
+        const vendorPortalEnabled = vendorSettings.vendor_portal_enabled ?? true;
+        const designPortalEnabled = vendorSettings.design_professional_portal_enabled ?? true;
+        if (!vendorPortalEnabled && !designPortalEnabled) return null;
 
         return {
           id: company.id,
           name: company.name,
           display_name: company.display_name,
           logo_url: toPublicLogoUrl(company.logo_url),
+          vendor_portal_enabled: vendorPortalEnabled,
           vendor_portal_signup_background_image_url: toPublicLogoUrl(vendorSettings.vendor_portal_signup_background_image_url),
           vendor_portal_signup_background_color: vendorSettings.vendor_portal_signup_background_color ?? "#030B20",
           vendor_portal_signup_company_logo_url: toPublicLogoUrl(vendorSettings.vendor_portal_signup_company_logo_url),
@@ -87,6 +94,11 @@ serve(async (req: Request): Promise<Response> => {
           vendor_portal_signup_header_subtitle: vendorSettings.vendor_portal_signup_header_subtitle ?? null,
           vendor_portal_signup_modal_color: vendorSettings.vendor_portal_signup_modal_color ?? "#071231",
           vendor_portal_signup_modal_opacity: Number(vendorSettings.vendor_portal_signup_modal_opacity ?? 0.96),
+          design_professional_portal_enabled: designPortalEnabled,
+          design_professional_signup_background_image_url: toPublicLogoUrl(vendorSettings.design_professional_signup_background_image_url),
+          design_professional_signup_logo_url: toPublicLogoUrl(vendorSettings.design_professional_signup_logo_url),
+          design_professional_signup_header_title: vendorSettings.design_professional_signup_header_title ?? null,
+          design_professional_signup_header_subtitle: vendorSettings.design_professional_signup_header_subtitle ?? null,
         };
       })
       .filter(Boolean);

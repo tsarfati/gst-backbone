@@ -967,7 +967,7 @@ export default function MakePayment() {
   };
 
   if (loading) {
-    return <div>Loading...</div>;
+    return <div><span className="loading-dots">Loading</span></div>;
   }
 
   return (

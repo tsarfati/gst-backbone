@@ -228,7 +228,7 @@ export default function MessageThreadView({
           {isLoading ? (
             <div className="flex items-center justify-center py-8">
               <Loader2 className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading conversation...</span>
+              <span className="ml-2"><span className="loading-dots">Loading conversation</span></span>
             </div>
           ) : (
             threadMessages.map((msg) => {

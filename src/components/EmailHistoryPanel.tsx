@@ -99,7 +99,7 @@ export default function EmailHistoryPanel() {
       </CardHeader>
       <CardContent>
         {loading ? (
-          <div className="py-8 text-center text-muted-foreground">Loading email history...</div>
+          <div className="py-8 text-center text-muted-foreground"><span className="loading-dots">Loading email history</span></div>
         ) : emailHistory.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Mail className="h-12 w-12 mx-auto mb-4 opacity-50" />

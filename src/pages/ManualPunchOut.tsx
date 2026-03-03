@@ -274,7 +274,7 @@ export default function ManualPunchOut() {
           <CardContent className="p-6">
             <div className="flex items-center justify-center">
               <Clock className="h-6 w-6 animate-spin" />
-              <span className="ml-2">Loading punched in employees...</span>
+              <span className="ml-2"><span className="loading-dots">Loading punched in employees</span></span>
             </div>
           </CardContent>
         </Card>
@@ -398,7 +398,7 @@ export default function ManualPunchOut() {
               <div className="space-y-2">
                 <Label htmlFor="cost-code">Cost Code</Label>
                 {loadingCostCodes ? (
-                  <p className="text-sm text-muted-foreground">Loading cost codes...</p>
+                  <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading cost codes</span></p>
                 ) : jobCostCodes.length === 0 ? (
                   <p className="text-sm text-muted-foreground">No cost codes assigned to this job</p>
                 ) : (

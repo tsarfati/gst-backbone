@@ -97,16 +97,37 @@ serve(async (req: Request): Promise<Response> => {
       );
     if (profileError) throw profileError;
 
-    const { error: accessError } = await supabase
+    const { data: existingAccessRows, error: existingAccessError } = await supabase
       .from("user_company_access")
-      .upsert({
-        user_id: userId,
-        company_id: companyId,
-        role: requestedRole,
-        is_active: true,
-        granted_by: userId,
-      }, { onConflict: "user_id,company_id" });
-    if (accessError) throw accessError;
+      .select("user_id")
+      .eq("user_id", userId)
+      .eq("company_id", companyId)
+      .limit(1);
+    if (existingAccessError) throw existingAccessError;
+
+    if ((existingAccessRows || []).length > 0) {
+      const { error: updateAccessError } = await supabase
+        .from("user_company_access")
+        .update({
+          role: requestedRole,
+          is_active: true,
+          granted_by: userId,
+        })
+        .eq("user_id", userId)
+        .eq("company_id", companyId);
+      if (updateAccessError) throw updateAccessError;
+    } else {
+      const { error: insertAccessError } = await supabase
+        .from("user_company_access")
+        .insert({
+          user_id: userId,
+          company_id: companyId,
+          role: requestedRole,
+          is_active: true,
+          granted_by: userId,
+        });
+      if (insertAccessError) throw insertAccessError;
+    }
 
     const notesPayload = {
       requestType: "vendor_self_signup",
