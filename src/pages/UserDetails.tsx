@@ -41,6 +41,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
@@ -131,6 +132,7 @@ const roleLabels: Record<string, string> = {
   admin: 'Administrator',
   controller: 'Controller',
   project_manager: 'Project Manager',
+  design_professional: 'Design Professional',
   employee: 'Employee',
   view_only: 'View Only',
   company_admin: 'Company Admin',
@@ -144,6 +146,7 @@ export default function UserDetails() {
   const { currentCompany } = useCompany();
   const { isSuperAdmin } = useTenant();
   const { profile } = useAuth();
+  const { hasAccess } = useMenuPermissions();
   const { toast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
@@ -158,6 +161,7 @@ export default function UserDetails() {
     first_name: '',
     last_name: '',
     display_name: '',
+    email: '',
     phone: '',
     birthday: '',
     role: '',
@@ -184,11 +188,14 @@ export default function UserDetails() {
   const isAdmin = profile?.role === 'admin';
   const isController = profile?.role === 'controller';
   const canManage = isAdmin || isController;
+  const canEditUserEmail = canManage && hasAccess('user-settings-edit-email');
+  const canChangeUserPassword = canManage && hasAccess('user-settings-change-password');
 
   const roleColors: Record<string, string> = {
     admin: 'bg-destructive',
     controller: 'bg-primary',
     project_manager: 'bg-accent',
+    design_professional: 'bg-cyan-500',
     employee: 'bg-muted',
     view_only: 'bg-muted',
     company_admin: 'bg-destructive',
@@ -282,6 +289,7 @@ export default function UserDetails() {
           first_name: userData.first_name || '',
           last_name: userData.last_name || '',
           display_name: userData.display_name || '',
+          email: userEmail || userData.email || '',
           phone: userData.phone || '',
           birthday: userData.birthday || '',
           role: userData.custom_role_id ? `custom_${userData.custom_role_id}` : role,
@@ -461,6 +469,10 @@ export default function UserDetails() {
   };
 
   const handleSendPasswordReset = async () => {
+    if (!currentCompany?.id) {
+      toast({ title: "Error", description: "Select a company before sending password resets", variant: "destructive" });
+      return;
+    }
     const email = userEmail || user?.email;
     if (!email) {
       toast({ title: "Error", description: "No email address found for this user", variant: "destructive" });
@@ -468,7 +480,13 @@ export default function UserDetails() {
     }
     setSendingReset(true);
     try {
-      const response = await supabase.functions.invoke('send-password-reset', { body: { email, redirectTo: `${window.location.origin}/auth` } });
+      const response = await supabase.functions.invoke('send-password-reset', {
+        body: {
+          email,
+          companyId: currentCompany?.id,
+          redirectTo: `${window.location.origin}/auth`,
+        }
+      });
       if (response.error) throw new Error(response.error.message || 'Failed to send password reset');
       toast({ title: "Success", description: `Password reset email sent to ${email}` });
     } catch (error: any) {
@@ -484,6 +502,7 @@ export default function UserDetails() {
       first_name: user.first_name || '',
       last_name: user.last_name || '',
       display_name: user.display_name || '',
+      email: userEmail || user.email || '',
       phone: user.phone || '',
       birthday: user.birthday || '',
       role: user.custom_role_id ? `custom_${user.custom_role_id}` : user.role,
@@ -519,6 +538,27 @@ export default function UserDetails() {
         })
         .eq('user_id', user.user_id);
       if (profileError) throw profileError;
+
+      const nextEmail = (editForm.email || '').trim().toLowerCase();
+      const currentEmail = (userEmail || user.email || '').trim().toLowerCase();
+      if (canEditUserEmail && nextEmail && nextEmail !== currentEmail) {
+        const { data: updateEmailData, error: updateEmailError } = await supabase.functions.invoke('update-user-email', {
+          body: {
+            userId: user.user_id,
+            email: nextEmail,
+            companyId: currentCompany.id,
+          },
+        });
+
+        if (updateEmailError) {
+          throw new Error(updateEmailError.message || 'Failed to update user email');
+        }
+        if (updateEmailData?.error) {
+          throw new Error(updateEmailData.error);
+        }
+
+        setUserEmail(nextEmail);
+      }
 
       const isCustomRoleSelection = editForm.role.startsWith('custom_');
       const selectedCustomRoleId = isCustomRoleSelection ? editForm.role.replace('custom_', '') : null;
@@ -595,9 +635,9 @@ export default function UserDetails() {
       console.error('Error saving user:', error);
       toast({ title: "Error", description: "Failed to update user", variant: "destructive" });
     } finally {
-      setSaving(false);
-    }
-  };
+    setSaving(false);
+  }
+};
 
   const handleRemoveUser = async () => {
     if (!currentCompany || !userId) return;
@@ -758,7 +798,12 @@ export default function UserDetails() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label>Email</Label>
-                      <Input value={userEmail || user.email || ''} disabled />
+                      <Input
+                        type="email"
+                        value={editForm.email}
+                        disabled={!canEditUserEmail}
+                        onChange={(e) => setEditForm(f => ({ ...f, email: e.target.value }))}
+                      />
                     </div>
                     <div>
                       <Label htmlFor="edit_phone">Phone</Label>
@@ -778,6 +823,7 @@ export default function UserDetails() {
                           <SelectItem value="admin">Administrator</SelectItem>
                           <SelectItem value="controller">Controller</SelectItem>
                           <SelectItem value="project_manager">Project Manager</SelectItem>
+                          <SelectItem value="design_professional">Design Professional</SelectItem>
                           <SelectItem value="employee">Employee</SelectItem>
                           <SelectItem value="view_only">View Only</SelectItem>
                           <SelectItem value="company_admin">Company Admin</SelectItem>
@@ -879,7 +925,7 @@ export default function UserDetails() {
               )}
 
               {/* Password Reset Action */}
-              {!editing && (userEmail || user.email) && (
+              {!editing && canChangeUserPassword && (userEmail || user.email) && (
                 <div className="pt-2">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>

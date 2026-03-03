@@ -25,12 +25,25 @@ interface AccessRequest {
   status: string;
   requested_at: string;
   notes?: string;
+  requested_role?: 'employee' | 'vendor' | 'design_professional';
   profiles?: {
     first_name: string;
     last_name: string;
     display_name: string;
   };
 }
+
+const parseRequestedRole = (notes?: string): 'employee' | 'vendor' | 'design_professional' => {
+  if (!notes) return 'employee';
+  try {
+    const parsed = JSON.parse(notes);
+    const role = String(parsed?.requestedRole || '').toLowerCase();
+    if (role === 'vendor' || role === 'design_professional') return role;
+  } catch {
+    // keep default
+  }
+  return 'employee';
+};
 
 export default function CompanyAccessRequests() {
   const { toast } = useToast();
@@ -75,6 +88,7 @@ export default function CompanyAccessRequests() {
           status: request.status,
           requested_at: request.requested_at,
           notes: request.notes,
+          requested_role: parseRequestedRole(request.notes || undefined),
           profiles: profile ? {
             first_name: profile.first_name || '',
             last_name: profile.last_name || '',
@@ -122,7 +136,7 @@ export default function CompanyAccessRequests() {
             .insert({
               user_id: request.user_id,
               company_id: currentCompany.id,
-              role: 'employee',
+              role: request.requested_role || 'employee',
               granted_by: currentUser?.id,
               is_active: true
             });

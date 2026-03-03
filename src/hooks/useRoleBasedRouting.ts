@@ -76,10 +76,24 @@ export function useRoleBasedRouting() {
           return;
         }
 
-        // For vendors, redirect to vendor dashboard
-        if (effectiveRole === 'vendor') {
+        // For vendors/design professionals, redirect to their portal
+        if (effectiveRole === 'vendor' || effectiveRole === 'design_professional') {
           if (location.pathname === '/auth' || location.pathname === '/') {
-            navigate('/vendor/dashboard', { replace: true });
+            let target = '/vendor/dashboard';
+            const vendorId = (profile as any)?.vendor_id as string | null | undefined;
+            if (vendorId) {
+              const { data: vendorData } = await supabase
+                .from('vendors')
+                .select('vendor_type')
+                .eq('id', vendorId)
+                .maybeSingle();
+              if (String(vendorData?.vendor_type || '').toLowerCase() === 'design_professional') {
+                target = '/design-professional/dashboard';
+              }
+            } else if (effectiveRole === 'design_professional') {
+              target = '/design-professional/dashboard';
+            }
+            navigate(target, { replace: true });
           }
           return;
         }

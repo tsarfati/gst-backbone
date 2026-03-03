@@ -6,7 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil, ExternalLink, Upload } from 'lucide-react';
+import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil, ExternalLink, Upload, Minus, RotateCcw } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -85,6 +85,8 @@ interface JobPhotoAlbumProps {
 }
 
 export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
+  const MIN_IMAGE_SCALE = 1;
+  const MAX_IMAGE_SCALE = 6;
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
@@ -130,6 +132,19 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const timelineRailRef = useRef<HTMLDivElement | null>(null);
   const scrubVirtualIndexRef = useRef<number>(0);
   const scrubLastYRef = useRef<number | null>(null);
+  const imageViewportRef = useRef<HTMLDivElement | null>(null);
+  const pointerMapRef = useRef<Map<number, { x: number; y: number }>>(new Map());
+  const panStartRef = useRef<{ pointer: { x: number; y: number }; offset: { x: number; y: number } } | null>(null);
+  const pinchStartRef = useRef<{
+    distance: number;
+    midpoint: { x: number; y: number };
+    scale: number;
+    offset: { x: number; y: number };
+  } | null>(null);
+  const [imageScale, setImageScale] = useState(1);
+  const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
+  const [isSmallScreen, setIsSmallScreen] = useState(false);
+  const [showImageControls, setShowImageControls] = useState(true);
 
   useEffect(() => {
     loadPhotos();
@@ -181,14 +196,151 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const [resolvedDetailUrl, setResolvedDetailUrl] = useState<string | null>(null);
 
   useEffect(() => {
+    const mediaQuery = window.matchMedia('(max-width: 768px)');
+    const syncScreen = () => setIsSmallScreen(mediaQuery.matches);
+    syncScreen();
+    mediaQuery.addEventListener('change', syncScreen);
+    return () => mediaQuery.removeEventListener('change', syncScreen);
+  }, []);
+
+  const clampImageOffset = useCallback((offset: { x: number; y: number }, scale: number) => {
+    const viewport = imageViewportRef.current;
+    if (!viewport || scale <= MIN_IMAGE_SCALE) return { x: 0, y: 0 };
+    const rect = viewport.getBoundingClientRect();
+    const maxX = ((scale - 1) * rect.width) / 2;
+    const maxY = ((scale - 1) * rect.height) / 2;
+    return {
+      x: Math.max(-maxX, Math.min(maxX, offset.x)),
+      y: Math.max(-maxY, Math.min(maxY, offset.y)),
+    };
+  }, []);
+
+  const applyImageTransform = useCallback((scale: number, offset: { x: number; y: number }) => {
+    const clampedScale = Math.max(MIN_IMAGE_SCALE, Math.min(MAX_IMAGE_SCALE, scale));
+    setImageScale(clampedScale);
+    setImageOffset(clampImageOffset(offset, clampedScale));
+  }, [MAX_IMAGE_SCALE, MIN_IMAGE_SCALE, clampImageOffset]);
+
+  const resetImageTransform = useCallback(() => {
+    pointerMapRef.current.clear();
+    panStartRef.current = null;
+    pinchStartRef.current = null;
+    setImageScale(1);
+    setImageOffset({ x: 0, y: 0 });
+  }, []);
+
+  const beginGesture = useCallback(() => {
+    const pointers = Array.from(pointerMapRef.current.values());
+    if (pointers.length === 1) {
+      panStartRef.current = { pointer: pointers[0], offset: imageOffset };
+      pinchStartRef.current = null;
+      return;
+    }
+    if (pointers.length >= 2) {
+      const [a, b] = pointers;
+      pinchStartRef.current = {
+        distance: Math.hypot(b.x - a.x, b.y - a.y),
+        midpoint: { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 },
+        scale: imageScale,
+        offset: imageOffset,
+      };
+      panStartRef.current = null;
+    }
+  }, [imageOffset, imageScale]);
+
+  const handleImagePointerDown = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    e.currentTarget.setPointerCapture(e.pointerId);
+    pointerMapRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    beginGesture();
+  }, [beginGesture]);
+
+  const handleImagePointerMove = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    if (!pointerMapRef.current.has(e.pointerId)) return;
+    pointerMapRef.current.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    const pointers = Array.from(pointerMapRef.current.values());
+
+    if (pointers.length >= 2 && pinchStartRef.current) {
+      const [a, b] = pointers;
+      const currentDistance = Math.hypot(b.x - a.x, b.y - a.y);
+      const currentMidpoint = { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2 };
+      const distanceRatio = pinchStartRef.current.distance > 0 ? currentDistance / pinchStartRef.current.distance : 1;
+      const nextScale = pinchStartRef.current.scale * distanceRatio;
+      const nextOffset = {
+        x: pinchStartRef.current.offset.x + (currentMidpoint.x - pinchStartRef.current.midpoint.x),
+        y: pinchStartRef.current.offset.y + (currentMidpoint.y - pinchStartRef.current.midpoint.y),
+      };
+      applyImageTransform(nextScale, nextOffset);
+      return;
+    }
+
+    if (pointers.length === 1 && panStartRef.current && imageScale > 1) {
+      const pointer = pointers[0];
+      const nextOffset = {
+        x: panStartRef.current.offset.x + (pointer.x - panStartRef.current.pointer.x),
+        y: panStartRef.current.offset.y + (pointer.y - panStartRef.current.pointer.y),
+      };
+      applyImageTransform(imageScale, nextOffset);
+    }
+  }, [applyImageTransform, imageScale]);
+
+  const handleImagePointerUp = useCallback((e: React.PointerEvent<HTMLDivElement>) => {
+    pointerMapRef.current.delete(e.pointerId);
+    if (e.currentTarget.hasPointerCapture(e.pointerId)) {
+      e.currentTarget.releasePointerCapture(e.pointerId);
+    }
+    if (pointerMapRef.current.size === 0) {
+      panStartRef.current = null;
+      pinchStartRef.current = null;
+      return;
+    }
+    beginGesture();
+  }, [beginGesture]);
+
+  const handleImageWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    e.preventDefault();
+    const rect = e.currentTarget.getBoundingClientRect();
+    const focal = {
+      x: e.clientX - rect.left - rect.width / 2,
+      y: e.clientY - rect.top - rect.height / 2,
+    };
+    const deltaScale = e.deltaY < 0 ? 1.1 : 0.9;
+    const nextScale = imageScale * deltaScale;
+    const scaleRatio = nextScale / imageScale;
+    const nextOffset = {
+      x: (imageOffset.x - focal.x) * scaleRatio + focal.x,
+      y: (imageOffset.y - focal.y) * scaleRatio + focal.y,
+    };
+    applyImageTransform(nextScale, nextOffset);
+  }, [applyImageTransform, imageOffset, imageScale]);
+
+  const handleImageDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
+    const rect = e.currentTarget.getBoundingClientRect();
+    const focal = {
+      x: e.clientX - rect.left - rect.width / 2,
+      y: e.clientY - rect.top - rect.height / 2,
+    };
+    const targetScale = imageScale > 1 ? 1 : 2;
+    const scaleRatio = targetScale / imageScale;
+    const nextOffset = targetScale === 1
+      ? { x: 0, y: 0 }
+      : {
+          x: (imageOffset.x - focal.x) * scaleRatio + focal.x,
+          y: (imageOffset.y - focal.y) * scaleRatio + focal.y,
+        };
+    applyImageTransform(targetScale, nextOffset);
+  }, [applyImageTransform, imageOffset, imageScale]);
+
+  useEffect(() => {
     if (selectedPhoto) {
       loadComments(selectedPhoto.id);
       setResolvedDetailUrl(null);
+      resetImageTransform();
+      setShowImageControls(true);
       resolveStorageUrl('punch-photos', selectedPhoto.photo_url).then((url) => {
         setResolvedDetailUrl(url || selectedPhoto.photo_url);
       });
     }
-  }, [selectedPhoto]);
+  }, [resetImageTransform, selectedPhoto]);
 
   // Reload photos when selectedAlbumId changes
   useEffect(() => {
@@ -1475,45 +1627,62 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       </Dialog>
 
       {/* Photo Detail Dialog */}
-      <Dialog open={!!selectedPhoto} onOpenChange={() => setSelectedPhoto(null)}>
+      <Dialog open={!!selectedPhoto} onOpenChange={() => {
+        setSelectedPhoto(null);
+        resetImageTransform();
+      }}>
         <DialogContent className="max-w-[96vw] max-h-[92vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center justify-between">
               <span>Photo Details</span>
-              {selectedPhoto && (
-                <a
-                  href={resolvedDetailUrl || '#'}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-sm font-normal text-primary hover:underline flex items-center gap-1"
-                >
-                  <ExternalLink className="h-4 w-4" />
-                  View Full Resolution
-                </a>
+              {showImageControls && (
+                <div className="flex items-center gap-1">
+                  <Button type="button" variant="outline" size="icon" onClick={() => applyImageTransform(imageScale * 0.9, imageOffset)}>
+                    <Minus className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="outline" size="icon" onClick={() => applyImageTransform(imageScale * 1.1, imageOffset)}>
+                    <Plus className="h-4 w-4" />
+                  </Button>
+                  <Button type="button" variant="outline" size="icon" onClick={resetImageTransform}>
+                    <RotateCcw className="h-4 w-4" />
+                  </Button>
+                </div>
               )}
             </DialogTitle>
           </DialogHeader>
           {selectedPhoto && (
             <div className="space-y-6">
-              {/* Full resolution image - render at native size inside a scrollable viewport */}
-              <a 
-                href={resolvedDetailUrl || '#'} 
-                target="_blank" 
-                rel="noopener noreferrer"
-                className="block cursor-zoom-in"
+              <div
+                ref={imageViewportRef}
+                className="relative w-full h-[58vh] sm:h-[64vh] lg:h-[72vh] overflow-hidden rounded-lg border bg-black/5 touch-none select-none"
+                onPointerDown={handleImagePointerDown}
+                onPointerMove={handleImagePointerMove}
+                onPointerUp={handleImagePointerUp}
+                onPointerCancel={handleImagePointerUp}
+                onWheel={handleImageWheel}
+                onDoubleClick={handleImageDoubleClick}
+                onClick={() => {
+                  if (isSmallScreen) setShowImageControls(prev => !prev);
+                }}
               >
-                <div className="w-full max-h-[72vh] overflow-auto rounded-lg border bg-black/5">
-                  {resolvedDetailUrl ? (
-                    <img
-                      src={resolvedDetailUrl}
-                      alt="Job photo"
-                      className="block max-w-none h-auto rounded-lg"
-                    />
-                  ) : (
-                    <div className="w-full rounded-lg bg-muted animate-pulse" style={{ height: '40vh' }} />
-                  )}
-                </div>
-              </a>
+                {resolvedDetailUrl ? (
+                  <img
+                    src={resolvedDetailUrl}
+                    alt="Job photo"
+                    className="pointer-events-none absolute left-1/2 top-1/2 h-full w-full object-contain select-none"
+                    style={{
+                      transform: `translate(calc(-50% + ${imageOffset.x}px), calc(-50% + ${imageOffset.y}px)) scale(${imageScale})`,
+                      transformOrigin: 'center center',
+                    }}
+                    draggable={false}
+                  />
+                ) : (
+                  <div className="w-full h-full rounded-lg bg-muted animate-pulse" />
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Pinch or scroll to zoom. Drag to pan when zoomed.{isSmallScreen ? ' Tap photo to show/hide controls.' : ''}
+              </p>
               
               {/* Uploader Info */}
               <div className="flex items-center gap-3">

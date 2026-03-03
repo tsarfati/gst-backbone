@@ -25,7 +25,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   display_name: string;
-  role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
+  role: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
   status: string;
   avatar_url?: string;
   has_global_job_access: boolean;
@@ -51,6 +51,7 @@ const roleColors = {
   admin: 'destructive',
   controller: 'secondary', 
   project_manager: 'default',
+  design_professional: 'secondary',
   employee: 'outline',
   view_only: 'outline',
   company_admin: 'destructive',
@@ -61,6 +62,7 @@ const roleLabels = {
   admin: 'Administrator',
   controller: 'Controller',
   project_manager: 'Project Manager',
+  design_professional: 'Design Professional',
   employee: 'Employee',
   view_only: 'View Only',
   company_admin: 'Company Admin',
@@ -687,6 +689,7 @@ export default function UserEdit() {
                       <SelectItem value="admin">Administrator</SelectItem>
                       <SelectItem value="controller">Controller</SelectItem>
                       <SelectItem value="project_manager">Project Manager</SelectItem>
+                      <SelectItem value="design_professional">Design Professional</SelectItem>
                       <SelectItem value="employee">Employee</SelectItem>
                       <SelectItem value="view_only">View Only</SelectItem>
                       <SelectItem value="company_admin">Company Admin</SelectItem>

@@ -19,6 +19,7 @@ interface AccessRequest {
   requested_at: string;
   status: string;
   notes?: string;
+  requested_role?: 'employee' | 'vendor' | 'design_professional';
   user_profile?: {
     first_name?: string;
     last_name?: string;
@@ -28,6 +29,18 @@ interface AccessRequest {
     avatar_url?: string;
   };
 }
+
+const parseRequestedRole = (notes?: string): 'employee' | 'vendor' | 'design_professional' => {
+  if (!notes) return 'employee';
+  try {
+    const parsed = JSON.parse(notes);
+    const role = String(parsed?.requestedRole || '').toLowerCase();
+    if (role === 'vendor' || role === 'design_professional') return role;
+  } catch {
+    // use default
+  }
+  return 'employee';
+};
 
 export default function CompanyAccessApproval() {
   const { user } = useAuth();
@@ -72,6 +85,7 @@ export default function CompanyAccessApproval() {
 
           return {
             ...request,
+            requested_role: parseRequestedRole(request.notes || undefined),
             user_profile: profile || {}
           };
         })
@@ -90,7 +104,12 @@ export default function CompanyAccessApproval() {
     }
   };
 
-  const handleRequest = async (requestId: string, action: 'approved' | 'rejected', userId: string) => {
+  const handleRequest = async (
+    requestId: string,
+    action: 'approved' | 'rejected',
+    userId: string,
+    requestedRole: 'employee' | 'vendor' | 'design_professional' = 'employee'
+  ) => {
     if (!user || !currentCompany) return;
 
     setProcessing(requestId);
@@ -115,7 +134,7 @@ export default function CompanyAccessApproval() {
           .insert({
             user_id: userId,
             company_id: currentCompany.id,
-            role: 'employee',
+            role: requestedRole,
             is_active: true,
             granted_by: user.id
           });
@@ -256,7 +275,7 @@ export default function CompanyAccessApproval() {
                           </div>
                           <div className="flex justify-end space-x-2">
                             <Button
-                              onClick={() => handleRequest(request.id, 'approved', request.user_id)}
+                              onClick={() => handleRequest(request.id, 'approved', request.user_id, request.requested_role || 'employee')}
                               disabled={processing === request.id}
                             >
                               Approve Access
@@ -295,7 +314,7 @@ export default function CompanyAccessApproval() {
                           <div className="flex justify-end space-x-2">
                             <Button
                               variant="destructive"
-                              onClick={() => handleRequest(request.id, 'rejected', request.user_id)}
+                              onClick={() => handleRequest(request.id, 'rejected', request.user_id, request.requested_role || 'employee')}
                               disabled={processing === request.id}
                             >
                               Reject Request

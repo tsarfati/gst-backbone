@@ -7,6 +7,7 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Building2, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import builderlynkLogo from '@/assets/builderlynk-logo-new.png';
 
 interface Invitation {
   id: string;
@@ -17,9 +18,11 @@ interface Invitation {
   expires_at: string;
   vendor?: {
     name: string;
+    vendor_type?: string | null;
   };
   company?: {
     name: string;
+    logo_url?: string | null;
   };
 }
 
@@ -63,7 +66,7 @@ export default function VendorRegister() {
           status,
           expires_at,
           vendor:vendors(name),
-          company:companies(name)
+          company:companies(name, logo_url)
         `)
         .eq('token', token)
         .single();
@@ -190,10 +193,10 @@ export default function VendorRegister() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30">
+      <div className="min-h-screen flex items-center justify-center bg-[#030B20]">
         <div className="text-center">
           <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-muted-foreground">Validating invitation...</p>
+          <p className="mt-4 text-slate-300">Validating invitation...</p>
         </div>
       </div>
     );
@@ -201,12 +204,12 @@ export default function VendorRegister() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
+        <Card className="w-full max-w-md border-slate-700 bg-[#071231] text-slate-100">
           <CardContent className="pt-6 text-center">
             <XCircle className="h-16 w-16 mx-auto text-destructive mb-4" />
             <h2 className="text-xl font-semibold mb-2">Invalid Invitation</h2>
-            <p className="text-muted-foreground mb-6">{error}</p>
+            <p className="text-slate-300 mb-6">{error}</p>
             <Button onClick={() => navigate('/auth')}>
               Go to Login
             </Button>
@@ -218,12 +221,12 @@ export default function VendorRegister() {
 
   if (success) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-        <Card className="w-full max-w-md">
+      <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
+        <Card className="w-full max-w-md border-slate-700 bg-[#071231] text-slate-100">
           <CardContent className="pt-6 text-center">
             <CheckCircle className="h-16 w-16 mx-auto text-green-500 mb-4" />
             <h2 className="text-xl font-semibold mb-2">Account Created!</h2>
-            <p className="text-muted-foreground mb-6">
+            <p className="text-slate-300 mb-6">
               Please check your email ({invitation?.email}) to verify your account before logging in.
             </p>
             <Button onClick={() => navigate('/auth')}>
@@ -235,16 +238,42 @@ export default function VendorRegister() {
     );
   }
 
+  const vendorType = String((invitation?.vendor as any)?.vendor_type || '').toLowerCase();
+  const isDesignProfessional = vendorType === 'design_professional';
+  const companyName = (invitation?.company as any)?.name || 'BuilderLYNK';
+  const companyLogo = (invitation?.company as any)?.logo_url || null;
+  const landingTitle = isDesignProfessional ? 'Create Your Design Professional Account' : 'Create Your Vendor Account';
+  const landingSubtitle = isDesignProfessional
+    ? `You've been invited by ${companyName} to join as a design professional.`
+    : `You've been invited by ${companyName} to join as a vendor.`;
+
   return (
-    <div className="min-h-screen flex items-center justify-center bg-muted/30 p-4">
-      <Card className="w-full max-w-md">
+    <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
+      <Card className="w-full max-w-lg border-slate-700 bg-[#071231] text-slate-100">
         <CardHeader className="text-center">
-          <div className="mx-auto mb-4 h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
-            <Building2 className="h-6 w-6 text-primary" />
+          <div className="mx-auto mb-4 flex flex-col items-center gap-3">
+            <img
+              src={builderlynkLogo}
+              alt="BuilderLYNK"
+              className="h-12 w-auto object-contain"
+            />
+            {companyLogo ? (
+              <img
+                src={companyLogo}
+                alt={`${companyName} logo`}
+                className="h-12 w-auto max-w-[220px] object-contain rounded-md bg-white/90 px-2 py-1"
+              />
+            ) : (
+              <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-6 w-6 text-primary" />
+              </div>
+            )}
           </div>
-          <CardTitle>Create Your Vendor Account</CardTitle>
-          <CardDescription>
-            You've been invited by <strong>{(invitation?.company as any)?.name}</strong> to join as <strong>{(invitation?.vendor as any)?.name}</strong>
+          <CardTitle>{landingTitle}</CardTitle>
+          <CardDescription className="text-slate-300">
+            {landingSubtitle}
+            <br />
+            Invited entity: <strong className="text-slate-100">{(invitation?.vendor as any)?.name}</strong>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -256,7 +285,7 @@ export default function VendorRegister() {
                 type="email"
                 value={invitation?.email || ''}
                 disabled
-                className="bg-muted"
+                className="bg-slate-800 border-slate-600"
               />
             </div>
 

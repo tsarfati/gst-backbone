@@ -20,6 +20,16 @@ interface VendorInviteRequest {
   baseUrl: string;
 }
 
+const BUILDERLYNK_EMAIL_LOGO = "https://builderlynk.lovable.app/email-assets/builderlynk-logo.png?v=2";
+
+const escapeHtml = (value: string): string =>
+  String(value || "")
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -79,12 +89,22 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Create the invitation link
     const inviteLink = `${baseUrl}/vendor-register?token=${invitation.token}`;
+    const escapedCompanyName = escapeHtml(companyName);
+    const escapedVendorName = escapeHtml(vendorName || vendorEmail);
+
+    const { data: companyRow } = await supabase
+      .from("companies")
+      .select("logo_url")
+      .eq("id", companyId)
+      .single();
+
+    const companyLogo = companyRow?.logo_url ? escapeHtml(companyRow.logo_url) : null;
 
     // Send the email
     const emailResponse = await resend.emails.send({
       from: "BuilderLYNK <noreply@builderlynk.com>",
       to: [vendorEmail],
-      subject: `You've been invited to join ${companyName} on BuilderLynk`,
+      subject: `${companyName} invited you to join BuilderLYNK`,
       html: `
         <!DOCTYPE html>
         <html>
@@ -92,35 +112,55 @@ const handler = async (req: Request): Promise<Response> => {
           <meta charset="utf-8">
           <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
-        <body style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px;">
-          <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; border-radius: 12px 12px 0 0; text-align: center;">
-            <h1 style="color: white; margin: 0; font-size: 28px;">You're Invited!</h1>
-          </div>
-          
-          <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-            <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${vendorName}</strong>,</p>
-            
-            <p style="font-size: 16px; margin-bottom: 20px;">
-              <strong>${companyName}</strong> has invited you to create a vendor account on BuilderLynk. 
-              This will allow you to submit bids, view projects, and collaborate on construction work.
-            </p>
-            
-            <div style="text-align: center; margin: 30px 0;">
-              <a href="${inviteLink}" style="display: inline-block; background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); color: white; text-decoration: none; padding: 14px 32px; border-radius: 8px; font-weight: 600; font-size: 16px;">
-                Create Your Account
-              </a>
-            </div>
-            
-            <p style="font-size: 14px; color: #6b7280; margin-top: 30px;">
-              This invitation will expire in 7 days. If you didn't expect this invitation, you can safely ignore this email.
-            </p>
-            
-            <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
-            
-            <p style="font-size: 12px; color: #9ca3af; text-align: center;">
-              BuilderLynk - Construction Management Made Simple
-            </p>
-          </div>
+        <body style="margin:0;padding:0;background-color:#030B20;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,Arial,sans-serif;color:#ffffff;">
+          <table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="background-color:#030B20;padding:24px 0;">
+            <tr>
+              <td align="center">
+                <table role="presentation" width="640" cellspacing="0" cellpadding="0" style="width:640px;max-width:94%;background:#071231;border:1px solid #1f2a44;border-radius:14px;overflow:hidden;">
+                  <tr>
+                    <td style="padding:22px 20px 8px;text-align:center;">
+                      <img src="${BUILDERLYNK_EMAIL_LOGO}" alt="BuilderLYNK" style="display:block;margin:0 auto;height:130px;width:auto;max-width:360px;" />
+                    </td>
+                  </tr>
+                  ${
+                    companyLogo
+                      ? `
+                  <tr>
+                    <td style="padding:0 20px 14px;text-align:center;">
+                      <img src="${companyLogo}" alt="${escapedCompanyName} logo" style="display:block;margin:0 auto;height:64px;width:auto;max-width:280px;background:#ffffff;border-radius:8px;padding:6px 10px;" />
+                    </td>
+                  </tr>`
+                      : ""
+                  }
+                  <tr>
+                    <td style="padding:0 28px 22px;">
+                      <h1 style="margin:0 0 12px;font-size:28px;line-height:1.2;font-weight:700;color:#ffffff;text-align:center;">You're Invited</h1>
+                      <p style="margin:0 0 10px;color:#dbe5ff;font-size:16px;text-align:center;">Hello <strong>${escapedVendorName}</strong>,</p>
+                      <p style="margin:0 0 18px;color:#dbe5ff;font-size:16px;line-height:1.6;text-align:center;">
+                        <strong style="color:#ffffff;">${escapedCompanyName}</strong> invited you to join BuilderLYNK as a vendor partner.
+                        Create your account to submit bids, collaborate, and manage project work.
+                      </p>
+                      <div style="text-align:center;margin:20px 0 16px;">
+                        <a href="${inviteLink}" style="display:inline-block;background-color:#E88A2D;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;padding:14px 30px;border-radius:8px;">
+                          Accept Invitation
+                        </a>
+                      </div>
+                      <p style="margin:0;color:#9fb0d3;font-size:13px;line-height:1.5;text-align:center;">
+                        This invitation expires in 7 days. If you weren't expecting this invite, you can safely ignore this email.
+                      </p>
+                    </td>
+                  </tr>
+                  <tr>
+                    <td style="padding:0 28px 22px;">
+                      <div style="border-top:1px solid #1f2a44;padding-top:14px;text-align:center;">
+                        <p style="margin:0;color:#6f83ad;font-size:12px;">© ${new Date().getFullYear()} BuilderLYNK. All rights reserved.</p>
+                      </div>
+                    </td>
+                  </tr>
+                </table>
+              </td>
+            </tr>
+          </table>
         </body>
         </html>
       `,

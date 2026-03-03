@@ -726,6 +726,18 @@ export default function Auth() {
               </form>
             </TabsContent>
           </Tabs>
+          {!inviteToken && (
+            <div className="mt-5 border-t pt-4 text-center text-sm text-muted-foreground">
+              Vendor or design professional?{" "}
+              <button
+                type="button"
+                className="text-[#E88A2D] font-medium hover:underline"
+                onClick={() => navigate('/vendor-signup')}
+              >
+                Sign up for approval
+              </button>
+            </div>
+          )}
         </CardContent>
       </Card>
     </div>

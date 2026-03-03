@@ -28,6 +28,7 @@ const ALLOWED_BASE_ROLES = new Set([
   "company_admin",
   "controller",
   "project_manager",
+  "design_professional",
   "employee",
   "view_only",
   "vendor",

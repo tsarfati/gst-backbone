@@ -7,7 +7,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
-import { X, Plus, CheckCircle, AlertTriangle, DollarSign, Users, Bell, Settings } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { X, CheckCircle, DollarSign, Users, Settings, Copy, ExternalLink, Upload, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -38,6 +39,18 @@ const payablesSettingsSchema = z.object({
   allowed_subcontract_vendor_types: z.array(z.string()),
   allowed_po_vendor_types: z.array(z.string()),
   show_vendor_compliance_warnings: z.boolean(),
+  vendor_portal_enabled: z.boolean(),
+  vendor_portal_payment_changes_auto_approve: z.boolean(),
+  vendor_portal_require_job_assignment_for_bills: z.boolean(),
+  vendor_portal_default_job_access_billing: z.boolean(),
+  vendor_portal_default_job_access_team_directory: z.boolean(),
+  vendor_portal_default_job_access_plans: z.boolean(),
+  vendor_portal_default_job_access_rfis: z.boolean(),
+  vendor_portal_signup_background_image_url: z.string(),
+  vendor_portal_signup_company_logo_url: z.string(),
+  vendor_portal_signup_header_logo_url: z.string(),
+  vendor_portal_signup_header_title: z.string(),
+  vendor_portal_signup_header_subtitle: z.string(),
 });
 
 interface PayablesSettingsData {
@@ -62,6 +75,18 @@ interface PayablesSettingsData {
   allowed_subcontract_vendor_types: string[];
   allowed_po_vendor_types: string[];
   show_vendor_compliance_warnings: boolean;
+  vendor_portal_enabled: boolean;
+  vendor_portal_payment_changes_auto_approve: boolean;
+  vendor_portal_require_job_assignment_for_bills: boolean;
+  vendor_portal_default_job_access_billing: boolean;
+  vendor_portal_default_job_access_team_directory: boolean;
+  vendor_portal_default_job_access_plans: boolean;
+  vendor_portal_default_job_access_rfis: boolean;
+  vendor_portal_signup_background_image_url: string;
+  vendor_portal_signup_company_logo_url: string;
+  vendor_portal_signup_header_logo_url: string;
+  vendor_portal_signup_header_title: string;
+  vendor_portal_signup_header_subtitle: string;
 }
 
 const defaultSettings: PayablesSettingsData = {
@@ -86,6 +111,18 @@ const defaultSettings: PayablesSettingsData = {
   allowed_subcontract_vendor_types: ['Contractor', 'Design Professional'],
   allowed_po_vendor_types: ['Supplier'],
   show_vendor_compliance_warnings: true,
+  vendor_portal_enabled: true,
+  vendor_portal_payment_changes_auto_approve: false,
+  vendor_portal_require_job_assignment_for_bills: true,
+  vendor_portal_default_job_access_billing: true,
+  vendor_portal_default_job_access_team_directory: true,
+  vendor_portal_default_job_access_plans: false,
+  vendor_portal_default_job_access_rfis: false,
+  vendor_portal_signup_background_image_url: '',
+  vendor_portal_signup_company_logo_url: '',
+  vendor_portal_signup_header_logo_url: '',
+  vendor_portal_signup_header_title: 'Vendor & Design Professional Signup',
+  vendor_portal_signup_header_subtitle: 'Create your account and submit your request for company approval.',
 };
 
 const availableRoles = [
@@ -150,6 +187,7 @@ export default function PayablesSettings() {
       }
 
       if (data) {
+        const typedData = data as any;
         setSettings({
           bills_require_approval: data.bills_require_approval,
           bills_approval_roles: data.bills_approval_roles,
@@ -172,6 +210,18 @@ export default function PayablesSettings() {
           allowed_subcontract_vendor_types: data.allowed_subcontract_vendor_types || ['Contractor', 'Design Professional'],
           allowed_po_vendor_types: data.allowed_po_vendor_types || ['Supplier'],
           show_vendor_compliance_warnings: data.show_vendor_compliance_warnings ?? true,
+          vendor_portal_enabled: typedData.vendor_portal_enabled ?? true,
+          vendor_portal_payment_changes_auto_approve: typedData.vendor_portal_payment_changes_auto_approve ?? false,
+          vendor_portal_require_job_assignment_for_bills: typedData.vendor_portal_require_job_assignment_for_bills ?? true,
+          vendor_portal_default_job_access_billing: typedData.vendor_portal_default_job_access_billing ?? true,
+          vendor_portal_default_job_access_team_directory: typedData.vendor_portal_default_job_access_team_directory ?? true,
+          vendor_portal_default_job_access_plans: typedData.vendor_portal_default_job_access_plans ?? false,
+          vendor_portal_default_job_access_rfis: typedData.vendor_portal_default_job_access_rfis ?? false,
+          vendor_portal_signup_background_image_url: typedData.vendor_portal_signup_background_image_url ?? '',
+          vendor_portal_signup_company_logo_url: typedData.vendor_portal_signup_company_logo_url ?? '',
+          vendor_portal_signup_header_logo_url: typedData.vendor_portal_signup_header_logo_url ?? '',
+          vendor_portal_signup_header_title: typedData.vendor_portal_signup_header_title ?? defaultSettings.vendor_portal_signup_header_title,
+          vendor_portal_signup_header_subtitle: typedData.vendor_portal_signup_header_subtitle ?? defaultSettings.vendor_portal_signup_header_subtitle,
         });
       }
       autoSaveReadyRef.current = true;
@@ -225,6 +275,61 @@ export default function PayablesSettings() {
 
   const updateSettings = (key: keyof PayablesSettingsData, value: any) => {
     setSettings(prev => ({ ...prev, [key]: value }));
+  };
+
+  const publicVendorSignupUrl = currentCompany?.id
+    ? `${window.location.origin}/vendor-signup?company=${encodeURIComponent(currentCompany.id)}`
+    : '';
+
+  const copyVendorSignupLink = async () => {
+    if (!publicVendorSignupUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicVendorSignupUrl);
+      toast({
+        title: 'Link copied',
+        description: 'Vendor portal signup link copied to clipboard.',
+      });
+    } catch (error) {
+      console.error('Failed to copy vendor signup link:', error);
+      toast({
+        title: 'Copy failed',
+        description: 'Could not copy signup link.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const uploadVendorPortalAsset = async (
+    file: File,
+    field: 'vendor_portal_signup_background_image_url' | 'vendor_portal_signup_company_logo_url' | 'vendor_portal_signup_header_logo_url',
+  ) => {
+    if (!currentCompany?.id) return;
+
+    try {
+      const ext = (file.name.split('.').pop() || 'png').toLowerCase();
+      const filePath = `${currentCompany.id}/vendor-portal/${field}-${Date.now()}.${ext}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('company-logos')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('company-logos').getPublicUrl(filePath);
+      updateSettings(field, data.publicUrl);
+
+      toast({
+        title: 'Upload complete',
+        description: 'Vendor portal branding asset updated.',
+      });
+    } catch (error) {
+      console.error('Failed uploading vendor portal asset:', error);
+      toast({
+        title: 'Upload failed',
+        description: 'Could not upload vendor portal asset.',
+        variant: 'destructive',
+      });
+    }
   };
 
   const addRole = (settingKey: keyof PayablesSettingsData, role: string) => {
@@ -310,9 +415,18 @@ export default function PayablesSettings() {
   }
 
   return (
-    <div className="space-y-8">
-      {/* Bills Approval Section */}
-      <div className="space-y-6">
+    <div className="space-y-6">
+      <Tabs defaultValue="approvals" className="space-y-6">
+        <TabsList>
+          <TabsTrigger value="approvals">Approvals</TabsTrigger>
+          <TabsTrigger value="defaults">Defaults & Rules</TabsTrigger>
+          <TabsTrigger value="vendor-portal">Vendor Portal</TabsTrigger>
+          <TabsTrigger value="job-approval">Job Bill Approval</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="approvals" className="space-y-8">
+          {/* Bills Approval Section */}
+          <div className="space-y-6">
         <div className="flex items-center gap-2">
           <CheckCircle className="h-5 w-5 text-green-600" />
           <h3 className="text-lg font-semibold">Bills Approval Requirements</h3>
@@ -363,8 +477,8 @@ export default function PayablesSettings() {
 
       <Separator />
 
-      {/* Payment Approval Section */}
-      <div className="space-y-6">
+          {/* Payment Approval Section */}
+          <div className="space-y-6">
         <div className="flex items-center gap-2">
           <DollarSign className="h-5 w-5 text-blue-600" />
           <h3 className="text-lg font-semibold">Payment Approval Settings</h3>
@@ -431,127 +545,11 @@ export default function PayablesSettings() {
           )}
         </div>
       </div>
+        </TabsContent>
 
-      <Separator />
-
-      {/* Notification Settings */}
-      <div className="space-y-6">
-        <div className="flex items-center gap-2">
-          <Bell className="h-5 w-5 text-orange-600" />
-          <h3 className="text-lg font-semibold">Notification Settings</h3>
-        </div>
-        
-        <div className="grid gap-4">
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label>Bill Submission Notifications</Label>
-              <p className="text-sm text-muted-foreground">Notify approvers when bills are submitted</p>
-            </div>
-            <Switch
-              checked={settings.notify_on_bill_submission}
-              onCheckedChange={(checked) => updateSettings('notify_on_bill_submission', checked)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label>Payment Approval Notifications</Label>
-              <p className="text-sm text-muted-foreground">Notify when payments need approval</p>
-            </div>
-            <Switch
-              checked={settings.notify_on_payment_approval}
-              onCheckedChange={(checked) => updateSettings('notify_on_payment_approval', checked)}
-            />
-          </div>
-
-          <div className="flex items-center justify-between">
-            <div className="space-y-1">
-              <Label>Payment Confirmations</Label>
-              <p className="text-sm text-muted-foreground">Send confirmation emails when payments are processed</p>
-            </div>
-            <Switch
-              checked={settings.send_payment_confirmations}
-              onCheckedChange={(checked) => updateSettings('send_payment_confirmations', checked)}
-            />
-          </div>
-        </div>
-      </div>
-
-      <Separator />
-
-      {/* Vendor Type Restrictions */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Vendor Type Restrictions</CardTitle>
-          <CardDescription>Configure which vendor types can be assigned to subcontracts and purchase orders</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-6">
-          {/* Allowed Subcontract Vendor Types */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Allowed Vendor Types for Subcontracts</Label>
-            <p className="text-xs text-muted-foreground">
-              Select which vendor types can be assigned to subcontracts
-            </p>
-            <div className="space-y-2">
-              {vendorTypes.map((type) => (
-                <div key={type.value} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id={`subcontract-${type.value}`}
-                    checked={settings.allowed_subcontract_vendor_types.includes(type.value)}
-                    onChange={(e) => {
-                      const types = e.target.checked
-                        ? [...settings.allowed_subcontract_vendor_types, type.value]
-                        : settings.allowed_subcontract_vendor_types.filter(t => t !== type.value);
-                      updateSettings("allowed_subcontract_vendor_types", types);
-                    }}
-                    className="rounded border-input"
-                  />
-                  <Label htmlFor={`subcontract-${type.value}`} className="font-normal cursor-pointer">
-                    {type.label}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-
-          <Separator />
-
-          {/* Allowed PO Vendor Types */}
-          <div className="space-y-3">
-            <Label className="text-sm font-medium">Allowed Vendor Types for Purchase Orders</Label>
-            <p className="text-xs text-muted-foreground">
-              Select which vendor types can be assigned to purchase orders
-            </p>
-            <div className="space-y-2">
-              {vendorTypes.map((type) => (
-                <div key={type.value} className="flex items-center space-x-2">
-                  <input
-                    type="checkbox"
-                    id={`po-${type.value}`}
-                    checked={settings.allowed_po_vendor_types.includes(type.value)}
-                    onChange={(e) => {
-                      const types = e.target.checked
-                        ? [...settings.allowed_po_vendor_types, type.value]
-                        : settings.allowed_po_vendor_types.filter(t => t !== type.value);
-                      updateSettings("allowed_po_vendor_types", types);
-                    }}
-                    className="rounded border-input"
-                  />
-                  <Label htmlFor={`po-${type.value}`} className="font-normal cursor-pointer">
-                    {type.label}
-                  </Label>
-                </div>
-              ))}
-            </div>
-          </div>
-        </CardContent>
-      </Card>
-
-      <Separator />
-
-      {/* Default Settings */}
-      <div className="space-y-6">
+        <TabsContent value="defaults" className="space-y-8">
+          {/* Default Settings */}
+          <div className="space-y-6">
         <div className="flex items-center gap-2">
           <Settings className="h-5 w-5 text-gray-600" />
           <h3 className="text-lg font-semibold">Default Settings</h3>
@@ -642,10 +640,327 @@ export default function PayablesSettings() {
         </div>
       </div>
 
-      <Separator />
+          <Separator />
 
-      {/* Job-Specific Bill Approval Settings */}
-      <JobBillApprovalSettings />
+          {/* Vendor Type Restrictions */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Vendor Type Restrictions</CardTitle>
+              <CardDescription>Configure which vendor types can be assigned to subcontracts and purchase orders</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Allowed Vendor Types for Subcontracts</Label>
+                <p className="text-xs text-muted-foreground">
+                  Select which vendor types can be assigned to subcontracts
+                </p>
+                <div className="space-y-2">
+                  {vendorTypes.map((type) => (
+                    <div key={type.value} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`subcontract-${type.value}`}
+                        checked={settings.allowed_subcontract_vendor_types.includes(type.value)}
+                        onChange={(e) => {
+                          const types = e.target.checked
+                            ? [...settings.allowed_subcontract_vendor_types, type.value]
+                            : settings.allowed_subcontract_vendor_types.filter(t => t !== type.value);
+                          updateSettings("allowed_subcontract_vendor_types", types);
+                        }}
+                        className="rounded border-input"
+                      />
+                      <Label htmlFor={`subcontract-${type.value}`} className="font-normal cursor-pointer">
+                        {type.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <Separator />
+
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Allowed Vendor Types for Purchase Orders</Label>
+                <p className="text-xs text-muted-foreground">
+                  Select which vendor types can be assigned to purchase orders
+                </p>
+                <div className="space-y-2">
+                  {vendorTypes.map((type) => (
+                    <div key={type.value} className="flex items-center space-x-2">
+                      <input
+                        type="checkbox"
+                        id={`po-${type.value}`}
+                        checked={settings.allowed_po_vendor_types.includes(type.value)}
+                        onChange={(e) => {
+                          const types = e.target.checked
+                            ? [...settings.allowed_po_vendor_types, type.value]
+                            : settings.allowed_po_vendor_types.filter(t => t !== type.value);
+                          updateSettings("allowed_po_vendor_types", types);
+                        }}
+                        className="rounded border-input"
+                      />
+                      <Label htmlFor={`po-${type.value}`} className="font-normal cursor-pointer">
+                        {type.label}
+                      </Label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="vendor-portal" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vendor Portal</CardTitle>
+              <CardDescription>
+                Share the signup link so vendors and design professionals can request access without a direct invite.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label>Enable Vendor Portal</Label>
+                  <p className="text-sm text-muted-foreground">Allow vendors/design professionals to access the portal experience</p>
+                </div>
+                <Switch
+                  checked={settings.vendor_portal_enabled}
+                  onCheckedChange={(checked) => updateSettings('vendor_portal_enabled', checked)}
+                />
+              </div>
+              <Separator />
+              <div className="space-y-2">
+                <Label>Public Vendor Signup Link</Label>
+                <Input value={publicVendorSignupUrl} readOnly />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" type="button" onClick={copyVendorSignupLink}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Link
+                </Button>
+                <Button variant="outline" type="button" asChild>
+                  <a href={publicVendorSignupUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open Signup Page
+                  </a>
+                </Button>
+              </div>
+              <Separator />
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Signup Page Branding</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Customize the public vendor signup page for this company.
+                  </p>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Background Image</Label>
+                    <Input
+                      value={settings.vendor_portal_signup_background_image_url}
+                      onChange={(e) => updateSettings('vendor_portal_signup_background_image_url', e.target.value)}
+                      placeholder="https://... or upload below"
+                    />
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => document.getElementById('vendor-portal-bg-upload')?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Background
+                    </Button>
+                    <input
+                      id="vendor-portal-bg-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadVendorPortalAsset(file, 'vendor_portal_signup_background_image_url');
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Company Logo</Label>
+                    <Input
+                      value={settings.vendor_portal_signup_company_logo_url}
+                      onChange={(e) => updateSettings('vendor_portal_signup_company_logo_url', e.target.value)}
+                      placeholder="https://... or upload below"
+                    />
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => document.getElementById('vendor-portal-company-logo-upload')?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Company Logo
+                    </Button>
+                    <input
+                      id="vendor-portal-company-logo-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadVendorPortalAsset(file, 'vendor_portal_signup_company_logo_url');
+                      }}
+                    />
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label>Header Logo</Label>
+                    <Input
+                      value={settings.vendor_portal_signup_header_logo_url}
+                      onChange={(e) => updateSettings('vendor_portal_signup_header_logo_url', e.target.value)}
+                      placeholder="https://... or upload below"
+                    />
+                    <Button
+                      variant="outline"
+                      type="button"
+                      onClick={() => document.getElementById('vendor-portal-header-logo-upload')?.click()}
+                    >
+                      <Upload className="h-4 w-4 mr-2" />
+                      Upload Header Logo
+                    </Button>
+                    <input
+                      id="vendor-portal-header-logo-upload"
+                      type="file"
+                      accept="image/*"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void uploadVendorPortalAsset(file, 'vendor_portal_signup_header_logo_url');
+                      }}
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Signup Form Header</Label>
+                    <Input
+                      value={settings.vendor_portal_signup_header_title}
+                      onChange={(e) => updateSettings('vendor_portal_signup_header_title', e.target.value)}
+                      placeholder="Vendor & Design Professional Signup"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Signup Form Subheader</Label>
+                    <Input
+                      value={settings.vendor_portal_signup_header_subtitle}
+                      onChange={(e) => updateSettings('vendor_portal_signup_header_subtitle', e.target.value)}
+                      placeholder="Create your account and submit your request for approval."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-muted-foreground">
+                  <div className="rounded-md border border-border/60 p-2 space-y-1">
+                    <div className="font-medium flex items-center gap-1"><ImageIcon className="h-3.5 w-3.5" /> Background Preview</div>
+                    {settings.vendor_portal_signup_background_image_url ? (
+                      <img src={settings.vendor_portal_signup_background_image_url} alt="Background preview" className="h-16 w-full object-cover rounded" />
+                    ) : (
+                      <div className="h-16 rounded bg-muted/40 flex items-center justify-center">Not set</div>
+                    )}
+                  </div>
+                  <div className="rounded-md border border-border/60 p-2 space-y-1">
+                    <div className="font-medium">Company Logo Preview</div>
+                    {settings.vendor_portal_signup_company_logo_url ? (
+                      <img src={settings.vendor_portal_signup_company_logo_url} alt="Company logo preview" className="h-16 w-full object-contain rounded bg-white/90 p-1" />
+                    ) : (
+                      <div className="h-16 rounded bg-muted/40 flex items-center justify-center">Not set</div>
+                    )}
+                  </div>
+                  <div className="rounded-md border border-border/60 p-2 space-y-1">
+                    <div className="font-medium">Header Logo Preview</div>
+                    {settings.vendor_portal_signup_header_logo_url ? (
+                      <img src={settings.vendor_portal_signup_header_logo_url} alt="Header logo preview" className="h-16 w-full object-contain rounded bg-white/90 p-1" />
+                    ) : (
+                      <div className="h-16 rounded bg-muted/40 flex items-center justify-center">Not set</div>
+                    )}
+                  </div>
+                </div>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label>Auto-Approve Vendor Payment Info Changes</Label>
+                  <p className="text-sm text-muted-foreground">When off, all vendor payment method updates require internal approval</p>
+                </div>
+                <Switch
+                  checked={settings.vendor_portal_payment_changes_auto_approve}
+                  onCheckedChange={(checked) => updateSettings('vendor_portal_payment_changes_auto_approve', checked)}
+                />
+              </div>
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label>Require Job Assignment to Submit Bills</Label>
+                  <p className="text-sm text-muted-foreground">Vendors must be associated with at least one job before bill submission</p>
+                </div>
+                <Switch
+                  checked={settings.vendor_portal_require_job_assignment_for_bills}
+                  onCheckedChange={(checked) => updateSettings('vendor_portal_require_job_assignment_for_bills', checked)}
+                />
+              </div>
+              <Separator />
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">Default Job Access for Vendor Portal</Label>
+                  <p className="text-sm text-muted-foreground mt-1">Applied by default when a vendor is assigned to a job</p>
+                </div>
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label>Billing / Bill Submission</Label>
+                    <Switch
+                      checked={settings.vendor_portal_default_job_access_billing}
+                      onCheckedChange={(checked) => updateSettings('vendor_portal_default_job_access_billing', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label>Job Team Directory</Label>
+                    <Switch
+                      checked={settings.vendor_portal_default_job_access_team_directory}
+                      onCheckedChange={(checked) => updateSettings('vendor_portal_default_job_access_team_directory', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label>Plans</Label>
+                    <Switch
+                      checked={settings.vendor_portal_default_job_access_plans}
+                      onCheckedChange={(checked) => updateSettings('vendor_portal_default_job_access_plans', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label>RFIs</Label>
+                    <Switch
+                      checked={settings.vendor_portal_default_job_access_rfis}
+                      onCheckedChange={(checked) => updateSettings('vendor_portal_default_job_access_rfis', checked)}
+                    />
+                  </div>
+                </div>
+              </div>
+              <Separator />
+              <div className="flex items-center justify-between">
+                <div className="space-y-1">
+                  <Label>Show Vendor Compliance Warnings</Label>
+                  <p className="text-sm text-muted-foreground">Display warnings when entering bills for vendors with missing compliance documents</p>
+                </div>
+                <Switch
+                  checked={settings.show_vendor_compliance_warnings}
+                  onCheckedChange={(checked) => updateSettings('show_vendor_compliance_warnings', checked)}
+                />
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="job-approval" className="space-y-6">
+          <JobBillApprovalSettings />
+        </TabsContent>
+      </Tabs>
 
       {!appSettings.autoSave && (
         <div className="flex justify-end pt-6">

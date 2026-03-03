@@ -65,12 +65,14 @@ const AVAILABLE_PAGES = [
   { value: '/settings/notifications', label: 'Notifications & Email' },
   { value: '/settings/security', label: 'Data & Security' },
   { value: '/settings/users', label: 'User Management' },
+  { value: '/design-professional/dashboard', label: 'Design Professional Dashboard' },
 ];
 
 const ROLE_LABELS = {
   admin: 'Administrator',
   controller: 'Controller',
   project_manager: 'Project Manager',
+  design_professional: 'Design Professional',
   employee: 'Employee',
   view_only: 'View Only',
   company_admin: 'Company Admin',
@@ -128,7 +130,7 @@ export default function RoleDefaultPageSettings() {
       setSaving(true);
 
       const updates = rolePages.map(rolePage => ({
-        role: rolePage.role as 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin' | 'vendor',
+        role: rolePage.role as 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor',
         default_page: rolePage.default_page,
         created_by: profile?.user_id || ''
       }));

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle, Eye, EyeOff, Plus, Send, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -29,6 +31,10 @@ export default function VendorDetails() {
   const [vendor, setVendor] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [jobs, setJobs] = useState<any[]>([]);
+  const [allJobs, setAllJobs] = useState<any[]>([]);
+  const [vendorJobAccess, setVendorJobAccess] = useState<any[]>([]);
+  const [selectedAssignJobId, setSelectedAssignJobId] = useState<string>("");
+  const [assigningJob, setAssigningJob] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [complianceDocuments, setComplianceDocuments] = useState<any[]>([]);
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
@@ -65,6 +71,8 @@ export default function VendorDetails() {
           if (data) {
             // Fetch related data
             fetchVendorJobs(data.company_id);
+            fetchAllCompanyJobs(data.company_id);
+            fetchVendorJobAccess(data.id);
             fetchPaymentMethods(data.id);
             fetchComplianceDocuments(data.id);
             fetchSubcontracts(data.id);
@@ -214,6 +222,46 @@ export default function VendorDetails() {
       }
     };
 
+    const fetchAllCompanyJobs = async (companyId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('jobs')
+          .select('id, name, status, client')
+          .eq('company_id', companyId)
+          .order('name', { ascending: true });
+
+        if (error) throw error;
+        setAllJobs(data || []);
+      } catch (error) {
+        console.error('Error loading company jobs:', error);
+      }
+    };
+
+    const fetchVendorJobAccess = async (vendorId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from('vendor_job_access' as any)
+          .select(`
+            id,
+            vendor_id,
+            job_id,
+            can_submit_bills,
+            can_view_plans,
+            can_submit_rfis,
+            can_view_team_directory,
+            can_upload_compliance_docs,
+            jobs:job_id(id, name, status)
+          `)
+          .eq('vendor_id', vendorId)
+          .order('created_at', { ascending: true });
+
+        if (error) throw error;
+        setVendorJobAccess((data as any[]) || []);
+      } catch (error) {
+        console.error('Error loading vendor job access:', error);
+      }
+    };
+
     const fetchPendingInvite = async (vendorId: string) => {
       try {
         const { data, error } = await supabase
@@ -236,6 +284,101 @@ export default function VendorDetails() {
 
     fetchVendor();
   }, [id, toast]);
+
+  const handleAssignJob = async () => {
+    if (!vendor?.id || !selectedAssignJobId || !user?.id) return;
+    try {
+      setAssigningJob(true);
+      const { error } = await supabase
+        .from('vendor_job_access' as any)
+        .upsert({
+          vendor_id: vendor.id,
+          job_id: selectedAssignJobId,
+          can_submit_bills: true,
+          can_view_plans: false,
+          can_submit_rfis: false,
+          can_view_team_directory: true,
+          can_upload_compliance_docs: true,
+          created_by: user.id,
+        }, {
+          onConflict: 'vendor_id,job_id',
+        });
+
+      if (error) throw error;
+      setSelectedAssignJobId('');
+      const { data } = await supabase
+        .from('vendor_job_access' as any)
+        .select(`
+          id,
+          vendor_id,
+          job_id,
+          can_submit_bills,
+          can_view_plans,
+          can_submit_rfis,
+          can_view_team_directory,
+          can_upload_compliance_docs,
+          jobs:job_id(id, name, status)
+        `)
+        .eq('vendor_id', vendor.id)
+        .order('created_at', { ascending: true });
+      setVendorJobAccess((data as any[]) || []);
+      toast({
+        title: "Job assigned",
+        description: "Vendor assignment and default access saved.",
+      });
+    } catch (error) {
+      console.error('Error assigning vendor job:', error);
+      toast({
+        title: "Error",
+        description: "Failed to assign vendor to job.",
+        variant: "destructive",
+      });
+    } finally {
+      setAssigningJob(false);
+    }
+  };
+
+  const handleUpdateVendorJobAccess = async (assignmentId: string, field: string, value: boolean) => {
+    try {
+      const { error } = await supabase
+        .from('vendor_job_access' as any)
+        .update({ [field]: value })
+        .eq('id', assignmentId);
+      if (error) throw error;
+      setVendorJobAccess(prev => prev.map((entry) => (
+        entry.id === assignmentId ? { ...entry, [field]: value } : entry
+      )));
+    } catch (error) {
+      console.error('Error updating vendor job access:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update vendor job access.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleRemoveVendorJobAccess = async (assignmentId: string) => {
+    try {
+      const { error } = await supabase
+        .from('vendor_job_access' as any)
+        .delete()
+        .eq('id', assignmentId);
+      if (error) throw error;
+      setVendorJobAccess(prev => prev.filter((entry) => entry.id !== assignmentId));
+      toast({
+        title: "Assignment removed",
+        description: "Vendor was removed from the job.",
+      });
+    } catch (error) {
+      console.error('Error removing vendor job access:', error);
+      toast({
+        title: "Error",
+        description: "Failed to remove job assignment.",
+        variant: "destructive",
+      });
+    }
+  };
 
   const canViewSensitiveData = hasElevatedAccess();
 
@@ -754,50 +897,108 @@ export default function VendorDetails() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />
-              Associated Jobs
+              Vendor Job Assignments & Access
             </CardTitle>
           </CardHeader>
-          <CardContent>
-            {jobs.length === 0 ? (
+          <CardContent className="space-y-4">
+            <div className="flex flex-col md:flex-row gap-2">
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={selectedAssignJobId}
+                onChange={(e) => setSelectedAssignJobId(e.target.value)}
+              >
+                <option value="">Select a job to assign...</option>
+                {allJobs
+                  .filter((job) => !vendorJobAccess.some((entry) => entry.job_id === job.id))
+                  .map((job) => (
+                    <option key={job.id} value={job.id}>
+                      {job.name}
+                    </option>
+                  ))}
+              </select>
+              <Button onClick={handleAssignJob} disabled={!selectedAssignJobId || assigningJob}>
+                {assigningJob ? 'Assigning...' : 'Assign Job'}
+              </Button>
+            </div>
+
+            {vendorJobAccess.length === 0 ? (
               <div className="text-center py-8">
-                <Briefcase className="h-16 w-16 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <h3 className="text-lg font-medium mb-2">No Jobs Found</h3>
-                <p className="text-muted-foreground mb-4">No jobs are currently associated with this vendor</p>
-                <p className="text-xs text-muted-foreground">
-                  Jobs will appear here when this vendor is linked via invoices or job settings
+                <Briefcase className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                <h3 className="text-lg font-medium mb-1">No Assigned Jobs</h3>
+                <p className="text-sm text-muted-foreground">
+                  Assign at least one job to allow vendor portal access by project.
                 </p>
               </div>
             ) : (
-              <div className="space-y-4">
-                {jobs.map((job) => (
-                  <Card 
-                    key={job.id} 
-                    className="cursor-pointer hover:shadow-md transition-shadow border-dashed"
-                    onClick={() => navigate(`/jobs/${job.id}`)}
-                  >
-                    <CardContent className="pt-6">
+              <div className="space-y-3">
+                {vendorJobAccess.map((assignment) => (
+                  <Card key={assignment.id} className="border-dashed">
+                    <CardContent className="pt-4 space-y-3">
                       <div className="flex items-center justify-between">
                         <div>
-                          <h4 className="font-medium">{job.name}</h4>
-                          <p className="text-sm text-muted-foreground">
-                            {job.client && `Client: ${job.client}`}
-                            {job.status && ` • Status: ${job.status}`}
-                          </p>
-                          {job.budget && (
-                            <p className="text-sm text-muted-foreground">
-                              Budget: ${job.budget.toLocaleString()}
-                            </p>
-                          )}
+                          <p className="font-medium">{assignment.jobs?.name || 'Unknown Job'}</p>
+                          <p className="text-xs text-muted-foreground">Job-level vendor portal access</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <Badge variant="outline">{job.status}</Badge>
-                          <ExternalLink className="h-4 w-4 text-muted-foreground" />
+                          {assignment.jobs?.status && (
+                            <Badge variant="outline">{assignment.jobs.status}</Badge>
+                          )}
+                          <Button variant="outline" size="sm" onClick={() => navigate(`/jobs/${assignment.job_id}`)}>
+                            <ExternalLink className="h-3 w-3 mr-1" />
+                            Open Job
+                          </Button>
+                          <Button variant="destructive" size="sm" onClick={() => handleRemoveVendorJobAccess(assignment.id)}>
+                            Remove
+                          </Button>
+                        </div>
+                      </div>
+                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 border-t pt-3">
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>Submit Bills</Label>
+                          <Switch
+                            checked={!!assignment.can_submit_bills}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_bills', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>View Plans</Label>
+                          <Switch
+                            checked={!!assignment.can_view_plans}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_plans', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>Submit RFIs</Label>
+                          <Switch
+                            checked={!!assignment.can_submit_rfis}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_rfis', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>Team Directory</Label>
+                          <Switch
+                            checked={!!assignment.can_view_team_directory}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_team_directory', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>Upload Compliance Docs</Label>
+                          <Switch
+                            checked={!!assignment.can_upload_compliance_docs}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_upload_compliance_docs', checked)}
+                          />
                         </div>
                       </div>
                     </CardContent>
                   </Card>
                 ))}
               </div>
+            )}
+
+            {jobs.length > 0 && (
+              <p className="text-xs text-muted-foreground">
+                Historical associated jobs (from invoices/subcontracts/POs): {jobs.length}
+              </p>
             )}
           </CardContent>
         </Card>

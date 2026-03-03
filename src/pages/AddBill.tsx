@@ -141,19 +141,44 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     
     try {
       const companyId = currentCompany?.id || profile?.current_company_id;
-      const [vendorsRes, jobsRes, expenseAccountsRes, companyMasterCodesRes] = await Promise.all([
-        supabase.from('vendors').select('id, name, logo_url, is_active, company_id, require_invoice_number, vendor_type').eq('is_active', true).eq('company_id', companyId),
-        (() => {
-          let q = supabase.from('jobs').select('*').eq('company_id', companyId);
-          if (!isPrivileged) {
-            if (allowedJobIds.length === 0) {
-              q = q.in('id', ['00000000-0000-0000-0000-000000000000']);
-            } else {
-              q = q.in('id', allowedJobIds);
-            }
+      const isVendorPortalUser = profile?.role === 'vendor' || profile?.role === 'design_professional';
+
+      const vendorQuery = isVendorPortalUser && profile?.vendor_id
+        ? supabase
+            .from('vendors')
+            .select('id, name, logo_url, is_active, company_id, require_invoice_number, vendor_type')
+            .eq('id', profile.vendor_id)
+            .eq('is_active', true)
+            .eq('company_id', companyId)
+        : supabase
+            .from('vendors')
+            .select('id, name, logo_url, is_active, company_id, require_invoice_number, vendor_type')
+            .eq('is_active', true)
+            .eq('company_id', companyId);
+
+      const jobsQuery = (() => {
+        if (isVendorPortalUser && profile?.vendor_id) {
+          return supabase
+            .from('vendor_job_access' as any)
+            .select('job_id, jobs:job_id(*)')
+            .eq('vendor_id', profile.vendor_id)
+            .eq('can_submit_bills', true);
+        }
+
+        let q = supabase.from('jobs').select('*').eq('company_id', companyId);
+        if (!isPrivileged) {
+          if (allowedJobIds.length === 0) {
+            q = q.in('id', ['00000000-0000-0000-0000-000000000000']);
+          } else {
+            q = q.in('id', allowedJobIds);
           }
-          return q;
-        })(),
+        }
+        return q;
+      })();
+
+      const [vendorsRes, jobsRes, expenseAccountsRes, companyMasterCodesRes] = await Promise.all([
+        vendorQuery,
+        jobsQuery,
         supabase.from('chart_of_accounts')
           .select('id, account_number, account_name, account_type, require_attachment')
           .eq('company_id', companyId)
@@ -168,8 +193,22 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
           .eq('is_dynamic_group', false)
       ]);
 
-      if (vendorsRes.data) setVendors(vendorsRes.data);
-      if (jobsRes.data) setJobs(jobsRes.data);
+      if (vendorsRes.data) {
+        setVendors(vendorsRes.data);
+        if (isVendorPortalUser && profile?.vendor_id) {
+          setFormData(prev => ({ ...prev, vendor_id: profile.vendor_id || prev.vendor_id }));
+        }
+      }
+      if (jobsRes.data) {
+        if (isVendorPortalUser) {
+          const mappedJobs = (jobsRes.data as any[])
+            .map((row: any) => row.jobs)
+            .filter(Boolean);
+          setJobs(mappedJobs);
+        } else {
+          setJobs(jobsRes.data as any[]);
+        }
+      }
       if (expenseAccountsRes.data) setExpenseAccounts(expenseAccountsRes.data);
       if (companyMasterCodesRes.data) setCompanyCostCodes(companyMasterCodesRes.data);
     } catch (error) {

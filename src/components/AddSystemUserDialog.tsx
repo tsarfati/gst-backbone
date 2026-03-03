@@ -30,6 +30,7 @@ import { Mail, UserPlus, Loader2 } from 'lucide-react';
     { value: 'admin', label: 'Administrator' },
     { value: 'controller', label: 'Controller' },
     { value: 'project_manager', label: 'Project Manager' },
+    { value: 'design_professional', label: 'Design Professional' },
     { value: 'employee', label: 'Employee' },
     { value: 'view_only', label: 'View Only' },
   ] as const;

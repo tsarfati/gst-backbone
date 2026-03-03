@@ -30,7 +30,7 @@ interface UserProfile {
   last_name: string;
   display_name: string;
   avatar_url?: string | null;
-  role: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
+  role: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
   created_at: string;
   pin_code?: string;
   jobs?: { id: string; name: string; }[];
@@ -71,6 +71,7 @@ const roleColors = {
   admin: 'destructive',
   controller: 'secondary',
   project_manager: 'default',
+  design_professional: 'secondary',
   employee: 'outline',
   view_only: 'outline',
   company_admin: 'destructive',
@@ -81,6 +82,7 @@ const roleLabels = {
   admin: 'Administrator',
   controller: 'Controller',
   project_manager: 'Project Manager',
+  design_professional: 'Design Professional',
   employee: 'Employee',
   view_only: 'View Only',
   company_admin: 'Company Admin',
@@ -98,6 +100,7 @@ const roleGroupDefs: RoleGroupDef[] = [
   { key: 'admins', label: 'Administrators', icon: <Shield className="h-5 w-5" />, roles: ['admin', 'company_admin', 'owner'] },
   { key: 'controllers', label: 'Controllers', icon: <Briefcase className="h-5 w-5" />, roles: ['controller'] },
   { key: 'project_managers', label: 'Project Managers', icon: <HardHat className="h-5 w-5" />, roles: ['project_manager'] },
+  { key: 'design_professionals', label: 'Design Professionals', icon: <HardHat className="h-5 w-5" />, roles: ['design_professional'] },
   { key: 'employees', label: 'Employees', icon: <Users className="h-5 w-5" />, roles: ['employee'] },
   { key: 'view_only', label: 'View Only', icon: <UserCheck className="h-5 w-5" />, roles: ['view_only'] },
   { key: 'vendors', label: 'Vendors', icon: <UserCheck className="h-5 w-5" />, roles: ['vendor'] },
@@ -411,7 +414,7 @@ export default function UserSettings() {
     }
   };
 
-  const updateUserRole = async (userId: string, newRole: 'admin' | 'controller' | 'project_manager' | 'employee' | 'view_only' | 'company_admin' | 'vendor') => {
+  const updateUserRole = async (userId: string, newRole: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor') => {
     try {
       // Update the role in user_company_access for this specific company
       const { error } = await supabase

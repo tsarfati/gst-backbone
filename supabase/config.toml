@@ -9,6 +9,9 @@ verify_jwt = false
 [functions.get-user-email]
 verify_jwt = false
 
+[functions.update-user-email]
+verify_jwt = false
+
 [functions.create-checkout]
 verify_jwt = false
 

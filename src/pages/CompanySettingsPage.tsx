@@ -103,7 +103,7 @@ export default function CompanySettingsPage() {
   const [eligibleUsers, setEligibleUsers] = useState<OrganizationUserProfile[]>([]);
   const [eligibleUserSearch, setEligibleUserSearch] = useState('');
   const [selectedExistingUserId, setSelectedExistingUserId] = useState('');
-  const [assignUserRole, setAssignUserRole] = useState<"admin" | "company_admin" | "controller" | "employee" | "project_manager" | "vendor" | "view_only">('employee');
+  const [assignUserRole, setAssignUserRole] = useState<"admin" | "company_admin" | "controller" | "employee" | "project_manager" | "design_professional" | "vendor" | "view_only">('employee');
   const [assigningUser, setAssigningUser] = useState(false);
   const [customRoles, setCustomRoles] = useState<CustomRoleRecord[]>([]);
 
@@ -521,6 +521,7 @@ export default function CompanySettingsPage() {
     });
   }, [eligibleUsers, eligibleUserSearch]);
 
+
   const getRoleLabel = (companyUser: CompanyUserAccessRow) => {
     const customRoleId = companyUser.profile?.custom_role_id;
     if (customRoleId) {
@@ -545,6 +546,8 @@ export default function CompanySettingsPage() {
         return 'border-sky-500/40 bg-sky-500/15 text-sky-300 hover:bg-sky-500/20';
       case 'project_manager':
         return 'border-amber-500/40 bg-amber-500/15 text-amber-300 hover:bg-amber-500/20';
+      case 'design_professional':
+        return 'border-cyan-500/40 bg-cyan-500/15 text-cyan-300 hover:bg-cyan-500/20';
       case 'view_only':
         return 'border-slate-500/40 bg-slate-500/15 text-slate-300 hover:bg-slate-500/20';
       case 'vendor':
@@ -916,6 +919,7 @@ export default function CompanySettingsPage() {
                 <SelectContent>
                   <SelectItem value="employee">Employee</SelectItem>
                   <SelectItem value="project_manager">Project Manager</SelectItem>
+                  <SelectItem value="design_professional">Design Professional</SelectItem>
                   <SelectItem value="controller">Controller</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="company_admin">Company Admin</SelectItem>

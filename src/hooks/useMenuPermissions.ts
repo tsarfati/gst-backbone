@@ -13,6 +13,7 @@ type AppRole =
   | "admin"
   | "company_admin"
   | "controller"
+  | "design_professional"
   | "employee"
   | "project_manager"
   | "vendor"
@@ -22,6 +23,7 @@ const APP_ROLES: AppRole[] = [
   "admin",
   "company_admin",
   "controller",
+  "design_professional",
   "employee",
   "project_manager",
   "vendor",

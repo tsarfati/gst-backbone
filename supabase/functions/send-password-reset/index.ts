@@ -47,26 +47,73 @@ serve(async (req) => {
       });
     }
 
-    // Check if requesting user is admin or controller
-    const { data: profile } = await supabaseAdmin
-      .from("profiles")
+    // Get the target user email from request
+    const { email, redirectTo, companyId } = await req.json();
+
+    if (!email) {
+      return new Response(JSON.stringify({ error: "email is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!companyId) {
+      return new Response(JSON.stringify({ error: "companyId is required" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    // Require active access to target company
+    const { data: requesterAccess, error: requesterAccessError } = await supabaseAdmin
+      .from("user_company_access")
       .select("role")
       .eq("user_id", requestingUser.id)
-      .single();
+      .eq("company_id", companyId)
+      .eq("is_active", true)
+      .maybeSingle();
 
-    if (!profile || !["admin", "controller", "company_admin"].includes(profile.role)) {
+    if (requesterAccessError || !requesterAccess) {
       return new Response(JSON.stringify({ error: "Insufficient permissions" }), {
         status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    // Get the target user email from request
-    const { email, redirectTo } = await req.json();
+    const requesterRole = String((requesterAccess as any)?.role || "").toLowerCase();
+    const isAdminLike = ["admin", "company_admin"].includes(requesterRole);
 
-    if (!email) {
-      return new Response(JSON.stringify({ error: "email is required" }), {
-        status: 400,
+    let hasCustomPermission = false;
+    if (!isAdminLike) {
+      const { data: profile } = await supabaseAdmin
+        .from("profiles")
+        .select("custom_role_id")
+        .eq("user_id", requestingUser.id)
+        .maybeSingle();
+
+      const customRoleId = (profile as any)?.custom_role_id as string | null | undefined;
+      if (customRoleId) {
+        const { data: customPerm } = await supabaseAdmin
+          .from("custom_role_permissions")
+          .select("can_access")
+          .eq("custom_role_id", customRoleId)
+          .eq("menu_item", "user-settings-change-password")
+          .maybeSingle();
+        hasCustomPermission = !!customPerm?.can_access;
+      } else {
+        const { data: rolePerm } = await supabaseAdmin
+          .from("role_permissions")
+          .select("can_access")
+          .eq("role", requesterRole as any)
+          .eq("menu_item", "user-settings-change-password")
+          .maybeSingle();
+        hasCustomPermission = !!rolePerm?.can_access;
+      }
+    }
+
+    if (!isAdminLike && !hasCustomPermission) {
+      return new Response(JSON.stringify({ error: "Insufficient permissions" }), {
+        status: 403,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }

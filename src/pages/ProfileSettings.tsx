@@ -41,6 +41,9 @@ interface NotificationSettings {
   chat_mention_notifications?: boolean;
   chat_channel_notifications?: boolean;
   chat_direct_message_notifications?: boolean;
+  bill_submission_notifications?: boolean;
+  payment_approval_notifications?: boolean;
+  payment_confirmation_notifications?: boolean;
 }
 
 export default function ProfileSettings() {
@@ -83,6 +86,9 @@ export default function ProfileSettings() {
     chat_mention_notifications: true,
     chat_channel_notifications: true,
     chat_direct_message_notifications: true,
+    bill_submission_notifications: true,
+    payment_approval_notifications: true,
+    payment_confirmation_notifications: true,
   });
 
   const initialTab = searchParams.get('tab') || 'profile';
@@ -120,14 +126,18 @@ export default function ProfileSettings() {
       }
 
       if (data) {
+        const typedData = data as any;
         // Map database fields to interface fields
         setNotificationSettings({
-          ...data,
-          overdue_bills: data.overdue_invoices,
-          bills_paid: data.invoices_paid,
-          chat_mention_notifications: data.chat_mention_notifications ?? true,
-          chat_channel_notifications: data.chat_channel_notifications ?? true,
-          chat_direct_message_notifications: data.chat_direct_message_notifications ?? true,
+          ...typedData,
+          overdue_bills: typedData.overdue_invoices,
+          bills_paid: typedData.invoices_paid,
+          chat_mention_notifications: typedData.chat_mention_notifications ?? true,
+          chat_channel_notifications: typedData.chat_channel_notifications ?? true,
+          chat_direct_message_notifications: typedData.chat_direct_message_notifications ?? true,
+          bill_submission_notifications: typedData.bill_submission_notifications ?? true,
+          payment_approval_notifications: typedData.payment_approval_notifications ?? true,
+          payment_confirmation_notifications: typedData.payment_confirmation_notifications ?? true,
         });
       }
     } catch (error) {
@@ -341,9 +351,12 @@ export default function ProfileSettings() {
         chat_mention_notifications: notificationSettings.chat_mention_notifications ?? true,
         chat_channel_notifications: notificationSettings.chat_channel_notifications ?? true,
         chat_direct_message_notifications: notificationSettings.chat_direct_message_notifications ?? true,
+        bill_submission_notifications: notificationSettings.bill_submission_notifications ?? true,
+        payment_approval_notifications: notificationSettings.payment_approval_notifications ?? true,
+        payment_confirmation_notifications: notificationSettings.payment_confirmation_notifications ?? true,
       };
       
-      const { error } = await supabase
+      const { error } = await (supabase as any)
         .from('notification_settings')
         .upsert(dbSettings, { onConflict: 'user_id,company_id' });
 
@@ -674,6 +687,39 @@ export default function ProfileSettings() {
                       id="bills-paid"
                       checked={notificationSettings.bills_paid}
                       onCheckedChange={(checked) => updateNotificationSetting('bills_paid', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="bill-submission-notifications">Bill Submission Notifications</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when bills are submitted for approval</p>
+                    </div>
+                    <Switch
+                      id="bill-submission-notifications"
+                      checked={notificationSettings.bill_submission_notifications !== false}
+                      onCheckedChange={(checked) => updateNotificationSetting('bill_submission_notifications', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="payment-approval-notifications">Payment Approval Notifications</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when payments require your approval</p>
+                    </div>
+                    <Switch
+                      id="payment-approval-notifications"
+                      checked={notificationSettings.payment_approval_notifications !== false}
+                      onCheckedChange={(checked) => updateNotificationSetting('payment_approval_notifications', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="payment-confirmation-notifications">Payment Confirmations</Label>
+                      <p className="text-sm text-muted-foreground">Get notified when payments are completed</p>
+                    </div>
+                    <Switch
+                      id="payment-confirmation-notifications"
+                      checked={notificationSettings.payment_confirmation_notifications !== false}
+                      onCheckedChange={(checked) => updateNotificationSetting('payment_confirmation_notifications', checked)}
                     />
                   </div>
                   <div className="flex items-center justify-between">

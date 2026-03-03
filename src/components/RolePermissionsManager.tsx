@@ -9,7 +9,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
-import { Settings, ChevronDown, ChevronRight, Shield, Plus, Trash2, LayoutDashboard, HardHat, Receipt, HandCoins, CreditCard, FolderArchive, Users, MessageSquare, CheckSquare, Building, Cog, Smartphone } from "lucide-react";
+import { Settings, ChevronDown, ChevronRight, Shield, Plus, Trash2, Copy, Pencil, LayoutDashboard, HardHat, Receipt, HandCoins, CreditCard, FolderArchive, Users, MessageSquare, CheckSquare, Building, Cog, Smartphone, SlidersHorizontal, Ban } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -64,6 +64,13 @@ interface MenuCategory {
   description: string;
   items: MenuItem[];
 }
+
+interface PermissionHierarchy {
+  descendantsByKey: Record<string, string[]>;
+  ancestorsByKey: Record<string, string[]>;
+}
+
+type ToggleVisualState = 'off' | 'partial' | 'on';
 
 // Comprehensive menu structure matching the sidebar exactly
 const menuCategories: MenuCategory[] = [
@@ -831,6 +838,8 @@ const menuCategories: MenuCategory[] = [
         actions: [
           { key: 'user-settings-view', label: 'View Users', description: 'Access user list' },
           { key: 'user-settings-edit', label: 'Edit Users', description: 'Modify user roles' },
+          { key: 'user-settings-edit-email', label: 'Edit User Email', description: 'Update another user account email' },
+          { key: 'user-settings-change-password', label: 'Change User Password', description: 'Send password reset/change links for users' },
           { key: 'user-settings-permissions', label: 'Manage Permissions', description: 'Configure role permissions' },
         ]
       },
@@ -883,11 +892,50 @@ const menuCategories: MenuCategory[] = [
   },
 ];
 
+function buildPermissionHierarchy(categories: MenuCategory[]): PermissionHierarchy {
+  const descendantsByKey: Record<string, string[]> = {};
+  const ancestorsByKey: Record<string, string[]> = {};
+
+  const collectItemKeys = (item: MenuItem, ancestors: string[]): string[] => {
+    const keys: string[] = [item.key];
+    ancestorsByKey[item.key] = ancestors;
+
+    item.actions?.forEach((action) => {
+      keys.push(action.key);
+      ancestorsByKey[action.key] = [...ancestors, item.key];
+      descendantsByKey[action.key] = [action.key];
+    });
+
+    item.children?.forEach((child) => {
+      const childKeys = collectItemKeys(child, [...ancestors, item.key]);
+      keys.push(...childKeys);
+    });
+
+    descendantsByKey[item.key] = Array.from(new Set(keys));
+    return descendantsByKey[item.key];
+  };
+
+  categories.forEach((category) => {
+    ancestorsByKey[category.key] = [];
+    const categoryKeys: string[] = [category.key];
+    category.items.forEach((item) => {
+      const itemKeys = collectItemKeys(item, [category.key]);
+      categoryKeys.push(...itemKeys);
+    });
+    descendantsByKey[category.key] = Array.from(new Set(categoryKeys));
+  });
+
+  return { descendantsByKey, ancestorsByKey };
+}
+
+const permissionHierarchy = buildPermissionHierarchy(menuCategories);
+
 const roles = [
   { key: 'admin', label: 'Admin', color: 'bg-red-100 text-red-800', description: 'Full system access' },
   { key: 'controller', label: 'Controller', color: 'bg-blue-100 text-blue-800', description: 'Financial oversight' },
   { key: 'company_admin', label: 'Company Admin', color: 'bg-orange-100 text-orange-800', description: 'Company-wide management' },
   { key: 'project_manager', label: 'Project Manager', color: 'bg-green-100 text-green-800', description: 'Project management' },
+  { key: 'design_professional', label: 'Design Professional', color: 'bg-cyan-100 text-cyan-800', description: 'Design review and submittal workflows' },
   { key: 'employee', label: 'Employee', color: 'bg-gray-100 text-gray-800', description: 'Basic employee access' },
   { key: 'view_only', label: 'View Only', color: 'bg-purple-100 text-purple-800', description: 'Read-only access - Cannot create, edit, or delete' },
   { key: 'vendor', label: 'Vendor', color: 'bg-amber-100 text-amber-800', description: 'External vendor access' },
@@ -926,6 +974,18 @@ export default function RolePermissionsManager() {
   const [openCategories, setOpenCategories] = useState<Record<string, boolean>>({});
   const [openMenuItems, setOpenMenuItems] = useState<Record<string, boolean>>({});
   const [createDialogOpen, setCreateDialogOpen] = useState(false);
+  const [renameDialogOpen, setRenameDialogOpen] = useState(false);
+  const [renameTargetRoleId, setRenameTargetRoleId] = useState<string | null>(null);
+  const [renameRoleName, setRenameRoleName] = useState('');
+  const [renameRoleKey, setRenameRoleKey] = useState('');
+  const [renamingRole, setRenamingRole] = useState(false);
+  const [duplicatingRoleId, setDuplicatingRoleId] = useState<string | null>(null);
+  const [bulkUpdatingRoleId, setBulkUpdatingRoleId] = useState<string | null>(null);
+  const [editDialogOpen, setEditDialogOpen] = useState(false);
+  const [editTargetRoleId, setEditTargetRoleId] = useState<string | null>(null);
+  const [editDescription, setEditDescription] = useState('');
+  const [editColor, setEditColor] = useState('bg-indigo-100 text-indigo-800');
+  const [editingRole, setEditingRole] = useState(false);
   const [newRole, setNewRole] = useState({
     role_key: '',
     role_name: '',
@@ -1058,36 +1118,68 @@ export default function RolePermissionsManager() {
     return permission?.can_access || false;
   };
 
-  const updateCustomRolePermission = async (customRoleId: string, menuItem: string, canAccess: boolean) => {
+  const updateCustomRolePermission = async (
+    customRoleId: string,
+    menuItem: string,
+    canAccess: boolean,
+    cascadeChildren: boolean = false
+  ) => {
     try {
+      const updates = new Map<string, boolean>();
+      const targetKeys = cascadeChildren
+        ? (permissionHierarchy.descendantsByKey[menuItem] || [menuItem])
+        : [menuItem];
+
+      targetKeys.forEach((key) => updates.set(key, canAccess));
+
+      const ancestors = permissionHierarchy.ancestorsByKey[menuItem] || [];
+      const resolveState = (key: string) => {
+        if (updates.has(key)) return updates.get(key) || false;
+        return getCustomRolePermission(customRoleId, key);
+      };
+
+      if (canAccess) {
+        ancestors.forEach((ancestorKey) => updates.set(ancestorKey, true));
+      } else {
+        for (let i = ancestors.length - 1; i >= 0; i -= 1) {
+          const ancestorKey = ancestors[i];
+          const descendantKeys = (permissionHierarchy.descendantsByKey[ancestorKey] || [ancestorKey]).filter((k) => k !== ancestorKey);
+          const shouldEnableAncestor = descendantKeys.some(resolveState);
+          updates.set(ancestorKey, shouldEnableAncestor);
+        }
+      }
+
       const { error } = await supabase
         .from('custom_role_permissions')
-        .upsert({
+        .upsert(Array.from(updates.entries()).map(([permissionKey, allowed]) => ({
           custom_role_id: customRoleId,
-          menu_item: menuItem,
-          can_access: canAccess,
-        }, {
+          menu_item: permissionKey,
+          can_access: allowed,
+        })), {
           onConflict: 'custom_role_id,menu_item'
         });
 
       if (error) throw error;
 
       setCustomPermissions(prev => {
-        const existing = prev.find(p => p.custom_role_id === customRoleId && p.menu_item === menuItem);
-        if (existing) {
-          return prev.map(p => 
-            p.custom_role_id === customRoleId && p.menu_item === menuItem 
-              ? { ...p, can_access: canAccess }
-              : p
-          );
-        } else {
-          return [...prev, { 
-            id: crypto.randomUUID(), 
-            custom_role_id: customRoleId, 
-            menu_item: menuItem, 
-            can_access: canAccess 
-          }];
-        }
+        const merged = new Map(prev.map((p) => [`${p.custom_role_id}:${p.menu_item}`, p] as const));
+
+        updates.forEach((allowed, permissionKey) => {
+          const compositeKey = `${customRoleId}:${permissionKey}`;
+          const existing = merged.get(compositeKey);
+          if (existing) {
+            merged.set(compositeKey, { ...existing, can_access: allowed });
+          } else {
+            merged.set(compositeKey, {
+              id: crypto.randomUUID(),
+              custom_role_id: customRoleId,
+              menu_item: permissionKey,
+              can_access: allowed,
+            });
+          }
+        });
+
+        return Array.from(merged.values());
       });
 
       toast({
@@ -1155,6 +1247,272 @@ export default function RolePermissionsManager() {
         description: error.message || "Failed to create custom role",
         variant: "destructive",
       });
+    }
+  };
+
+  const getUniqueRoleKey = (baseKey: string) => {
+    const normalized = baseKey.toLowerCase().replace(/[^a-z0-9_]/g, '_');
+    let candidate = normalized;
+    let suffix = 2;
+    const existingKeys = new Set(customRoles.map((r) => r.role_key));
+    while (existingKeys.has(candidate)) {
+      candidate = `${normalized}_${suffix}`;
+      suffix += 1;
+    }
+    return candidate;
+  };
+
+  const openRenameDialog = (role: CustomRole) => {
+    setRenameTargetRoleId(role.id);
+    setRenameRoleName(role.role_name);
+    setRenameRoleKey(role.role_key);
+    setRenameDialogOpen(true);
+  };
+
+  const openEditDialog = (role: CustomRole) => {
+    setEditTargetRoleId(role.id);
+    setEditDescription(role.description || '');
+    setEditColor(role.color || 'bg-indigo-100 text-indigo-800');
+    setEditDialogOpen(true);
+  };
+
+  const renameCustomRole = async () => {
+    if (!renameTargetRoleId) return;
+    const trimmedName = renameRoleName.trim();
+    const sanitizedKey = renameRoleKey.trim().toLowerCase().replace(/[^a-z0-9_]/g, '_');
+
+    if (!trimmedName || !sanitizedKey) {
+      toast({
+        title: "Validation Error",
+        description: "Role name and key are required",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const duplicateKey = customRoles.some((role) => role.id !== renameTargetRoleId && role.role_key === sanitizedKey);
+    if (duplicateKey) {
+      toast({
+        title: "Duplicate Role Key",
+        description: "That role key is already in use. Please choose another.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setRenamingRole(true);
+      const { data, error } = await supabase
+        .from('custom_roles')
+        .update({
+          role_name: trimmedName,
+          role_key: sanitizedKey,
+        })
+        .eq('id', renameTargetRoleId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setCustomRoles((prev) => prev.map((role) => (role.id === renameTargetRoleId ? data : role)));
+      setRenameDialogOpen(false);
+      setRenameTargetRoleId(null);
+      setRenameRoleName('');
+      setRenameRoleKey('');
+
+      toast({
+        title: "Role Renamed",
+        description: `Custom role renamed to "${trimmedName}".`,
+      });
+    } catch (error: any) {
+      console.error('Error renaming custom role:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to rename custom role",
+        variant: "destructive",
+      });
+    } finally {
+      setRenamingRole(false);
+    }
+  };
+
+  const duplicateCustomRole = async (sourceRole: CustomRole) => {
+    if (!currentCompany || !user) return;
+    try {
+      setDuplicatingRoleId(sourceRole.id);
+      const copiedName = `${sourceRole.role_name} Copy`;
+      const copiedKey = getUniqueRoleKey(`${sourceRole.role_key}_copy`);
+
+      const { data: newRoleData, error: createError } = await supabase
+        .from('custom_roles')
+        .insert({
+          company_id: currentCompany.id,
+          role_key: copiedKey,
+          role_name: copiedName,
+          description: sourceRole.description,
+          color: sourceRole.color,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      const sourcePerms = customPermissions.filter((perm) => perm.custom_role_id === sourceRole.id);
+      if (sourcePerms.length > 0) {
+        const { data: insertedPerms, error: permsError } = await supabase
+          .from('custom_role_permissions')
+          .insert(
+            sourcePerms.map((perm) => ({
+              custom_role_id: newRoleData.id,
+              menu_item: perm.menu_item,
+              can_access: perm.can_access,
+            }))
+          )
+          .select();
+
+        if (permsError) throw permsError;
+        setCustomPermissions((prev) => [...prev, ...(insertedPerms || [])]);
+      }
+
+      setCustomRoles((prev) => [...prev, newRoleData]);
+
+      toast({
+        title: "Role Duplicated",
+        description: `Created "${copiedName}" with copied permissions.`,
+      });
+    } catch (error: any) {
+      console.error('Error duplicating custom role:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to duplicate custom role",
+        variant: "destructive",
+      });
+    } finally {
+      setDuplicatingRoleId(null);
+    }
+  };
+
+  const getAllPermissionKeysForBulkUpdate = (): string[] => {
+    const keys = new Set<string>();
+    const visitMenuItem = (item: MenuItem) => {
+      keys.add(item.key);
+      item.actions?.forEach((action) => keys.add(action.key));
+      item.children?.forEach(visitMenuItem);
+    };
+
+    menuCategories.forEach((category) => {
+      keys.add(category.key);
+      category.items.forEach(visitMenuItem);
+    });
+
+    return Array.from(keys);
+  };
+
+  const enableAllCustomRolePermissions = async (role: CustomRole) => {
+    try {
+      setBulkUpdatingRoleId(role.id);
+      const permissionKeys = getAllPermissionKeysForBulkUpdate();
+      const { data, error } = await supabase
+        .from('custom_role_permissions')
+        .upsert(
+          permissionKeys.map((menuItem) => ({
+            custom_role_id: role.id,
+            menu_item: menuItem,
+            can_access: true,
+          })),
+          { onConflict: 'custom_role_id,menu_item' }
+        )
+        .select();
+
+      if (error) throw error;
+
+      setCustomPermissions((prev) => [
+        ...prev.filter((perm) => perm.custom_role_id !== role.id),
+        ...(data || []),
+      ]);
+
+      toast({
+        title: "Permissions Updated",
+        description: `Enabled all permissions for "${role.role_name}".`,
+      });
+    } catch (error: any) {
+      console.error('Error enabling all custom role permissions:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to enable all permissions",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkUpdatingRoleId(null);
+    }
+  };
+
+  const clearAllCustomRolePermissions = async (role: CustomRole) => {
+    if (!confirm(`Clear all permissions for "${role.role_name}"?`)) return;
+
+    try {
+      setBulkUpdatingRoleId(role.id);
+      const { error } = await supabase
+        .from('custom_role_permissions')
+        .delete()
+        .eq('custom_role_id', role.id);
+
+      if (error) throw error;
+
+      setCustomPermissions((prev) => prev.filter((perm) => perm.custom_role_id !== role.id));
+      toast({
+        title: "Permissions Cleared",
+        description: `All permissions removed for "${role.role_name}".`,
+      });
+    } catch (error: any) {
+      console.error('Error clearing all custom role permissions:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to clear permissions",
+        variant: "destructive",
+      });
+    } finally {
+      setBulkUpdatingRoleId(null);
+    }
+  };
+
+  const updateCustomRoleDetails = async () => {
+    if (!editTargetRoleId) return;
+
+    try {
+      setEditingRole(true);
+      const { data, error } = await supabase
+        .from('custom_roles')
+        .update({
+          description: editDescription.trim(),
+          color: editColor.trim() || 'bg-indigo-100 text-indigo-800',
+        })
+        .eq('id', editTargetRoleId)
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      setCustomRoles((prev) => prev.map((role) => (role.id === editTargetRoleId ? data : role)));
+      setEditDialogOpen(false);
+      setEditTargetRoleId(null);
+      setEditDescription('');
+      setEditColor('bg-indigo-100 text-indigo-800');
+
+      toast({
+        title: "Role Updated",
+        description: "Custom role details were saved.",
+      });
+    } catch (error: any) {
+      console.error('Error updating custom role details:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update custom role details",
+        variant: "destructive",
+      });
+    } finally {
+      setEditingRole(false);
     }
   };
 
@@ -1230,24 +1588,56 @@ export default function RolePermissionsManager() {
     permissionKey: string, 
     label: string, 
     isCustomRole: boolean = false,
-    customRoleId?: string
+    customRoleId?: string,
+    aggregateChildren: boolean = false,
+    cascadeChildrenOnToggle: boolean = false,
+    showPartialState: boolean = false
   ) => {
     const isAdmin = roleKey === 'admin';
-    const hasPermission = isCustomRole && customRoleId
-      ? getCustomRolePermission(customRoleId, permissionKey)
-      : getPermission(roleKey, permissionKey);
+    const readPermission = (key: string) => (
+      isCustomRole && customRoleId
+        ? getCustomRolePermission(customRoleId, key)
+        : getPermission(roleKey, key)
+    );
+
+    const getVisualState = (): ToggleVisualState => {
+      if (!aggregateChildren) {
+        return readPermission(permissionKey) ? 'on' : 'off';
+      }
+
+      const scopedKeys = permissionHierarchy.descendantsByKey[permissionKey] || [permissionKey];
+      const hasAnyEnabled = scopedKeys.some((key) => readPermission(key));
+      if (!hasAnyEnabled) return 'off';
+
+      if (!showPartialState) return 'on';
+
+      const descendantsOnly = scopedKeys.filter((key) => key !== permissionKey);
+      if (descendantsOnly.length === 0) return 'on';
+      const allDescendantsEnabled = descendantsOnly.every((key) => readPermission(key));
+      return allDescendantsEnabled ? 'on' : 'partial';
+    };
+
+    const visualState = getVisualState();
+    const hasPermission = visualState !== 'off';
 
     return (
       <div key={permissionKey} className="flex items-center justify-between py-1.5 px-2 hover:bg-muted/50 rounded">
         <Label htmlFor={`${roleKey}-${permissionKey}`} className="text-sm cursor-pointer">
-          {label}
+          <span className="inline-flex items-center gap-2">
+            <span>{label}</span>
+            {showPartialState && visualState === 'partial' && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                Partial
+              </Badge>
+            )}
+          </span>
         </Label>
         <Switch
           id={`${roleKey}-${permissionKey}`}
           checked={hasPermission}
           onCheckedChange={(checked) => {
             if (isCustomRole && customRoleId) {
-              updateCustomRolePermission(customRoleId, permissionKey, checked);
+              updateCustomRolePermission(customRoleId, permissionKey, checked, cascadeChildrenOnToggle);
             } else {
               updatePermission(roleKey, permissionKey, checked);
             }
@@ -1278,16 +1668,77 @@ export default function RolePermissionsManager() {
                   </span>
                 </div>
                 {isCustomRole && customRoleData && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      deleteCustomRole(customRoleData.id, customRoleData.role_name);
-                    }}
-                  >
-                    <Trash2 className="h-4 w-4 text-destructive" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Enable all permissions"
+                      disabled={bulkUpdatingRoleId === customRoleData.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        enableAllCustomRolePermissions(customRoleData);
+                      }}
+                    >
+                      <CheckSquare className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Clear all permissions"
+                      disabled={bulkUpdatingRoleId === customRoleData.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        clearAllCustomRolePermissions(customRoleData);
+                      }}
+                    >
+                      <Ban className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Duplicate role"
+                      disabled={duplicatingRoleId === customRoleData.id}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        duplicateCustomRole(customRoleData);
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Rename role"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRenameDialog(customRoleData);
+                      }}
+                    >
+                      <Pencil className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Edit role details"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openEditDialog(customRoleData);
+                      }}
+                    >
+                      <SlidersHorizontal className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Delete role"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        deleteCustomRole(customRoleData.id, customRoleData.role_name);
+                      }}
+                    >
+                      <Trash2 className="h-4 w-4 text-destructive" />
+                    </Button>
+                  </div>
                 )}
               </div>
             </CardHeader>
@@ -1324,7 +1775,10 @@ export default function RolePermissionsManager() {
                             category.key,
                             `Access ${category.label}`,
                             isCustomRole,
-                            customRoleData?.id
+                            customRoleData?.id,
+                            true,
+                            true,
+                            true
                           )}
                           
                           {/* Menu items within category */}
@@ -1337,8 +1791,19 @@ export default function RolePermissionsManager() {
                               const leftMargin = depth === 0 ? 'ml-2' : 'ml-4';
 
                               const currentChecked = isCustomRole && customRoleData
-                                ? getCustomRolePermission(customRoleData.id, item.key)
+                                ? (hasActions || hasChildren
+                                    ? (permissionHierarchy.descendantsByKey[item.key] || [item.key]).some((k) => getCustomRolePermission(customRoleData.id, k))
+                                    : getCustomRolePermission(customRoleData.id, item.key))
                                 : getPermission(role.key, item.key);
+                              const hasPartialChildren = (() => {
+                                if (!(hasActions || hasChildren) || !(isCustomRole && customRoleData)) return false;
+                                const scope = permissionHierarchy.descendantsByKey[item.key] || [item.key];
+                                const descendantsOnly = scope.filter((key) => key !== item.key);
+                                if (descendantsOnly.length === 0) return false;
+                                const someEnabled = descendantsOnly.some((key) => getCustomRolePermission(customRoleData.id, key));
+                                const allEnabled = descendantsOnly.every((key) => getCustomRolePermission(customRoleData.id, key));
+                                return someEnabled && !allEnabled;
+                              })();
 
                               if (!hasActions && !hasChildren) {
                                 return (
@@ -1365,7 +1830,14 @@ export default function RolePermissionsManager() {
                                         <div className="flex items-center gap-2 py-1.5 px-2 hover:bg-muted/50 rounded cursor-pointer flex-1">
                                           {isItemOpen ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
                                           <div className="flex flex-col">
-                                            <span className="text-sm font-medium">{item.label}</span>
+                                            <span className="text-sm font-medium inline-flex items-center gap-2">
+                                              <span>{item.label}</span>
+                                              {hasPartialChildren && (
+                                                <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
+                                                  Partial
+                                                </Badge>
+                                              )}
+                                            </span>
                                             {item.description && (
                                               <span className="text-[10px] text-muted-foreground">{item.description}</span>
                                             )}
@@ -1376,7 +1848,7 @@ export default function RolePermissionsManager() {
                                         checked={currentChecked}
                                         onCheckedChange={(checked) => {
                                           if (isCustomRole && customRoleData) {
-                                            updateCustomRolePermission(customRoleData.id, item.key, checked);
+                                            updateCustomRolePermission(customRoleData.id, item.key, checked, hasActions || hasChildren);
                                           } else {
                                             updatePermission(role.key, item.key, checked);
                                           }
@@ -1505,6 +1977,106 @@ export default function RolePermissionsManager() {
                     </Button>
                     <Button onClick={createCustomRole}>
                       Create Role
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog
+                open={renameDialogOpen}
+                onOpenChange={(open) => {
+                  setRenameDialogOpen(open);
+                  if (!open) {
+                    setRenameTargetRoleId(null);
+                    setRenameRoleName('');
+                    setRenameRoleKey('');
+                  }
+                }}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Rename Custom Role</DialogTitle>
+                    <DialogDescription>
+                      Update the custom role name and key.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="rename_role_name">Role Name</Label>
+                      <Input
+                        id="rename_role_name"
+                        value={renameRoleName}
+                        onChange={(e) => setRenameRoleName(e.target.value)}
+                        placeholder="e.g., Senior Estimator"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="rename_role_key">Role Key</Label>
+                      <Input
+                        id="rename_role_key"
+                        value={renameRoleKey}
+                        onChange={(e) => setRenameRoleKey(e.target.value)}
+                        placeholder="e.g., senior_estimator"
+                      />
+                      <p className="text-xs text-muted-foreground">Lowercase, letters/numbers/underscores only.</p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setRenameDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={renameCustomRole} disabled={renamingRole}>
+                      {renamingRole ? 'Saving...' : 'Save'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+
+              <Dialog
+                open={editDialogOpen}
+                onOpenChange={(open) => {
+                  setEditDialogOpen(open);
+                  if (!open) {
+                    setEditTargetRoleId(null);
+                    setEditDescription('');
+                    setEditColor('bg-indigo-100 text-indigo-800');
+                  }
+                }}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Edit Custom Role Details</DialogTitle>
+                    <DialogDescription>
+                      Update role description and badge color classes.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_description">Description</Label>
+                      <Textarea
+                        id="edit_description"
+                        value={editDescription}
+                        onChange={(e) => setEditDescription(e.target.value)}
+                        placeholder="Describe what this role is for..."
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="edit_color">Badge Color Classes</Label>
+                      <Input
+                        id="edit_color"
+                        value={editColor}
+                        onChange={(e) => setEditColor(e.target.value)}
+                        placeholder="e.g., bg-indigo-100 text-indigo-800"
+                      />
+                      <p className="text-xs text-muted-foreground">Tailwind class pair for badge background and text color.</p>
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setEditDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={updateCustomRoleDetails} disabled={editingRole}>
+                      {editingRole ? 'Saving...' : 'Save'}
                     </Button>
                   </DialogFooter>
                 </DialogContent>

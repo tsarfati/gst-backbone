@@ -156,6 +156,7 @@ import JobVisitorLogs from "./pages/JobVisitorLogs";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
 import VendorRegister from "./pages/VendorRegister";
+import VendorSignup from "./pages/VendorSignup";
 import SubscriptionPortal from "./pages/SubscriptionPortal";
 import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
 
@@ -241,6 +242,7 @@ function PublicRoutes() {
                 <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
                 <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
                 <Route path="/vendor-register" element={<VendorRegister />} />
+                <Route path="/vendor-signup" element={<VendorSignup />} />
                 <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
               </Routes>
             </ReceiptProvider>
@@ -289,7 +291,7 @@ function AuthenticatedRoutes() {
             <Route path="/" element={
               <ProtectedRoute>
                 <AccessControl>
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager', 'employee', 'view_only', 'company_admin', 'vendor']}>
+                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager', 'employee', 'view_only', 'company_admin', 'vendor', 'design_professional']}>
                     <Layout />
                   </RoleGuard>
                 </AccessControl>
@@ -298,12 +300,17 @@ function AuthenticatedRoutes() {
               <Route index element={<Dashboard />} />
               <Route path="dashboard" element={<Dashboard />} />
               <Route path="vendor/dashboard" element={
-                <RoleGuard allowedRoles={['vendor']}>
+                <RoleGuard allowedRoles={['vendor', 'design_professional']}>
+                  <VendorDashboard />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/dashboard" element={
+                <RoleGuard allowedRoles={['vendor', 'design_professional']}>
                   <VendorDashboard />
                 </RoleGuard>
               } />
               <Route path="vendor/compliance" element={
-                <RoleGuard allowedRoles={['vendor', 'admin', 'controller']}>
+                <RoleGuard allowedRoles={['vendor', 'design_professional', 'admin', 'controller']}>
                   <VendorDashboard />
                 </RoleGuard>
               } />
@@ -533,8 +540,19 @@ function AppRoutes() {
   const location = useLocation();
   
   // Landing page and auth are public
-  const publicExactPaths = ['/', '/auth', '/privacy', '/employee-dashboard', '/punch-clock-lynk', '/pm-lynk'];
+  const publicExactPaths = [
+    '/',
+    '/auth',
+    '/privacy',
+    '/employee-dashboard',
+    '/punch-clock-lynk',
+    '/pm-lynk',
+    '/vendor-register',
+    '/vendor-signup',
+  ];
   const isPublicRoute = publicExactPaths.includes(location.pathname)
+    || location.pathname.startsWith('/vendor-signup')
+    || location.pathname.startsWith('/vendor-register')
     || location.pathname.startsWith('/visitor/')
     || location.pathname.includes('/visitor-logs')
     || /^\/jobs\/[^/]+\/visitor-logs\/?$/.test(location.pathname)
