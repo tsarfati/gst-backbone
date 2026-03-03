@@ -1,4 +1,4 @@
-import { useState, useEffect, type ReactNode } from 'react';
+import { useRef, useState, useEffect, type ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -91,8 +91,15 @@ function MultiSelectDropdown({
   onOpenChange,
   triggerClassName = '',
 }: MultiSelectDropdownProps) {
+  const interactingInsideRef = useRef(false);
+
+  const handleOpenChange = (nextOpen: boolean) => {
+    if (!nextOpen && interactingInsideRef.current) return;
+    onOpenChange(nextOpen);
+  };
+
   return (
-    <Popover open={open} onOpenChange={onOpenChange}>
+    <Popover open={open} onOpenChange={handleOpenChange}>
       <PopoverTrigger asChild>
         <Button variant="outline" className={`w-full justify-between ${triggerClassName}`}>
           <span className="flex items-center gap-2 truncate">
@@ -106,6 +113,14 @@ function MultiSelectDropdown({
         align="start"
         className="w-[320px] p-0"
         onEscapeKeyDown={() => onOpenChange(false)}
+        onPointerDownCapture={() => {
+          interactingInsideRef.current = true;
+        }}
+        onPointerUpCapture={() => {
+          window.setTimeout(() => {
+            interactingInsideRef.current = false;
+          }, 0);
+        }}
       >
         <div className="p-3 border-b space-y-2">
           <div className="relative">

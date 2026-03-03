@@ -2,6 +2,10 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckCircle, XCircle, User, Mail, UserPlus, ChevronDown, ChevronRight, Shield, Briefcase, HardHat, Users } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
@@ -45,6 +49,9 @@ interface UserProfile {
   display_name: string;
   first_name: string;
   last_name: string;
+  email?: string | null;
+  phone?: string | null;
+  vendor_id?: string | null;
   role: string;
   status: string;
   has_global_job_access: boolean;
@@ -63,6 +70,18 @@ interface CustomRole {
   role_name: string;
   role_key: string;
   color?: string | null;
+}
+
+interface PendingSignupMeta {
+  requestId: string;
+  requestType: string;
+  requestedRole: 'employee' | 'vendor' | 'design_professional';
+  businessName: string | null;
+}
+
+interface VendorCompanyOption {
+  id: string;
+  name: string;
 }
 
 interface RoleGroup {
@@ -94,6 +113,18 @@ export default function UserManagement() {
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({ admins: true, controllers: true, project_managers: true, employees: true });
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  const [pendingSignupByUserId, setPendingSignupByUserId] = useState<Record<string, PendingSignupMeta>>({});
+  const [availableVendors, setAvailableVendors] = useState<VendorCompanyOption[]>([]);
+  const [approveVendorDialog, setApproveVendorDialog] = useState<{
+    userId: string;
+    userName: string;
+    requestedRole: 'vendor' | 'design_professional';
+    requestId: string;
+    businessName: string | null;
+  } | null>(null);
+  const [vendorApprovalMode, setVendorApprovalMode] = useState<'link' | 'create'>('create');
+  const [selectedVendorId, setSelectedVendorId] = useState('');
+  const [newVendorName, setNewVendorName] = useState('');
 
   const activeCompanyRole = useActiveCompanyRole();
   const isAdmin = activeCompanyRole === 'admin' || activeCompanyRole === 'company_admin' || activeCompanyRole === 'owner';
@@ -102,6 +133,7 @@ export default function UserManagement() {
     if (currentCompany) {
       fetchUsers();
       fetchCustomRoles();
+      fetchVendors();
     }
   }, [currentCompany, location.key]);
 
@@ -111,6 +143,7 @@ export default function UserManagement() {
     const refreshOnFocus = () => {
       fetchUsers();
       fetchCustomRoles();
+      fetchVendors();
     };
 
     window.addEventListener('focus', refreshOnFocus);
@@ -136,6 +169,22 @@ export default function UserManagement() {
     } catch (error) {
       console.error('Error fetching custom roles:', error);
       setCustomRoles([]);
+    }
+  };
+
+  const fetchVendors = async () => {
+    if (!currentCompany) return;
+    try {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('id, name')
+        .eq('company_id', currentCompany.id)
+        .order('name', { ascending: true });
+      if (error) throw error;
+      setAvailableVendors((data as VendorCompanyOption[]) || []);
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+      setAvailableVendors([]);
     }
   };
 
@@ -178,6 +227,37 @@ export default function UserManagement() {
       }
 
       setUsers(allUsers);
+
+      const { data: pendingRequests } = await supabase
+        .from('company_access_requests')
+        .select('id, user_id, notes, status')
+        .eq('company_id', currentCompany.id)
+        .eq('status', 'pending');
+
+      const pendingMap: Record<string, PendingSignupMeta> = {};
+      (pendingRequests || []).forEach((request: any) => {
+        try {
+          const parsed = request?.notes ? JSON.parse(request.notes) : {};
+          const requestedRole = String(parsed?.requestedRole || '').toLowerCase();
+          pendingMap[request.user_id] = {
+            requestId: request.id,
+            requestType: String(parsed?.requestType || ''),
+            requestedRole:
+              requestedRole === 'vendor' || requestedRole === 'design_professional'
+                ? requestedRole
+                : 'employee',
+            businessName: parsed?.businessName ? String(parsed.businessName) : null,
+          };
+        } catch {
+          pendingMap[request.user_id] = {
+            requestId: request.id,
+            requestType: '',
+            requestedRole: 'employee',
+            businessName: null,
+          };
+        }
+      });
+      setPendingSignupByUserId(pendingMap);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -190,15 +270,111 @@ export default function UserManagement() {
     }
   };
 
-  const approveUser = async (userId: string) => {
+  const approveUser = async (
+    userId: string,
+    resolution?: { mode: 'link' | 'create'; vendorId?: string; vendorName?: string }
+  ) => {
     if (!user) return;
     if (!currentCompany) return;
     try {
+      const targetUser = users.find((u) => u.user_id === userId);
+      const pendingMeta = pendingSignupByUserId[userId];
+      const requestedRole = pendingMeta?.requestedRole || (targetUser?.role as any) || 'employee';
+      const needsVendorResolution =
+        pendingMeta?.requestType === 'vendor_self_signup' &&
+        (requestedRole === 'vendor' || requestedRole === 'design_professional');
+
+      if (needsVendorResolution && !resolution) {
+        setApproveVendorDialog({
+          userId,
+          userName:
+            targetUser?.display_name ||
+            `${targetUser?.first_name || ''} ${targetUser?.last_name || ''}`.trim() ||
+            'User',
+          requestedRole,
+          requestId: pendingMeta.requestId,
+          businessName: pendingMeta.businessName || null,
+        });
+        setVendorApprovalMode('create');
+        setSelectedVendorId('');
+        setNewVendorName(
+          pendingMeta.businessName ||
+            targetUser?.display_name ||
+            `${targetUser?.first_name || ''} ${targetUser?.last_name || ''}`.trim() ||
+            ''
+        );
+        return;
+      }
+
+      let resolvedVendorId: string | null = targetUser?.vendor_id || null;
+      if (needsVendorResolution) {
+        if (resolution?.mode === 'link') {
+          if (!resolution.vendorId) {
+            toast({ title: "Vendor required", description: "Select an existing vendor company.", variant: "destructive" });
+            return;
+          }
+          resolvedVendorId = resolution.vendorId;
+        } else {
+          const vendorName = (resolution?.vendorName || '').trim();
+          if (!vendorName) {
+            toast({ title: "Vendor name required", description: "Enter a vendor company name.", variant: "destructive" });
+            return;
+          }
+          const { data: createdVendor, error: createVendorError } = await supabase
+            .from('vendors')
+            .insert({
+              company_id: currentCompany.id,
+              name: vendorName,
+              email: targetUser?.email || null,
+              phone: targetUser?.phone || null,
+              contact_person: `${targetUser?.first_name || ''} ${targetUser?.last_name || ''}`.trim() || null,
+              vendor_type: requestedRole,
+            } as any)
+            .select('id')
+            .single();
+          if (createVendorError) throw createVendorError;
+          resolvedVendorId = createdVendor?.id || null;
+        }
+      }
+
       const { error } = await supabase
         .from('profiles')
-        .update({ status: 'approved', approved_by: user.id, approved_at: new Date().toISOString() })
+        .update({
+          status: 'approved',
+          approved_by: user.id,
+          approved_at: new Date().toISOString(),
+          role: requestedRole as any,
+          vendor_id: resolvedVendorId,
+        })
         .eq('user_id', userId);
       if (error) throw error;
+
+      const { error: accessUpdateError } = await supabase
+        .from('user_company_access')
+        .update({
+          role: requestedRole as any,
+          is_active: true,
+          granted_by: user.id,
+        })
+        .eq('user_id', userId)
+        .eq('company_id', currentCompany.id);
+      if (accessUpdateError) {
+        console.warn('Unable to update user_company_access during approval:', accessUpdateError);
+      }
+
+      if (pendingMeta?.requestId) {
+        const { error: requestUpdateError } = await supabase
+          .from('company_access_requests')
+          .update({
+            status: 'approved',
+            reviewed_by: user.id,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq('id', pendingMeta.requestId);
+        if (requestUpdateError) {
+          console.warn('Failed updating company_access_requests approval:', requestUpdateError);
+        }
+      }
 
       const { error: notifyError } = await supabase.functions.invoke('notify-user-approved', {
         body: {
@@ -211,6 +387,7 @@ export default function UserManagement() {
       }
 
       toast({ title: "User Approved", description: "User has been approved successfully" });
+      setApproveVendorDialog(null);
       fetchUsers();
     } catch (error) {
       console.error('Error approving user:', error);
@@ -225,6 +402,19 @@ export default function UserManagement() {
         .update({ status: 'rejected' })
         .eq('user_id', userId);
       if (error) throw error;
+
+      const pendingMeta = pendingSignupByUserId[userId];
+      if (pendingMeta?.requestId) {
+        await supabase
+          .from('company_access_requests')
+          .update({
+            status: 'rejected',
+            reviewed_by: user?.id || null,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq('id', pendingMeta.requestId);
+      }
+
       toast({ title: "User Rejected", description: "User has been rejected", variant: "destructive" });
       fetchUsers();
     } catch (error) {
@@ -424,6 +614,77 @@ export default function UserManagement() {
         onOpenChange={setShowAddUserDialog}
         onUserAdded={fetchUsers}
       />
+
+      <Dialog open={!!approveVendorDialog} onOpenChange={(open) => !open && setApproveVendorDialog(null)}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Complete Vendor Approval</DialogTitle>
+            <DialogDescription>
+              This vendor signup requires vendor company mapping before approval.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Approval Mode</Label>
+              <Select value={vendorApprovalMode} onValueChange={(value: 'link' | 'create') => setVendorApprovalMode(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="create">Create New Vendor Company</SelectItem>
+                  <SelectItem value="link">Link to Existing Vendor Company</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {vendorApprovalMode === 'create' ? (
+              <div className="space-y-2">
+                <Label>New Vendor Company Name</Label>
+                <Input
+                  value={newVendorName}
+                  onChange={(e) => setNewVendorName(e.target.value)}
+                  placeholder="Vendor company name"
+                />
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <Label>Existing Vendor Company</Label>
+                <Select value={selectedVendorId} onValueChange={setSelectedVendorId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select vendor company" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableVendors.map((vendor) => (
+                      <SelectItem key={vendor.id} value={vendor.id}>
+                        {vendor.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setApproveVendorDialog(null)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (!approveVendorDialog) return;
+                void approveUser(approveVendorDialog.userId, {
+                  mode: vendorApprovalMode,
+                  vendorId: selectedVendorId,
+                  vendorName: newVendorName,
+                });
+              }}
+            >
+              Approve
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

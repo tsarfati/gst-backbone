@@ -33,7 +33,7 @@ interface EmployeeGroupManagerProps {
 }
 
 export default function EmployeeGroupManager({ onGroupChange }: EmployeeGroupManagerProps) {
-  const { profile } = useAuth();
+  const { profile, user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
 
@@ -45,6 +45,7 @@ export default function EmployeeGroupManager({ onGroupChange }: EmployeeGroupMan
   const [openSelectorForGroup, setOpenSelectorForGroup] = useState<string | null>(null);
   const [renamingGroupId, setRenamingGroupId] = useState<string | null>(null);
   const [deletingGroupId, setDeletingGroupId] = useState<string | null>(null);
+  const actorUserId = profile?.user_id || user?.id || null;
 
   const effectiveRole = profile?.role?.toLowerCase() || '';
   const canManageGroups = ['admin', 'controller', 'company_admin', 'owner', 'super_admin'].includes(effectiveRole);
@@ -163,7 +164,11 @@ export default function EmployeeGroupManager({ onGroupChange }: EmployeeGroupMan
   };
 
   const handleCreateGroup = async () => {
-    if (!currentCompany?.id || !profile?.user_id) return;
+    if (!currentCompany?.id) return;
+    if (!actorUserId) {
+      toast({ title: 'Error', description: 'Missing current user context.', variant: 'destructive' });
+      return;
+    }
     const name = window.prompt('Enter group name');
     const trimmed = name?.trim();
     if (!trimmed) return;
@@ -175,7 +180,7 @@ export default function EmployeeGroupManager({ onGroupChange }: EmployeeGroupMan
       company_id: currentCompany.id,
       name: trimmed,
       description,
-      created_by: profile.user_id,
+      created_by: actorUserId,
     } as any);
     setCreating(false);
 
@@ -235,7 +240,7 @@ export default function EmployeeGroupManager({ onGroupChange }: EmployeeGroupMan
 
   const toggleMember = async (groupId: string, userId: string, checked: boolean) => {
     if (!currentCompany?.id) return;
-    if (!profile?.user_id) {
+    if (!actorUserId) {
       toast({ title: 'Error', description: 'Missing current user context.', variant: 'destructive' });
       return;
     }
@@ -263,7 +268,7 @@ export default function EmployeeGroupManager({ onGroupChange }: EmployeeGroupMan
         const insertRes = await supabase.from('employee_group_members').insert({
           group_id: groupId,
           user_id: userId,
-          created_by: profile.user_id,
+          created_by: actorUserId,
         } as any);
         error = insertRes.error;
       }

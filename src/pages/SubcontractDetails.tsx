@@ -3,7 +3,7 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Edit, FileText, Plus, Download } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Plus, Download, Send, Stamp, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -18,7 +18,7 @@ export default function SubcontractDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   
   const [subcontract, setSubcontract] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -27,6 +27,9 @@ export default function SubcontractDetails() {
 const [changeOrders, setChangeOrders] = useState<any[]>([]);
 const [viewingFile, setViewingFile] = useState<{file: File, name: string} | null>(null);
 const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: string; description: string; type?: string }>>({});
+  const [contractEvents, setContractEvents] = useState<any[]>([]);
+  const [companySignatureProvider, setCompanySignatureProvider] = useState<'manual' | 'docusign'>('manual');
+  const [signatureActionLoading, setSignatureActionLoading] = useState(false);
 
   useEffect(() => {
     if (id) {
@@ -77,6 +80,22 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
         setCostCodeLookup({});
       }
       if (data) {
+        const [{ data: eventsData }, { data: payablesConfig }] = await Promise.all([
+          supabase
+            .from('contract_signature_events' as any)
+            .select('*')
+            .eq('subcontract_id', id)
+            .order('created_at', { ascending: false }),
+          supabase
+            .from('payables_settings')
+            .select('vendor_portal_signature_provider')
+            .eq('company_id', data.jobs?.company_id)
+            .maybeSingle(),
+        ]);
+
+        setContractEvents((eventsData as any[]) || []);
+        setCompanySignatureProvider(((payablesConfig as any)?.vendor_portal_signature_provider || 'manual') as 'manual' | 'docusign');
+
         const { data: invoiceData } = await supabase
           .from('invoices')
           .select('*')
@@ -215,6 +234,51 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
       case 'completed': return 'bg-blue-500';
       case 'cancelled': return 'bg-red-500';
       default: return 'bg-gray-500';
+    }
+  };
+
+  const isPrivilegedCompanyUser = ['admin', 'controller', 'company_admin', 'owner', 'super_admin'].includes(String(profile?.role || '').toLowerCase());
+
+  const createContractEvent = async (eventType: string, eventNote: string, metadata: Record<string, any> = {}) => {
+    if (!subcontract?.id) return;
+    try {
+      await supabase.from('contract_signature_events' as any).insert({
+        subcontract_id: subcontract.id,
+        company_id: subcontract.jobs?.company_id || null,
+        vendor_id: subcontract.vendor_id || null,
+        actor_user_id: user?.id || null,
+        actor_role: profile?.role || 'unknown',
+        event_type: eventType,
+        event_note: eventNote,
+        metadata,
+      });
+    } catch (error) {
+      console.error('Failed to create contract event:', error);
+    }
+  };
+
+  const updateSignatureState = async (updates: Record<string, any>, successMessage: string, eventType: string, eventNote: string) => {
+    if (!subcontract?.id) return;
+    try {
+      setSignatureActionLoading(true);
+      const { error } = await supabase
+        .from('subcontracts')
+        .update(updates as any)
+        .eq('id', subcontract.id);
+      if (error) throw error;
+
+      await createContractEvent(eventType, eventNote, updates);
+      toast({ title: "Success", description: successMessage });
+      await fetchSubcontract();
+    } catch (error) {
+      console.error('Failed contract signature action:', error);
+      toast({
+        title: "Error",
+        description: "Failed to update contract signature workflow",
+        variant: "destructive",
+      });
+    } finally {
+      setSignatureActionLoading(false);
     }
   };
 
@@ -462,6 +526,135 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
           </CardContent>
         </Card>
       )}
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Contract Workflow</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="rounded border p-3">
+              <p className="text-xs text-muted-foreground">Negotiation Status</p>
+              <p className="font-medium">{subcontract.contract_negotiation_status || 'draft'}</p>
+            </div>
+            <div className="rounded border p-3">
+              <p className="text-xs text-muted-foreground">Signature Status</p>
+              <p className="font-medium">{subcontract.signature_status || 'not_started'}</p>
+            </div>
+            <div className="rounded border p-3">
+              <p className="text-xs text-muted-foreground">Provider</p>
+              <p className="font-medium">{(subcontract.signature_provider || companySignatureProvider || 'manual').toUpperCase()}</p>
+            </div>
+            <div className="rounded border p-3">
+              <p className="text-xs text-muted-foreground">Executed Signed By</p>
+              <p className="font-medium">{subcontract.executed_signed_by_name || 'Not provided'}</p>
+            </div>
+          </div>
+
+          {subcontract.executed_contract_file_url && (
+            <div
+              className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors"
+              onClick={() => handleViewFile(subcontract.executed_contract_file_url, 'Executed Contract')}
+            >
+              <FileText className="h-8 w-8 text-muted-foreground" />
+              <div className="flex-1">
+                <p className="font-medium text-foreground">Executed Contract</p>
+                <p className="text-sm text-muted-foreground">Click to view uploaded signed copy</p>
+              </div>
+            </div>
+          )}
+
+          {isPrivilegedCompanyUser && (
+            <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={signatureActionLoading}
+                onClick={() => updateSignatureState(
+                  {
+                    contract_negotiation_status: 'pending_vendor_review',
+                    signature_status: 'pending_vendor_review',
+                  },
+                  'Marked for vendor review.',
+                  'company_sent_for_vendor_review',
+                  'Company sent contract to vendor for review'
+                )}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Send for Vendor Review
+              </Button>
+              <Button
+                disabled={signatureActionLoading}
+                onClick={() => updateSignatureState(
+                  {
+                    signature_provider: 'manual',
+                    signature_status: 'awaiting_external_signature',
+                    contract_negotiation_status: 'approved_for_signature',
+                    awaiting_signature_sent_at: new Date().toISOString(),
+                  },
+                  'Contract sent for manual signature.',
+                  'company_sent_for_signature_manual',
+                  'Company sent contract for manual signature upload'
+                )}
+              >
+                <Stamp className="h-4 w-4 mr-2" />
+                Send for Signature (Manual)
+              </Button>
+              <Button
+                variant="outline"
+                disabled
+                onClick={() => {
+                  toast({
+                    title: "Coming soon",
+                    description: "DocuSign integration is planned but not enabled yet.",
+                  });
+                }}
+              >
+                Send for Signature (DocuSign - Coming Soon)
+              </Button>
+              {String(subcontract.signature_status || '').toLowerCase() === 'signed_uploaded' && (
+                <Button
+                  variant="secondary"
+                  disabled={signatureActionLoading}
+                  onClick={() => updateSignatureState(
+                    {
+                      signature_status: 'executed',
+                    },
+                    'Contract marked fully executed.',
+                    'company_marked_contract_executed',
+                    'Company marked contract as fully executed'
+                  )}
+                >
+                  <CheckCircle2 className="h-4 w-4 mr-2" />
+                  Mark Executed
+                </Button>
+              )}
+            </div>
+          )}
+
+          <div className="space-y-2">
+            <p className="text-sm font-medium">Workflow Timeline</p>
+            {contractEvents.length === 0 ? (
+              <p className="text-sm text-muted-foreground">No contract workflow events yet.</p>
+            ) : (
+              <div className="space-y-2">
+                {contractEvents.slice(0, 8).map((event) => (
+                  <div key={event.id} className="rounded border p-2 text-sm">
+                    <div className="flex items-center justify-between gap-2">
+                      <p className="font-medium">{event.event_type}</p>
+                      <p className="text-xs text-muted-foreground">
+                        {format(new Date(event.created_at), 'MMM d, yyyy h:mm a')}
+                      </p>
+                    </div>
+                    {event.event_note && (
+                      <p className="text-xs text-muted-foreground mt-1">{event.event_note}</p>
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+        </CardContent>
+      </Card>
 
       {/* Change Orders Section */}
       <Card>

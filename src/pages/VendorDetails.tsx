@@ -20,6 +20,7 @@ import {
   DialogDescription,
   DialogFooter,
 } from "@/components/ui/dialog";
+import { ScrollArea } from "@/components/ui/scroll-area";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 
 export default function VendorDetails() {
@@ -44,6 +45,13 @@ export default function VendorDetails() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [sendingInvite, setSendingInvite] = useState(false);
   const [pendingInvite, setPendingInvite] = useState<any>(null);
+  const [scopeEditorOpen, setScopeEditorOpen] = useState(false);
+  const [scopeEditorLoading, setScopeEditorLoading] = useState(false);
+  const [scopeEditorAssignment, setScopeEditorAssignment] = useState<any>(null);
+  const [scopeJobFolders, setScopeJobFolders] = useState<any[]>([]);
+  const [scopeJobFiles, setScopeJobFiles] = useState<any[]>([]);
+  const [scopeSelectedFolderIds, setScopeSelectedFolderIds] = useState<Set<string>>(new Set());
+  const [scopeSelectedFileIds, setScopeSelectedFileIds] = useState<Set<string>>(new Set());
 
   useEffect(() => {
     const fetchVendor = async () => {
@@ -250,6 +258,14 @@ export default function VendorDetails() {
             can_submit_rfis,
             can_view_team_directory,
             can_upload_compliance_docs,
+            can_negotiate_contracts,
+            can_submit_sov_proposals,
+            can_upload_signed_contracts,
+            can_access_filing_cabinet,
+            filing_cabinet_access_level,
+            can_download_filing_cabinet_files,
+            allowed_filing_cabinet_folder_ids,
+            allowed_filing_cabinet_file_ids,
             jobs:job_id(id, name, status)
           `)
           .eq('vendor_id', vendorId)
@@ -299,6 +315,12 @@ export default function VendorDetails() {
           can_submit_rfis: false,
           can_view_team_directory: true,
           can_upload_compliance_docs: true,
+          can_negotiate_contracts: true,
+          can_submit_sov_proposals: true,
+          can_upload_signed_contracts: true,
+          can_access_filing_cabinet: false,
+          filing_cabinet_access_level: 'view_only',
+          can_download_filing_cabinet_files: true,
           created_by: user.id,
         }, {
           onConflict: 'vendor_id,job_id',
@@ -317,6 +339,14 @@ export default function VendorDetails() {
           can_submit_rfis,
           can_view_team_directory,
           can_upload_compliance_docs,
+          can_negotiate_contracts,
+          can_submit_sov_proposals,
+          can_upload_signed_contracts,
+          can_access_filing_cabinet,
+          filing_cabinet_access_level,
+          can_download_filing_cabinet_files,
+          allowed_filing_cabinet_folder_ids,
+          allowed_filing_cabinet_file_ids,
           jobs:job_id(id, name, status)
         `)
         .eq('vendor_id', vendor.id)
@@ -338,7 +368,7 @@ export default function VendorDetails() {
     }
   };
 
-  const handleUpdateVendorJobAccess = async (assignmentId: string, field: string, value: boolean) => {
+  const handleUpdateVendorJobAccess = async (assignmentId: string, field: string, value: any) => {
     try {
       const { error } = await supabase
         .from('vendor_job_access' as any)
@@ -353,6 +383,83 @@ export default function VendorDetails() {
       toast({
         title: "Error",
         description: "Failed to update vendor job access.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const openScopeEditor = async (assignment: any) => {
+    if (!assignment?.job_id || !vendor?.company_id) return;
+    setScopeEditorAssignment(assignment);
+    setScopeEditorOpen(true);
+    setScopeEditorLoading(true);
+    try {
+      const [{ data: folders }, { data: files }] = await Promise.all([
+        supabase
+          .from('job_folders')
+          .select('id,name')
+          .eq('job_id', assignment.job_id)
+          .eq('company_id', vendor.company_id)
+          .order('name', { ascending: true }),
+        supabase
+          .from('job_files')
+          .select('id,file_name,folder_id')
+          .eq('job_id', assignment.job_id)
+          .eq('company_id', vendor.company_id)
+          .order('file_name', { ascending: true }),
+      ]);
+
+      setScopeJobFolders(folders || []);
+      setScopeJobFiles(files || []);
+      setScopeSelectedFolderIds(new Set(assignment.allowed_filing_cabinet_folder_ids || []));
+      setScopeSelectedFileIds(new Set(assignment.allowed_filing_cabinet_file_ids || []));
+    } catch (error) {
+      console.error('Error loading filing cabinet scope options:', error);
+      toast({
+        title: "Error",
+        description: "Failed to load folder/file scope options.",
+        variant: "destructive",
+      });
+    } finally {
+      setScopeEditorLoading(false);
+    }
+  };
+
+  const saveScopeEditor = async () => {
+    if (!scopeEditorAssignment?.id) return;
+    try {
+      const selectedFolderIds = Array.from(scopeSelectedFolderIds);
+      const selectedFileIds = Array.from(scopeSelectedFileIds);
+      const { error } = await supabase
+        .from('vendor_job_access' as any)
+        .update({
+          allowed_filing_cabinet_folder_ids: selectedFolderIds.length > 0 ? selectedFolderIds : null,
+          allowed_filing_cabinet_file_ids: selectedFileIds.length > 0 ? selectedFileIds : null,
+        })
+        .eq('id', scopeEditorAssignment.id);
+
+      if (error) throw error;
+      setVendorJobAccess((prev) =>
+        prev.map((entry) =>
+          entry.id === scopeEditorAssignment.id
+            ? {
+                ...entry,
+                allowed_filing_cabinet_folder_ids: selectedFolderIds.length > 0 ? selectedFolderIds : null,
+                allowed_filing_cabinet_file_ids: selectedFileIds.length > 0 ? selectedFileIds : null,
+              }
+            : entry
+        )
+      );
+      toast({
+        title: "Scope updated",
+        description: "Vendor filing-cabinet scope was saved.",
+      });
+      setScopeEditorOpen(false);
+    } catch (error) {
+      console.error('Error saving filing cabinet scope:', error);
+      toast({
+        title: "Error",
+        description: "Failed to save filing-cabinet scope.",
         variant: "destructive",
       });
     }
@@ -988,6 +1095,72 @@ export default function VendorDetails() {
                             onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_upload_compliance_docs', checked)}
                           />
                         </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>Contract Negotiation</Label>
+                          <Switch
+                            checked={!!assignment.can_negotiate_contracts}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_negotiate_contracts', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>SOV Proposals</Label>
+                          <Switch
+                            checked={!!assignment.can_submit_sov_proposals}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_sov_proposals', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>Upload Signed Contracts</Label>
+                          <Switch
+                            checked={!!assignment.can_upload_signed_contracts}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_upload_signed_contracts', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>Filing Cabinet Access</Label>
+                          <Switch
+                            checked={!!assignment.can_access_filing_cabinet}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_access_filing_cabinet', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>Filing Access Level</Label>
+                          <select
+                            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                            value={assignment.filing_cabinet_access_level || 'view_only'}
+                            disabled={!assignment.can_access_filing_cabinet}
+                            onChange={(e) => handleUpdateVendorJobAccess(assignment.id, 'filing_cabinet_access_level', e.target.value)}
+                          >
+                            <option value="view_only">View Only</option>
+                            <option value="read_write">Read + Write</option>
+                          </select>
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2">
+                          <Label>Allow File Downloads</Label>
+                          <Switch
+                            checked={!!assignment.can_download_filing_cabinet_files}
+                            disabled={!assignment.can_access_filing_cabinet}
+                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_download_filing_cabinet_files', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between rounded border p-2 md:col-span-2">
+                          <div className="space-y-1">
+                            <Label>Scope Restrictions</Label>
+                            <p className="text-xs text-muted-foreground">
+                              {assignment.allowed_filing_cabinet_folder_ids?.length || assignment.allowed_filing_cabinet_file_ids?.length
+                                ? `Restricted (${assignment.allowed_filing_cabinet_folder_ids?.length || 0} folders, ${assignment.allowed_filing_cabinet_file_ids?.length || 0} files)`
+                                : 'All folders and files in this job'}
+                            </p>
+                          </div>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            disabled={!assignment.can_access_filing_cabinet}
+                            onClick={() => openScopeEditor(assignment)}
+                          >
+                            Configure Scope
+                          </Button>
+                        </div>
                       </div>
                     </CardContent>
                   </Card>
@@ -1154,6 +1327,88 @@ export default function VendorDetails() {
               </>
             )}
           </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={scopeEditorOpen} onOpenChange={setScopeEditorOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Configure Filing Cabinet Scope</DialogTitle>
+            <DialogDescription>
+              Limit this vendor's access to specific folders/files for {scopeEditorAssignment?.jobs?.name || 'this job'}.
+              Leave all unchecked to allow all.
+            </DialogDescription>
+          </DialogHeader>
+          {scopeEditorLoading ? (
+            <div className="py-8 text-center text-sm text-muted-foreground">Loading scope options...</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="rounded border">
+                <div className="px-3 py-2 border-b text-sm font-medium">Allowed Folders</div>
+                <ScrollArea className="h-64">
+                  <div className="p-3 space-y-2">
+                    {scopeJobFolders.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No folders found for this job.</p>
+                    ) : (
+                      scopeJobFolders.map((folder) => (
+                        <label key={folder.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={scopeSelectedFolderIds.has(folder.id)}
+                            onChange={(e) => {
+                              setScopeSelectedFolderIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(folder.id);
+                                else next.delete(folder.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <span>{folder.name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+              <div className="rounded border">
+                <div className="px-3 py-2 border-b text-sm font-medium">Allowed Files</div>
+                <ScrollArea className="h-64">
+                  <div className="p-3 space-y-2">
+                    {scopeJobFiles.length === 0 ? (
+                      <p className="text-xs text-muted-foreground">No files found for this job.</p>
+                    ) : (
+                      scopeJobFiles.map((file) => (
+                        <label key={file.id} className="flex items-center gap-2 text-sm">
+                          <input
+                            type="checkbox"
+                            checked={scopeSelectedFileIds.has(file.id)}
+                            onChange={(e) => {
+                              setScopeSelectedFileIds((prev) => {
+                                const next = new Set(prev);
+                                if (e.target.checked) next.add(file.id);
+                                else next.delete(file.id);
+                                return next;
+                              });
+                            }}
+                          />
+                          <span className="truncate">{file.file_name}</span>
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </ScrollArea>
+              </div>
+            </div>
+          )}
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScopeEditorOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={saveScopeEditor} disabled={scopeEditorLoading}>
+              Save Scope
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

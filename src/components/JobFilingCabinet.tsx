@@ -56,7 +56,7 @@ const INTERNAL_DND_MIME = "application/x-job-filing-cabinet-item";
 
 export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const { currentCompany } = useCompany();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
 
   const [folders, setFolders] = useState<Folder[]>([]);
@@ -79,27 +79,124 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const [uploadDestinationOpen, setUploadDestinationOpen] = useState(false);
   const [pendingUploadFiles, setPendingUploadFiles] = useState<File[]>([]);
   const [pendingUploadTargetFolderId, setPendingUploadTargetFolderId] = useState<string>("");
+  const [vendorCabinetAccess, setVendorCabinetAccess] = useState<{
+    loading: boolean;
+    allowed: boolean;
+    accessLevel: "view_only" | "read_write";
+    canDownload: boolean;
+    allowedFolderIds: string[] | null;
+    allowedFileIds: string[] | null;
+  }>({
+    loading: false,
+    allowed: true,
+    accessLevel: "read_write",
+    canDownload: true,
+    allowedFolderIds: null,
+    allowedFileIds: null,
+  });
 
   // Multi-select state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
 
   const companyId = currentCompany?.id;
+  const isVendorPortalUser = profile?.role === "vendor" || profile?.role === "design_professional";
+  const vendorCanAccessCabinet = !isVendorPortalUser || vendorCabinetAccess.allowed;
+  const vendorCanWriteCabinet = !isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.accessLevel === "read_write");
+  const vendorCanDownloadCabinet = !isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.canDownload);
 
-  const loadFolders = useCallback(async () => {
-    if (!companyId) return;
+  const loadVendorCabinetAccess = useCallback(async () => {
+    if (!isVendorPortalUser) {
+      setVendorCabinetAccess({
+        loading: false,
+        allowed: true,
+        accessLevel: "read_write",
+        canDownload: true,
+        allowedFolderIds: null,
+        allowedFileIds: null,
+      });
+      return {
+        allowed: true,
+        accessLevel: "read_write" as const,
+        canDownload: true,
+        allowedFolderIds: null as string[] | null,
+        allowedFileIds: null as string[] | null,
+      };
+    }
+
+    if (!profile?.vendor_id) {
+      const denied = {
+        allowed: false,
+        accessLevel: "view_only" as const,
+        canDownload: false,
+        allowedFolderIds: null as string[] | null,
+        allowedFileIds: null as string[] | null,
+      };
+      setVendorCabinetAccess({ loading: false, ...denied });
+      return denied;
+    }
+
+    setVendorCabinetAccess((prev) => ({ ...prev, loading: true }));
     const { data, error } = await supabase
+      .from('vendor_job_access' as any)
+      .select(`
+        can_access_filing_cabinet,
+        filing_cabinet_access_level,
+        can_download_filing_cabinet_files,
+        allowed_filing_cabinet_folder_ids,
+        allowed_filing_cabinet_file_ids
+      `)
+      .eq('vendor_id', profile.vendor_id)
+      .eq('job_id', jobId)
+      .maybeSingle();
+
+    if (error || !data) {
+      const denied = {
+        allowed: false,
+        accessLevel: "view_only" as const,
+        canDownload: false,
+        allowedFolderIds: null as string[] | null,
+        allowedFileIds: null as string[] | null,
+      };
+      setVendorCabinetAccess({ loading: false, ...denied });
+      return denied;
+    }
+
+    const resolved = {
+      allowed: !!data.can_access_filing_cabinet,
+      accessLevel: (data.filing_cabinet_access_level || "view_only") as "view_only" | "read_write",
+      canDownload: !!data.can_download_filing_cabinet_files,
+      allowedFolderIds: (data.allowed_filing_cabinet_folder_ids as string[] | null) || null,
+      allowedFileIds: (data.allowed_filing_cabinet_file_ids as string[] | null) || null,
+    };
+    setVendorCabinetAccess({ loading: false, ...resolved });
+    return resolved;
+  }, [isVendorPortalUser, profile?.vendor_id, jobId]);
+
+  const loadFolders = useCallback(async (access?: { allowedFolderIds: string[] | null; allowed: boolean }) => {
+    if (!companyId) return;
+    let query = supabase
       .from('job_folders')
       .select('*')
       .eq('job_id', jobId)
       .eq('company_id', companyId)
       .order('sort_order', { ascending: true });
+    if (isVendorPortalUser) {
+      if (!access?.allowed) {
+        setFolders([]);
+        return;
+      }
+      if (access.allowedFolderIds && access.allowedFolderIds.length > 0) {
+        query = query.in('id', access.allowedFolderIds);
+      }
+    }
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error loading folders:', error);
       return;
     }
 
-    if (!data || data.length === 0) {
+    if ((!data || data.length === 0) && !isVendorPortalUser) {
       const foldersToCreate = SYSTEM_FOLDERS.map((name, i) => ({
         job_id: jobId,
         company_id: companyId,
@@ -122,16 +219,29 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     } else {
       setFolders(data);
     }
-  }, [jobId, companyId, user?.id]);
+  }, [jobId, companyId, user?.id, isVendorPortalUser]);
 
-  const loadFiles = useCallback(async () => {
+  const loadFiles = useCallback(async (access?: { allowed: boolean; allowedFolderIds: string[] | null; allowedFileIds: string[] | null }) => {
     if (!companyId) return;
-    const { data, error } = await supabase
+    let query = supabase
       .from('job_files')
       .select('*')
       .eq('job_id', jobId)
       .eq('company_id', companyId)
       .order('created_at', { ascending: false });
+    if (isVendorPortalUser) {
+      if (!access?.allowed) {
+        setFiles({});
+        return;
+      }
+      if (access.allowedFolderIds && access.allowedFolderIds.length > 0) {
+        query = query.in('folder_id', access.allowedFolderIds);
+      }
+      if (access.allowedFileIds && access.allowedFileIds.length > 0) {
+        query = query.in('id', access.allowedFileIds);
+      }
+    }
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error loading files:', error);
@@ -144,17 +254,28 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
       grouped[file.folder_id].push(file);
     });
     setFiles(grouped);
-  }, [jobId, companyId]);
+  }, [jobId, companyId, isVendorPortalUser]);
 
   useEffect(() => {
     const load = async () => {
       setLoading(true);
-      await loadFolders();
-      await loadFiles();
+      const access = await loadVendorCabinetAccess();
+      if (isVendorPortalUser && !access.allowed) {
+        setFolders([]);
+        setFiles({});
+        setLoading(false);
+        return;
+      }
+      await loadFolders({ allowed: access.allowed, allowedFolderIds: access.allowedFolderIds });
+      await loadFiles({
+        allowed: access.allowed,
+        allowedFolderIds: access.allowedFolderIds,
+        allowedFileIds: access.allowedFileIds,
+      });
       setLoading(false);
     };
     load();
-  }, [loadFolders, loadFiles]);
+  }, [loadFolders, loadFiles, loadVendorCabinetAccess, isVendorPortalUser]);
 
   const allFiles = Object.values(files).flat();
   const folderById = new Map(folders.map((f) => [f.id, f]));
@@ -205,6 +326,10 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const handleCreateFolder = async () => {
+    if (!vendorCanWriteCabinet) {
+      toast({ title: "No access", description: "You do not have write access for this filing cabinet.", variant: "destructive" });
+      return;
+    }
     if (!newFolderName.trim() || !companyId || !user) return;
     const { error } = await supabase.from('job_folders').insert({
       job_id: jobId,
@@ -226,6 +351,10 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const handleRename = async () => {
+    if (!vendorCanWriteCabinet) {
+      toast({ title: "No access", description: "You do not have write access for this filing cabinet.", variant: "destructive" });
+      return;
+    }
     if (!renamingItem || !renamingItem.name.trim()) return;
     const table = renamingItem.type === 'folder' ? 'job_folders' : 'job_files';
     const field = renamingItem.type === 'folder' ? 'name' : 'file_name';
@@ -246,6 +375,10 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const handleDelete = async () => {
+    if (!vendorCanWriteCabinet) {
+      toast({ title: "No access", description: "You do not have write access for this filing cabinet.", variant: "destructive" });
+      return;
+    }
     if (!deleteItem) return;
     const table = deleteItem.type === 'folder' ? 'job_folders' : 'job_files';
 
@@ -269,6 +402,10 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const uploadFile = async (file: File, folderId: string) => {
+    if (!vendorCanWriteCabinet) {
+      toast({ title: "No access", description: "You do not have write access for this filing cabinet.", variant: "destructive" });
+      return;
+    }
     if (!companyId || !user) return;
     setUploading(folderId);
 
@@ -323,6 +460,10 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const moveFileToFolder = async (fileId: string, targetFolderId: string) => {
+    if (!vendorCanWriteCabinet) {
+      toast({ title: "No access", description: "You do not have write access for this filing cabinet.", variant: "destructive" });
+      return;
+    }
     const file = allFiles.find((f) => f.id === fileId);
     if (!file || file.folder_id === targetFolderId) return;
     const { error } = await supabase.from("job_files").update({ folder_id: targetFolderId }).eq("id", fileId);
@@ -336,6 +477,10 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const moveFolderToParent = async (folderId: string, targetParentFolderId: string | null) => {
+    if (!vendorCanWriteCabinet) {
+      toast({ title: "No access", description: "You do not have write access for this filing cabinet.", variant: "destructive" });
+      return;
+    }
     const folder = folderById.get(folderId);
     if (!folder) return;
     if (folder.id === targetParentFolderId) return;
@@ -374,6 +519,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     setDragOverRoot(false);
     const internalPayload = parseInternalDropPayload(e);
     if (internalPayload) {
+      if (!vendorCanWriteCabinet) return;
       if (internalPayload.type === "file") {
         void moveFileToFolder(internalPayload.id, folderId);
       } else if (internalPayload.type === "folder") {
@@ -383,6 +529,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     }
     const droppedFiles = Array.from(e.dataTransfer.files);
     if (droppedFiles.length > 0) {
+      if (!vendorCanWriteCabinet) return;
       droppedFiles.forEach(f => uploadFile(f, folderId));
     }
   };
@@ -407,6 +554,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     if (!internalPayload) {
       const droppedFiles = Array.from(e.dataTransfer.files);
       if (droppedFiles.length > 0) {
+        if (!vendorCanWriteCabinet) return;
         setPendingUploadFiles(droppedFiles);
         setPendingUploadTargetFolderId((childFoldersByParent["root"] || [])[0]?.id || "");
         setUploadDestinationOpen(true);
@@ -414,6 +562,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
       return;
     }
     if (internalPayload.type === "folder") {
+      if (!vendorCanWriteCabinet) return;
       void moveFolderToParent(internalPayload.id, null);
     } else {
       toast({ title: "Move not allowed", description: "Files must stay inside a folder", variant: "destructive" });
@@ -428,6 +577,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const handleFileInput = (folderId: string) => {
+    if (!vendorCanWriteCabinet) return;
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
@@ -442,6 +592,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const handleGlobalFileInput = () => {
+    if (!vendorCanWriteCabinet) return;
     const input = document.createElement('input');
     input.type = 'file';
     input.multiple = true;
@@ -458,6 +609,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const handleUploadToSelectedDestination = async () => {
+    if (!vendorCanWriteCabinet) return;
     if (!pendingUploadTargetFolderId || pendingUploadFiles.length === 0) return;
     const filesToUpload = [...pendingUploadFiles];
     setUploadDestinationOpen(false);
@@ -468,6 +620,10 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const downloadFile = async (file: JobFile) => {
+    if (!vendorCanDownloadCabinet) {
+      toast({ title: "Downloads disabled", description: "Download access is restricted for your account.", variant: "destructive" });
+      return;
+    }
     try {
       const { data, error } = await supabase.storage
         .from('job-filing-cabinet')
@@ -505,11 +661,31 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     );
   }
 
+  if (vendorCabinetAccess.loading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!vendorCanAccessCabinet) {
+    return (
+      <Card>
+        <CardContent className="py-10 text-center">
+          <p className="text-sm text-muted-foreground">
+            You do not have access to this job's filing cabinet.
+          </p>
+        </CardContent>
+      </Card>
+    );
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Filing Cabinet</h3>
-        <Button size="sm" onClick={() => setNewFolderOpen(true)}>
+        <Button size="sm" onClick={() => setNewFolderOpen(true)} disabled={!vendorCanWriteCabinet}>
           <Plus className="h-4 w-4 mr-2" />
           New Folder
         </Button>
@@ -554,7 +730,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
             <span className="mx-2 text-border">|</span>
             Drag folders here to move them to top level
           </div>
-          <Button size="sm" variant="outline" className="h-7" onClick={handleGlobalFileInput}>
+          <Button size="sm" variant="outline" className="h-7" onClick={handleGlobalFileInput} disabled={!vendorCanWriteCabinet}>
             <Upload className="h-3.5 w-3.5 mr-1.5" />
             Upload Files
           </Button>
@@ -613,7 +789,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                 {nodeIsUploading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
 
                 <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center" onClick={e => e.stopPropagation()}>
-                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleFileInput(node.id)}>
+                  <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleFileInput(node.id)} disabled={!vendorCanWriteCabinet}>
                     <Upload className="h-3.5 w-3.5" />
                   </Button>
                   <DropdownMenu>
@@ -623,11 +799,12 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                       </Button>
                     </DropdownMenuTrigger>
                     <DropdownMenuContent align="end">
-                      <DropdownMenuItem onClick={() => setRenamingItem({ type: 'folder', id: node.id, name: node.name })}>
+                      <DropdownMenuItem disabled={!vendorCanWriteCabinet} onClick={() => setRenamingItem({ type: 'folder', id: node.id, name: node.name })}>
                         <Pencil className="h-4 w-4 mr-2" /> Rename
                       </DropdownMenuItem>
                       {!node.is_system_folder && (
                         <DropdownMenuItem
+                          disabled={!vendorCanWriteCabinet}
                           className="text-destructive"
                           onClick={() => setDeleteItem({ type: 'folder', id: node.id, name: node.name })}
                         >
@@ -719,6 +896,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                                 className="inline-block max-w-full truncate hover:underline cursor-text text-left"
                                 onClick={(e) => {
                                   e.stopPropagation();
+                                  if (!vendorCanWriteCabinet) return;
                                   setInlineEditFileId(file.id);
                                   setInlineEditName(file.file_name);
                                 }}
@@ -729,7 +907,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                           )}
                           <span className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</span>
                           <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center" onClick={e => e.stopPropagation()}>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => downloadFile(file)}>
+                            <Button variant="ghost" size="icon" className="h-7 w-7" disabled={!vendorCanDownloadCabinet} onClick={() => downloadFile(file)}>
                               <Download className="h-3.5 w-3.5" />
                             </Button>
                             <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShareFiles([file])}>
@@ -742,10 +920,11 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                                 </Button>
                               </DropdownMenuTrigger>
                               <DropdownMenuContent align="end">
-                                <DropdownMenuItem onClick={() => setRenamingItem({ type: 'file', id: file.id, name: file.file_name })}>
+                                <DropdownMenuItem disabled={!vendorCanWriteCabinet} onClick={() => setRenamingItem({ type: 'file', id: file.id, name: file.file_name })}>
                                   <Pencil className="h-4 w-4 mr-2" /> Rename
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
+                                  disabled={!vendorCanWriteCabinet}
                                   className="text-destructive"
                                   onClick={() => setDeleteItem({ type: 'file', id: file.id, name: file.file_name })}
                                 >

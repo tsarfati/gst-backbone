@@ -4,7 +4,6 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -27,8 +26,6 @@ type PublicCompany = {
   vendor_portal_signup_modal_opacity: number | null;
 };
 
-type SignupRole = "vendor" | "design_professional";
-
 const hexToRgba = (hex: string, alpha: number) => {
   const normalized = hex.trim().replace('#', '');
   if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(7,18,49,${alpha})`;
@@ -44,7 +41,6 @@ export default function VendorSignup() {
   const { toast } = useToast();
 
   const preselectedCompanyId = searchParams.get("company");
-  const isCompanyLocked = Boolean(preselectedCompanyId);
 
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -59,7 +55,6 @@ export default function VendorSignup() {
     phone: "",
     companyId: preselectedCompanyId || "",
     businessName: "",
-    role: "vendor" as SignupRole,
     password: "",
     confirmPassword: "",
   });
@@ -83,15 +78,18 @@ export default function VendorSignup() {
   }, []);
 
   useEffect(() => {
-    if (!isCompanyLocked || loadingCompanies) return;
-    if (!preselectedCompanyId) return;
+    if (loadingCompanies) return;
+    if (!preselectedCompanyId) {
+      setError("This vendor signup link is invalid. Please use the company-specific signup link.");
+      return;
+    }
     const exists = companies.some((c) => c.id === preselectedCompanyId);
     if (!exists) {
       setError("This company signup link is invalid.");
       return;
     }
     setForm((prev) => ({ ...prev, companyId: preselectedCompanyId }));
-  }, [companies, isCompanyLocked, loadingCompanies, preselectedCompanyId]);
+  }, [companies, loadingCompanies, preselectedCompanyId]);
 
   const selectedCompany = useMemo(
     () => companies.find((c) => c.id === form.companyId) || null,
@@ -124,7 +122,7 @@ export default function VendorSignup() {
   const pageTitle = selectedCompany?.display_name || selectedCompany?.name
     ? `Join ${selectedCompany.display_name || selectedCompany.name}`
     : "Vendor / Design Professional Signup";
-  const roleLabel = form.role === "design_professional" ? "Design Professional" : "Vendor";
+  const roleLabel = "Vendor";
   const vendorSignupHeaderTitle = selectedCompany?.vendor_portal_signup_header_title?.trim() || pageTitle;
   const vendorSignupHeaderSubtitle = selectedCompany?.vendor_portal_signup_header_subtitle?.trim()
     || (selectedCompany
@@ -141,6 +139,14 @@ export default function VendorSignup() {
     }
     if (!form.firstName.trim() || !form.lastName.trim()) {
       setError("First name and last name are required.");
+      return;
+    }
+    if (!form.phone.trim()) {
+      setError("Phone number is required.");
+      return;
+    }
+    if (!form.businessName.trim()) {
+      setError("Business name is required.");
       return;
     }
     if (form.password.length < 6) {
@@ -164,9 +170,9 @@ export default function VendorSignup() {
           data: {
             first_name: form.firstName.trim(),
             last_name: form.lastName.trim(),
-            requested_role: form.role,
+            requested_role: "vendor",
             requested_company_id: form.companyId,
-            business_name: form.businessName.trim() || null,
+            business_name: form.businessName.trim(),
           },
         },
       });
@@ -182,10 +188,10 @@ export default function VendorSignup() {
           email: normalizedEmail,
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
-          phone: form.phone.trim() || null,
+          phone: form.phone.trim(),
           companyId: form.companyId,
-          requestedRole: form.role,
-          businessName: form.businessName.trim() || null,
+          requestedRole: "vendor",
+          businessName: form.businessName.trim(),
         },
       });
       if (requestError) throw requestError;
@@ -275,49 +281,6 @@ export default function VendorSignup() {
               <CardDescription className="text-slate-300">{vendorSignupHeaderSubtitle}</CardDescription>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="signup-company">Company</Label>
-              {isCompanyLocked ? (
-                <Input
-                  id="signup-company"
-                  value={selectedCompany?.display_name || selectedCompany?.name || "Loading company..."}
-                  disabled
-                />
-              ) : (
-                <Select
-                  value={form.companyId}
-                  onValueChange={(value) => setForm((prev) => ({ ...prev, companyId: value }))}
-                >
-                  <SelectTrigger id="signup-company">
-                    <SelectValue placeholder="Select company" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companies.map((company) => (
-                      <SelectItem key={company.id} value={company.id}>
-                        {company.display_name || company.name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
-
-            <div className="space-y-2">
-              <Label htmlFor="signup-role">Account Type</Label>
-              <Select
-                value={form.role}
-                onValueChange={(value: SignupRole) => setForm((prev) => ({ ...prev, role: value }))}
-              >
-                <SelectTrigger id="signup-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="vendor">Vendor</SelectItem>
-                  <SelectItem value="design_professional">Design Professional</SelectItem>
-                </SelectContent>
-              </Select>
-            </div>
-
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="signup-first-name">First Name</Label>
@@ -357,7 +320,8 @@ export default function VendorSignup() {
                   type="tel"
                   value={form.phone}
                   onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
-                  placeholder="Optional"
+                  placeholder="(555) 555-5555"
+                  required
                 />
               </div>
             </div>
@@ -368,7 +332,8 @@ export default function VendorSignup() {
                 id="signup-business-name"
                 value={form.businessName}
                 onChange={(e) => setForm((prev) => ({ ...prev, businessName: e.target.value }))}
-                placeholder="Optional"
+                placeholder="Your company name"
+                required
               />
             </div>
 
@@ -395,25 +360,23 @@ export default function VendorSignup() {
               </div>
             </div>
 
-            <div className="flex items-center justify-end gap-3 pt-2">
+            <div className="flex flex-col items-center gap-2 pt-2">
               <Button type="submit" disabled={submitting}>
                 {submitting ? "Submitting..." : "Submit For Approval"}
               </Button>
             </div>
-            <div className="flex items-center justify-start pt-1">
-              <a
-                href="https://builderlink.com"
-                target="_blank"
-                rel="noreferrer"
-                className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-2 text-xs text-slate-100 transition-colors hover:bg-black/45"
-              >
-                <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain" />
-                <span>Powered by BuilderLYNK</span>
-              </a>
-            </div>
           </form>
         </CardContent>
       </Card>
+      <a
+        href="https://builderlink.com"
+        target="_blank"
+        rel="noreferrer"
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-2 text-xs text-slate-100 transition-colors hover:bg-black/45"
+      >
+        <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain" />
+        <span>Powered by BuilderLYNK</span>
+      </a>
     </div>
   );
 }

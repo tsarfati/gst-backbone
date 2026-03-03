@@ -101,6 +101,20 @@ interface AssignedJobAlbum {
   cover_photo_url: string | null;
 }
 
+interface VendorContract {
+  id: string;
+  name: string;
+  contract_amount: number;
+  status: string;
+  contract_negotiation_status: string | null;
+  signature_provider: string | null;
+  signature_status: string | null;
+  vendor_negotiation_notes: string | null;
+  vendor_sov_proposal: any;
+  executed_contract_file_url: string | null;
+  jobs?: { id: string; name: string } | null;
+}
+
 export default function VendorDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -116,7 +130,15 @@ export default function VendorDashboard() {
   const [assignedRFIs, setAssignedRFIs] = useState<AssignedRFI[]>([]);
   const [assignedSubmittals, setAssignedSubmittals] = useState<AssignedSubmittal[]>([]);
   const [assignedJobAlbums, setAssignedJobAlbums] = useState<AssignedJobAlbum[]>([]);
-  const [assignedJobs, setAssignedJobs] = useState<Array<{ id: string; name: string; can_submit_bills: boolean }>>([]);
+  const [assignedJobs, setAssignedJobs] = useState<Array<{
+    id: string;
+    name: string;
+    can_submit_bills: boolean;
+    can_negotiate_contracts: boolean;
+    can_submit_sov_proposals: boolean;
+    can_upload_signed_contracts: boolean;
+  }>>([]);
+  const [contracts, setContracts] = useState<VendorContract[]>([]);
   const [activeTab, setActiveTab] = useState('documents');
   const [portalSettings, setPortalSettings] = useState({
     requireJobAssignmentForBills: true,
@@ -126,9 +148,21 @@ export default function VendorDashboard() {
     requireInsurance: false,
     requireCompanyLogo: false,
     requireUserAvatar: false,
+    signatureProvider: 'manual',
+    allowVendorContractNegotiation: true,
+    allowVendorSovInput: true,
   });
   const [showOnboarding, setShowOnboarding] = useState(false);
   const [savingVendorPrefs, setSavingVendorPrefs] = useState(false);
+  const [contractFeedbackDialogOpen, setContractFeedbackDialogOpen] = useState(false);
+  const [signatureUploadDialogOpen, setSignatureUploadDialogOpen] = useState(false);
+  const [selectedContract, setSelectedContract] = useState<VendorContract | null>(null);
+  const [submittingContractAction, setSubmittingContractAction] = useState(false);
+  const [feedbackNotes, setFeedbackNotes] = useState('');
+  const [sovProposalJson, setSovProposalJson] = useState('');
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [signatureSignerName, setSignatureSignerName] = useState('');
+  const [signatureConsent, setSignatureConsent] = useState(false);
   const [invoiceFlowDialogOpen, setInvoiceFlowDialogOpen] = useState(false);
   const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
   const [invoiceForm, setInvoiceForm] = useState({
@@ -203,7 +237,10 @@ export default function VendorDashboard() {
             vendor_portal_require_w9,
             vendor_portal_require_insurance,
             vendor_portal_require_company_logo,
-            vendor_portal_require_user_avatar
+            vendor_portal_require_user_avatar,
+            vendor_portal_signature_provider,
+            vendor_portal_allow_vendor_contract_negotiation,
+            vendor_portal_allow_vendor_sov_input
           `)
           .eq('company_id', currentCompany.id)
           .maybeSingle();
@@ -217,6 +254,9 @@ export default function VendorDashboard() {
           requireInsurance: typedConfig?.vendor_portal_require_insurance ?? false,
           requireCompanyLogo: typedConfig?.vendor_portal_require_company_logo ?? false,
           requireUserAvatar: typedConfig?.vendor_portal_require_user_avatar ?? false,
+          signatureProvider: typedConfig?.vendor_portal_signature_provider ?? 'manual',
+          allowVendorContractNegotiation: typedConfig?.vendor_portal_allow_vendor_contract_negotiation ?? true,
+          allowVendorSovInput: typedConfig?.vendor_portal_allow_vendor_sov_input ?? true,
         });
       }
 
@@ -252,11 +292,35 @@ export default function VendorDashboard() {
         setInvoices(invoiceData);
       }
 
+      const { data: contractData } = await supabase
+        .from('subcontracts')
+        .select(`
+          id,
+          name,
+          contract_amount,
+          status,
+          contract_negotiation_status,
+          signature_provider,
+          signature_status,
+          vendor_negotiation_notes,
+          vendor_sov_proposal,
+          executed_contract_file_url,
+          jobs (id, name)
+        `)
+        .eq('vendor_id', profile.vendor_id)
+        .order('created_at', { ascending: false })
+        .limit(50);
+
+      setContracts((contractData as VendorContract[]) || []);
+
       const { data: vendorAssignmentsData } = await supabase
         .from('vendor_job_access' as any)
         .select(`
           job_id,
           can_submit_bills,
+          can_negotiate_contracts,
+          can_submit_sov_proposals,
+          can_upload_signed_contracts,
           jobs:job_id(id, name)
         `)
         .eq('vendor_id', profile.vendor_id);
@@ -296,10 +360,21 @@ export default function VendorDashboard() {
               id: row.jobs.id as string,
               name: row.jobs.name as string,
               can_submit_bills: !!row.can_submit_bills,
+              can_negotiate_contracts: !!row.can_negotiate_contracts,
+              can_submit_sov_proposals: !!row.can_submit_sov_proposals,
+              can_upload_signed_contracts: !!row.can_upload_signed_contracts,
             }))
         );
       } else {
-        setAssignedJobs(Array.from(assignedJobMap.values()).map((job) => ({ ...job, can_submit_bills: true })));
+        setAssignedJobs(
+          Array.from(assignedJobMap.values()).map((job) => ({
+            ...job,
+            can_submit_bills: true,
+            can_negotiate_contracts: true,
+            can_submit_sov_proposals: true,
+            can_upload_signed_contracts: true,
+          }))
+        );
       }
 
       // Fetch messages for the user
@@ -555,6 +630,160 @@ export default function VendorDashboard() {
     vendorInfo?.address?.trim(),
   );
   const canUseCreateInvoiceFlow = canSubmitFirstInvoice && hasCompanyLogo && hasCompanyInfo && hasPrimaryPaymentMethod;
+  const contractAccessByJobId = assignedJobs.reduce<Record<string, {
+    can_negotiate_contracts: boolean;
+    can_submit_sov_proposals: boolean;
+    can_upload_signed_contracts: boolean;
+  }>>((acc, job) => {
+    acc[job.id] = {
+      can_negotiate_contracts: job.can_negotiate_contracts,
+      can_submit_sov_proposals: job.can_submit_sov_proposals,
+      can_upload_signed_contracts: job.can_upload_signed_contracts,
+    };
+    return acc;
+  }, {});
+
+  const getContractSignatureBadge = (status: string | null) => {
+    const value = (status || 'not_started').toLowerCase();
+    if (value === 'executed') return <Badge className="bg-green-600 text-white">Executed</Badge>;
+    if (value === 'signed_uploaded') return <Badge variant="outline">Signed Uploaded</Badge>;
+    if (value === 'awaiting_external_signature') return <Badge variant="destructive">Awaiting Signature</Badge>;
+    if (value === 'pending_vendor_review') return <Badge variant="secondary">Pending Review</Badge>;
+    return <Badge variant="secondary">Not Started</Badge>;
+  };
+
+  const openFeedbackDialog = (contract: VendorContract) => {
+    const access = contract.jobs?.id ? contractAccessByJobId[contract.jobs.id] : null;
+    if (access && !access.can_negotiate_contracts) {
+      toast({
+        title: 'Access restricted',
+        description: 'Contract negotiation is disabled for this job assignment.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSelectedContract(contract);
+    setFeedbackNotes(contract.vendor_negotiation_notes || '');
+    setSovProposalJson(
+      contract.vendor_sov_proposal ? JSON.stringify(contract.vendor_sov_proposal, null, 2) : ''
+    );
+    setContractFeedbackDialogOpen(true);
+  };
+
+  const submitContractFeedback = async () => {
+    if (!selectedContract?.id) return;
+    try {
+      setSubmittingContractAction(true);
+      let parsedSov: any = null;
+      if (sovProposalJson.trim()) {
+        try {
+          parsedSov = JSON.parse(sovProposalJson);
+        } catch {
+          toast({
+            title: 'Invalid SOV JSON',
+            description: 'SOV proposal must be valid JSON.',
+            variant: 'destructive',
+          });
+          return;
+        }
+      }
+      const { error } = await (supabase as any).rpc('vendor_submit_subcontract_feedback', {
+        _subcontract_id: selectedContract.id,
+        _negotiation_notes: feedbackNotes || null,
+        _vendor_sov_proposal: parsedSov,
+      });
+      if (error) throw error;
+      toast({
+        title: 'Feedback submitted',
+        description: 'Contract feedback was sent for internal review.',
+      });
+      setContractFeedbackDialogOpen(false);
+      await fetchVendorData();
+    } catch (error: any) {
+      console.error('Failed to submit contract feedback:', error);
+      toast({
+        title: 'Submit failed',
+        description: error?.message || 'Could not submit contract feedback.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmittingContractAction(false);
+    }
+  };
+
+  const openSignatureDialog = (contract: VendorContract) => {
+    const access = contract.jobs?.id ? contractAccessByJobId[contract.jobs.id] : null;
+    if (access && !access.can_upload_signed_contracts) {
+      toast({
+        title: 'Access restricted',
+        description: 'Signed contract upload is disabled for this job assignment.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setSelectedContract(contract);
+    setSignatureFile(null);
+    setSignatureConsent(false);
+    setSignatureSignerName(
+      `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || profile?.display_name || ''
+    );
+    setSignatureUploadDialogOpen(true);
+  };
+
+  const submitSignedContractUpload = async () => {
+    if (!selectedContract?.id || !signatureFile || !signatureSignerName.trim()) {
+      toast({
+        title: 'Missing data',
+        description: 'Signer name and signed contract file are required.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!signatureConsent) {
+      toast({
+        title: 'Consent required',
+        description: 'You must agree that your uploaded signature is binding.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    if (!currentCompany?.id) return;
+    try {
+      setSubmittingContractAction(true);
+      const ext = signatureFile.name.split('.').pop() || 'pdf';
+      const storagePath = `${currentCompany.id}/executed-contracts/${selectedContract.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('subcontract-files')
+        .upload(storagePath, signatureFile, { upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { error } = await (supabase as any).rpc('vendor_submit_subcontract_signature', {
+        _subcontract_id: selectedContract.id,
+        _executed_contract_file_url: storagePath,
+        _signed_by_name: signatureSignerName.trim(),
+        _signer_ip: null,
+        _signer_user_agent: typeof navigator !== 'undefined' ? navigator.userAgent : null,
+        _consent_text_version: 'v1',
+      });
+      if (error) throw error;
+
+      toast({
+        title: 'Signed contract submitted',
+        description: 'Your signed contract was uploaded for company review.',
+      });
+      setSignatureUploadDialogOpen(false);
+      await fetchVendorData();
+    } catch (error: any) {
+      console.error('Failed uploading signed contract:', error);
+      toast({
+        title: 'Upload failed',
+        description: error?.message || 'Could not upload signed contract.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSubmittingContractAction(false);
+    }
+  };
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
@@ -1033,7 +1262,7 @@ export default function VendorDashboard() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${isDesignProfessionalVendor ? 'grid-cols-8' : 'grid-cols-5'}`}>
+        <TabsList className={`grid w-full ${isDesignProfessionalVendor ? 'grid-cols-9' : 'grid-cols-6'}`}>
           {isDesignProfessionalVendor && (
             <TabsTrigger value="rfis" className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
@@ -1079,6 +1308,10 @@ export default function VendorDashboard() {
           <TabsTrigger value="invoices" className="flex items-center gap-2">
             <DollarSign className="h-4 w-4" />
             Invoices
+          </TabsTrigger>
+          <TabsTrigger value="contracts" className="flex items-center gap-2">
+            <FileCheck className="h-4 w-4" />
+            Contracts
           </TabsTrigger>
           <TabsTrigger value="messages" className="flex items-center gap-2">
             <MessageSquare className="h-4 w-4" />
@@ -1438,6 +1671,79 @@ export default function VendorDashboard() {
           </Card>
         </TabsContent>
 
+        <TabsContent value="contracts" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Contract Negotiation & Signature</CardTitle>
+              <CardDescription>
+                Review assigned contracts, submit feedback, and upload signed copies.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {contracts.length === 0 ? (
+                <p className="text-muted-foreground text-center py-8">
+                  No contracts assigned
+                </p>
+              ) : (
+                <ScrollArea className="h-[420px]">
+                  <div className="space-y-3">
+                    {contracts.map((contract) => (
+                      (() => {
+                        const access = contract.jobs?.id ? contractAccessByJobId[contract.jobs.id] : null;
+                        const canNegotiate = access ? access.can_negotiate_contracts : true;
+                        const canUploadSigned = access ? access.can_upload_signed_contracts : true;
+                        return (
+                      <div
+                        key={contract.id}
+                        className="rounded-lg border p-3 space-y-3"
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div>
+                            <p className="font-medium">{contract.name}</p>
+                            <p className="text-sm text-muted-foreground">
+                              {contract.jobs?.name || 'No job'} • ${Number(contract.contract_amount || 0).toLocaleString()}
+                            </p>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            {getContractSignatureBadge(contract.signature_status)}
+                            <Badge variant="outline">
+                              {(contract.signature_provider || portalSettings.signatureProvider || 'manual').toUpperCase()}
+                            </Badge>
+                          </div>
+                        </div>
+                        <div className="flex flex-wrap gap-2">
+                          <Button variant="outline" size="sm" onClick={() => navigate(`/subcontracts/${contract.id}`)}>
+                            View Contract
+                          </Button>
+                          {portalSettings.allowVendorContractNegotiation && (
+                            <Button variant="outline" size="sm" onClick={() => openFeedbackDialog(contract)} disabled={!canNegotiate}>
+                              Submit Feedback
+                            </Button>
+                          )}
+                          {['awaiting_external_signature', 'pending_vendor_review'].includes(String(contract.signature_status || '').toLowerCase()) && (
+                            <Button
+                              size="sm"
+                              onClick={() => openSignatureDialog(contract)}
+                              disabled={(contract.signature_provider || portalSettings.signatureProvider || 'manual') !== 'manual' || !canUploadSigned}
+                            >
+                              Upload Signed Contract
+                            </Button>
+                          )}
+                          {(contract.signature_provider || portalSettings.signatureProvider || 'manual') === 'docusign' && (
+                            <Badge variant="secondary">DocuSign Coming Soon</Badge>
+                          )}
+                        </div>
+                      </div>
+                        );
+                      })()
+                    ))}
+                  </div>
+                </ScrollArea>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {/* Messages Tab */}
         <TabsContent value="messages" className="space-y-4">
           <Card>
@@ -1609,6 +1915,94 @@ export default function VendorDashboard() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      <Dialog open={contractFeedbackDialogOpen} onOpenChange={setContractFeedbackDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Submit Contract Feedback</DialogTitle>
+            <DialogDescription>
+              Add negotiation comments and optional SOV proposal JSON for internal review.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Negotiation Notes</Label>
+              <textarea
+                className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+                value={feedbackNotes}
+                onChange={(e) => setFeedbackNotes(e.target.value)}
+                placeholder="Describe requested changes or clarifications..."
+              />
+            </div>
+            {portalSettings.allowVendorSovInput && (
+              <div className="space-y-1">
+                <Label>SOV Proposal (JSON, optional)</Label>
+                <textarea
+                  className="w-full min-h-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                  value={sovProposalJson}
+                  onChange={(e) => setSovProposalJson(e.target.value)}
+                  placeholder='[{"cost_code":"03-100","description":"Concrete","amount":12500}]'
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setContractFeedbackDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitContractFeedback} disabled={submittingContractAction}>
+              {submittingContractAction ? 'Submitting...' : 'Submit Feedback'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={signatureUploadDialogOpen} onOpenChange={setSignatureUploadDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Upload Signed Contract</DialogTitle>
+            <DialogDescription>
+              Upload the executed contract PDF and provide signer details.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="space-y-1">
+              <Label>Signer Name</Label>
+              <Input
+                value={signatureSignerName}
+                onChange={(e) => setSignatureSignerName(e.target.value)}
+                placeholder="Full legal name"
+              />
+            </div>
+            <div className="space-y-1">
+              <Label>Signed Contract File</Label>
+              <Input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setSignatureFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <label className="flex items-start gap-2 text-sm">
+              <input
+                type="checkbox"
+                checked={signatureConsent}
+                onChange={(e) => setSignatureConsent(e.target.checked)}
+              />
+              <span>
+                I confirm this electronic submission is a binding contractual signature and I consent to timestamp/user metadata logging.
+              </span>
+            </label>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSignatureUploadDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={submitSignedContractUpload} disabled={submittingContractAction}>
+              {submittingContractAction ? 'Uploading...' : 'Submit Signed Contract'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <Dialog
         open={showOnboarding}

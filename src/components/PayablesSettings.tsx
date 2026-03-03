@@ -61,6 +61,9 @@ const payablesSettingsSchema = z.object({
   vendor_portal_require_insurance: z.boolean(),
   vendor_portal_require_company_logo: z.boolean(),
   vendor_portal_require_user_avatar: z.boolean(),
+  vendor_portal_signature_provider: z.string(),
+  vendor_portal_allow_vendor_contract_negotiation: z.boolean(),
+  vendor_portal_allow_vendor_sov_input: z.boolean(),
 });
 
 interface PayablesSettingsData {
@@ -106,6 +109,9 @@ interface PayablesSettingsData {
   vendor_portal_require_insurance: boolean;
   vendor_portal_require_company_logo: boolean;
   vendor_portal_require_user_avatar: boolean;
+  vendor_portal_signature_provider: string;
+  vendor_portal_allow_vendor_contract_negotiation: boolean;
+  vendor_portal_allow_vendor_sov_input: boolean;
 }
 
 const defaultSettings: PayablesSettingsData = {
@@ -151,6 +157,9 @@ const defaultSettings: PayablesSettingsData = {
   vendor_portal_require_insurance: false,
   vendor_portal_require_company_logo: false,
   vendor_portal_require_user_avatar: false,
+  vendor_portal_signature_provider: 'manual',
+  vendor_portal_allow_vendor_contract_negotiation: true,
+  vendor_portal_allow_vendor_sov_input: true,
 };
 
 const availableRoles = [
@@ -259,6 +268,9 @@ export default function PayablesSettings() {
           vendor_portal_require_insurance: typedData.vendor_portal_require_insurance ?? false,
           vendor_portal_require_company_logo: typedData.vendor_portal_require_company_logo ?? false,
           vendor_portal_require_user_avatar: typedData.vendor_portal_require_user_avatar ?? false,
+          vendor_portal_signature_provider: typedData.vendor_portal_signature_provider ?? 'manual',
+          vendor_portal_allow_vendor_contract_negotiation: typedData.vendor_portal_allow_vendor_contract_negotiation ?? true,
+          vendor_portal_allow_vendor_sov_input: typedData.vendor_portal_allow_vendor_sov_input ?? true,
         });
       }
       autoSaveReadyRef.current = true;
@@ -1051,6 +1063,43 @@ export default function PayablesSettings() {
                   checked={settings.vendor_portal_require_job_assignment_for_bills}
                   onCheckedChange={(checked) => updateVendorSetting('vendor_portal_require_job_assignment_for_bills', checked)}
                 />
+              </div>
+              <Separator />
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Contract Signature Provider</Label>
+                <Select
+                  value={settings.vendor_portal_signature_provider}
+                  onValueChange={(value) => updateVendorSetting('vendor_portal_signature_provider', value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="manual">Manual (Upload Signed PDF)</SelectItem>
+                    <SelectItem value="docusign">DocuSign (Coming Soon)</SelectItem>
+                  </SelectContent>
+                </Select>
+                {settings.vendor_portal_signature_provider === 'docusign' && (
+                  <p className="text-xs text-muted-foreground">
+                    DocuSign integration is not enabled yet. Keep this on Manual for live workflows.
+                  </p>
+                )}
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <Label>Allow Vendor Contract Negotiation</Label>
+                  <Switch
+                    checked={settings.vendor_portal_allow_vendor_contract_negotiation}
+                    onCheckedChange={(checked) => updateVendorSetting('vendor_portal_allow_vendor_contract_negotiation', checked)}
+                  />
+                </div>
+                <div className="flex items-center justify-between rounded-md border p-3">
+                  <Label>Allow Vendor SOV Input</Label>
+                  <Switch
+                    checked={settings.vendor_portal_allow_vendor_sov_input}
+                    onCheckedChange={(checked) => updateVendorSetting('vendor_portal_allow_vendor_sov_input', checked)}
+                  />
+                </div>
               </div>
               <Separator />
               <div className="space-y-4">
