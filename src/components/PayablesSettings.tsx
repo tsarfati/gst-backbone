@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Separator } from '@/components/ui/separator';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { X, CheckCircle, DollarSign, Users, Settings, Copy, ExternalLink, Upload, Image as ImageIcon } from 'lucide-react';
+import { X, CheckCircle, DollarSign, Users, Settings, Copy, ExternalLink, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -16,6 +16,7 @@ import { useToast } from '@/hooks/use-toast';
 import { z } from 'zod';
 import JobBillApprovalSettings from './JobBillApprovalSettings';
 import { useSettings } from '@/contexts/SettingsContext';
+import { cn } from '@/lib/utils';
 
 const payablesSettingsSchema = z.object({
   bills_require_approval: z.boolean(),
@@ -47,10 +48,19 @@ const payablesSettingsSchema = z.object({
   vendor_portal_default_job_access_plans: z.boolean(),
   vendor_portal_default_job_access_rfis: z.boolean(),
   vendor_portal_signup_background_image_url: z.string(),
+  vendor_portal_signup_background_color: z.string(),
   vendor_portal_signup_company_logo_url: z.string(),
   vendor_portal_signup_header_logo_url: z.string(),
   vendor_portal_signup_header_title: z.string(),
   vendor_portal_signup_header_subtitle: z.string(),
+  vendor_portal_signup_modal_color: z.string(),
+  vendor_portal_signup_modal_opacity: z.number().min(0).max(1),
+  vendor_portal_require_profile_completion: z.boolean(),
+  vendor_portal_require_payment_method: z.boolean(),
+  vendor_portal_require_w9: z.boolean(),
+  vendor_portal_require_insurance: z.boolean(),
+  vendor_portal_require_company_logo: z.boolean(),
+  vendor_portal_require_user_avatar: z.boolean(),
 });
 
 interface PayablesSettingsData {
@@ -83,10 +93,19 @@ interface PayablesSettingsData {
   vendor_portal_default_job_access_plans: boolean;
   vendor_portal_default_job_access_rfis: boolean;
   vendor_portal_signup_background_image_url: string;
+  vendor_portal_signup_background_color: string;
   vendor_portal_signup_company_logo_url: string;
   vendor_portal_signup_header_logo_url: string;
   vendor_portal_signup_header_title: string;
   vendor_portal_signup_header_subtitle: string;
+  vendor_portal_signup_modal_color: string;
+  vendor_portal_signup_modal_opacity: number;
+  vendor_portal_require_profile_completion: boolean;
+  vendor_portal_require_payment_method: boolean;
+  vendor_portal_require_w9: boolean;
+  vendor_portal_require_insurance: boolean;
+  vendor_portal_require_company_logo: boolean;
+  vendor_portal_require_user_avatar: boolean;
 }
 
 const defaultSettings: PayablesSettingsData = {
@@ -119,10 +138,19 @@ const defaultSettings: PayablesSettingsData = {
   vendor_portal_default_job_access_plans: false,
   vendor_portal_default_job_access_rfis: false,
   vendor_portal_signup_background_image_url: '',
+  vendor_portal_signup_background_color: '#030B20',
   vendor_portal_signup_company_logo_url: '',
   vendor_portal_signup_header_logo_url: '',
   vendor_portal_signup_header_title: 'Vendor & Design Professional Signup',
   vendor_portal_signup_header_subtitle: 'Create your account and submit your request for company approval.',
+  vendor_portal_signup_modal_color: '#071231',
+  vendor_portal_signup_modal_opacity: 0.96,
+  vendor_portal_require_profile_completion: true,
+  vendor_portal_require_payment_method: true,
+  vendor_portal_require_w9: false,
+  vendor_portal_require_insurance: false,
+  vendor_portal_require_company_logo: false,
+  vendor_portal_require_user_avatar: false,
 };
 
 const availableRoles = [
@@ -218,10 +246,19 @@ export default function PayablesSettings() {
           vendor_portal_default_job_access_plans: typedData.vendor_portal_default_job_access_plans ?? false,
           vendor_portal_default_job_access_rfis: typedData.vendor_portal_default_job_access_rfis ?? false,
           vendor_portal_signup_background_image_url: typedData.vendor_portal_signup_background_image_url ?? '',
-          vendor_portal_signup_company_logo_url: typedData.vendor_portal_signup_company_logo_url ?? '',
-          vendor_portal_signup_header_logo_url: typedData.vendor_portal_signup_header_logo_url ?? '',
+          vendor_portal_signup_background_color: typedData.vendor_portal_signup_background_color ?? '#030B20',
+          vendor_portal_signup_header_logo_url: typedData.vendor_portal_signup_header_logo_url ?? typedData.vendor_portal_signup_company_logo_url ?? '',
+          vendor_portal_signup_company_logo_url: typedData.vendor_portal_signup_company_logo_url ?? typedData.vendor_portal_signup_header_logo_url ?? '',
           vendor_portal_signup_header_title: typedData.vendor_portal_signup_header_title ?? defaultSettings.vendor_portal_signup_header_title,
           vendor_portal_signup_header_subtitle: typedData.vendor_portal_signup_header_subtitle ?? defaultSettings.vendor_portal_signup_header_subtitle,
+          vendor_portal_signup_modal_color: typedData.vendor_portal_signup_modal_color ?? '#071231',
+          vendor_portal_signup_modal_opacity: Number(typedData.vendor_portal_signup_modal_opacity ?? 0.96),
+          vendor_portal_require_profile_completion: typedData.vendor_portal_require_profile_completion ?? true,
+          vendor_portal_require_payment_method: typedData.vendor_portal_require_payment_method ?? true,
+          vendor_portal_require_w9: typedData.vendor_portal_require_w9 ?? false,
+          vendor_portal_require_insurance: typedData.vendor_portal_require_insurance ?? false,
+          vendor_portal_require_company_logo: typedData.vendor_portal_require_company_logo ?? false,
+          vendor_portal_require_user_avatar: typedData.vendor_portal_require_user_avatar ?? false,
         });
       }
       autoSaveReadyRef.current = true;
@@ -277,6 +314,30 @@ export default function PayablesSettings() {
     setSettings(prev => ({ ...prev, [key]: value }));
   };
 
+  const persistVendorPortalSettings = async (partial: Partial<PayablesSettingsData>) => {
+    if (!currentCompany?.id) return;
+    try {
+      const { error } = await supabase
+        .from('payables_settings')
+        .update(partial as any)
+        .eq('company_id', currentCompany.id);
+
+      if (error) throw error;
+    } catch (error) {
+      console.error('Failed persisting vendor portal settings:', error);
+      toast({
+        title: 'Save failed',
+        description: 'Could not save vendor portal settings.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const updateVendorSetting = <K extends keyof PayablesSettingsData>(key: K, value: PayablesSettingsData[K]) => {
+    updateSettings(key, value);
+    void persistVendorPortalSettings({ [key]: value } as Partial<PayablesSettingsData>);
+  };
+
   const publicVendorSignupUrl = currentCompany?.id
     ? `${window.location.origin}/vendor-signup?company=${encodeURIComponent(currentCompany.id)}`
     : '';
@@ -316,7 +377,13 @@ export default function PayablesSettings() {
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('company-logos').getPublicUrl(filePath);
-      updateSettings(field, data.publicUrl);
+      if (field === 'vendor_portal_signup_header_logo_url' || field === 'vendor_portal_signup_company_logo_url') {
+        // Keep both legacy fields aligned while using a single logo in UI.
+        updateVendorSetting('vendor_portal_signup_header_logo_url', data.publicUrl);
+        updateVendorSetting('vendor_portal_signup_company_logo_url', data.publicUrl);
+      } else {
+        updateVendorSetting(field, data.publicUrl);
+      }
 
       toast({
         title: 'Upload complete',
@@ -342,6 +409,92 @@ export default function PayablesSettings() {
   const removeRole = (settingKey: keyof PayablesSettingsData, role: string) => {
     const currentRoles = settings[settingKey] as string[];
     updateSettings(settingKey, currentRoles.filter(r => r !== role));
+  };
+
+  const VendorPortalAssetDropzone = ({
+    label,
+    field,
+    imageClassName,
+  }: {
+    label: string;
+    field: 'vendor_portal_signup_background_image_url' | 'vendor_portal_signup_header_logo_url';
+    imageClassName: string;
+  }) => {
+    const inputId = `vendor-portal-${field}-upload`;
+    const value = settings[field];
+    const [isDragging, setIsDragging] = useState(false);
+
+    const onFileSelected = (file?: File) => {
+      if (!file) return;
+      void uploadVendorPortalAsset(file, field);
+    };
+
+    const onDrop: React.DragEventHandler<HTMLLabelElement> = (event) => {
+      event.preventDefault();
+      event.stopPropagation();
+      setIsDragging(false);
+      onFileSelected(event.dataTransfer.files?.[0]);
+    };
+
+    return (
+      <div className="space-y-2">
+        <Label>{label}</Label>
+        <label
+          htmlFor={inputId}
+          onDrop={onDrop}
+          onDragEnter={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setIsDragging(true);
+          }}
+          onDragOver={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setIsDragging(true);
+          }}
+          onDragLeave={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            setIsDragging(false);
+          }}
+          className={cn(
+            "group relative block cursor-pointer overflow-hidden rounded-lg border border-dashed bg-muted/20 transition-colors",
+            isDragging ? "border-primary bg-primary/10" : "border-border/80 hover:border-primary/60 hover:bg-muted/40",
+          )}
+        >
+          <div className="aspect-[16/8] w-full">
+            {value ? (
+              <img
+                src={value}
+                alt={`${label} preview`}
+                className={cn('h-full w-full', imageClassName)}
+              />
+            ) : (
+              <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center text-xs text-muted-foreground">
+                <ImageIcon className="h-5 w-5" />
+                <span>No image uploaded</span>
+              </div>
+            )}
+          </div>
+          <div className={cn(
+            "absolute inset-0 flex items-center justify-center bg-black/45 px-4 text-center text-xs font-medium text-white transition-opacity",
+            isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
+          )}>
+            Click to upload or drag and drop to replace
+          </div>
+        </label>
+        <input
+          id={inputId}
+          type="file"
+          accept="image/*"
+          className="hidden"
+          onChange={(event) => onFileSelected(event.target.files?.[0])}
+        />
+        <p className="text-xs text-muted-foreground">
+          {value ? 'Preview updates instantly and saves with Payables settings.' : 'Upload a PNG/JPG/WebP/SVG image.'}
+        </p>
+      </div>
+    );
   };
 
   useEffect(() => {
@@ -713,9 +866,141 @@ export default function PayablesSettings() {
         <TabsContent value="vendor-portal" className="space-y-6">
           <Card>
             <CardHeader>
-              <CardTitle>Vendor Portal</CardTitle>
+              <CardTitle>Vendor Portal Customization</CardTitle>
               <CardDescription>
-                Share the signup link so vendors and design professionals can request access without a direct invite.
+                Control the signup page visuals, colors, and modal styling for vendors/design professionals.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <VendorPortalAssetDropzone
+                    label="Background Image"
+                    field="vendor_portal_signup_background_image_url"
+                    imageClassName="object-cover"
+                  />
+                  <VendorPortalAssetDropzone
+                    label="Company / Header Logo"
+                    field="vendor_portal_signup_header_logo_url"
+                    imageClassName="object-contain bg-white/90 p-2"
+                  />
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Signup Form Header</Label>
+                    <Input
+                      value={settings.vendor_portal_signup_header_title}
+                      onChange={(e) => updateVendorSetting('vendor_portal_signup_header_title', e.target.value)}
+                      placeholder="Vendor & Design Professional Signup"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Signup Form Subheader</Label>
+                    <Input
+                      value={settings.vendor_portal_signup_header_subtitle}
+                      onChange={(e) => updateVendorSetting('vendor_portal_signup_header_subtitle', e.target.value)}
+                      placeholder="Create your account and submit your request for approval."
+                    />
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Background Color (fallback)</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="color"
+                        value={settings.vendor_portal_signup_background_color}
+                        onChange={(e) => updateVendorSetting('vendor_portal_signup_background_color', e.target.value)}
+                        className="h-10 w-14 p-1"
+                      />
+                      <Input
+                        value={settings.vendor_portal_signup_background_color}
+                        onChange={(e) => updateVendorSetting('vendor_portal_signup_background_color', e.target.value)}
+                        placeholder="#030B20"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Signup Modal Color</Label>
+                    <div className="flex items-center gap-2">
+                      <Input
+                        type="color"
+                        value={settings.vendor_portal_signup_modal_color}
+                        onChange={(e) => updateVendorSetting('vendor_portal_signup_modal_color', e.target.value)}
+                        className="h-10 w-14 p-1"
+                      />
+                      <Input
+                        value={settings.vendor_portal_signup_modal_color}
+                        onChange={(e) => updateVendorSetting('vendor_portal_signup_modal_color', e.target.value)}
+                        placeholder="#071231"
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Signup Modal Transparency</Label>
+                    <Input
+                      type="range"
+                      min={10}
+                      max={100}
+                      step={1}
+                      value={Math.round(settings.vendor_portal_signup_modal_opacity * 100)}
+                      onChange={(e) =>
+                        updateVendorSetting(
+                          'vendor_portal_signup_modal_opacity',
+                          Number(e.target.value) / 100,
+                        )
+                      }
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      {Math.round(settings.vendor_portal_signup_modal_opacity * 100)}%
+                    </p>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-muted-foreground">
+                  <div className="rounded-md border border-border/60 p-2 space-y-1">
+                    <div className="font-medium flex items-center gap-1"><ImageIcon className="h-3.5 w-3.5" /> Background Preview</div>
+                    {settings.vendor_portal_signup_background_image_url ? (
+                      <img src={settings.vendor_portal_signup_background_image_url} alt="Background preview" className="h-16 w-full object-cover rounded" />
+                    ) : (
+                      <div
+                        className="h-16 rounded flex items-center justify-center"
+                        style={{ backgroundColor: settings.vendor_portal_signup_background_color }}
+                      >
+                        Color fallback
+                      </div>
+                    )}
+                  </div>
+                  <div className="rounded-md border border-border/60 p-2 space-y-1">
+                    <div className="font-medium">Logo Preview</div>
+                    {settings.vendor_portal_signup_header_logo_url ? (
+                      <img src={settings.vendor_portal_signup_header_logo_url} alt="Logo preview" className="h-16 w-full object-contain rounded bg-white/90 p-1" />
+                    ) : (
+                      <div className="h-16 rounded bg-muted/40 flex items-center justify-center">Not set</div>
+                    )}
+                  </div>
+                  <div className="rounded-md border border-border/60 p-2 space-y-1">
+                    <div className="font-medium">Modal Preview</div>
+                    <div
+                      className="h-16 rounded border border-white/20"
+                      style={{
+                        backgroundColor: settings.vendor_portal_signup_modal_color,
+                        opacity: settings.vendor_portal_signup_modal_opacity,
+                      }}
+                    />
+                  </div>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Vendor Portal Function</CardTitle>
+              <CardDescription>
+                Control portal availability, access defaults, and required onboarding behavior.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -726,7 +1011,7 @@ export default function PayablesSettings() {
                 </div>
                 <Switch
                   checked={settings.vendor_portal_enabled}
-                  onCheckedChange={(checked) => updateSettings('vendor_portal_enabled', checked)}
+                  onCheckedChange={(checked) => updateVendorSetting('vendor_portal_enabled', checked)}
                 />
               </div>
               <Separator />
@@ -747,144 +1032,6 @@ export default function PayablesSettings() {
                 </Button>
               </div>
               <Separator />
-              <div className="space-y-4">
-                <div>
-                  <Label className="text-sm font-medium">Signup Page Branding</Label>
-                  <p className="text-sm text-muted-foreground mt-1">
-                    Customize the public vendor signup page for this company.
-                  </p>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                  <div className="space-y-2">
-                    <Label>Background Image</Label>
-                    <Input
-                      value={settings.vendor_portal_signup_background_image_url}
-                      onChange={(e) => updateSettings('vendor_portal_signup_background_image_url', e.target.value)}
-                      placeholder="https://... or upload below"
-                    />
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() => document.getElementById('vendor-portal-bg-upload')?.click()}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Background
-                    </Button>
-                    <input
-                      id="vendor-portal-bg-upload"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void uploadVendorPortalAsset(file, 'vendor_portal_signup_background_image_url');
-                      }}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Company Logo</Label>
-                    <Input
-                      value={settings.vendor_portal_signup_company_logo_url}
-                      onChange={(e) => updateSettings('vendor_portal_signup_company_logo_url', e.target.value)}
-                      placeholder="https://... or upload below"
-                    />
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() => document.getElementById('vendor-portal-company-logo-upload')?.click()}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Company Logo
-                    </Button>
-                    <input
-                      id="vendor-portal-company-logo-upload"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void uploadVendorPortalAsset(file, 'vendor_portal_signup_company_logo_url');
-                      }}
-                    />
-                  </div>
-
-                  <div className="space-y-2">
-                    <Label>Header Logo</Label>
-                    <Input
-                      value={settings.vendor_portal_signup_header_logo_url}
-                      onChange={(e) => updateSettings('vendor_portal_signup_header_logo_url', e.target.value)}
-                      placeholder="https://... or upload below"
-                    />
-                    <Button
-                      variant="outline"
-                      type="button"
-                      onClick={() => document.getElementById('vendor-portal-header-logo-upload')?.click()}
-                    >
-                      <Upload className="h-4 w-4 mr-2" />
-                      Upload Header Logo
-                    </Button>
-                    <input
-                      id="vendor-portal-header-logo-upload"
-                      type="file"
-                      accept="image/*"
-                      className="hidden"
-                      onChange={(e) => {
-                        const file = e.target.files?.[0];
-                        if (file) void uploadVendorPortalAsset(file, 'vendor_portal_signup_header_logo_url');
-                      }}
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>Signup Form Header</Label>
-                    <Input
-                      value={settings.vendor_portal_signup_header_title}
-                      onChange={(e) => updateSettings('vendor_portal_signup_header_title', e.target.value)}
-                      placeholder="Vendor & Design Professional Signup"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Signup Form Subheader</Label>
-                    <Input
-                      value={settings.vendor_portal_signup_header_subtitle}
-                      onChange={(e) => updateSettings('vendor_portal_signup_header_subtitle', e.target.value)}
-                      placeholder="Create your account and submit your request for approval."
-                    />
-                  </div>
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-xs text-muted-foreground">
-                  <div className="rounded-md border border-border/60 p-2 space-y-1">
-                    <div className="font-medium flex items-center gap-1"><ImageIcon className="h-3.5 w-3.5" /> Background Preview</div>
-                    {settings.vendor_portal_signup_background_image_url ? (
-                      <img src={settings.vendor_portal_signup_background_image_url} alt="Background preview" className="h-16 w-full object-cover rounded" />
-                    ) : (
-                      <div className="h-16 rounded bg-muted/40 flex items-center justify-center">Not set</div>
-                    )}
-                  </div>
-                  <div className="rounded-md border border-border/60 p-2 space-y-1">
-                    <div className="font-medium">Company Logo Preview</div>
-                    {settings.vendor_portal_signup_company_logo_url ? (
-                      <img src={settings.vendor_portal_signup_company_logo_url} alt="Company logo preview" className="h-16 w-full object-contain rounded bg-white/90 p-1" />
-                    ) : (
-                      <div className="h-16 rounded bg-muted/40 flex items-center justify-center">Not set</div>
-                    )}
-                  </div>
-                  <div className="rounded-md border border-border/60 p-2 space-y-1">
-                    <div className="font-medium">Header Logo Preview</div>
-                    {settings.vendor_portal_signup_header_logo_url ? (
-                      <img src={settings.vendor_portal_signup_header_logo_url} alt="Header logo preview" className="h-16 w-full object-contain rounded bg-white/90 p-1" />
-                    ) : (
-                      <div className="h-16 rounded bg-muted/40 flex items-center justify-center">Not set</div>
-                    )}
-                  </div>
-                </div>
-              </div>
-              <Separator />
               <div className="flex items-center justify-between">
                 <div className="space-y-1">
                   <Label>Auto-Approve Vendor Payment Info Changes</Label>
@@ -892,7 +1039,7 @@ export default function PayablesSettings() {
                 </div>
                 <Switch
                   checked={settings.vendor_portal_payment_changes_auto_approve}
-                  onCheckedChange={(checked) => updateSettings('vendor_portal_payment_changes_auto_approve', checked)}
+                  onCheckedChange={(checked) => updateVendorSetting('vendor_portal_payment_changes_auto_approve', checked)}
                 />
               </div>
               <div className="flex items-center justify-between">
@@ -902,7 +1049,7 @@ export default function PayablesSettings() {
                 </div>
                 <Switch
                   checked={settings.vendor_portal_require_job_assignment_for_bills}
-                  onCheckedChange={(checked) => updateSettings('vendor_portal_require_job_assignment_for_bills', checked)}
+                  onCheckedChange={(checked) => updateVendorSetting('vendor_portal_require_job_assignment_for_bills', checked)}
                 />
               </div>
               <Separator />
@@ -916,28 +1063,81 @@ export default function PayablesSettings() {
                     <Label>Billing / Bill Submission</Label>
                     <Switch
                       checked={settings.vendor_portal_default_job_access_billing}
-                      onCheckedChange={(checked) => updateSettings('vendor_portal_default_job_access_billing', checked)}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_default_job_access_billing', checked)}
                     />
                   </div>
                   <div className="flex items-center justify-between">
                     <Label>Job Team Directory</Label>
                     <Switch
                       checked={settings.vendor_portal_default_job_access_team_directory}
-                      onCheckedChange={(checked) => updateSettings('vendor_portal_default_job_access_team_directory', checked)}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_default_job_access_team_directory', checked)}
                     />
                   </div>
                   <div className="flex items-center justify-between">
                     <Label>Plans</Label>
                     <Switch
                       checked={settings.vendor_portal_default_job_access_plans}
-                      onCheckedChange={(checked) => updateSettings('vendor_portal_default_job_access_plans', checked)}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_default_job_access_plans', checked)}
                     />
                   </div>
                   <div className="flex items-center justify-between">
                     <Label>RFIs</Label>
                     <Switch
                       checked={settings.vendor_portal_default_job_access_rfis}
-                      onCheckedChange={(checked) => updateSettings('vendor_portal_default_job_access_rfis', checked)}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_default_job_access_rfis', checked)}
+                    />
+                  </div>
+                </div>
+              </div>
+              <Separator />
+              <div className="space-y-4">
+                <div>
+                  <Label className="text-sm font-medium">First Invoice Requirements</Label>
+                  <p className="text-sm text-muted-foreground mt-1">
+                    Configure onboarding checklist items vendors must complete before submitting their first invoice.
+                  </p>
+                </div>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Complete Profile</Label>
+                    <Switch
+                      checked={settings.vendor_portal_require_profile_completion}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_require_profile_completion', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Set Payment Method</Label>
+                    <Switch
+                      checked={settings.vendor_portal_require_payment_method}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_require_payment_method', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Upload W-9</Label>
+                    <Switch
+                      checked={settings.vendor_portal_require_w9}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_require_w9', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Upload Insurance</Label>
+                    <Switch
+                      checked={settings.vendor_portal_require_insurance}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_require_insurance', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Upload Company Logo</Label>
+                    <Switch
+                      checked={settings.vendor_portal_require_company_logo}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_require_company_logo', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Set User Avatar</Label>
+                    <Switch
+                      checked={settings.vendor_portal_require_user_avatar}
+                      onCheckedChange={(checked) => updateVendorSetting('vendor_portal_require_user_avatar', checked)}
                     />
                   </div>
                 </div>
@@ -950,7 +1150,7 @@ export default function PayablesSettings() {
                 </div>
                 <Switch
                   checked={settings.show_vendor_compliance_warnings}
-                  onCheckedChange={(checked) => updateSettings('show_vendor_compliance_warnings', checked)}
+                  onCheckedChange={(checked) => updateVendorSetting('show_vendor_compliance_warnings', checked)}
                 />
               </div>
             </CardContent>

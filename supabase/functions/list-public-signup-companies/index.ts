@@ -53,10 +53,13 @@ serve(async (req: Request): Promise<Response> => {
           company_id,
           vendor_portal_enabled,
           vendor_portal_signup_background_image_url,
+          vendor_portal_signup_background_color,
           vendor_portal_signup_company_logo_url,
           vendor_portal_signup_header_logo_url,
           vendor_portal_signup_header_title,
-          vendor_portal_signup_header_subtitle
+          vendor_portal_signup_header_subtitle,
+          vendor_portal_signup_modal_color,
+          vendor_portal_signup_modal_opacity
         `)
         .in("company_id", companyIds);
 
@@ -77,10 +80,13 @@ serve(async (req: Request): Promise<Response> => {
           display_name: company.display_name,
           logo_url: toPublicLogoUrl(company.logo_url),
           vendor_portal_signup_background_image_url: toPublicLogoUrl(vendorSettings.vendor_portal_signup_background_image_url),
+          vendor_portal_signup_background_color: vendorSettings.vendor_portal_signup_background_color ?? "#030B20",
           vendor_portal_signup_company_logo_url: toPublicLogoUrl(vendorSettings.vendor_portal_signup_company_logo_url),
           vendor_portal_signup_header_logo_url: toPublicLogoUrl(vendorSettings.vendor_portal_signup_header_logo_url),
           vendor_portal_signup_header_title: vendorSettings.vendor_portal_signup_header_title ?? null,
           vendor_portal_signup_header_subtitle: vendorSettings.vendor_portal_signup_header_subtitle ?? null,
+          vendor_portal_signup_modal_color: vendorSettings.vendor_portal_signup_modal_color ?? "#071231",
+          vendor_portal_signup_modal_opacity: Number(vendorSettings.vendor_portal_signup_modal_opacity ?? 0.96),
         };
       })
       .filter(Boolean);

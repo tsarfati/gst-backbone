@@ -6,8 +6,9 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import { Building2, Loader2, CheckCircle, XCircle } from 'lucide-react';
+import { Building2, CheckCircle, XCircle } from 'lucide-react';
 import builderlynkLogo from '@/assets/builderlynk-logo-new.png';
+import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 
 interface Invitation {
   id: string;
@@ -192,14 +193,7 @@ export default function VendorRegister() {
   };
 
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#030B20]">
-        <div className="text-center">
-          <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
-          <p className="mt-4 text-slate-300">Validating invitation...</p>
-        </div>
-      </div>
-    );
+    return <PremiumLoadingScreen text="Validating invitation..." />;
   }
 
   if (error) {
@@ -339,10 +333,7 @@ export default function VendorRegister() {
 
             <Button type="submit" className="w-full" disabled={submitting}>
               {submitting ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Creating Account...
-                </>
+                'Creating Account...'
               ) : (
                 'Create Account'
               )}

@@ -12,7 +12,6 @@ import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import CompanySettings from '@/components/CompanySettings';
 import PayablesSettings from '@/components/PayablesSettings';
-import PaymentTermsSettings from '@/components/PaymentTermsSettings';
 import CreditCardSettings from '@/components/CreditCardSettings';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
 import { CreditCard, DollarSign, Banknote, FileText, Building2, Palette, Mail, Upload, Users, UserPlus, Trash2, Loader2 } from 'lucide-react';
@@ -779,10 +778,10 @@ export default function CompanySettingsPage() {
                 </CardContent>
               </Card>
 
-              <PaymentTermsSettings />
-
               <CompanySettings
                 showBranding={false}
+                showCheckPickupLocations={false}
+                showBillApprovalSettings={false}
                 showJournalEntrySettings={false}
               />
             </div>

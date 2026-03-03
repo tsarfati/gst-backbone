@@ -5,6 +5,10 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   FileText, 
   AlertTriangle, 
@@ -17,9 +21,11 @@ import {
   FileWarning,
   FileCheck,
   Camera,
-  Loader2,
   Building2,
-  ClipboardList
+  ClipboardList,
+  HelpCircle,
+  Settings2,
+  Sparkles
 } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -27,6 +33,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { format, differenceInDays, isPast } from 'date-fns';
 import { resolveStorageUrl } from '@/utils/storageUtils';
+import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 
 interface ComplianceDocument {
   id: string;
@@ -113,6 +120,35 @@ export default function VendorDashboard() {
   const [activeTab, setActiveTab] = useState('documents');
   const [portalSettings, setPortalSettings] = useState({
     requireJobAssignmentForBills: true,
+    requireProfileCompletion: true,
+    requirePaymentMethod: true,
+    requireW9: false,
+    requireInsurance: false,
+    requireCompanyLogo: false,
+    requireUserAvatar: false,
+  });
+  const [showOnboarding, setShowOnboarding] = useState(false);
+  const [savingVendorPrefs, setSavingVendorPrefs] = useState(false);
+  const [invoiceFlowDialogOpen, setInvoiceFlowDialogOpen] = useState(false);
+  const [invoiceDialogOpen, setInvoiceDialogOpen] = useState(false);
+  const [invoiceForm, setInvoiceForm] = useState({
+    invoiceNumber: '',
+    amount: '',
+    issueDate: '',
+    dueDate: '',
+    description: '',
+    jobId: '',
+    paymentMethod: 'check',
+    lineItems: [{ description: '', amount: '' }] as Array<{ description: string; amount: string }>,
+  });
+  const [vendorPreferences, setVendorPreferences] = useState({
+    notificationEmail: true,
+    notificationInApp: true,
+    invoicePaid: true,
+    jobAssignments: true,
+    overdueInvoices: true,
+    preferredPaymentType: 'check',
+    checkDelivery: 'mail',
   });
 
   useEffect(() => {
@@ -133,6 +169,13 @@ export default function VendorDashboard() {
     }
   }, [location.pathname, vendorInfo?.vendor_type]);
 
+  useEffect(() => {
+    if (!user?.id || !currentCompany?.id || loading) return;
+    const key = `vendor-onboarding-seen:${currentCompany.id}:${user.id}`;
+    const seen = localStorage.getItem(key);
+    if (!seen) setShowOnboarding(true);
+  }, [user?.id, currentCompany?.id, loading]);
+
   const fetchVendorData = async () => {
     if (!profile?.vendor_id) return;
     
@@ -142,7 +185,7 @@ export default function VendorDashboard() {
       // Fetch vendor info
       const { data: vendor } = await supabase
         .from('vendors')
-        .select('id, name, email, phone, vendor_type')
+        .select('id, name, email, phone, address, city, state, zip_code, logo_url, vendor_type')
         .eq('id', profile.vendor_id)
         .single();
       
@@ -153,13 +196,27 @@ export default function VendorDashboard() {
       if (currentCompany?.id) {
         const { data: portalConfig } = await supabase
           .from('payables_settings')
-          .select('vendor_portal_require_job_assignment_for_bills')
+          .select(`
+            vendor_portal_require_job_assignment_for_bills,
+            vendor_portal_require_profile_completion,
+            vendor_portal_require_payment_method,
+            vendor_portal_require_w9,
+            vendor_portal_require_insurance,
+            vendor_portal_require_company_logo,
+            vendor_portal_require_user_avatar
+          `)
           .eq('company_id', currentCompany.id)
           .maybeSingle();
 
         const typedConfig = portalConfig as any;
         setPortalSettings({
           requireJobAssignmentForBills: typedConfig?.vendor_portal_require_job_assignment_for_bills ?? true,
+          requireProfileCompletion: typedConfig?.vendor_portal_require_profile_completion ?? true,
+          requirePaymentMethod: typedConfig?.vendor_portal_require_payment_method ?? true,
+          requireW9: typedConfig?.vendor_portal_require_w9 ?? false,
+          requireInsurance: typedConfig?.vendor_portal_require_insurance ?? false,
+          requireCompanyLogo: typedConfig?.vendor_portal_require_company_logo ?? false,
+          requireUserAvatar: typedConfig?.vendor_portal_require_user_avatar ?? false,
         });
       }
 
@@ -247,6 +304,32 @@ export default function VendorDashboard() {
 
       // Fetch messages for the user
       if (user?.id && currentCompany?.id) {
+        const [{ data: notifSettings }, { data: paymentMethod }] = await Promise.all([
+          supabase
+            .from('notification_settings')
+            .select('email_enabled,in_app_enabled,invoices_paid,job_assignments,overdue_invoices')
+            .eq('user_id', user.id)
+            .eq('company_id', currentCompany.id)
+            .maybeSingle(),
+          supabase
+            .from('vendor_payment_methods')
+            .select('type,check_delivery')
+            .eq('vendor_id', profile.vendor_id)
+            .eq('is_primary', true)
+            .maybeSingle(),
+        ]);
+
+        setVendorPreferences((prev) => ({
+          ...prev,
+          notificationEmail: notifSettings?.email_enabled ?? prev.notificationEmail,
+          notificationInApp: notifSettings?.in_app_enabled ?? prev.notificationInApp,
+          invoicePaid: notifSettings?.invoices_paid ?? prev.invoicePaid,
+          jobAssignments: notifSettings?.job_assignments ?? prev.jobAssignments,
+          overdueInvoices: notifSettings?.overdue_invoices ?? prev.overdueInvoices,
+          preferredPaymentType: paymentMethod?.type || prev.preferredPaymentType,
+          checkDelivery: paymentMethod?.check_delivery || prev.checkDelivery,
+        }));
+
         const { data: jobAccessData } = await supabase
           .from('user_job_access')
           .select('job_id, jobs!inner(id, name, company_id)')
@@ -444,6 +527,34 @@ export default function VendorDashboard() {
   const totalAssignedAlbumPhotos = assignedJobAlbums.reduce((sum, album) => sum + album.photo_count, 0);
   const canSubmitBills = !portalSettings.requireJobAssignmentForBills
     || assignedJobs.some((job) => job.can_submit_bills);
+  const hasPrimaryPaymentMethod = vendorPreferences.preferredPaymentType !== '';
+  const hasW9Doc = complianceDocs.some((doc) => doc.is_uploaded && /w[\s_-]?9/i.test(doc.type));
+  const hasInsuranceDoc = complianceDocs.some((doc) => doc.is_uploaded && /insurance/i.test(doc.type));
+  const hasCompanyLogo = !!vendorInfo?.logo_url;
+  const hasUserAvatar = !!profile?.avatar_url;
+  const isProfileComplete = Boolean(
+    profile?.first_name?.trim() &&
+    profile?.last_name?.trim() &&
+    (profile?.email || user?.email),
+  );
+  const onboardingChecklist = [
+    { key: 'profile', label: 'Complete profile', required: portalSettings.requireProfileCompletion, done: isProfileComplete },
+    { key: 'payment', label: 'Set default payment method', required: portalSettings.requirePaymentMethod, done: hasPrimaryPaymentMethod },
+    { key: 'w9', label: 'Upload W-9', required: portalSettings.requireW9, done: hasW9Doc },
+    { key: 'insurance', label: 'Upload insurance', required: portalSettings.requireInsurance, done: hasInsuranceDoc },
+    { key: 'companyLogo', label: 'Upload company logo', required: portalSettings.requireCompanyLogo, done: hasCompanyLogo },
+    { key: 'avatar', label: 'Set user avatar', required: portalSettings.requireUserAvatar, done: hasUserAvatar },
+  ].filter((item) => item.required);
+  const incompleteChecklist = onboardingChecklist.filter((item) => !item.done);
+  const isOnboardingReady = incompleteChecklist.length === 0;
+  const canSubmitFirstInvoice = canSubmitBills && isOnboardingReady;
+  const hasCompanyInfo = Boolean(
+    vendorInfo?.name?.trim() &&
+    vendorInfo?.email?.trim() &&
+    vendorInfo?.phone?.trim() &&
+    vendorInfo?.address?.trim(),
+  );
+  const canUseCreateInvoiceFlow = canSubmitFirstInvoice && hasCompanyLogo && hasCompanyInfo && hasPrimaryPaymentMethod;
 
   const getStatusBadge = (status: string) => {
     const statusConfig: Record<string, { variant: "default" | "secondary" | "destructive" | "outline"; label: string }> = {
@@ -489,12 +600,197 @@ export default function VendorDashboard() {
     return <Badge className={styles[status]}>{status.replace("_", " ")}</Badge>;
   };
 
+  const saveVendorPreferences = async () => {
+    if (!user?.id || !currentCompany?.id || !profile?.vendor_id) return;
+    try {
+      setSavingVendorPrefs(true);
+      const [{ error: notifErr }, existingPaymentMethod] = await Promise.all([
+        supabase
+          .from('notification_settings')
+          .upsert({
+            user_id: user.id,
+            company_id: currentCompany.id,
+            email_enabled: vendorPreferences.notificationEmail,
+            in_app_enabled: vendorPreferences.notificationInApp,
+            invoices_paid: vendorPreferences.invoicePaid,
+            job_assignments: vendorPreferences.jobAssignments,
+            overdue_invoices: vendorPreferences.overdueInvoices,
+          } as any),
+        supabase
+          .from('vendor_payment_methods')
+          .select('id')
+          .eq('vendor_id', profile.vendor_id)
+          .eq('is_primary', true)
+          .maybeSingle(),
+      ]);
+
+      if (notifErr) throw notifErr;
+      const paymentPayload = {
+        vendor_id: profile.vendor_id,
+        is_primary: true,
+        type: vendorPreferences.preferredPaymentType,
+        check_delivery: vendorPreferences.checkDelivery,
+      } as any;
+      const paymentResult = existingPaymentMethod?.data?.id
+        ? await supabase.from('vendor_payment_methods').update(paymentPayload).eq('id', existingPaymentMethod.data.id)
+        : await supabase.from('vendor_payment_methods').insert(paymentPayload);
+      if (paymentResult.error) throw paymentResult.error;
+
+      toast({
+        title: 'Settings saved',
+        description: 'Vendor notification and payment preferences were updated.',
+      });
+    } catch (error: any) {
+      console.error('Failed to save vendor preferences:', error);
+      toast({
+        title: 'Save failed',
+        description: error?.message || 'Could not save vendor settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingVendorPrefs(false);
+    }
+  };
+
+  const createVendorInvoice = async () => {
+    if (!profile?.vendor_id || !user?.id) return;
+    const validLineItems = invoiceForm.lineItems
+      .map((item) => ({ description: item.description.trim(), amount: Number(item.amount) }))
+      .filter((item) => item.description && item.amount > 0);
+
+    if (validLineItems.length === 0) {
+      toast({ title: 'Missing line items', description: 'Add at least one valid line item.', variant: 'destructive' });
+      return;
+    }
+
+    const parsedAmount = validLineItems.reduce((sum, item) => sum + item.amount, 0);
+
+    if (!canSubmitFirstInvoice) {
+      toast({ title: 'Requirements not complete', description: 'Complete all required checklist items first.', variant: 'destructive' });
+      return;
+    }
+    if (!canUseCreateInvoiceFlow) {
+      toast({
+        title: 'Create invoice blocked',
+        description: 'Set company info, logo, and payment method before using generated invoices.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    try {
+      const { error } = await supabase
+        .from('invoices')
+        .insert({
+          vendor_id: profile.vendor_id,
+          created_by: user.id,
+          amount: parsedAmount,
+          invoice_number: invoiceForm.invoiceNumber || null,
+          description: invoiceForm.description || null,
+          issue_date: invoiceForm.issueDate || null,
+          due_date: invoiceForm.dueDate || null,
+          job_id: invoiceForm.jobId || null,
+          status: 'pending_approval',
+          pending_coding: true,
+          internal_notes: {
+            generated_by_vendor_portal: true,
+            payment_method: invoiceForm.paymentMethod,
+            line_items: validLineItems,
+            vendor_company_snapshot: {
+              name: vendorInfo?.name || null,
+              email: vendorInfo?.email || null,
+              phone: vendorInfo?.phone || null,
+              address: vendorInfo?.address || null,
+              city: vendorInfo?.city || null,
+              state: vendorInfo?.state || null,
+              zip_code: vendorInfo?.zip_code || null,
+              logo_url: vendorInfo?.logo_url || null,
+            },
+          },
+        } as any);
+      if (error) throw error;
+
+      toast({
+        title: 'Invoice created',
+        description: 'Your invoice was created and sent for review.',
+      });
+      setInvoiceDialogOpen(false);
+      setInvoiceForm({
+        invoiceNumber: '',
+        amount: '',
+        issueDate: '',
+        dueDate: '',
+        description: '',
+        jobId: '',
+        paymentMethod: 'check',
+        lineItems: [{ description: '', amount: '' }],
+      });
+      await fetchVendorData();
+    } catch (error: any) {
+      console.error('Failed creating vendor invoice:', error);
+      toast({
+        title: 'Create invoice failed',
+        description: error?.message || 'Could not create invoice.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const addInvoiceLineItem = () => {
+    setInvoiceForm((prev) => ({
+      ...prev,
+      lineItems: [...prev.lineItems, { description: '', amount: '' }],
+    }));
+  };
+
+  const removeInvoiceLineItem = (index: number) => {
+    setInvoiceForm((prev) => ({
+      ...prev,
+      lineItems: prev.lineItems.filter((_, i) => i !== index),
+    }));
+  };
+
+  const updateInvoiceLineItem = (index: number, key: 'description' | 'amount', value: string) => {
+    setInvoiceForm((prev) => ({
+      ...prev,
+      lineItems: prev.lineItems.map((item, i) => (i === index ? { ...item, [key]: value } : item)),
+    }));
+  };
+
+  const launchUploadInvoiceFlow = () => {
+    setInvoiceFlowDialogOpen(false);
+    if (!canSubmitFirstInvoice) {
+      toast({
+        title: 'Checklist incomplete',
+        description: !canSubmitBills
+          ? 'Ask your admin/controller to assign your vendor to at least one job before bill submission.'
+          : 'Complete your first-invoice checklist items to continue.',
+        variant: 'destructive',
+      });
+      return;
+    }
+    navigate('/invoices/add');
+  };
+
+  const launchCreateInvoiceFlow = () => {
+    setInvoiceFlowDialogOpen(false);
+    if (!canUseCreateInvoiceFlow) {
+      const missing: string[] = [];
+      if (!canSubmitFirstInvoice) missing.push('onboarding checklist');
+      if (!hasCompanyLogo) missing.push('company logo');
+      if (!hasCompanyInfo) missing.push('company information');
+      if (!hasPrimaryPaymentMethod) missing.push('payment method');
+      toast({
+        title: 'Create invoice requirements not met',
+        description: `Complete: ${missing.join(', ')}.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+    setInvoiceDialogOpen(true);
+  };
+
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <Loader2 className="h-8 w-8 animate-spin text-primary" />
-      </div>
-    );
+    return <PremiumLoadingScreen text="Loading vendor portal..." />;
   }
 
   if (!profile?.vendor_id) {
@@ -525,18 +821,61 @@ export default function VendorDashboard() {
             {vendorInfo?.name || 'Vendor'}{isDesignProfessionalVendor ? ' - RFI and document workflow' : ' - compliance and invoice workflow'}
           </p>
         </div>
-        {isDesignProfessionalVendor ? (
-          <Button variant="outline" onClick={() => navigate('/jobs')}>
-            <ClipboardList className="h-4 w-4 mr-2" />
-            Open Jobs
+        <div className="flex gap-2">
+          <Button variant="outline" onClick={() => setActiveTab('help')}>
+            <HelpCircle className="h-4 w-4 mr-2" />
+            Help
           </Button>
-        ) : (
-          <Button onClick={() => setActiveTab('documents')}>
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Documents
+          <Button variant="outline" onClick={() => setActiveTab('settings')}>
+            <Settings2 className="h-4 w-4 mr-2" />
+            Settings
           </Button>
-        )}
+          {isDesignProfessionalVendor ? (
+            <Button variant="outline" onClick={() => navigate('/jobs')}>
+              <ClipboardList className="h-4 w-4 mr-2" />
+              Open Jobs
+            </Button>
+          ) : (
+            <Button onClick={() => setActiveTab('documents')}>
+              <Upload className="h-4 w-4 mr-2" />
+              Upload Documents
+            </Button>
+          )}
+        </div>
       </div>
+
+      {!isDesignProfessionalVendor && onboardingChecklist.length > 0 && (
+        <Card className={isOnboardingReady ? 'border-green-500/40 bg-green-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}>
+          <CardHeader className="pb-2">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Sparkles className="h-4 w-4" />
+              First Invoice Checklist
+            </CardTitle>
+            <CardDescription>
+              Complete required items before submitting your first invoice.
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid md:grid-cols-2 gap-2">
+              {onboardingChecklist.map((item) => (
+                <div key={item.key} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                  <span>{item.label}</span>
+                  {item.done ? (
+                    <Badge variant="default">Done</Badge>
+                  ) : (
+                    <Badge variant="outline">Pending</Badge>
+                  )}
+                </div>
+              ))}
+            </div>
+            {!isOnboardingReady && (
+              <p className="text-xs text-muted-foreground mt-3">
+                Missing items: {incompleteChecklist.map((i) => i.label).join(', ')}.
+              </p>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardContent className="pt-4">
@@ -567,30 +906,32 @@ export default function VendorDashboard() {
               <FileText className={`h-4 w-4 ${canSubmitBills ? 'text-primary' : 'text-destructive'}`} />
             </CardHeader>
             <CardContent className="space-y-2">
-              <div className="text-2xl font-bold">{assignedJobs.length}</div>
-              <p className="text-xs text-muted-foreground">
-                {canSubmitBills ? 'Assigned jobs available' : 'No assigned jobs yet'}
-              </p>
-              <Button
-                size="sm"
-                className="w-full"
-                disabled={!canSubmitBills}
-                onClick={() => {
-                  if (!canSubmitBills) {
-                    toast({
-                      title: 'Job assignment required',
-                      description: 'Ask your admin/controller to assign your vendor to at least one job before bill submission.',
-                      variant: 'destructive',
-                    });
-                    return;
-                  }
-                  navigate('/invoices/add');
-                }}
-              >
-                Submit Bill
-              </Button>
-            </CardContent>
-          </Card>
+                <div className="text-2xl font-bold">{assignedJobs.length}</div>
+                <p className="text-xs text-muted-foreground">
+                  {canSubmitFirstInvoice ? 'Ready to submit invoices' : 'Complete requirements before submission'}
+                </p>
+                <Button
+                  size="sm"
+                  className="w-full"
+                  disabled={!canSubmitFirstInvoice}
+                  onClick={() => {
+                    if (!canSubmitFirstInvoice) {
+                      toast({
+                        title: 'Checklist incomplete',
+                        description: !canSubmitBills
+                          ? 'Ask your admin/controller to assign your vendor to at least one job before bill submission.'
+                          : 'Complete your first-invoice checklist items to continue.',
+                        variant: 'destructive',
+                      });
+                      return;
+                    }
+                    setInvoiceFlowDialogOpen(true);
+                  }}
+                >
+                  Start Invoice
+                </Button>
+              </CardContent>
+            </Card>
         )}
 
         {/* Missing Documents Alert */}
@@ -692,7 +1033,7 @@ export default function VendorDashboard() {
 
       {/* Main Content Tabs */}
       <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
-        <TabsList className={`grid w-full ${isDesignProfessionalVendor ? 'grid-cols-6' : 'grid-cols-3'}`}>
+        <TabsList className={`grid w-full ${isDesignProfessionalVendor ? 'grid-cols-8' : 'grid-cols-5'}`}>
           {isDesignProfessionalVendor && (
             <TabsTrigger value="rfis" className="flex items-center gap-2">
               <ClipboardList className="h-4 w-4" />
@@ -747,6 +1088,14 @@ export default function VendorDashboard() {
                 {unreadMessages}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="settings" className="flex items-center gap-2">
+            <Settings2 className="h-4 w-4" />
+            Settings
+          </TabsTrigger>
+          <TabsTrigger value="help" className="flex items-center gap-2">
+            <HelpCircle className="h-4 w-4" />
+            Help
           </TabsTrigger>
         </TabsList>
 
@@ -1021,23 +1370,15 @@ export default function VendorDashboard() {
                 Track the status of your submitted invoices
               </CardDescription>
               {!isDesignProfessionalVendor && (
-                <div className="pt-2">
+                <div className="pt-2 flex flex-wrap gap-2">
                   <Button
                     onClick={() => {
-                      if (!canSubmitBills) {
-                        toast({
-                          title: 'Job assignment required',
-                          description: 'Ask your admin/controller to assign your vendor to at least one job before bill submission.',
-                          variant: 'destructive',
-                        });
-                        return;
-                      }
-                      navigate('/invoices/add');
+                      setInvoiceFlowDialogOpen(true);
                     }}
-                    disabled={!canSubmitBills}
+                    disabled={!canSubmitFirstInvoice}
                   >
-                    <Upload className="h-4 w-4 mr-2" />
-                    Submit New Bill
+                    <FileText className="h-4 w-4 mr-2" />
+                    Start Invoice
                   </Button>
                 </div>
               )}
@@ -1149,7 +1490,294 @@ export default function VendorDashboard() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        <TabsContent value="settings" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vendor Settings</CardTitle>
+              <CardDescription>Manage your notifications and payment preferences.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Notification Preferences</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Email notifications</Label>
+                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, notificationEmail: !p.notificationEmail }))}>
+                      {vendorPreferences.notificationEmail ? 'On' : 'Off'}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>In-app notifications</Label>
+                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, notificationInApp: !p.notificationInApp }))}>
+                      {vendorPreferences.notificationInApp ? 'On' : 'Off'}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Invoice paid alerts</Label>
+                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, invoicePaid: !p.invoicePaid }))}>
+                      {vendorPreferences.invoicePaid ? 'On' : 'Off'}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Job assignment alerts</Label>
+                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, jobAssignments: !p.jobAssignments }))}>
+                      {vendorPreferences.jobAssignments ? 'On' : 'Off'}
+                    </Button>
+                  </div>
+                  <div className="flex items-center justify-between rounded-md border p-3">
+                    <Label>Overdue invoice alerts</Label>
+                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, overdueInvoices: !p.overdueInvoices }))}>
+                      {vendorPreferences.overdueInvoices ? 'On' : 'Off'}
+                    </Button>
+                  </div>
+                </div>
+              </div>
+
+              <div className="space-y-3">
+                <Label className="text-sm font-medium">Default Payment Method</Label>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  <div className="space-y-2">
+                    <Label>Method</Label>
+                    <Select
+                      value={vendorPreferences.preferredPaymentType}
+                      onValueChange={(value) => setVendorPreferences((p) => ({ ...p, preferredPaymentType: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="check">Check</SelectItem>
+                        <SelectItem value="ach">ACH</SelectItem>
+                        <SelectItem value="wire">Wire</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Check Delivery</Label>
+                    <Select
+                      value={vendorPreferences.checkDelivery}
+                      onValueChange={(value) => setVendorPreferences((p) => ({ ...p, checkDelivery: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="mail">Mail Check</SelectItem>
+                        <SelectItem value="pickup">Pick Up Check</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex justify-end">
+                <Button onClick={saveVendorPreferences} disabled={savingVendorPrefs}>
+                  {savingVendorPrefs ? 'Saving...' : 'Save Vendor Settings'}
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="help" className="space-y-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Vendor Help Center</CardTitle>
+              <CardDescription>Quick guides for billing, communication, and setup.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4 text-sm">
+              <div className="rounded-md border p-3 space-y-1">
+                <p className="font-medium">How to submit invoices</p>
+                <p className="text-muted-foreground">Use Bills tab → Submit New Bill or Create Invoice Here. Ensure checklist items are complete first.</p>
+              </div>
+              <div className="rounded-md border p-3 space-y-1">
+                <p className="font-medium">How to communicate</p>
+                <p className="text-muted-foreground">Use Messages tab for company communication and response tracking.</p>
+              </div>
+              <div className="rounded-md border p-3 space-y-1">
+                <p className="font-medium">How to complete compliance</p>
+                <p className="text-muted-foreground">Use Compliance tab to upload required documents and monitor expiration dates.</p>
+              </div>
+              <div className="rounded-md border p-3 space-y-1">
+                <p className="font-medium">W-9 Form</p>
+                <a href="https://www.irs.gov/pub/irs-pdf/fw9.pdf" target="_blank" rel="noreferrer" className="text-primary underline">
+                  Download official W-9 (IRS)
+                </a>
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={showOnboarding}
+        onOpenChange={(open) => {
+          if (!open && user?.id && currentCompany?.id) {
+            localStorage.setItem(`vendor-onboarding-seen:${currentCompany.id}:${user.id}`, '1');
+          }
+          setShowOnboarding(open);
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Welcome to the Vendor Portal</DialogTitle>
+            <DialogDescription>
+              Complete the checklist, then start billing and collaboration.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2 text-sm">
+            {onboardingChecklist.length === 0 ? (
+              <p className="text-muted-foreground">No onboarding requirements were configured by this company.</p>
+            ) : onboardingChecklist.map((item) => (
+              <div key={item.key} className="flex items-center justify-between rounded-md border px-3 py-2">
+                <span>{item.label}</span>
+                <Badge variant={item.done ? 'default' : 'outline'}>{item.done ? 'Done' : 'Pending'}</Badge>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button onClick={() => setShowOnboarding(false)}>Got it</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={invoiceFlowDialogOpen} onOpenChange={setInvoiceFlowDialogOpen}>
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Submit Invoice</DialogTitle>
+            <DialogDescription>Choose how you want to submit this invoice.</DialogDescription>
+          </DialogHeader>
+          <div className="grid gap-3">
+            <button
+              type="button"
+              onClick={launchUploadInvoiceFlow}
+              className="rounded-lg border p-4 text-left hover:bg-muted/40 transition-colors"
+            >
+              <p className="font-medium flex items-center gap-2"><Upload className="h-4 w-4" /> I have my own invoice</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Upload your invoice file and enter invoice details.
+              </p>
+            </button>
+            <button
+              type="button"
+              onClick={launchCreateInvoiceFlow}
+              className="rounded-lg border p-4 text-left hover:bg-muted/40 transition-colors"
+            >
+              <p className="font-medium flex items-center gap-2"><FileText className="h-4 w-4" /> I want to create the invoice here</p>
+              <p className="text-sm text-muted-foreground mt-1">
+                Build a structured invoice with line items, descriptions, and payment method.
+              </p>
+              {!canUseCreateInvoiceFlow && (
+                <p className="text-xs text-yellow-400 mt-2">
+                  Requires company logo, company info, payment method, and completed onboarding checklist.
+                </p>
+              )}
+            </button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={invoiceDialogOpen} onOpenChange={setInvoiceDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Create Invoice</DialogTitle>
+            <DialogDescription>Create an invoice directly without uploading your own invoice file.</DialogDescription>
+          </DialogHeader>
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+            <div className="space-y-2">
+              <Label>Invoice #</Label>
+              <Input value={invoiceForm.invoiceNumber} onChange={(e) => setInvoiceForm((p) => ({ ...p, invoiceNumber: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Amount *</Label>
+              <Input
+                type="number"
+                step="0.01"
+                value={invoiceForm.lineItems.reduce((sum, item) => sum + (Number(item.amount) || 0), 0).toFixed(2)}
+                readOnly
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Issue Date</Label>
+              <Input type="date" value={invoiceForm.issueDate} onChange={(e) => setInvoiceForm((p) => ({ ...p, issueDate: e.target.value }))} />
+            </div>
+            <div className="space-y-2">
+              <Label>Due Date</Label>
+              <Input type="date" value={invoiceForm.dueDate} onChange={(e) => setInvoiceForm((p) => ({ ...p, dueDate: e.target.value }))} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Job</Label>
+              <Select value={invoiceForm.jobId} onValueChange={(value) => setInvoiceForm((p) => ({ ...p, jobId: value }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select assigned job (optional)" />
+                </SelectTrigger>
+                <SelectContent>
+                  {assignedJobs.map((job) => (
+                    <SelectItem key={job.id} value={job.id}>{job.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Payment Method *</Label>
+              <Select value={invoiceForm.paymentMethod} onValueChange={(value) => setInvoiceForm((p) => ({ ...p, paymentMethod: value }))}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="check">Check</SelectItem>
+                  <SelectItem value="ach">ACH</SelectItem>
+                  <SelectItem value="wire">Wire</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <Label>Description</Label>
+              <Input value={invoiceForm.description} onChange={(e) => setInvoiceForm((p) => ({ ...p, description: e.target.value }))} />
+            </div>
+            <div className="space-y-2 md:col-span-2">
+              <div className="flex items-center justify-between">
+                <Label>Line Items *</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addInvoiceLineItem}>Add Line</Button>
+              </div>
+              <div className="space-y-2">
+                {invoiceForm.lineItems.map((line, idx) => (
+                  <div key={idx} className="grid grid-cols-12 gap-2">
+                    <Input
+                      className="col-span-8"
+                      placeholder="Description"
+                      value={line.description}
+                      onChange={(e) => updateInvoiceLineItem(idx, 'description', e.target.value)}
+                    />
+                    <Input
+                      className="col-span-3"
+                      type="number"
+                      step="0.01"
+                      placeholder="Amount"
+                      value={line.amount}
+                      onChange={(e) => updateInvoiceLineItem(idx, 'amount', e.target.value)}
+                    />
+                    <Button
+                      type="button"
+                      variant="outline"
+                      className="col-span-1 px-0"
+                      onClick={() => removeInvoiceLineItem(idx)}
+                      disabled={invoiceForm.lineItems.length === 1}
+                    >
+                      ×
+                    </Button>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setInvoiceDialogOpen(false)}>Cancel</Button>
+            <Button onClick={createVendorInvoice}>Create Invoice</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
