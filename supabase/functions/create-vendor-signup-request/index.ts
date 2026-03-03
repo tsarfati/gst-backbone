@@ -97,24 +97,15 @@ serve(async (req: Request): Promise<Response> => {
       );
     if (profileError) throw profileError;
 
-    const { error: deleteAccessError } = await supabase
-      .from("user_company_access")
-      .delete()
-      .eq("user_id", userId)
-      .eq("company_id", companyId);
-    if (deleteAccessError) {
-      console.warn("delete user_company_access failed (continuing):", deleteAccessError.message);
-    }
-
     const { error: accessError } = await supabase
       .from("user_company_access")
-      .insert({
+      .upsert({
         user_id: userId,
         company_id: companyId,
         role: requestedRole,
         is_active: true,
         granted_by: userId,
-      });
+      }, { onConflict: "user_id,company_id" });
     if (accessError) throw accessError;
 
     const notesPayload = {
@@ -125,23 +116,38 @@ serve(async (req: Request): Promise<Response> => {
       email,
     };
 
-    const { error: deleteRequestError } = await supabase
+    const { data: existingPendingRequest, error: existingPendingRequestError } = await supabase
       .from("company_access_requests")
-      .delete()
+      .select("id")
       .eq("user_id", userId)
       .eq("company_id", companyId)
-      .eq("status", "pending");
-    if (deleteRequestError) {
-      console.warn("delete company_access_requests failed (continuing):", deleteRequestError.message);
-    }
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (existingPendingRequestError) throw existingPendingRequestError;
 
-    const { error: requestError } = await supabase.from("company_access_requests").insert({
-      user_id: userId,
-      company_id: companyId,
-      status: "pending",
-      notes: JSON.stringify(notesPayload),
-    });
-    if (requestError) throw requestError;
+    if (existingPendingRequest?.id) {
+      const { error: updateRequestError } = await supabase
+        .from("company_access_requests")
+        .update({
+          notes: JSON.stringify(notesPayload),
+          reviewed_at: null,
+          reviewed_by: null,
+          requested_at: new Date().toISOString(),
+        })
+        .eq("id", existingPendingRequest.id);
+      if (updateRequestError) throw updateRequestError;
+    } else {
+      const { error: requestError } = await supabase.from("company_access_requests").insert({
+        user_id: userId,
+        company_id: companyId,
+        status: "pending",
+        requested_at: new Date().toISOString(),
+        notes: JSON.stringify(notesPayload),
+      });
+      if (requestError) throw requestError;
+    }
 
     return new Response(
       JSON.stringify({
@@ -153,7 +159,12 @@ serve(async (req: Request): Promise<Response> => {
     );
   } catch (error: any) {
     console.error("Error in create-vendor-signup-request:", error);
-    return new Response(JSON.stringify({ error: error?.message || "Failed to create signup request" }), {
+    return new Response(JSON.stringify({
+      error: error?.message || "Failed to create signup request",
+      code: error?.code || null,
+      details: error?.details || null,
+      hint: error?.hint || null,
+    }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });

@@ -35,6 +35,14 @@ const hexToRgba = (hex: string, alpha: number) => {
   return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
+const formatUsPhone = (input: string) => {
+  const digits = input.replace(/\D/g, "").slice(0, 10);
+  if (digits.length === 0) return "";
+  if (digits.length < 4) return `(${digits}`;
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+};
+
 export default function VendorSignup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -46,6 +54,8 @@ export default function VendorSignup() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
+  const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
   const [companies, setCompanies] = useState<PublicCompany[]>([]);
 
   const [form, setForm] = useState({
@@ -133,6 +143,18 @@ export default function VendorSignup() {
     event.preventDefault();
     setError(null);
 
+    if (rateLimitedUntil && Date.now() < rateLimitedUntil) {
+      const remainingSeconds = Math.max(1, Math.ceil((rateLimitedUntil - Date.now()) / 1000));
+      const waitMessage = `Email service is temporarily rate-limited. Please wait ${remainingSeconds}s before trying again.`;
+      setError(waitMessage);
+      toast({
+        title: "Please wait",
+        description: waitMessage,
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!form.companyId) {
       setError("Please select the company you want to request access to.");
       return;
@@ -203,7 +225,21 @@ export default function VendorSignup() {
       });
     } catch (e: any) {
       console.error("Vendor signup failed", e);
-      const message = e?.message || "Failed to submit your signup request.";
+      const rawMessage = String(e?.message || "");
+      const isRateLimited =
+        rawMessage.toLowerCase().includes("rate limit") ||
+        rawMessage.toLowerCase().includes("too many requests") ||
+        rawMessage.includes("429");
+      const message = isRateLimited
+        ? "Email service is temporarily rate-limited. Please wait a few minutes, then try again."
+        : (rawMessage || "Failed to submit your signup request.");
+
+      if (isRateLimited) {
+        const cooldownMs = 2 * 60 * 1000;
+        const until = Date.now() + cooldownMs;
+        setRateLimitedUntil(until);
+        setRateLimitCountdown(Math.ceil(cooldownMs / 1000));
+      }
       setError(message);
       toast({
         title: "Signup failed",
@@ -214,6 +250,22 @@ export default function VendorSignup() {
       setSubmitting(false);
     }
   };
+
+  useEffect(() => {
+    if (!rateLimitedUntil) return;
+
+    const tick = () => {
+      const seconds = Math.max(0, Math.ceil((rateLimitedUntil - Date.now()) / 1000));
+      setRateLimitCountdown(seconds);
+      if (seconds <= 0) {
+        setRateLimitedUntil(null);
+      }
+    };
+
+    tick();
+    const interval = window.setInterval(tick, 1000);
+    return () => window.clearInterval(interval);
+  }, [rateLimitedUntil]);
 
   if (loadingCompanies) {
     return <PremiumLoadingScreen text="Loading signup options..." />;
@@ -244,8 +296,7 @@ export default function VendorSignup() {
       style={
         selectedCompanyBackgroundUrl
           ? {
-              backgroundColor: selectedCompanyBackgroundColor,
-              backgroundImage: `linear-gradient(rgba(3,11,32,0.82), rgba(3,11,32,0.88)), url(${selectedCompanyBackgroundUrl})`,
+              backgroundImage: `url(${selectedCompanyBackgroundUrl})`,
             }
           : { backgroundColor: selectedCompanyBackgroundColor }
       }
@@ -319,7 +370,9 @@ export default function VendorSignup() {
                   id="signup-phone"
                   type="tel"
                   value={form.phone}
-                  onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((prev) => ({ ...prev, phone: formatUsPhone(e.target.value) }))
+                  }
                   placeholder="(555) 555-5555"
                   required
                 />
@@ -361,17 +414,24 @@ export default function VendorSignup() {
             </div>
 
             <div className="flex flex-col items-center gap-2 pt-2">
-              <Button type="submit" disabled={submitting}>
-                {submitting ? "Submitting..." : "Submit For Approval"}
+              <Button
+                type="submit"
+                disabled={submitting || (!!rateLimitedUntil && Date.now() < rateLimitedUntil)}
+              >
+                {submitting
+                  ? "Submitting..."
+                  : (rateLimitedUntil && Date.now() < rateLimitedUntil)
+                    ? `Try again in ${rateLimitCountdown}s`
+                    : "Submit For Approval"}
               </Button>
             </div>
           </form>
         </CardContent>
       </Card>
       <a
-        href="https://builderlink.com"
+        href="https://www.builderlynk.com"
         target="_blank"
-        rel="noreferrer"
+        rel="noopener noreferrer"
         className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-2 text-xs text-slate-100 transition-colors hover:bg-black/45"
       >
         <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain" />

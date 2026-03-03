@@ -119,11 +119,27 @@ serve(async (req) => {
     }
 
     // Generate password reset link using Supabase Auth Admin API
+    const defaultRedirectOrigin = req.headers.get("origin") || "https://builderlynk.com";
+    let normalizedRedirectTo = `${defaultRedirectOrigin}/auth?type=recovery`;
+    if (redirectTo) {
+      try {
+        const parsed = new URL(redirectTo);
+        if (parsed.pathname !== "/auth") {
+          normalizedRedirectTo = `${parsed.origin}/auth?type=recovery`;
+        } else {
+          parsed.searchParams.set("type", "recovery");
+          normalizedRedirectTo = parsed.toString();
+        }
+      } catch {
+        normalizedRedirectTo = `${defaultRedirectOrigin}/auth?type=recovery`;
+      }
+    }
+
     const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email: email,
       options: {
-        redirectTo: redirectTo || `${req.headers.get("origin")}/auth`,
+        redirectTo: normalizedRedirectTo,
       }
     });
 

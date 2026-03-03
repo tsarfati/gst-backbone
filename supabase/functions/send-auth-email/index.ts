@@ -84,6 +84,36 @@ const getInviteBranding = async (supabaseUrl: string, serviceRoleKey: string, re
   }
 }
 
+const getRecoveryRedirectTo = (siteUrl?: string, redirectTo?: string): string => {
+  const fallbackOrigin = siteUrl || 'https://builderlynk.com'
+  let origin = fallbackOrigin
+  try {
+    origin = new URL(fallbackOrigin).origin
+  } catch {
+    origin = 'https://builderlynk.com'
+  }
+
+  if (redirectTo) {
+    try {
+      const parsed = new URL(redirectTo)
+      const path = parsed.pathname || ''
+      const hasRecoveryType = parsed.searchParams.get('type') === 'recovery'
+      if (path === '/auth' && hasRecoveryType) {
+        return parsed.toString()
+      }
+      if (path === '/auth' && !hasRecoveryType) {
+        parsed.searchParams.set('type', 'recovery')
+        return parsed.toString()
+      }
+      return `${origin}/auth?type=recovery`
+    } catch {
+      return `${origin}/auth?type=recovery`
+    }
+  }
+
+  return `${origin}/auth?type=recovery`
+}
+
 function getJwtRoleFromAuthHeader(authHeader: string | null): string | null {
   if (!authHeader) return null
   const token = authHeader.replace(/^Bearer\s+/i, '').trim()
@@ -181,8 +211,12 @@ Deno.serve(async (req) => {
      let subject: string
      const inviteBranding = await getInviteBranding(supabaseUrl, supabaseServiceRoleKey, redirect_to)
  
-     // Build the verification URL
-     const verifyUrl = `${supabaseUrl}/auth/v1/verify?token=${token_hash}&type=${email_action_type}&redirect_to=${redirect_to}`
+     const normalizedRedirectTo =
+       email_action_type === 'recovery'
+         ? getRecoveryRedirectTo(site_url, redirect_to)
+         : (redirect_to || `${site_url || 'https://builderlynk.com'}/auth`)
+     // Build the verification URL (redirect target must be URL-encoded)
+     const verifyUrl = `${supabaseUrl}/auth/v1/verify?token=${encodeURIComponent(token_hash)}&type=${encodeURIComponent(email_action_type)}&redirect_to=${encodeURIComponent(normalizedRedirectTo)}`
  
      switch (email_action_type) {
        case 'signup':
