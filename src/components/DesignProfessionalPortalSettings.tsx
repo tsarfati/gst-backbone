@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
+import { useAuth } from '@/contexts/AuthContext';
 
 type DesignProfessionalPortalSettingsData = {
   design_professional_portal_enabled: boolean;
@@ -109,6 +110,7 @@ function AssetDropzone({
 export default function DesignProfessionalPortalSettings() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { profile } = useAuth();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<DesignProfessionalPortalSettingsData>(defaults);
@@ -156,21 +158,40 @@ export default function DesignProfessionalPortalSettings() {
 
     try {
       setSaving(true);
-      const { error } = await supabase
+      const { data: updatedRows, error: updateError } = await supabase
         .from('payables_settings')
-        .upsert({
-          company_id: currentCompany.id,
-          ...payload,
-        } as any);
+        .update(payload as any)
+        .eq('company_id', currentCompany.id)
+        .select('id');
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      if (!updatedRows || updatedRows.length === 0) {
+        if (!profile?.user_id) {
+          throw new Error('Missing user context to create company payables settings.');
+        }
+
+        const { error: insertError } = await supabase
+          .from('payables_settings')
+          .insert({
+            company_id: currentCompany.id,
+            created_by: profile.user_id,
+            ...defaults,
+            ...payload,
+          } as any);
+
+        if (insertError) throw insertError;
+      }
+
+      return true;
     } catch (error) {
       console.error('Failed saving design professional portal settings:', error);
       toast({
         title: 'Error',
-        description: 'Could not save design professional portal settings.',
+        description: (error as any)?.message || 'Could not save design professional portal settings.',
         variant: 'destructive',
       });
+      return false;
     } finally {
       setSaving(false);
     }
@@ -193,12 +214,13 @@ export default function DesignProfessionalPortalSettings() {
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('company-logos').getPublicUrl(filePath);
-      void save({ [field]: data.publicUrl } as Partial<DesignProfessionalPortalSettingsData>);
-
-      toast({
-        title: 'Upload complete',
-        description: 'Design professional portal image updated.',
-      });
+      const saved = await save({ [field]: data.publicUrl } as Partial<DesignProfessionalPortalSettingsData>);
+      if (saved) {
+        toast({
+          title: 'Upload complete',
+          description: 'Design professional portal image updated.',
+        });
+      }
     } catch (error) {
       console.error('Failed uploading design professional portal asset:', error);
       toast({

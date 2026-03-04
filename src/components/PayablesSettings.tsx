@@ -329,19 +329,40 @@ export default function PayablesSettings() {
   const persistVendorPortalSettings = async (partial: Partial<PayablesSettingsData>) => {
     if (!currentCompany?.id) return;
     try {
-      const { error } = await supabase
+      const { data: updatedRows, error: updateError } = await supabase
         .from('payables_settings')
         .update(partial as any)
-        .eq('company_id', currentCompany.id);
+        .eq('company_id', currentCompany.id)
+        .select('id');
 
-      if (error) throw error;
+      if (updateError) throw updateError;
+
+      if (!updatedRows || updatedRows.length === 0) {
+        if (!profile?.user_id) {
+          throw new Error('Missing user context for payables settings creation.');
+        }
+
+        const { error: insertError } = await supabase
+          .from('payables_settings')
+          .insert({
+            company_id: currentCompany.id,
+            created_by: profile.user_id,
+            ...defaultSettings,
+            ...partial,
+          } as any);
+
+        if (insertError) throw insertError;
+      }
+
+      return true;
     } catch (error) {
       console.error('Failed persisting vendor portal settings:', error);
       toast({
         title: 'Save failed',
-        description: 'Could not save vendor portal settings.',
+        description: (error as any)?.message || 'Could not save vendor portal settings.',
         variant: 'destructive',
       });
+      return false;
     }
   };
 
@@ -391,10 +412,17 @@ export default function PayablesSettings() {
       const { data } = supabase.storage.from('company-logos').getPublicUrl(filePath);
       if (field === 'vendor_portal_signup_header_logo_url' || field === 'vendor_portal_signup_company_logo_url') {
         // Keep both legacy fields aligned while using a single logo in UI.
-        updateVendorSetting('vendor_portal_signup_header_logo_url', data.publicUrl);
-        updateVendorSetting('vendor_portal_signup_company_logo_url', data.publicUrl);
+        updateSettings('vendor_portal_signup_header_logo_url', data.publicUrl);
+        updateSettings('vendor_portal_signup_company_logo_url', data.publicUrl);
+        const saved = await persistVendorPortalSettings({
+          vendor_portal_signup_header_logo_url: data.publicUrl,
+          vendor_portal_signup_company_logo_url: data.publicUrl,
+        });
+        if (!saved) return;
       } else {
-        updateVendorSetting(field, data.publicUrl);
+        updateSettings(field, data.publicUrl);
+        const saved = await persistVendorPortalSettings({ [field]: data.publicUrl } as Partial<PayablesSettingsData>);
+        if (!saved) return;
       }
 
       toast({

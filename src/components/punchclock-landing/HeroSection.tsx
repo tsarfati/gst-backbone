@@ -50,7 +50,7 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
               </button>
               <div className="flex gap-2">
                 <a
-                  href="https://apps.apple.com"
+                  href="https://apps.apple.com/us/app/punchclock-lynk/id6759394243"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-6 py-4 text-white/70 font-medium border border-white/10 hover:border-white/25 rounded-lg inline-flex items-center gap-2 transition-colors text-lg"

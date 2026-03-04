@@ -16,9 +16,10 @@ serve(async (req: Request): Promise<Response> => {
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
-    const body = await req.json().catch(() => ({} as { limit?: number; query?: string }));
+    const body = await req.json().catch(() => ({} as { limit?: number; query?: string; companyId?: string }));
     const limit = Math.max(1, Math.min(Number(body.limit || 100), 200));
     const query = String(body.query || "").trim();
+    const companyId = String(body.companyId || "").trim();
     const toPublicLogoUrl = (logo?: string | null): string | null => {
       if (!logo) return null;
       const trimmed = logo.trim();
@@ -31,12 +32,18 @@ serve(async (req: Request): Promise<Response> => {
     let companiesQuery = supabase
       .from("companies")
       .select("id,name,display_name,logo_url")
-      .eq("is_active", true)
-      .order("display_name", { ascending: true })
-      .limit(limit);
+      .eq("is_active", true);
 
-    if (query) {
-      companiesQuery = companiesQuery.or(`name.ilike.%${query}%,display_name.ilike.%${query}%`);
+    if (companyId) {
+      companiesQuery = companiesQuery.eq("id", companyId).limit(1);
+    } else {
+      companiesQuery = companiesQuery
+        .order("display_name", { ascending: true })
+        .limit(limit);
+
+      if (query) {
+        companiesQuery = companiesQuery.or(`name.ilike.%${query}%,display_name.ilike.%${query}%`);
+      }
     }
 
     const { data, error } = await companiesQuery;

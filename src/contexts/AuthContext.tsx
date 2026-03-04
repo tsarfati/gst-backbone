@@ -61,14 +61,24 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (lastMs && nowMs - lastMs < LOGIN_AUDIT_DEDUPE_MS) return;
       safeLocalStorage.set(dedupeKey, String(nowMs));
 
-      await supabase.from('user_login_audit').insert({
-        user_id: userId,
-        login_time: new Date().toISOString(),
-        login_method: method,
-        success,
-        user_agent: navigator.userAgent,
-        app_source: 'builderlynk_web',
+      const { error: rpcError } = await supabase.rpc('log_user_login_event', {
+        p_app_source: 'builderlynk_web',
+        p_login_method: method,
+        p_success: success,
+        p_user_agent: navigator.userAgent,
       });
+
+      // Backward-compatible fallback if RPC has not been migrated yet.
+      if (rpcError) {
+        await supabase.from('user_login_audit').insert({
+          user_id: userId,
+          login_time: new Date().toISOString(),
+          login_method: method,
+          success,
+          user_agent: navigator.userAgent,
+          app_source: 'builderlynk_web',
+        });
+      }
     } catch (err) {
       console.error('Failed to log login attempt:', err);
     }

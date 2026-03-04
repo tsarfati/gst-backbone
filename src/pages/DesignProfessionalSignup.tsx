@@ -24,6 +24,14 @@ type PublicCompany = {
   design_professional_signup_header_subtitle: string | null;
 };
 
+const formatUsPhone = (input: string) => {
+  const digits = input.replace(/\D/g, "").slice(0, 10);
+  if (digits.length === 0) return "";
+  if (digits.length < 4) return `(${digits}`;
+  if (digits.length < 7) return `(${digits.slice(0, 3)}) ${digits.slice(3)}`;
+  return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
+};
+
 export default function DesignProfessionalSignup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -53,7 +61,9 @@ export default function DesignProfessionalSignup() {
     const loadCompanies = async () => {
       try {
         const { data, error: fnError } = await supabase.functions.invoke('list-public-signup-companies', {
-          body: { limit: 150 },
+          body: preselectedCompanyId
+            ? { companyId: preselectedCompanyId }
+            : { limit: 150 },
         });
         if (fnError) throw fnError;
 
@@ -201,7 +211,7 @@ export default function DesignProfessionalSignup() {
     <div
       className="relative min-h-screen flex items-center justify-center p-4 bg-cover bg-center"
       style={backgroundImageUrl
-        ? { backgroundImage: `linear-gradient(rgba(3,11,32,0.82), rgba(3,11,32,0.88)), url(${backgroundImageUrl})` }
+        ? { backgroundImage: `url(${backgroundImageUrl})` }
         : { backgroundColor: '#030B20' }}
     >
       <Card className="w-full max-w-2xl border-slate-700 bg-[#071231] text-slate-100">
@@ -266,7 +276,13 @@ export default function DesignProfessionalSignup() {
               </div>
               <div className="space-y-2">
                 <Label htmlFor="signup-phone">Phone</Label>
-                <Input id="signup-phone" type="tel" value={form.phone} onChange={(e) => setForm((prev) => ({ ...prev, phone: e.target.value }))} placeholder="Optional" />
+                <Input
+                  id="signup-phone"
+                  type="tel"
+                  value={form.phone}
+                  onChange={(e) => setForm((prev) => ({ ...prev, phone: formatUsPhone(e.target.value) }))}
+                  placeholder="Optional"
+                />
               </div>
             </div>
 

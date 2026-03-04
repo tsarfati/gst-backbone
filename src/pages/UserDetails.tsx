@@ -58,6 +58,14 @@ import {
   AlertDialogTitle,
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
 
 interface UserProfile {
   user_id: string;
@@ -155,6 +163,10 @@ export default function UserDetails() {
   const [associatedVendor, setAssociatedVendor] = useState<Vendor | null>(null);
   const [loading, setLoading] = useState(true);
   const [sendingReset, setSendingReset] = useState(false);
+  const [setPasswordOpen, setSetPasswordOpen] = useState(false);
+  const [settingPassword, setSettingPassword] = useState(false);
+  const [newPassword, setNewPassword] = useState('');
+  const [confirmNewPassword, setConfirmNewPassword] = useState('');
   const [editing, setEditing] = useState(false);
   const [saving, setSaving] = useState(false);
   const [editForm, setEditForm] = useState({
@@ -510,6 +522,44 @@ export default function UserDetails() {
     });
     setSelectedGroupId(user.group_id || null);
     setEditing(true);
+  };
+
+  const handleSetPassword = async () => {
+    if (!currentCompany?.id || !user?.user_id) {
+      toast({ title: "Error", description: "Missing company or user context", variant: "destructive" });
+      return;
+    }
+
+    if (newPassword.length < 6) {
+      toast({ title: "Error", description: "Password must be at least 6 characters", variant: "destructive" });
+      return;
+    }
+    if (newPassword !== confirmNewPassword) {
+      toast({ title: "Error", description: "Passwords do not match", variant: "destructive" });
+      return;
+    }
+
+    setSettingPassword(true);
+    try {
+      const { data, error } = await supabase.functions.invoke('set-user-password', {
+        body: {
+          userId: user.user_id,
+          companyId: currentCompany.id,
+          password: newPassword,
+        },
+      });
+      if (error) throw new Error(error.message || 'Failed to set password');
+      if ((data as any)?.error) throw new Error((data as any).error);
+
+      toast({ title: "Success", description: "Password updated successfully" });
+      setSetPasswordOpen(false);
+      setNewPassword('');
+      setConfirmNewPassword('');
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Failed to set password", variant: "destructive" });
+    } finally {
+      setSettingPassword(false);
+    }
   };
 
   const handleCancelEdit = () => {
@@ -926,12 +976,12 @@ export default function UserDetails() {
 
               {/* Password Reset Action */}
               {!editing && canChangeUserPassword && (userEmail || user.email) && (
-                <div className="pt-2">
+                <div className="pt-2 flex flex-wrap items-center gap-2">
                   <AlertDialog>
                     <AlertDialogTrigger asChild>
                       <Button variant="outline" size="sm" className="flex items-center gap-2">
                         <KeyRound className="h-4 w-4" />
-                        Send Password Reset
+                        Send Password Reset Email
                       </Button>
                     </AlertDialogTrigger>
                     <AlertDialogContent>
@@ -950,6 +1000,16 @@ export default function UserDetails() {
                       </AlertDialogFooter>
                     </AlertDialogContent>
                   </AlertDialog>
+
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={() => setSetPasswordOpen(true)}
+                  >
+                    <Key className="h-4 w-4" />
+                    Set Password
+                  </Button>
                 </div>
               )}
 
@@ -1033,6 +1093,60 @@ export default function UserDetails() {
           </CardContent>
         </Card>
       )}
+
+      <Dialog open={setPasswordOpen} onOpenChange={(open) => {
+        setSetPasswordOpen(open);
+        if (!open) {
+          setNewPassword('');
+          setConfirmNewPassword('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Set User Password</DialogTitle>
+            <DialogDescription>
+              Enter a new password for {displayName}. The user can use it immediately.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-2">
+            <div className="space-y-2">
+              <Label htmlFor="set-password">New Password</Label>
+              <Input
+                id="set-password"
+                type="password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.target.value)}
+                placeholder="Enter new password"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="confirm-set-password">Confirm Password</Label>
+              <Input
+                id="confirm-set-password"
+                type="password"
+                value={confirmNewPassword}
+                onChange={(e) => setConfirmNewPassword(e.target.value)}
+                placeholder="Re-enter password"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSetPasswordOpen(false)} disabled={settingPassword}>
+              Cancel
+            </Button>
+            <Button onClick={handleSetPassword} disabled={settingPassword}>
+              {settingPassword ? (
+                <>
+                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                  Setting...
+                </>
+              ) : (
+                'Set Password'
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Company Access - Only show when accessed from Company Management */}
       {fromCompanyManagement && (

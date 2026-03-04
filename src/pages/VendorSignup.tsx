@@ -74,7 +74,9 @@ export default function VendorSignup() {
     const loadCompanies = async () => {
       try {
         const { data, error: fnError } = await supabase.functions.invoke("list-public-signup-companies", {
-          body: { limit: 150 },
+          body: preselectedCompanyId
+            ? { companyId: preselectedCompanyId }
+            : { limit: 150 },
         });
         if (fnError) throw fnError;
         const rows = Array.isArray(data?.companies) ? data.companies : [];

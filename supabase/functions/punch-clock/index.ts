@@ -85,6 +85,54 @@ async function insertPunchAttemptAudit(supabaseAdmin: any, row: Record<string, u
   }
 }
 
+async function insertLoginAudit(
+  supabaseAdmin: any,
+  params: {
+    user_id: string;
+    app_source: "punch_clock" | "pmlynk" | "builderlynk_web";
+    login_method?: string;
+    user_agent?: string | null;
+  }
+) {
+  try {
+    // De-dupe per app/user for 3 minutes to avoid noise from repeated init calls.
+    const dedupeSince = new Date(Date.now() - 3 * 60 * 1000).toISOString();
+    const { data: existing } = await supabaseAdmin
+      .from("user_login_audit")
+      .select("id")
+      .eq("user_id", params.user_id)
+      .eq("app_source", params.app_source)
+      .gte("login_time", dedupeSince)
+      .order("login_time", { ascending: false })
+      .limit(1);
+
+    if ((existing || []).length > 0) return;
+
+    const payload = {
+      user_id: params.user_id,
+      login_time: new Date().toISOString(),
+      login_method: params.login_method || "pin",
+      success: true,
+      app_source: params.app_source,
+      user_agent: params.user_agent || null,
+    };
+
+    let { error } = await supabaseAdmin.from("user_login_audit").insert(payload);
+    if (error && isMissingColumnError(error, "app_source")) {
+      const fallback = { ...payload } as any;
+      delete fallback.app_source;
+      const retry = await supabaseAdmin.from("user_login_audit").insert(fallback);
+      error = retry.error;
+    }
+
+    if (error) {
+      console.warn("user_login_audit insert warning:", error.message);
+    }
+  } catch (e) {
+    console.warn("user_login_audit insert exception:", (e as Error)?.message || e);
+  }
+}
+
 async function loadEmployeeGeofenceSettings(
   supabaseAdmin: any,
   params: { user_id?: string | null; pin_employee_id?: string | null; company_id?: string | null }
@@ -522,6 +570,13 @@ serve(async (req) => {
       const pin = url.searchParams.get("pin") || "";
       const userRow = await validatePin(supabaseAdmin, pin);
       if (!userRow) return errorResponse("Invalid PIN", 401);
+
+      await insertLoginAudit(supabaseAdmin, {
+        user_id: userRow.user_id,
+        app_source: "punch_clock",
+        login_method: "pin",
+        user_agent: req.headers.get("user-agent"),
+      });
 
       // Get tenant-scoped company IDs for filtering
       let tenantCompanyIds: string[] = [];
