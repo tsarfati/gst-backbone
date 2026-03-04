@@ -689,10 +689,77 @@ export default function BillDetails() {
       </div>
 
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
-        <div className="xl:col-span-1 xl:order-2 space-y-6">
+        {/* File Preview Section */}
+        <div className="xl:col-span-3">
+          <Card className="mb-6 xl:sticky xl:top-20">
+            <CardContent className="space-y-4">
+              <div className="h-[calc(100vh-18rem)] min-h-[520px] rounded-lg overflow-hidden bg-muted/20">
+                <ZoomableDocumentPreview
+                  url={resolvedPreviewUrl}
+                  fileName={activePreviewName}
+                  className="h-full"
+                  emptyMessage="No documents available"
+                  emptySubMessage="Attach a bill document to preview it here"
+                />
+              </div>
+
+              {(documents.length > 0 || bill?.file_url) && (
+                <div className="space-y-2 max-h-52 overflow-y-auto">
+                  {documents.map((doc) => (
+                    <div
+                      key={doc.id}
+                      className={`flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer ${selectedPreviewKey === doc.id ? 'bg-primary/10 ring-1 ring-primary/50' : 'bg-muted/40 hover:bg-muted/70'}`}
+                      onClick={() => setSelectedPreviewKey(doc.id)}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="text-sm truncate">{doc.file_name}</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(doc.file_url, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Open
+                      </Button>
+                    </div>
+                  ))}
+
+                  {bill?.file_url && (
+                    <div
+                      className={`flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer ${selectedPreviewKey === 'bill' ? 'bg-primary/10 ring-1 ring-primary/50' : 'bg-muted/40 hover:bg-muted/70'}`}
+                      onClick={() => setSelectedPreviewKey('bill')}
+                    >
+                      <div className="flex items-center gap-2 min-w-0">
+                        <FileText className="h-4 w-4 shrink-0" />
+                        <span className="text-sm truncate">Bill Document</span>
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          window.open(bill.file_url, '_blank', 'noopener,noreferrer');
+                        }}
+                      >
+                        <Eye className="h-4 w-4 mr-2" />
+                        Open
+                      </Button>
+                    </div>
+                  )}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="xl:col-span-1 space-y-6">
       {/* Bill Information */}
-      <div className="grid grid-cols-1 2xl:grid-cols-10 gap-6 mb-6">
-        <Card className="2xl:col-span-7">
+        <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Building className="h-5 w-5" />
@@ -735,7 +802,7 @@ export default function BillDetails() {
             {/* Invoice Details */}
             <div>
               <h4 className="font-medium mb-3 text-sm text-muted-foreground">Invoice Details</h4>
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 gap-4">
                 <div>
                   <p className="text-sm text-muted-foreground">Bill Amount</p>
                   <p className="font-medium text-2xl">${bill?.amount?.toLocaleString()}</p>
@@ -920,13 +987,12 @@ export default function BillDetails() {
           </CardContent>
         </Card>
 
-        <div className="2xl:col-span-3">
+        <div>
           <BillCommunications 
             billId={bill?.id || ''}
             vendorId={bill?.vendor_id || ''}
           />
         </div>
-      </div>
 
       {/* Cost Distribution Section */}
       {!bill?.subcontract_id && !bill?.purchase_order_id && (
@@ -998,74 +1064,6 @@ export default function BillDetails() {
         />
       )}
 
-      </div>
-
-      {/* File Preview Section */}
-      <div className="xl:col-span-3 xl:order-1">
-      <Card className="mb-6 xl:sticky xl:top-20">
-        <CardContent className="space-y-4">
-          <div className="h-[calc(100vh-18rem)] min-h-[520px] rounded-lg overflow-hidden bg-muted/20">
-            <ZoomableDocumentPreview
-              url={resolvedPreviewUrl}
-              fileName={activePreviewName}
-              className="h-full"
-              emptyMessage="No documents available"
-              emptySubMessage="Attach a bill document to preview it here"
-            />
-          </div>
-
-          {(documents.length > 0 || bill?.file_url) && (
-            <div className="space-y-2 max-h-52 overflow-y-auto">
-              {documents.map((doc) => (
-                <div
-                  key={doc.id}
-                  className={`flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer ${selectedPreviewKey === doc.id ? 'bg-primary/10 ring-1 ring-primary/50' : 'bg-muted/40 hover:bg-muted/70'}`}
-                  onClick={() => setSelectedPreviewKey(doc.id)}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText className="h-4 w-4 shrink-0" />
-                    <span className="text-sm truncate">{doc.file_name}</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(doc.file_url, '_blank', 'noopener,noreferrer');
-                    }}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Open
-                  </Button>
-                </div>
-              ))}
-
-              {bill?.file_url && (
-                <div
-                  className={`flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer ${selectedPreviewKey === 'bill' ? 'bg-primary/10 ring-1 ring-primary/50' : 'bg-muted/40 hover:bg-muted/70'}`}
-                  onClick={() => setSelectedPreviewKey('bill')}
-                >
-                  <div className="flex items-center gap-2 min-w-0">
-                    <FileText className="h-4 w-4 shrink-0" />
-                    <span className="text-sm truncate">Bill Document</span>
-                  </div>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      window.open(bill.file_url, '_blank', 'noopener,noreferrer');
-                    }}
-                  >
-                    <Eye className="h-4 w-4 mr-2" />
-                    Open
-                  </Button>
-                </div>
-              )}
-            </div>
-          )}
-        </CardContent>
-      </Card>
       </div>
       </div>
 
