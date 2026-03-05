@@ -39,11 +39,13 @@ interface NotificationSettings {
   receipt_uploaded: boolean;
   financial_overview_interval?: string;
   chat_mention_notifications?: boolean;
+  mention_email_notifications?: boolean;
   chat_channel_notifications?: boolean;
   chat_direct_message_notifications?: boolean;
   bill_submission_notifications?: boolean;
   payment_approval_notifications?: boolean;
   payment_confirmation_notifications?: boolean;
+  intake_queue_requests?: boolean;
 }
 
 export default function ProfileSettings() {
@@ -84,14 +86,19 @@ export default function ProfileSettings() {
     receipt_uploaded: true,
     financial_overview_interval: 'weekly',
     chat_mention_notifications: true,
+    mention_email_notifications: true,
     chat_channel_notifications: true,
     chat_direct_message_notifications: true,
     bill_submission_notifications: true,
     payment_approval_notifications: true,
     payment_confirmation_notifications: true,
+    intake_queue_requests: true,
   });
 
-  const initialTab = searchParams.get('tab') || 'profile';
+  const requestedTab = searchParams.get('tab') || 'profile';
+  const effectiveRole = String(profile?.role || '').toLowerCase();
+  const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
+  const initialTab = isExternalUser && requestedTab === 'email' ? 'notifications' : requestedTab;
 
   useEffect(() => {
     if (profile) {
@@ -133,11 +140,13 @@ export default function ProfileSettings() {
           overdue_bills: typedData.overdue_invoices,
           bills_paid: typedData.invoices_paid,
           chat_mention_notifications: typedData.chat_mention_notifications ?? true,
+          mention_email_notifications: typedData.mention_email_notifications ?? true,
           chat_channel_notifications: typedData.chat_channel_notifications ?? true,
           chat_direct_message_notifications: typedData.chat_direct_message_notifications ?? true,
           bill_submission_notifications: typedData.bill_submission_notifications ?? true,
           payment_approval_notifications: typedData.payment_approval_notifications ?? true,
           payment_confirmation_notifications: typedData.payment_confirmation_notifications ?? true,
+          intake_queue_requests: typedData.intake_queue_requests ?? true,
         });
       }
     } catch (error) {
@@ -349,11 +358,13 @@ export default function ProfileSettings() {
         receipt_uploaded: notificationSettings.receipt_uploaded,
         financial_overview_interval: notificationSettings.financial_overview_interval || 'weekly',
         chat_mention_notifications: notificationSettings.chat_mention_notifications ?? true,
+        mention_email_notifications: notificationSettings.mention_email_notifications ?? true,
         chat_channel_notifications: notificationSettings.chat_channel_notifications ?? true,
         chat_direct_message_notifications: notificationSettings.chat_direct_message_notifications ?? true,
         bill_submission_notifications: notificationSettings.bill_submission_notifications ?? true,
         payment_approval_notifications: notificationSettings.payment_approval_notifications ?? true,
         payment_confirmation_notifications: notificationSettings.payment_confirmation_notifications ?? true,
+        intake_queue_requests: notificationSettings.intake_queue_requests ?? true,
       };
       
       const { error } = await (supabase as any)
@@ -409,13 +420,15 @@ export default function ProfileSettings() {
             <Bell className="h-4 w-4 mr-2" />
             Notifications
           </TabsTrigger>
-          <TabsTrigger 
-            value="email" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <Mail className="h-4 w-4 mr-2" />
-            Email Settings
-          </TabsTrigger>
+          {!isExternalUser && (
+            <TabsTrigger 
+              value="email" 
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+            >
+              <Mail className="h-4 w-4 mr-2" />
+              Email Settings
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="profile">
@@ -647,7 +660,8 @@ export default function ProfileSettings() {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Notification Types</h3>
                 <div className="space-y-4">
-                  <div className="space-y-3">
+                  {!isExternalUser && (
+                    <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <Label htmlFor="overdue-bills">Overdue Bills</Label>
@@ -678,6 +692,7 @@ export default function ProfileSettings() {
                       </div>
                     )}
                   </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="bills-paid">Bill Payments</Label>
@@ -689,7 +704,8 @@ export default function ProfileSettings() {
                       onCheckedChange={(checked) => updateNotificationSetting('bills_paid', checked)}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
+                  {!isExternalUser && (
+                    <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="bill-submission-notifications">Bill Submission Notifications</Label>
                       <p className="text-sm text-muted-foreground">Get notified when bills are submitted for approval</p>
@@ -700,7 +716,9 @@ export default function ProfileSettings() {
                       onCheckedChange={(checked) => updateNotificationSetting('bill_submission_notifications', checked)}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
+                  )}
+                  {!isExternalUser && (
+                    <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="payment-approval-notifications">Payment Approval Notifications</Label>
                       <p className="text-sm text-muted-foreground">Get notified when payments require your approval</p>
@@ -711,7 +729,9 @@ export default function ProfileSettings() {
                       onCheckedChange={(checked) => updateNotificationSetting('payment_approval_notifications', checked)}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
+                  )}
+                  {!isExternalUser && (
+                    <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="payment-confirmation-notifications">Payment Confirmations</Label>
                       <p className="text-sm text-muted-foreground">Get notified when payments are completed</p>
@@ -722,7 +742,22 @@ export default function ProfileSettings() {
                       onCheckedChange={(checked) => updateNotificationSetting('payment_confirmation_notifications', checked)}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
+                  )}
+                  {!isExternalUser && (
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="intake-queue-requests">Intake Queue Approvals</Label>
+                        <p className="text-sm text-muted-foreground">Get notified when new users are pending approval in the intake queue</p>
+                      </div>
+                      <Switch
+                        id="intake-queue-requests"
+                        checked={notificationSettings.intake_queue_requests !== false}
+                        onCheckedChange={(checked) => updateNotificationSetting('intake_queue_requests', checked)}
+                      />
+                    </div>
+                  )}
+                  {!isExternalUser && (
+                    <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="vendor-invitations">Vendor Invitations</Label>
                       <p className="text-sm text-muted-foreground">Get notified about vendor invitations</p>
@@ -733,6 +768,7 @@ export default function ProfileSettings() {
                       onCheckedChange={(checked) => updateNotificationSetting('vendor_invitations', checked)}
                     />
                   </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="job-assignments">Job Assignments</Label>
@@ -744,7 +780,8 @@ export default function ProfileSettings() {
                       onCheckedChange={(checked) => updateNotificationSetting('job_assignments', checked)}
                     />
                   </div>
-                  <div className="flex items-center justify-between">
+                  {!isExternalUser && (
+                    <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="receipt-uploaded">Receipt Uploads</Label>
                       <p className="text-sm text-muted-foreground">Get notified when receipts are uploaded</p>
@@ -755,7 +792,9 @@ export default function ProfileSettings() {
                       onCheckedChange={(checked) => updateNotificationSetting('receipt_uploaded', checked)}
                     />
                   </div>
-                  <div className="space-y-3">
+                  )}
+                  {!isExternalUser && (
+                    <div className="space-y-3">
                     <div className="flex items-center justify-between">
                       <div>
                         <Label htmlFor="financial-overview">Financial Overview Reports</Label>
@@ -795,6 +834,7 @@ export default function ProfileSettings() {
                       </div>
                     )}
                   </div>
+                  )}
                   <div className="flex items-center justify-between">
                     <div>
                       <Label htmlFor="chat-mentions">@Mention Notifications</Label>
@@ -804,6 +844,17 @@ export default function ProfileSettings() {
                       id="chat-mentions"
                       checked={notificationSettings.chat_mention_notifications !== false}
                       onCheckedChange={(checked) => updateNotificationSetting('chat_mention_notifications', checked)}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <Label htmlFor="mention-email-notifications">@Mention Email Notifications</Label>
+                      <p className="text-sm text-muted-foreground">Receive an email when someone @mentions you</p>
+                    </div>
+                    <Switch
+                      id="mention-email-notifications"
+                      checked={notificationSettings.mention_email_notifications !== false}
+                      onCheckedChange={(checked) => updateNotificationSetting('mention_email_notifications', checked)}
                     />
                   </div>
                   <div className="flex items-center justify-between">
@@ -840,9 +891,11 @@ export default function ProfileSettings() {
             </CardContent>
           </Card>
         </TabsContent>
-        <TabsContent value="email">
-          <EmailSettingsTab />
-        </TabsContent>
+        {!isExternalUser && (
+          <TabsContent value="email">
+            <EmailSettingsTab />
+          </TabsContent>
+        )}
       </Tabs>
     </div>
   );

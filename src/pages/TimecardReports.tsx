@@ -14,6 +14,8 @@ import { PunchTrackingReport } from '@/components/PunchTrackingReport';
 import { exportTimecardToPDF, ReportData, CompanyBranding } from '@/utils/pdfExport';
 import { exportTimecardToExcel, ExcelReportData } from '@/utils/excelExport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface Employee {
   id: string;
@@ -91,6 +93,7 @@ export default function TimecardReports() {
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState<'timecards' | 'punches'>('timecards');
   const [punches, setPunches] = useState<any[]>([]);
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [filters, setFilters] = useState<FilterState>({
     employees: [],
     groups: [],
@@ -121,10 +124,10 @@ export default function TimecardReports() {
   };
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       loadInitialData();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (!preselectedUserId) return;
@@ -216,7 +219,10 @@ export default function TimecardReports() {
         .order('name');
 
       if (error) throw error;
-      setJobs(data || []);
+      const visibleJobs = isPrivileged
+        ? (data || [])
+        : (data || []).filter((job: any) => allowedJobIds.includes(job.id));
+      setJobs(visibleJobs);
     } catch (error) {
       console.error('Error loading jobs:', error);
     }
@@ -330,7 +336,7 @@ export default function TimecardReports() {
   };
 
   const loadTimecardRecords = async () => {
-    if (!currentCompany?.id) return;
+    if (!currentCompany?.id || websiteJobAccessLoading) return;
     
     try {
       setLoading(true);
@@ -386,13 +392,17 @@ export default function TimecardReports() {
         query = query.eq('user_id', user?.id);
       }
 
+      const allowedSelectedJobs = isPrivileged
+        ? filters.jobs
+        : filters.jobs.filter((jobId) => allowedJobIds.includes(jobId));
+
       // Job filter is required - if no jobs selected, return empty results
-      if (filters.jobs.length === 0) {
+      if (allowedSelectedJobs.length === 0) {
         setRecords([]);
         setLoading(false);
         return;
       }
-      query = query.in('job_id', filters.jobs);
+      query = query.in('job_id', allowedSelectedJobs);
 
       // Load punch clock settings - prioritize job-specific settings if filtering by a single job
       let settingsData = null;
@@ -472,6 +482,9 @@ export default function TimecardReports() {
       
       // Filter by company jobs
       let filteredData = (data || []).filter((r: any) => !r.job_id || allowedJobSet.has(r.job_id));
+      filteredData = filteredData.filter((r: any) =>
+        canAccessAssignedJobOnly([r.job_id], isPrivileged, allowedJobIds),
+      );
 
       // Get additional data for display
       const jobIds = [...new Set(filteredData.map((r: any) => r.job_id).filter(Boolean))];
@@ -595,7 +608,7 @@ export default function TimecardReports() {
   };
 
   const checkForUnapprovedPunches = async (): Promise<boolean> => {
-    if (!currentCompany?.id) return false;
+    if (!currentCompany?.id || websiteJobAccessLoading) return false;
     
     try {
       let query = supabase
@@ -637,11 +650,15 @@ export default function TimecardReports() {
         query = query.eq('user_id', user?.id);
       }
 
+      const allowedSelectedJobs = isPrivileged
+        ? filters.jobs
+        : filters.jobs.filter((jobId) => allowedJobIds.includes(jobId));
+
       // Apply job filters - required for filtering
-      if (filters.jobs.length === 0) {
+      if (allowedSelectedJobs.length === 0) {
         return false; // No jobs selected means no records to check
       }
-      query = query.in('job_id', filters.jobs);
+      query = query.in('job_id', allowedSelectedJobs);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -654,7 +671,7 @@ export default function TimecardReports() {
   };
 
   const loadPunchRecords = async () => {
-    if (!currentCompany?.id) return;
+    if (!currentCompany?.id || websiteJobAccessLoading) return;
     try {
       let query = supabase
         .from('punch_records')
@@ -670,12 +687,16 @@ export default function TimecardReports() {
       } else if (!isManager) {
         query = query.eq('user_id', user?.id);
       }
+      const allowedSelectedJobs = isPrivileged
+        ? filters.jobs
+        : filters.jobs.filter((jobId) => allowedJobIds.includes(jobId));
+
       // Job filter is required - if no jobs selected, return empty results
-      if (filters.jobs.length === 0) {
+      if (allowedSelectedJobs.length === 0) {
         setPunches([]);
         return;
       }
-      query = query.in('job_id', filters.jobs);
+      query = query.in('job_id', allowedSelectedJobs);
       // Normalize date range to full days in UTC
       const startISO = filters.startDate ? new Date(Date.UTC(
         filters.startDate.getFullYear(),
@@ -721,7 +742,7 @@ export default function TimecardReports() {
         if (fallbackEmployeeFilter.length > 0) {
           q2 = q2.in('user_id', fallbackEmployeeFilter);
         }
-        if (filters.jobs.length > 0) q2 = q2.in('job_id', filters.jobs);
+        if (allowedSelectedJobs.length > 0) q2 = q2.in('job_id', allowedSelectedJobs);
         const { data: d2 } = await q2;
         punchData = d2 || [];
       }
@@ -734,7 +755,8 @@ export default function TimecardReports() {
         .select('id')
         .eq('company_id', currentCompany.id);
       const allowedJobSet = new Set((allowedJobs || []).map((j: any) => j.id));
-      const filteredPunches = (punchData || []).filter((r: any) => !r.job_id || allowedJobSet.has(r.job_id));
+      const filteredPunches = (punchData || []).filter((r: any) => !r.job_id || allowedJobSet.has(r.job_id))
+        .filter((r: any) => canAccessAssignedJobOnly([r.job_id], isPrivileged, allowedJobIds));
 
       const userIds = [...new Set(filteredPunches.map((r: any) => r.user_id).filter(Boolean))];
       const jobIds = [...new Set(filteredPunches.map((r: any) => r.job_id).filter(Boolean))];

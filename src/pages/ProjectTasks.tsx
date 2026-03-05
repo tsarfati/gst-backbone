@@ -10,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { AddTaskDialog } from '@/components/AddTaskDialog';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
 
 interface Task {
   id: string;
@@ -29,6 +31,7 @@ export default function ProjectTasks() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [tasks, setTasks] = useState<Task[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
@@ -37,11 +40,11 @@ export default function ProjectTasks() {
   const [projects, setProjects] = useState<{ id: string; name: string }[]>([]);
 
   useEffect(() => {
-    if (currentCompany) {
+    if (currentCompany && !websiteJobAccessLoading) {
       loadTasks();
       loadProjects();
     }
-  }, [currentCompany]);
+  }, [currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadTasks = async () => {
     if (!currentCompany) return;
@@ -54,7 +57,10 @@ export default function ProjectTasks() {
         .order('created_at', { ascending: false });
 
       if (error) throw error;
-      setTasks(data || []);
+      const visibleTasks = (data || []).filter((task: any) =>
+        canAccessAssignedJobOnly([task.job_id], isPrivileged, allowedJobIds),
+      );
+      setTasks(visibleTasks);
     } catch (error) {
       console.error('Error loading tasks:', error);
     } finally {
@@ -69,7 +75,10 @@ export default function ProjectTasks() {
       .select('id, name')
       .eq('company_id', currentCompany.id)
       .eq('is_active', true);
-    setProjects(data || []);
+    const visibleProjects = isPrivileged
+      ? (data || [])
+      : (data || []).filter((project: any) => allowedJobIds.includes(project.id));
+    setProjects(visibleProjects);
   };
 
   const filteredTasks = tasks.filter(task => {
@@ -222,7 +231,7 @@ export default function ProjectTasks() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
+          {loading || websiteJobAccessLoading ? (
             <div className="text-center py-8"><span className="loading-dots">Loading project tasks</span></div>
           ) : filteredTasks.length === 0 ? (
             <div className="text-center py-8">

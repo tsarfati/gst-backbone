@@ -6,11 +6,14 @@ import { ArrowLeft, Calculator, DollarSign } from "lucide-react";
 import JobBudgetManager from "@/components/JobBudgetManager";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function JobBudget() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [job, setJob] = useState<any>(null);
   const [selectedCostCodes, setSelectedCostCodes] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -30,6 +33,16 @@ export default function JobBudget() {
           .maybeSingle();
 
         if (error) throw error;
+
+        if (data && !canAccessAssignedJobOnly([data.id], isPrivileged, allowedJobIds)) {
+          toast({
+            title: "Access denied",
+            description: "You do not have access to this job",
+            variant: "destructive",
+          });
+          setJob(null);
+          return;
+        }
 
         if (data) {
           setJob(data);
@@ -57,10 +70,12 @@ export default function JobBudget() {
       }
     };
 
-    fetchJob();
-  }, [id, toast]);
+    if (!websiteJobAccessLoading) {
+      fetchJob();
+    }
+  }, [id, toast, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading budget details</span></div>

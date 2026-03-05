@@ -16,6 +16,8 @@ import TimeCardDetailView from '@/components/TimeCardDetailView';
 import EditTimeCardDialog from '@/components/EditTimeCardDialog';
 import TimeSheetsViewSelector, { TimeSheetsViewType } from '@/components/TimeSheetsViewSelector';
 import { useTimeSheetsViewPreference } from '@/hooks/useTimeSheetsViewPreference';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
 
 interface TimeCard {
   id: string;
@@ -85,6 +87,7 @@ export default function TimeSheets() {
   const [statusFilter, setStatusFilter] = useState<string>('all');
   const { profile, user } = useAuth();
   const { currentCompany, userCompanies } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const navigate = useNavigate();
   
   // Use view preference hook with local storage
@@ -95,7 +98,7 @@ export default function TimeSheets() {
   const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes((companyRole || '') as string);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       if (isManager) {
         loadEmployees();
       }
@@ -123,13 +126,13 @@ export default function TimeSheets() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [user, profile, currentCompany?.id]);
+  }, [user, profile, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
-    if (selectedEmployeeId) {
+    if (selectedEmployeeId && !websiteJobAccessLoading) {
       loadTimeCards();
     }
-  }, [selectedEmployeeId]);
+  }, [selectedEmployeeId, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadEmployees = async () => {
     if (!user || !currentCompany?.id) return;
@@ -174,7 +177,7 @@ export default function TimeSheets() {
   };
 
   const loadTimeCards = async () => {
-    if (!user || !currentCompany?.id) return;
+    if (!user || !currentCompany?.id || websiteJobAccessLoading) return;
 
     await maybeBackfillCostCodes();
 
@@ -217,6 +220,15 @@ export default function TimeSheets() {
         .eq('company_id', currentCompany.id)
         .is('deleted_at', null)
         .order('punch_in_time', { ascending: false });
+
+      if (!isPrivileged) {
+        if (allowedJobIds.length === 0) {
+          setTimeCards([]);
+          setLoading(false);
+          return;
+        }
+        query = query.in('job_id', allowedJobIds);
+      }
 
       // Filter records based on user role and selection
       if (!isManager) {
@@ -288,7 +300,9 @@ export default function TimeSheets() {
       const costCodesMap = new Map((costCodesData.data || []).map(c => [c.id, c]));
 
       // Transform data with relationships and apply flagging
-      const transformedData: TimeCard[] = (timeCardData || []).map(tc => {
+      const transformedData: TimeCard[] = (timeCardData || [])
+        .filter((tc: any) => canAccessAssignedJobOnly([tc.job_id], isPrivileged, allowedJobIds))
+        .map(tc => {
         const profile = profilesMap.get(tc.user_id);
         const job = jobsMap.get(tc.job_id);
         const costCode = costCodesMap.get(tc.cost_code_id);

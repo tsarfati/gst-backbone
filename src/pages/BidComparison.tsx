@@ -11,11 +11,14 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
 
 interface RFP {
   id: string;
   rfp_number: string;
   title: string;
+  job_id?: string | null;
   job?: {
     name: string;
   };
@@ -55,6 +58,7 @@ export default function BidComparison() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [rfp, setRfp] = useState<RFP | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
@@ -64,10 +68,10 @@ export default function BidComparison() {
   const [saving, setSaving] = useState(false);
 
   useEffect(() => {
-    if (id && currentCompany?.id) {
+    if (id && currentCompany?.id && !websiteJobAccessLoading) {
       loadData();
     }
-  }, [id, currentCompany?.id]);
+  }, [id, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadData = async () => {
     try {
@@ -77,13 +81,23 @@ export default function BidComparison() {
       const { data: rfpData, error: rfpError } = await supabase
         .from('rfps')
         .select(`
-          id, rfp_number, title,
+          id, rfp_number, title, job_id,
           job:jobs(name)
         `)
         .eq('id', id)
         .single();
 
       if (rfpError) throw rfpError;
+
+      if (!canAccessAssignedJobOnly([rfpData?.job_id], isPrivileged, allowedJobIds)) {
+        toast({
+          title: 'Access denied',
+          description: 'You do not have access to this RFP job',
+          variant: 'destructive'
+        });
+        navigate('/construction/rfps');
+        return;
+      }
       setRfp(rfpData);
 
       // Load criteria

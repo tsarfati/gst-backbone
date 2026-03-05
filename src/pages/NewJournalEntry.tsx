@@ -21,6 +21,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface Account {
   id: string;
@@ -56,6 +58,7 @@ export default function NewJournalEntry() {
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
   const [reference, setReference] = useState('');
@@ -99,7 +102,10 @@ export default function NewJournalEntry() {
         if (jobsError) {
           console.error('Error loading jobs:', jobsError);
         } else {
-          setJobs((jobsData as any) || []);
+          const visibleJobs = isPrivileged
+            ? ((jobsData as any) || [])
+            : (((jobsData as any) || []).filter((job: any) => allowedJobIds.includes(job.id)));
+          setJobs(visibleJobs);
         }
 
         // Load accounts
@@ -119,8 +125,9 @@ export default function NewJournalEntry() {
         console.error('Error in loadData:', error);
       }
     };
+    if (websiteJobAccessLoading) return;
     loadData();
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadCostCodesForJob = async (jobId: string) => {
     if (costCodes[jobId]) return;
@@ -206,6 +213,14 @@ export default function NewJournalEntry() {
         toast({
           title: "Missing Job/Cost Code",
           description: `Line ${i + 1} requires both job and cost code`,
+          variant: "destructive",
+        });
+        return;
+      }
+      if (line.line_type === 'job' && !canAccessAssignedJobOnly([line.job_id], isPrivileged, allowedJobIds)) {
+        toast({
+          title: "Access denied",
+          description: `Line ${i + 1} uses a job you do not have access to`,
           variant: "destructive",
         });
         return;

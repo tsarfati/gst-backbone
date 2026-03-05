@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -14,6 +13,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useUserAvatars } from '@/hooks/useUserAvatar';
 import UserAvatar from '@/components/UserAvatar';
+import { createMentionNotifications } from '@/utils/mentions';
+import MentionTextarea from '@/components/MentionTextarea';
 
 const CURRENT_USER_ID = 'fa67f9ba-67fc-4708-9526-7bfef906dae3';
 const CURRENT_COMPANY_ID = 'f64fff8d-16f4-4a07-81b3-e470d7e2d560';
@@ -47,6 +48,11 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
 
   const userId = user?.id || CURRENT_USER_ID;
   const companyId = currentCompany?.id || CURRENT_COMPANY_ID;
+  const actorName =
+    (user as any)?.user_metadata?.full_name ||
+    (user as any)?.user_metadata?.name ||
+    (user as any)?.email ||
+    'A teammate';
   const availableUserIds = availableUsers.map((u) => u.user_id);
   const { avatarMap } = useUserAvatars(availableUserIds);
 
@@ -148,6 +154,15 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
 
         if (error) throw error;
       }
+
+      await createMentionNotifications({
+        companyId,
+        actorUserId: userId,
+        actorName,
+        content: message.trim(),
+        contextLabel: 'Messages',
+        targetPath: '/messages',
+      });
 
       toast({
         title: 'Message Sent',
@@ -292,7 +307,15 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
 
           <div>
             <Label htmlFor="message">Message</Label>
-            <Textarea id="message" value={message} onChange={(e) => setMessage(e.target.value)} placeholder="Type your message here..." rows={6} />
+            <MentionTextarea
+              id="message"
+              value={message}
+              onValueChange={setMessage}
+              companyId={companyId}
+              currentUserId={userId}
+              placeholder="Type your message here... (use @ to tag teammates)"
+              rows={6}
+            />
           </div>
 
           {(subject || message) && (

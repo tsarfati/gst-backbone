@@ -28,12 +28,15 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function JournalEntryDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [entry, setEntry] = useState<any>(null);
   const [lines, setLines] = useState<any[]>([]);
@@ -43,7 +46,7 @@ export default function JournalEntryDetails() {
 
   useEffect(() => {
     const loadEntry = async () => {
-      if (!currentCompany?.id || !id) return;
+      if (!currentCompany?.id || !id || websiteJobAccessLoading) return;
       
       setLoading(true);
       try {
@@ -124,13 +127,31 @@ export default function JournalEntryDetails() {
           .select(`
             *,
             account:chart_of_accounts(account_number, account_name),
-            job:jobs(name),
+            job:jobs(id, name),
             cost_code:cost_codes(code, description)
           `)
           .eq('journal_entry_id', id)
           .order('line_order');
 
         if (linesError) throw linesError;
+
+        const lineJobIds = (linesData || [])
+          .map((line: any) => line.job_id)
+          .filter((jobId: string | null | undefined): jobId is string => !!jobId);
+        const hasAccess = canAccessAssignedJobOnly(lineJobIds, isPrivileged, allowedJobIds);
+        if (!hasAccess) {
+          toast({
+            title: "Access denied",
+            description: "You do not have access to this journal entry",
+            variant: "destructive",
+          });
+          setEntry(null);
+          setLines([]);
+          setAuditEvents([]);
+          setLoading(false);
+          return;
+        }
+
         setLines(linesData || []);
 
         // Add reconciliation events for reconciled lines
@@ -178,7 +199,7 @@ export default function JournalEntryDetails() {
     };
 
     loadEntry();
-  }, [id, currentCompany?.id]);
+  }, [id, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const handleReverse = async () => {
     if (!id || !entry) return;
@@ -319,7 +340,7 @@ export default function JournalEntryDetails() {
     }
   };
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-6">
         <div className="animate-pulse space-y-4">

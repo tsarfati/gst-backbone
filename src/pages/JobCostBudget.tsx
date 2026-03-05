@@ -12,6 +12,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import JobCostCodeSelector from "@/components/JobCostCodeSelector";
 import { formatCurrency } from "@/utils/formatNumber";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 type ViewType = "compact" | "super-compact";
 
@@ -36,6 +38,7 @@ export default function JobCostBudget() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useAuth();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [job, setJob] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -48,8 +51,10 @@ export default function JobCostBudget() {
   const canEdit = isPlanning;
 
   useEffect(() => {
-    loadData();
-  }, [id]);
+    if (!websiteJobAccessLoading) {
+      loadData();
+    }
+  }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (selectedCostCodes.length >= 0) {
@@ -67,6 +72,16 @@ export default function JobCostBudget() {
         .maybeSingle();
 
       if (jobError) throw jobError;
+      if (jobData && !canAccessAssignedJobOnly([jobData.id], isPrivileged, allowedJobIds)) {
+        toast({
+          title: "Access denied",
+          description: "You do not have access to this job",
+          variant: "destructive",
+        });
+        setJob(null);
+        setLoading(false);
+        return;
+      }
       setJob(jobData);
 
       // Load cost codes for this job
@@ -282,7 +297,7 @@ export default function JobCostBudget() {
 
   const totalBudget = budgetLines.reduce((sum, line) => sum + (line.budgeted_amount || 0), 0);
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-4 md:p-6">
         <div className="text-center py-12">

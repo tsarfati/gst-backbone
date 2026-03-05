@@ -1,7 +1,6 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import UserAvatar from '@/components/UserAvatar';
 import { Reply, Send, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
@@ -9,6 +8,8 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAvatars } from '@/hooks/useUserAvatar';
+import { createMentionNotifications } from '@/utils/mentions';
+import MentionTextarea from '@/components/MentionTextarea';
 
 const CURRENT_USER_ID = 'fa67f9ba-67fc-4708-9526-7bfef906dae3';
 const CURRENT_COMPANY_ID = 'f64fff8d-16f4-4a07-81b3-e470d7e2d560';
@@ -57,6 +58,11 @@ export default function MessageThreadView({
 
   const userId = user?.id || CURRENT_USER_ID;
   const companyId = currentCompany?.id || CURRENT_COMPANY_ID;
+  const actorName =
+    (user as any)?.user_metadata?.full_name ||
+    (user as any)?.user_metadata?.name ||
+    (user as any)?.email ||
+    "A teammate";
   const conversationPartnerId = useMemo(() => {
     if (!message) return null;
     return message.from_user_id === userId ? message.to_user_id : message.from_user_id;
@@ -189,6 +195,15 @@ export default function MessageThreadView({
 
       if (error) throw error;
 
+      await createMentionNotifications({
+        companyId,
+        actorUserId: userId,
+        actorName,
+        content: replyContent.trim(),
+        contextLabel: "Messages",
+        targetPath: "/messages",
+      });
+
       // Also set thread_id on the newly created message
       // The send_message RPC creates the message; we need to update thread_id
       // For now we'll reload the thread which will pick it up
@@ -270,10 +285,12 @@ export default function MessageThreadView({
 
         {/* Reply Section */}
         <div className="border-t pt-4 space-y-3">
-          <Textarea
-            placeholder="Type your reply..."
+          <MentionTextarea
             value={replyContent}
-            onChange={(e) => setReplyContent(e.target.value)}
+            onValueChange={setReplyContent}
+            companyId={companyId}
+            currentUserId={userId}
+            placeholder="Type your reply... (use @ to tag teammates)"
             rows={3}
             className="resize-none"
           />

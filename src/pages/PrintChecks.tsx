@@ -8,6 +8,9 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Printer, Download, Check } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useCompany } from "@/contexts/CompanyContext";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface Payment {
   id: string;
@@ -27,37 +30,69 @@ export default function PrintChecks() {
   const navigate = useNavigate();
   const location = useLocation();
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [payments, setPayments] = useState<Payment[]>([]);
   const [selectedPayments, setSelectedPayments] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    loadPayments();
+    if (!websiteJobAccessLoading) {
+      loadPayments();
+    }
     
     // If coming from a specific payment, pre-select it
     if (location.state?.paymentId) {
       setSelectedPayments([location.state.paymentId]);
     }
-  }, [location.state]);
+  }, [location.state, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadPayments = async () => {
     try {
+      if (!currentCompany?.id) return;
+
       const { data, error } = await supabase
         .from('payments')
         .select(`
           *,
-          vendors (
+          vendors!inner (
             name,
-            address
+            address,
+            company_id
           )
         `)
+        .eq('vendors.company_id', currentCompany.id)
         .eq('payment_method', 'check')
         .in('status', ['draft', 'pending'])
         .order('payment_date');
 
       if (error) throw error;
-      setPayments((data || []).map(payment => ({
+      const paymentRows = data || [];
+      const paymentIds = paymentRows.map((row: any) => row.id);
+      const invoiceLineRes: any = paymentIds.length > 0
+        ? await supabase
+            .from('payment_invoice_lines')
+            .select('payment_id, invoice:invoices(job_id)')
+            .in('payment_id', paymentIds)
+        : { data: [], error: null };
+
+      const paymentJobsMap: Record<string, string[]> = {};
+      (invoiceLineRes?.data || []).forEach((row: any) => {
+        const paymentId = row.payment_id;
+        const jobId = row.invoice?.job_id;
+        if (!paymentId || !jobId) return;
+        if (!paymentJobsMap[paymentId]) paymentJobsMap[paymentId] = [];
+        if (!paymentJobsMap[paymentId].includes(jobId)) {
+          paymentJobsMap[paymentId].push(jobId);
+        }
+      });
+
+      const visiblePayments = paymentRows.filter((row: any) =>
+        canAccessAssignedJobOnly(paymentJobsMap[row.id] || [], isPrivileged, allowedJobIds),
+      );
+
+      setPayments(visiblePayments.map(payment => ({
         ...payment,
         vendor: payment.vendors
       })));
@@ -120,7 +155,7 @@ export default function PrintChecks() {
     }
   };
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return <div><span className="loading-dots">Loading payments</span></div>;
   }
 

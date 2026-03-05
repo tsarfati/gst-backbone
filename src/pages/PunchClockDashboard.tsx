@@ -15,6 +15,8 @@ import PunchDetailView from '@/components/PunchDetailView';
 import TimeCardDetailModal from '@/components/TimeCardDetailModal';
 import { Select, SelectTrigger, SelectContent, SelectItem, SelectValue } from '@/components/ui/select';
 import { useUserAvatars } from '@/hooks/useUserAvatar';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
 
 interface CurrentStatus {
   id: string;
@@ -86,6 +88,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const dashboardUserIds = useMemo(
     () => Array.from(new Set([
       ...active.map((row) => row.user_id),
@@ -105,7 +108,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
 
   useEffect(() => {
     const load = async () => {
-      if (!currentCompany?.id) return;
+      if (!currentCompany?.id || websiteJobAccessLoading) return;
       
       console.log('PunchClockDashboard: loading data for company', currentCompany.id);
       
@@ -128,6 +131,9 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         .eq('company_id', currentCompany.id);
       
       const companyJobIds = (companyJobs || []).map(j => j.id);
+      const visibleCompanyJobIds = isPrivileged
+        ? companyJobIds
+        : companyJobIds.filter((jobId) => allowedJobIds.includes(jobId));
       
       // Load active punches for users in this company AND jobs in this company
       const { data: activeData } = await supabase
@@ -135,7 +141,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         .select('*')
         .eq('is_active', true)
         .in('user_id', companyUserIds)
-        .in('job_id', companyJobIds.length > 0 ? companyJobIds : ['00000000-0000-0000-0000-000000000000'])
+        .in('job_id', visibleCompanyJobIds.length > 0 ? visibleCompanyJobIds : ['00000000-0000-0000-0000-000000000000'])
         .order('punch_in_time', { ascending: false });
 
       setActive(activeData || []);
@@ -176,7 +182,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         .select('id, user_id, job_id, cost_code_id, punch_time, punch_type, latitude, longitude, photo_url, ip_address, user_agent')
         .eq('company_id', currentCompany.id)
         .in('user_id', companyUserIds)
-        .in('job_id', companyJobIds.length > 0 ? companyJobIds : ['00000000-0000-0000-0000-000000000000'])
+        .in('job_id', visibleCompanyJobIds.length > 0 ? visibleCompanyJobIds : ['00000000-0000-0000-0000-000000000000'])
         .order('punch_time', { ascending: false });
 
       // Get the most recent punch for each user
@@ -283,7 +289,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       clearInterval(interval);
       supabase.removeChannel(channel);
     };
-}, [currentCompany?.id]);
+}, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   // Load company-level cost code timing (punch_in or punch_out)
   useEffect(() => {
@@ -543,7 +549,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
   };
 
   const loadPendingChangeRequests = async () => {
-    if (!currentCompany?.id) return;
+    if (!currentCompany?.id || websiteJobAccessLoading) return;
     
     // Load change requests
     const { data } = await supabase
@@ -576,7 +582,17 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         .order('created_at', { ascending: false })
         .limit(20);
       
-      const deduped = (data || [])
+      const scopedData = isPrivileged
+        ? (data || [])
+        : (data || []).filter((cr: any) =>
+            canAccessAssignedJobOnly(
+              [cr?.time_cards?.job_id, cr?.proposed_job_id].filter(Boolean),
+              isPrivileged,
+              allowedJobIds
+            )
+          );
+
+      const deduped = scopedData
         .reduce((acc: Map<string, any>, cr: any) => {
           const key = cr.time_card_id || cr.id;
           const existing = acc.get(key);
@@ -600,23 +616,27 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       
       // Filter out time cards that have pending change requests
       const changeRequestTimeCardIds = new Set(Array.from(deduped.values()).map(cr => cr.time_card_id));
-      const pendingCards = (timeCardsData || []).filter(tc => !changeRequestTimeCardIds.has(tc.id));
+      const pendingCards = (timeCardsData || []).filter(
+        (tc) =>
+          !changeRequestTimeCardIds.has(tc.id) &&
+          canAccessAssignedJobOnly([tc.job_id], isPrivileged, allowedJobIds)
+      );
       setPendingTimeCards(pendingCards);
       
       // Load profiles, jobs, and cost codes for both change requests and time cards
-      if ((data && data.length > 0) || (pendingCards && pendingCards.length > 0)) {
+      if ((scopedData && scopedData.length > 0) || (pendingCards && pendingCards.length > 0)) {
         const userIds = Array.from(new Set([
-          ...(data || []).map(cr => cr.user_id),
+          ...(scopedData || []).map(cr => cr.user_id),
           ...(pendingCards || []).map(tc => tc.user_id)
         ]));
         const jobIds = Array.from(new Set([
-          ...(data || []).map(cr => cr.time_cards?.job_id).filter(Boolean),
-          ...(data || []).map(cr => cr.proposed_job_id).filter(Boolean),
+          ...(scopedData || []).map(cr => cr.time_cards?.job_id).filter(Boolean),
+          ...(scopedData || []).map(cr => cr.proposed_job_id).filter(Boolean),
           ...(pendingCards || []).map(tc => tc.job_id).filter(Boolean)
         ])) as string[];
         const costCodeIds = Array.from(new Set([
-          ...(data || []).map(cr => cr.time_cards?.cost_code_id).filter(Boolean),
-          ...(data || []).map(cr => cr.proposed_cost_code_id).filter(Boolean),
+          ...(scopedData || []).map(cr => cr.time_cards?.cost_code_id).filter(Boolean),
+          ...(scopedData || []).map(cr => cr.proposed_cost_code_id).filter(Boolean),
           ...(pendingCards || []).map(tc => tc.cost_code_id).filter(Boolean)
         ])) as string[];
         
@@ -691,7 +711,7 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
     return () => {
       supabase.removeChannel(channel);
     };
-    }, [currentCompany?.id]);
+    }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   return (
     <div className="min-h-screen bg-background">

@@ -15,6 +15,8 @@ import { format } from "date-fns";
 import PayablesViewSelector from "@/components/PayablesViewSelector";
 import { usePayablesViewPreference } from "@/hooks/usePayablesViewPreference";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function Subcontracts() {
   const navigate = useNavigate();
@@ -22,6 +24,7 @@ export default function Subcontracts() {
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
   const { canCreate } = useActionPermissions();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [subcontracts, setSubcontracts] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -34,8 +37,10 @@ export default function Subcontracts() {
   const { currentView, setCurrentView, setAsDefault, isDefault } = usePayablesViewPreference('subcontracts');
 
   useEffect(() => {
-    fetchData();
-  }, [currentCompany, profile]);
+    if (!websiteJobAccessLoading) {
+      fetchData();
+    }
+  }, [currentCompany, profile, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const fetchData = async () => {
     setLoading(true);
@@ -55,7 +60,10 @@ export default function Subcontracts() {
         .order('created_at', { ascending: false });
 
       if (subcontractsError) throw subcontractsError;
-      setSubcontracts(subcontractsData || []);
+      const visibleSubcontracts = (subcontractsData || []).filter((subcontract: any) =>
+        canAccessAssignedJobOnly([subcontract.job_id], isPrivileged, allowedJobIds),
+      );
+      setSubcontracts(visibleSubcontracts);
 
       // Fetch jobs for filter
       const { data: jobsData, error: jobsError } = await supabase
@@ -65,7 +73,10 @@ export default function Subcontracts() {
         .order('name');
 
       if (jobsError) throw jobsError;
-      setJobs(jobsData || []);
+      const visibleJobs = isPrivileged
+        ? (jobsData || [])
+        : (jobsData || []).filter((job: any) => allowedJobIds.includes(job.id));
+      setJobs(visibleJobs);
 
       // Fetch vendors
       const { data: vendorsData, error: vendorsError } = await supabase
@@ -134,7 +145,7 @@ export default function Subcontracts() {
     return colors[Math.abs(hash) % colors.length];
   };
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-6">
         <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading</span></div>

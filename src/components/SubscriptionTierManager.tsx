@@ -1,4 +1,5 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -6,7 +7,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Switch } from '@/components/ui/switch';
-import { Checkbox } from '@/components/ui/checkbox';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
@@ -53,25 +53,203 @@ interface SubscriptionTier {
   stripe_price_id: string | null;
 }
 
-const CATEGORY_LABELS: Record<string, string> = {
-  time_tracking: 'Time Tracking',
-  hr: 'HR & Employees',
+interface FeatureTreeBlueprintNode {
+  key: string;
+  label: string;
+  description?: string;
+  children?: FeatureTreeBlueprintNode[];
+}
+
+interface FeatureTreeNode {
+  id: string;
+  key: string;
+  label: string;
+  description?: string;
+  featureIds: string[];
+  children: FeatureTreeNode[];
+}
+
+type ToggleVisualState = 'off' | 'partial' | 'on';
+
+const NON_GRANULAR_FEATURE_KEYS = new Set([
+  'punch_clock',
+  'timesheets',
+  'employees',
+  'employee_reports',
+  'jobs_basic',
+  'job_budgets',
+  'job_cost_codes',
+  'job_plans',
+  'job_rfis',
+  'job_permits',
+  'job_photos',
+  'job_filing',
+  'delivery_tickets',
+  'visitor_logs',
+  'project_tasks',
+  'subcontracts',
+  'purchase_orders',
+  'rfps',
+  'vendors',
+  'bills',
+  'receipts',
+  'chart_of_accounts',
+  'journal_entries',
+  'bank_accounts',
+  'credit_cards',
+  'ar_invoices',
+  'payments',
+  'customers',
+  'construction_reports',
+  'accounting_reports',
+  'messaging',
+  'announcements',
+  'pm_lynk',
+  'punch_clock_app',
+  'organization_management',
+]);
+
+const GRANULAR_ROOT_LABELS: Record<string, string> = {
   construction: 'Construction',
   accounting: 'Accounting & Finance',
-  reports: 'Reports',
+  hr: 'HR & Employees',
   communication: 'Communication',
-  mobile: 'Mobile Apps',
+  mobile: 'Mobile',
+  settings: 'Settings',
   general: 'General',
 };
+
+const getGranularRootKey = (feature: FeatureModule): string => {
+  const key = feature.key;
+  if (key.startsWith('jobs') || key.startsWith('subcontracts') || key.startsWith('purchase-orders') || key.startsWith('cost-codes') || key.startsWith('construction') || key.startsWith('delivery-tickets') || key.startsWith('tasks') || key.startsWith('project-tasks') || key.startsWith('task-deadlines')) return 'construction';
+  if (key.startsWith('receipts') || key.startsWith('receipt-reports') || key.startsWith('receivables') || key.startsWith('customers') || key.startsWith('ar-invoices') || key.startsWith('ar-payments') || key.startsWith('payables') || key.startsWith('vendors') || key.startsWith('bills') || key.startsWith('banking') || key.startsWith('chart-of-accounts') || key.startsWith('journal-entries') || key.startsWith('deposits') || key.startsWith('print-checks') || key.startsWith('make-payment') || key.startsWith('payment-') || key.startsWith('credit-cards') || key.startsWith('reconcile')) return 'accounting';
+  if (key.startsWith('employees') || key.startsWith('punch-clock') || key.startsWith('timesheets') || key.startsWith('timecard-reports')) return 'hr';
+  if (key.startsWith('messages') || key === 'messaging' || key.startsWith('team-chat') || key.startsWith('announcements')) return 'communication';
+  if (key.startsWith('pm-lynk')) return 'mobile';
+  if (key.startsWith('settings') || key.startsWith('company-settings') || key.startsWith('user-settings') || key.startsWith('subscription-settings') || key.startsWith('notification-settings') || key.startsWith('security-settings')) return 'settings';
+  return 'general';
+};
+
+const getGranularSectionKey = (featureKey: string): string => {
+  if (featureKey.startsWith('jobs-')) {
+    if (featureKey.startsWith('jobs-tab-photos-') || featureKey.startsWith('jobs-photos-')) return 'jobs/photos';
+    if (featureKey.startsWith('jobs-tab-')) return `jobs/${featureKey.split('-').slice(2, 4).join('-')}`;
+    return 'jobs/general';
+  }
+  if (featureKey.startsWith('ar-invoices-')) return 'ar-invoices';
+  if (featureKey.startsWith('company-settings')) return 'company-settings';
+  if (featureKey.startsWith('user-settings')) return 'user-settings';
+  if (featureKey.startsWith('subscription-settings')) return 'subscription-settings';
+  if (featureKey.startsWith('notification-settings')) return 'notification-settings';
+  if (featureKey.startsWith('security-settings')) return 'security-settings';
+  if (featureKey.startsWith('pm-lynk-')) return `pm-lynk/${featureKey.split('-').slice(2, 4).join('-')}`;
+  if (featureKey.startsWith('banking-')) return 'banking';
+  if (featureKey.startsWith('receivables-')) return 'receivables';
+  if (featureKey.startsWith('payables-')) return 'payables';
+  return featureKey.split('-').slice(0, 2).join('-') || featureKey;
+};
+
+const toLabel = (value: string): string =>
+  value
+    .replace(/[/_]/g, ' ')
+    .replace(/\b\w/g, char => char.toUpperCase());
+
+const FEATURE_TREE_BLUEPRINT: FeatureTreeBlueprintNode[] = [
+  {
+    key: 'construction',
+    label: 'Construction',
+    description: 'Construction module access and feature groups',
+    children: [
+      {
+        key: 'jobs',
+        label: 'Jobs',
+        description: 'Jobs and job-level tabs/features',
+        children: [
+          { key: 'jobs_basic', label: 'Jobs List & Overview', description: 'View/manage job list and core details' },
+          { key: 'job_budgets', label: 'Jobs > Budget Tab', description: 'Cost codes and budget tab' },
+          { key: 'job_cost_codes', label: 'Jobs > Cost Codes', description: 'Cost code management' },
+          { key: 'job_plans', label: 'Jobs > Plans Tab', description: 'Plans and sheets' },
+          { key: 'job_rfis', label: 'Jobs > RFIs Tab', description: 'RFIs and responses' },
+          { key: 'job_photos', label: 'Jobs > Photos Tab', description: 'Albums and photo library' },
+          { key: 'job_filing', label: 'Jobs > Filing Cabinet Tab', description: 'Job files and documents' },
+          { key: 'job_permits', label: 'Jobs > Permits Tab', description: 'Permits tracking' },
+        ],
+      },
+      { key: 'subcontracts', label: 'Subcontracts' },
+      { key: 'purchase_orders', label: 'Purchase Orders' },
+      { key: 'rfps', label: 'RFPs & Bidding' },
+      { key: 'delivery_tickets', label: 'Delivery Tickets' },
+      { key: 'visitor_logs', label: 'Visitor Logs' },
+      { key: 'project_tasks', label: 'Project Tasks' },
+    ],
+  },
+  {
+    key: 'payables',
+    label: 'Payables & Accounting',
+    children: [
+      { key: 'vendors', label: 'Vendors' },
+      { key: 'bills', label: 'Bills & Payables' },
+      { key: 'receipts', label: 'Receipts' },
+      { key: 'payments', label: 'Payments' },
+      { key: 'bank_accounts', label: 'Bank Accounts' },
+      { key: 'credit_cards', label: 'Credit Cards' },
+      { key: 'chart_of_accounts', label: 'Chart of Accounts' },
+      { key: 'journal_entries', label: 'Journal Entries' },
+      { key: 'customers', label: 'Customers' },
+      { key: 'ar_invoices', label: 'AR Invoices' },
+    ],
+  },
+  {
+    key: 'workforce',
+    label: 'Workforce',
+    children: [
+      { key: 'employees', label: 'Employees' },
+      { key: 'employee_reports', label: 'Employee Reports' },
+      { key: 'punch_clock', label: 'Punch Clock' },
+      { key: 'timesheets', label: 'Timesheets' },
+    ],
+  },
+  {
+    key: 'communication',
+    label: 'Communication',
+    children: [
+      { key: 'messaging', label: 'Messaging' },
+      { key: 'announcements', label: 'Announcements' },
+    ],
+  },
+  {
+    key: 'reports',
+    label: 'Reports',
+    children: [
+      { key: 'construction_reports', label: 'Construction Reports' },
+      { key: 'accounting_reports', label: 'Accounting Reports' },
+    ],
+  },
+  {
+    key: 'mobile',
+    label: 'Mobile',
+    children: [
+      { key: 'pm_lynk', label: 'PM Lynk App' },
+      { key: 'punch_clock_app', label: 'Punch Clock App' },
+    ],
+  },
+  {
+    key: 'platform',
+    label: 'Platform',
+    children: [
+      { key: 'organization_management', label: 'Organization Management' },
+    ],
+  },
+];
 
 export default function SubscriptionTierManager() {
   const { user } = useAuth();
   const { toast } = useToast();
+  const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [tiers, setTiers] = useState<SubscriptionTier[]>([]);
   const [features, setFeatures] = useState<FeatureModule[]>([]);
-  const [dialogOpen, setDialogOpen] = useState(false);
   const [editingTier, setEditingTier] = useState<SubscriptionTier | null>(null);
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null);
   const [syncingTierId, setSyncingTierId] = useState<string | null>(null);
@@ -84,6 +262,134 @@ export default function SubscriptionTierManager() {
   const [formIsActive, setFormIsActive] = useState(true);
   const [formIsDefault, setFormIsDefault] = useState(false);
   const [formFeatures, setFormFeatures] = useState<string[]>([]);
+
+  const featuresByKey = useMemo(() => {
+    return features.reduce((acc, feature) => {
+      acc[feature.key] = feature;
+      return acc;
+    }, {} as Record<string, FeatureModule>);
+  }, [features]);
+
+  const legacyFeatureTree = useMemo(() => {
+    const usedFeatureIds = new Set<string>();
+    let virtualNodeCount = 0;
+
+    const buildNode = (blueprintNode: FeatureTreeBlueprintNode): FeatureTreeNode | null => {
+      const feature = featuresByKey[blueprintNode.key];
+
+      if (feature) {
+        usedFeatureIds.add(feature.id);
+        return {
+          id: feature.id,
+          key: blueprintNode.key,
+          label: blueprintNode.label || feature.name,
+          description: blueprintNode.description || feature.description || undefined,
+          featureIds: [feature.id],
+          children: [],
+        };
+      }
+
+      const builtChildren = (blueprintNode.children || [])
+        .map(buildNode)
+        .filter((node): node is FeatureTreeNode => !!node);
+
+      if (builtChildren.length === 0) return null;
+
+      const aggregatedFeatureIds = builtChildren.flatMap(node => node.featureIds);
+      virtualNodeCount += 1;
+
+      return {
+        id: `virtual-${blueprintNode.key}-${virtualNodeCount}`,
+        key: blueprintNode.key,
+        label: blueprintNode.label,
+        description: blueprintNode.description,
+        featureIds: aggregatedFeatureIds,
+        children: builtChildren,
+      };
+    };
+
+    const builtRoots = FEATURE_TREE_BLUEPRINT
+      .map(buildNode)
+      .filter((node): node is FeatureTreeNode => !!node);
+
+    const uncategorized = features
+      .filter(feature => !usedFeatureIds.has(feature.id))
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    if (uncategorized.length > 0) {
+      builtRoots.push({
+        id: 'virtual-uncategorized',
+        key: 'uncategorized',
+        label: 'Other Features',
+        description: 'Feature modules not yet mapped in the hierarchy',
+        featureIds: uncategorized.map(feature => feature.id),
+        children: uncategorized.map(feature => ({
+          id: feature.id,
+          key: feature.key,
+          label: feature.name,
+          description: feature.description || undefined,
+          featureIds: [feature.id],
+          children: [],
+        })),
+      });
+    }
+
+    return builtRoots;
+  }, [features, featuresByKey]);
+
+  const granularFeatureTree = useMemo(() => {
+    const granularFeatures = features
+      .filter(feature => !NON_GRANULAR_FEATURE_KEYS.has(feature.key))
+      .filter(feature => feature.key.includes('-'))
+      .sort((a, b) => a.sort_order - b.sort_order);
+
+    if (granularFeatures.length === 0) return [] as FeatureTreeNode[];
+
+    const byRoot = new Map<string, FeatureModule[]>();
+    granularFeatures.forEach(feature => {
+      const root = getGranularRootKey(feature);
+      const current = byRoot.get(root) || [];
+      current.push(feature);
+      byRoot.set(root, current);
+    });
+
+    return Array.from(byRoot.entries()).map(([rootKey, rootFeatures]) => {
+      const bySection = new Map<string, FeatureModule[]>();
+      rootFeatures.forEach(feature => {
+        const section = getGranularSectionKey(feature.key);
+        const current = bySection.get(section) || [];
+        current.push(feature);
+        bySection.set(section, current);
+      });
+
+      const sectionNodes: FeatureTreeNode[] = Array.from(bySection.entries())
+        .sort(([a], [b]) => a.localeCompare(b))
+        .map(([sectionKey, sectionFeatures]) => ({
+          id: `granular-section-${rootKey}-${sectionKey}`,
+          key: sectionKey,
+          label: toLabel(sectionKey),
+          description: `${sectionFeatures.length} granular permissions`,
+          featureIds: sectionFeatures.map(feature => feature.id),
+          children: sectionFeatures.map(feature => ({
+            id: feature.id,
+            key: feature.key,
+            label: feature.name,
+            description: feature.description || undefined,
+            featureIds: [feature.id],
+            children: [],
+          })),
+        }));
+
+      return {
+        id: `granular-root-${rootKey}`,
+        key: rootKey,
+        label: GRANULAR_ROOT_LABELS[rootKey] || toLabel(rootKey),
+        description: 'Role-level subscription controls',
+        featureIds: sectionNodes.flatMap(node => node.featureIds),
+        children: sectionNodes,
+      };
+    });
+  }, [features]);
 
   useEffect(() => {
     fetchData();
@@ -134,44 +440,68 @@ export default function SubscriptionTierManager() {
     }
   };
 
-  const openCreateDialog = () => {
-    setEditingTier(null);
-    setFormName('');
-    setFormDescription('');
-    setFormMonthlyPrice('0');
-    setFormAnnualPrice('');
-    setFormIsActive(true);
-    setFormIsDefault(false);
-    setFormFeatures([]);
-    setDialogOpen(true);
-  };
+  const openCreateDialog = () => navigate('/super-admin/tiers/new');
 
   const openEditDialog = (tier: SubscriptionTier) => {
-    setEditingTier(tier);
-    setFormName(tier.name);
-    setFormDescription(tier.description || '');
-    setFormMonthlyPrice(tier.monthly_price.toString());
-    setFormAnnualPrice(tier.annual_price?.toString() || '');
-    setFormIsActive(tier.is_active);
-    setFormIsDefault(tier.is_default);
-    setFormFeatures([...tier.features]);
-    setDialogOpen(true);
+    navigate(`/super-admin/tiers/${tier.id}/edit`);
   };
 
-  const toggleFeature = (featureId: string) => {
-    setFormFeatures(prev =>
-      prev.includes(featureId) ? prev.filter(f => f !== featureId) : [...prev, featureId]
+  const setNodeAccess = (node: FeatureTreeNode, enabled: boolean) => {
+    const nodeFeatureIds = node.featureIds;
+    setFormFeatures(prev => {
+      if (enabled) {
+        return [...new Set([...prev, ...nodeFeatureIds])];
+      }
+      return prev.filter(id => !nodeFeatureIds.includes(id));
+    });
+  };
+
+  const getNodeState = (node: FeatureTreeNode): ToggleVisualState => {
+    const selectedCount = node.featureIds.filter(id => formFeatures.includes(id)).length;
+    if (selectedCount === 0) return 'off';
+    if (selectedCount === node.featureIds.length) return 'on';
+    return 'partial';
+  };
+
+  const renderFeatureNode = (node: FeatureTreeNode, depth: number = 0) => {
+    const state = getNodeState(node);
+    const selectedCount = node.featureIds.filter(id => formFeatures.includes(id)).length;
+    const isLeaf = node.children.length === 0;
+
+    return (
+      <div key={node.id} className={depth > 0 ? 'mt-2' : ''}>
+        <div
+          className="flex items-start justify-between gap-3 rounded-md border bg-background p-3"
+          style={{ marginLeft: `${depth * 16}px` }}
+        >
+          <div className="min-w-0">
+            <p className="text-sm font-medium">{node.label}</p>
+            {node.description && (
+              <p className="text-xs text-muted-foreground mt-0.5">{node.description}</p>
+            )}
+            {!isLeaf && (
+              <div className="mt-2 flex items-center gap-2">
+                <Badge variant={state === 'on' ? 'default' : 'secondary'} className="text-[10px]">
+                  {state === 'partial' ? 'Partial' : state === 'on' ? 'Enabled' : 'Disabled'}
+                </Badge>
+                <span className="text-[11px] text-muted-foreground">
+                  {selectedCount}/{node.featureIds.length} enabled
+                </span>
+              </div>
+            )}
+          </div>
+          <Switch
+            checked={state === 'on'}
+            onCheckedChange={(checked) => setNodeAccess(node, !!checked)}
+          />
+        </div>
+        {node.children.length > 0 && (
+          <div className="mt-2 space-y-1">
+            {node.children.map(child => renderFeatureNode(child, depth + 1))}
+          </div>
+        )}
+      </div>
     );
-  };
-
-  const selectAllInCategory = (category: string) => {
-    const categoryFeatureIds = features.filter(f => f.category === category).map(f => f.id);
-    const allSelected = categoryFeatureIds.every(id => formFeatures.includes(id));
-    if (allSelected) {
-      setFormFeatures(prev => prev.filter(id => !categoryFeatureIds.includes(id)));
-    } else {
-      setFormFeatures(prev => [...new Set([...prev, ...categoryFeatureIds])]);
-    }
   };
 
   const handleSave = async () => {
@@ -231,7 +561,6 @@ export default function SubscriptionTierManager() {
       }
 
       toast({ title: 'Success', description: `Tier "${formName}" ${editingTier ? 'updated' : 'created'} successfully.` });
-      setDialogOpen(false);
       await fetchData();
     } catch (error: any) {
       console.error('Error saving tier:', error);
@@ -252,13 +581,6 @@ export default function SubscriptionTierManager() {
       toast({ title: 'Error', description: error.message || 'Failed to delete tier.', variant: 'destructive' });
     }
   };
-
-  // Group features by category
-  const featuresByCategory = features.reduce((acc, f) => {
-    if (!acc[f.category]) acc[f.category] = [];
-    acc[f.category].push(f);
-    return acc;
-  }, {} as Record<string, FeatureModule[]>);
 
   const syncTierToStripe = async (tier: SubscriptionTier) => {
     setSyncingTierId(tier.id);
@@ -418,141 +740,6 @@ export default function SubscriptionTierManager() {
           )}
         </CardContent>
       </Card>
-
-      {/* Create/Edit Dialog */}
-      <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
-          <DialogHeader>
-            <DialogTitle>{editingTier ? 'Edit Tier' : 'Create New Tier'}</DialogTitle>
-            <DialogDescription>
-              Configure the tier details and select which features are included.
-            </DialogDescription>
-          </DialogHeader>
-
-          <div className="space-y-6 py-4">
-            {/* Basic Info */}
-            <div className="grid grid-cols-2 gap-4">
-              <div className="col-span-2">
-                <Label htmlFor="tierName">
-                  Tier Name *
-                  <HelpTooltip text="A descriptive name for this subscription tier (e.g., 'Starter', 'Professional'). This name will appear in Stripe when synced." />
-                </Label>
-                <Input id="tierName" value={formName} onChange={e => setFormName(e.target.value)} placeholder="e.g., Punch Clock Only" />
-              </div>
-              <div className="col-span-2">
-                <Label htmlFor="tierDesc">
-                  Description
-                  <HelpTooltip text="A brief description of what's included in this tier. Helps you and your team identify tiers quickly." />
-                </Label>
-                <Textarea id="tierDesc" value={formDescription} onChange={e => setFormDescription(e.target.value)} placeholder="Brief description of what this tier includes..." rows={2} />
-              </div>
-              <div>
-                <Label htmlFor="monthlyPrice">
-                  Monthly Price ($)
-                  <HelpTooltip text="The monthly subscription price. When you sync to Stripe, a recurring monthly price will be created with this amount." />
-                </Label>
-                <Input id="monthlyPrice" type="number" min="0" step="0.01" value={formMonthlyPrice} onChange={e => setFormMonthlyPrice(e.target.value)} />
-              </div>
-              <div>
-                <Label htmlFor="annualPrice">
-                  Annual Price ($)
-                  <HelpTooltip text="Optional annual pricing. If set, you can offer customers an annual billing option at a discount." />
-                </Label>
-                <Input id="annualPrice" type="number" min="0" step="0.01" value={formAnnualPrice} onChange={e => setFormAnnualPrice(e.target.value)} placeholder="Optional" />
-              </div>
-            </div>
-
-            {/* Toggles */}
-            <div className="flex items-center gap-6">
-              <div className="flex items-center gap-2">
-                <Switch checked={formIsActive} onCheckedChange={setFormIsActive} />
-                <Label>
-                  Active
-                  <HelpTooltip text="Only active tiers can be assigned to companies. Deactivate a tier to stop offering it to new companies." />
-                </Label>
-              </div>
-              <div className="flex items-center gap-2">
-                <Switch checked={formIsDefault} onCheckedChange={setFormIsDefault} />
-                <Label>
-                  Default Tier
-                  <HelpTooltip text="The default tier is automatically assigned to new companies when they sign up. Only one tier can be the default." />
-                </Label>
-              </div>
-            </div>
-
-            {/* Feature Selection */}
-            <div>
-              <Label className="text-base font-semibold flex items-center gap-2 mb-3">
-                <ToggleLeft className="h-4 w-4" />
-                Feature Access ({formFeatures.length} selected)
-                <HelpTooltip text="Check the features each tier should have access to. Companies on this tier will only see the features you enable here. Use 'Select All' within a category for convenience." />
-              </Label>
-              <Accordion type="multiple" className="border rounded-md">
-                {Object.entries(featuresByCategory)
-                  .sort(([, a], [, b]) => (a[0]?.sort_order || 0) - (b[0]?.sort_order || 0))
-                  .map(([category, catFeatures]) => {
-                    const selectedCount = catFeatures.filter(f => formFeatures.includes(f.id)).length;
-                    const allSelected = selectedCount === catFeatures.length;
-                    return (
-                      <AccordionItem key={category} value={category}>
-                        <AccordionTrigger className="px-4 hover:no-underline">
-                          <div className="flex items-center gap-3">
-                            <span>{CATEGORY_LABELS[category] || category}</span>
-                            <Badge variant="secondary" className="text-xs">
-                              {selectedCount}/{catFeatures.length}
-                            </Badge>
-                          </div>
-                        </AccordionTrigger>
-                        <AccordionContent className="px-4 pb-4">
-                          <div className="mb-3">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => selectAllInCategory(category)}
-                            >
-                              {allSelected ? 'Deselect All' : 'Select All'}
-                            </Button>
-                          </div>
-                          <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                            {catFeatures.map(feature => (
-                              <label
-                                key={feature.id}
-                                className="flex items-start gap-3 p-2 rounded-md hover:bg-muted/50 cursor-pointer"
-                              >
-                                <Checkbox
-                                  checked={formFeatures.includes(feature.id)}
-                                  onCheckedChange={() => toggleFeature(feature.id)}
-                                  className="mt-0.5"
-                                />
-                                <div>
-                                  <span className="text-sm font-medium">{feature.name}</span>
-                                  {feature.description && (
-                                    <p className="text-xs text-muted-foreground">{feature.description}</p>
-                                  )}
-                                </div>
-                              </label>
-                            ))}
-                          </div>
-                        </AccordionContent>
-                      </AccordionItem>
-                    );
-                  })}
-              </Accordion>
-            </div>
-          </div>
-
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={saving}>
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving}>
-              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              {editingTier ? 'Save Changes' : 'Create Tier'}
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete Confirm Dialog */}
       <Dialog open={!!deleteConfirmId} onOpenChange={() => setDeleteConfirmId(null)}>

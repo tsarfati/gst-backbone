@@ -14,6 +14,8 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { z } from "zod";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 const changeOrderSchema = z.object({
   subcontract_id: z.string().uuid({ message: "Invalid subcontract" }),
@@ -30,6 +32,7 @@ export default function AddChangeOrder() {
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const subcontractId = searchParams.get('subcontractId');
   
@@ -69,6 +72,17 @@ export default function AddChangeOrder() {
           .single();
 
         if (error) throw error;
+
+        if (!canAccessAssignedJobOnly([data?.jobs?.id], isPrivileged, allowedJobIds)) {
+          toast({
+            title: "Access denied",
+            description: "You do not have access to this subcontract",
+            variant: "destructive",
+          });
+          navigate('/subcontracts');
+          return;
+        }
+
         setSubcontract(data);
       } catch (error) {
         console.error('Error fetching subcontract:', error);
@@ -82,10 +96,10 @@ export default function AddChangeOrder() {
       }
     };
 
-    if (user) {
+    if (user && !websiteJobAccessLoading) {
       fetchSubcontract();
     }
-  }, [user, subcontractId, toast, navigate]);
+  }, [user, subcontractId, toast, navigate, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -261,7 +275,7 @@ export default function AddChangeOrder() {
     }
   };
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading</span></div>

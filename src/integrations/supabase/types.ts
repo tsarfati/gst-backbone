@@ -5175,6 +5175,7 @@ export type Database = {
           in_app_enabled: boolean
           invoices_paid: boolean
           job_assignments: boolean
+          mention_email_notifications: boolean | null
           overdue_bills_interval: string | null
           overdue_invoices: boolean
           receipt_uploaded: boolean
@@ -5194,6 +5195,7 @@ export type Database = {
           in_app_enabled?: boolean
           invoices_paid?: boolean
           job_assignments?: boolean
+          mention_email_notifications?: boolean | null
           overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean
@@ -5213,6 +5215,7 @@ export type Database = {
           in_app_enabled?: boolean
           invoices_paid?: boolean
           job_assignments?: boolean
+          mention_email_notifications?: boolean | null
           overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean

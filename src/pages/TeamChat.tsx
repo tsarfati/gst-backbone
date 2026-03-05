@@ -14,6 +14,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { RealtimeChannel } from '@supabase/supabase-js';
+import { createMentionNotifications } from '@/utils/mentions';
 
 interface ChatMessage {
   id: string;
@@ -315,20 +316,19 @@ export default function TeamChat() {
     setShowMentionPopover(false);
     setShowHashtagPopover(false);
 
-    // Create notifications for mentioned users
-    if (mentionedUserIds.length > 0 && currentCompany) {
-      for (const mentionedUserId of mentionedUserIds) {
-        try {
-          await supabase.from('notifications').insert({
-            user_id: mentionedUserId,
-            title: 'You were mentioned in Team Chat',
-            message: `${currentUserName} mentioned you in #${selectedChannel.name}: "${newMessage.substring(0, 100)}${newMessage.length > 100 ? '...' : ''}"`,
-            type: 'chat_mention',
-            read: false
-          });
-        } catch (error) {
-          console.error('Error creating mention notification:', error);
-        }
+    // Create notifications for @mentions with context deep-link.
+    if (currentCompany) {
+      try {
+        await createMentionNotifications({
+          companyId: currentCompany.id,
+          actorUserId: user.id,
+          actorName: currentUserName || 'A teammate',
+          content: newMessage,
+          contextLabel: `Team Chat #${selectedChannel.name}`,
+          targetPath: '/team-chat',
+        });
+      } catch (error) {
+        console.error('Error creating mention notifications:', error);
       }
     }
 

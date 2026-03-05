@@ -75,6 +75,15 @@ export default function VendorDetails() {
             variant: "destructive",
           });
         } else {
+          if (data && currentCompany?.id && data.company_id !== currentCompany.id) {
+            toast({
+              title: "Access denied",
+              description: "You do not have access to this vendor",
+              variant: "destructive",
+            });
+            navigate('/vendors');
+            return;
+          }
           setVendor(data);
           if (data) {
             // Fetch related data
@@ -299,7 +308,7 @@ export default function VendorDetails() {
     };
 
     fetchVendor();
-  }, [id, toast]);
+  }, [id, toast, currentCompany?.id, navigate]);
 
   const handleAssignJob = async () => {
     if (!vendor?.id || !selectedAssignJobId || !user?.id) return;

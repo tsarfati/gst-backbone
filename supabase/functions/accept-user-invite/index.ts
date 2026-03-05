@@ -463,6 +463,34 @@ serve(async (req: Request): Promise<Response> => {
         ),
       );
 
+      if (approverIds.length > 0) {
+        const { data: notifRows } = await supabaseAdmin
+          .from("notification_settings")
+          .select("user_id, in_app_enabled, intake_queue_requests")
+          .eq("company_id", pendingInvite.company_id)
+          .in("user_id", approverIds as string[]);
+
+        const notifMap = new Map<string, any>((notifRows || []).map((row: any) => [String(row.user_id), row]));
+        const allowedInAppRecipients = approverIds.filter((recipientId) => {
+          const row = notifMap.get(String(recipientId));
+          if (!row) return true;
+          return row.in_app_enabled !== false && row.intake_queue_requests !== false;
+        });
+
+        if (allowedInAppRecipients.length > 0) {
+          const intakeMessage = `${normalizedEmail} completed signup and is pending approval.`;
+          await supabaseAdmin.from("notifications").insert(
+            allowedInAppRecipients.map((recipientId) => ({
+              user_id: recipientId,
+              title: "User Pending Approval",
+              message: intakeMessage,
+              type: "intake_queue",
+              read: false,
+            })),
+          );
+        }
+      }
+
       const approverEmails: string[] = [];
       for (const approverId of approverIds) {
         const { data: approverUser, error: approverUserError } = await supabaseAdmin.auth.admin.getUserById(

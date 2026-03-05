@@ -11,6 +11,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
 
 interface Job {
   id: string;
@@ -39,6 +41,7 @@ export default function ManualTimeEntry() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
@@ -60,7 +63,7 @@ export default function ManualTimeEntry() {
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       // Company context changed -> clear access cache
       accessCacheRef.current = new Map();
 
@@ -70,7 +73,7 @@ export default function ManualTimeEntry() {
         setFormData(prev => ({ ...prev, user_id: user.id }));
       }
     }
-  }, [currentCompany?.id, isManager, user?.id]);
+  }, [currentCompany?.id, isManager, user?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (formData.user_id && currentCompany?.id) {
@@ -141,7 +144,10 @@ export default function ManualTimeEntry() {
 
       const { data, error } = await jobsQuery;
       if (error) throw error;
-      setJobs(data || []);
+      const scopedJobs = isPrivileged
+        ? (data || [])
+        : (data || []).filter((job) => allowedJobIds.includes(job.id));
+      setJobs(scopedJobs);
     } catch (error) {
       console.error('Error loading jobs:', error);
       toast({
@@ -258,6 +264,15 @@ export default function ManualTimeEntry() {
       toast({
         title: "Missing Information",
         description: "Please fill in all required fields including job and cost code.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!canAccessAssignedJobOnly([formData.job_id], isPrivileged, allowedJobIds)) {
+      toast({
+        title: "Access denied",
+        description: "You do not have access to the selected job.",
         variant: "destructive",
       });
       return;

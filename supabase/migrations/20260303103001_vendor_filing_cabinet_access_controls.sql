@@ -46,7 +46,7 @@ USING (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -54,7 +54,7 @@ USING (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_folders.job_id
         AND vja.can_access_filing_cabinet = true
@@ -82,7 +82,7 @@ WITH CHECK (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -90,7 +90,7 @@ WITH CHECK (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_folders.job_id
         AND vja.can_access_filing_cabinet = true
@@ -116,7 +116,7 @@ USING (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -124,7 +124,7 @@ USING (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_folders.job_id
         AND vja.can_access_filing_cabinet = true
@@ -148,7 +148,7 @@ WITH CHECK (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -156,7 +156,7 @@ WITH CHECK (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_folders.job_id
         AND vja.can_access_filing_cabinet = true
@@ -186,7 +186,7 @@ USING (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -194,7 +194,7 @@ USING (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_folders.job_id
         AND vja.can_access_filing_cabinet = true
@@ -228,7 +228,7 @@ USING (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -236,7 +236,7 @@ USING (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_files.job_id
         AND vja.can_access_filing_cabinet = true
@@ -268,7 +268,7 @@ WITH CHECK (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -276,7 +276,7 @@ WITH CHECK (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_files.job_id
         AND vja.can_access_filing_cabinet = true
@@ -305,7 +305,7 @@ USING (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -313,7 +313,7 @@ USING (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_files.job_id
         AND vja.can_access_filing_cabinet = true
@@ -341,7 +341,7 @@ WITH CHECK (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -349,7 +349,7 @@ WITH CHECK (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_files.job_id
         AND vja.can_access_filing_cabinet = true
@@ -382,7 +382,7 @@ USING (
       SELECT 1
       FROM public.profiles p
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
     )
     OR EXISTS (
       SELECT 1
@@ -390,7 +390,7 @@ USING (
       JOIN public.vendor_job_access vja
         ON vja.vendor_id = p.vendor_id
       WHERE p.user_id = auth.uid()
-        AND p.role IN ('vendor', 'design_professional')
+        AND p.role::text IN ('vendor', 'design_professional')
         AND p.vendor_id IS NOT NULL
         AND vja.job_id = job_files.job_id
         AND vja.can_access_filing_cabinet = true

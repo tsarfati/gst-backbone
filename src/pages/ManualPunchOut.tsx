@@ -8,6 +8,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
 import {
   Dialog,
   DialogContent,
@@ -56,6 +58,7 @@ export default function ManualPunchOut() {
   const { profile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [punchedInEmployees, setPunchedInEmployees] = useState<PunchedInEmployee[]>([]);
   const [loading, setLoading] = useState(true);
   const [punchingOut, setPunchingOut] = useState<string | null>(null);
@@ -70,6 +73,7 @@ export default function ManualPunchOut() {
   const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
 
   useEffect(() => {
+    if (websiteJobAccessLoading) return;
     if (!isManager) {
       toast({
         title: "Access Denied",
@@ -80,7 +84,7 @@ export default function ManualPunchOut() {
       return;
     }
     loadPunchedInEmployees();
-  }, [isManager, navigate, toast]);
+  }, [isManager, navigate, toast, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadPunchedInEmployees = async () => {
     try {
@@ -123,7 +127,12 @@ export default function ManualPunchOut() {
         })
       );
 
-      setPunchedInEmployees(employeesWithDetails);
+      const visibleEmployees = isPrivileged
+        ? employeesWithDetails
+        : employeesWithDetails.filter((employee) =>
+            canAccessAssignedJobOnly([employee.job_id], isPrivileged, allowedJobIds)
+          );
+      setPunchedInEmployees(visibleEmployees);
     } catch (error) {
       console.error('Error loading punched in employees:', error);
       toast({
@@ -165,6 +174,14 @@ export default function ManualPunchOut() {
   };
 
   const openPunchOutDialog = async (employee: PunchedInEmployee) => {
+    if (!canAccessAssignedJobOnly([employee.job_id], isPrivileged, allowedJobIds)) {
+      toast({
+        title: "Access denied",
+        description: "You do not have access to this employee's job.",
+        variant: "destructive",
+      });
+      return;
+    }
     setSelectedEmployee(employee);
     setSelectedCostCodeId(employee.cost_code_id || '');
     setPunchOutDialogOpen(true);

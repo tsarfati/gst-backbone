@@ -18,12 +18,15 @@ import { formatCurrency } from "@/utils/formatNumber";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import JobDirectoryModal from "@/components/JobDirectoryModal";
 import DragDropUpload from "@/components/DragDropUpload";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function JobEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useAuth();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const isAdmin = profile?.role === 'admin';
   const { currentCompany } = useCompany();
@@ -98,6 +101,15 @@ export default function JobEdit() {
             variant: "destructive",
           });
         } else if (data) {
+          if (!canAccessAssignedJobOnly([data.id], isPrivileged, allowedJobIds)) {
+            toast({
+              title: "Access denied",
+              description: "You do not have access to this job.",
+              variant: "destructive",
+            });
+            navigate("/jobs");
+            return;
+          }
           setJob(data);
           // Parse existing address into components
           const addressParts = data.address ? data.address.split(', ') : [];
@@ -136,9 +148,12 @@ export default function JobEdit() {
       }
     };
 
+    if (websiteJobAccessLoading) {
+      return;
+    }
     fetchCustomers();
     fetchJob();
-  }, [id, toast, currentCompany?.id]);
+  }, [id, toast, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   if (loading) {
     return (

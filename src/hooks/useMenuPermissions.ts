@@ -4,6 +4,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
+import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
+import { getRequiredFeaturesForPermission } from "@/utils/subscriptionFeatureGate";
 
 interface MenuPermissions {
   [key: string]: boolean;
@@ -38,6 +40,7 @@ export function useMenuPermissions() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
   const { loading: companyLoading } = useCompany();
+  const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess();
   const activeCompanyRole = useActiveCompanyRole();
 
   const effectiveRole = useMemo<AppRole | null>(() => {
@@ -121,10 +124,15 @@ export function useMenuPermissions() {
 
 
   const hasAccess = (menuItem: string): boolean => {
-    if (loading) return false;
+    if (loading || featureLoading) return false;
 
     // Super admins have access to everything
     if (isSuperAdmin) return true;
+
+    const requiredFeatures = getRequiredFeaturesForPermission(menuItem);
+    if (requiredFeatures.length > 0 && !requiredFeatures.some((feature) => hasFeature(feature))) {
+      return false;
+    }
 
     // Admin users without a custom role have access to everything
     if (!profile?.custom_role_id && effectiveRole === 'admin') {
@@ -179,6 +187,6 @@ export function useMenuPermissions() {
     permissions,
     hasAccess,
     canAccessJobs,
-    loading
+    loading: loading || featureLoading
   };
 }

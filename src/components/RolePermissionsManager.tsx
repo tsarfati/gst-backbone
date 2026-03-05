@@ -15,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
+import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
+import { getRequiredFeaturesForPermission } from "@/utils/subscriptionFeatureGate";
 import RoleDefaultPageSettings from './RoleDefaultPageSettings';
 
 interface RolePermission {
@@ -960,6 +962,7 @@ export default function RolePermissionsManager() {
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const activeCompanyRole = useActiveCompanyRole();
+  const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess();
   const { toast } = useToast();
   
   // Use company-specific role for admin check
@@ -992,6 +995,13 @@ export default function RolePermissionsManager() {
     description: '',
     color: 'bg-indigo-100 text-indigo-800'
   });
+
+  const isUpgradeRequiredForPermission = (permissionKey: string): boolean => {
+    const requiredFeatures = getRequiredFeaturesForPermission(permissionKey);
+    if (requiredFeatures.length === 0) return false;
+    if (featureLoading) return true;
+    return !requiredFeatures.some((feature) => hasFeature(feature));
+  };
 
   useEffect(() => {
     fetchPermissions();
@@ -1069,6 +1079,15 @@ export default function RolePermissionsManager() {
       return;
     }
 
+    if (isUpgradeRequiredForPermission(menuItem)) {
+      toast({
+        title: "Upgrade Required",
+        description: "This permission is unavailable on the current subscription tier.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const { error } = await supabase
         .rpc('set_role_permission', {
@@ -1124,6 +1143,15 @@ export default function RolePermissionsManager() {
     canAccess: boolean,
     cascadeChildren: boolean = false
   ) => {
+    if (isUpgradeRequiredForPermission(menuItem)) {
+      toast({
+        title: "Upgrade Required",
+        description: "This permission is unavailable on the current subscription tier.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       const updates = new Map<string, boolean>();
       const targetKeys = cascadeChildren
@@ -1560,7 +1588,7 @@ export default function RolePermissionsManager() {
     setOpenMenuItems(prev => ({ ...prev, [key]: !prev[key] }));
   };
 
-  if (loading) {
+  if (loading || featureLoading) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
@@ -1594,6 +1622,7 @@ export default function RolePermissionsManager() {
     showPartialState: boolean = false
   ) => {
     const isAdmin = roleKey === 'admin';
+    const upgradeRequired = isUpgradeRequiredForPermission(permissionKey);
     const readPermission = (key: string) => (
       isCustomRole && customRoleId
         ? getCustomRolePermission(customRoleId, key)
@@ -1622,9 +1651,14 @@ export default function RolePermissionsManager() {
 
     return (
       <div key={permissionKey} className="flex items-center justify-between py-1.5 px-2 hover:bg-muted/50 rounded">
-        <Label htmlFor={`${roleKey}-${permissionKey}`} className="text-sm cursor-pointer">
+        <Label htmlFor={`${roleKey}-${permissionKey}`} className={`text-sm ${upgradeRequired ? 'text-muted-foreground' : 'cursor-pointer'}`}>
           <span className="inline-flex items-center gap-2">
             <span>{label}</span>
+            {upgradeRequired && (
+              <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                Upgrade Required
+              </Badge>
+            )}
             {showPartialState && visualState === 'partial' && (
               <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
                 Partial
@@ -1642,7 +1676,7 @@ export default function RolePermissionsManager() {
               updatePermission(roleKey, permissionKey, checked);
             }
           }}
-          disabled={isAdmin}
+          disabled={isAdmin || upgradeRequired}
         />
       </div>
     );
@@ -1795,6 +1829,7 @@ export default function RolePermissionsManager() {
                                     ? (permissionHierarchy.descendantsByKey[item.key] || [item.key]).some((k) => getCustomRolePermission(customRoleData.id, k))
                                     : getCustomRolePermission(customRoleData.id, item.key))
                                 : getPermission(role.key, item.key);
+                              const itemUpgradeRequired = isUpgradeRequiredForPermission(item.key);
                               const hasPartialChildren = (() => {
                                 if (!(hasActions || hasChildren) || !(isCustomRole && customRoleData)) return false;
                                 const scope = permissionHierarchy.descendantsByKey[item.key] || [item.key];
@@ -1832,6 +1867,11 @@ export default function RolePermissionsManager() {
                                           <div className="flex flex-col">
                                             <span className="text-sm font-medium inline-flex items-center gap-2">
                                               <span>{item.label}</span>
+                                              {itemUpgradeRequired && (
+                                                <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                                                  Upgrade Required
+                                                </Badge>
+                                              )}
                                               {hasPartialChildren && (
                                                 <Badge variant="outline" className="text-[10px] px-1.5 py-0 h-5">
                                                   Partial
@@ -1853,16 +1893,26 @@ export default function RolePermissionsManager() {
                                             updatePermission(role.key, item.key, checked);
                                           }
                                         }}
-                                        disabled={role.key === 'admin'}
+                                        disabled={role.key === 'admin' || itemUpgradeRequired}
                                       />
                                     </div>
 
                                     <CollapsibleContent>
                                       <div className="ml-5 mt-1 space-y-0.5 border-l border-muted/50 pl-3">
                                         {item.actions?.map((action) => (
+                                          (() => {
+                                            const actionUpgradeRequired = isUpgradeRequiredForPermission(action.key);
+                                            return (
                                           <div key={action.key} className="flex items-center justify-between py-1 px-2 hover:bg-muted/30 rounded text-xs">
                                             <div className="flex flex-col">
-                                              <span>{action.label}</span>
+                                              <span className="inline-flex items-center gap-2">
+                                                <span>{action.label}</span>
+                                                {actionUpgradeRequired && (
+                                                  <Badge variant="secondary" className="text-[10px] px-1.5 py-0 h-5">
+                                                    Upgrade Required
+                                                  </Badge>
+                                                )}
+                                              </span>
                                               <span className="text-muted-foreground text-[10px]">{action.description}</span>
                                             </div>
                                             <Switch
@@ -1877,10 +1927,12 @@ export default function RolePermissionsManager() {
                                                   updatePermission(role.key, action.key, checked);
                                                 }
                                               }}
-                                              disabled={role.key === 'admin'}
+                                              disabled={role.key === 'admin' || actionUpgradeRequired}
                                               className="scale-75"
                                             />
                                           </div>
+                                            );
+                                          })()
                                         ))}
 
                                         {item.children?.map((child) => renderMenuNode(child, depth + 1))}

@@ -3,9 +3,12 @@ import { BarChart3, DollarSign, TrendingUp, Users, Clock, Package, AlertTriangle
 import { useCompany } from "@/contexts/CompanyContext";
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function ConstructionDashboard() {
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [stats, setStats] = useState({
     activeJobs: 0,
     totalBudget: 0,
@@ -19,10 +22,10 @@ export default function ConstructionDashboard() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (currentCompany?.id && !websiteJobAccessLoading) {
       fetchDashboardData();
     }
-  }, [currentCompany?.id]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const fetchDashboardData = async () => {
     try {
@@ -34,27 +37,30 @@ export default function ConstructionDashboard() {
         .select('*, job_budgets(budgeted_amount, actual_amount)')
         .eq('company_id', currentCompany?.id)
         .eq('is_active', true);
+      const visibleJobs = (jobs || []).filter((job: any) =>
+        canAccessAssignedJobOnly([job.id], isPrivileged, allowedJobIds),
+      );
 
       const subcontractCount = 0; // Placeholder
       const poCount = 0; // Placeholder
 
       // Calculate stats
-      const totalBudget = jobs?.reduce((sum, job) => {
+      const totalBudget = visibleJobs.reduce((sum, job) => {
         const jobBudget = job.job_budgets?.reduce((s: number, b: any) => s + Number(b.budgeted_amount || 0), 0) || 0;
         return sum + jobBudget;
       }, 0) || 0;
 
-      const totalCosts = jobs?.reduce((sum, job) => {
+      const totalCosts = visibleJobs.reduce((sum, job) => {
         const jobActual = job.job_budgets?.reduce((s: number, b: any) => s + Number(b.actual_amount || 0), 0) || 0;
         return sum + jobActual;
       }, 0) || 0;
 
       const today = new Date();
-      const onTime = jobs?.filter(j => !j.end_date || new Date(j.end_date) >= today).length || 0;
-      const overdue = jobs?.filter(j => j.end_date && new Date(j.end_date) < today).length || 0;
+      const onTime = visibleJobs.filter(j => !j.end_date || new Date(j.end_date) >= today).length || 0;
+      const overdue = visibleJobs.filter(j => j.end_date && new Date(j.end_date) < today).length || 0;
 
       setStats({
-        activeJobs: jobs?.length || 0,
+        activeJobs: visibleJobs.length || 0,
         totalBudget,
         activeSubcontracts: subcontractCount || 0,
         activePurchaseOrders: poCount || 0,
@@ -138,7 +144,7 @@ export default function ConstructionDashboard() {
     },
   ];
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-4 md:p-6">
         <div className="animate-pulse space-y-4">

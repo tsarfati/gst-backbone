@@ -19,6 +19,8 @@ import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 import JobCostingDistribution from "@/components/JobCostingDistribution";
 import QuickAddVendor from "@/components/QuickAddVendor";
 import { generateSubcontractPDF } from "@/utils/subcontractPdfGenerator";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function AddSubcontract() {
   const navigate = useNavigate();
@@ -26,6 +28,7 @@ export default function AddSubcontract() {
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const jobId = searchParams.get('jobId');
   const vendorId = searchParams.get('vendorId');
@@ -109,7 +112,14 @@ export default function AddSubcontract() {
           .order('name');
 
         if (jobsError) throw jobsError;
-        setJobs(jobsData || []);
+        const visibleJobs = isPrivileged
+          ? (jobsData || [])
+          : (jobsData || []).filter((job: any) => allowedJobIds.includes(job.id));
+        setJobs(visibleJobs);
+
+        if (formData.job_id && !canAccessAssignedJobOnly([formData.job_id], isPrivileged, allowedJobIds)) {
+          setFormData((prev) => ({ ...prev, job_id: "" }));
+        }
 
         // Fetch vendors filtered by company and allowed types
         const { data: vendorsData, error: vendorsError } = await supabase
@@ -149,15 +159,20 @@ export default function AddSubcontract() {
       }
     };
 
-    if (user && (currentCompany?.id || profile?.current_company_id)) {
+    if (user && (currentCompany?.id || profile?.current_company_id) && !websiteJobAccessLoading) {
       fetchData();
     }
-  }, [user, currentCompany, profile, toast]);
+  }, [user, currentCompany, profile, toast, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   // Fetch cost codes when job is selected
   useEffect(() => {
     const fetchCostCodes = async () => {
       if (!formData.job_id) {
+        setCostCodes([]);
+        return;
+      }
+
+      if (!canAccessAssignedJobOnly([formData.job_id], isPrivileged, allowedJobIds)) {
         setCostCodes([]);
         return;
       }
@@ -180,7 +195,7 @@ export default function AddSubcontract() {
     };
 
     fetchCostCodes();
-  }, [formData.job_id]);
+  }, [formData.job_id, isPrivileged, allowedJobIds.join(",")]);
 
   const handleInputChange = (field: string, value: any) => {
     setFormData(prev => ({
@@ -400,6 +415,15 @@ export default function AddSubcontract() {
       return;
     }
 
+    if (!canAccessAssignedJobOnly([formData.job_id], isPrivileged, allowedJobIds)) {
+      toast({
+        title: "Access denied",
+        description: "You do not have access to the selected job",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!formData.vendor_id) {
       toast({
         title: "Validation Error",
@@ -552,7 +576,7 @@ export default function AddSubcontract() {
     }
   };
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-4 md:p-6">
         <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading</span></div>

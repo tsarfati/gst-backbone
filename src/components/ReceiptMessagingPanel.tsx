@@ -2,12 +2,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Textarea } from "@/components/ui/textarea";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
 import { Send, MessageSquare, Clock } from "lucide-react";
 import { useState } from "react";
+import MentionTextarea from "@/components/MentionTextarea";
 
 export interface ReceiptMessage {
   id: string;
@@ -25,6 +25,7 @@ interface ReceiptMessagingPanelProps {
   onSendMessage: (message: string) => void;
   currentUserId: string;
   currentUserName: string;
+  companyId?: string;
 }
 
 export default function ReceiptMessagingPanel({ 
@@ -32,7 +33,8 @@ export default function ReceiptMessagingPanel({
   messages, 
   onSendMessage,
   currentUserId,
-  currentUserName 
+  currentUserName,
+  companyId,
 }: ReceiptMessagingPanelProps) {
   const [newMessage, setNewMessage] = useState("");
 
@@ -133,11 +135,13 @@ export default function ReceiptMessagingPanel({
         <div className="border-t border-border p-4">
           <div className="flex gap-2">
             <div className="flex-1">
-              <Textarea
-                placeholder="Add a message about this receipt..."
+              <MentionTextarea
                 value={newMessage}
-                onChange={(e) => setNewMessage(e.target.value)}
-                onKeyPress={handleKeyPress}
+                onValueChange={setNewMessage}
+                companyId={companyId}
+                currentUserId={currentUserId}
+                placeholder="Add a message about this receipt... (use @ to tag teammates)"
+                onKeyDown={handleKeyPress}
                 className="min-h-[60px] resize-none"
                 rows={2}
               />

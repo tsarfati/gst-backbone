@@ -3,7 +3,7 @@ import { Outlet, Link, useLocation } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
 import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, useSidebar } from "@/components/ui/sidebar";
-import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, HardHat, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package, Search, HandCoins, Shield, CircleHelp } from "lucide-react";
+import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, HardHat, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package, Search, HandCoins, Shield, CircleHelp, AlertTriangle } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
 import { useAuth } from '@/contexts/AuthContext';
@@ -12,8 +12,9 @@ import { useCompany } from '@/contexts/CompanyContext';
 import GlobalSearch from '@/components/GlobalSearch';
 import { DateTimeDisplay } from '@/components/DateTimeDisplay';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
-import { useCompanyFeatureAccess } from '@/hooks/useCompanyFeatureAccess';
 import { CompanySwitcher } from '@/components/CompanySwitcher';
+import { useToast } from '@/hooks/use-toast';
+import { useTierNavigationSettings } from '@/hooks/useTierNavigationSettings';
 
 const navigationCategories = [
   {
@@ -32,6 +33,7 @@ const navigationCategories = [
         { name: "Jobs", href: "/jobs", menuKey: "jobs" },
         { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors" },
         { name: "RFPs & Bids", href: "/construction/rfps", menuKey: "jobs" },
+        { name: "Submittals", href: "/construction/submittals", menuKey: "jobs" },
         { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors" },
         { name: "Reports", href: "/construction/reports", menuKey: "jobs" },
       ],
@@ -155,9 +157,11 @@ export function AppSidebar() {
   const { tenantMember, isSuperAdmin } = useTenant();
   const { currentCompany } = useCompany();
   const { hasAccess, loading } = useMenuPermissions();
-  const { hasFeature } = useCompanyFeatureAccess(['pm_lynk', 'punch_clock_app', 'organization_management']);
+  const { toast } = useToast();
+  const { showLockedMenuItems, lockedMenuUpgradeMessage } = useTierNavigationSettings();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
   const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
+  const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
 
   const toggleGroup = (groupTitle: string) => {
     // Dashboard doesn't expand - just navigate
@@ -250,29 +254,35 @@ export function AppSidebar() {
       </SidebarHeader>
       
       <SidebarContent className="gap-0 sidebar-scroll-area">
-        {!loading && navigationCategories.map((category) => {
+        {!loading && navigationCategories.filter((category) => {
+          if (!isExternalUser) return true;
+          return category.title === 'Dashboard';
+        }).map((category) => {
           const isDashboard = category.title === "Dashboard";
           const isDirectLink = !category.collapsible;
           
            // Filter items based on permissions and role
-           const allowedItems = category.items.filter((item) => {
+           const visibleItems = category.items.flatMap((item) => {
              const superAdminOnly = 'superAdminOnly' in item && !!(item as any).superAdminOnly;
-             if (superAdminOnly && !isSuperAdmin) return false;
+             if (superAdminOnly && !isSuperAdmin) return [];
 
               const ownerOnly = 'ownerOnly' in item && !!(item as any).ownerOnly;
-              if (ownerOnly && tenantMember?.role !== 'owner' && !isSuperAdmin) return false;
+              if (ownerOnly && tenantMember?.role !== 'owner' && !isSuperAdmin) return [];
 
               const employeeHidden = 'employeeHidden' in item && !!(item as any).employeeHidden;
-              if (employeeHidden && effectiveRole === 'employee') return false;
+              if (employeeHidden && effectiveRole === 'employee') return [];
 
              const menuKey = ('menuKey' in item ? (item as any).menuKey : undefined) as string | undefined;
-             const featureKey = ('featureKey' in item ? (item as any).featureKey : undefined) as string | undefined;
-             if (featureKey && !hasFeature(featureKey)) return false;
-             return !menuKey || hasAccess(menuKey);
+             const allowed = !menuKey || hasAccess(menuKey);
+             if (allowed) return [{ ...(item as any), _locked: false }];
+             if (showLockedMenuItems && menuKey && !superAdminOnly && !ownerOnly) {
+               return [{ ...(item as any), _locked: true }];
+             }
+             return [];
            });
           
           // Don't show category if no items are allowed
-          if (allowedItems.length === 0) return null;
+          if (visibleItems.length === 0) return null;
           
           return (
             <SidebarGroup key={category.title}>
@@ -280,22 +290,48 @@ export function AppSidebar() {
                 // Direct links (Dashboard, Vendors, Jobs) render without collapsible
                 <SidebarGroupContent>
                   <SidebarMenu>
-                    {allowedItems.map((item) => {
+                    {visibleItems.map((item) => {
                       const isActive = location.pathname === item.href || 
                         location.pathname.startsWith(item.href + '/');
+                      const isLocked = !!(item as any)._locked;
                       return (
                         <SidebarMenuItem key={item.name}>
                           <SidebarMenuButton 
-                            asChild 
+                            asChild={!isLocked}
                             isActive={isActive}
                             tooltip={state === "collapsed" ? category.title : undefined}
-                            style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' } : {}}
+                            style={
+                              isLocked
+                                ? { opacity: 0.5 }
+                                : isActive
+                                ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' }
+                                : {}
+                            }
                             className={isActive ? "hover:opacity-95" : "sidebar-highlight-hover transition-colors duration-150"}
                           >
-                            <Link to={item.href}>
-                              <category.icon className="h-4 w-4" />
-                              <span>{category.title}</span>
-                            </Link>
+                            {isLocked ? (
+                              <button
+                                type="button"
+                                className="flex w-full items-center"
+                                onClick={() =>
+                                  toast({
+                                    title: 'Feature locked',
+                                    description: lockedMenuUpgradeMessage,
+                                  })
+                                }
+                              >
+                                <category.icon className="h-4 w-4" />
+                                <span className="flex items-center gap-1">
+                                  {category.title}
+                                  <Ban className="h-3 w-3" />
+                                </span>
+                              </button>
+                            ) : (
+                              <Link to={item.href}>
+                                <category.icon className="h-4 w-4" />
+                                <span>{category.title}</span>
+                              </Link>
+                            )}
                           </SidebarMenuButton>
                         </SidebarMenuItem>
                       );
@@ -330,7 +366,7 @@ export function AppSidebar() {
                           <SidebarMenu className={allOpenGroups.includes(category.title) ? "sidebar-highlight-bg rounded-md p-1" : ""}>
                             {(() => {
                               // Determine the single most specific active item within this category
-                              const matches = allowedItems.filter((itm) => {
+                              const matches = visibleItems.filter((itm: any) => {
                                 if (location.pathname === itm.href) return true;
                                 if (location.pathname.startsWith(itm.href + "/")) return true;
                                 if (category.title === "Construction") {
@@ -347,27 +383,57 @@ export function AppSidebar() {
                                 ? matches.reduce((longest, curr) => (curr.href.length > longest.length ? curr.href : longest), matches[0].href)
                                 : "";
 
-                              return allowedItems.map((item) => {
+                              return visibleItems.map((item: any) => {
                                 const isActive = item.href === activeItemHref;
+                                const isLocked = !!item._locked;
                                 return (
                                   <SidebarMenuItem key={item.name}>
                                     <SidebarMenuButton
-                                      asChild
+                                      asChild={!isLocked}
                                       isActive={isActive}
                                       tooltip={state === "collapsed" ? item.name : undefined}
-                                      style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' } : {}}
+                                      style={
+                                        isLocked
+                                          ? { opacity: 0.5 }
+                                          : isActive
+                                          ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' }
+                                          : {}
+                                      }
                                       className={isActive ? "hover:opacity-95" : "sidebar-highlight-hover transition-colors duration-150"}
                                     >
-                                      <Link to={item.href}>
-                                        <span className="ml-2 flex items-center gap-2">
-                                          <span>{item.name}</span>
-                                          {('mobileAppBadge' in item && (item as any).mobileAppBadge) && (
-                                            <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
-                                              Mobile App
-                                            </span>
-                                          )}
-                                        </span>
-                                      </Link>
+                                      {isLocked ? (
+                                        <button
+                                          type="button"
+                                          className="w-full text-left"
+                                          onClick={() =>
+                                            toast({
+                                              title: 'Feature locked',
+                                              description: lockedMenuUpgradeMessage,
+                                            })
+                                          }
+                                        >
+                                          <span className="ml-2 flex items-center gap-2">
+                                            <span>{item.name}</span>
+                                            <Ban className="h-3 w-3" />
+                                            {('mobileAppBadge' in item && (item as any).mobileAppBadge) && (
+                                              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                                                Mobile App
+                                              </span>
+                                            )}
+                                          </span>
+                                        </button>
+                                      ) : (
+                                        <Link to={item.href}>
+                                          <span className="ml-2 flex items-center gap-2">
+                                            <span>{item.name}</span>
+                                            {('mobileAppBadge' in item && (item as any).mobileAppBadge) && (
+                                              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                                                Mobile App
+                                              </span>
+                                            )}
+                                          </span>
+                                        </Link>
+                                      )}
                                     </SidebarMenuButton>
                                   </SidebarMenuItem>
                                 );
@@ -390,11 +456,25 @@ export default function Layout() {
   const location = useLocation();
   const { profile, signOut } = useAuth();
   const isPunchClockPage = location.pathname === '/time-tracking';
+  const [impersonationMode, setImpersonationMode] = useState(false);
 
   // NOTE: Super admins can access both the Super Admin Dashboard and company dashboards.
   // No automatic redirect – they navigate manually via Settings > Super Admin Dashboard.
   // Note: useDynamicManifest is NOT used here - it only runs on Punch Clock/PM Mobile routes
   // to prevent the main app favicon from being replaced
+  useEffect(() => {
+    setImpersonationMode(window.sessionStorage.getItem('builderlynk_impersonation_mode') === '1');
+  }, [location.pathname]);
+
+  const handleSignOut = async () => {
+    window.sessionStorage.removeItem('builderlynk_impersonation_mode');
+    await signOut();
+  };
+
+  const handleExitImpersonation = async () => {
+    window.sessionStorage.removeItem('builderlynk_impersonation_mode');
+    await signOut();
+  };
 
   return (
     <SidebarProvider>
@@ -437,7 +517,7 @@ export default function Layout() {
                 <Button
                   size="sm"
                   variant="ghost"
-                  onClick={signOut}
+                  onClick={handleSignOut}
                   className="h-8 w-8 p-0"
                   title="Sign out"
                 >
@@ -445,6 +525,19 @@ export default function Layout() {
                 </Button>
               </div>
             </header>
+          )}
+          {impersonationMode && (
+            <div className="z-30 border-b border-yellow-800 bg-yellow-300/90 px-4 py-2 text-sm font-medium text-yellow-950 flex items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <AlertTriangle className="h-4 w-4" />
+                <span>
+                  Warning: You are in an impersonated troubleshooting session. Changes here affect the live organization.
+                </span>
+              </div>
+              <Button size="sm" variant="outline" onClick={handleExitImpersonation} className="h-7 border-yellow-900 text-yellow-950 hover:bg-yellow-400">
+                Exit
+              </Button>
+            </div>
           )}
           <div className="flex-1 overflow-auto min-h-0">
             <Outlet />

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, DollarSign, Send, Award, Trash2, Mail, Check, Search } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, Send, Trash2, Mail, Search, Upload } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -19,12 +19,14 @@ import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessJobIds } from '@/utils/jobAccess';
+import { getStoragePathForDb } from '@/utils/storageUtils';
 interface RFP {
   id: string;
   rfp_number: string;
   title: string;
   description: string | null;
   scope_of_work: string | null;
+  logistics_details: string | null;
   status: string;
   issue_date: string | null;
   due_date: string | null;
@@ -34,6 +36,14 @@ interface RFP {
     name: string;
   };
 }
+interface RfpAttachment {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
+  file_type: string | null;
+  uploaded_at: string;
+}
 
 interface Bid {
   id: string;
@@ -42,6 +52,15 @@ interface Bid {
   notes: string | null;
   status: string;
   submitted_at: string;
+  version_number?: number | null;
+  bid_contact_name?: string | null;
+  bid_contact_email?: string | null;
+  bid_contact_phone?: string | null;
+  shipping_included?: boolean | null;
+  shipping_amount?: number | null;
+  taxes_included?: boolean | null;
+  tax_amount?: number | null;
+  discount_amount?: number | null;
   vendor: {
     id: string;
     name: string;
@@ -83,7 +102,10 @@ export default function RFPDetails() {
   const [rfp, setRfp] = useState<RFP | null>(null);
   const [bids, setBids] = useState<Bid[]>([]);
   const [criteria, setCriteria] = useState<ScoringCriterion[]>([]);
+  const [attachments, setAttachments] = useState<RfpAttachment[]>([]);
   const [loading, setLoading] = useState(true);
+  const [uploadingDrawings, setUploadingDrawings] = useState(false);
+  const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [invitedVendors, setInvitedVendors] = useState<InvitedVendor[]>([]);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -92,6 +114,16 @@ export default function RFPDetails() {
   const [vendorSearch, setVendorSearch] = useState('');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [resendingInvite, setResendingInvite] = useState<string | null>(null);
+
+  const getFinalBidTotal = (bid: Bid) => {
+    const base = Number(bid.bid_amount || 0);
+    const discount = Number(bid.discount_amount || 0);
+    const taxableBase = Math.max(0, base - discount);
+    const shipping = bid.shipping_included ? 0 : Number(bid.shipping_amount || 0);
+    const taxRatePercent = bid.taxes_included ? 0 : Number(bid.tax_amount || 0);
+    const tax = taxableBase * (Math.max(0, taxRatePercent) / 100);
+    return Math.max(0, taxableBase + shipping + tax);
+  };
 
   useEffect(() => {
     if (id && currentCompany?.id && !websiteJobAccessLoading) {
@@ -121,8 +153,8 @@ export default function RFPDetails() {
         navigate('/construction/rfps');
         return;
       }
-      setRfp(data);
-      await Promise.all([loadBids(), loadCriteria(), loadVendors(), loadInvitedVendors()]);
+      setRfp(data as any);
+      await Promise.all([loadBids(), loadCriteria(), loadVendors(), loadInvitedVendors(), loadAttachments()]);
     } catch (error) {
       console.error('Error loading RFP:', error);
       toast({
@@ -201,6 +233,114 @@ export default function RFPDetails() {
       setInvitedVendors(data || []);
     } catch (error) {
       console.error('Error loading invited vendors:', error);
+    }
+  };
+
+  const loadAttachments = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('rfp_attachments')
+        .select('id, file_name, file_url, file_size, file_type, uploaded_at')
+        .eq('rfp_id', id)
+        .order('uploaded_at', { ascending: false });
+      if (error) throw error;
+      setAttachments((data || []) as any);
+    } catch (error) {
+      console.error('Error loading RFP attachments:', error);
+    }
+  };
+
+  const formatFileSize = (bytes: number | null | undefined): string => {
+    if (!bytes || bytes <= 0) return '';
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${Math.round(bytes / 1024)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const getStoragePathFromUrl = (url: string): string | null => {
+    if (!url) return null;
+    if (!url.startsWith('http')) return url;
+    const marker = '/storage/v1/object/public/company-files/';
+    const idx = url.indexOf(marker);
+    if (idx === -1) return null;
+    return decodeURIComponent(url.substring(idx + marker.length));
+  };
+
+  const handleUploadDrawings = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length || !currentCompany?.id || !user?.id || !id) return;
+
+    try {
+      setUploadingDrawings(true);
+      const rows = [];
+      for (const file of files) {
+        const storagePath = `rfp-drawings/${currentCompany.id}/${id}/${Date.now()}-${file.name}`;
+        const { error: uploadError } = await supabase.storage
+          .from('company-files')
+          .upload(storagePath, file, { upsert: false });
+        if (uploadError) throw uploadError;
+
+        rows.push({
+          rfp_id: id,
+          company_id: currentCompany.id,
+          file_name: file.name,
+          file_url: getStoragePathForDb('company-files', storagePath),
+          file_size: file.size,
+          file_type: file.type || null,
+          uploaded_by: user.id,
+        });
+      }
+
+      const { error: insertError } = await supabase.from('rfp_attachments').insert(rows);
+      if (insertError) throw insertError;
+
+      toast({
+        title: 'Drawings uploaded',
+        description: `${files.length} drawing file(s) uploaded`,
+      });
+      await loadAttachments();
+      event.target.value = '';
+    } catch (error: any) {
+      console.error('Error uploading drawings:', error);
+      toast({
+        title: 'Upload failed',
+        description: error.message || 'Failed to upload drawings',
+        variant: 'destructive'
+      });
+    } finally {
+      setUploadingDrawings(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachment: RfpAttachment) => {
+    try {
+      setDeletingAttachmentId(attachment.id);
+      const { error: deleteError } = await supabase
+        .from('rfp_attachments')
+        .delete()
+        .eq('id', attachment.id)
+        .eq('rfp_id', id);
+      if (deleteError) throw deleteError;
+
+      const storagePath = getStoragePathFromUrl(attachment.file_url);
+      if (storagePath) {
+        await supabase.storage.from('company-files').remove([storagePath]);
+      }
+
+      toast({
+        title: 'Deleted',
+        description: 'Drawing removed'
+      });
+      await loadAttachments();
+    } catch (error: any) {
+      console.error('Error deleting drawing:', error);
+      toast({
+        title: 'Error',
+        description: error.message || 'Failed to remove drawing',
+        variant: 'destructive'
+      });
+    } finally {
+      setDeletingAttachmentId(null);
     }
   };
 
@@ -664,27 +804,101 @@ export default function RFPDetails() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
-          {rfp.description && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Description</CardTitle>
-              </CardHeader>
-              <CardContent>
+          <Card>
+            <CardHeader>
+              <CardTitle>Description</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {rfp.description ? (
                 <p className="whitespace-pre-wrap">{rfp.description}</p>
-              </CardContent>
-            </Card>
-          )}
-          
-          {rfp.scope_of_work && (
-            <Card>
-              <CardHeader>
-                <CardTitle>Scope of Work</CardTitle>
-              </CardHeader>
-              <CardContent>
+              ) : (
+                <p className="text-sm text-muted-foreground">No description provided yet.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Scope of Work</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {rfp.scope_of_work ? (
                 <p className="whitespace-pre-wrap">{rfp.scope_of_work}</p>
-              </CardContent>
-            </Card>
-          )}
+              ) : (
+                <p className="text-sm text-muted-foreground">No scope of work provided yet.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Logistics Details</CardTitle>
+            </CardHeader>
+            <CardContent>
+              {rfp.logistics_details ? (
+                <p className="whitespace-pre-wrap">{rfp.logistics_details}</p>
+              ) : (
+                <p className="text-sm text-muted-foreground">No logistics details provided yet.</p>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Drawings</CardTitle>
+                <CardDescription>Upload and manage plan sheets and drawing files for this RFP</CardDescription>
+              </div>
+              <div className="w-[260px]">
+                <Input
+                  type="file"
+                  multiple
+                  accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
+                  onChange={handleUploadDrawings}
+                  disabled={uploadingDrawings}
+                />
+              </div>
+            </CardHeader>
+            <CardContent>
+              {uploadingDrawings && (
+                <p className="text-sm text-muted-foreground mb-3"><span className="loading-dots">Loading</span></p>
+              )}
+              {attachments.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No drawings uploaded yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {attachments.map((attachment) => (
+                    <div key={attachment.id} className="flex items-center justify-between rounded-md border p-2">
+                      <a
+                        href={attachment.file_url}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="text-sm font-medium hover:underline truncate pr-3"
+                      >
+                        {attachment.file_name}
+                      </a>
+                      <div className="flex items-center gap-2 shrink-0">
+                        <span className="text-xs text-muted-foreground">{formatFileSize(attachment.file_size)}</span>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          disabled={deletingAttachmentId === attachment.id}
+                          onClick={() => handleDeleteAttachment(attachment)}
+                        >
+                          {deletingAttachmentId === attachment.id ? (
+                            <span className="loading-dots text-xs">Loading</span>
+                          ) : (
+                            <Trash2 className="h-4 w-4 text-destructive" />
+                          )}
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="invited" className="space-y-4">
@@ -779,7 +993,10 @@ export default function RFPDetails() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="py-2">Vendor</TableHead>
+                    <TableHead className="py-2">Version</TableHead>
                     <TableHead className="py-2">Bid Amount</TableHead>
+                    <TableHead className="py-2">Final Total</TableHead>
+                    <TableHead className="py-2">Bid Contact</TableHead>
                     <TableHead className="py-2">Timeline</TableHead>
                     <TableHead className="py-2">Status</TableHead>
                     <TableHead className="py-2">Submitted</TableHead>
@@ -788,9 +1005,34 @@ export default function RFPDetails() {
                 </TableHeader>
                 <TableBody>
                   {bids.map(bid => (
-                    <TableRow key={bid.id}>
+                    <TableRow
+                      key={bid.id}
+                      className="cursor-pointer hover:bg-muted/40"
+                      onClick={() => navigate(`/construction/bids/${bid.id}`)}
+                    >
                       <TableCell className="py-2 font-medium">{bid.vendor.name}</TableCell>
+                      <TableCell className="py-2">
+                        <Badge variant="outline">v{Number(bid.version_number || 1)}</Badge>
+                      </TableCell>
                       <TableCell className="py-2">${bid.bid_amount.toLocaleString()}</TableCell>
+                      <TableCell className="py-2 font-medium">
+                        ${getFinalBidTotal(bid).toLocaleString(undefined, {
+                          minimumFractionDigits: 2,
+                          maximumFractionDigits: 2,
+                        })}
+                      </TableCell>
+                      <TableCell className="py-2">
+                        {bid.bid_contact_name ? (
+                          <div className="leading-tight">
+                            <div>{bid.bid_contact_name}</div>
+                            <div className="text-xs text-muted-foreground">
+                              {bid.bid_contact_email || bid.bid_contact_phone || "-"}
+                            </div>
+                          </div>
+                        ) : (
+                          "-"
+                        )}
+                      </TableCell>
                       <TableCell className="py-2">{bid.proposed_timeline || '-'}</TableCell>
                       <TableCell className="py-2">{getBidStatusBadge(bid.status)}</TableCell>
                       <TableCell className="py-2">{format(new Date(bid.submitted_at), 'MMM d, yyyy')}</TableCell>
@@ -798,7 +1040,10 @@ export default function RFPDetails() {
                         <Button 
                           variant="ghost" 
                           size="sm"
-                          onClick={() => navigate(`/construction/bids/${bid.id}`)}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            navigate(`/construction/bids/${bid.id}`);
+                          }}
                         >
                           View
                         </Button>

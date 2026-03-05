@@ -15,6 +15,8 @@ import { toast } from "sonner";
 import { Plus, FileText, Send, MessageSquare, Paperclip, Calendar } from "lucide-react";
 import { format } from "date-fns";
 import DragDropUpload from "@/components/DragDropUpload";
+import MentionTextarea from "@/components/MentionTextarea";
+import { createMentionNotifications } from "@/utils/mentions";
 
 interface JobRFIsProps {
   jobId: string;
@@ -73,6 +75,11 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const actorName =
+    (user as any)?.user_metadata?.full_name ||
+    (user as any)?.user_metadata?.name ||
+    (user as any)?.email ||
+    "A teammate";
 
   const [formData, setFormData] = useState({
     rfi_number: "",
@@ -298,6 +305,17 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
         });
 
       if (error) throw error;
+
+      if (currentCompany?.id && user?.id) {
+        await createMentionNotifications({
+          companyId: currentCompany.id,
+          actorUserId: user.id,
+          actorName,
+          content: newMessage.trim(),
+          contextLabel: "RFI Messages",
+          targetPath: `/jobs/${jobId}`,
+        });
+      }
 
       setNewMessage("");
       await fetchRFIDetails(selectedRfi);
@@ -631,10 +649,12 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
 
                   {selectedRfi.status !== "closed" && (
                     <div className="flex gap-2">
-                      <Textarea
+                      <MentionTextarea
                         value={newMessage}
-                        onChange={(e) => setNewMessage(e.target.value)}
-                        placeholder="Type your message..."
+                        onValueChange={setNewMessage}
+                        companyId={currentCompany?.id}
+                        currentUserId={user?.id}
+                        placeholder="Type your message... (use @ to tag teammates)"
                         rows={2}
                       />
                       <Button

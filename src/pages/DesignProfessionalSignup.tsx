@@ -19,9 +19,21 @@ type PublicCompany = {
   logo_url: string | null;
   design_professional_portal_enabled: boolean | null;
   design_professional_signup_background_image_url: string | null;
+  design_professional_signup_background_color: string | null;
   design_professional_signup_logo_url: string | null;
   design_professional_signup_header_title: string | null;
   design_professional_signup_header_subtitle: string | null;
+  design_professional_signup_modal_color: string | null;
+  design_professional_signup_modal_opacity: number | null;
+};
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const normalized = hex.trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(7,18,49,${alpha})`;
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
 const formatUsPhone = (input: string) => {
@@ -38,6 +50,7 @@ export default function DesignProfessionalSignup() {
   const { toast } = useToast();
 
   const preselectedCompanyId = searchParams.get('company');
+  const jobInviteToken = searchParams.get('jobInvite');
   const isCompanyLocked = Boolean(preselectedCompanyId);
 
   const [loadingCompanies, setLoadingCompanies] = useState(true);
@@ -104,6 +117,12 @@ export default function DesignProfessionalSignup() {
     () => resolveCompanyLogoUrl(selectedCompany?.design_professional_signup_background_image_url),
     [selectedCompany?.design_professional_signup_background_image_url],
   );
+  const selectedBackgroundColor = selectedCompany?.design_professional_signup_background_color?.trim() || '#030B20';
+  const selectedModalColor = selectedCompany?.design_professional_signup_modal_color?.trim() || '#071231';
+  const selectedModalOpacity = Math.min(
+    1,
+    Math.max(0.1, Number(selectedCompany?.design_professional_signup_modal_opacity ?? 0.96)),
+  );
 
   const pageTitle = selectedCompany?.display_name || selectedCompany?.name
     ? `Join ${selectedCompany.display_name || selectedCompany.name}`
@@ -168,6 +187,7 @@ export default function DesignProfessionalSignup() {
           companyId: form.companyId,
           requestedRole: 'design_professional',
           businessName: form.businessName.trim() || null,
+          jobInviteToken: jobInviteToken || null,
         },
       });
 
@@ -212,9 +232,12 @@ export default function DesignProfessionalSignup() {
       className="relative min-h-screen flex items-center justify-center p-4 bg-cover bg-center"
       style={backgroundImageUrl
         ? { backgroundImage: `url(${backgroundImageUrl})` }
-        : { backgroundColor: '#030B20' }}
+        : { backgroundColor: selectedBackgroundColor }}
     >
-      <Card className="w-full max-w-2xl border-slate-700 bg-[#071231] text-slate-100">
+      <Card
+        className="w-full max-w-2xl border-slate-700 text-slate-100"
+        style={{ backgroundColor: hexToRgba(selectedModalColor, selectedModalOpacity) }}
+      >
         <CardHeader className="text-center">
           {signupLogoUrl ? (
             <img

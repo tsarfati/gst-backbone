@@ -2,7 +2,6 @@ import { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -13,6 +12,8 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
+import { createMentionNotifications } from '@/utils/mentions';
+import MentionTextarea from '@/components/MentionTextarea';
 
 interface Message {
   id: string;
@@ -168,6 +169,19 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
 
       if (error) throw error;
 
+      await createMentionNotifications({
+        companyId: currentCompany.id,
+        actorUserId: user.id,
+        actorName:
+          (user as any)?.user_metadata?.full_name ||
+          (user as any)?.user_metadata?.name ||
+          (user as any)?.email ||
+          'A teammate',
+        content: newMessage.trim(),
+        contextLabel: 'Messages',
+        targetPath: '/messages',
+      });
+
       toast({
         title: 'Message Sent',
         description: 'Your message has been sent to the project manager.',
@@ -285,10 +299,12 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
                   value={subject}
                   onChange={(e) => setSubject(e.target.value)}
                 />
-                <Textarea
-                  placeholder="Type your message to the project manager..."
+                <MentionTextarea
                   value={newMessage}
-                  onChange={(e) => setNewMessage(e.target.value)}
+                  onValueChange={setNewMessage}
+                  companyId={currentCompany?.id}
+                  currentUserId={user?.id}
+                  placeholder="Type your message to the project manager... (use @ to tag teammates)"
                   rows={3}
                 />
               </div>

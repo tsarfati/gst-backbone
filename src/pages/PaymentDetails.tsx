@@ -9,6 +9,8 @@ import { toast } from "sonner";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { format } from "date-fns";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface PaymentDetails {
   id: string;
@@ -76,14 +78,15 @@ export default function PaymentDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [payment, setPayment] = useState<PaymentDetails | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (id && currentCompany) {
+    if (id && currentCompany && !websiteJobAccessLoading) {
       loadPaymentDetails();
     }
-  }, [id, currentCompany]);
+  }, [id, currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadPaymentDetails = async () => {
     try {
@@ -163,12 +166,30 @@ export default function PaymentDetails() {
           invoice:invoices(
             id,
             invoice_number,
-            amount
+            amount,
+            job_id
           )
         `)
         .eq("payment_id", id);
 
       if (invoiceError) throw invoiceError;
+
+      const invoiceLineRows = invoiceLines || [];
+      const visibleInvoiceLines = invoiceLineRows.filter((line: any) =>
+        canAccessAssignedJobOnly([line?.invoice?.job_id], isPrivileged, allowedJobIds),
+      );
+
+      if (!isPrivileged && invoiceLineRows.length === 0) {
+        toast.error("Payment not found");
+        setLoading(false);
+        return;
+      }
+
+      if (!isPrivileged && invoiceLineRows.length > 0 && visibleInvoiceLines.length === 0) {
+        toast.error("Payment not found");
+        setLoading(false);
+        return;
+      }
 
       // Fetch reconciliation info (regardless of stored status)
       let reconciliationInfo = null;
@@ -335,7 +356,7 @@ export default function PaymentDetails() {
         credit_card: creditCard,
         reconciliation: reconciliationInfo,
         journal_entry: journalEntry,
-        invoices: invoiceLines?.map((line: any) => ({
+        invoices: visibleInvoiceLines.map((line: any) => ({
           id: line.invoice.id,
           invoice_number: line.invoice.invoice_number,
           amount: line.invoice.amount,

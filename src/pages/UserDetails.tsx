@@ -101,6 +101,11 @@ interface Job {
   name: string;
 }
 
+interface VendorJob {
+  id: string;
+  name: string;
+}
+
 interface CustomRole {
   id: string;
   role_name: string;
@@ -159,8 +164,11 @@ export default function UserDetails() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [userJobs, setUserJobs] = useState<Job[]>([]);
+  const [vendorJobs, setVendorJobs] = useState<VendorJob[]>([]);
   const [loginAudit, setLoginAudit] = useState<LoginAudit[]>([]);
   const [associatedVendor, setAssociatedVendor] = useState<Vendor | null>(null);
+  const [vendors, setVendors] = useState<Vendor[]>([]);
+  const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [sendingReset, setSendingReset] = useState(false);
   const [setPasswordOpen, setSetPasswordOpen] = useState(false);
@@ -229,8 +237,17 @@ export default function UserDetails() {
       fetchUserFiles();
       if (currentCompany) fetchCustomRoles();
       if (currentCompany) fetchGroups();
+      if (currentCompany) fetchVendors();
     }
   }, [userId, currentCompany, isSuperAdmin]);
+
+  useEffect(() => {
+    if (selectedVendorId) {
+      fetchVendorJobs(selectedVendorId);
+    } else {
+      setVendorJobs([]);
+    }
+  }, [selectedVendorId, currentCompany?.id]);
 
   const fetchCustomRoles = async () => {
     if (!currentCompany) return;
@@ -262,6 +279,23 @@ export default function UserDetails() {
     } catch (error) {
       console.error('Error fetching groups:', error);
       setGroups([]);
+    }
+  };
+
+  const fetchVendors = async () => {
+    if (!currentCompany) return;
+    try {
+      const { data, error } = await supabase
+        .from('vendors')
+        .select('id, name')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true)
+        .order('name');
+      if (error) throw error;
+      setVendors((data as Vendor[]) || []);
+    } catch (error) {
+      console.error('Error fetching vendors:', error);
+      setVendors([]);
     }
   };
 
@@ -310,7 +344,13 @@ export default function UserDetails() {
         
         if (profileRes.data.vendor_id) {
           const { data: vendorData } = await supabase.from('vendors').select('id, name').eq('id', profileRes.data.vendor_id).single();
-          if (vendorData) setAssociatedVendor(vendorData);
+          if (vendorData) {
+            setAssociatedVendor(vendorData);
+            setSelectedVendorId(vendorData.id);
+          }
+        } else {
+          setAssociatedVendor(null);
+          setSelectedVendorId(null);
         }
         
         setLoading(false);
@@ -324,6 +364,28 @@ export default function UserDetails() {
       toast({ title: "Error", description: "Failed to fetch user details", variant: "destructive" });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const fetchVendorJobs = async (vendorId: string) => {
+    if (!currentCompany) return;
+    try {
+      const { data, error } = await supabase
+        .from('vendor_job_access')
+        .select('jobs(id, name)')
+        .eq('vendor_id', vendorId)
+        .eq('company_id', currentCompany.id)
+        .order('created_at', { ascending: false });
+      if (error) throw error;
+
+      const mapped = (data || [])
+        .map((row: any) => row.jobs)
+        .filter(Boolean) as VendorJob[];
+      const unique = Array.from(new Map(mapped.map((j) => [j.id, j])).values());
+      setVendorJobs(unique);
+    } catch (error) {
+      console.error('Error fetching vendor jobs:', error);
+      setVendorJobs([]);
     }
   };
 
@@ -612,18 +674,20 @@ export default function UserDetails() {
 
       const isCustomRoleSelection = editForm.role.startsWith('custom_');
       const selectedCustomRoleId = isCustomRoleSelection ? editForm.role.replace('custom_', '') : null;
+      const selectedBaseRole = isCustomRoleSelection ? 'employee' : editForm.role;
+      const nextVendorId = selectedBaseRole === 'vendor' ? selectedVendorId : null;
 
       // Update company-specific role (custom roles use employee base role)
       const { error: roleError } = await supabase
         .from('user_company_access')
-        .update({ role: (isCustomRoleSelection ? 'employee' : editForm.role) as any })
+        .update({ role: selectedBaseRole as any })
         .eq('user_id', user.user_id)
         .eq('company_id', currentCompany.id);
       if (roleError) throw roleError;
 
       const { error: customRoleError } = await supabase
         .from('profiles')
-        .update({ custom_role_id: selectedCustomRoleId })
+        .update({ custom_role_id: selectedCustomRoleId, vendor_id: nextVendorId })
         .eq('user_id', user.user_id);
       if (customRoleError) throw customRoleError;
 
@@ -675,10 +739,24 @@ export default function UserDetails() {
         phone: editForm.phone || null,
         birthday: editForm.birthday || null,
         status: editForm.status,
-        role: isCustomRoleSelection ? 'employee' : editForm.role,
+        role: selectedBaseRole,
         custom_role_id: selectedCustomRoleId,
         group_id: selectedGroupId || null,
+        vendor_id: nextVendorId,
       } : null);
+      if (selectedBaseRole === 'vendor') {
+        const linked = vendors.find((vendor) => vendor.id === nextVendorId) || null;
+        setAssociatedVendor(linked);
+        if (nextVendorId) {
+          await fetchVendorJobs(nextVendorId);
+        } else {
+          setVendorJobs([]);
+        }
+      } else {
+        setAssociatedVendor(null);
+        setSelectedVendorId(null);
+        setVendorJobs([]);
+      }
       setEditing(false);
       toast({ title: "Success", description: "User updated successfully" });
     } catch (error) {
@@ -717,6 +795,7 @@ export default function UserDetails() {
   const displayName = user.display_name || `${user.first_name || ''} ${user.last_name || ''}`.trim() || 'Unnamed User';
   const initials = user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U';
   const isSelf = profile?.user_id === userId;
+  const isVendorUser = user.role === 'vendor';
   const assignedCustomRole = user.custom_role_id ? customRoles.find((r) => r.id === user.custom_role_id) : null;
 
   const getAppLabel = (source?: string) => {
@@ -778,12 +857,13 @@ export default function UserDetails() {
             </AlertDialog>
           )}
           <Button onClick={() => {
+            if (isVendorUser) return;
             const jobAccessEl = document.getElementById('job-access-section');
             if (jobAccessEl) {
               const saveBtn = jobAccessEl.querySelector<HTMLButtonElement>('[data-save-jobs]');
               saveBtn?.click();
             }
-          }} size="sm">
+          }} size="sm" disabled={isVendorUser}>
             <Save className="h-4 w-4 mr-2" />
             Save
           </Button>
@@ -920,6 +1000,30 @@ export default function UserDetails() {
                       </Select>
                     </div>
                   </div>
+                  {editForm.role === 'vendor' && (
+                    <div>
+                      <Label>Link To Vendor</Label>
+                      <Select
+                        value={selectedVendorId || '__none__'}
+                        onValueChange={(value) => setSelectedVendorId(value === '__none__' ? null : value)}
+                      >
+                        <SelectTrigger>
+                          <SelectValue placeholder="Select vendor account" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Not Linked</SelectItem>
+                          {vendors.map((vendor) => (
+                            <SelectItem key={vendor.id} value={vendor.id}>
+                              {vendor.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        This vendor user will inherit access from the linked vendor profile.
+                      </p>
+                    </div>
+                  )}
                 </div>
               ) : (
                 <>
@@ -959,7 +1063,7 @@ export default function UserDetails() {
                     {associatedVendor && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Store className="h-4 w-4" />
-                        <span>Associated Vendor: {associatedVendor.name}</span>
+                        <span>Linked Vendor: {associatedVendor.name}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-muted-foreground">
@@ -1164,17 +1268,55 @@ export default function UserDetails() {
       )}
 
       {/* Punch Clock Job Access (renamed only) */}
-      <div id="job-access-section">
-        <UserJobAccess
-          userId={userId!}
-          userRole={user.role}
-          title="Punch Clock Job Assignments & Cost Codes"
-          description={`Control which jobs and cost codes this ${user.role === 'employee' ? 'employee' : 'user'} can access in the punch clock app.`}
-        />
-      </div>
+      {!isVendorUser && (
+        <>
+          <div id="job-access-section">
+            <UserJobAccess
+              userId={userId!}
+              userRole={user.role}
+              title="Punch Clock Job Assignments & Cost Codes"
+              description={`Control which jobs and cost codes this ${user.role === 'employee' ? 'employee' : 'user'} can access in the punch clock app.`}
+            />
+          </div>
 
-      {/* Website / PM Lynk Job Access (simple job assignments only) */}
-      <UserWebsiteJobAssignments userId={userId!} canManage={canManage} />
+          {/* Website / PM Lynk Job Access (simple job assignments only) */}
+          <UserWebsiteJobAssignments userId={userId!} canManage={canManage} />
+        </>
+      )}
+
+      {isVendorUser && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" />
+              Vendor Job Access (View Only)
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {!associatedVendor ? (
+              <p className="text-sm text-muted-foreground">
+                No vendor account linked. Link this user to a vendor account in edit mode.
+              </p>
+            ) : vendorJobs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                No jobs currently assigned on the linked vendor profile.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {vendorJobs.map((job) => (
+                  <div key={job.id} className="flex items-center justify-between rounded-md border p-3">
+                    <span className="font-medium">{job.name}</span>
+                    <Badge variant="outline">View Only</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-3">
+              Job access for vendor users is managed from the linked vendor profile.
+            </p>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Login Audit Trail */}
       <Card>

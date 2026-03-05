@@ -26,6 +26,8 @@ interface AccessRequest {
   requested_at: string;
   notes?: string;
   requested_role?: 'employee' | 'vendor' | 'design_professional';
+  business_name?: string | null;
+  invited_job_id?: string | null;
   profiles?: {
     first_name: string;
     last_name: string;
@@ -45,7 +47,44 @@ const parseRequestedRole = (notes?: string): 'employee' | 'vendor' | 'design_pro
   return 'employee';
 };
 
-export default function CompanyAccessRequests() {
+const parseBusinessName = (notes?: string): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const value = String(parsed?.businessName || '').trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+};
+
+const parseInvitedJobId = (notes?: string): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const value = String(parsed?.invitedJobId || '').trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+};
+
+type RequestedRole = 'employee' | 'vendor' | 'design_professional';
+type RequestStatus = 'pending' | 'approved' | 'rejected';
+
+interface CompanyAccessRequestsProps {
+  requestedRoleFilter?: RequestedRole[];
+  statusFilter?: RequestStatus | 'all';
+  title?: string;
+  description?: string;
+}
+
+export default function CompanyAccessRequests({
+  requestedRoleFilter,
+  statusFilter = 'all',
+  title,
+  description,
+}: CompanyAccessRequestsProps) {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const { currentCompany } = useCompany();
@@ -57,7 +96,7 @@ export default function CompanyAccessRequests() {
     if (currentCompany) {
       fetchAccessRequests();
     }
-  }, [currentCompany]);
+  }, [currentCompany, statusFilter, JSON.stringify(requestedRoleFilter || [])]);
 
   const fetchAccessRequests = async () => {
     if (!currentCompany) return;
@@ -80,22 +119,35 @@ export default function CompanyAccessRequests() {
         .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
 
       // Combine the data
-      setRequests(requestsData?.map(request => {
+      const mapped = requestsData?.map(request => {
         const profile = profilesData?.find(p => p.user_id === request.user_id);
+        const requestedRole = parseRequestedRole(request.notes || undefined);
         return {
           id: request.id,
           user_id: request.user_id,
           status: request.status,
           requested_at: request.requested_at,
           notes: request.notes,
-          requested_role: parseRequestedRole(request.notes || undefined),
+          requested_role: requestedRole,
+          business_name: parseBusinessName(request.notes || undefined),
+          invited_job_id: parseInvitedJobId(request.notes || undefined),
           profiles: profile ? {
             first_name: profile.first_name || '',
             last_name: profile.last_name || '',
             display_name: profile.display_name || ''
           } : undefined
         };
-      }) || []);
+      }) || [];
+
+      const roleFiltered = requestedRoleFilter?.length
+        ? mapped.filter((r) => requestedRoleFilter.includes((r.requested_role || 'employee') as RequestedRole))
+        : mapped;
+
+      const fullyFiltered = statusFilter !== 'all'
+        ? roleFiltered.filter((r) => r.status === statusFilter)
+        : roleFiltered;
+
+      setRequests(fullyFiltered);
     } catch (error) {
       console.error('Error fetching access requests:', error);
       toast({
@@ -126,26 +178,82 @@ export default function CompanyAccessRequests() {
 
       if (updateError) throw updateError;
 
-      // If approved, the trigger will automatically create user_company_access
-      // but we can also explicitly create it here for better control
+      const request = requests.find(r => r.id === id);
+      if (!request) throw new Error("Request not found");
+
       if (action === 'approve') {
-        const request = requests.find(r => r.id === id);
-        if (request) {
-          const { error: accessError } = await supabase
+        const targetRole = request.requested_role || 'employee';
+
+        // Keep profile and company access role in sync with requested role.
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            role: targetRole as any,
+            status: 'approved',
+            approved_by: currentUser?.id || null,
+            approved_at: new Date().toISOString(),
+          })
+          .eq('user_id', request.user_id);
+        if (profileError) throw profileError;
+
+        const { data: existingAccess, error: existingAccessError } = await supabase
+          .from('user_company_access')
+          .select('id')
+          .eq('user_id', request.user_id)
+          .eq('company_id', currentCompany.id)
+          .limit(1);
+        if (existingAccessError) throw existingAccessError;
+
+        if ((existingAccess || []).length > 0) {
+          const { error: accessUpdateError } = await supabase
+            .from('user_company_access')
+            .update({
+              role: targetRole as any,
+              granted_by: currentUser?.id || null,
+              is_active: true,
+            })
+            .eq('user_id', request.user_id)
+            .eq('company_id', currentCompany.id);
+          if (accessUpdateError) throw accessUpdateError;
+        } else {
+          const { error: accessInsertError } = await supabase
             .from('user_company_access')
             .insert({
               user_id: request.user_id,
               company_id: currentCompany.id,
-              role: request.requested_role || 'employee',
-              granted_by: currentUser?.id,
+              role: targetRole as any,
+              granted_by: currentUser?.id || null,
               is_active: true
             });
+          if (accessInsertError) throw accessInsertError;
+        }
 
-          // Ignore duplicate errors as the trigger might have already created it
-          if (accessError && !accessError.message.includes('duplicate')) {
-            throw accessError;
+        if (targetRole === 'design_professional' && request.invited_job_id) {
+          const { data: existingJobAccess, error: existingJobAccessError } = await supabase
+            .from('user_job_access')
+            .select('id')
+            .eq('user_id', request.user_id)
+            .eq('job_id', request.invited_job_id)
+            .limit(1);
+          if (existingJobAccessError) throw existingJobAccessError;
+
+          if ((existingJobAccess || []).length === 0) {
+            const { error: jobAccessInsertError } = await supabase
+              .from('user_job_access')
+              .insert({
+                user_id: request.user_id,
+                job_id: request.invited_job_id,
+                granted_by: currentUser?.id || request.user_id,
+              });
+            if (jobAccessInsertError) throw jobAccessInsertError;
           }
         }
+      } else {
+        const { error: rejectProfileError } = await supabase
+          .from('profiles')
+          .update({ status: 'rejected' })
+          .eq('user_id', request.user_id);
+        if (rejectProfileError) throw rejectProfileError;
       }
 
       toast({
@@ -177,12 +285,14 @@ export default function CompanyAccessRequests() {
     }
   };
 
+  const pendingRequests = requests.filter((r) => r.status === 'pending');
+  const processedRequests = requests.filter((r) => r.status !== 'pending');
+  const titleText = title || `Pending Access Requests (${pendingRequests.length})`;
+  const descriptionText = description || 'Review and approve or reject access requests to your company';
+
   if (loading) {
     return <div className="text-center p-4"><span className="loading-dots">Loading access requests</span></div>;
   }
-
-  const pendingRequests = requests.filter(r => r.status === 'pending');
-  const processedRequests = requests.filter(r => r.status !== 'pending');
 
   return (
     <div className="space-y-6">
@@ -192,10 +302,10 @@ export default function CompanyAccessRequests() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Pending Access Requests ({pendingRequests.length})
+              {titleText}
             </CardTitle>
             <CardDescription>
-              Review and approve or reject access requests to your company
+              {descriptionText}
             </CardDescription>
           </CardHeader>
           <CardContent>
@@ -203,6 +313,8 @@ export default function CompanyAccessRequests() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Business / Organization</TableHead>
                   <TableHead>Requested</TableHead>
                   <TableHead>Notes</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
@@ -215,6 +327,14 @@ export default function CompanyAccessRequests() {
                       {request.profiles?.display_name || 
                        `${request.profiles?.first_name || ''} ${request.profiles?.last_name || ''}`.trim() ||
                        'Unknown User'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {request.requested_role?.replace('_', ' ') || 'employee'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {request.business_name || '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(request.requested_at).toLocaleDateString()}
@@ -264,6 +384,8 @@ export default function CompanyAccessRequests() {
               <TableHeader>
                 <TableRow>
                   <TableHead>User</TableHead>
+                  <TableHead>Role</TableHead>
+                  <TableHead>Business / Organization</TableHead>
                   <TableHead>Requested</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead>Notes</TableHead>
@@ -276,6 +398,14 @@ export default function CompanyAccessRequests() {
                       {request.profiles?.display_name || 
                        `${request.profiles?.first_name || ''} ${request.profiles?.last_name || ''}`.trim() ||
                        'Unknown User'}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant="outline" className="capitalize">
+                        {request.requested_role?.replace('_', ' ') || 'employee'}
+                      </Badge>
+                    </TableCell>
+                    <TableCell className="text-muted-foreground">
+                      {request.business_name || '-'}
                     </TableCell>
                     <TableCell className="text-muted-foreground">
                       {new Date(request.requested_at).toLocaleDateString()}

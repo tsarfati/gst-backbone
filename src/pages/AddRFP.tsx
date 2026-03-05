@@ -1,18 +1,19 @@
 import { useState, useEffect } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
+import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Save, Calendar } from 'lucide-react';
+import { ArrowLeft, Save, Upload } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessJobIds, ensureAllowedJobFilter } from '@/utils/jobAccess';
+import { getStoragePathForDb } from '@/utils/storageUtils';
 
 interface Job {
   id: string;
@@ -21,13 +22,17 @@ interface Job {
 
 export default function AddRFP() {
   const navigate = useNavigate();
+  const { id } = useParams<{ id: string }>();
   const [searchParams] = useSearchParams();
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
+  const isEditMode = !!id;
   const [loading, setLoading] = useState(false);
+  const [loadingRfp, setLoadingRfp] = useState(false);
+  const [selectedDrawings, setSelectedDrawings] = useState<File[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   
   const preselectedJobId = ensureAllowedJobFilter(searchParams.get('jobId'), isPrivileged, allowedJobIds);
@@ -37,6 +42,7 @@ export default function AddRFP() {
     title: '',
     description: '',
     scope_of_work: '',
+    logistics_details: '',
     job_id: preselectedJobId || '',
     issue_date: '',
     due_date: ''
@@ -45,9 +51,13 @@ export default function AddRFP() {
   useEffect(() => {
     if (currentCompany?.id && !websiteJobAccessLoading) {
       loadJobs();
-      generateRFPNumber();
+      if (isEditMode) {
+        loadRfpForEdit();
+      } else {
+        generateRFPNumber();
+      }
     }
-  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(','), id]);
 
   const loadJobs = async () => {
     try {
@@ -83,6 +93,80 @@ export default function AddRFP() {
     }
   };
 
+  const loadRfpForEdit = async () => {
+    try {
+      setLoadingRfp(true);
+      const { data, error } = await supabase
+        .from('rfps')
+        .select('*')
+        .eq('id', id)
+        .eq('company_id', currentCompany!.id)
+        .single();
+
+      if (error) throw error;
+      const rfpData = data as any;
+
+      if (rfpData?.job_id && !canAccessJobIds([rfpData.job_id], isPrivileged, allowedJobIds)) {
+        toast({
+          title: 'Access denied',
+          description: 'You do not have access to this RFP job.',
+          variant: 'destructive'
+        });
+        navigate('/construction/rfps');
+        return;
+      }
+
+      setFormData({
+        rfp_number: rfpData?.rfp_number || '',
+        title: rfpData?.title || '',
+        description: rfpData?.description || '',
+        scope_of_work: rfpData?.scope_of_work || '',
+        logistics_details: rfpData?.logistics_details || '',
+        job_id: rfpData?.job_id || '',
+        issue_date: rfpData?.issue_date || '',
+        due_date: rfpData?.due_date || '',
+      });
+    } catch (error) {
+      console.error('Error loading RFP for edit:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to load RFP details',
+        variant: 'destructive'
+      });
+      navigate('/construction/rfps');
+    } finally {
+      setLoadingRfp(false);
+    }
+  };
+
+  const uploadDrawings = async (rfpId: string) => {
+    if (!selectedDrawings.length) return;
+
+    const uploads = [];
+    for (const file of selectedDrawings) {
+      const storagePath = `rfp-drawings/${currentCompany!.id}/${rfpId}/${Date.now()}-${file.name}`;
+      const { error: uploadError } = await supabase.storage
+        .from('company-files')
+        .upload(storagePath, file, { upsert: false });
+      if (uploadError) throw uploadError;
+
+      uploads.push({
+        rfp_id: rfpId,
+        company_id: currentCompany!.id,
+        file_name: file.name,
+        file_url: getStoragePathForDb('company-files', storagePath),
+        file_size: file.size,
+        file_type: file.type || null,
+        uploaded_by: user!.id,
+      });
+    }
+
+    const { error: insertError } = await supabase
+      .from('rfp_attachments')
+      .insert(uploads);
+    if (insertError) throw insertError;
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -107,31 +191,57 @@ export default function AddRFP() {
     try {
       setLoading(true);
 
-      const { data, error } = await supabase
-        .from('rfps')
-        .insert({
-          company_id: currentCompany!.id,
-          rfp_number: formData.rfp_number,
-          title: formData.title,
-          description: formData.description || null,
-          scope_of_work: formData.scope_of_work || null,
-          job_id: formData.job_id || null,
-          issue_date: formData.issue_date || null,
-          due_date: formData.due_date || null,
-          status: 'draft',
-          created_by: user!.id
-        })
-        .select()
-        .single();
+      let savedRfpId = id;
 
-      if (error) throw error;
+      if (isEditMode) {
+        const { error } = await supabase
+          .from('rfps')
+          .update({
+            rfp_number: formData.rfp_number,
+            title: formData.title,
+            description: formData.description || null,
+            scope_of_work: formData.scope_of_work || null,
+            logistics_details: formData.logistics_details || null,
+            job_id: formData.job_id || null,
+            issue_date: formData.issue_date || null,
+            due_date: formData.due_date || null,
+          } as any)
+          .eq('id', id)
+          .eq('company_id', currentCompany!.id);
+        if (error) throw error;
+      } else {
+        const { data, error } = await supabase
+          .from('rfps')
+          .insert({
+            company_id: currentCompany!.id,
+            rfp_number: formData.rfp_number,
+            title: formData.title,
+            description: formData.description || null,
+            scope_of_work: formData.scope_of_work || null,
+            logistics_details: formData.logistics_details || null,
+            job_id: formData.job_id || null,
+            issue_date: formData.issue_date || null,
+            due_date: formData.due_date || null,
+            status: 'draft',
+            created_by: user!.id
+          } as any)
+          .select()
+          .single();
+
+        if (error) throw error;
+        savedRfpId = data.id;
+      }
+
+      if (savedRfpId) {
+        await uploadDrawings(savedRfpId);
+      }
 
       toast({
         title: 'Success',
-        description: 'RFP created successfully'
+        description: isEditMode ? 'RFP updated successfully' : 'RFP created successfully'
       });
 
-      navigate(`/construction/rfps/${data.id}`);
+      navigate(`/construction/rfps/${savedRfpId}`);
     } catch (error: any) {
       console.error('Error creating RFP:', error);
       toast({
@@ -151,10 +261,13 @@ export default function AddRFP() {
           <ArrowLeft className="h-5 w-5" />
         </Button>
         <div>
-          <h1 className="text-3xl font-bold">Create RFP</h1>
+          <h1 className="text-3xl font-bold">{isEditMode ? 'Edit RFP' : 'Create RFP'}</h1>
         </div>
       </div>
 
+      {loadingRfp ? (
+        <div className="h-40 flex items-center justify-center"><span className="loading-dots">Loading</span></div>
+      ) : (
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card>
           <CardHeader>
@@ -226,6 +339,33 @@ export default function AddRFP() {
               />
             </div>
 
+            <div className="space-y-2">
+              <Label htmlFor="logistics_details">Logistics Details</Label>
+              <Textarea
+                id="logistics_details"
+                value={formData.logistics_details}
+                onChange={(e) => setFormData(prev => ({ ...prev, logistics_details: e.target.value }))}
+                placeholder="Site access, staging areas, delivery windows, parking, safety constraints, etc."
+                rows={4}
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="drawings_upload">Drawings Upload</Label>
+              <Input
+                id="drawings_upload"
+                type="file"
+                multiple
+                onChange={(e) => setSelectedDrawings(Array.from(e.target.files || []))}
+                accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
+              />
+              {selectedDrawings.length > 0 && (
+                <p className="text-sm text-muted-foreground">
+                  {selectedDrawings.length} drawing file(s) selected for upload on save
+                </p>
+              )}
+            </div>
+
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="issue_date">Issue Date</Label>
@@ -254,11 +394,12 @@ export default function AddRFP() {
             Cancel
           </Button>
           <Button type="submit" disabled={loading}>
-            <Save className="h-4 w-4 mr-2" />
-            {loading ? 'Creating...' : 'Create RFP'}
+            {selectedDrawings.length > 0 ? <Upload className="h-4 w-4 mr-2" /> : <Save className="h-4 w-4 mr-2" />}
+            {loading ? (isEditMode ? 'Saving...' : 'Creating...') : (isEditMode ? 'Save Changes' : 'Create RFP')}
           </Button>
         </div>
       </form>
+      )}
     </div>
   );
 }

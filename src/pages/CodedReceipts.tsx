@@ -16,6 +16,8 @@ import { CodedReceiptListView, CodedReceiptCompactView, CodedReceiptSuperCompact
 import { useCodedReceiptViewPreference } from "@/hooks/useCodedReceiptViewPreference";
 import { useSettings } from "@/contexts/SettingsContext";
 import ReceiptPreviewModal from "@/components/ReceiptPreviewModal";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import jsPDF from 'jspdf';
 import { GlobalWorkerOptions, getDocument } from 'pdfjs-dist';
 
@@ -39,6 +41,7 @@ export default function CodedReceipts() {
   const [linkedReceiptIds, setLinkedReceiptIds] = useState<Set<string>>(new Set());
   const [receiptDetails, setReceiptDetails] = useState<any>(null);
   const { toast } = useToast();
+  const { isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   // Fetch receipts that are linked to bills via audit trail
   React.useEffect(() => {
@@ -79,6 +82,16 @@ export default function CodedReceipts() {
       if (error || !data) {
         console.error('Error fetching receipt details:', error);
         setReceiptDetails(null);
+        return;
+      }
+
+      if (!canAccessAssignedJobOnly([(data as any).job_id], isPrivileged, allowedJobIds)) {
+        setReceiptDetails(null);
+        toast({
+          title: "Access denied",
+          description: "You do not have access to this receipt",
+          variant: "destructive",
+        });
         return;
       }
 

@@ -16,6 +16,8 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import AvatarUploader from '@/components/AvatarUploader';
+import { createMentionNotifications } from '@/utils/mentions';
+import MentionTextarea from '@/components/MentionTextarea';
 
 
 // Edge function headers for PIN users (same project as app)
@@ -906,6 +908,21 @@ export default function EmployeeDashboard() {
 
       if (error) throw error;
 
+      if (profile?.current_company_id) {
+        await createMentionNotifications({
+          companyId: profile.current_company_id,
+          actorUserId: userId,
+          actorName:
+            (user as any)?.user_metadata?.full_name ||
+            (user as any)?.user_metadata?.name ||
+            (user as any)?.email ||
+            'A teammate',
+          content: message.trim(),
+          contextLabel: 'Messages',
+          targetPath: '/messages',
+        });
+      }
+
       toast({
         title: 'Success',
         description: `Message sent to ${projectManagers.length} project manager(s)`
@@ -1444,11 +1461,13 @@ export default function EmployeeDashboard() {
                     </div>
                     <div className="space-y-2">
                       <Label htmlFor="message" className="text-sm font-medium">Your Message</Label>
-                      <Textarea
+                      <MentionTextarea
                         id="message"
-                        placeholder="Type your message here..."
                         value={message}
-                        onChange={(e) => setMessage(e.target.value)}
+                        onValueChange={setMessage}
+                        companyId={profile?.current_company_id}
+                        currentUserId={(user as any)?.user_id || (user as any)?.id}
+                        placeholder="Type your message here... (use @ to tag teammates)"
                         rows={6}
                         className="text-sm resize-none"
                       />

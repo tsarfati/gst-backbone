@@ -15,6 +15,7 @@ import CompanyRequest from "@/pages/CompanyRequest";
 import ProfileCompletion from "@/pages/ProfileCompletion";
 import TenantRequest from "@/pages/TenantRequest";
 import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
+import SubscriptionTierEditor from "@/pages/SubscriptionTierEditor";
 import TenantDetails from "@/pages/TenantDetails";
 import LandingPage from "@/pages/LandingPage";
 import PunchClockLynkLanding from "@/pages/PunchClockLynkLanding";
@@ -131,6 +132,8 @@ import AddRFP from "./pages/AddRFP";
 import RFPDetails from "./pages/RFPDetails";
 import BidComparison from "./pages/BidComparison";
 import AddBid from "./pages/AddBid";
+import BidDetails from "./pages/BidDetails";
+import ConstructionSubmittals from "./pages/ConstructionSubmittals";
 import AddScoringCriterion from "./pages/AddScoringCriterion";
 import ProjectCostTransactionHistory from "./pages/reports/ProjectCostTransactionHistory";
 import ProjectTransactionReport from "./pages/reports/ProjectTransactionReport";
@@ -284,6 +287,16 @@ function AuthenticatedRoutes() {
                   <TenantDetails />
                 </ProtectedRoute>
               } />
+              <Route path="/super-admin/tiers/new" element={
+                <ProtectedRoute>
+                  <SubscriptionTierEditor />
+                </ProtectedRoute>
+              } />
+              <Route path="/super-admin/tiers/:tierId/edit" element={
+                <ProtectedRoute>
+                  <SubscriptionTierEditor />
+                </ProtectedRoute>
+              } />
               <Route path="/company-request" element={
                 <ProtectedRoute>
                   <AccessControl>
@@ -330,11 +343,13 @@ function AuthenticatedRoutes() {
               <Route path="construction/reports/subcontract-details" element={<SubcontractDetailsByVendor />} />
               <Route path="construction/reports/budget-status" element={<ProjectCostBudgetStatus />} />
               <Route path="construction/rfps" element={<RFPs />} />
+              <Route path="construction/submittals" element={<ConstructionSubmittals />} />
               <Route path="construction/rfps/add" element={<AddRFP />} />
               <Route path="construction/rfps/:id" element={<RFPDetails />} />
               <Route path="construction/rfps/:id/edit" element={<AddRFP />} />
               <Route path="construction/rfps/:id/compare" element={<BidComparison />} />
               <Route path="construction/rfps/:rfpId/bids/add" element={<AddBid />} />
+              <Route path="construction/bids/:id" element={<BidDetails />} />
               <Route path="construction/rfps/:rfpId/criteria/add" element={<AddScoringCriterion />} />
               <Route path="reports/project-cost-transaction-history" element={<ProjectCostTransactionHistory />} />
               <Route path="jobs" element={<Jobs />} />

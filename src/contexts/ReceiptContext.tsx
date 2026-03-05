@@ -4,6 +4,9 @@ import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
+import { createMentionNotifications } from '@/utils/mentions';
 
 export interface Receipt {
   id: string;
@@ -82,6 +85,7 @@ const ReceiptContext = createContext<ReceiptContextType | undefined>(undefined);
 export function ReceiptProvider({ children }: { children: React.ReactNode }) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [uncodedReceipts, setUncodedReceipts] = useState<Receipt[]>([]);
   const [codedReceipts, setCodedReceipts] = useState<CodedReceipt[]>([]);
@@ -89,7 +93,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
 
   // Load receipts from database
   const refreshReceipts = useCallback(async () => {
-    if (!user || !currentCompany) return;
+    if (!user || !currentCompany || websiteJobAccessLoading) return;
 
     try {
       const { data: receipts, error } = await supabase
@@ -156,7 +160,9 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         })
       );
 
-      const processedReceipts = resolvedReceipts;
+      const processedReceipts = resolvedReceipts.filter((receipt: any) =>
+        canAccessAssignedJobOnly([receipt.job_id], isPrivileged, allowedJobIds)
+      );
 
       const uncoded = processedReceipts.filter(r => r.status === 'uncoded' || r.status === 'partially_coded');
       const coded = processedReceipts.filter(r => r.status !== 'uncoded' && r.status !== 'partially_coded').map(r => {
@@ -197,13 +203,13 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
     } catch (error) {
       console.error('Failed to load receipts:', error);
     }
-  }, [user, currentCompany]);
+  }, [user, currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds]);
 
   useEffect(() => {
     refreshReceipts();
     // Only refetch when auth user or company actually changes to avoid duplicate calls
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, currentCompany?.id]);
+  }, [user?.id, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
   const addReceipts = useCallback(async (files: FileList, amounts?: number[]) => {
     if (!user || !currentCompany) {
@@ -362,7 +368,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
   }, [refreshReceipts]);
 
   const addMessage = useCallback(async (receiptId: string, message: string, userId: string, userName: string, type: 'message' | 'assignment' | 'coding' | 'status' = 'message') => {
-    if (!user) return;
+    if (!user || !currentCompany) return;
 
     try {
       const { error } = await supabase
@@ -374,11 +380,24 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         });
 
       if (error) throw error;
+
+      await createMentionNotifications({
+        companyId: currentCompany.id,
+        actorUserId: user.id,
+        actorName:
+          (user as any)?.user_metadata?.full_name ||
+          (user as any)?.user_metadata?.name ||
+          (user as any)?.email ||
+          'A teammate',
+        content: message,
+        contextLabel: 'Receipt Discussion',
+        targetPath: '/uncoded',
+      });
       await refreshReceipts();
     } catch (error) {
       console.error('Failed to add message:', error);
     }
-  }, [user, refreshReceipts]);
+  }, [user, currentCompany, refreshReceipts]);
 
   const deleteReceipt = useCallback(async (receiptId: string) => {
     try {

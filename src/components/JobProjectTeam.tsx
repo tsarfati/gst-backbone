@@ -5,6 +5,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, Star, UserCheck } from 'lucide-react';
@@ -13,6 +14,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAvatars } from '@/hooks/useUserAvatar';
 import UserAvatar from '@/components/UserAvatar';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 
 
 interface ProjectRole {
@@ -38,9 +40,18 @@ interface JobProjectTeamProps {
   jobId: string;
 }
 
+interface PendingDesignInvite {
+  id: string;
+  user_id: string;
+  requested_at: string;
+  business_name?: string | null;
+  display_name?: string;
+}
+
 export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const activeCompanyRole = useActiveCompanyRole();
   const [teamMembers, setTeamMembers] = useState<DirectoryMember[]>([]);
   const [availableMembers, setAvailableMembers] = useState<DirectoryMember[]>([]);
   const [roles, setRoles] = useState<ProjectRole[]>([]);
@@ -52,6 +63,15 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
   const [isPrimaryContact, setIsPrimaryContact] = useState(false);
   const [saving, setSaving] = useState(false);
   const [refreshKey, setRefreshKey] = useState(0);
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [pendingDesignInvites, setPendingDesignInvites] = useState<PendingDesignInvite[]>([]);
+  const [inviteForm, setInviteForm] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+  });
+  const canInviteDesignProfessional = ['admin', 'company_admin', 'controller', 'owner', 'project_manager'].includes(String(activeCompanyRole || '').toLowerCase());
 
   useEffect(() => {
     if (currentCompany?.id && jobId) {
@@ -64,7 +84,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       setLoading(true);
       
       // Load directory members, roles, job details, and PIN employees in parallel
-      const [allMembersRes, rolesRes, jobRes, assistantPMsRes] = await Promise.all([
+      const [allMembersRes, rolesRes, jobRes, assistantPMsRes, pendingRequestsRes] = await Promise.all([
         supabase
           .from('job_project_directory')
           .select(`
@@ -90,16 +110,64 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           .from('job_assistant_managers')
           .select('user_id')
           .eq('job_id', jobId),
+        supabase
+          .from('company_access_requests')
+          .select('id, user_id, requested_at, status, notes')
+          .eq('company_id', currentCompany?.id)
+          .eq('status', 'pending')
+          .order('requested_at', { ascending: false }),
       ]);
 
       if (allMembersRes.error) throw allMembersRes.error;
       if (rolesRes.error) throw rolesRes.error;
+      if (pendingRequestsRes.error) throw pendingRequestsRes.error;
 
       const allMembers = (allMembersRes.data || []).map(m => ({ ...m, avatar_url: null, source: 'directory' as const }));
       const directoryTeamMembers = allMembers.filter(m => m.is_project_team_member);
       const directoryAvailable = allMembers.filter(m => !m.is_project_team_member);
       
       setRoles(rolesRes.data || []);
+
+      const pendingRows = (pendingRequestsRes.data || []).filter((row: any) => {
+        try {
+          const parsed = row.notes ? JSON.parse(row.notes) : {};
+          return String(parsed?.requestedRole || '').toLowerCase() === 'design_professional'
+            && String(parsed?.invitedJobId || '') === jobId;
+        } catch {
+          return false;
+        }
+      });
+
+      const pendingUserIds = Array.from(new Set(pendingRows.map((r: any) => r.user_id).filter(Boolean)));
+      let pendingProfiles: any[] = [];
+      if (pendingUserIds.length > 0) {
+        const { data: profileRows } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name, display_name')
+          .in('user_id', pendingUserIds);
+        pendingProfiles = profileRows || [];
+      }
+
+      setPendingDesignInvites(
+        pendingRows.map((row: any) => {
+          let businessName: string | null = null;
+          try {
+            const parsed = row.notes ? JSON.parse(row.notes) : {};
+            businessName = parsed?.businessName ? String(parsed.businessName) : null;
+          } catch {
+            businessName = null;
+          }
+          const profile = pendingProfiles.find((p) => p.user_id === row.user_id);
+          const displayName = profile?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(' ');
+          return {
+            id: row.id,
+            user_id: row.user_id,
+            requested_at: row.requested_at,
+            business_name: businessName,
+            display_name: displayName || 'Pending user',
+          };
+        })
+      );
 
       // Find PM and Assistant PM roles
       const pmRole = rolesRes.data?.find(r => r.name.toLowerCase().includes('project manager') && !r.name.toLowerCase().includes('assistant'));
@@ -220,6 +288,48 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       });
     } finally {
       setLoading(false);
+    }
+  };
+
+  const sendDesignProfessionalInvite = async () => {
+    if (!currentCompany?.id || !inviteForm.email.trim()) {
+      toast({
+        title: "Email required",
+        description: "Enter an email address to send the invitation.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setInviteSubmitting(true);
+      const { error } = await supabase.functions.invoke('send-design-professional-job-invite', {
+        body: {
+          companyId: currentCompany.id,
+          jobId,
+          email: inviteForm.email.trim().toLowerCase(),
+          firstName: inviteForm.firstName.trim() || null,
+          lastName: inviteForm.lastName.trim() || null,
+        },
+      });
+      if (error) throw error;
+
+      toast({
+        title: "Invite sent",
+        description: "Design professional invitation email sent.",
+      });
+      setInviteDialogOpen(false);
+      setInviteForm({ firstName: '', lastName: '', email: '' });
+      loadData();
+    } catch (error: any) {
+      console.error('Error sending design professional invite:', error);
+      toast({
+        title: "Invite failed",
+        description: error?.message || "Failed to send design professional invitation.",
+        variant: "destructive",
+      });
+    } finally {
+      setInviteSubmitting(false);
     }
   };
 
@@ -374,6 +484,59 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           <CardDescription>Team members assigned to this project</CardDescription>
         </div>
         <div className="flex items-center gap-2">
+          {canInviteDesignProfessional && (
+            <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+              <DialogTrigger asChild>
+                <Button size="sm" variant="outline">
+                  <Mail className="h-4 w-4 mr-2" />
+                  Invite Design Professional
+                </Button>
+              </DialogTrigger>
+            <DialogContent className="max-w-md">
+              <DialogHeader>
+                <DialogTitle>Invite Design Professional</DialogTitle>
+                <DialogDescription>
+                  Send a job-linked signup invitation. Once approved, this user will be assigned to this job.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-3 py-2">
+                <div className="grid grid-cols-2 gap-3">
+                  <div className="space-y-1">
+                    <Label>First Name</Label>
+                    <Input
+                      value={inviteForm.firstName}
+                      onChange={(e) => setInviteForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                      placeholder="Optional"
+                    />
+                  </div>
+                  <div className="space-y-1">
+                    <Label>Last Name</Label>
+                    <Input
+                      value={inviteForm.lastName}
+                      onChange={(e) => setInviteForm((prev) => ({ ...prev, lastName: e.target.value }))}
+                      placeholder="Optional"
+                    />
+                  </div>
+                </div>
+                <div className="space-y-1">
+                  <Label>Email *</Label>
+                  <Input
+                    type="email"
+                    value={inviteForm.email}
+                    onChange={(e) => setInviteForm((prev) => ({ ...prev, email: e.target.value }))}
+                    placeholder="name@company.com"
+                  />
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>Cancel</Button>
+                <Button onClick={sendDesignProfessionalInvite} disabled={inviteSubmitting || !inviteForm.email.trim()}>
+                  {inviteSubmitting ? 'Sending...' : 'Send Invite'}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+            </Dialog>
+          )}
           <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openAddDialog} size="sm" disabled={availableMembers.length === 0 && !editingMember}>
@@ -465,6 +628,27 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
         </div>
       </CardHeader>
       <CardContent>
+        {pendingDesignInvites.length > 0 && (
+          <div className="mb-4 rounded-lg border border-primary/30 bg-primary/5 p-3 space-y-2">
+            <div className="flex items-center justify-between">
+              <p className="text-sm font-semibold">Pending Design Professional Approvals</p>
+              <Badge variant="warning">{pendingDesignInvites.length}</Badge>
+            </div>
+            {pendingDesignInvites.slice(0, 5).map((invite) => (
+              <div key={invite.id} className="flex items-center justify-between text-sm">
+                <div>
+                  <span className="font-medium">{invite.display_name || 'Pending user'}</span>
+                  {invite.business_name ? <span className="text-muted-foreground"> • {invite.business_name}</span> : null}
+                </div>
+                <span className="text-muted-foreground">{new Date(invite.requested_at).toLocaleDateString()}</span>
+              </div>
+            ))}
+            <p className="text-xs text-muted-foreground">
+              Approve from User Management → Intake Queue.
+            </p>
+          </div>
+        )}
+
         {teamMembers.length === 0 ? (
           <div className="text-center py-8 text-muted-foreground">
             <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />

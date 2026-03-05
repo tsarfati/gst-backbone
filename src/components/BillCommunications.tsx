@@ -1,7 +1,6 @@
 import { useState, useEffect } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { 
@@ -16,6 +15,8 @@ import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import { createMentionNotifications } from "@/utils/mentions";
+import MentionTextarea from "@/components/MentionTextarea";
 
 interface Message {
   id: string;
@@ -103,6 +104,19 @@ export default function BillCommunications({ billId, vendorId }: BillCommunicati
         });
 
       if (error) throw error;
+
+      await createMentionNotifications({
+        companyId: currentCompany.id,
+        actorUserId: user.id,
+        actorName:
+          (user as any)?.user_metadata?.full_name ||
+          (user as any)?.user_metadata?.name ||
+          (user as any)?.email ||
+          "A teammate",
+        content: newIntercompanyMessage.trim(),
+        contextLabel: "Bill Communications",
+        targetPath: `/invoices/${billId}`,
+      });
 
       toast({
         title: "Message sent",
@@ -208,10 +222,12 @@ export default function BillCommunications({ billId, vendorId }: BillCommunicati
               </div>
 
               <div className="space-y-2">
-                <Textarea
-                  placeholder="Type your message to the team..."
+                <MentionTextarea
                   value={newIntercompanyMessage}
-                  onChange={(e) => setNewIntercompanyMessage(e.target.value)}
+                  onValueChange={setNewIntercompanyMessage}
+                  companyId={currentCompany?.id}
+                  currentUserId={user?.id}
+                  placeholder="Type your message to the team... (use @ to tag teammates)"
                   rows={3}
                 />
                 <Button 
@@ -254,10 +270,12 @@ export default function BillCommunications({ billId, vendorId }: BillCommunicati
               </div>
 
               <div className="space-y-2">
-                <Textarea
-                  placeholder="Type your message to the vendor..."
+                <MentionTextarea
                   value={newVendorMessage}
-                  onChange={(e) => setNewVendorMessage(e.target.value)}
+                  onValueChange={setNewVendorMessage}
+                  companyId={currentCompany?.id}
+                  currentUserId={user?.id}
+                  placeholder="Type your message to the vendor... (use @ to tag teammates)"
                   rows={3}
                 />
                 <Button 

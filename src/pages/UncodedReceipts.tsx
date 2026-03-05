@@ -21,6 +21,8 @@ import { useCompany } from "@/contexts/CompanyContext";
 import ReceiptCostDistribution from "@/components/ReceiptCostDistribution";
 import { usePreventBrowserZoom } from "@/hooks/usePreventBrowserZoom";
 import { cn } from "@/lib/utils";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 interface JobOption { id: string; name: string }
 interface CostCodeOption { id: string; code: string; description: string; type: string }
@@ -48,6 +50,7 @@ export default function UncodedReceipts() {
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   // Zoom state for image previews
   const [zoomLevel, setZoomLevel] = useState(100);
@@ -162,7 +165,7 @@ export default function UncodedReceipts() {
     };
 
     const loadUncodedBills = async () => {
-      if (!user || !currentCompany) return;
+      if (!user || !currentCompany || websiteJobAccessLoading) return;
       try {
         const { data, error } = await supabase
           .from('invoices')
@@ -177,7 +180,34 @@ export default function UncodedReceipts() {
           .order('created_at', { ascending: false });
         
         if (error) throw error;
-        setUncodedBills(data || []);
+
+        const invoiceRows = data || [];
+        const invoiceIds = invoiceRows.map((row: any) => row.id);
+        const distRes: any = invoiceIds.length > 0
+          ? await supabase
+              .from("invoice_cost_distributions")
+              .select("invoice_id, cost_codes(job_id)")
+              .in("invoice_id", invoiceIds)
+          : { data: [], error: null };
+
+        const distributionJobMap: Record<string, string[]> = {};
+        if (!distRes?.error) {
+          (distRes?.data || []).forEach((row: any) => {
+            const invoiceId = row.invoice_id;
+            const jobId = row.cost_codes?.job_id;
+            if (!invoiceId || !jobId) return;
+            if (!distributionJobMap[invoiceId]) distributionJobMap[invoiceId] = [];
+            if (!distributionJobMap[invoiceId].includes(jobId)) {
+              distributionJobMap[invoiceId].push(jobId);
+            }
+          });
+        }
+
+        const visibleInvoices = invoiceRows.filter((row: any) => {
+          const distJobs = distributionJobMap[row.id] || [];
+          return canAccessAssignedJobOnly([row.job_id, ...distJobs], isPrivileged, allowedJobIds);
+        });
+        setUncodedBills(visibleInvoices);
       } catch (err) {
         console.error('Error loading uncoded bills:', err);
       }
@@ -185,10 +215,10 @@ export default function UncodedReceipts() {
 
     loadVendors();
     loadUncodedBills();
-  }, [user, currentCompany]);
+  }, [user, currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadUncodedBills = async () => {
-    if (!user || !currentCompany) return;
+    if (!user || !currentCompany || websiteJobAccessLoading) return;
     try {
       const { data, error } = await supabase
         .from('invoices')
@@ -203,7 +233,34 @@ export default function UncodedReceipts() {
         .order('created_at', { ascending: false });
       
       if (error) throw error;
-      setUncodedBills(data || []);
+
+      const invoiceRows = data || [];
+      const invoiceIds = invoiceRows.map((row: any) => row.id);
+      const distRes: any = invoiceIds.length > 0
+        ? await supabase
+            .from("invoice_cost_distributions")
+            .select("invoice_id, cost_codes(job_id)")
+            .in("invoice_id", invoiceIds)
+        : { data: [], error: null };
+
+      const distributionJobMap: Record<string, string[]> = {};
+      if (!distRes?.error) {
+        (distRes?.data || []).forEach((row: any) => {
+          const invoiceId = row.invoice_id;
+          const jobId = row.cost_codes?.job_id;
+          if (!invoiceId || !jobId) return;
+          if (!distributionJobMap[invoiceId]) distributionJobMap[invoiceId] = [];
+          if (!distributionJobMap[invoiceId].includes(jobId)) {
+            distributionJobMap[invoiceId].push(jobId);
+          }
+        });
+      }
+
+      const visibleInvoices = invoiceRows.filter((row: any) => {
+        const distJobs = distributionJobMap[row.id] || [];
+        return canAccessAssignedJobOnly([row.job_id, ...distJobs], isPrivileged, allowedJobIds);
+      });
+      setUncodedBills(visibleInvoices);
     } catch (err) {
       console.error('Error loading uncoded bills:', err);
     }
@@ -1107,8 +1164,9 @@ export default function UncodedReceipts() {
                   receiptId={selectedReceipt.id}
                   messages={messages.filter(m => m.receiptId === selectedReceipt.id)}
                   onSendMessage={handleSendMessage}
-                  currentUserId="current-user"
-                  currentUserName="Current User"
+                  currentUserId={user?.id || "current-user"}
+                  currentUserName={profile?.display_name || profile?.first_name || "Current User"}
+                  companyId={currentCompany?.id}
                 />
               </div>
             </div>

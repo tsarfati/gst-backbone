@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { Progress } from '@/components/ui/progress';
@@ -18,6 +17,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 import { format } from 'date-fns';
 import DragDropUpload from '@/components/DragDropUpload';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
+import { createMentionNotifications } from '@/utils/mentions';
+import MentionTextarea from '@/components/MentionTextarea';
 
 interface Task {
   id: string;
@@ -73,6 +76,7 @@ export default function TaskDetails() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [task, setTask] = useState<Task | null>(null);
@@ -85,13 +89,18 @@ export default function TaskDetails() {
   const [sendingComment, setSendingComment] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState<string>('');
+  const actorName =
+    (user as any)?.user_metadata?.full_name ||
+    (user as any)?.user_metadata?.name ||
+    (user as any)?.email ||
+    'A teammate';
 
   useEffect(() => {
-    if (id && currentCompany) {
+    if (id && currentCompany && !websiteJobAccessLoading) {
       loadTaskData();
       loadCompanyUsers();
     }
-  }, [id, currentCompany]);
+  }, [id, currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const fetchUserProfiles = async (userIds: string[]): Promise<ProfileMap> => {
     if (userIds.length === 0) return {};
@@ -120,6 +129,15 @@ export default function TaskDetails() {
         .single();
 
       if (taskError) throw taskError;
+
+      if (
+        taskData?.job_id &&
+        !canAccessAssignedJobOnly([taskData.job_id], isPrivileged, allowedJobIds)
+      ) {
+        toast.error('You do not have access to this task.');
+        navigate('/tasks');
+        return;
+      }
       setTask(taskData);
 
       // Load assignees
@@ -206,6 +224,17 @@ export default function TaskDetails() {
         });
 
       if (error) throw error;
+
+      if (currentCompany?.id && task?.id) {
+        await createMentionNotifications({
+          companyId: currentCompany.id,
+          actorUserId: user.id,
+          actorName,
+          content: newComment.trim(),
+          contextLabel: 'Task Comments',
+          targetPath: `/tasks/${task.id}`,
+        });
+      }
       setNewComment('');
       loadTaskData();
       toast.success('Comment added');
@@ -542,10 +571,12 @@ export default function TaskDetails() {
                     )}
                   </div>
                   <div className="flex gap-2">
-                    <Textarea
-                      placeholder="Write a comment..."
+                    <MentionTextarea
                       value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
+                      onValueChange={setNewComment}
+                      companyId={currentCompany?.id}
+                      currentUserId={user?.id}
+                      placeholder="Write a comment... (use @ to tag teammates)"
                       className="min-h-[80px]"
                       onKeyDown={(e) => {
                         if (e.key === 'Enter' && !e.shiftKey) {

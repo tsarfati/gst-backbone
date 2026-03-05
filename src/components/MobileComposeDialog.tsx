@@ -2,7 +2,6 @@ import React, { useState, useEffect } from 'react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +10,8 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
+import MentionTextarea from '@/components/MentionTextarea';
+import { createMentionNotifications } from '@/utils/mentions';
 
 interface Message {
   id: string;
@@ -126,6 +127,21 @@ export function MobileComposeDialog({ isOpen, onClose, onMessageSent, replyToMes
 
       if (error) throw error;
 
+      if (currentCompany?.id) {
+        await createMentionNotifications({
+          companyId: currentCompany.id,
+          actorUserId: user.id,
+          actorName:
+            (user as any)?.user_metadata?.full_name ||
+            (user as any)?.user_metadata?.name ||
+            (user as any)?.email ||
+            'A teammate',
+          content: message.trim(),
+          contextLabel: 'Messages',
+          targetPath: '/messages',
+        });
+      }
+
       toast({
         title: 'Message Sent',
         description: 'Your message has been sent successfully.',
@@ -205,11 +221,13 @@ export function MobileComposeDialog({ isOpen, onClose, onMessageSent, replyToMes
           {/* Message Content */}
           <div>
             <Label htmlFor="message">Message</Label>
-            <Textarea
+            <MentionTextarea
               id="message"
               value={message}
-              onChange={(e) => setMessage(e.target.value)}
-              placeholder="Type your message here..."
+              onValueChange={setMessage}
+              companyId={currentCompany?.id}
+              currentUserId={user?.id}
+              placeholder="Type your message here... (use @ to tag teammates)"
               rows={6}
             />
           </div>

@@ -19,6 +19,8 @@ import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover
 import { format } from 'date-fns';
 import PhotoLocationMap from './PhotoLocationMap';
 import { ChevronDown, Star } from 'lucide-react';
+import { createMentionNotifications } from '@/utils/mentions';
+import MentionInput from '@/components/MentionInput';
 
 interface JobPhoto {
   id: string;
@@ -129,6 +131,11 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [savedDefaultPhotoView, setSavedDefaultPhotoView] = useState<'cards' | 'compact' | 'super-compact'>('cards');
   const [photoViewPickerOpen, setPhotoViewPickerOpen] = useState(false);
+  const actorName =
+    (user as any)?.user_metadata?.full_name ||
+    (user as any)?.user_metadata?.name ||
+    (user as any)?.email ||
+    'A teammate';
   const timelineRailRef = useRef<HTMLDivElement | null>(null);
   const scrubVirtualIndexRef = useRef<number>(0);
   const scrubLastYRef = useRef<number | null>(null);
@@ -657,6 +664,17 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
         });
 
       if (error) throw error;
+
+      if (currentCompany?.id) {
+        await createMentionNotifications({
+          companyId: currentCompany.id,
+          actorUserId: user.id,
+          actorName,
+          content: newComment.trim(),
+          contextLabel: 'Photo Comments',
+          targetPath: `/jobs/${jobId}`,
+        });
+      }
 
       setNewComment('');
       loadComments(selectedPhoto.id);
@@ -1781,9 +1799,11 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
                 {/* Add Comment */}
                 <div className="flex gap-2">
-                  <Input
+                  <MentionInput
                     value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
+                    onValueChange={setNewComment}
+                    companyId={currentCompany?.id}
+                    currentUserId={user?.id}
                     placeholder="Add a comment..."
                     onKeyDown={(e) => {
                       if (e.key === 'Enter' && !e.shiftKey) {

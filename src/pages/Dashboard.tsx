@@ -15,6 +15,9 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useDashboardPermissions } from '@/hooks/useDashboardPermissions';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
+import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
 import BillsNeedingCoding from '@/components/BillsNeedingCoding';
 import CreditCardCodingRequests from '@/components/CreditCardCodingRequests';
 import UserAvatar from '@/components/UserAvatar';
@@ -78,6 +81,7 @@ interface DashboardSettings {
 function ActiveJobsList() {
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [jobs, setJobs] = useState<Job[]>([]);
   const [loading, setLoading] = useState(true);
 
@@ -95,7 +99,10 @@ function ActiveJobsList() {
           .limit(10);
 
         if (error) throw error;
-        setJobs(data || []);
+        const visibleJobs = (data || []).filter((job) =>
+          canAccessAssignedJobOnly([job.id], isPrivileged, allowedJobIds),
+        );
+        setJobs(visibleJobs);
       } catch (error) {
         console.error('Error fetching active jobs:', error);
       } finally {
@@ -103,8 +110,10 @@ function ActiveJobsList() {
       }
     };
 
-    fetchJobs();
-  }, [currentCompany]);
+    if (!websiteJobAccessLoading) {
+      fetchJobs();
+    }
+  }, [currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   return (
     <Card>
@@ -115,7 +124,7 @@ function ActiveJobsList() {
         </CardTitle>
       </CardHeader>
       <CardContent>
-        {loading ? (
+        {loading || websiteJobAccessLoading ? (
           <div className="text-center py-8">
             <p className="text-muted-foreground"><span className="loading-dots">Loading</span></p>
           </div>
@@ -169,6 +178,8 @@ export default function Dashboard() {
   const navigate = useNavigate();
   const permissions = useActionPermissions();
   const dashboardPermissions = useDashboardPermissions();
+  const activeCompanyRole = useActiveCompanyRole();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [notifications, setNotifications] = useState<Notification[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
@@ -203,13 +214,13 @@ export default function Dashboard() {
   const [pendingBillsTotal, setPendingBillsTotal] = useState(0);
 
   useEffect(() => {
-    if (user && currentCompany) {
+    if (user && currentCompany && !websiteJobAccessLoading) {
       fetchNotifications();
       fetchMessages();
       fetchDashboardSettings();
       fetchDashboardStats();
     }
-  }, [user, currentCompany]);
+  }, [user, currentCompany, activeCompanyRole, profile?.role, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const fetchDashboardStats = async () => {
     if (!currentCompany) return;
@@ -218,22 +229,28 @@ export default function Dashboard() {
       // Fetch uncoded receipts count
       const { data: uncodedData, error: uncodedError } = await supabase
         .from('receipts')
-        .select('id')
+        .select('id, job_id')
         .eq('company_id', currentCompany.id)
         .eq('status', 'uncoded');
       
       if (!uncodedError) {
-        setUncodedReceiptsCount(uncodedData?.length || 0);
+        const visibleUncoded = (uncodedData || []).filter((row: any) =>
+          canAccessAssignedJobOnly([row.job_id], isPrivileged, allowedJobIds),
+        );
+        setUncodedReceiptsCount(visibleUncoded.length);
       }
 
       // Fetch total receipts count
       const { data: totalData, error: totalError } = await supabase
         .from('receipts')
-        .select('id')
+        .select('id, job_id')
         .eq('company_id', currentCompany.id);
       
       if (!totalError) {
-        setTotalReceiptsCount(totalData?.length || 0);
+        const visibleReceipts = (totalData || []).filter((row: any) =>
+          canAccessAssignedJobOnly([row.job_id], isPrivileged, allowedJobIds),
+        );
+        setTotalReceiptsCount(visibleReceipts.length);
       }
 
       // Fetch active jobs count
@@ -244,18 +261,24 @@ export default function Dashboard() {
         .eq('status', 'active');
       
       if (!jobsError) {
-        setActiveJobsCount(jobsData?.length || 0);
+        const visibleJobs = (jobsData || []).filter((row: any) =>
+          canAccessAssignedJobOnly([row.id], isPrivileged, allowedJobIds),
+        );
+        setActiveJobsCount(visibleJobs.length);
       }
 
       // Fetch pending bills total
       const { data: pendingBills, error: billsError } = await supabase
         .from('invoices')
-        .select('amount, vendors!inner(company_id)')
+        .select('amount, job_id, vendors!inner(company_id)')
         .eq('vendors.company_id', currentCompany.id)
         .in('status', ['pending_approval', 'pending_coding']);
       
       if (!billsError && pendingBills) {
-        const total = pendingBills.reduce((sum, bill) => sum + (bill.amount || 0), 0);
+        const visibleBills = pendingBills.filter((bill: any) =>
+          canAccessAssignedJobOnly([bill.job_id], isPrivileged, allowedJobIds),
+        );
+        const total = visibleBills.reduce((sum, bill) => sum + (bill.amount || 0), 0);
         setPendingBillsTotal(total);
       }
     } catch (error) {
@@ -275,7 +298,53 @@ export default function Dashboard() {
         .limit(5);
 
       if (error) throw error;
-      setNotifications(data || []);
+
+      const baseNotifications = (data || []) as Notification[];
+      const approverRole = String(activeCompanyRole || profile?.role || '').toLowerCase();
+      const canApproveIntake = ['admin', 'company_admin', 'owner', 'controller', 'super_admin'].includes(approverRole);
+
+      if (!currentCompany || !canApproveIntake) {
+        setNotifications(baseNotifications);
+        return;
+      }
+
+      const { data: settingsRow } = await supabase
+        .from('notification_settings')
+        .select('in_app_enabled, intake_queue_requests')
+        .eq('user_id', user.id)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+
+      const inAppEnabled = (settingsRow as any)?.in_app_enabled !== false;
+      const intakeEnabled = (settingsRow as any)?.intake_queue_requests !== false;
+
+      if (!inAppEnabled || !intakeEnabled) {
+        setNotifications(baseNotifications);
+        return;
+      }
+
+      const { count: pendingCount } = await supabase
+        .from('company_access_requests')
+        .select('id', { count: 'exact', head: true })
+        .eq('company_id', currentCompany.id)
+        .eq('status', 'pending');
+
+      const hasPendingIntake = (pendingCount || 0) > 0;
+      if (!hasPendingIntake) {
+        setNotifications(baseNotifications);
+        return;
+      }
+
+      const summaryNotification: Notification = {
+        id: 'intake-queue-summary',
+        title: 'Intake Queue Pending',
+        message: `${pendingCount} user${pendingCount === 1 ? '' : 's'} waiting for approval in Intake Queue.`,
+        type: 'intake_queue_summary',
+        read: false,
+        created_at: new Date().toISOString(),
+      };
+
+      setNotifications([summaryNotification, ...baseNotifications]);
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
@@ -446,6 +515,10 @@ export default function Dashboard() {
   };
 
   const markNotificationAsRead = async (notificationId: string) => {
+    if (notificationId === 'intake-queue-summary') {
+      navigate('/settings/users');
+      return;
+    }
     try {
       const { error } = await supabase
         .from('notifications')
@@ -459,6 +532,24 @@ export default function Dashboard() {
       );
     } catch (error) {
       console.error('Error marking notification as read:', error);
+    }
+  };
+
+  const getNotificationPath = (notification: Notification): string | null => {
+    if (notification.id === 'intake-queue-summary') return '/settings/users';
+    if (String(notification.type || '').startsWith('mention:')) {
+      return notification.type.replace('mention:', '') || null;
+    }
+    return null;
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    if (!notification.read) {
+      await markNotificationAsRead(notification.id);
+    }
+    const targetPath = getNotificationPath(notification);
+    if (targetPath) {
+      navigate(targetPath);
     }
   };
 
@@ -658,7 +749,8 @@ export default function Dashboard() {
                         key={notification.id}
                         className={`p-3 rounded-lg border ${
                           !notification.read ? 'bg-accent' : 'bg-background'
-                        }`}
+                        } ${getNotificationPath(notification) ? 'cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors' : ''}`}
+                        onClick={() => handleNotificationClick(notification)}
                       >
                         <div className="flex items-start justify-between">
                           <div className="flex-1">
@@ -674,7 +766,10 @@ export default function Dashboard() {
                             <Button
                               size="sm"
                               variant="ghost"
-                              onClick={() => markNotificationAsRead(notification.id)}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                markNotificationAsRead(notification.id);
+                              }}
                             >
                               <X className="h-4 w-4" />
                             </Button>

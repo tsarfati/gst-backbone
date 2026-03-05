@@ -69,9 +69,12 @@ serve(async (req: Request): Promise<Response> => {
           vendor_portal_signup_modal_opacity,
           design_professional_portal_enabled,
           design_professional_signup_background_image_url,
+          design_professional_signup_background_color,
           design_professional_signup_logo_url,
           design_professional_signup_header_title,
-          design_professional_signup_header_subtitle
+          design_professional_signup_header_subtitle,
+          design_professional_signup_modal_color,
+          design_professional_signup_modal_opacity
         `)
         .in("company_id", companyIds);
 
@@ -103,9 +106,12 @@ serve(async (req: Request): Promise<Response> => {
           vendor_portal_signup_modal_opacity: Number(vendorSettings.vendor_portal_signup_modal_opacity ?? 0.96),
           design_professional_portal_enabled: designPortalEnabled,
           design_professional_signup_background_image_url: toPublicLogoUrl(vendorSettings.design_professional_signup_background_image_url),
+          design_professional_signup_background_color: vendorSettings.design_professional_signup_background_color ?? "#030B20",
           design_professional_signup_logo_url: toPublicLogoUrl(vendorSettings.design_professional_signup_logo_url),
           design_professional_signup_header_title: vendorSettings.design_professional_signup_header_title ?? null,
           design_professional_signup_header_subtitle: vendorSettings.design_professional_signup_header_subtitle ?? null,
+          design_professional_signup_modal_color: vendorSettings.design_professional_signup_modal_color ?? "#071231",
+          design_professional_signup_modal_opacity: Number(vendorSettings.design_professional_signup_modal_opacity ?? 0.96),
         };
       })
       .filter(Boolean);

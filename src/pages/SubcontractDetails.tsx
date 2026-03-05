@@ -13,12 +13,15 @@ import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import { generateCommitmentStatusReport } from "@/utils/commitmentReportPdf";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function SubcontractDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, profile } = useAuth();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   const [subcontract, setSubcontract] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -32,10 +35,10 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
   const [signatureActionLoading, setSignatureActionLoading] = useState(false);
 
   useEffect(() => {
-    if (id) {
+    if (id && !websiteJobAccessLoading) {
       fetchSubcontract();
     }
-  }, [id]);
+  }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const fetchSubcontract = async () => {
     try {
@@ -51,6 +54,17 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
         .single();
 
       if (error) throw error;
+
+      if (!canAccessAssignedJobOnly([data?.jobs?.id], isPrivileged, allowedJobIds)) {
+        toast({
+          title: "Access denied",
+          description: "You do not have access to this subcontract",
+          variant: "destructive",
+        });
+        setSubcontract(null);
+        return;
+      }
+
       setSubcontract(data);
 
       // Resolve cost codes used in cost_distribution for display
@@ -282,7 +296,7 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
     }
   };
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-6">
         <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading</span></div>

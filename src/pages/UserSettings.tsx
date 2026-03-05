@@ -51,17 +51,18 @@ interface CustomRole {
   color?: string | null;
 }
 
- interface Invitation {
-   id: string;
-   email: string;
-   first_name: string | null;
-   last_name: string | null;
-   role: string;
-   invited_at: string;
-   expires_at: string;
-   status: string;
-   email_status: string | null;
-   email_delivered_at: string | null;
+interface Invitation {
+  id: string;
+  email: string;
+  first_name: string | null;
+  last_name: string | null;
+  role: string;
+  custom_role_id?: string | null;
+  invited_at: string;
+  expires_at: string;
+  status: string;
+  email_status: string | null;
+  email_delivered_at: string | null;
    email_opened_at: string | null;
    email_bounced_at: string | null;
  }
@@ -125,6 +126,8 @@ export default function UserSettings() {
    const [resendingId, setResendingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
+  const [intakeRoleFilter, setIntakeRoleFilter] = useState<'all' | 'vendor' | 'design_professional'>('all');
+  const [intakePendingOnly, setIntakePendingOnly] = useState(true);
 
   // Use company-specific role, fallback to profile role
   const effectiveRole = activeCompanyRole || profile?.role;
@@ -309,11 +312,11 @@ export default function UserSettings() {
        );
      }
  
-     if (invitation.email_delivered_at) {
+     if (invitation.email_delivered_at || invitation.email_status === 'delivered') {
        return (
          <Badge variant="secondary" className="flex items-center gap-1">
            <MailCheck className="h-3 w-3" />
-           Delivered
+           Received
          </Badge>
        );
      }
@@ -464,6 +467,25 @@ export default function UserSettings() {
     return users.filter((u) => !u.custom_role_id && roles.includes(u.role));
   };
 
+  const getInvitationRoleBadge = (invitation: Invitation) => {
+    if (invitation.custom_role_id) {
+      const customRole = customRoles.find((r) => r.id === invitation.custom_role_id);
+      if (customRole) {
+        return (
+          <Badge variant="secondary">
+            {customRole.role_name}
+          </Badge>
+        );
+      }
+    }
+
+    return (
+      <Badge variant={roleColors[invitation.role as keyof typeof roleColors] || 'outline'}>
+        {roleLabels[invitation.role as keyof typeof roleLabels] || invitation.role}
+      </Badge>
+    );
+  };
+
   if (!canManageUsers) {
     return (
       <div className="p-4 md:p-6">
@@ -499,11 +521,11 @@ export default function UserSettings() {
             User Roles
           </TabsTrigger>
           <TabsTrigger
-            value="access-requests" 
+            value="intake-queue" 
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
           >
-            <UserPlus className="h-4 w-4 mr-2" />
-            Access Requests
+            <MailOpen className="h-4 w-4 mr-2" />
+            Intake Queue
           </TabsTrigger>
           <TabsTrigger 
             value="roles" 
@@ -565,9 +587,7 @@ export default function UserSettings() {
                               </p>
                               <div className="flex flex-wrap gap-2 mt-2">
                                 <Badge variant="secondary">Pending Invitation</Badge>
-                                <Badge variant={roleColors[invitation.role as keyof typeof roleColors] || 'outline'}>
-                                  {roleLabels[invitation.role as keyof typeof roleLabels] || invitation.role}
-                                </Badge>
+                                {getInvitationRoleBadge(invitation)}
                                 {getEmailStatusBadge(invitation)}
                               </div>
                             </div>
@@ -788,8 +808,58 @@ export default function UserSettings() {
           <UserRoleManagement />
         </TabsContent>
 
-        <TabsContent value="access-requests">
-          <CompanyAccessRequests />
+        <TabsContent value="intake-queue">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="text-base">Filters</CardTitle>
+              </CardHeader>
+              <CardContent className="flex flex-wrap items-center gap-2">
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={intakeRoleFilter === 'all' ? 'default' : 'outline'}
+                  onClick={() => setIntakeRoleFilter('all')}
+                >
+                  All Roles
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={intakeRoleFilter === 'vendor' ? 'default' : 'outline'}
+                  onClick={() => setIntakeRoleFilter('vendor')}
+                >
+                  Vendors
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={intakeRoleFilter === 'design_professional' ? 'default' : 'outline'}
+                  onClick={() => setIntakeRoleFilter('design_professional')}
+                >
+                  Design Professionals
+                </Button>
+                <Button
+                  type="button"
+                  size="sm"
+                  variant={intakePendingOnly ? 'default' : 'outline'}
+                  onClick={() => setIntakePendingOnly((prev) => !prev)}
+                >
+                  Pending Only
+                </Button>
+              </CardContent>
+            </Card>
+            <CompanyAccessRequests
+              requestedRoleFilter={
+                intakeRoleFilter === 'all'
+                  ? ['employee', 'vendor', 'design_professional']
+                  : [intakeRoleFilter]
+              }
+              statusFilter={intakePendingOnly ? 'pending' : 'all'}
+              title="Signup Intake Queue"
+              description="Review employee, vendor, and design professional signup requests."
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="roles">

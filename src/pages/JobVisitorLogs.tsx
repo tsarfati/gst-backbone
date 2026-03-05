@@ -9,20 +9,23 @@ import { VisitorReportsPage } from "@/components/VisitorReportsPage";
 import { VisitorLogSettingsEnhanced } from "@/components/VisitorLogSettingsEnhanced";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function JobVisitorLogs() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [jobName, setJobName] = useState("");
   const [companyName, setCompanyName] = useState("");
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    if (id) {
+    if (id && !websiteJobAccessLoading) {
       loadJobDetails();
     }
-  }, [id]);
+  }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadJobDetails = async () => {
     try {
@@ -39,6 +42,16 @@ export default function JobVisitorLogs() {
         .single();
 
       if (jobError) throw jobError;
+
+      if (!canAccessAssignedJobOnly([id], isPrivileged, allowedJobIds)) {
+        toast({
+          title: "Access denied",
+          description: "You do not have access to this job.",
+          variant: "destructive",
+        });
+        navigate("/jobs");
+        return;
+      }
 
       setJobName(jobData.name);
       setCompanyName(jobData.companies?.name || "");

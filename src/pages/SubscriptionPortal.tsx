@@ -66,6 +66,14 @@ interface AvailableTier {
   stripe_price_id: string | null;
 }
 
+interface InternalAssignedPlan {
+  tierName: string;
+  monthlyPrice: number;
+  status: string;
+  billingCycle: string | null;
+  startDate: string;
+}
+
 export default function SubscriptionPortal() {
   const { user } = useAuth();
   const { currentCompany: selectedCompany } = useCompany();
@@ -78,6 +86,7 @@ export default function SubscriptionPortal() {
   const [paymentMethods, setPaymentMethods] = useState<PaymentMethodData[]>([]);
   const [customerId, setCustomerId] = useState<string | null>(null);
   const [availableTiers, setAvailableTiers] = useState<AvailableTier[]>([]);
+  const [internalAssignedPlan, setInternalAssignedPlan] = useState<InternalAssignedPlan | null>(null);
 
   const [cancelDialogOpen, setCancelDialogOpen] = useState(false);
   const [changePlanDialogOpen, setChangePlanDialogOpen] = useState(false);
@@ -97,6 +106,30 @@ export default function SubscriptionPortal() {
       setInvoices(data.invoices || []);
       setPaymentMethods(data.paymentMethods || []);
       setCustomerId(data.customerId || null);
+
+      if (selectedCompany?.id) {
+        const { data: internalSub, error: internalSubError } = await supabase
+          .from('company_subscriptions')
+          .select('status, billing_cycle, start_date, subscription_tiers(name, monthly_price)')
+          .eq('company_id', selectedCompany.id)
+          .maybeSingle();
+
+        if (internalSubError) throw internalSubError;
+
+        if (internalSub) {
+          setInternalAssignedPlan({
+            tierName: (internalSub as any)?.subscription_tiers?.name || 'Unknown',
+            monthlyPrice: Number((internalSub as any)?.subscription_tiers?.monthly_price || 0),
+            status: String((internalSub as any)?.status || 'active'),
+            billingCycle: (internalSub as any)?.billing_cycle || null,
+            startDate: String((internalSub as any)?.start_date || new Date().toISOString()),
+          });
+        } else {
+          setInternalAssignedPlan(null);
+        }
+      } else {
+        setInternalAssignedPlan(null);
+      }
     } catch (err: any) {
       console.error('Error fetching subscription details:', err);
       toast({ title: 'Error', description: err.message || 'Failed to load subscription details.', variant: 'destructive' });
@@ -215,13 +248,36 @@ export default function SubscriptionPortal() {
         {/* ===== OVERVIEW TAB ===== */}
         <TabsContent value="overview" className="space-y-4">
           {!subscription ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <XCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
-                <p className="font-medium text-lg">No Active Subscription</p>
-                <p className="text-sm text-muted-foreground mt-1">Contact your BuilderLynk account manager to set up your subscription or reach out to <a href="mailto:support@builderlynk.com" className="text-primary underline">support@builderlynk.com</a>.</p>
-              </CardContent>
-            </Card>
+            internalAssignedPlan ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-lg">Assigned Plan</CardTitle>
+                  <CardDescription>
+                    Your company has an internal tier assignment. Stripe billing is not linked yet.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-2">
+                  <p className="text-2xl font-bold">{internalAssignedPlan.tierName}</p>
+                  <p className="text-muted-foreground">
+                    ${internalAssignedPlan.monthlyPrice.toFixed(2)}/{internalAssignedPlan.billingCycle || 'monthly'}
+                  </p>
+                  <div className="pt-2">
+                    {getStatusBadge(internalAssignedPlan.status)}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Assigned on {new Date(internalAssignedPlan.startDate).toLocaleDateString()}
+                  </p>
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <XCircle className="h-12 w-12 mx-auto mb-4 text-muted-foreground opacity-50" />
+                  <p className="font-medium text-lg">No Active Subscription</p>
+                  <p className="text-sm text-muted-foreground mt-1">Contact your BuilderLynk account manager to set up your subscription or reach out to <a href="mailto:support@builderlynk.com" className="text-primary underline">support@builderlynk.com</a>.</p>
+                </CardContent>
+              </Card>
+            )
           ) : (
             <>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

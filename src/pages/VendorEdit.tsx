@@ -64,7 +64,7 @@ export default function VendorEdit() {
     if (!isAddMode && user && (currentCompany?.id || profile?.current_company_id)) {
       loadVendor();
     }
-  }, [id, isAddMode, user, currentCompany, profile?.current_company_id]);
+  }, [id, isAddMode, user, currentCompany, profile?.current_company_id, navigate, toast]);
 
   const loadPaymentMethods = async () => {
     if (!user || !id) return;
@@ -122,6 +122,15 @@ export default function VendorEdit() {
       if (error) throw error;
       
       if (data) {
+        if (currentCompany?.id && data.company_id !== currentCompany.id) {
+          toast({
+            title: "Access denied",
+            description: "You do not have access to edit this vendor",
+            variant: "destructive",
+          });
+          navigate('/vendors');
+          return;
+        }
         setVendor(data);
         setFormData({
           name: data.name || "",

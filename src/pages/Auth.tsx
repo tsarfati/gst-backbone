@@ -109,14 +109,21 @@ export default function Auth() {
     const type = searchParams.get('type');
     const accessToken = searchParams.get('access_token');
     const refreshToken = searchParams.get('refresh_token');
+    const impersonating = searchParams.get('impersonating');
     
     // Check URL hash for tokens (Supabase often puts them there)
     const hashParams = new URLSearchParams(window.location.hash.substring(1));
     const hashType = hashParams.get('type');
     const hashAccessToken = hashParams.get('access_token');
     const hashRefreshToken = hashParams.get('refresh_token');
+    const hashImpersonating = hashParams.get('impersonating');
     
     const isRecovery = type === 'recovery' || hashType === 'recovery';
+    const isImpersonationSession = impersonating === '1' || hashImpersonating === '1';
+
+    if (isImpersonationSession) {
+      window.sessionStorage.setItem('builderlynk_impersonation_mode', '1');
+    }
     
     if (isRecovery) {
       setIsRecoveryMode(true);

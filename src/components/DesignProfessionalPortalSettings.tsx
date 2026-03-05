@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
 import { Input } from '@/components/ui/input';
@@ -11,21 +11,37 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { cn } from '@/lib/utils';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSettings } from '@/contexts/SettingsContext';
 
 type DesignProfessionalPortalSettingsData = {
   design_professional_portal_enabled: boolean;
   design_professional_signup_background_image_url: string;
+  design_professional_signup_background_color: string;
   design_professional_signup_logo_url: string;
   design_professional_signup_header_title: string;
   design_professional_signup_header_subtitle: string;
+  design_professional_signup_modal_color: string;
+  design_professional_signup_modal_opacity: number;
 };
 
 const defaults: DesignProfessionalPortalSettingsData = {
   design_professional_portal_enabled: true,
   design_professional_signup_background_image_url: '',
+  design_professional_signup_background_color: '#030B20',
   design_professional_signup_logo_url: '',
   design_professional_signup_header_title: 'Design Professional Signup',
   design_professional_signup_header_subtitle: 'Create your design professional account and request company approval.',
+  design_professional_signup_modal_color: '#071231',
+  design_professional_signup_modal_opacity: 0.96,
+};
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const normalized = hex.trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(7,18,49,${alpha})`;
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
 };
 
 function AssetDropzone({
@@ -111,9 +127,11 @@ export default function DesignProfessionalPortalSettings() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { profile } = useAuth();
+  const { settings: appSettings } = useSettings();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [settings, setSettings] = useState<DesignProfessionalPortalSettingsData>(defaults);
+  const autoSaveReadyRef = useRef(false);
 
   useEffect(() => {
     if (!currentCompany?.id) return;
@@ -132,9 +150,14 @@ export default function DesignProfessionalPortalSettings() {
         setSettings({
           design_professional_portal_enabled: row.design_professional_portal_enabled ?? true,
           design_professional_signup_background_image_url: row.design_professional_signup_background_image_url ?? '',
+          design_professional_signup_background_color: row.design_professional_signup_background_color ?? defaults.design_professional_signup_background_color,
           design_professional_signup_logo_url: row.design_professional_signup_logo_url ?? '',
           design_professional_signup_header_title: row.design_professional_signup_header_title ?? defaults.design_professional_signup_header_title,
           design_professional_signup_header_subtitle: row.design_professional_signup_header_subtitle ?? defaults.design_professional_signup_header_subtitle,
+          design_professional_signup_modal_color: row.design_professional_signup_modal_color ?? defaults.design_professional_signup_modal_color,
+          design_professional_signup_modal_opacity: Number(
+            row.design_professional_signup_modal_opacity ?? defaults.design_professional_signup_modal_opacity,
+          ),
         });
       } catch (error) {
         console.error('Failed loading design professional portal settings:', error);
@@ -144,6 +167,7 @@ export default function DesignProfessionalPortalSettings() {
           variant: 'destructive',
         });
       } finally {
+        autoSaveReadyRef.current = true;
         setLoading(false);
       }
     };
@@ -151,10 +175,8 @@ export default function DesignProfessionalPortalSettings() {
     void load();
   }, [currentCompany?.id, toast]);
 
-  const save = async (partial?: Partial<DesignProfessionalPortalSettingsData>) => {
+  const persist = async (payload: DesignProfessionalPortalSettingsData, showToast = false) => {
     if (!currentCompany?.id) return;
-    const payload = { ...settings, ...(partial || {}) };
-    setSettings(payload);
 
     try {
       setSaving(true);
@@ -183,6 +205,12 @@ export default function DesignProfessionalPortalSettings() {
         if (insertError) throw insertError;
       }
 
+      if (showToast) {
+        toast({
+          title: 'Saved',
+          description: 'Design professional portal settings updated.',
+        });
+      }
       return true;
     } catch (error) {
       console.error('Failed saving design professional portal settings:', error);
@@ -196,6 +224,20 @@ export default function DesignProfessionalPortalSettings() {
       setSaving(false);
     }
   };
+
+  const save = async () => {
+    return persist(settings, true);
+  };
+
+  useEffect(() => {
+    if (!appSettings.autoSave || loading || saving || !currentCompany?.id || !autoSaveReadyRef.current) return;
+
+    const timer = setTimeout(() => {
+      void persist(settings, false);
+    }, 700);
+
+    return () => clearTimeout(timer);
+  }, [appSettings.autoSave, loading, saving, currentCompany?.id, settings]);
 
   const uploadAsset = async (
     file: File,
@@ -214,8 +256,15 @@ export default function DesignProfessionalPortalSettings() {
       if (uploadError) throw uploadError;
 
       const { data } = supabase.storage.from('company-logos').getPublicUrl(filePath);
-      const saved = await save({ [field]: data.publicUrl } as Partial<DesignProfessionalPortalSettingsData>);
-      if (saved) {
+      const nextSettings = { ...settings, [field]: data.publicUrl } as DesignProfessionalPortalSettingsData;
+      setSettings(nextSettings);
+
+      if (appSettings.autoSave) {
+        const saved = await persist(nextSettings, false);
+        if (!saved) return;
+      }
+
+      {
         toast({
           title: 'Upload complete',
           description: 'Design professional portal image updated.',
@@ -242,10 +291,19 @@ export default function DesignProfessionalPortalSettings() {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Design Professional Portal</CardTitle>
-        <CardDescription>
-          Configure design professional signup branding and enable/disable portal access.
-        </CardDescription>
+        <div className="flex items-start justify-between gap-3">
+          <div>
+            <CardTitle>Design Professional Portal</CardTitle>
+            <CardDescription>
+              Configure design professional signup branding and enable/disable portal access.
+            </CardDescription>
+          </div>
+          {!appSettings.autoSave && (
+            <Button type="button" onClick={() => void save()} disabled={saving} className="shrink-0">
+              {saving ? 'Saving...' : 'Save Settings'}
+            </Button>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="flex items-center justify-between">
@@ -255,7 +313,9 @@ export default function DesignProfessionalPortalSettings() {
           </div>
           <Switch
             checked={settings.design_professional_portal_enabled}
-            onCheckedChange={(checked) => void save({ design_professional_portal_enabled: checked })}
+            onCheckedChange={(checked) =>
+              setSettings((prev) => ({ ...prev, design_professional_portal_enabled: checked }))
+            }
           />
         </div>
 
@@ -308,7 +368,6 @@ export default function DesignProfessionalPortalSettings() {
             <Input
               value={settings.design_professional_signup_header_title}
               onChange={(e) => setSettings((prev) => ({ ...prev, design_professional_signup_header_title: e.target.value }))}
-              onBlur={() => void save()}
             />
           </div>
           <div className="space-y-2">
@@ -316,8 +375,87 @@ export default function DesignProfessionalPortalSettings() {
             <Input
               value={settings.design_professional_signup_header_subtitle}
               onChange={(e) => setSettings((prev) => ({ ...prev, design_professional_signup_header_subtitle: e.target.value }))}
-              onBlur={() => void save()}
             />
+          </div>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="space-y-2">
+            <Label>Page Background Color</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="color"
+                value={settings.design_professional_signup_background_color}
+                onChange={(e) => setSettings((prev) => ({ ...prev, design_professional_signup_background_color: e.target.value }))}
+                className="h-10 w-16 p-1"
+              />
+              <Input
+                value={settings.design_professional_signup_background_color}
+                onChange={(e) => setSettings((prev) => ({ ...prev, design_professional_signup_background_color: e.target.value }))}
+                placeholder="#030B20"
+              />
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Signup Modal Color</Label>
+            <div className="flex items-center gap-2">
+              <Input
+                type="color"
+                value={settings.design_professional_signup_modal_color}
+                onChange={(e) => setSettings((prev) => ({ ...prev, design_professional_signup_modal_color: e.target.value }))}
+                className="h-10 w-16 p-1"
+              />
+              <Input
+                value={settings.design_professional_signup_modal_color}
+                onChange={(e) => setSettings((prev) => ({ ...prev, design_professional_signup_modal_color: e.target.value }))}
+                placeholder="#071231"
+              />
+            </div>
+          </div>
+        </div>
+
+        <div className="space-y-2">
+          <Label>Signup Modal Transparency</Label>
+          <div className="flex items-center gap-3">
+            <Input
+              type="range"
+              min={10}
+              max={100}
+              step={1}
+              value={Math.round(settings.design_professional_signup_modal_opacity * 100)}
+              onChange={(e) => {
+                const value = Number(e.target.value) / 100;
+                setSettings((prev) => ({ ...prev, design_professional_signup_modal_opacity: value }));
+              }}
+            />
+            <span className="text-sm text-muted-foreground w-14 text-right">
+              {Math.round(settings.design_professional_signup_modal_opacity * 100)}%
+            </span>
+          </div>
+        </div>
+
+        <div className="rounded-md border border-border/70 bg-muted/20 p-3">
+          <div className="text-sm font-medium mb-2">Preview</div>
+          <div className="grid grid-cols-2 gap-3 text-xs text-muted-foreground">
+            <div className="space-y-1">
+              <div>Background</div>
+              <div
+                className="h-12 w-full rounded border border-border/60"
+                style={{ backgroundColor: settings.design_professional_signup_background_color }}
+              />
+            </div>
+            <div className="space-y-1">
+              <div>Modal</div>
+              <div
+                className="h-12 w-full rounded border border-border/60"
+                style={{
+                  backgroundColor: hexToRgba(
+                    settings.design_professional_signup_modal_color,
+                    settings.design_professional_signup_modal_opacity,
+                  ),
+                }}
+              />
+            </div>
           </div>
         </div>
 

@@ -41,12 +41,16 @@ export function AccessControl({ children }: AccessControlProps) {
   const [initialized, setInitialized] = useState(false);
   const [autoAcceptingInvite, setAutoAcceptingInvite] = useState(false);
   const [autoAcceptRetryTick, setAutoAcceptRetryTick] = useState(0);
+  const [pendingExternalAccess, setPendingExternalAccess] = useState<boolean>(false);
+  const [pendingExternalAccessLoading, setPendingExternalAccessLoading] = useState<boolean>(false);
   const lastAutoAcceptAttemptAtRef = useRef<number>(0);
   const autoAcceptAttemptCountRef = useRef(0);
   const isInviteAuthRoute = location.pathname === '/auth' && new URLSearchParams(location.search).has('invite');
   const inviteAutoAcceptFlag = typeof window !== 'undefined'
     ? window.sessionStorage.getItem('pending_invite_auto_accept') === '1'
     : false;
+  const role = String(profile?.role || '').toLowerCase();
+  const isExternalUser = role === 'vendor' || role === 'design_professional';
 
   useEffect(() => {
     const maxAutoAcceptAttempts = 8;
@@ -154,6 +158,70 @@ export function AccessControl({ children }: AccessControlProps) {
   }, [user?.id, profile?.status, hasTenantAccess, isSuperAdmin, userCompanies.length, isInviteAuthRoute, inviteAutoAcceptFlag, refreshProfile, autoAcceptRetryTick]);
 
   useEffect(() => {
+    let cancelled = false;
+
+    const loadPendingExternalAccess = async () => {
+      if (!user?.id) {
+        setPendingExternalAccess(false);
+        setPendingExternalAccessLoading(false);
+        return;
+      }
+
+      const role = String(profile?.role || '').toLowerCase();
+      const isExternalRole = role === 'vendor' || role === 'design_professional';
+
+      if (isExternalRole && userCompanies.length === 0) {
+        setPendingExternalAccess(true);
+        setPendingExternalAccessLoading(false);
+        return;
+      }
+
+      setPendingExternalAccessLoading(true);
+      try {
+        const { data, error } = await supabase
+          .from('company_access_requests')
+          .select('status, notes')
+          .eq('user_id', user.id)
+          .eq('status', 'pending')
+          .order('requested_at', { ascending: false })
+          .limit(1);
+
+        if (cancelled) return;
+        if (error) {
+          console.warn('Failed to query pending company access requests:', error);
+          setPendingExternalAccess(false);
+          return;
+        }
+
+        const row = (data || [])[0] as { status?: string; notes?: string | null } | undefined;
+        if (!row) {
+          setPendingExternalAccess(false);
+          return;
+        }
+
+        let requestedRole = '';
+        try {
+          const parsed = row.notes ? JSON.parse(row.notes) : null;
+          requestedRole = String(parsed?.requestedRole || '').toLowerCase();
+        } catch {
+          requestedRole = '';
+        }
+
+        const isPendingExternal = requestedRole === 'vendor' || requestedRole === 'design_professional';
+        setPendingExternalAccess(isPendingExternal);
+      } finally {
+        if (!cancelled) setPendingExternalAccessLoading(false);
+      }
+    };
+
+    loadPendingExternalAccess();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, profile?.role, userCompanies.length]);
+
+  useEffect(() => {
     if (authLoading || companyLoading || tenantLoading || settingsLoading) {
       return;
     }
@@ -195,8 +263,38 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
+    // External users are portal-scoped.
+    if (isExternalUser) {
+      const allowExternal =
+        location.pathname === '/profile-settings' ||
+        location.pathname.startsWith('/vendor/') ||
+        location.pathname.startsWith('/design-professional/');
+      if (!allowExternal) {
+        navigate(role === 'design_professional' ? '/design-professional/dashboard' : '/vendor/dashboard', { replace: true });
+        return;
+      }
+    }
+
     // Check account status - block pending and suspended users
     if (profile && (profile.status === 'pending' || profile.status === 'suspended')) {
+      setChecking(false);
+      if (!initialized) setInitialized(true);
+      return;
+    }
+
+    const hasCompanyLinkContext = !!profile?.current_company_id || !!(profile as any)?.default_company_id;
+
+    // External vendor/design-professional users with pending company approval should never be sent
+    // to tenant/company creation flows.
+    if (pendingExternalAccess && userCompanies.length === 0) {
+      setChecking(false);
+      if (!initialized) setInitialized(true);
+      return;
+    }
+
+    // Users created through vendor/design portals can have company linkage before tenant linkage.
+    // Never send these users to "create organization" while company onboarding is pending.
+    if (hasCompanyLinkContext && !hasTenantAccess && userCompanies.length === 0) {
       setChecking(false);
       if (!initialized) setInitialized(true);
       return;
@@ -223,7 +321,7 @@ export function AccessControl({ children }: AccessControlProps) {
     }
 
     // If no tenant access and no pending request, redirect to tenant request
-    if (!hasTenantAccess && !hasPendingRequest && profile) {
+    if (!hasTenantAccess && !hasPendingRequest && profile && !pendingExternalAccess && !hasCompanyLinkContext) {
       if (location.pathname !== '/tenant-request') {
         navigate('/tenant-request', { replace: true });
       }
@@ -231,7 +329,7 @@ export function AccessControl({ children }: AccessControlProps) {
     }
 
     // If has pending request but no tenant access, stay on tenant-request
-    if (!hasTenantAccess && hasPendingRequest && location.pathname !== '/tenant-request') {
+    if (!hasTenantAccess && hasPendingRequest && location.pathname !== '/tenant-request' && !pendingExternalAccess && !hasCompanyLinkContext) {
       navigate('/tenant-request', { replace: true });
       return;
     }
@@ -260,19 +358,27 @@ export function AccessControl({ children }: AccessControlProps) {
     if (!initialized) {
       setInitialized(true);
     }
-  }, [user?.id, profile?.profile_completed, profile?.current_company_id, profile?.status, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute]);
+  }, [user?.id, profile?.profile_completed, profile?.current_company_id, profile?.status, profile?.role, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute, pendingExternalAccess]);
 
   // Show account status splash screens
   if (autoAcceptingInvite) {
     return <PremiumLoadingScreen text="Applying invitation..." />;
   }
 
+  if (authLoading || companyLoading || tenantLoading || settingsLoading || pendingExternalAccessLoading || checking) {
+    return <PremiumLoadingScreen text="Loading your workspace..." />;
+  }
+
   if (!isInviteAuthRoute && profile && (profile.status === 'pending' || profile.status === 'suspended')) {
     return <AccountStatusScreen status={profile.status as 'pending' | 'suspended'} />;
   }
 
-  if (authLoading || companyLoading || tenantLoading || settingsLoading || checking) {
-    return <PremiumLoadingScreen text="Loading your workspace..." />;
+  if (!isInviteAuthRoute && !hasTenantAccess && userCompanies.length === 0 && (!!profile?.current_company_id || !!(profile as any)?.default_company_id)) {
+    return <AccountStatusScreen status="pending" />;
+  }
+
+  if (!isInviteAuthRoute && pendingExternalAccess && userCompanies.length === 0) {
+    return <AccountStatusScreen status="pending" />;
   }
 
   return <>{children}</>;

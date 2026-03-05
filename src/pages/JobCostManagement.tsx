@@ -26,6 +26,7 @@ import {
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 interface CostCode {
   id: string;
@@ -53,6 +54,7 @@ interface ChartAccount {
 
 export default function JobCostManagement() {
   const { toast } = useToast();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [costCodes, setCostCodes] = useState<CostCode[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [chartAccounts, setChartAccounts] = useState<ChartAccount[]>([]);
@@ -86,8 +88,10 @@ export default function JobCostManagement() {
   ];
 
   useEffect(() => {
-    loadData();
-  }, []);
+    if (!websiteJobAccessLoading) {
+      loadData();
+    }
+  }, [websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadData = async () => {
     try {
@@ -122,7 +126,10 @@ export default function JobCostManagement() {
           chart_account_number: code.chart_of_accounts?.account_number || code.chart_account_number || null
         }));
 
-      setCostCodes(transformedCostCodes as CostCode[]);
+      const visibleCostCodes = isPrivileged
+        ? (transformedCostCodes as CostCode[])
+        : (transformedCostCodes as CostCode[]).filter((code) => !!code.job_id && allowedJobIds.includes(code.job_id));
+      setCostCodes(visibleCostCodes);
 
       // Load jobs
       const { data: jobsData, error: jobsError } = await supabase
@@ -131,7 +138,10 @@ export default function JobCostManagement() {
         .order('name');
 
       if (jobsError) throw jobsError;
-      setJobs(jobsData || []);
+      const visibleJobs = isPrivileged
+        ? (jobsData || [])
+        : (jobsData || []).filter((job: any) => allowedJobIds.includes(job.id));
+      setJobs(visibleJobs);
 
       // Load chart of accounts
       const { data: accountsData, error: accountsError } = await supabase
@@ -284,7 +294,7 @@ export default function JobCostManagement() {
     return matchesSearch && matchesJob && matchesType;
   });
 
-  if (loading) {
+  if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-4 md:p-6">
         <div className="text-center py-12">
