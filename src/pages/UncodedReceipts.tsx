@@ -1065,7 +1065,7 @@ export default function UncodedReceipts() {
               </div>
 
               {/* Coding Section */}
-              <div className="p-4 border-b border-border overflow-y-auto">
+              <div className="p-4 border-b border-border">
                 <h3 className="font-medium mb-3 flex items-center">
                   <Code className="h-4 w-4 mr-2" />
                   Code Receipt

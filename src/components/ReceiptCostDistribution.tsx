@@ -260,9 +260,9 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
   return (
     <Card>
       <CardHeader>
-        <div className="flex items-center justify-between">
-          <CardTitle className="text-base">Cost Distribution</CardTitle>
-          <div className="flex items-center gap-2">
+        <div className="space-y-2">
+          <div className="flex items-center justify-between">
+            <CardTitle className="text-base">Cost Distribution</CardTitle>
             <Button
               type="button"
               variant="outline"
@@ -273,6 +273,8 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
               <Calculator className="h-4 w-4 mr-2" />
               Distribute Evenly
             </Button>
+          </div>
+          <div>
             <Button
               type="button"
               variant="outline"
