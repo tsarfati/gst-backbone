@@ -503,6 +503,8 @@ function AuthenticatedRoutes() {
               <Route path="invoices/payments" element={<PaymentHistory />} />
               <Route path="invoices/payment-reports" element={<PaymentReports />} />
               <Route path="company-files" element={<CompanyFiles />} />
+              <Route path="company-files/jobs" element={<CompanyFiles />} />
+              <Route path="company-files/dropbox" element={<CompanyFiles />} />
               <Route path="company-files/contracts" element={<CompanyContracts />} />
               <Route path="company-files/permits" element={<CompanyPermits />} />
               <Route path="company-files/insurance" element={<CompanyInsurance />} />

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -32,6 +33,11 @@ interface CompanyFile {
   description?: string | null;
 }
 
+interface JobEntry {
+  id: string;
+  name: string;
+}
+
 interface UnassignedCompanyFile {
   id: string;
   category: string | null;
@@ -43,7 +49,7 @@ type DragItemPayload =
 
 const INTERNAL_DND_MIME = "application/x-company-library-item";
 const STORAGE_BUCKET = "job-filing-cabinet";
-const DEFAULT_FOLDER_NAMES = ["Contracts", "Permits", "Insurance", "General"];
+const LEGACY_SYSTEM_FOLDER_NAMES = ["contracts", "permits", "insurance", "general"];
 
 const categoryForFolderName = (name: string): string => {
   const normalized = name.trim().toLowerCase();
@@ -79,8 +85,9 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
 
 export default function CompanyFiles() {
   const { currentCompany } = useCompany();
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { toast } = useToast();
+  const location = useLocation();
 
   const [loading, setLoading] = useState(true);
   const [folders, setFolders] = useState<CompanyFolder[]>([]);
@@ -98,11 +105,17 @@ export default function CompanyFiles() {
   const [editingFileName, setEditingFileName] = useState("");
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
   const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
+  const [jobs, setJobs] = useState<JobEntry[]>([]);
+  const [jobFileCountByJobId, setJobFileCountByJobId] = useState<Record<string, number>>({});
+  const [jobUploadTargetId, setJobUploadTargetId] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputFolderRef = useRef<string | null>(null);
+  const jobFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const companyId = currentCompany?.id || null;
   const userId = user?.id || null;
+  const displayName = profile?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || user?.email || "User";
+  const dropboxFolderName = `Dropbox - ${displayName}`;
 
   const filesByFolderId = useMemo(() => {
     const grouped: Record<string, CompanyFile[]> = {};
@@ -126,6 +139,78 @@ export default function CompanyFiles() {
     [files, selectedFileIds],
   );
 
+  const syncSystemFolders = useCallback(
+    async (existing: CompanyFolder[]): Promise<CompanyFolder[]> => {
+      if (!companyId || !userId) return existing;
+
+      let folders = [...existing];
+      let jobsFolder = folders.find((folder) => folder.is_system_folder && folder.name.trim().toLowerCase() === "jobs");
+      let myDropbox = folders.find((folder) => folder.is_system_folder && folder.name.trim().toLowerCase() === dropboxFolderName.trim().toLowerCase());
+
+      if (!jobsFolder) {
+        const { data, error } = await supabase
+          .from("company_file_folders" as never)
+          .insert({
+            company_id: companyId,
+            name: "Jobs",
+            sort_order: 0,
+            is_system_folder: true,
+            created_by: userId,
+          } as never)
+          .select("id, name, sort_order, is_system_folder")
+          .single();
+        if (!error && data) {
+          jobsFolder = data as CompanyFolder;
+          folders.push(jobsFolder);
+        }
+      }
+
+      if (!myDropbox) {
+        const { data, error } = await supabase
+          .from("company_file_folders" as never)
+          .insert({
+            company_id: companyId,
+            name: dropboxFolderName,
+            sort_order: 1,
+            is_system_folder: true,
+            created_by: userId,
+          } as never)
+          .select("id, name, sort_order, is_system_folder")
+          .single();
+        if (!error && data) {
+          myDropbox = data as CompanyFolder;
+          folders.push(myDropbox);
+        }
+      }
+
+      if (jobsFolder && myDropbox) {
+        const legacyFolders = folders.filter(
+          (folder) =>
+            folder.is_system_folder &&
+            LEGACY_SYSTEM_FOLDER_NAMES.includes(folder.name.trim().toLowerCase()),
+        );
+
+        for (const legacyFolder of legacyFolders) {
+          await supabase
+            .from("company_files" as never)
+            .update({ folder_id: myDropbox.id } as never)
+            .eq("folder_id", legacyFolder.id);
+
+          await supabase.from("company_file_folders" as never).delete().eq("id", legacyFolder.id);
+        }
+      }
+
+      const { data: refreshed } = await supabase
+        .from("company_file_folders" as never)
+        .select("id, name, sort_order, is_system_folder")
+        .eq("company_id", companyId)
+        .order("sort_order", { ascending: true });
+
+      return (refreshed as CompanyFolder[]) || folders;
+    },
+    [companyId, dropboxFolderName, userId],
+  );
+
   const loadFolders = useCallback(async (): Promise<CompanyFolder[]> => {
     if (!companyId || !userId) return [];
 
@@ -141,26 +226,8 @@ export default function CompanyFiles() {
       return [];
     }
 
-    if (data && data.length > 0) return data as CompanyFolder[];
-
-    const seedRows = DEFAULT_FOLDER_NAMES.map((name, idx) => ({
-      company_id: companyId,
-      name,
-      sort_order: idx,
-      is_system_folder: true,
-      created_by: userId,
-    }));
-    const { data: created, error: createError } = await supabase
-      .from("company_file_folders" as never)
-      .insert(seedRows)
-      .select("id, name, sort_order, is_system_folder");
-    if (createError) {
-      console.error("Error creating default folders:", createError);
-      toast({ title: "Error", description: "Failed to initialize default folders", variant: "destructive" });
-      return [];
-    }
-    return (created as CompanyFolder[]) || [];
-  }, [companyId, userId, toast]);
+    return await syncSystemFolders((data as CompanyFolder[]) || []);
+  }, [companyId, userId, toast, syncSystemFolders]);
 
   const loadFiles = useCallback(async () => {
     if (!companyId) return;
@@ -178,6 +245,42 @@ export default function CompanyFiles() {
     setFiles((data as CompanyFile[]) || []);
   }, [companyId, toast]);
 
+  const loadJobs = useCallback(async () => {
+    if (!companyId) return;
+    const { data, error } = await supabase
+      .from("jobs")
+      .select("id, name")
+      .eq("company_id", companyId)
+      .eq("is_active", true)
+      .order("name", { ascending: true });
+    if (error) {
+      console.error("Error loading jobs for company files:", error);
+      setJobs([]);
+      return;
+    }
+    setJobs((data as JobEntry[]) || []);
+  }, [companyId]);
+
+  const loadJobFileCounts = useCallback(async () => {
+    if (!companyId) return;
+    const { data, error } = await supabase
+      .from("job_files")
+      .select("job_id")
+      .eq("company_id", companyId);
+    if (error) {
+      console.error("Error loading job file counts:", error);
+      setJobFileCountByJobId({});
+      return;
+    }
+    const counts: Record<string, number> = {};
+    (data || []).forEach((row: any) => {
+      const jobId = String(row.job_id || "");
+      if (!jobId) return;
+      counts[jobId] = (counts[jobId] || 0) + 1;
+    });
+    setJobFileCountByJobId(counts);
+  }, [companyId]);
+
   const ensureFolderAssignments = useCallback(
     async (folderRows: CompanyFolder[]) => {
       if (!companyId) return;
@@ -190,15 +293,21 @@ export default function CompanyFiles() {
 
       const folderByCategory = new Map<string, string>();
       for (const folder of folderRows) {
+        if (folder.name.trim().toLowerCase() === "jobs") continue;
         const category = categoryForFolderName(folder.name);
         if (!folderByCategory.has(category)) folderByCategory.set(category, folder.id);
       }
+
+      const dropboxFolderId =
+        folderRows.find((folder) => folder.name.trim().toLowerCase() === dropboxFolderName.trim().toLowerCase())?.id || null;
 
       await Promise.all(
         (unassigned as unknown as UnassignedCompanyFile[]).map((file, idx: number) => {
           const targetFolderId =
             folderByCategory.get(String(file.category || "").toLowerCase()) ||
             folderByCategory.get("other") ||
+            dropboxFolderId ||
+            folderRows.find((folder) => folder.name.trim().toLowerCase() !== "jobs")?.id ||
             folderRows[0]?.id;
           if (!targetFolderId) return Promise.resolve();
           return supabase
@@ -208,7 +317,7 @@ export default function CompanyFiles() {
         }),
       );
     },
-    [companyId],
+    [companyId, dropboxFolderName],
   );
 
   const load = useCallback(async () => {
@@ -218,11 +327,11 @@ export default function CompanyFiles() {
       setFolders(folderRows);
       setExpandedFolderIds((prev) => (prev.size > 0 ? prev : new Set(folderRows.map((f) => f.id))));
       await ensureFolderAssignments(folderRows);
-      await loadFiles();
+      await Promise.all([loadFiles(), loadJobs(), loadJobFileCounts()]);
     } finally {
       setLoading(false);
     }
-  }, [loadFolders, ensureFolderAssignments, loadFiles]);
+  }, [loadFolders, ensureFolderAssignments, loadFiles, loadJobs, loadJobFileCounts]);
 
   useEffect(() => {
     if (!companyId || !userId) return;
@@ -355,6 +464,79 @@ export default function CompanyFiles() {
     await uploadFilesToFolder(selected, targetFolderId);
   };
 
+  const ensureJobRootFolderId = async (jobId: string): Promise<string | null> => {
+    if (!companyId || !userId) return null;
+    const { data: existing, error: existingError } = await supabase
+      .from("job_folders")
+      .select("id")
+      .eq("job_id", jobId)
+      .is("parent_folder_id", null)
+      .order("sort_order", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (existingError) return null;
+    if (existing?.id) return existing.id;
+
+    const { data: created, error: createError } = await supabase
+      .from("job_folders")
+      .insert({
+        job_id: jobId,
+        company_id: companyId,
+        name: "General",
+        is_system_folder: true,
+        sort_order: 0,
+        parent_folder_id: null,
+        created_by: userId,
+      } as never)
+      .select("id")
+      .single();
+    if (createError) return null;
+    return (created as any)?.id || null;
+  };
+
+  const uploadFilesToJob = async (selectedFiles: File[], jobId: string) => {
+    if (!companyId || !userId || selectedFiles.length === 0) return;
+    setJobUploadTargetId(jobId);
+    try {
+      const folderId = await ensureJobRootFolderId(jobId);
+      if (!folderId) throw new Error("Could not resolve job folder.");
+
+      for (const file of selectedFiles) {
+        const ext = file.name.split(".").pop();
+        const path = `${companyId}/${jobId}/${folderId}/${crypto.randomUUID()}.${ext || "file"}`;
+        const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
+        if (uploadError) throw uploadError;
+        const { error: insertError } = await supabase.from("job_files").insert({
+          job_id: jobId,
+          company_id: companyId,
+          folder_id: folderId,
+          file_name: file.name,
+          original_file_name: file.name,
+          file_url: path,
+          file_size: file.size,
+          file_type: file.type || null,
+          uploaded_by: userId,
+        } as never);
+        if (insertError) throw insertError;
+      }
+
+      toast({ title: "Uploaded", description: `${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"} uploaded to job filing cabinet.` });
+      await loadJobFileCounts();
+    } catch (error: unknown) {
+      toast({ title: "Upload failed", description: getErrorMessage(error, "Failed to upload files to job"), variant: "destructive" });
+    } finally {
+      setJobUploadTargetId(null);
+    }
+  };
+
+  const handleJobUploadInputChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = event.target.files ? Array.from(event.target.files) : [];
+    event.target.value = "";
+    const targetJobId = jobUploadTargetId;
+    if (!targetJobId || selected.length === 0) return;
+    await uploadFilesToJob(selected, targetJobId);
+  };
+
   const handleCreateFolder = async () => {
     if (!companyId || !userId || !newFolderName.trim()) return;
     setCreatingFolder(true);
@@ -463,9 +645,25 @@ export default function CompanyFiles() {
     );
   }
 
+  const currentView: "all" | "jobs" | "dropbox" =
+    location.pathname.endsWith("/jobs") ? "jobs" : location.pathname.endsWith("/dropbox") ? "dropbox" : "all";
+  const jobsFolder = folders.find((folder) => folder.is_system_folder && folder.name.trim().toLowerCase() === "jobs");
+  const myDropboxFolder = folders.find(
+    (folder) => folder.is_system_folder && folder.name.trim().toLowerCase() === dropboxFolderName.trim().toLowerCase(),
+  );
+  const visibleFolders = folders.filter((folder) => {
+    if (folder.is_system_folder) {
+      if (jobsFolder && folder.id === jobsFolder.id) return currentView === "all" || currentView === "jobs";
+      if (myDropboxFolder && folder.id === myDropboxFolder.id) return currentView === "all" || currentView === "dropbox";
+      return false;
+    }
+    return currentView === "all";
+  });
+
   return (
     <div className="p-6 space-y-4">
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleHiddenFileInputChange} />
+      <input ref={jobFileInputRef} type="file" multiple className="hidden" onChange={handleJobUploadInputChange} />
 
       <div className="flex items-center justify-between gap-3">
         <div>
@@ -524,9 +722,10 @@ export default function CompanyFiles() {
           </div>
 
           <div className="space-y-1">
-            {folders.map((folder) => {
+            {visibleFolders.map((folder) => {
               const folderFiles = filesByFolderId[folder.id] || [];
               const isExpanded = expandedFolderIds.has(folder.id);
+              const isJobsSystemFolder = folder.name.trim().toLowerCase() === "jobs";
               return (
                 <div key={folder.id} className="rounded-md border">
                   <div
@@ -588,17 +787,19 @@ export default function CompanyFiles() {
                     <Badge variant="outline">{folderFiles.length}</Badge>
                     {uploadingFolderId === folder.id && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
                     <div className="opacity-0 group-hover:opacity-100 flex items-center">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          handleOpenFilePicker(folder.id);
-                        }}
-                      >
-                        <Upload className="h-4 w-4" />
-                      </Button>
+                      {!isJobsSystemFolder && (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            handleOpenFilePicker(folder.id);
+                          }}
+                        >
+                          <Upload className="h-4 w-4" />
+                        </Button>
+                      )}
                       <Button
                         variant="ghost"
                         size="icon"
@@ -631,7 +832,34 @@ export default function CompanyFiles() {
 
                   {isExpanded && (
                     <div className="pl-8 pr-2 pb-1 space-y-0">
-                      {folderFiles.length === 0 ? (
+                      {isJobsSystemFolder ? (
+                        jobs.length === 0 ? (
+                          <div className="py-0.5 text-xs text-muted-foreground">No active jobs</div>
+                        ) : (
+                          jobs.map((job) => (
+                            <div key={job.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 group">
+                              <Link to={`/jobs/${job.id}`} className="flex-1 truncate hover:underline text-sm">
+                                {job.name}
+                              </Link>
+                              <Badge variant="outline">{jobFileCountByJobId[job.id] || 0}</Badge>
+                              {jobUploadTargetId === job.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setJobUploadTargetId(job.id);
+                                  jobFileInputRef.current?.click();
+                                }}
+                                title="Upload to Job Filing Cabinet"
+                              >
+                                <Upload className="h-3.5 w-3.5" />
+                              </Button>
+                            </div>
+                          ))
+                        )
+                      ) : folderFiles.length === 0 ? (
                         <div className="py-0" />
                       ) : (
                         folderFiles.map((file) => (
@@ -650,6 +878,7 @@ export default function CompanyFiles() {
                               );
                               e.dataTransfer.effectAllowed = "move";
                             }}
+                            onClick={() => window.open(file.file_url, "_blank")}
                           >
                             <Checkbox
                               checked={selectedFileIds.has(file.id)}
@@ -662,6 +891,7 @@ export default function CompanyFiles() {
                                 autoFocus
                                 value={editingFileName}
                                 className="h-6 text-sm"
+                                onClick={(e) => e.stopPropagation()}
                                 onChange={(e) => setEditingFileName(e.target.value)}
                                 onBlur={() => void saveFileRename(file.id)}
                                 onKeyDown={(e) => {
@@ -673,7 +903,8 @@ export default function CompanyFiles() {
                               <button
                                 type="button"
                                 className="flex-1 text-left truncate cursor-text hover:underline"
-                                onClick={() => {
+                                onClick={(e) => {
+                                  e.stopPropagation();
                                   setEditingFileId(file.id);
                                   setEditingFileName(file.file_name);
                                 }}
@@ -683,17 +914,36 @@ export default function CompanyFiles() {
                             )}
                             <span className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</span>
                             <div className="opacity-0 group-hover:opacity-100 flex items-center">
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(file.file_url, "_blank")}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  window.open(file.file_url, "_blank");
+                                }}
+                              >
                                 <Download className="h-4 w-4" />
                               </Button>
-                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShareFiles([getShareableFile(file)])}>
+                              <Button
+                                variant="ghost"
+                                size="icon"
+                                className="h-7 w-7"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setShareFiles([getShareableFile(file)]);
+                                }}
+                              >
                                 <Share2 className="h-4 w-4" />
                               </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
                                 className="h-7 w-7 text-destructive"
-                                onClick={() => void handleDeleteFile(file)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  void handleDeleteFile(file);
+                                }}
                               >
                                 <Trash2 className="h-4 w-4" />
                               </Button>

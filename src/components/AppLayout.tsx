@@ -81,9 +81,8 @@ const navigationCategories = [
     icon: FolderArchive,
     items: [
       { name: "All Documents", href: "/company-files", menuKey: "company-files" },
-      { name: "Contracts", href: "/company-files/contracts", menuKey: "company-contracts" },
-      { name: "Permits", href: "/company-files/permits", menuKey: "company-permits" },
-      { name: "Insurance", href: "/company-files/insurance", menuKey: "company-insurance" },
+      { name: "Jobs", href: "/company-files/jobs", menuKey: "company-files" },
+      { name: "User Dropbox", href: "/company-files/dropbox", menuKey: "company-files" },
     ],
     collapsible: true,
   },
