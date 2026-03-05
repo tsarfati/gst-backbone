@@ -14,6 +14,30 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useSettings } from '@/contexts/SettingsContext';
 
+const DAILY_MESSAGE_TYPES = [
+  'company_default',
+  'question',
+  'joke',
+  'horoscope',
+  'fortune_cookie',
+  'quote',
+  'none',
+] as const;
+
+type DailyMessageType = (typeof DAILY_MESSAGE_TYPES)[number];
+
+const LEGACY_DAILY_MESSAGE_MAP: Record<string, DailyMessageType> = {
+  riddle: 'question',
+  fortune: 'fortune_cookie',
+  custom: 'company_default',
+};
+
+function normalizeDailyMessageType(value: string | null | undefined): DailyMessageType {
+  if (!value) return 'none';
+  if ((DAILY_MESSAGE_TYPES as readonly string[]).includes(value)) return value as DailyMessageType;
+  return LEGACY_DAILY_MESSAGE_MAP[value] ?? 'none';
+}
+
 export default function PMMobileSettings() {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
@@ -31,23 +55,23 @@ export default function PMMobileSettings() {
   const [highlightColor, setHighlightColor] = useState('#FFD166');
   const [darkModeDefault, setDarkModeDefault] = useState(true);
   const [containerOpacity, setContainerOpacity] = useState<number>(1);
-  const [dailyMessageType, setDailyMessageType] = useState('none');
+  const [dailyMessageType, setDailyMessageType] = useState<DailyMessageType>('none');
   const [customDailyMessage, setCustomDailyMessage] = useState('');
 
   const previewMessage = (() => {
     switch (dailyMessageType) {
       case 'joke':
         return 'Daily Joke: Why did the contractor bring a ladder? To raise the standards.';
-      case 'riddle':
-        return 'Daily Riddle: What has many keys but can’t open a door?';
+      case 'question':
+        return 'Daily Question: What has many keys but can’t open a door?';
       case 'quote':
         return 'Daily Quote: Quality means doing it right when no one is looking.';
       case 'horoscope':
         return 'Daily Horoscope: Focus on planning and communication today.';
-      case 'fortune':
+      case 'fortune_cookie':
         return 'Fortune Cookie: A well-organized site leads to a successful day.';
-      case 'custom':
-        return customDailyMessage || 'Have a blessed day';
+      case 'company_default':
+        return 'Company Default message configured in Punch Clock settings.';
       default:
         return 'No daily message';
     }
@@ -66,6 +90,12 @@ export default function PMMobileSettings() {
       .eq('company_id', currentCompany.id)
       .maybeSingle();
 
+    const { data: sharedDailyMessageData } = await supabase
+      .from('punch_clock_login_settings')
+      .select('daily_message_type')
+      .eq('company_id', currentCompany.id)
+      .maybeSingle();
+
     if (data) {
       setMobileLogoUrl((data as any).mobile_logo_url ?? null);
       setBackgroundImageUrl((data as any).background_image_url ?? null);
@@ -74,9 +104,9 @@ export default function PMMobileSettings() {
       setHighlightColor((data as any).highlight_color || '#FFD166');
       setDarkModeDefault((data as any).dark_mode_default ?? true);
       setContainerOpacity(Number((data as any).container_opacity ?? 1));
-      setDailyMessageType((data as any).daily_message_type || 'none');
       setCustomDailyMessage((data as any).custom_daily_message || '');
     }
+    setDailyMessageType(normalizeDailyMessageType(sharedDailyMessageData?.daily_message_type));
     autoSaveReadyRef.current = true;
     setLoading(false);
   };
@@ -128,7 +158,6 @@ export default function PMMobileSettings() {
       highlight_color: highlightColor,
       dark_mode_default: darkModeDefault,
       container_opacity: containerOpacity,
-      daily_message_type: dailyMessageType,
       custom_daily_message: customDailyMessage || null,
     };
 
@@ -147,13 +176,39 @@ export default function PMMobileSettings() {
           variant: 'destructive',
         });
       }
-    } else {
+      setSaving(false);
+      return;
+    }
+
+    const { error: dailyMessageError } = await supabase
+      .from('punch_clock_login_settings')
+      .upsert(
+        {
+          company_id: currentCompany.id,
+          daily_message_type: normalizeDailyMessageType(dailyMessageType),
+          created_by: user?.id ?? null,
+        },
+        { onConflict: 'company_id' }
+      );
+
+    if (dailyMessageError) {
+      console.error('Daily message save error:', dailyMessageError);
       if (showToast) {
         toast({
-          title: 'Settings saved',
-          description: 'PM Lynk mobile settings updated successfully.',
+          title: 'Save failed',
+          description: dailyMessageError.message,
+          variant: 'destructive',
         });
       }
+      setSaving(false);
+      return;
+    }
+
+    if (showToast) {
+      toast({
+        title: 'Settings saved',
+        description: 'PM Lynk mobile settings updated successfully.',
+      });
     }
 
     setSaving(false);
@@ -429,18 +484,18 @@ export default function PMMobileSettings() {
 
           <div className="space-y-2">
             <Label>Default Daily Message</Label>
-            <Select value={dailyMessageType} onValueChange={setDailyMessageType}>
+            <Select value={dailyMessageType} onValueChange={(value) => setDailyMessageType(normalizeDailyMessageType(value))}>
               <SelectTrigger>
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="none">None</SelectItem>
+                <SelectItem value="company_default">Company Default</SelectItem>
+                <SelectItem value="question">Question</SelectItem>
                 <SelectItem value="joke">Joke</SelectItem>
-                <SelectItem value="riddle">Riddle</SelectItem>
-                <SelectItem value="quote">Quote</SelectItem>
                 <SelectItem value="horoscope">Horoscope</SelectItem>
-                <SelectItem value="fortune">Fortune Cookie</SelectItem>
-                <SelectItem value="custom">Custom Message</SelectItem>
+                <SelectItem value="fortune_cookie">Fortune Cookie</SelectItem>
+                <SelectItem value="quote">Quote</SelectItem>
+                <SelectItem value="none">None</SelectItem>
               </SelectContent>
             </Select>
             <p className="text-sm text-muted-foreground">

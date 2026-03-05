@@ -3,6 +3,10 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Edit, FileText, Plus, Download, Send, Stamp, CheckCircle2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -33,6 +37,13 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
   const [contractEvents, setContractEvents] = useState<any[]>([]);
   const [companySignatureProvider, setCompanySignatureProvider] = useState<'manual' | 'docusign'>('manual');
   const [signatureActionLoading, setSignatureActionLoading] = useState(false);
+  const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
+  const [workflowForm, setWorkflowForm] = useState({
+    contract_negotiation_status: 'draft',
+    signature_status: 'not_started',
+    signature_provider: 'manual',
+    executed_signed_by_name: '',
+  });
 
   useEffect(() => {
     if (id && !websiteJobAccessLoading) {
@@ -296,6 +307,31 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
     }
   };
 
+  const openWorkflowEditor = () => {
+    setWorkflowForm({
+      contract_negotiation_status: String(subcontract?.contract_negotiation_status || 'draft'),
+      signature_status: String(subcontract?.signature_status || 'not_started'),
+      signature_provider: String(subcontract?.signature_provider || companySignatureProvider || 'manual'),
+      executed_signed_by_name: String(subcontract?.executed_signed_by_name || ''),
+    });
+    setWorkflowDialogOpen(true);
+  };
+
+  const handleSaveWorkflow = async () => {
+    await updateSignatureState(
+      {
+        contract_negotiation_status: workflowForm.contract_negotiation_status,
+        signature_status: workflowForm.signature_status,
+        signature_provider: workflowForm.signature_provider,
+        executed_signed_by_name: workflowForm.executed_signed_by_name || null,
+      },
+      'Contract workflow updated.',
+      'company_updated_contract_workflow',
+      'Company updated workflow statuses manually'
+    );
+    setWorkflowDialogOpen(false);
+  };
+
   if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-6">
@@ -541,6 +577,7 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
         </Card>
       )}
 
+      {String(subcontract.status || '').toLowerCase() !== 'active' && (
       <Card>
         <CardHeader>
           <CardTitle>Contract Workflow</CardTitle>
@@ -580,6 +617,13 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
 
           {isPrivilegedCompanyUser && (
             <div className="flex flex-wrap gap-2">
+              <Button
+                variant="outline"
+                disabled={signatureActionLoading}
+                onClick={openWorkflowEditor}
+              >
+                Edit Workflow
+              </Button>
               <Button
                 variant="outline"
                 disabled={signatureActionLoading}
@@ -669,6 +713,77 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
           </div>
         </CardContent>
       </Card>
+      )}
+
+      <Dialog open={workflowDialogOpen} onOpenChange={setWorkflowDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Edit Contract Workflow</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Negotiation Status</Label>
+              <Select
+                value={workflowForm.contract_negotiation_status}
+                onValueChange={(value) => setWorkflowForm((prev) => ({ ...prev, contract_negotiation_status: value }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="pending_vendor_review">Pending Vendor Review</SelectItem>
+                  <SelectItem value="under_revision">Under Revision</SelectItem>
+                  <SelectItem value="approved_for_signature">Approved for Signature</SelectItem>
+                  <SelectItem value="executed">Executed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Signature Status</Label>
+              <Select
+                value={workflowForm.signature_status}
+                onValueChange={(value) => setWorkflowForm((prev) => ({ ...prev, signature_status: value }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="not_started">Not Started</SelectItem>
+                  <SelectItem value="pending_vendor_review">Pending Vendor Review</SelectItem>
+                  <SelectItem value="awaiting_external_signature">Awaiting Signature</SelectItem>
+                  <SelectItem value="signed_uploaded">Signed Uploaded</SelectItem>
+                  <SelectItem value="executed">Executed</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Provider</Label>
+              <Select
+                value={workflowForm.signature_provider}
+                onValueChange={(value) => setWorkflowForm((prev) => ({ ...prev, signature_provider: value }))}
+              >
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="manual">Manual</SelectItem>
+                  <SelectItem value="docusign">DocuSign</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Executed Signed By</Label>
+              <Input
+                value={workflowForm.executed_signed_by_name}
+                onChange={(e) => setWorkflowForm((prev) => ({ ...prev, executed_signed_by_name: e.target.value }))}
+                placeholder="Signer full name"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setWorkflowDialogOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveWorkflow} disabled={signatureActionLoading}>Save Workflow</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Change Orders Section */}
       <Card>

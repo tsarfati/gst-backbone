@@ -8,11 +8,13 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Trash2, Loader2, Share2, Mail, X, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { resolveStorageUrl } from "@/utils/storageUtils";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import FileShareModal from "@/components/FileShareModal";
+import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 
 interface CompanyFolder {
   id: string;
@@ -55,6 +57,12 @@ interface JobCabinetFile {
   created_at: string;
 }
 
+interface PreviewState {
+  open: boolean;
+  title: string;
+  url: string | null;
+}
+
 interface JobCabinetState {
   loading: boolean;
   folders: JobCabinetFolder[];
@@ -69,8 +77,12 @@ interface UnassignedCompanyFile {
 type DragItemPayload =
   | { type: "folder"; id: string }
   | { type: "file"; id: string; sourceFolderId: string | null };
+type JobDragItemPayload =
+  | { type: "job-file"; jobId: string; fileId: string; sourceFolderId: string | null }
+  | { type: "job-folder"; jobId: string; folderId: string; sourceParentFolderId: string | null };
 
 const INTERNAL_DND_MIME = "application/x-company-library-item";
+const JOB_INTERNAL_DND_MIME = "application/x-company-job-cabinet-item";
 const STORAGE_BUCKET = "job-filing-cabinet";
 const LEGACY_SYSTEM_FOLDER_NAMES = ["contracts", "permits", "insurance", "general"];
 
@@ -127,13 +139,21 @@ export default function CompanyFiles() {
   const [editingFileId, setEditingFileId] = useState<string | null>(null);
   const [editingFileName, setEditingFileName] = useState("");
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [selectedCompanyFolderIds, setSelectedCompanyFolderIds] = useState<Set<string>>(new Set());
+  const [selectedJobFileKeys, setSelectedJobFileKeys] = useState<Set<string>>(new Set());
+  const [selectedJobFolderKeys, setSelectedJobFolderKeys] = useState<Set<string>>(new Set());
   const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
+  const [previewState, setPreviewState] = useState<PreviewState>({ open: false, title: "", url: null });
   const [jobs, setJobs] = useState<JobEntry[]>([]);
   const [jobFileCountByJobId, setJobFileCountByJobId] = useState<Record<string, number>>({});
   const [jobUploadTargetId, setJobUploadTargetId] = useState<string | null>(null);
   const [expandedJobIds, setExpandedJobIds] = useState<Set<string>>(new Set());
   const [expandedJobFolderKeys, setExpandedJobFolderKeys] = useState<Set<string>>(new Set());
   const [jobCabinetByJobId, setJobCabinetByJobId] = useState<Record<string, JobCabinetState>>({});
+  const [editingJobFolderKey, setEditingJobFolderKey] = useState<string | null>(null);
+  const [editingJobFolderName, setEditingJobFolderName] = useState("");
+  const [editingJobFileKey, setEditingJobFileKey] = useState<string | null>(null);
+  const [editingJobFileName, setEditingJobFileName] = useState("");
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputFolderRef = useRef<string | null>(null);
   const jobFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -160,10 +180,47 @@ export default function CompanyFiles() {
     file_size: file.file_size ?? null,
   });
 
-  const selectedFiles = useMemo(
-    () => files.filter((file) => selectedFileIds.has(file.id)).map(getShareableFile),
-    [files, selectedFileIds],
-  );
+  const selectedFiles = useMemo(() => {
+    const map = new Map<string, { id: string; file_name: string; file_url: string; file_size: number | null }>();
+    files
+      .filter((file) => selectedFileIds.has(file.id))
+      .map(getShareableFile)
+      .forEach((f) => map.set(f.id, f));
+
+    selectedCompanyFolderIds.forEach((folderId) => {
+      (filesByFolderId[folderId] || []).map(getShareableFile).forEach((f) => map.set(f.id, f));
+    });
+
+    selectedJobFileKeys.forEach((key) => {
+      const [jobId, fileId] = key.split("::");
+      const cabinet = jobCabinetByJobId[jobId];
+      if (!cabinet) return;
+      const found = Object.values(cabinet.filesByFolderId).flat().find((f) => f.id === fileId);
+      if (!found) return;
+      map.set(`job-${jobId}-${found.id}`, {
+        id: `job-${jobId}-${found.id}`,
+        file_name: found.file_name,
+        file_url: found.file_url,
+        file_size: found.file_size ?? null,
+      });
+    });
+
+    selectedJobFolderKeys.forEach((key) => {
+      const [jobId, folderId] = key.split("::");
+      const cabinet = jobCabinetByJobId[jobId];
+      if (!cabinet) return;
+      (cabinet.filesByFolderId[folderId] || []).forEach((f) => {
+        map.set(`job-${jobId}-${f.id}`, {
+          id: `job-${jobId}-${f.id}`,
+          file_name: f.file_name,
+          file_url: f.file_url,
+          file_size: f.file_size ?? null,
+        });
+      });
+    });
+
+    return Array.from(map.values());
+  }, [files, selectedFileIds, selectedCompanyFolderIds, filesByFolderId, selectedJobFileKeys, selectedJobFolderKeys, jobCabinetByJobId]);
 
   const syncSystemFolders = useCallback(
     async (existing: CompanyFolder[]): Promise<CompanyFolder[]> => {
@@ -376,7 +433,63 @@ export default function CompanyFiles() {
         toast({ title: "Error", description: "Failed to open file", variant: "destructive" });
         return;
       }
-      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+      setPreviewState({ open: true, title: "File Preview", url: data.signedUrl });
+    },
+    [toast],
+  );
+
+  const openCompanyFilePreview = useCallback(
+    async (file: CompanyFile) => {
+      const resolved = await resolveStorageUrl(STORAGE_BUCKET, file.file_url);
+      if (!resolved) {
+        toast({ title: "Error", description: "Failed to load preview", variant: "destructive" });
+        return;
+      }
+      setPreviewState({ open: true, title: file.file_name, url: resolved });
+    },
+    [toast],
+  );
+
+  const downloadCompanyFile = useCallback(
+    async (file: CompanyFile) => {
+      try {
+        const resolved = await resolveStorageUrl(STORAGE_BUCKET, file.file_url);
+        if (!resolved) throw new Error("Failed to resolve file URL");
+        const response = await fetch(resolved);
+        if (!response.ok) throw new Error("Download failed");
+        const blob = await response.blob();
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = file.file_name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      } catch (error) {
+        toast({ title: "Error", description: getErrorMessage(error, "Failed to download file"), variant: "destructive" });
+      }
+    },
+    [toast],
+  );
+
+  const downloadJobFile = useCallback(
+    async (file: JobCabinetFile) => {
+      try {
+        const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(file.file_url, 120);
+        if (error || !data?.signedUrl) throw new Error("Failed to resolve file URL");
+        const response = await fetch(data.signedUrl);
+        if (!response.ok) throw new Error("Download failed");
+        const blob = await response.blob();
+        const link = document.createElement("a");
+        link.href = URL.createObjectURL(blob);
+        link.download = file.file_name;
+        document.body.appendChild(link);
+        link.click();
+        document.body.removeChild(link);
+        URL.revokeObjectURL(link.href);
+      } catch (error) {
+        toast({ title: "Error", description: getErrorMessage(error, "Failed to download file"), variant: "destructive" });
+      }
     },
     [toast],
   );
@@ -670,7 +783,41 @@ export default function CompanyFiles() {
     });
   };
 
-  const clearSelection = () => setSelectedFileIds(new Set());
+  const toggleCompanyFolderSelection = (folderId: string) => {
+    setSelectedCompanyFolderIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(folderId)) next.delete(folderId);
+      else next.add(folderId);
+      return next;
+    });
+  };
+
+  const toggleJobFileSelection = (jobId: string, fileId: string) => {
+    const key = `${jobId}::${fileId}`;
+    setSelectedJobFileKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const toggleJobFolderSelection = (jobId: string, folderId: string) => {
+    const key = `${jobId}::${folderId}`;
+    setSelectedJobFolderKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const clearSelection = () => {
+    setSelectedFileIds(new Set());
+    setSelectedCompanyFolderIds(new Set());
+    setSelectedJobFileKeys(new Set());
+    setSelectedJobFolderKeys(new Set());
+  };
 
   const downloadFolder = async (folder: CompanyFolder) => {
     const folderFiles = filesByFolderId[folder.id] || [];
@@ -700,6 +847,38 @@ export default function CompanyFiles() {
     }
   };
 
+  const downloadJobFolder = async (jobId: string, folderId: string, folderName: string) => {
+    const cabinet = jobCabinetByJobId[jobId];
+    if (!cabinet) return;
+    const folderFiles = cabinet.filesByFolderId[folderId] || [];
+    if (folderFiles.length === 0) {
+      toast({ title: "No files", description: "This folder has no files to download." });
+      return;
+    }
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const file of folderFiles) {
+        const { data } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(file.file_url, 120);
+        if (!data?.signedUrl) continue;
+        const response = await fetch(data.signedUrl);
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        zip.file(file.file_name, blob);
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${folderName.replace(/[^a-zA-Z0-9-_ ]/g, "_") || "folder"}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      toast({ title: "Error", description: getErrorMessage(error, "Failed to download folder"), variant: "destructive" });
+    }
+  };
+
   const saveFolderRename = async (folderId: string) => {
     const nextName = editingFolderName.trim();
     setEditingFolderId(null);
@@ -725,6 +904,67 @@ export default function CompanyFiles() {
       return;
     }
     setFiles((prev) => prev.map((file) => (file.id === fileId ? { ...file, file_name: nextName } : file)));
+  };
+
+  const saveJobFolderRename = async (jobId: string, folderId: string) => {
+    const nextName = editingJobFolderName.trim();
+    setEditingJobFolderKey(null);
+    if (!nextName) return;
+    const { error } = await supabase.from("job_folders").update({ name: nextName }).eq("id", folderId).eq("job_id", jobId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to rename folder", variant: "destructive" });
+      return;
+    }
+    await loadJobCabinet(jobId);
+  };
+
+  const saveJobFileRename = async (jobId: string, fileId: string) => {
+    const nextName = editingJobFileName.trim();
+    setEditingJobFileKey(null);
+    if (!nextName) return;
+    const { error } = await supabase.from("job_files").update({ file_name: nextName }).eq("id", fileId).eq("job_id", jobId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to rename file", variant: "destructive" });
+      return;
+    }
+    await loadJobCabinet(jobId);
+  };
+
+  const moveJobFileToFolder = async (jobId: string, fileId: string, targetFolderId: string | null) => {
+    const { error } = await supabase
+      .from("job_files")
+      .update({ folder_id: targetFolderId })
+      .eq("id", fileId)
+      .eq("job_id", jobId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to move file", variant: "destructive" });
+      return;
+    }
+    await loadJobCabinet(jobId);
+  };
+
+  const moveJobFolderToParent = async (jobId: string, folderId: string, targetParentFolderId: string | null) => {
+    if (folderId === targetParentFolderId) return;
+    const { error } = await supabase
+      .from("job_folders")
+      .update({ parent_folder_id: targetParentFolderId })
+      .eq("id", folderId)
+      .eq("job_id", jobId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to move folder", variant: "destructive" });
+      return;
+    }
+    await loadJobCabinet(jobId);
+  };
+
+  const parseJobDropPayload = (e: React.DragEvent): JobDragItemPayload | null => {
+    try {
+      const raw = e.dataTransfer.getData(JOB_INTERNAL_DND_MIME);
+      if (!raw) return null;
+      return JSON.parse(raw) as JobDragItemPayload;
+    } catch {
+      return null;
+    }
   };
 
   const handleDeleteFile = async (file: CompanyFile) => {
@@ -794,13 +1034,91 @@ export default function CompanyFiles() {
     return folderFiles.map((file) => (
       <div
         key={file.id}
-        className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 cursor-pointer"
+        className={cn(
+          "flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 group cursor-pointer",
+          selectedJobFileKeys.has(`${jobId}::${file.id}`) && "bg-primary/5 ring-1 ring-primary/20",
+        )}
         style={{ paddingLeft: `${depth * 14 + 8}px` }}
         onClick={() => void openJobCabinetFile(file.file_url)}
+        draggable
+        onDragStart={(e) => {
+          e.stopPropagation();
+          e.dataTransfer.setData(
+            JOB_INTERNAL_DND_MIME,
+            JSON.stringify({
+              type: "job-file",
+              jobId,
+              fileId: file.id,
+              sourceFolderId: folderId,
+            } satisfies JobDragItemPayload),
+          );
+          e.dataTransfer.effectAllowed = "move";
+        }}
       >
+        <Checkbox
+          checked={selectedJobFileKeys.has(`${jobId}::${file.id}`)}
+          onCheckedChange={() => toggleJobFileSelection(jobId, file.id)}
+          onClick={(e) => e.stopPropagation()}
+        />
         <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        <span className="flex-1 truncate text-xs">{file.file_name}</span>
+        {editingJobFileKey === `${jobId}::${file.id}` ? (
+          <Input
+            autoFocus
+            value={editingJobFileName}
+            className="h-6 text-xs"
+            onClick={(e) => e.stopPropagation()}
+            onChange={(e) => setEditingJobFileName(e.target.value)}
+            onBlur={() => void saveJobFileRename(jobId, file.id)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void saveJobFileRename(jobId, file.id);
+              if (e.key === "Escape") setEditingJobFileKey(null);
+            }}
+          />
+        ) : (
+          <button
+            type="button"
+            className="flex-1 truncate text-xs text-left hover:underline"
+            onClick={(e) => {
+              e.stopPropagation();
+              setEditingJobFileKey(`${jobId}::${file.id}`);
+              setEditingJobFileName(file.file_name);
+            }}
+          >
+            {file.file_name}
+          </button>
+        )}
         <span className="text-[11px] text-muted-foreground">{formatFileSize(file.file_size)}</span>
+        <div className="opacity-0 group-hover:opacity-100 flex items-center">
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={(e) => {
+              e.stopPropagation();
+              void downloadJobFile(file);
+            }}
+          >
+            <Download className="h-3.5 w-3.5" />
+          </Button>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={(e) => {
+              e.stopPropagation();
+              setShareFiles([
+                {
+                  id: `job-${jobId}-${file.id}`,
+                  file_name: file.file_name,
+                  file_url: file.file_url,
+                  file_size: file.file_size ?? null,
+                },
+              ]);
+            }}
+          >
+            <Share2 className="h-3.5 w-3.5" />
+          </Button>
+        </div>
       </div>
     ));
   };
@@ -818,16 +1136,114 @@ export default function CompanyFiles() {
       return [
         <div
           key={folderKey}
-          className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 cursor-pointer"
+          className={cn(
+            "flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 cursor-pointer group",
+            selectedJobFolderKeys.has(`${jobId}::${folder.id}`) && "bg-primary/5 ring-1 ring-primary/20",
+          )}
           style={{ paddingLeft: `${depth * 14 + 8}px` }}
           onClick={() => toggleJobFolderExpansion(jobId, folder.id)}
+          draggable
+          onDragStart={(e) => {
+            e.stopPropagation();
+            e.dataTransfer.setData(
+              JOB_INTERNAL_DND_MIME,
+              JSON.stringify({
+                type: "job-folder",
+                jobId,
+                folderId: folder.id,
+                sourceParentFolderId: parentFolderId,
+              } satisfies JobDragItemPayload),
+            );
+            e.dataTransfer.effectAllowed = "move";
+          }}
+          onDragOver={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+          }}
+          onDrop={(e) => {
+            e.preventDefault();
+            e.stopPropagation();
+            const payload = parseJobDropPayload(e);
+            if (!payload || payload.jobId !== jobId) return;
+            if (payload.type === "job-file") {
+              void moveJobFileToFolder(jobId, payload.fileId, folder.id);
+              return;
+            }
+            if (payload.type === "job-folder") {
+              void moveJobFolderToParent(jobId, payload.folderId, folder.id);
+            }
+          }}
         >
+          <Checkbox
+            checked={selectedJobFolderKeys.has(`${jobId}::${folder.id}`)}
+            onCheckedChange={() => toggleJobFolderSelection(jobId, folder.id)}
+            onClick={(e) => e.stopPropagation()}
+          />
           {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
           {isExpanded ? <FolderOpen className="h-3.5 w-3.5 text-primary" /> : <FolderClosed className="h-3.5 w-3.5 text-primary" />}
-          <span className="flex-1 truncate text-xs">{folder.name}</span>
+          {editingJobFolderKey === `${jobId}::${folder.id}` ? (
+            <Input
+              autoFocus
+              value={editingJobFolderName}
+              className="h-6 text-xs"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setEditingJobFolderName(e.target.value)}
+              onBlur={() => void saveJobFolderRename(jobId, folder.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void saveJobFolderRename(jobId, folder.id);
+                if (e.key === "Escape") setEditingJobFolderKey(null);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="flex-1 truncate text-xs text-left hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingJobFolderKey(`${jobId}::${folder.id}`);
+                setEditingJobFolderName(folder.name);
+              }}
+            >
+              {folder.name}
+            </button>
+          )}
           <Badge variant="outline" className="text-[10px] h-5">
             {fileCount + childCount}
           </Badge>
+          <div className="opacity-0 group-hover:opacity-100 flex items-center">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation();
+                void downloadJobFolder(jobId, folder.id, folder.name);
+              }}
+            >
+              <Download className="h-3.5 w-3.5" />
+            </Button>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-7 w-7"
+              onClick={(e) => {
+                e.stopPropagation();
+                const folderShareFiles = (cabinet.filesByFolderId[folder.id] || []).map((f) => ({
+                  id: `job-${jobId}-${f.id}`,
+                  file_name: f.file_name,
+                  file_url: f.file_url,
+                  file_size: f.file_size ?? null,
+                }));
+                if (folderShareFiles.length === 0) {
+                  toast({ title: "No files", description: "This folder has no files to share." });
+                  return;
+                }
+                setShareFiles(folderShareFiles);
+              }}
+            >
+              <Share2 className="h-3.5 w-3.5" />
+            </Button>
+          </div>
         </div>,
         ...(isExpanded ? renderJobFiles(jobId, folder.id, depth + 1) : []),
         ...(isExpanded ? renderJobFolderTree(jobId, folder.id, depth + 1) : []),
@@ -932,6 +1348,11 @@ export default function CompanyFiles() {
                       })
                     }
                   >
+                    <Checkbox
+                      checked={selectedCompanyFolderIds.has(folder.id)}
+                      onCheckedChange={() => toggleCompanyFolderSelection(folder.id)}
+                      onClick={(e) => e.stopPropagation()}
+                    />
                     {isExpanded ? <FolderOpen className="h-4 w-4 text-primary" /> : <FolderClosed className="h-4 w-4 text-primary" />}
                     {editingFolderId === folder.id ? (
                       <Input
@@ -1046,7 +1467,26 @@ export default function CompanyFiles() {
                               </div>
 
                               {expandedJobIds.has(job.id) && (
-                                <div className="pl-2 pb-1 space-y-0.5">
+                                <div
+                                  className="pl-2 pb-1 space-y-0.5"
+                                  onDragOver={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                  }}
+                                  onDrop={(e) => {
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const payload = parseJobDropPayload(e);
+                                    if (!payload || payload.jobId !== job.id) return;
+                                    if (payload.type === "job-file") {
+                                      void moveJobFileToFolder(job.id, payload.fileId, null);
+                                      return;
+                                    }
+                                    if (payload.type === "job-folder") {
+                                      void moveJobFolderToParent(job.id, payload.folderId, null);
+                                    }
+                                  }}
+                                >
                                   {jobCabinetByJobId[job.id]?.loading ? (
                                     <div className="flex items-center gap-2 text-xs text-muted-foreground px-1.5 py-0.5">
                                       <Loader2 className="h-3.5 w-3.5 animate-spin" />
@@ -1088,7 +1528,7 @@ export default function CompanyFiles() {
                               );
                               e.dataTransfer.effectAllowed = "move";
                             }}
-                            onClick={() => window.open(file.file_url, "_blank")}
+                            onClick={() => void openCompanyFilePreview(file)}
                           >
                             <Checkbox
                               checked={selectedFileIds.has(file.id)}
@@ -1130,7 +1570,7 @@ export default function CompanyFiles() {
                                 className="h-7 w-7"
                                 onClick={(e) => {
                                   e.stopPropagation();
-                                  window.open(file.file_url, "_blank");
+                                  void downloadCompanyFile(file);
                                 }}
                               >
                                 <Download className="h-4 w-4" />
@@ -1203,6 +1643,18 @@ export default function CompanyFiles() {
           jobId="company-files"
         />
       )}
+
+      <Dialog open={previewState.open} onOpenChange={(open) => setPreviewState((prev) => ({ ...prev, open }))}>
+        <DialogContent className="max-w-6xl h-[90vh] p-0">
+          <ZoomableDocumentPreview
+            url={previewState.url}
+            fileName={previewState.title || "File Preview"}
+            className="h-full"
+            emptyMessage="No preview available"
+            emptySubMessage="Select a file to preview it"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

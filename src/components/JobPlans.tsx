@@ -42,6 +42,8 @@ interface JobPlan {
 type PlanSortKey = "plan_name" | "plan_number" | "revision" | "architect" | "revision_date" | "uploaded_at";
 type SortDirection = "asc" | "desc";
 
+const PLAN_UPLOAD_MAX_SIZE_MB = 100;
+
 function parsePlanMetadataFromFileName(fileName: string) {
   const baseName = fileName.replace(/\.[^.]+$/, "");
   const normalized = baseName.replace(/[_]+/g, " ").trim();
@@ -750,11 +752,11 @@ export default function JobPlans({ jobId }: JobPlansProps) {
                 <DragDropUpload
                   onFileSelect={applyFileAutoFill}
                   accept=".pdf,.dwg,.dxf"
-                  maxSize={25}
+                  maxSize={PLAN_UPLOAD_MAX_SIZE_MB}
                   disabled={uploading}
                   title={editingPlan ? "Drag replacement plan file here" : "Drag plan file here"}
                   dropTitle="Drop plan file here"
-                  helperText="PDF, DWG, or DXF up to 25MB"
+                  helperText={`PDF, DWG, or DXF up to ${PLAN_UPLOAD_MAX_SIZE_MB}MB`}
                 />
                 <Input
                   id="file"

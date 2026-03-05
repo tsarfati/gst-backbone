@@ -452,8 +452,8 @@ export const settingsHelpDatabase: SettingsHelpEntry[] = [
     section: "PM Lynk Settings",
     tab: "Dashboard Layout & Messages",
     setting: "Default Daily Message",
-    description: "Sets default daily message type (none, joke, riddle, quote, horoscope, fortune, custom).",
-    keywords: ["daily message", "pm lynk", "quote", "joke", "custom"]
+    description: "Sets default daily message type (company default, question, joke, quote, horoscope, fortune cookie, none).",
+    keywords: ["daily message", "pm lynk", "question", "quote", "joke", "fortune cookie"]
   },
   {
     id: "pmlynk-custom-message",

@@ -315,17 +315,6 @@ export default function LandingPage() {
             </button>
           </div>
           
-          {/* Trust Badges / Checkmarks */}
-          <div className="mt-4 md:mt-6 flex flex-wrap items-center justify-center gap-4 md:gap-8 text-xs md:text-sm text-white/80">
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-[#E88A2D]" />
-              No credit card required
-            </div>
-            <div className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-[#E88A2D]" />
-              14-day free trial
-            </div>
-          </div>
         </div>
 
         {/* Scroll indicator */}

@@ -17,6 +17,30 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import DragDropUpload from '@/components/DragDropUpload';
 
+const DAILY_MESSAGE_TYPES = [
+  'company_default',
+  'question',
+  'joke',
+  'horoscope',
+  'fortune_cookie',
+  'quote',
+  'none',
+] as const;
+
+type DailyMessageType = (typeof DAILY_MESSAGE_TYPES)[number];
+
+const LEGACY_DAILY_MESSAGE_MAP: Record<string, DailyMessageType> = {
+  riddle: 'question',
+  fortune: 'fortune_cookie',
+  custom: 'company_default',
+};
+
+function normalizeDailyMessageType(value: string | null | undefined): DailyMessageType {
+  if (!value) return 'none';
+  if ((DAILY_MESSAGE_TYPES as readonly string[]).includes(value)) return value as DailyMessageType;
+  return LEGACY_DAILY_MESSAGE_MAP[value] ?? 'none';
+}
+
 // Default empty settings for new companies
 const defaultSettings = {
   header_image_url: '',
@@ -28,7 +52,7 @@ const defaultSettings = {
   bottom_text: '',
   menu_transparency: 100,
   auto_logout_minutes: null as number | null,
-  daily_message_type: 'none',
+  daily_message_type: 'none' as DailyMessageType,
 };
 
 export function PunchClockLoginSettings() {
@@ -79,7 +103,7 @@ export function PunchClockLoginSettings() {
           bottom_text: data.bottom_text || '',
           menu_transparency: data.menu_transparency ?? 100,
           auto_logout_minutes: data.auto_logout_minutes ?? null,
-          daily_message_type: data.daily_message_type || 'none',
+          daily_message_type: normalizeDailyMessageType(data.daily_message_type),
         });
       } else {
         // No settings exist for this company yet - use defaults (blank)
@@ -131,11 +155,11 @@ export function PunchClockLoginSettings() {
   };
 
   const handleSave = async (showToast: boolean = true) => {
-    if (!profile?.user_id) {
+    if (!profile?.user_id || !currentCompany?.id) {
       if (showToast) {
         toast({
           title: "Error",
-          description: "User not authenticated",
+          description: !profile?.user_id ? "User not authenticated" : "No company selected",
           variant: "destructive",
         });
       }
@@ -145,33 +169,12 @@ export function PunchClockLoginSettings() {
     setSaving(true);
 
     try {
-      // Use user_id as company_id as fallback, or get the first company from user_company_access
-      let companyId = profile.current_company_id;
-      
-      if (!companyId) {
-        // Try to get company from user_company_access table  
-        const { data: companyAccess, error: accessError } = await supabase
-          .from('user_company_access')
-          .select('company_id')
-          .eq('user_id', profile.user_id)
-          .eq('is_active', true)
-          .limit(1)
-          .maybeSingle();
-        
-        if (accessError && accessError.code !== 'PGRST116') {
-          console.error('Error fetching company access:', accessError);
-        }
-        
-        companyId = companyAccess?.company_id || profile.user_id; // fallback to user_id
-      }
-
-      console.log('Saving punch clock settings with company_id:', companyId);
-
       const { error } = await supabase
         .from('punch_clock_login_settings')
         .upsert({
-          company_id: companyId,
+          company_id: currentCompany.id,
           ...settings,
+          daily_message_type: normalizeDailyMessageType(settings.daily_message_type),
           created_by: profile.user_id
         }, {
           onConflict: 'company_id'
@@ -446,17 +449,20 @@ export function PunchClockLoginSettings() {
           <Select
             value={settings.daily_message_type}
             onValueChange={(val) =>
-              setSettings(prev => ({ ...prev, daily_message_type: val }))
+              setSettings(prev => ({ ...prev, daily_message_type: normalizeDailyMessageType(val) }))
             }
           >
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
+              <SelectItem value="company_default">Company Default</SelectItem>
+              <SelectItem value="question">Daily Question</SelectItem>
+              <SelectItem value="joke">Daily Joke</SelectItem>
+              <SelectItem value="horoscope">Daily Horoscope</SelectItem>
+              <SelectItem value="fortune_cookie">Fortune Cookie</SelectItem>
+              <SelectItem value="quote">Daily Quote</SelectItem>
               <SelectItem value="none">None</SelectItem>
-              <SelectItem value="joke">Daily Joke – Setup on punch-in, punchline on punch-out</SelectItem>
-              <SelectItem value="riddle">Daily Riddle – Riddle on punch-in, answer on punch-out</SelectItem>
-              <SelectItem value="quote">Daily Quote – Inspirational quote on each load</SelectItem>
             </SelectContent>
           </Select>
         </div>
