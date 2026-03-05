@@ -15,6 +15,7 @@ import PayablesSettings from '@/components/PayablesSettings';
 import DesignProfessionalPortalSettings from '@/components/DesignProfessionalPortalSettings';
 import CreditCardSettings from '@/components/CreditCardSettings';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
+import JobCostSetup from '@/pages/JobCostSetup';
 import { CreditCard, DollarSign, Banknote, FileText, Building2, Palette, Mail, Upload, Users, UserPlus, Trash2, Loader2, Briefcase } from 'lucide-react';
 import AccrualAccountingSettings from '@/components/AccrualAccountingSettings';
 import AIAInvoiceTemplateSettings from '@/components/AIAInvoiceTemplateSettings';
@@ -793,10 +794,14 @@ export default function CompanySettingsPage() {
           </TabsContent>
 
           <TabsContent value="jobs">
-            <Tabs defaultValue="design-professional-portal" className="space-y-4">
+            <Tabs defaultValue="cost-code-setup" className="space-y-4">
               <TabsList>
+                <TabsTrigger value="cost-code-setup">Cost Code Setup</TabsTrigger>
                 <TabsTrigger value="design-professional-portal">Design Professional Portal</TabsTrigger>
               </TabsList>
+              <TabsContent value="cost-code-setup">
+                <JobCostSetup />
+              </TabsContent>
               <TabsContent value="design-professional-portal">
                 <DesignProfessionalPortalSettings />
               </TabsContent>

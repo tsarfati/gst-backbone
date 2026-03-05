@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -30,6 +30,10 @@ import {
   Calculator,
   Upload,
   Download
+  ,
+  ArrowUpDown,
+  ArrowUp,
+  ArrowDown
 } from "lucide-react";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
@@ -95,6 +99,8 @@ export default function JobCostSetup() {
     type: "other",
     is_default: false
   });
+  const [sortBy, setSortBy] = useState<'code' | 'description' | 'type' | 'require_attachment'>('code');
+  const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('asc');
 
   const costTypeOptions = [
     { value: 'material', label: 'Material', icon: Package, color: 'bg-blue-100 text-blue-800' },
@@ -294,6 +300,50 @@ export default function JobCostSetup() {
     return matchesSearch && matchesType;
   });
 
+  const sortedCostCodes = useMemo(() => {
+    const sorted = [...filteredCostCodes];
+    sorted.sort((a, b) => {
+      let comparison = 0;
+      switch (sortBy) {
+        case 'code':
+          comparison = a.code.localeCompare(b.code, undefined, { numeric: true, sensitivity: 'base' });
+          break;
+        case 'description':
+          comparison = a.description.localeCompare(b.description, undefined, { sensitivity: 'base' });
+          break;
+        case 'type':
+          comparison = a.type.localeCompare(b.type, undefined, { sensitivity: 'base' });
+          break;
+        case 'require_attachment': {
+          const aValue = a.require_attachment ?? true;
+          const bValue = b.require_attachment ?? true;
+          comparison = Number(aValue) - Number(bValue);
+          break;
+        }
+        default:
+          comparison = 0;
+      }
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+    return sorted;
+  }, [filteredCostCodes, sortBy, sortDirection]);
+
+  const setSort = (column: 'code' | 'description' | 'type' | 'require_attachment') => {
+    if (sortBy === column) {
+      setSortDirection(prev => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setSortBy(column);
+    setSortDirection('asc');
+  };
+
+  const renderSortIcon = (column: 'code' | 'description' | 'type' | 'require_attachment') => {
+    if (sortBy !== column) return <ArrowUpDown className="h-3.5 w-3.5 text-muted-foreground" />;
+    return sortDirection === 'asc'
+      ? <ArrowUp className="h-3.5 w-3.5 text-foreground" />
+      : <ArrowDown className="h-3.5 w-3.5 text-foreground" />;
+  };
+
   const handleCsvUpload = async () => {
     if (!csvFile) {
       toast({
@@ -448,6 +498,55 @@ export default function JobCostSetup() {
     window.URL.revokeObjectURL(url);
   };
 
+  const downloadCsiStarterCsv = () => {
+    const csiStarterRows = [
+      ["code", "description", "type"],
+      ["01.10", "Summary", "other"],
+      ["01.20", "Price and Payment Procedures", "other"],
+      ["01.30", "Administrative Requirements", "other"],
+      ["01.50", "Temporary Facilities and Controls", "other"],
+      ["01.70", "Execution and Closeout Requirements", "other"],
+      ["02.20", "Site Demolition", "other"],
+      ["03.30", "Cast-in-Place Concrete", "material"],
+      ["04.20", "Unit Masonry", "material"],
+      ["05.10", "Structural Metal Framing", "material"],
+      ["06.10", "Rough Carpentry", "labor"],
+      ["07.20", "Thermal Protection", "material"],
+      ["07.50", "Membrane Roofing", "sub"],
+      ["08.10", "Doors and Frames", "material"],
+      ["08.80", "Glazing", "sub"],
+      ["09.20", "Plaster and Gypsum Board", "labor"],
+      ["09.90", "Painting and Coating", "sub"],
+      ["10.20", "Interior Specialties", "material"],
+      ["11.40", "Foodservice Equipment", "equipment"],
+      ["12.30", "Casework", "material"],
+      ["13.30", "Special Structures", "sub"],
+      ["14.20", "Elevators", "equipment"],
+      ["21.10", "Fire Suppression", "sub"],
+      ["22.10", "Plumbing Piping", "sub"],
+      ["23.00", "HVAC", "sub"],
+      ["26.00", "Electrical", "sub"],
+      ["27.00", "Communications", "sub"],
+      ["28.00", "Electronic Safety and Security", "sub"],
+      ["31.20", "Earth Moving", "equipment"],
+      ["32.10", "Paving", "sub"],
+      ["33.10", "Utilities", "sub"],
+    ];
+
+    const csvContent = csiStarterRows
+      .map((row) => row.map((value) => `"${String(value).replace(/"/g, '""')}"`).join(","))
+      .join("\n");
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = "csi_masterformat_cost_codes_starter.csv";
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    window.URL.revokeObjectURL(url);
+  };
+
   const exportCostCodesToCsv = async () => {
     try {
       if (!currentCompany?.id) return;
@@ -523,13 +622,32 @@ export default function JobCostSetup() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-xl font-bold text-foreground">Cost Code Templates</h2>
-          <p className="text-muted-foreground">Configure cost code templates and job costing settings</p>
+      {/* Header / Actions */}
+      <div className="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-3">
+        <div className="relative flex-1 max-w-xl">
+          <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+          <Input
+            placeholder="Search cost codes..."
+            value={searchTerm}
+            onChange={(e) => setSearchTerm(e.target.value)}
+            className="pl-10"
+          />
         </div>
-        <div className="flex space-x-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <Select value={filterType} onValueChange={setFilterType}>
+            <SelectTrigger className="w-48">
+              <SelectValue placeholder="Filter by type" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="all">All Types</SelectItem>
+              {costTypeOptions.map((option) => (
+                <SelectItem key={option.value} value={option.value}>
+                  {option.label}
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
           <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
             <DialogTrigger asChild>
               <Button variant="outline">
@@ -539,7 +657,7 @@ export default function JobCostSetup() {
             </DialogTrigger>
             <DialogContent>
               <DialogHeader>
-                <DialogTitle>Job Cost Setup Settings</DialogTitle>
+                <DialogTitle>Cost Code Setup Settings</DialogTitle>
               </DialogHeader>
               <div className="space-y-6">
                 <div className="space-y-4">
@@ -672,11 +790,33 @@ export default function JobCostSetup() {
                       <Download className="h-4 w-4 mr-2" />
                       Download Template
                     </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={downloadCsiStarterCsv}
+                    >
+                      <Download className="h-4 w-4 mr-2" />
+                      Download CSI Starter List
+                    </Button>
                   </div>
                   <p className="text-sm text-muted-foreground">
                     Required columns: code, description, type
                     <br />
                     Valid types: material, labor, sub, equipment, other
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    New to setup? Start with the CSI/MasterFormat starter list, edit it for your workflow, then upload it.
+                    <br />
+                    Reference:
+                    {" "}
+                    <a
+                      href="https://www.csiresources.org/standards/masterformat"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="underline hover:text-foreground"
+                    >
+                      CSI MasterFormat overview and resources
+                    </a>
                   </p>
                 </div>
                 <div className="flex justify-end space-x-2">
@@ -695,12 +835,12 @@ export default function JobCostSetup() {
             <DialogTrigger asChild>
               <Button>
                 <Plus className="h-4 w-4 mr-2" />
-                Add Cost Code Template
+                Add Cost Code
               </Button>
             </DialogTrigger>
             <DialogContent className="max-w-md">
               <DialogHeader>
-                <DialogTitle>Add Cost Code Template</DialogTitle>
+                <DialogTitle>Add Cost Code</DialogTitle>
               </DialogHeader>
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
@@ -749,7 +889,7 @@ export default function JobCostSetup() {
                     Cancel
                   </Button>
                   <Button onClick={handleAddTemplate}>
-                    Add Template
+                    Add Cost Code
                   </Button>
                 </div>
               </div>
@@ -826,59 +966,6 @@ export default function JobCostSetup() {
         </div>
       </div>
 
-      {/* View Selector */}
-      <div className="flex items-center justify-between">
-        <div className="flex items-center gap-4">
-          <h3 className="text-lg font-semibold">Cost Code Templates ({filteredCostCodes.length})</h3>
-        </div>
-        <div className="flex items-center gap-2">
-          <label className="text-sm font-medium">View:</label>
-          <Select value="list" onValueChange={() => {}}>
-            <SelectTrigger className="w-40">
-              <SelectValue />
-            </SelectTrigger>
-            <SelectContent>
-              <SelectItem value="list">List</SelectItem>
-              <SelectItem value="compact">Compact List</SelectItem>
-              <SelectItem value="very-compact">Very Compact List</SelectItem>
-              <SelectItem value="default">Default View</SelectItem>
-            </SelectContent>
-          </Select>
-        </div>
-      </div>
-
-      {/* Filters */}
-      <Card>
-        <CardContent className="p-4">
-          <div className="flex space-x-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search cost code templates..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-10"
-                />
-              </div>
-            </div>
-            <Select value={filterType} onValueChange={setFilterType}>
-              <SelectTrigger className="w-48">
-                <SelectValue placeholder="Filter by type" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">All Types</SelectItem>
-                {costTypeOptions.map((option) => (
-                  <SelectItem key={option.value} value={option.value}>
-                    {option.label}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Cost Code Templates Table */}
       <Card>
         <CardHeader>
@@ -886,20 +973,42 @@ export default function JobCostSetup() {
         <CardContent>
           <Table>
             <TableHeader>
-              <TableRow>
-                <TableHead>Code</TableHead>
-                <TableHead>Description</TableHead>
-                <TableHead>Type</TableHead>
-                <TableHead className="text-center">Require Attachment</TableHead>
-                <TableHead className="text-center">Actions</TableHead>
+              <TableRow className="h-8">
+                <TableHead className="py-0.5">
+                  <Button type="button" variant="ghost" className="h-auto p-0 font-medium" onClick={() => setSort('code')}>
+                    Code
+                    <span className="ml-1.5">{renderSortIcon('code')}</span>
+                  </Button>
+                </TableHead>
+                <TableHead className="py-0.5">
+                  <Button type="button" variant="ghost" className="h-auto p-0 font-medium" onClick={() => setSort('description')}>
+                    Description
+                    <span className="ml-1.5">{renderSortIcon('description')}</span>
+                  </Button>
+                </TableHead>
+                <TableHead className="py-0.5">
+                  <Button type="button" variant="ghost" className="h-auto p-0 font-medium" onClick={() => setSort('type')}>
+                    Type
+                    <span className="ml-1.5">{renderSortIcon('type')}</span>
+                  </Button>
+                </TableHead>
+                <TableHead className="text-center py-0.5">
+                  <div className="flex justify-center">
+                    <Button type="button" variant="ghost" className="h-auto p-0 font-medium" onClick={() => setSort('require_attachment')}>
+                      Require Attachment
+                      <span className="ml-1.5">{renderSortIcon('require_attachment')}</span>
+                    </Button>
+                  </div>
+                </TableHead>
+                <TableHead className="text-center py-0.5">Actions</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
-              {filteredCostCodes.map((code) => (
-                <TableRow key={code.id}>
-                  <TableCell className="font-mono font-medium">{code.code}</TableCell>
-                  <TableCell>{code.description}</TableCell>
-                  <TableCell>
+              {sortedCostCodes.map((code) => (
+                <TableRow key={code.id} className="h-8">
+                  <TableCell className="font-mono font-medium py-0.5">{code.code}</TableCell>
+                  <TableCell className="py-0.5">{code.description}</TableCell>
+                  <TableCell className="py-0.5">
                     <Badge variant="secondary" className={getCostTypeColor(code.type)}>
                       <span className="flex items-center space-x-1">
                         {getCostTypeIcon(code.type)}
@@ -907,7 +1016,7 @@ export default function JobCostSetup() {
                       </span>
                     </Badge>
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-center py-0.5">
                     <Checkbox
                       checked={code.require_attachment ?? true}
                       onCheckedChange={async (checked) => {
@@ -924,7 +1033,7 @@ export default function JobCostSetup() {
                       }}
                     />
                   </TableCell>
-                  <TableCell className="text-center">
+                  <TableCell className="text-center py-0.5">
                     <div className="flex items-center justify-center space-x-2">
                       <Button
                         variant="ghost"
@@ -944,9 +1053,9 @@ export default function JobCostSetup() {
                         </AlertDialogTrigger>
                         <AlertDialogContent>
                           <AlertDialogHeader>
-                            <AlertDialogTitle>Deactivate Cost Code Template</AlertDialogTitle>
+                            <AlertDialogTitle>Deactivate Cost Code</AlertDialogTitle>
                             <AlertDialogDescription>
-                              Are you sure you want to deactivate this cost code template? This will prevent it from being used in new jobs.
+                              Are you sure you want to deactivate this cost code? This will prevent it from being used in new jobs.
                             </AlertDialogDescription>
                           </AlertDialogHeader>
                           <AlertDialogFooter>
@@ -964,9 +1073,9 @@ export default function JobCostSetup() {
             </TableBody>
           </Table>
 
-          {filteredCostCodes.length === 0 && (
+          {sortedCostCodes.length === 0 && (
             <div className="text-center py-8">
-              <p className="text-muted-foreground">No cost code templates found</p>
+              <p className="text-muted-foreground">No cost codes found</p>
             </div>
           )}
         </CardContent>
