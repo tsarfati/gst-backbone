@@ -1,4 +1,4 @@
-import React, { useRef, useState, useCallback } from "react";
+import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { FileText, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -34,6 +34,8 @@ export default function ZoomableDocumentPreview({
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
   const previewScrollRef = useRef<HTMLDivElement>(null);
+  const panStartRef = useRef({ x: 0, y: 0 });
+  const scrollStartRef = useRef({ left: 0, top: 0 });
 
   // Clamp zoom between 50% and 300%
   const clampZoom = useCallback((z: number) => Math.max(50, Math.min(300, z)), []);
@@ -57,11 +59,15 @@ export default function ZoomableDocumentPreview({
   const handleMouseDown = (e: React.MouseEvent) => {
     if (zoomLevel > 100 && previewScrollRef.current) {
       setIsPanning(true);
-      setPanStart({ x: e.clientX, y: e.clientY });
-      setScrollStart({
+      const nextPanStart = { x: e.clientX, y: e.clientY };
+      const nextScrollStart = {
         left: previewScrollRef.current.scrollLeft,
         top: previewScrollRef.current.scrollTop,
-      });
+      };
+      setPanStart(nextPanStart);
+      setScrollStart(nextScrollStart);
+      panStartRef.current = nextPanStart;
+      scrollStartRef.current = nextScrollStart;
       e.preventDefault();
     }
   };
@@ -77,6 +83,25 @@ export default function ZoomableDocumentPreview({
 
   const handleMouseUp = () => setIsPanning(false);
   const handleMouseLeave = () => setIsPanning(false);
+
+  useEffect(() => {
+    if (!isPanning) return;
+    const handleWindowMouseMove = (e: MouseEvent) => {
+      if (!previewScrollRef.current) return;
+      const deltaX = panStartRef.current.x - e.clientX;
+      const deltaY = panStartRef.current.y - e.clientY;
+      previewScrollRef.current.scrollLeft = scrollStartRef.current.left + deltaX;
+      previewScrollRef.current.scrollTop = scrollStartRef.current.top + deltaY;
+    };
+    const handleWindowMouseUp = () => setIsPanning(false);
+
+    window.addEventListener("mousemove", handleWindowMouseMove);
+    window.addEventListener("mouseup", handleWindowMouseUp);
+    return () => {
+      window.removeEventListener("mousemove", handleWindowMouseMove);
+      window.removeEventListener("mouseup", handleWindowMouseUp);
+    };
+  }, [isPanning]);
 
   return (
     <div className={cn("h-full flex flex-col min-h-0", className)}>
@@ -122,7 +147,8 @@ export default function ZoomableDocumentPreview({
         ref={previewScrollRef}
         className={cn(
           "flex-1 overflow-auto min-h-0",
-          zoomLevel > 100 && "cursor-grab active:cursor-grabbing"
+          zoomLevel > 100 && "cursor-grab",
+          isPanning && "cursor-grabbing"
         )}
         onMouseDown={handleMouseDown}
         onMouseMove={handleMouseMove}
@@ -130,13 +156,16 @@ export default function ZoomableDocumentPreview({
         onMouseLeave={handleMouseLeave}
       >
         {url ? (
-          <div className="p-4">
+          <div
+            className={cn(
+              "p-4 min-h-full min-w-full flex",
+              zoomLevel <= 100 ? "items-center justify-center" : "items-start justify-start"
+            )}
+          >
             <div
               className="inline-block select-none"
               style={{
                 width: `${zoomLevel}%`,
-                minWidth: "100%",
-                transformOrigin: "top left",
                 pointerEvents: isPanning ? "none" : "auto",
               }}
             >

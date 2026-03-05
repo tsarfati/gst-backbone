@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Link, useLocation } from "react-router-dom";
+import { useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Trash2, Loader2, Share2, Mail, X } from "lucide-react";
+import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Trash2, Loader2, Share2, Mail, X, ChevronDown, ChevronRight } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,6 +36,29 @@ interface CompanyFile {
 interface JobEntry {
   id: string;
   name: string;
+}
+
+interface JobCabinetFolder {
+  id: string;
+  name: string;
+  parent_folder_id: string | null;
+  sort_order: number;
+}
+
+interface JobCabinetFile {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
+  file_type: string | null;
+  folder_id: string | null;
+  created_at: string;
+}
+
+interface JobCabinetState {
+  loading: boolean;
+  folders: JobCabinetFolder[];
+  filesByFolderId: Record<string, JobCabinetFile[]>;
 }
 
 interface UnassignedCompanyFile {
@@ -108,6 +131,9 @@ export default function CompanyFiles() {
   const [jobs, setJobs] = useState<JobEntry[]>([]);
   const [jobFileCountByJobId, setJobFileCountByJobId] = useState<Record<string, number>>({});
   const [jobUploadTargetId, setJobUploadTargetId] = useState<string | null>(null);
+  const [expandedJobIds, setExpandedJobIds] = useState<Set<string>>(new Set());
+  const [expandedJobFolderKeys, setExpandedJobFolderKeys] = useState<Set<string>>(new Set());
+  const [jobCabinetByJobId, setJobCabinetByJobId] = useState<Record<string, JobCabinetState>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputFolderRef = useRef<string | null>(null);
   const jobFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -280,6 +306,80 @@ export default function CompanyFiles() {
     });
     setJobFileCountByJobId(counts);
   }, [companyId]);
+
+  const loadJobCabinet = useCallback(
+    async (jobId: string) => {
+      if (!companyId) return;
+      setJobCabinetByJobId((prev) => ({
+        ...prev,
+        [jobId]: {
+          loading: true,
+          folders: prev[jobId]?.folders || [],
+          filesByFolderId: prev[jobId]?.filesByFolderId || {},
+        },
+      }));
+
+      const [foldersRes, filesRes] = await Promise.all([
+        supabase
+          .from("job_folders")
+          .select("id, name, parent_folder_id, sort_order")
+          .eq("job_id", jobId)
+          .eq("company_id", companyId)
+          .order("sort_order", { ascending: true }),
+        supabase
+          .from("job_files")
+          .select("id, file_name, file_url, file_size, file_type, folder_id, created_at")
+          .eq("job_id", jobId)
+          .eq("company_id", companyId)
+          .order("created_at", { ascending: false }),
+      ]);
+
+      if (foldersRes.error || filesRes.error) {
+        console.error("Error loading job filing cabinet:", foldersRes.error || filesRes.error);
+        setJobCabinetByJobId((prev) => ({
+          ...prev,
+          [jobId]: {
+            loading: false,
+            folders: prev[jobId]?.folders || [],
+            filesByFolderId: prev[jobId]?.filesByFolderId || {},
+          },
+        }));
+        return;
+      }
+
+      const grouped: Record<string, JobCabinetFile[]> = {};
+      ((filesRes.data as JobCabinetFile[]) || []).forEach((file) => {
+        const key = file.folder_id || "__unassigned__";
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(file);
+      });
+
+      setJobCabinetByJobId((prev) => ({
+        ...prev,
+        [jobId]: {
+          loading: false,
+          folders: ((foldersRes.data as JobCabinetFolder[]) || []).sort(
+            (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name),
+          ),
+          filesByFolderId: grouped,
+        },
+      }));
+    },
+    [companyId],
+  );
+
+  const openJobCabinetFile = useCallback(
+    async (storagePath: string) => {
+      if (!storagePath) return;
+      const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(storagePath, 120);
+      if (error || !data?.signedUrl) {
+        toast({ title: "Error", description: "Failed to open file", variant: "destructive" });
+        return;
+      }
+      window.open(data.signedUrl, "_blank", "noopener,noreferrer");
+    },
+    [toast],
+  );
 
   const ensureFolderAssignments = useCallback(
     async (folderRows: CompanyFolder[]) => {
@@ -522,6 +622,9 @@ export default function CompanyFiles() {
 
       toast({ title: "Uploaded", description: `${selectedFiles.length} file${selectedFiles.length === 1 ? "" : "s"} uploaded to job filing cabinet.` });
       await loadJobFileCounts();
+      if (expandedJobIds.has(jobId) || jobCabinetByJobId[jobId]) {
+        await loadJobCabinet(jobId);
+      }
     } catch (error: unknown) {
       toast({ title: "Upload failed", description: getErrorMessage(error, "Failed to upload files to job"), variant: "destructive" });
     } finally {
@@ -659,6 +762,78 @@ export default function CompanyFiles() {
     }
     return currentView === "all";
   });
+
+  const toggleJobExpansion = (jobId: string) => {
+    setExpandedJobIds((prev) => {
+      const next = new Set(prev);
+      const isOpening = !next.has(jobId);
+      if (isOpening) next.add(jobId);
+      else next.delete(jobId);
+      if (isOpening && !jobCabinetByJobId[jobId]) {
+        void loadJobCabinet(jobId);
+      }
+      return next;
+    });
+  };
+
+  const toggleJobFolderExpansion = (jobId: string, folderId: string) => {
+    const key = `${jobId}:${folderId}`;
+    setExpandedJobFolderKeys((prev) => {
+      const next = new Set(prev);
+      if (next.has(key)) next.delete(key);
+      else next.add(key);
+      return next;
+    });
+  };
+
+  const renderJobFiles = (jobId: string, folderId: string | null, depth: number) => {
+    const cabinet = jobCabinetByJobId[jobId];
+    if (!cabinet) return null;
+    const key = folderId || "__unassigned__";
+    const folderFiles = cabinet.filesByFolderId[key] || [];
+    return folderFiles.map((file) => (
+      <div
+        key={file.id}
+        className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 cursor-pointer"
+        style={{ paddingLeft: `${depth * 14 + 8}px` }}
+        onClick={() => void openJobCabinetFile(file.file_url)}
+      >
+        <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+        <span className="flex-1 truncate text-xs">{file.file_name}</span>
+        <span className="text-[11px] text-muted-foreground">{formatFileSize(file.file_size)}</span>
+      </div>
+    ));
+  };
+
+  const renderJobFolderTree = (jobId: string, parentFolderId: string | null, depth: number): JSX.Element[] => {
+    const cabinet = jobCabinetByJobId[jobId];
+    if (!cabinet) return [];
+    const children = cabinet.folders.filter((f) => (f.parent_folder_id || null) === parentFolderId);
+
+    return children.flatMap((folder) => {
+      const folderKey = `${jobId}:${folder.id}`;
+      const isExpanded = expandedJobFolderKeys.has(folderKey);
+      const childCount = cabinet.folders.filter((f) => f.parent_folder_id === folder.id).length;
+      const fileCount = (cabinet.filesByFolderId[folder.id] || []).length;
+      return [
+        <div
+          key={folderKey}
+          className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 cursor-pointer"
+          style={{ paddingLeft: `${depth * 14 + 8}px` }}
+          onClick={() => toggleJobFolderExpansion(jobId, folder.id)}
+        >
+          {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+          {isExpanded ? <FolderOpen className="h-3.5 w-3.5 text-primary" /> : <FolderClosed className="h-3.5 w-3.5 text-primary" />}
+          <span className="flex-1 truncate text-xs">{folder.name}</span>
+          <Badge variant="outline" className="text-[10px] h-5">
+            {fileCount + childCount}
+          </Badge>
+        </div>,
+        ...(isExpanded ? renderJobFiles(jobId, folder.id, depth + 1) : []),
+        ...(isExpanded ? renderJobFolderTree(jobId, folder.id, depth + 1) : []),
+      ];
+    });
+  };
 
   return (
     <div className="p-6 space-y-4">
@@ -837,10 +1012,22 @@ export default function CompanyFiles() {
                           <div className="py-0.5 text-xs text-muted-foreground">No active jobs</div>
                         ) : (
                           jobs.map((job) => (
-                            <div key={job.id} className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 group">
-                              <Link to={`/jobs/${job.id}`} className="flex-1 truncate hover:underline text-sm">
-                                {job.name}
-                              </Link>
+                            <div key={job.id} className="space-y-0.5">
+                              <div
+                                className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 group cursor-pointer"
+                                onClick={() => toggleJobExpansion(job.id)}
+                              >
+                                {expandedJobIds.has(job.id) ? (
+                                  <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" />
+                                ) : (
+                                  <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />
+                                )}
+                                {expandedJobIds.has(job.id) ? (
+                                  <FolderOpen className="h-3.5 w-3.5 text-primary" />
+                                ) : (
+                                  <FolderClosed className="h-3.5 w-3.5 text-primary" />
+                                )}
+                                <span className="flex-1 truncate text-sm">{job.name}</span>
                               <Badge variant="outline">{jobFileCountByJobId[job.id] || 0}</Badge>
                               {jobUploadTargetId === job.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
                               <Button
@@ -856,6 +1043,29 @@ export default function CompanyFiles() {
                               >
                                 <Upload className="h-3.5 w-3.5" />
                               </Button>
+                              </div>
+
+                              {expandedJobIds.has(job.id) && (
+                                <div className="pl-2 pb-1 space-y-0.5">
+                                  {jobCabinetByJobId[job.id]?.loading ? (
+                                    <div className="flex items-center gap-2 text-xs text-muted-foreground px-1.5 py-0.5">
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      Loading job filing cabinet...
+                                    </div>
+                                  ) : (
+                                    <>
+                                      {renderJobFiles(job.id, null, 1)}
+                                      {renderJobFolderTree(job.id, null, 1)}
+                                      {(Object.keys(jobCabinetByJobId[job.id]?.filesByFolderId || {}).length === 0 &&
+                                        (jobCabinetByJobId[job.id]?.folders.length || 0) === 0) && (
+                                        <div className="text-xs text-muted-foreground px-1.5 py-0.5">
+                                          No files in this job filing cabinet
+                                        </div>
+                                      )}
+                                    </>
+                                  )}
+                                </div>
+                              )}
                             </div>
                           ))
                         )

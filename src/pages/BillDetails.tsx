@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
   import { 
   ArrowLeft, 
   Download, 
-  Eye, 
+  Mail,
   Edit, 
   DollarSign, 
   Calendar, 
@@ -36,6 +36,7 @@ import BillReceiptSuggestions from "@/components/BillReceiptSuggestions";
 import CommitmentInfo from "@/components/CommitmentInfo";
 import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import BillInternalNotes from "@/components/BillInternalNotes";
+import FileShareModal from "@/components/FileShareModal";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
 
   const getStatusVariant = (status: string) => {
@@ -92,6 +93,7 @@ export default function BillDetails() {
   const [distributions, setDistributions] = useState<any[]>([]);
   const [selectedPreviewKey, setSelectedPreviewKey] = useState<string | null>(null);
   const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string | null>(null);
+  const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
   
   const calculateDaysOverdue = (dueDate: string): number => {
     const due = new Date(dueDate);
@@ -493,6 +495,63 @@ export default function BillDetails() {
   const activePreviewUrl = selectedDocument?.file_url || (selectedPreviewKey === 'bill' ? bill?.file_url : null) || null;
   const activePreviewName = selectedDocument?.file_name || 'Bill Document';
 
+  const parseStoragePathFromPublicUrl = (url: string, bucket: string): string | null => {
+    try {
+      const parsed = new URL(url);
+      const marker = `/storage/v1/object/public/${bucket}/`;
+      const idx = parsed.pathname.indexOf(marker);
+      if (idx === -1) return null;
+      return decodeURIComponent(parsed.pathname.slice(idx + marker.length));
+    } catch {
+      return null;
+    }
+  };
+
+  const normalizeReceiptsPath = (urlOrPath?: string | null): string | null => {
+    if (!urlOrPath) return null;
+    if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
+      return parseStoragePathFromPublicUrl(urlOrPath, "receipts");
+    }
+    return urlOrPath;
+  };
+
+  const toShareableFile = (source: { id: string; file_name: string; file_url: string; file_size?: number | null } | null) => {
+    if (!source?.file_url) return null;
+    const normalizedPath = normalizeReceiptsPath(source.file_url);
+    if (!normalizedPath) return null;
+    return {
+      id: source.id,
+      file_name: source.file_name,
+      file_url: normalizedPath,
+      file_size: source.file_size ?? null,
+    };
+  };
+
+  const downloadDocument = async (urlOrPath: string, fileName: string) => {
+    try {
+      const resolvedUrl = await resolveStorageUrl("receipts", urlOrPath);
+      if (!resolvedUrl) throw new Error("Could not resolve file URL");
+      const response = await fetch(resolvedUrl);
+      if (!response.ok) throw new Error("Failed to download file");
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName || "document";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error("Error downloading document:", error);
+      toast({
+        title: "Download failed",
+        description: "Could not download this document.",
+        variant: "destructive",
+      });
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
     const resolvePreview = async () => {
@@ -693,7 +752,7 @@ export default function BillDetails() {
         <div className="xl:col-span-3">
           <Card className="mb-6 xl:sticky xl:top-20">
             <CardContent className="space-y-4">
-              <div className="h-[calc(100vh-18rem)] min-h-[520px] rounded-lg overflow-hidden bg-muted/20">
+              <div className="h-[calc(100vh-12rem)] min-h-[680px] rounded-lg overflow-hidden bg-muted/20">
                 <ZoomableDocumentPreview
                   url={resolvedPreviewUrl}
                   fileName={activePreviewName}
@@ -704,53 +763,114 @@ export default function BillDetails() {
               </div>
 
               {(documents.length > 0 || bill?.file_url) && (
-                <div className="space-y-2 max-h-52 overflow-y-auto">
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Select Document</div>
+                  <div className="space-y-2 max-h-52 overflow-y-auto">
                   {documents.map((doc) => (
                     <div
                       key={doc.id}
-                      className={`flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer ${selectedPreviewKey === doc.id ? 'bg-primary/10 ring-1 ring-primary/50' : 'bg-muted/40 hover:bg-muted/70'}`}
+                      className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md cursor-pointer border ${selectedPreviewKey === doc.id ? 'bg-primary/10 ring-1 ring-primary/50 border-primary/50' : 'bg-muted/40 hover:bg-muted/70 border-transparent'}`}
                       onClick={() => setSelectedPreviewKey(doc.id)}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <FileText className="h-4 w-4 shrink-0" />
                         <span className="text-sm truncate">{doc.file_name}</span>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(doc.file_url, '_blank', 'noopener,noreferrer');
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Open
-                      </Button>
+                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Download"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void downloadDocument(doc.file_url, doc.file_name || "Document");
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Email"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const shareable = toShareableFile({
+                              id: String(doc.id),
+                              file_name: doc.file_name || "Document",
+                              file_url: doc.file_url,
+                              file_size: doc.file_size ?? null,
+                            });
+                            if (!shareable) {
+                              toast({
+                                title: "Cannot email file",
+                                description: "This file is missing a valid storage path.",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            setShareFiles([shareable]);
+                          }}
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
 
                   {bill?.file_url && (
                     <div
-                      className={`flex items-center justify-between gap-2 p-2 rounded-md cursor-pointer ${selectedPreviewKey === 'bill' ? 'bg-primary/10 ring-1 ring-primary/50' : 'bg-muted/40 hover:bg-muted/70'}`}
+                      className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md cursor-pointer border ${selectedPreviewKey === 'bill' ? 'bg-primary/10 ring-1 ring-primary/50 border-primary/50' : 'bg-muted/40 hover:bg-muted/70 border-transparent'}`}
                       onClick={() => setSelectedPreviewKey('bill')}
                     >
                       <div className="flex items-center gap-2 min-w-0">
                         <FileText className="h-4 w-4 shrink-0" />
                         <span className="text-sm truncate">Bill Document</span>
                       </div>
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          window.open(bill.file_url, '_blank', 'noopener,noreferrer');
-                        }}
-                      >
-                        <Eye className="h-4 w-4 mr-2" />
-                        Open
-                      </Button>
+                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Download"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void downloadDocument(bill.file_url, "Bill Document");
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          title="Email"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            const shareable = toShareableFile({
+                              id: "bill-main-document",
+                              file_name: "Bill Document",
+                              file_url: bill.file_url,
+                              file_size: null,
+                            });
+                            if (!shareable) {
+                              toast({
+                                title: "Cannot email file",
+                                description: "This file is missing a valid storage path.",
+                                variant: "destructive",
+                              });
+                              return;
+                            }
+                            setShareFiles([shareable]);
+                          }}
+                        >
+                          <Mail className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   )}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -924,12 +1044,6 @@ export default function BillDetails() {
                 </div>
               </div>
               
-              {bill?.description && (
-                <div className="mt-4">
-                  <p className="text-sm text-muted-foreground mb-2">Description</p>
-                  <p className="text-sm bg-muted/50 p-3 rounded-md">{bill.description}</p>
-                </div>
-              )}
             </div>
 
             {/* Commitment Information */}
@@ -986,13 +1100,6 @@ export default function BillDetails() {
             )}
           </CardContent>
         </Card>
-
-        <div>
-          <BillCommunications 
-            billId={bill?.id || ''}
-            vendorId={bill?.vendor_id || ''}
-          />
-        </div>
 
       {/* Cost Distribution Section */}
       {!bill?.subcontract_id && !bill?.purchase_order_id && (
@@ -1064,8 +1171,47 @@ export default function BillDetails() {
         />
       )}
 
+      <Card>
+        <CardHeader>
+          <CardTitle>Description & Notes</CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="space-y-2">
+            <Label>Description</Label>
+            <div className="text-sm bg-muted/50 p-3 rounded-md min-h-[72px]">
+              {bill?.description || "No description provided"}
+            </div>
+          </div>
+          <div className="space-y-2">
+            <Label>Internal Notes</Label>
+            <div className="text-sm bg-muted/50 p-3 rounded-md min-h-[72px] whitespace-pre-wrap">
+              {bill?.internal_notes || "No internal notes"}
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      <div>
+        <BillCommunications
+          billId={bill?.id || ''}
+          vendorId={bill?.vendor_id || ''}
+        />
+      </div>
+
       </div>
       </div>
+
+      {shareFiles.length > 0 && (
+        <FileShareModal
+          open={shareFiles.length > 0}
+          onOpenChange={(open) => {
+            if (!open) setShareFiles([]);
+          }}
+          files={shareFiles}
+          jobId={bill?.job_id || "bill-details"}
+          storageBucket="receipts"
+        />
+      )}
 
     </div>
   );

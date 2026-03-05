@@ -21,6 +21,7 @@ import CommitmentInfo from "@/components/CommitmentInfo";
 import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import BillDistributionSection from "@/components/BillDistributionSection";
 import BillCostDistribution from "@/components/BillCostDistribution";
+import BillCommunications from "@/components/BillCommunications";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
 
@@ -907,7 +908,7 @@ export default function BillEdit() {
         <div className="xl:col-span-3">
         <Card className="xl:sticky xl:top-20">
           <CardContent className="space-y-4">
-            <div className="h-[calc(100vh-18rem)] min-h-[520px] border rounded-lg overflow-hidden bg-muted/20">
+            <div className="h-[calc(100vh-12rem)] min-h-[680px] border rounded-lg overflow-hidden bg-muted/20">
               <ZoomableDocumentPreview
                 url={resolvedPreviewUrl}
                 fileName={activePreviewName}
@@ -917,7 +918,7 @@ export default function BillEdit() {
               />
             </div>
 
-            <div className="border-2 border-dashed rounded-lg p-3 space-y-3">
+            <div className="space-y-3">
               <div className="text-sm font-medium">Select Document</div>
               {(existingDocuments.length > 0 || billFiles.length > 0) ? (
                 <div className="space-y-2 max-h-44 overflow-y-auto pr-1">
@@ -925,7 +926,7 @@ export default function BillEdit() {
                     <div
                       key={doc.id}
                       className={cn(
-                        "flex items-center justify-between gap-2 p-2 border rounded-md cursor-pointer",
+                        "flex items-center justify-between gap-2 px-2.5 py-1.5 border rounded-md cursor-pointer",
                         selectedDocument?.kind === 'existing' && selectedDocument.key === doc.id
                           ? "border-primary bg-primary/5"
                           : "hover:bg-muted/50"
@@ -953,7 +954,7 @@ export default function BillEdit() {
                     <div
                       key={`new-${index}`}
                       className={cn(
-                        "flex items-center justify-between gap-2 p-2 border rounded-md cursor-pointer",
+                        "flex items-center justify-between gap-2 px-2.5 py-1.5 border rounded-md cursor-pointer",
                         selectedDocument?.kind === 'new' && selectedDocument.key === `new-${index}`
                           ? "border-primary bg-primary/5"
                           : "hover:bg-muted/50"
@@ -1013,7 +1014,9 @@ export default function BillEdit() {
                 />
               </div>
               {!attachmentRequired && (
-                <div className="text-xs text-muted-foreground">Attachments are optional for the selected cost code/account</div>
+                <div className="text-xs text-muted-foreground">
+                  Attachments are optional for the selected cost code/account
+                </div>
               )}
             </div>
           </CardContent>
@@ -1292,6 +1295,11 @@ export default function BillEdit() {
             </div>
           </CardContent>
         </Card>
+
+        <BillCommunications
+          billId={id || bill?.id || ""}
+          vendorId={formData.vendor_id || bill?.vendor_id || ""}
+        />
 
       </div>
     </div>

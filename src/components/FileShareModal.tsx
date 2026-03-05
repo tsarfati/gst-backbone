@@ -27,6 +27,7 @@ interface FileShareModalProps {
   /** Multiple files */
   files?: ShareableFile[];
   jobId: string;
+  storageBucket?: string;
 }
 
 type DeliveryMethod = "attachment" | "link";
@@ -44,7 +45,7 @@ const LINK_EXPIRY_OPTIONS = [
   { label: "30 days", value: 60 * 60 * 24 * 30 },
 ];
 
-export default function FileShareModal({ open, onOpenChange, file, files, jobId }: FileShareModalProps) {
+export default function FileShareModal({ open, onOpenChange, file, files, jobId, storageBucket = "job-filing-cabinet" }: FileShareModalProps) {
   const { user, profile } = useAuth();
   const { toast } = useToast();
 
@@ -144,7 +145,7 @@ export default function FileShareModal({ open, onOpenChange, file, files, jobId 
           const option = fileOptions[f.id] ?? { method: "attachment" as DeliveryMethod, linkExpirySeconds: 604800 };
           const expiresIn = option.method === "link" ? option.linkExpirySeconds : 3600;
           const { data: signedData } = await supabase.storage
-            .from('job-filing-cabinet')
+            .from(storageBucket)
             .createSignedUrl(f.file_url, expiresIn);
 
           return {
