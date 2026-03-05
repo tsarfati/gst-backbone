@@ -58,6 +58,8 @@ const LEGACY_EXACT_MAP: Record<string, string> = {
   "pm-lynk-settings": "pm_lynk",
 };
 
+const KNOWN_FEATURE_KEYS = new Set<string>(Object.values(LEGACY_EXACT_MAP));
+
 const getLegacyFeatureForPermission = (permissionKey: string): string | null => {
   const key = String(permissionKey || "").toLowerCase();
   if (!key) return null;
@@ -105,15 +107,23 @@ export const getRequiredFeaturesForPermission = (permissionKey: string): string[
   if (!key) return [];
   if (ALWAYS_ALLOWED_PERMISSION_KEYS.has(key)) return [];
 
-  const candidates = new Set<string>([key]);
-
-  // Support existing underscore feature keys (e.g. purchase_orders) for compatibility.
-  if (key.includes("-")) {
-    candidates.add(key.replace(/-/g, "_"));
-  }
+  const candidates = new Set<string>();
 
   const legacyFeature = getLegacyFeatureForPermission(key);
   if (legacyFeature) candidates.add(legacyFeature);
+
+  // Support direct feature-style keys when passed (e.g. organization_management).
+  if (KNOWN_FEATURE_KEYS.has(key)) {
+    candidates.add(key);
+  }
+
+  // Support kebab-case aliases that map directly to a known underscore feature.
+  if (key.includes("-")) {
+    const underscore = key.replace(/-/g, "_");
+    if (KNOWN_FEATURE_KEYS.has(underscore)) {
+      candidates.add(underscore);
+    }
+  }
 
   return Array.from(candidates);
 };

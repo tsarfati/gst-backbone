@@ -3,12 +3,15 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
-import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Trash2, Loader2 } from "lucide-react";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Trash2, Loader2, Share2, Mail, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
+import FileShareModal from "@/components/FileShareModal";
 
 interface CompanyFolder {
   id: string;
@@ -26,6 +29,7 @@ interface CompanyFile {
   file_type: string | null;
   category: string;
   created_at: string;
+  description?: string | null;
 }
 
 interface UnassignedCompanyFile {
@@ -86,11 +90,14 @@ export default function CompanyFiles() {
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [dragOverRoot, setDragOverRoot] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderOpen, setNewFolderOpen] = useState(false);
   const [newFolderName, setNewFolderName] = useState("");
   const [editingFolderId, setEditingFolderId] = useState<string | null>(null);
   const [editingFolderName, setEditingFolderName] = useState("");
   const [editingFileId, setEditingFileId] = useState<string | null>(null);
   const [editingFileName, setEditingFileName] = useState("");
+  const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputFolderRef = useRef<string | null>(null);
 
@@ -106,6 +113,18 @@ export default function CompanyFiles() {
     }
     return grouped;
   }, [files]);
+
+  const getShareableFile = (file: CompanyFile) => ({
+    id: file.id,
+    file_name: file.file_name,
+    file_url: parseStoragePathFromPublicUrl(file.file_url) || file.file_url,
+    file_size: file.file_size ?? null,
+  });
+
+  const selectedFiles = useMemo(
+    () => files.filter((file) => selectedFileIds.has(file.id)).map(getShareableFile),
+    [files, selectedFileIds],
+  );
 
   const loadFolders = useCallback(async (): Promise<CompanyFolder[]> => {
     if (!companyId || !userId) return [];
@@ -353,7 +372,47 @@ export default function CompanyFiles() {
       return;
     }
     setNewFolderName("");
+    setNewFolderOpen(false);
     await load();
+  };
+
+  const toggleFileSelection = (fileId: string) => {
+    setSelectedFileIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(fileId)) next.delete(fileId);
+      else next.add(fileId);
+      return next;
+    });
+  };
+
+  const clearSelection = () => setSelectedFileIds(new Set());
+
+  const downloadFolder = async (folder: CompanyFolder) => {
+    const folderFiles = filesByFolderId[folder.id] || [];
+    if (folderFiles.length === 0) {
+      toast({ title: "No files", description: "This folder has no files to download." });
+      return;
+    }
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const file of folderFiles) {
+        const response = await fetch(file.file_url);
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        zip.file(file.file_name, blob);
+      }
+      const blob = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = `${folder.name.replace(/[^a-zA-Z0-9-_ ]/g, "_") || "folder"}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    } catch (error: unknown) {
+      toast({ title: "Error", description: getErrorMessage(error, "Failed to download folder"), variant: "destructive" });
+    }
   };
 
   const saveFolderRename = async (folderId: string) => {
@@ -414,6 +473,10 @@ export default function CompanyFiles() {
           <p className="text-sm text-muted-foreground">All Documents</p>
         </div>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setNewFolderOpen(true)}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Folder
+          </Button>
           <Button variant="outline" onClick={() => handleOpenFilePicker(null)}>
             <Upload className="h-4 w-4 mr-2" />
             Upload Files
@@ -422,24 +485,25 @@ export default function CompanyFiles() {
       </div>
 
       <Card>
-        <CardHeader className="space-y-3">
+        <CardHeader>
           <CardTitle>Document Library</CardTitle>
-          <div className="flex gap-2">
-            <Input
-              value={newFolderName}
-              onChange={(e) => setNewFolderName(e.target.value)}
-              placeholder="New folder name"
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void handleCreateFolder();
-              }}
-            />
-            <Button onClick={() => void handleCreateFolder()} disabled={creatingFolder || !newFolderName.trim()}>
-              <Plus className="h-4 w-4 mr-2" />
-              {creatingFolder ? "Creating..." : "New Folder"}
-            </Button>
-          </div>
         </CardHeader>
         <CardContent>
+          {selectedFiles.length > 0 && (
+            <div className="mb-2 flex items-center gap-2 rounded-md border bg-muted/20 px-2 py-1.5">
+              <Badge variant="secondary">{selectedFiles.length} selected</Badge>
+              <Button size="sm" variant="outline" onClick={() => setShareFiles(selectedFiles)}>
+                <Mail className="h-4 w-4 mr-1.5" />
+                Email Selected
+              </Button>
+              <div className="flex-1" />
+              <Button size="sm" variant="ghost" onClick={clearSelection}>
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            </div>
+          )}
+
           <div
             className={cn(
               "rounded-md border border-dashed p-3 text-sm text-muted-foreground mb-3",
@@ -467,7 +531,7 @@ export default function CompanyFiles() {
                 <div key={folder.id} className="rounded-md border">
                   <div
                     className={cn(
-                      "flex items-center gap-2 px-2 py-1.5 cursor-pointer group",
+                      "flex items-center gap-2 px-2 py-0.5 cursor-pointer group",
                       dragOverFolderId === folder.id && "bg-primary/5 border border-primary border-dashed rounded-md",
                     )}
                     draggable
@@ -523,28 +587,60 @@ export default function CompanyFiles() {
                     )}
                     <Badge variant="outline">{folderFiles.length}</Badge>
                     {uploadingFolderId === folder.id && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      className="opacity-0 group-hover:opacity-100"
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        handleOpenFilePicker(folder.id);
-                      }}
-                    >
-                      <Upload className="h-4 w-4" />
-                    </Button>
+                    <div className="opacity-0 group-hover:opacity-100 flex items-center">
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleOpenFilePicker(folder.id);
+                        }}
+                      >
+                        <Upload className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void downloadFolder(folder);
+                        }}
+                      >
+                        <Download className="h-4 w-4" />
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const folderShareFiles = (filesByFolderId[folder.id] || []).map(getShareableFile);
+                          if (folderShareFiles.length === 0) {
+                            toast({ title: "No files", description: "This folder has no files to share." });
+                            return;
+                          }
+                          setShareFiles(folderShareFiles);
+                        }}
+                      >
+                        <Share2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </div>
 
                   {isExpanded && (
-                    <div className="pl-8 pr-2 pb-2 space-y-0.5">
+                    <div className="pl-8 pr-2 pb-1 space-y-0">
                       {folderFiles.length === 0 ? (
-                        <div className="text-xs text-muted-foreground py-1">Empty folder</div>
+                        <div className="py-0" />
                       ) : (
                         folderFiles.map((file) => (
                           <div
                             key={file.id}
-                            className="flex items-center gap-2 px-1.5 py-1 rounded hover:bg-muted/40 group"
+                            className={cn(
+                              "flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 group",
+                              selectedFileIds.has(file.id) && "bg-primary/5 ring-1 ring-primary/20",
+                            )}
                             draggable
                             onDragStart={(e) => {
                               e.stopPropagation();
@@ -555,6 +651,11 @@ export default function CompanyFiles() {
                               e.dataTransfer.effectAllowed = "move";
                             }}
                           >
+                            <Checkbox
+                              checked={selectedFileIds.has(file.id)}
+                              onCheckedChange={() => toggleFileSelection(file.id)}
+                              onClick={(e) => e.stopPropagation()}
+                            />
                             <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
                             {editingFileId === file.id ? (
                               <Input
@@ -585,6 +686,9 @@ export default function CompanyFiles() {
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => window.open(file.file_url, "_blank")}>
                                 <Download className="h-4 w-4" />
                               </Button>
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShareFiles([getShareableFile(file)])}>
+                                <Share2 className="h-4 w-4" />
+                              </Button>
                               <Button
                                 variant="ghost"
                                 size="icon"
@@ -605,6 +709,40 @@ export default function CompanyFiles() {
           </div>
         </CardContent>
       </Card>
+
+      <Dialog open={newFolderOpen} onOpenChange={setNewFolderOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Create New Folder</DialogTitle>
+            <DialogDescription>Enter a name for the new folder.</DialogDescription>
+          </DialogHeader>
+          <Input
+            value={newFolderName}
+            onChange={(e) => setNewFolderName(e.target.value)}
+            placeholder="Folder name"
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleCreateFolder();
+            }}
+          />
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setNewFolderOpen(false)}>Cancel</Button>
+            <Button onClick={() => void handleCreateFolder()} disabled={creatingFolder || !newFolderName.trim()}>
+              {creatingFolder ? "Creating..." : "Create"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {shareFiles.length > 0 && (
+        <FileShareModal
+          open={shareFiles.length > 0}
+          onOpenChange={(open) => {
+            if (!open) setShareFiles([]);
+          }}
+          files={shareFiles}
+          jobId="company-files"
+        />
+      )}
     </div>
   );
 }

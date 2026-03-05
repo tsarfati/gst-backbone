@@ -68,6 +68,7 @@ interface BidAttachment {
   file_name: string;
   file_url: string;
   attachment_type: string;
+  description?: string | null;
   uploaded_at: string;
 }
 
@@ -158,6 +159,8 @@ export default function BidDetails() {
   const [savingAttachmentId, setSavingAttachmentId] = useState<string | null>(null);
   const [editingCustomTypeId, setEditingCustomTypeId] = useState<string | null>(null);
   const [customTypeDraft, setCustomTypeDraft] = useState("");
+  const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
+  const [editingDescriptionText, setEditingDescriptionText] = useState("");
   const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState({
     bid_amount: "",
@@ -183,7 +186,7 @@ export default function BidDetails() {
       setLoadingAttachments(true);
       const { data, error } = await supabase
         .from("bid_attachments")
-        .select("id, file_name, file_url, attachment_type, uploaded_at")
+        .select("id, file_name, file_url, attachment_type, description, uploaded_at")
         .eq("bid_id", bidId)
         .order("uploaded_at", { ascending: false });
       if (error) throw error;
@@ -511,6 +514,32 @@ export default function BidDetails() {
     }
   };
 
+  const saveAttachmentDescription = async (attachmentId: string) => {
+    if (!bid) return;
+    const nextDescription = editingDescriptionText.trim();
+    try {
+      setSavingAttachmentId(attachmentId);
+      const { error } = await supabase
+        .from("bid_attachments")
+        .update({ description: nextDescription || null } as any)
+        .eq("id", attachmentId)
+        .eq("bid_id", bid.id);
+      if (error) throw error;
+      await loadAttachments(bid.id);
+    } catch (error: any) {
+      console.error("Error updating attachment description:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update description",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingAttachmentId(null);
+      setEditingDescriptionId(null);
+      setEditingDescriptionText("");
+    }
+  };
+
   const handleSave = async () => {
     if (!bid) return;
     if (!form.bid_amount || Number(form.bid_amount) <= 0) {
@@ -621,9 +650,23 @@ export default function BidDetails() {
                   {uploadingAttachment ? "Uploading..." : "Drag and drop multiple quote files here"}
                 </div>
               ) : (
-                <div className="space-y-1">
+                <div
+                  className="space-y-1 rounded-md border border-dashed border-border/60 p-2"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (e.dataTransfer.files?.length) {
+                      uploadBidAttachments(e.dataTransfer.files);
+                    }
+                  }}
+                >
                   <div className="grid grid-cols-12 gap-2 px-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <div className="col-span-7">File</div>
+                    <div className="col-span-4">File</div>
+                    <div className="col-span-3">Description</div>
                     <div className="col-span-3">Type</div>
                     <div className="col-span-2">Date</div>
                   </div>
@@ -635,7 +678,7 @@ export default function BidDetails() {
                       }`}
                       onClick={() => setSelectedAttachmentId(attachment.id)}
                     >
-                      <div className="col-span-7 min-w-0">
+                      <div className="col-span-4 min-w-0">
                         {editingAttachmentId === attachment.id ? (
                           <Input
                             value={editingAttachmentName}
@@ -661,6 +704,35 @@ export default function BidDetails() {
                           >
                             {attachment.file_name}
                           </span>
+                        )}
+                      </div>
+                      <div className="col-span-3 min-w-0">
+                        {editingDescriptionId === attachment.id ? (
+                          <Input
+                            value={editingDescriptionText}
+                            autoFocus
+                            className="h-7 text-xs"
+                            onChange={(e) => setEditingDescriptionText(e.target.value)}
+                            onBlur={() => saveAttachmentDescription(attachment.id)}
+                            onKeyDown={(e) => {
+                              if (e.key === "Enter") saveAttachmentDescription(attachment.id);
+                              if (e.key === "Escape") {
+                                setEditingDescriptionId(null);
+                                setEditingDescriptionText("");
+                              }
+                            }}
+                          />
+                        ) : (
+                          <button
+                            type="button"
+                            className="block w-full truncate text-left text-muted-foreground hover:underline"
+                            onClick={() => {
+                              setEditingDescriptionId(attachment.id);
+                              setEditingDescriptionText(attachment.description || "");
+                            }}
+                          >
+                            {attachment.description?.trim() || "Add description"}
+                          </button>
                         )}
                       </div>
                       <div className="col-span-3">

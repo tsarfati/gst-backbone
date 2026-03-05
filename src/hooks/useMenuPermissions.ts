@@ -134,6 +134,16 @@ export function useMenuPermissions() {
       return false;
     }
 
+    // Safety fallback: if system-role permissions are empty (e.g. missing seed rows),
+    // keep privileged system roles from getting a blank navigation shell.
+    const hasNoPermissionRows =
+      !profile?.custom_role_id &&
+      (effectiveRole === "admin" || effectiveRole === "company_admin" || effectiveRole === "controller") &&
+      Object.keys(permissions).length === 0;
+    if (hasNoPermissionRows) {
+      return true;
+    }
+
     // Admin users without a custom role have access to everything
     if (!profile?.custom_role_id && effectiveRole === 'admin') {
       return true;
