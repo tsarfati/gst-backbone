@@ -129,6 +129,10 @@ export function useMenuPermissions() {
     // Super admins have access to everything
     if (isSuperAdmin) return true;
 
+    const isPrivilegedSystemRole =
+      !profile?.custom_role_id &&
+      (effectiveRole === "admin" || effectiveRole === "company_admin" || effectiveRole === "controller");
+
     const requiredFeatures = getRequiredFeaturesForPermission(menuItem);
     if (requiredFeatures.length > 0 && !requiredFeatures.some((feature) => hasFeature(feature))) {
       return false;
@@ -136,10 +140,7 @@ export function useMenuPermissions() {
 
     // Safety fallback: if system-role permissions are empty (e.g. missing seed rows),
     // keep privileged system roles from getting a blank navigation shell.
-    const hasNoPermissionRows =
-      !profile?.custom_role_id &&
-      (effectiveRole === "admin" || effectiveRole === "company_admin" || effectiveRole === "controller") &&
-      Object.keys(permissions).length === 0;
+    const hasNoPermissionRows = isPrivilegedSystemRole && Object.keys(permissions).length === 0;
     if (hasNoPermissionRows) {
       return true;
     }
@@ -174,6 +175,13 @@ export function useMenuPermissions() {
         }
       }
     }
+
+    // For default system roles, unknown/unconfigured menu keys should remain accessible
+    // unless explicitly denied in role_permissions.
+    if (isPrivilegedSystemRole) {
+      return true;
+    }
+
     return false;
   };
 
