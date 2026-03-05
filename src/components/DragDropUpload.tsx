@@ -152,6 +152,9 @@ export default function DragDropUpload({
               type="file"
               accept={accept}
               onChange={handleFileInput}
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+              onDragLeave={handleDragLeave}
               disabled={disabled}
               className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
             />

@@ -161,6 +161,32 @@ export function AppSidebar() {
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
   const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
   const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
+  const isItemRouteActive = (item: { href: string }, categoryTitle?: string) => {
+    const pathnameMatch =
+      location.pathname === item.href ||
+      location.pathname.startsWith(item.href + '/');
+
+    // Notifications route redirects to profile settings tab; keep Settings item highlighted.
+    const notificationsRedirectMatch =
+      item.href === '/settings/notifications' &&
+      location.pathname === '/profile-settings' &&
+      ['notifications', 'email'].includes(new URLSearchParams(location.search).get('tab') || '');
+
+    // Keep Construction open when on job/subcontract/PO pages
+    const constructionDetailMatch =
+      categoryTitle === 'Construction' &&
+      ((item.href === '/jobs' && location.pathname.startsWith('/jobs/')) ||
+        (item.href === '/subcontracts' && location.pathname.startsWith('/subcontracts/')) ||
+        (item.href === '/purchase-orders' && location.pathname.startsWith('/purchase-orders/')));
+
+    // Keep Payables open when on vendor pages
+    const payablesDetailMatch =
+      categoryTitle === 'Payables' &&
+      item.href === '/vendors' &&
+      location.pathname.startsWith('/vendors/');
+
+    return pathnameMatch || notificationsRedirectMatch || constructionDetailMatch || payablesDetailMatch;
+  };
 
   const toggleGroup = (groupTitle: string) => {
     // Dashboard doesn't expand - just navigate
@@ -191,20 +217,7 @@ export function AppSidebar() {
 
   const activeGroups = navigationCategories
     .filter(category => 
-      category.items.some(item => 
-        location.pathname === item.href || 
-        location.pathname.startsWith(item.href + '/') ||
-        // Keep Construction open when on job/subcontract/PO pages
-        (category.title === 'Construction' && (
-          location.pathname.startsWith('/jobs/') ||
-          location.pathname.startsWith('/subcontracts/') ||
-          location.pathname.startsWith('/purchase-orders/')
-        )) ||
-        // Keep Payables open when on vendor/bill pages
-        (category.title === 'Payables' && (
-          location.pathname.startsWith('/vendors/')
-        ))
-      )
+      category.items.some(item => isItemRouteActive(item, category.title))
     )
     .map(category => category.title);
 
@@ -290,8 +303,7 @@ export function AppSidebar() {
                 <SidebarGroupContent>
                   <SidebarMenu>
                     {visibleItems.map((item) => {
-                      const isActive = location.pathname === item.href || 
-                        location.pathname.startsWith(item.href + '/');
+                      const isActive = isItemRouteActive(item, category.title);
                       const isLocked = !!(item as any)._locked;
                       return (
                         <SidebarMenuItem key={item.name}>
@@ -365,19 +377,7 @@ export function AppSidebar() {
                           <SidebarMenu className={allOpenGroups.includes(category.title) ? "sidebar-highlight-bg rounded-md p-1" : ""}>
                             {(() => {
                               // Determine the single most specific active item within this category
-                              const matches = visibleItems.filter((itm: any) => {
-                                if (location.pathname === itm.href) return true;
-                                if (location.pathname.startsWith(itm.href + "/")) return true;
-                                if (category.title === "Construction") {
-                                  if (itm.href === "/jobs" && location.pathname.startsWith("/jobs/")) return true;
-                                  if (itm.href === "/subcontracts" && location.pathname.startsWith("/subcontracts/")) return true;
-                                  if (itm.href === "/purchase-orders" && location.pathname.startsWith("/purchase-orders/")) return true;
-                                }
-                                if (category.title === "Payables") {
-                                  if (itm.href === "/vendors" && location.pathname.startsWith("/vendors/")) return true;
-                                }
-                                return false;
-                              });
+                              const matches = visibleItems.filter((itm: any) => isItemRouteActive(itm, category.title));
                               const activeItemHref = matches.length
                                 ? matches.reduce((longest, curr) => (curr.href.length > longest.length ? curr.href : longest), matches[0].href)
                                 : "";

@@ -247,16 +247,53 @@ export default function TenantDetails() {
           .select('user_id, first_name, last_name, display_name, email')
           .in('user_id', userIds);
 
-        const enrichedMembers = membersData?.map(m => {
+        let enrichedMembers = membersData?.map(m => {
           const profile = profiles?.find(p => p.user_id === m.user_id);
           return {
             ...m,
+            role: (m.user_id === tenantData.owner_id ? 'owner' : m.role) as MemberRole,
             user_name: profile?.display_name || 
               [profile?.first_name, profile?.last_name].filter(Boolean).join(' ') || 
               'Unknown User',
             user_email: profile?.email || undefined,
           };
         }) || [];
+
+        // Fallback: for members missing profile email mirrors, resolve auth email via super-admin function.
+        const missingEmailUserIds = enrichedMembers
+          .filter((member) => !member.user_email)
+          .map((member) => member.user_id);
+
+        if (missingEmailUserIds.length > 0) {
+          try {
+            await ensureFunctionAuth();
+            const resolvedEmailByUserId = new Map<string, string>();
+
+            await Promise.all(
+              missingEmailUserIds.map(async (missingUserId) => {
+                try {
+                  const { data, error } = await supabase.functions.invoke('super-admin-member-details', {
+                    body: { userId: missingUserId },
+                  });
+                  if (error) return;
+                  const resolvedEmail = data?.profile?.email;
+                  if (typeof resolvedEmail === 'string' && resolvedEmail.trim().length > 0) {
+                    resolvedEmailByUserId.set(missingUserId, resolvedEmail.trim());
+                  }
+                } catch {
+                  // Keep UI responsive even if one lookup fails.
+                }
+              })
+            );
+
+            enrichedMembers = enrichedMembers.map((member) => ({
+              ...member,
+              user_email: member.user_email || resolvedEmailByUserId.get(member.user_id) || undefined,
+            }));
+          } catch {
+            // Ignore fallback failures; we'll still render core member info.
+          }
+        }
 
         setMembers(enrichedMembers);
       } else {

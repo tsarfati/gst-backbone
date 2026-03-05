@@ -43,6 +43,15 @@ type PlanSortKey = "plan_name" | "plan_number" | "revision" | "architect" | "rev
 type SortDirection = "asc" | "desc";
 
 const PLAN_UPLOAD_MAX_SIZE_MB = 100;
+const INITIAL_PLAN_FORM = {
+  plan_name: "",
+  plan_number: "",
+  revision: "",
+  description: "",
+  architect: "",
+  is_permit_set: false,
+  revision_date: "",
+};
 
 function parsePlanMetadataFromFileName(fileName: string) {
   const baseName = fileName.replace(/\.[^.]+$/, "");
@@ -168,15 +177,7 @@ export default function JobPlans({ jobId }: JobPlansProps) {
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference("job-plans-view", "icons");
 
-  const [formData, setFormData] = useState({
-    plan_name: "",
-    plan_number: "",
-    revision: "",
-    description: "",
-    architect: "",
-    is_permit_set: false,
-    revision_date: "",
-  });
+  const [formData, setFormData] = useState(INITIAL_PLAN_FORM);
   const [infoFormData, setInfoFormData] = useState({
     plan_name: "",
     plan_number: "",
@@ -210,6 +211,26 @@ export default function JobPlans({ jobId }: JobPlansProps) {
     } finally {
       setLoading(false);
     }
+  };
+
+  const openUploadDialogWithFile = (file: File | null = null) => {
+    setEditingPlan(null);
+    setFormData(INITIAL_PLAN_FORM);
+    setSelectedFile(file);
+
+    if (file) {
+      const parsed = parsePlanMetadataFromFileName(file.name);
+      setFormData({
+        ...INITIAL_PLAN_FORM,
+        plan_name: parsed.plan_name,
+        plan_number: parsed.plan_number,
+        revision: parsed.revision,
+        revision_date: parsed.revision_date,
+        architect: parsed.architect,
+      });
+    }
+
+    setDialogOpen(true);
   };
 
   const handleUpload = async () => {
@@ -304,7 +325,7 @@ export default function JobPlans({ jobId }: JobPlansProps) {
       }
 
       setDialogOpen(false);
-      setFormData({ plan_name: "", plan_number: "", revision: "", description: "", architect: "", is_permit_set: false, revision_date: "" });
+      setFormData(INITIAL_PLAN_FORM);
       setSelectedFile(null);
       setEditingPlan(null);
       fetchPlans();
@@ -589,7 +610,7 @@ export default function JobPlans({ jobId }: JobPlansProps) {
             }}
             isDefault={isDefault}
           />
-          <Button onClick={() => setDialogOpen(true)}>
+          <Button onClick={() => openUploadDialogWithFile(null)}>
             <Upload className="h-4 w-4 mr-2" />
             Upload Plan Set
           </Button>
@@ -598,11 +619,21 @@ export default function JobPlans({ jobId }: JobPlansProps) {
 
       {plans.length === 0 ? (
         <Card>
-          <CardContent className="flex flex-col items-center justify-center py-12">
+          <CardContent className="flex flex-col items-center justify-center py-10">
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground text-center">
-              No plan sets uploaded yet. Click "Upload Plan Set" to get started.
+              No plan sets uploaded yet. Click "Upload Plan Set" to get started, or drop a plan set here.
             </p>
+            <div className="mt-5 w-full max-w-xl">
+              <DragDropUpload
+                onFileSelect={(file) => openUploadDialogWithFile(file)}
+                accept=".pdf,.dwg,.dxf"
+                maxSize={PLAN_UPLOAD_MAX_SIZE_MB}
+                title="Drag plan set file here"
+                dropTitle="Drop plan set file here"
+                helperText={`PDF, DWG, or DXF up to ${PLAN_UPLOAD_MAX_SIZE_MB}MB`}
+              />
+            </div>
           </CardContent>
         </Card>
       ) : currentView === "list" ? (
@@ -669,12 +700,12 @@ export default function JobPlans({ jobId }: JobPlansProps) {
           setDialogOpen(open);
           if (!open) {
           setEditingPlan(null);
-            setFormData({ plan_name: "", plan_number: "", revision: "", description: "", architect: "", is_permit_set: false, revision_date: "" });
+            setFormData(INITIAL_PLAN_FORM);
             setSelectedFile(null);
           }
         }}
       >
-        <DialogContent className="max-w-md">
+        <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingPlan ? "Edit Plan Set" : "Upload New Plan Set"}</DialogTitle>
           </DialogHeader>
