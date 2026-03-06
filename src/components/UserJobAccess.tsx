@@ -67,7 +67,9 @@ export default function UserJobAccess({
         .order('name');
 
       if (jobsError) throw jobsError;
-      setJobs(jobsData || []);
+      const companyJobs = jobsData || [];
+      const companyJobIds = companyJobs.map((job) => job.id);
+      setJobs(companyJobs);
 
       const { data: costCodesData } = await supabase
         .from('cost_codes')
@@ -86,23 +88,31 @@ export default function UserJobAccess({
 
       setHasGlobalAccess(profileData?.has_global_job_access || false);
 
-      const { data: accessData, error: accessError } = await supabase
-        .from('user_job_access')
-        .select('job_id')
-        .eq('user_id', userId);
-
-      if (accessError) throw accessError;
-
       const accessMap: Record<string, boolean> = {};
-      accessData?.forEach(access => {
-        accessMap[access.job_id] = true;
+      const { data: timecardSettingsData, error: timecardSettingsError } = await supabase
+        .from('employee_timecard_settings')
+        .select('assigned_jobs')
+        .eq('user_id', userId)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+
+      if (timecardSettingsError && timecardSettingsError.code !== 'PGRST116') throw timecardSettingsError;
+
+      const assignedJobIds = (timecardSettingsData?.assigned_jobs || []).filter((jobId: string) => companyJobIds.includes(jobId));
+      assignedJobIds.forEach((jobId: string) => {
+        accessMap[jobId] = true;
       });
       setUserJobAccess(accessMap);
 
-      const { data: costCodeAccessData } = await supabase
-        .from('user_job_cost_codes')
-        .select('job_id, cost_code_id')
-        .eq('user_id', userId);
+      let costCodeAccessData: Array<{ job_id: string; cost_code_id: string }> = [];
+      if (companyJobIds.length > 0) {
+        const { data } = await supabase
+          .from('user_job_cost_codes')
+          .select('job_id, cost_code_id')
+          .eq('user_id', userId)
+          .in('job_id', companyJobIds);
+        costCodeAccessData = (data || []) as Array<{ job_id: string; cost_code_id: string }>;
+      }
 
       const costCodeMap: Record<string, string[]> = {};
       costCodeAccessData?.forEach((item: any) => {
@@ -152,8 +162,22 @@ export default function UserJobAccess({
       setHasGlobalAccess(globalAccess);
       
       if (globalAccess) {
-        await supabase.from('user_job_access').delete().eq('user_id', userId);
-        await supabase.from('user_job_cost_codes').delete().eq('user_id', userId);
+        const companyJobIds = jobs.map((job) => job.id);
+        const currentUserId = (await supabase.auth.getUser()).data.user?.id || userId;
+        const { error: settingsError } = await supabase
+          .from('employee_timecard_settings')
+          .upsert({
+            user_id: userId,
+            company_id: currentCompany.id,
+            assigned_jobs: [],
+            assigned_cost_codes: [],
+            created_by: currentUserId
+          }, { onConflict: 'user_id,company_id' });
+        if (settingsError) throw settingsError;
+
+        if (companyJobIds.length > 0) {
+          await supabase.from('user_job_cost_codes').delete().eq('user_id', userId).in('job_id', companyJobIds);
+        }
         setUserJobAccess({});
         setUserJobCostCodes({});
       }
@@ -211,26 +235,47 @@ export default function UserJobAccess({
   };
 
   const saveJobAccess = async () => {
+    if (!currentCompany?.id) return;
     setSaving(true);
     try {
-      const currentUserId = (await supabase.auth.getUser()).data.user?.id;
-
-      await supabase.from('user_job_access').delete().eq('user_id', userId);
+      const currentUserId = (await supabase.auth.getUser()).data.user?.id || userId;
+      const companyJobIds = jobs.map((job) => job.id);
 
       const jobEntries = Object.entries(userJobAccess)
         .filter(([_, hasAccess]) => hasAccess)
+        .filter(([jobId]) => companyJobIds.includes(jobId))
         .map(([jobId]) => ({
           user_id: userId,
           job_id: jobId,
           granted_by: currentUserId
         }));
 
-      if (jobEntries.length > 0) {
-        const { error } = await supabase.from('user_job_access').insert(jobEntries);
-        if (error) throw error;
-      }
+      const assignedJobs = jobEntries.map((entry) => entry.job_id);
+      const assignedCostCodes = Array.from(new Set(
+        Object.entries(userJobCostCodes)
+          .filter(([jobId]) => assignedJobs.includes(jobId))
+          .flatMap(([_, ccIds]) => ccIds)
+      ));
 
-      await supabase.from('user_job_cost_codes').delete().eq('user_id', userId);
+      const { error: settingsError } = await supabase
+        .from('employee_timecard_settings')
+        .upsert({
+          user_id: userId,
+          company_id: currentCompany.id,
+          assigned_jobs: assignedJobs,
+          assigned_cost_codes: assignedCostCodes,
+          created_by: currentUserId
+        }, { onConflict: 'user_id,company_id' });
+      if (settingsError) throw settingsError;
+
+      if (companyJobIds.length > 0) {
+        const { error: deleteCostCodeError } = await supabase
+          .from('user_job_cost_codes')
+          .delete()
+          .eq('user_id', userId)
+          .in('job_id', companyJobIds);
+        if (deleteCostCodeError) throw deleteCostCodeError;
+      }
 
       const costCodeEntries: { user_id: string; job_id: string; cost_code_id: string; granted_by: string | undefined }[] = [];
       Object.entries(userJobCostCodes).forEach(([jobId, ccIds]) => {

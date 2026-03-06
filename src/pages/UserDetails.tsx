@@ -628,6 +628,14 @@ export default function UserDetails() {
     setEditing(false);
   };
 
+  const triggerJobAccessSave = () => {
+    if (isVendorUser) return;
+    const jobAccessEl = document.getElementById('job-access-section');
+    if (!jobAccessEl) return;
+    const saveBtn = jobAccessEl.querySelector<HTMLButtonElement>('[data-save-jobs]');
+    saveBtn?.click();
+  };
+
   const handleSaveEdit = async () => {
     if (!user || !currentCompany) return;
     setSaving(true);
@@ -757,6 +765,7 @@ export default function UserDetails() {
         setSelectedVendorId(null);
         setVendorJobs([]);
       }
+      triggerJobAccessSave();
       setEditing(false);
       toast({ title: "Success", description: "User updated successfully" });
     } catch (error) {
@@ -856,14 +865,7 @@ export default function UserDetails() {
               </AlertDialogContent>
             </AlertDialog>
           )}
-          <Button onClick={() => {
-            if (isVendorUser) return;
-            const jobAccessEl = document.getElementById('job-access-section');
-            if (jobAccessEl) {
-              const saveBtn = jobAccessEl.querySelector<HTMLButtonElement>('[data-save-jobs]');
-              saveBtn?.click();
-            }
-          }} size="sm" disabled={isVendorUser}>
+          <Button onClick={triggerJobAccessSave} size="sm" disabled={isVendorUser}>
             <Save className="h-4 w-4 mr-2" />
             Save
           </Button>
