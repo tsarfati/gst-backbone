@@ -1299,6 +1299,7 @@ export default function BillEdit() {
         <BillCommunications
           billId={id || bill?.id || ""}
           vendorId={formData.vendor_id || bill?.vendor_id || ""}
+          jobId={formData.job_id || bill?.job_id || null}
         />
 
       </div>

@@ -1195,6 +1195,7 @@ export default function BillDetails() {
         <BillCommunications
           billId={bill?.id || ''}
           vendorId={bill?.vendor_id || ''}
+          jobId={bill?.job_id || null}
         />
       </div>
 

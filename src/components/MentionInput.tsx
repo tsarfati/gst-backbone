@@ -1,16 +1,19 @@
 import { useEffect, useMemo, useState, type KeyboardEventHandler } from "react";
 import { Input } from "@/components/ui/input";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { supabase } from "@/integrations/supabase/client";
 
 interface MentionUser {
   user_id: string;
   display_name: string;
+  avatar_url?: string | null;
 }
 
 interface MentionInputProps {
   value: string;
   onValueChange: (value: string) => void;
   companyId?: string | null;
+  jobId?: string | null;
   currentUserId?: string | null;
   placeholder?: string;
   id?: string;
@@ -30,6 +33,7 @@ export default function MentionInput({
   value,
   onValueChange,
   companyId,
+  jobId,
   currentUserId,
   placeholder,
   id,
@@ -64,10 +68,27 @@ export default function MentionInput({
           return;
         }
 
+        let scopedUserIds = userIds;
+        if (jobId) {
+          const { data: jobAccessRows, error: jobAccessError } = await supabase
+            .from("user_job_access")
+            .select("user_id")
+            .eq("job_id", jobId);
+          if (jobAccessError) throw jobAccessError;
+
+          const jobUserIds = new Set((jobAccessRows || []).map((row: any) => row.user_id).filter(Boolean));
+          scopedUserIds = userIds.filter((id) => jobUserIds.has(id));
+        }
+
+        if (!scopedUserIds.length) {
+          setUsers([]);
+          return;
+        }
+
         const { data: profiles, error: profileError } = await supabase
           .from("profiles")
-          .select("user_id, display_name, first_name, last_name, status")
-          .in("user_id", userIds);
+          .select("user_id, display_name, first_name, last_name, status, avatar_url")
+          .in("user_id", scopedUserIds);
         if (profileError) throw profileError;
 
         const mapped = (profiles || [])
@@ -81,6 +102,7 @@ export default function MentionInput({
               profile.display_name ||
               [profile.first_name, profile.last_name].filter(Boolean).join(" ") ||
               "User",
+            avatar_url: profile.avatar_url || null,
           }))
           .filter((profile: MentionUser) => profile.user_id !== currentUserId)
           .sort((a, b) => a.display_name.localeCompare(b.display_name));
@@ -94,7 +116,7 @@ export default function MentionInput({
     };
 
     loadUsers();
-  }, [companyId, currentUserId]);
+  }, [companyId, currentUserId, jobId]);
 
   const filteredUsers = useMemo(() => {
     if (mentionQuery === null) return [];
@@ -144,11 +166,22 @@ export default function MentionInput({
             <button
               key={user.user_id}
               type="button"
-              className="w-full text-left px-2 py-1.5 rounded hover:bg-accent text-sm"
+              className="w-full text-left px-2 py-1.5 rounded hover:bg-accent text-sm flex items-center gap-2"
               onClick={() => insertMention(user)}
             >
+              <Avatar className="h-7 w-7">
+                <AvatarImage src={user.avatar_url || undefined} alt={user.display_name} />
+                <AvatarFallback className="text-[10px]">
+                  {user.display_name
+                    .split(" ")
+                    .map((part) => part[0])
+                    .join("")
+                    .slice(0, 2)
+                    .toUpperCase()}
+                </AvatarFallback>
+              </Avatar>
               <span className="font-medium">{user.display_name}</span>
-              <span className="text-muted-foreground ml-2">@{toHandle(user.display_name)}</span>
+              <span className="text-muted-foreground ml-auto">@{toHandle(user.display_name)}</span>
             </button>
           ))}
         </div>

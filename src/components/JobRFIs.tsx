@@ -314,6 +314,7 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
           content: newMessage.trim(),
           contextLabel: "RFI Messages",
           targetPath: `/jobs/${jobId}`,
+          jobId,
         });
       }
 
@@ -653,6 +654,7 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
                         value={newMessage}
                         onValueChange={setNewMessage}
                         companyId={currentCompany?.id}
+                        jobId={jobId}
                         currentUserId={user?.id}
                         placeholder="Type your message... (use @ to tag teammates)"
                         rows={2}

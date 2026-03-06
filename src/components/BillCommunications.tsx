@@ -28,9 +28,10 @@ interface Message {
 interface BillCommunicationsProps {
   billId: string;
   vendorId: string;
+  jobId?: string | null;
 }
 
-export default function BillCommunications({ billId, vendorId }: BillCommunicationsProps) {
+export default function BillCommunications({ billId, vendorId, jobId }: BillCommunicationsProps) {
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
@@ -116,6 +117,7 @@ export default function BillCommunications({ billId, vendorId }: BillCommunicati
         content: newIntercompanyMessage.trim(),
         contextLabel: "Bill Communications",
         targetPath: `/invoices/${billId}`,
+        jobId,
       });
 
       toast({
@@ -226,6 +228,7 @@ export default function BillCommunications({ billId, vendorId }: BillCommunicati
                   value={newIntercompanyMessage}
                   onValueChange={setNewIntercompanyMessage}
                   companyId={currentCompany?.id}
+                  jobId={jobId}
                   currentUserId={user?.id}
                   placeholder="Type your message to the team... (use @ to tag teammates)"
                   rows={3}
@@ -274,6 +277,7 @@ export default function BillCommunications({ billId, vendorId }: BillCommunicati
                   value={newVendorMessage}
                   onValueChange={setNewVendorMessage}
                   companyId={currentCompany?.id}
+                  jobId={jobId}
                   currentUserId={user?.id}
                   placeholder="Type your message to the vendor... (use @ to tag teammates)"
                   rows={3}

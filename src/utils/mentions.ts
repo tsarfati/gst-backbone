@@ -13,6 +13,7 @@ interface NotifyMentionParams {
   content: string;
   contextLabel: string;
   targetPath: string;
+  jobId?: string | null;
 }
 
 const MENTION_REGEX = /@([a-zA-Z0-9._-]+)/g;
@@ -52,7 +53,7 @@ const extractMentionTokens = (content: string): string[] => {
   return Array.from(new Set(tokens));
 };
 
-const fetchMentionCandidates = async (companyId: string): Promise<MentionCandidate[]> => {
+const fetchMentionCandidates = async (companyId: string, jobId?: string | null): Promise<MentionCandidate[]> => {
   const { data: accessRows, error: accessError } = await supabase
     .from("user_company_access")
     .select("user_id")
@@ -67,10 +68,23 @@ const fetchMentionCandidates = async (companyId: string): Promise<MentionCandida
 
   if (userIds.length === 0) return [];
 
+  let scopedUserIds = userIds;
+  if (jobId) {
+    const { data: jobAccessRows, error: jobAccessError } = await supabase
+      .from("user_job_access")
+      .select("user_id")
+      .eq("job_id", jobId);
+    if (jobAccessError) throw jobAccessError;
+    const jobUserIds = new Set((jobAccessRows || []).map((row: any) => row.user_id).filter(Boolean));
+    scopedUserIds = userIds.filter((id) => jobUserIds.has(id));
+  }
+
+  if (scopedUserIds.length === 0) return [];
+
   const { data: profiles, error: profileError } = await supabase
     .from("profiles")
     .select("user_id, display_name, first_name, last_name, status")
-    .in("user_id", userIds);
+    .in("user_id", scopedUserIds);
 
   if (profileError) throw profileError;
 
@@ -118,11 +132,11 @@ const truncate = (text: string, max = 140): string => {
 };
 
 export async function createMentionNotifications(params: NotifyMentionParams): Promise<number> {
-  const { companyId, actorUserId, actorName, content, contextLabel, targetPath } = params;
+  const { companyId, actorUserId, actorName, content, contextLabel, targetPath, jobId } = params;
   const mentionTokens = extractMentionTokens(content);
   if (mentionTokens.length === 0) return 0;
 
-  const candidates = await fetchMentionCandidates(companyId);
+  const candidates = await fetchMentionCandidates(companyId, jobId);
   const mentionedUserIds = resolveMentionedUserIds(mentionTokens, candidates, actorUserId);
   if (mentionedUserIds.length === 0) return 0;
 

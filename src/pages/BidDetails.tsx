@@ -384,6 +384,7 @@ export default function BidDetails() {
         content: value,
         contextLabel: messageType === "vendor" ? "Bid Vendor Communication" : "Bid Team Notes",
         targetPath: `/construction/bids/${bid.id}`,
+        jobId: bid?.rfp?.job_id || null,
       });
 
       if (messageType === "intercompany") {
@@ -947,6 +948,7 @@ export default function BidDetails() {
                   <div className="space-y-2">
                     <MentionTextarea
                       companyId={currentCompany?.id}
+                      jobId={bid?.rfp?.job_id || null}
                       currentUserId={user?.id}
                       rows={3}
                       placeholder="Add internal notes or updates for your team..."
@@ -990,6 +992,7 @@ export default function BidDetails() {
                   <div className="space-y-2">
                     <MentionTextarea
                       companyId={currentCompany?.id}
+                      jobId={bid?.rfp?.job_id || null}
                       currentUserId={user?.id}
                       rows={3}
                       placeholder="Type a message to the vendor..."

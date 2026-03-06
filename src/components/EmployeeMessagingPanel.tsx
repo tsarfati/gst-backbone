@@ -180,6 +180,7 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
         content: newMessage.trim(),
         contextLabel: 'Messages',
         targetPath: '/messages',
+        jobId: currentJobId || null,
       });
 
       toast({
@@ -303,6 +304,7 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
                   value={newMessage}
                   onValueChange={setNewMessage}
                   companyId={currentCompany?.id}
+                  jobId={currentJobId}
                   currentUserId={user?.id}
                   placeholder="Type your message to the project manager... (use @ to tag teammates)"
                   rows={3}

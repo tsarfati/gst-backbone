@@ -673,6 +673,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           content: newComment.trim(),
           contextLabel: 'Photo Comments',
           targetPath: `/jobs/${jobId}`,
+          jobId,
         });
       }
 
@@ -1803,6 +1804,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                     value={newComment}
                     onValueChange={setNewComment}
                     companyId={currentCompany?.id}
+                    jobId={jobId}
                     currentUserId={user?.id}
                     placeholder="Add a comment..."
                     onKeyDown={(e) => {
