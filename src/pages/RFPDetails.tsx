@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -114,6 +114,8 @@ export default function RFPDetails() {
   const [vendorSearch, setVendorSearch] = useState('');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [resendingInvite, setResendingInvite] = useState<string | null>(null);
+  const drawingsInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDrawingsDragOver, setIsDrawingsDragOver] = useState(false);
 
   const getFinalBidTotal = (bid: Bid) => {
     const base = Number(bid.bid_amount || 0);
@@ -266,14 +268,14 @@ export default function RFPDetails() {
     return decodeURIComponent(url.substring(idx + marker.length));
   };
 
-  const handleUploadDrawings = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = Array.from(event.target.files || []);
-    if (!files.length || !currentCompany?.id || !user?.id || !id) return;
+  const handleUploadDrawingFiles = async (files: File[] | FileList) => {
+    const uploadFiles = Array.from(files || []);
+    if (!uploadFiles.length || !currentCompany?.id || !user?.id || !id) return;
 
     try {
       setUploadingDrawings(true);
       const rows = [];
-      for (const file of files) {
+      for (const file of uploadFiles) {
         const storagePath = `rfp-drawings/${currentCompany.id}/${id}/${Date.now()}-${file.name}`;
         const { error: uploadError } = await supabase.storage
           .from('company-files')
@@ -296,10 +298,9 @@ export default function RFPDetails() {
 
       toast({
         title: 'Drawings uploaded',
-        description: `${files.length} drawing file(s) uploaded`,
+        description: `${uploadFiles.length} drawing file(s) uploaded`,
       });
       await loadAttachments();
-      event.target.value = '';
     } catch (error: any) {
       console.error('Error uploading drawings:', error);
       toast({
@@ -309,6 +310,17 @@ export default function RFPDetails() {
       });
     } finally {
       setUploadingDrawings(false);
+    }
+  };
+
+  const handleUploadDrawings = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const files = Array.from(event.target.files || []);
+    if (!files.length || !currentCompany?.id || !user?.id || !id) return;
+
+    try {
+      await handleUploadDrawingFiles(files);
+    } finally {
+      event.target.value = '';
     }
   };
 
@@ -849,17 +861,57 @@ export default function RFPDetails() {
                 <CardTitle>Drawings</CardTitle>
                 <CardDescription>Upload and manage plan sheets and drawing files for this RFP</CardDescription>
               </div>
-              <div className="w-[260px]">
-                <Input
+              <div>
+                <input
+                  ref={drawingsInputRef}
                   type="file"
                   multiple
                   accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
                   onChange={handleUploadDrawings}
                   disabled={uploadingDrawings}
+                  className="hidden"
                 />
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => drawingsInputRef.current?.click()}
+                  disabled={uploadingDrawings}
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  Choose files
+                </Button>
               </div>
             </CardHeader>
             <CardContent>
+              <div
+                className={`mb-3 rounded-md border-2 border-dashed px-4 py-6 text-center text-sm transition-colors ${
+                  isDrawingsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                }`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDrawingsDragOver(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDrawingsDragOver(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDrawingsDragOver(false);
+                  if (uploadingDrawings) return;
+                  const droppedFiles = Array.from(e.dataTransfer.files || []);
+                  if (droppedFiles.length > 0) {
+                    void handleUploadDrawingFiles(droppedFiles);
+                  }
+                }}
+                onClick={() => !uploadingDrawings && drawingsInputRef.current?.click()}
+              >
+                {uploadingDrawings ? (
+                  <span className="loading-dots">Loading</span>
+                ) : (
+                  <span>Drag and drop drawings/specs here, or click to choose files</span>
+                )}
+              </div>
               {uploadingDrawings && (
                 <p className="text-sm text-muted-foreground mb-3"><span className="loading-dots">Loading</span></p>
               )}

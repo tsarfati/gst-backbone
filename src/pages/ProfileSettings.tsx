@@ -46,6 +46,7 @@ interface NotificationSettings {
   payment_approval_notifications?: boolean;
   payment_confirmation_notifications?: boolean;
   intake_queue_requests?: boolean;
+  new_bid_notifications?: boolean;
 }
 
 export default function ProfileSettings() {
@@ -93,6 +94,7 @@ export default function ProfileSettings() {
     payment_approval_notifications: true,
     payment_confirmation_notifications: true,
     intake_queue_requests: true,
+    new_bid_notifications: true,
   });
 
   const requestedTab = searchParams.get('tab') || 'profile';
@@ -147,6 +149,7 @@ export default function ProfileSettings() {
           payment_approval_notifications: typedData.payment_approval_notifications ?? true,
           payment_confirmation_notifications: typedData.payment_confirmation_notifications ?? true,
           intake_queue_requests: typedData.intake_queue_requests ?? true,
+          new_bid_notifications: typedData.new_bid_notifications ?? true,
         });
       }
     } catch (error) {
@@ -365,6 +368,7 @@ export default function ProfileSettings() {
         payment_approval_notifications: notificationSettings.payment_approval_notifications ?? true,
         payment_confirmation_notifications: notificationSettings.payment_confirmation_notifications ?? true,
         intake_queue_requests: notificationSettings.intake_queue_requests ?? true,
+        new_bid_notifications: notificationSettings.new_bid_notifications ?? true,
       };
       
       const { error } = await (supabase as any)
@@ -660,224 +664,265 @@ export default function ProfileSettings() {
               <div className="space-y-4">
                 <h3 className="text-lg font-medium">Notification Types</h3>
                 <div className="space-y-4">
-                  {!isExternalUser && (
-                    <div className="space-y-3">
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Jobs</h4>
                     <div className="flex items-center justify-between">
                       <div>
-                        <Label htmlFor="overdue-bills">Overdue Bills</Label>
-                        <p className="text-sm text-muted-foreground">Get notified about overdue bills</p>
+                        <Label htmlFor="job-assignments">Job Assignments</Label>
+                        <p className="text-sm text-muted-foreground">Get notified about new job assignments</p>
                       </div>
                       <Switch
-                        id="overdue-bills"
-                        checked={notificationSettings.overdue_bills}
-                        onCheckedChange={(checked) => updateNotificationSetting('overdue_bills', checked)}
+                        id="job-assignments"
+                        checked={notificationSettings.job_assignments}
+                        onCheckedChange={(checked) => updateNotificationSetting('job_assignments', checked)}
                       />
                     </div>
-                    {notificationSettings.overdue_bills && (
-                      <div className="pl-6">
-                        <Label htmlFor="overdue-bills-interval">Notification Frequency</Label>
-                        <Select
-                          value={notificationSettings.overdue_bills_interval || 'daily'}
-                          onValueChange={(value) => setNotificationSettings(prev => ({ ...prev, overdue_bills_interval: value }))}
-                        >
-                          <SelectTrigger id="overdue-bills-interval" className="mt-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="daily">Daily</SelectItem>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="biweekly">Bi-weekly</SelectItem>
-                          </SelectContent>
-                        </Select>
+                    {!isExternalUser && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="new-bid-notifications">New Bids</Label>
+                          <p className="text-sm text-muted-foreground">Get notified when a new bid is submitted for jobs assigned to you</p>
+                        </div>
+                        <Switch
+                          id="new-bid-notifications"
+                          checked={notificationSettings.new_bid_notifications !== false}
+                          onCheckedChange={(checked) => updateNotificationSetting('new_bid_notifications', checked)}
+                        />
+                      </div>
+                    )}
+                    {!isExternalUser && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="vendor-invitations">Vendor Invitations</Label>
+                          <p className="text-sm text-muted-foreground">Get notified about vendor invitations</p>
+                        </div>
+                        <Switch
+                          id="vendor-invitations"
+                          checked={notificationSettings.vendor_invitations}
+                          onCheckedChange={(checked) => updateNotificationSetting('vendor_invitations', checked)}
+                        />
                       </div>
                     )}
                   </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="bills-paid">Bill Payments</Label>
-                      <p className="text-sm text-muted-foreground">Get notified when bills are paid</p>
-                    </div>
-                    <Switch
-                      id="bills-paid"
-                      checked={notificationSettings.bills_paid}
-                      onCheckedChange={(checked) => updateNotificationSetting('bills_paid', checked)}
-                    />
-                  </div>
-                  {!isExternalUser && (
-                    <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="bill-submission-notifications">Bill Submission Notifications</Label>
-                      <p className="text-sm text-muted-foreground">Get notified when bills are submitted for approval</p>
-                    </div>
-                    <Switch
-                      id="bill-submission-notifications"
-                      checked={notificationSettings.bill_submission_notifications !== false}
-                      onCheckedChange={(checked) => updateNotificationSetting('bill_submission_notifications', checked)}
-                    />
-                  </div>
-                  )}
-                  {!isExternalUser && (
-                    <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="payment-approval-notifications">Payment Approval Notifications</Label>
-                      <p className="text-sm text-muted-foreground">Get notified when payments require your approval</p>
-                    </div>
-                    <Switch
-                      id="payment-approval-notifications"
-                      checked={notificationSettings.payment_approval_notifications !== false}
-                      onCheckedChange={(checked) => updateNotificationSetting('payment_approval_notifications', checked)}
-                    />
-                  </div>
-                  )}
-                  {!isExternalUser && (
-                    <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="payment-confirmation-notifications">Payment Confirmations</Label>
-                      <p className="text-sm text-muted-foreground">Get notified when payments are completed</p>
-                    </div>
-                    <Switch
-                      id="payment-confirmation-notifications"
-                      checked={notificationSettings.payment_confirmation_notifications !== false}
-                      onCheckedChange={(checked) => updateNotificationSetting('payment_confirmation_notifications', checked)}
-                    />
-                  </div>
-                  )}
-                  {!isExternalUser && (
+
+                  <Separator />
+
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Billing &amp; Accounts Payable</h4>
+                    {!isExternalUser && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label htmlFor="overdue-bills">Overdue Bills</Label>
+                            <p className="text-sm text-muted-foreground">Get notified about overdue bills</p>
+                          </div>
+                          <Switch
+                            id="overdue-bills"
+                            checked={notificationSettings.overdue_bills}
+                            onCheckedChange={(checked) => updateNotificationSetting('overdue_bills', checked)}
+                          />
+                        </div>
+                        {notificationSettings.overdue_bills && (
+                          <div className="pl-6">
+                            <Label htmlFor="overdue-bills-interval">Notification Frequency</Label>
+                            <Select
+                              value={notificationSettings.overdue_bills_interval || 'daily'}
+                              onValueChange={(value) => setNotificationSettings(prev => ({ ...prev, overdue_bills_interval: value }))}
+                            >
+                              <SelectTrigger id="overdue-bills-interval" className="mt-2">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="daily">Daily</SelectItem>
+                                <SelectItem value="weekly">Weekly</SelectItem>
+                                <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
+                      </div>
+                    )}
                     <div className="flex items-center justify-between">
                       <div>
-                        <Label htmlFor="intake-queue-requests">Intake Queue Approvals</Label>
-                        <p className="text-sm text-muted-foreground">Get notified when new users are pending approval in the intake queue</p>
+                        <Label htmlFor="bills-paid">Bill Payments</Label>
+                        <p className="text-sm text-muted-foreground">Get notified when bills are paid</p>
                       </div>
                       <Switch
-                        id="intake-queue-requests"
-                        checked={notificationSettings.intake_queue_requests !== false}
-                        onCheckedChange={(checked) => updateNotificationSetting('intake_queue_requests', checked)}
+                        id="bills-paid"
+                        checked={notificationSettings.bills_paid}
+                        onCheckedChange={(checked) => updateNotificationSetting('bills_paid', checked)}
                       />
                     </div>
-                  )}
-                  {!isExternalUser && (
-                    <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="vendor-invitations">Vendor Invitations</Label>
-                      <p className="text-sm text-muted-foreground">Get notified about vendor invitations</p>
-                    </div>
-                    <Switch
-                      id="vendor-invitations"
-                      checked={notificationSettings.vendor_invitations}
-                      onCheckedChange={(checked) => updateNotificationSetting('vendor_invitations', checked)}
-                    />
-                  </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="job-assignments">Job Assignments</Label>
-                      <p className="text-sm text-muted-foreground">Get notified about new job assignments</p>
-                    </div>
-                    <Switch
-                      id="job-assignments"
-                      checked={notificationSettings.job_assignments}
-                      onCheckedChange={(checked) => updateNotificationSetting('job_assignments', checked)}
-                    />
-                  </div>
-                  {!isExternalUser && (
-                    <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="receipt-uploaded">Receipt Uploads</Label>
-                      <p className="text-sm text-muted-foreground">Get notified when receipts are uploaded</p>
-                    </div>
-                    <Switch
-                      id="receipt-uploaded"
-                      checked={notificationSettings.receipt_uploaded}
-                      onCheckedChange={(checked) => updateNotificationSetting('receipt_uploaded', checked)}
-                    />
-                  </div>
-                  )}
-                  {!isExternalUser && (
-                    <div className="space-y-3">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Label htmlFor="financial-overview">Financial Overview Reports</Label>
-                        <p className="text-sm text-muted-foreground">Summary of approved bills, overdue payments, and outstanding invoices</p>
+                    {!isExternalUser && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="bill-submission-notifications">Bill Submission Notifications</Label>
+                          <p className="text-sm text-muted-foreground">Get notified when bills are submitted for approval</p>
+                        </div>
+                        <Switch
+                          id="bill-submission-notifications"
+                          checked={notificationSettings.bill_submission_notifications !== false}
+                          onCheckedChange={(checked) => updateNotificationSetting('bill_submission_notifications', checked)}
+                        />
                       </div>
-                      <Switch
-                        id="financial-overview"
-                        checked={(notificationSettings.financial_overview_interval || 'off') !== 'off'}
-                        onCheckedChange={(checked) =>
-                          setNotificationSettings((prev) => ({
-                            ...prev,
-                            financial_overview_interval: checked
-                              ? (prev.financial_overview_interval && prev.financial_overview_interval !== 'off'
-                                  ? prev.financial_overview_interval
-                                  : 'weekly')
-                              : 'off',
-                          }))
-                        }
-                      />
-                    </div>
-                    {(notificationSettings.financial_overview_interval || 'off') !== 'off' && (
-                      <div className="pl-6">
-                        <Label htmlFor="financial-overview-interval">Report Frequency</Label>
-                        <Select
-                          value={notificationSettings.financial_overview_interval || 'weekly'}
-                          onValueChange={(value) => setNotificationSettings(prev => ({ ...prev, financial_overview_interval: value }))}
-                        >
-                          <SelectTrigger id="financial-overview-interval" className="mt-2">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="daily">Daily</SelectItem>
-                            <SelectItem value="weekly">Weekly</SelectItem>
-                            <SelectItem value="biweekly">Bi-weekly</SelectItem>
-                          </SelectContent>
-                        </Select>
+                    )}
+                    {!isExternalUser && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="payment-approval-notifications">Payment Approval Notifications</Label>
+                          <p className="text-sm text-muted-foreground">Get notified when payments require your approval</p>
+                        </div>
+                        <Switch
+                          id="payment-approval-notifications"
+                          checked={notificationSettings.payment_approval_notifications !== false}
+                          onCheckedChange={(checked) => updateNotificationSetting('payment_approval_notifications', checked)}
+                        />
+                      </div>
+                    )}
+                    {!isExternalUser && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="payment-confirmation-notifications">Payment Confirmations</Label>
+                          <p className="text-sm text-muted-foreground">Get notified when payments are completed</p>
+                        </div>
+                        <Switch
+                          id="payment-confirmation-notifications"
+                          checked={notificationSettings.payment_confirmation_notifications !== false}
+                          onCheckedChange={(checked) => updateNotificationSetting('payment_confirmation_notifications', checked)}
+                        />
+                      </div>
+                    )}
+                    {!isExternalUser && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="receipt-uploaded">Receipt Uploads</Label>
+                          <p className="text-sm text-muted-foreground">Get notified when receipts are uploaded</p>
+                        </div>
+                        <Switch
+                          id="receipt-uploaded"
+                          checked={notificationSettings.receipt_uploaded}
+                          onCheckedChange={(checked) => updateNotificationSetting('receipt_uploaded', checked)}
+                        />
+                      </div>
+                    )}
+                    {!isExternalUser && (
+                      <div className="space-y-3">
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label htmlFor="financial-overview">Financial Overview Reports</Label>
+                            <p className="text-sm text-muted-foreground">Summary of approved bills, overdue payments, and outstanding invoices</p>
+                          </div>
+                          <Switch
+                            id="financial-overview"
+                            checked={(notificationSettings.financial_overview_interval || 'off') !== 'off'}
+                            onCheckedChange={(checked) =>
+                              setNotificationSettings((prev) => ({
+                                ...prev,
+                                financial_overview_interval: checked
+                                  ? (prev.financial_overview_interval && prev.financial_overview_interval !== 'off'
+                                      ? prev.financial_overview_interval
+                                      : 'weekly')
+                                  : 'off',
+                              }))
+                            }
+                          />
+                        </div>
+                        {(notificationSettings.financial_overview_interval || 'off') !== 'off' && (
+                          <div className="pl-6">
+                            <Label htmlFor="financial-overview-interval">Report Frequency</Label>
+                            <Select
+                              value={notificationSettings.financial_overview_interval || 'weekly'}
+                              onValueChange={(value) => setNotificationSettings(prev => ({ ...prev, financial_overview_interval: value }))}
+                            >
+                              <SelectTrigger id="financial-overview-interval" className="mt-2">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                <SelectItem value="daily">Daily</SelectItem>
+                                <SelectItem value="weekly">Weekly</SelectItem>
+                                <SelectItem value="biweekly">Bi-weekly</SelectItem>
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
-                  )}
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="chat-mentions">@Mention Notifications</Label>
-                      <p className="text-sm text-muted-foreground">Get notified when someone @mentions you in team chat</p>
-                    </div>
-                    <Switch
-                      id="chat-mentions"
-                      checked={notificationSettings.chat_mention_notifications !== false}
-                      onCheckedChange={(checked) => updateNotificationSetting('chat_mention_notifications', checked)}
-                    />
+
+                  <Separator />
+
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Accounts Receivable</h4>
+                    <p className="text-sm text-muted-foreground">Receivables-specific notification controls are coming soon.</p>
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="mention-email-notifications">@Mention Email Notifications</Label>
-                      <p className="text-sm text-muted-foreground">Receive an email when someone @mentions you</p>
-                    </div>
-                    <Switch
-                      id="mention-email-notifications"
-                      checked={notificationSettings.mention_email_notifications !== false}
-                      onCheckedChange={(checked) => updateNotificationSetting('mention_email_notifications', checked)}
-                    />
+
+                  <Separator />
+
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">General</h4>
+                    {!isExternalUser && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="intake-queue-requests">Intake Queue Approvals</Label>
+                          <p className="text-sm text-muted-foreground">Get notified when new users are pending approval in the intake queue</p>
+                        </div>
+                        <Switch
+                          id="intake-queue-requests"
+                          checked={notificationSettings.intake_queue_requests !== false}
+                          onCheckedChange={(checked) => updateNotificationSetting('intake_queue_requests', checked)}
+                        />
+                      </div>
+                    )}
                   </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="chat-channels">Channel Messages</Label>
-                      <p className="text-sm text-muted-foreground">Get notified about new messages in channels you follow</p>
+
+                  <Separator />
+
+                  <div className="space-y-3">
+                    <h4 className="text-sm font-semibold text-muted-foreground uppercase tracking-wide">Communication</h4>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="chat-mentions">@Mention Notifications</Label>
+                        <p className="text-sm text-muted-foreground">Get notified when someone @mentions you in team chat</p>
+                      </div>
+                      <Switch
+                        id="chat-mentions"
+                        checked={notificationSettings.chat_mention_notifications !== false}
+                        onCheckedChange={(checked) => updateNotificationSetting('chat_mention_notifications', checked)}
+                      />
                     </div>
-                    <Switch
-                      id="chat-channels"
-                      checked={notificationSettings.chat_channel_notifications !== false}
-                      onCheckedChange={(checked) => updateNotificationSetting('chat_channel_notifications', checked)}
-                    />
-                  </div>
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <Label htmlFor="chat-direct">Direct Messages</Label>
-                      <p className="text-sm text-muted-foreground">Get notified about direct messages</p>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="mention-email-notifications">@Mention Email Notifications</Label>
+                        <p className="text-sm text-muted-foreground">Receive an email when someone @mentions you</p>
+                      </div>
+                      <Switch
+                        id="mention-email-notifications"
+                        checked={notificationSettings.mention_email_notifications !== false}
+                        onCheckedChange={(checked) => updateNotificationSetting('mention_email_notifications', checked)}
+                      />
                     </div>
-                    <Switch
-                      id="chat-direct"
-                      checked={notificationSettings.chat_direct_message_notifications !== false}
-                      onCheckedChange={(checked) => updateNotificationSetting('chat_direct_message_notifications', checked)}
-                    />
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="chat-channels">Channel Messages</Label>
+                        <p className="text-sm text-muted-foreground">Get notified about new messages in channels you follow</p>
+                      </div>
+                      <Switch
+                        id="chat-channels"
+                        checked={notificationSettings.chat_channel_notifications !== false}
+                        onCheckedChange={(checked) => updateNotificationSetting('chat_channel_notifications', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="chat-direct">Direct Messages</Label>
+                        <p className="text-sm text-muted-foreground">Get notified about direct messages</p>
+                      </div>
+                      <Switch
+                        id="chat-direct"
+                        checked={notificationSettings.chat_direct_message_notifications !== false}
+                        onCheckedChange={(checked) => updateNotificationSetting('chat_direct_message_notifications', checked)}
+                      />
+                    </div>
                   </div>
                 </div>
               </div>

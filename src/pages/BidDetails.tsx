@@ -19,6 +19,8 @@ import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import MentionTextarea from "@/components/MentionTextarea";
+import { createMentionNotifications } from "@/utils/mentions";
 
 interface BidRecord {
   id: string;
@@ -370,6 +372,19 @@ export default function BidDetails() {
           message_type: messageType,
         });
       if (error) throw error;
+
+      await createMentionNotifications({
+        companyId: bid.company_id,
+        actorUserId: user.id,
+        actorName:
+          (user as any)?.user_metadata?.full_name ||
+          (user as any)?.user_metadata?.name ||
+          (user as any)?.email ||
+          "A teammate",
+        content: value,
+        contextLabel: messageType === "vendor" ? "Bid Vendor Communication" : "Bid Team Notes",
+        targetPath: `/construction/bids/${bid.id}`,
+      });
 
       if (messageType === "intercompany") {
         setNewTeamMessage("");
@@ -930,11 +945,13 @@ export default function BidDetails() {
                   </div>
 
                   <div className="space-y-2">
-                    <Textarea
+                    <MentionTextarea
+                      companyId={currentCompany?.id}
+                      currentUserId={user?.id}
                       rows={3}
                       placeholder="Add internal notes or updates for your team..."
                       value={newTeamMessage}
-                      onChange={(e) => setNewTeamMessage(e.target.value)}
+                      onValueChange={setNewTeamMessage}
                     />
                     <Button onClick={() => sendMessage("intercompany")} disabled={sendingTeam || !newTeamMessage.trim()}>
                       <Send className="mr-2 h-4 w-4" />
@@ -971,11 +988,13 @@ export default function BidDetails() {
                   </div>
 
                   <div className="space-y-2">
-                    <Textarea
+                    <MentionTextarea
+                      companyId={currentCompany?.id}
+                      currentUserId={user?.id}
                       rows={3}
                       placeholder="Type a message to the vendor..."
                       value={newVendorMessage}
-                      onChange={(e) => setNewVendorMessage(e.target.value)}
+                      onValueChange={setNewVendorMessage}
                     />
                     <Button onClick={() => sendMessage("vendor")} disabled={sendingVendor || !newVendorMessage.trim()}>
                       <Send className="mr-2 h-4 w-4" />

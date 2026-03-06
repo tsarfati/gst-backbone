@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,6 +34,8 @@ export default function AddRFP() {
   const [loadingRfp, setLoadingRfp] = useState(false);
   const [selectedDrawings, setSelectedDrawings] = useState<File[]>([]);
   const [jobs, setJobs] = useState<Job[]>([]);
+  const drawingsInputRef = useRef<HTMLInputElement | null>(null);
+  const [isDrawingsDragOver, setIsDrawingsDragOver] = useState(false);
   
   const preselectedJobId = ensureAllowedJobFilter(searchParams.get('jobId'), isPrivileged, allowedJobIds);
   
@@ -165,6 +167,12 @@ export default function AddRFP() {
       .from('rfp_attachments')
       .insert(uploads);
     if (insertError) throw insertError;
+  };
+
+  const addDrawingFiles = (files: File[] | FileList) => {
+    const nextFiles = Array.from(files || []);
+    if (!nextFiles.length) return;
+    setSelectedDrawings(prev => [...prev, ...nextFiles]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -352,13 +360,40 @@ export default function AddRFP() {
 
             <div className="space-y-2">
               <Label htmlFor="drawings_upload">Drawings Upload</Label>
-              <Input
+              <input
+                ref={drawingsInputRef}
                 id="drawings_upload"
                 type="file"
                 multiple
-                onChange={(e) => setSelectedDrawings(Array.from(e.target.files || []))}
+                onChange={(e) => {
+                  addDrawingFiles(e.target.files || []);
+                  e.target.value = '';
+                }}
                 accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
+                className="hidden"
               />
+              <div
+                className={`rounded-md border-2 border-dashed px-4 py-6 text-center text-sm transition-colors ${
+                  isDrawingsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                }`}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  setIsDrawingsDragOver(true);
+                }}
+                onDragLeave={(e) => {
+                  e.preventDefault();
+                  setIsDrawingsDragOver(false);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  setIsDrawingsDragOver(false);
+                  const droppedFiles = Array.from(e.dataTransfer.files || []);
+                  if (droppedFiles.length > 0) addDrawingFiles(droppedFiles);
+                }}
+                onClick={() => drawingsInputRef.current?.click()}
+              >
+                Drag and drop drawings/specs here, or click to choose files
+              </div>
               {selectedDrawings.length > 0 && (
                 <p className="text-sm text-muted-foreground">
                   {selectedDrawings.length} drawing file(s) selected for upload on save
