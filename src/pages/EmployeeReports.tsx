@@ -10,6 +10,7 @@ export default function EmployeeReports() {
       icon: Clock,
       to: "/punch-clock/reports",
       isBuilt: true,
+      requiredPermissions: ["timecard-reports-view"],
     },
     {
       key: "employee-qr-cards",
@@ -18,6 +19,7 @@ export default function EmployeeReports() {
       icon: QrCode,
       to: "/employees/reports/qr-cards",
       isBuilt: true,
+      requiredPermissions: ["employees-reports-view"],
     },
     {
       key: "pin-employee-list",
@@ -26,6 +28,7 @@ export default function EmployeeReports() {
       icon: Users,
       to: "/employees/reports/pin-list",
       isBuilt: true,
+      requiredPermissions: ["employees-reports-view"],
     },
     {
       key: "punch-clock-attempt-audit",
@@ -34,6 +37,7 @@ export default function EmployeeReports() {
       icon: ShieldAlert,
       to: "/employees/reports/punch-clock-attempt-audit",
       isBuilt: true,
+      requiredPermissions: ["employees-reports-view"],
     },
     {
       key: "employee-performance",
@@ -42,6 +46,7 @@ export default function EmployeeReports() {
       icon: FileText,
       to: "/employees/performance",
       isBuilt: true,
+      requiredPermissions: ["employees-reports-view"],
     },
   ];
 

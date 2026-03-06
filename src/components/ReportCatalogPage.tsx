@@ -11,6 +11,7 @@ import { useReportFavorites } from "@/hooks/useReportFavorites";
 import { ReportFavoriteButton } from "@/components/ReportFavoriteButton";
 import { ComingSoonBadge } from "@/components/ComingSoonBadge";
 import { cn } from "@/lib/utils";
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 
 type IconType = any;
 
@@ -21,6 +22,7 @@ export interface ReportCatalogItem {
   icon: IconType;
   to: string;
   isBuilt?: boolean;
+  requiredPermissions?: string[];
 }
 
 type SortKey = "title" | "built" | "favorite";
@@ -50,9 +52,18 @@ export default function ReportCatalogPage({
   const [sortDir, setSortDir] = useState<SortDir>("asc");
   const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference(viewPreferenceKey, "icons");
   const { isFavorite, toggleFavorite, favoritesCount } = useReportFavorites(favoriteScope);
+  const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
+
+  const visibleReports = useMemo(() => {
+    return reports.filter((report) => {
+      if (!report.requiredPermissions || report.requiredPermissions.length === 0) return true;
+      if (permissionsLoading) return false;
+      return report.requiredPermissions.every((permission) => hasAccess(permission));
+    });
+  }, [reports, hasAccess, permissionsLoading]);
 
   const filteredReports = useMemo(() => {
-    return reports.filter((report) => {
+    return visibleReports.filter((report) => {
       const q = searchTerm.trim().toLowerCase();
       const matchesSearch =
         q === "" ||
@@ -61,7 +72,7 @@ export default function ReportCatalogPage({
       const matchesFavorites = !showFavoritesOnly || isFavorite(report.key);
       return matchesSearch && matchesFavorites;
     });
-  }, [reports, searchTerm, showFavoritesOnly, isFavorite]);
+  }, [visibleReports, searchTerm, showFavoritesOnly, isFavorite]);
 
   const sortedReports = useMemo(() => {
     const list = [...filteredReports];
@@ -220,9 +231,13 @@ export default function ReportCatalogPage({
       {sortedReports.length === 0 && (
         <div className="text-center py-12">
           <FileText className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-          <h3 className="text-lg font-medium mb-2">No reports found</h3>
+          <h3 className="text-lg font-medium mb-2">
+            {permissionsLoading ? "Loading reports..." : "No reports found"}
+          </h3>
           <p className="text-muted-foreground">
-            {showFavoritesOnly
+            {permissionsLoading
+              ? "Checking your report permissions."
+              : showFavoritesOnly
               ? "You haven't favorited any reports yet. Click the star icon on a report to add it to your favorites."
               : "Try adjusting your search term."}
           </p>

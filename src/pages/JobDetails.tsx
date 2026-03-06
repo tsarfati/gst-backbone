@@ -8,6 +8,7 @@ import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Pack
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import CommittedCosts from "@/components/CommittedCosts";
 import JobLocationMap from "@/components/JobLocationMap";
@@ -62,6 +63,7 @@ export default function JobDetails() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useAuth();
+  const { currentCompany } = useCompany();
   const permissions = useActionPermissions();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
