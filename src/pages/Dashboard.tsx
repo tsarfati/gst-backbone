@@ -299,9 +299,41 @@ export default function Dashboard() {
 
       if (error) throw error;
 
-      const baseNotifications = (data || []) as Notification[];
+      const rawNotifications = (data || []) as Notification[];
       const approverRole = String(activeCompanyRole || profile?.role || '').toLowerCase();
       const canApproveIntake = ['admin', 'company_admin', 'owner', 'controller', 'super_admin'].includes(approverRole);
+      let baseNotifications = rawNotifications;
+
+      // Hide stale intake notifications for users who are no longer pending approval.
+      if (currentCompany) {
+        const intakeUserIds = Array.from(new Set(
+          rawNotifications
+            .map((notification) => {
+              const type = String(notification.type || '');
+              if (!type.startsWith('intake_queue:')) return null;
+              const [, pendingUserId] = type.split(':');
+              return pendingUserId || null;
+            })
+            .filter(Boolean) as string[],
+        ));
+
+        if (intakeUserIds.length > 0) {
+          const { data: pendingRequests } = await supabase
+            .from('company_access_requests')
+            .select('user_id')
+            .eq('company_id', currentCompany.id)
+            .eq('status', 'pending')
+            .in('user_id', intakeUserIds);
+
+          const pendingUserIdSet = new Set((pendingRequests || []).map((row: any) => row.user_id));
+          baseNotifications = rawNotifications.filter((notification) => {
+            const type = String(notification.type || '');
+            if (!type.startsWith('intake_queue:')) return true;
+            const [, pendingUserId] = type.split(':');
+            return !!pendingUserId && pendingUserIdSet.has(pendingUserId);
+          });
+        }
+      }
 
       if (!currentCompany || !canApproveIntake) {
         setNotifications(baseNotifications);
@@ -536,7 +568,15 @@ export default function Dashboard() {
   };
 
   const getNotificationPath = (notification: Notification): string | null => {
-    if (notification.id === 'intake-queue-summary') return '/settings/users';
+    if (notification.id === 'intake-queue-summary') return '/settings/users?tab=intake-queue';
+    if (String(notification.type || '') === 'intake_queue') {
+      return '/settings/users?tab=intake-queue';
+    }
+    if (String(notification.type || '').startsWith('intake_queue:')) {
+      const [, pendingUserId] = String(notification.type || '').split(':');
+      if (pendingUserId) return `/settings/users/${pendingUserId}`;
+      return '/settings/users?tab=intake-queue';
+    }
     if (String(notification.type || '').startsWith('mention:')) {
       return notification.type.replace('mention:', '') || null;
     }

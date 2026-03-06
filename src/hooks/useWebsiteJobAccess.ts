@@ -12,10 +12,12 @@ export function useWebsiteJobAccess() {
   const [hasGlobalJobAccess, setHasGlobalJobAccess] = useState(false);
   const [allowedJobIds, setAllowedJobIds] = useState<string[]>([]);
 
-  const isPrivileged = useMemo(() => {
+  const isPrivilegedRole = useMemo(() => {
     const role = (activeCompanyRole || "").toLowerCase();
     return role === "admin" || role === "company_admin" || role === "controller" || role === "owner";
   }, [activeCompanyRole]);
+  // Website/PM job visibility is always scoped to explicit job assignment, regardless of role.
+  const isPrivileged = false;
 
   useEffect(() => {
     const load = async () => {
@@ -28,12 +30,6 @@ export function useWebsiteJobAccess() {
 
       try {
         setLoading(true);
-
-        if (isPrivileged) {
-          setHasGlobalJobAccess(true);
-          setAllowedJobIds([]);
-          return;
-        }
 
         const { data: accessData, error: accessError } = await supabase
             .from("user_job_access")
@@ -59,7 +55,7 @@ export function useWebsiteJobAccess() {
     };
 
     load();
-  }, [user?.id, currentCompany?.id, isPrivileged]);
+  }, [user?.id, currentCompany?.id, isPrivilegedRole]);
 
   const canAccessJob = useCallback((jobId: string | null | undefined) => {
     if (!jobId) return false;

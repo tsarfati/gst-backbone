@@ -25,7 +25,10 @@ interface AccessRequest {
   status: string;
   requested_at: string;
   notes?: string;
-  requested_role?: 'employee' | 'vendor' | 'design_professional';
+  requested_role?: string;
+  requested_role_label?: string | null;
+  custom_role_id?: string | null;
+  custom_role_name?: string | null;
   business_name?: string | null;
   invited_job_id?: string | null;
   profiles?: {
@@ -35,16 +38,38 @@ interface AccessRequest {
   };
 }
 
-const parseRequestedRole = (notes?: string): 'employee' | 'vendor' | 'design_professional' => {
+const parseRequestedRole = (notes?: string): string => {
   if (!notes) return 'employee';
   try {
     const parsed = JSON.parse(notes);
     const role = String(parsed?.requestedRole || '').toLowerCase();
-    if (role === 'vendor' || role === 'design_professional') return role;
+    if (role) return role;
   } catch {
     // keep default
   }
   return 'employee';
+};
+
+const parseCustomRoleName = (notes?: string): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const value = String(parsed?.customRoleName || '').trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+};
+
+const parseCustomRoleId = (notes?: string): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const value = String(parsed?.customRoleId || '').trim();
+    return value || null;
+  } catch {
+    return null;
+  }
 };
 
 const parseBusinessName = (notes?: string): string | null => {
@@ -129,6 +154,9 @@ export default function CompanyAccessRequests({
           requested_at: request.requested_at,
           notes: request.notes,
           requested_role: requestedRole,
+          requested_role_label: parseCustomRoleName(request.notes || undefined) || requestedRole.replace('_', ' '),
+          custom_role_id: parseCustomRoleId(request.notes || undefined),
+          custom_role_name: parseCustomRoleName(request.notes || undefined),
           business_name: parseBusinessName(request.notes || undefined),
           invited_job_id: parseInvitedJobId(request.notes || undefined),
           profiles: profile ? {
@@ -182,13 +210,25 @@ export default function CompanyAccessRequests({
       if (!request) throw new Error("Request not found");
 
       if (action === 'approve') {
-        const targetRole = request.requested_role || 'employee';
+        const requestedRole = String(request.requested_role || 'employee').toLowerCase();
+        const allowedBaseRoles = new Set([
+          'admin',
+          'company_admin',
+          'controller',
+          'project_manager',
+          'design_professional',
+          'employee',
+          'view_only',
+          'vendor',
+        ]);
+        const targetRole = allowedBaseRoles.has(requestedRole) ? requestedRole : 'employee';
 
         // Keep profile and company access role in sync with requested role.
         const { error: profileError } = await supabase
           .from('profiles')
           .update({
             role: targetRole as any,
+            custom_role_id: request.custom_role_id || null,
             status: 'approved',
             approved_by: currentUser?.id || null,
             approved_at: new Date().toISOString(),
@@ -330,7 +370,7 @@ export default function CompanyAccessRequests({
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">
-                        {request.requested_role?.replace('_', ' ') || 'employee'}
+                        {request.custom_role_name || request.requested_role_label || request.requested_role?.replace('_', ' ') || 'employee'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">
@@ -401,7 +441,7 @@ export default function CompanyAccessRequests({
                     </TableCell>
                     <TableCell>
                       <Badge variant="outline" className="capitalize">
-                        {request.requested_role?.replace('_', ' ') || 'employee'}
+                        {request.custom_role_name || request.requested_role_label || request.requested_role?.replace('_', ' ') || 'employee'}
                       </Badge>
                     </TableCell>
                     <TableCell className="text-muted-foreground">

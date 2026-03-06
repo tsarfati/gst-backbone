@@ -179,14 +179,14 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-md p-0 overflow-hidden border-0 shadow-2xl [&>button]:hidden"
+        className="sm:max-w-md w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] p-0 overflow-y-auto overflow-x-hidden border-0 shadow-2xl [&>button]:hidden"
         style={{ 
           borderRadius: '16px',
           boxShadow: '0 0 0 3px rgba(232, 138, 45, 0.3), 0 25px 50px -12px rgba(0, 0, 0, 0.25)'
         }}
       >
 
-        <div className="p-8 pt-6">
+        <div className="p-6 sm:p-8 pt-6">
           {/* Back button for forgot password */}
           {mode === 'forgotPassword' && (
             <button

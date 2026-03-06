@@ -285,6 +285,16 @@ serve(async (req: Request): Promise<Response> => {
 
     const nowIso = new Date().toISOString();
 
+    let customRoleName: string | null = null;
+    if (pendingInvite.custom_role_id) {
+      const { data: customRoleRow } = await supabaseAdmin
+        .from("custom_roles")
+        .select("role_name")
+        .eq("id", pendingInvite.custom_role_id)
+        .maybeSingle();
+      customRoleName = customRoleRow?.role_name || null;
+    }
+
     // Grant/activate company access
     const { data: existingAccess, error: existingAccessError } = await supabaseAdmin
       .from("user_company_access")
@@ -418,6 +428,49 @@ serve(async (req: Request): Promise<Response> => {
       .eq("email", pendingInvite.email)
       .eq("status", "pending");
 
+    // Ensure every accepted signup (invited users included) lands in Intake Queue.
+    // Keep requested role metadata in notes so approval flow preserves role/custom role.
+    const intakeNotes = JSON.stringify({
+      source: "invite_signup",
+      requestedRole: baseRole,
+      customRoleId: pendingInvite.custom_role_id ?? null,
+      customRoleName,
+    });
+
+    const { data: existingPendingRequest, error: existingPendingRequestError } = await supabaseAdmin
+      .from("company_access_requests")
+      .select("id")
+      .eq("company_id", pendingInvite.company_id)
+      .eq("user_id", userData.user.id)
+      .eq("status", "pending")
+      .limit(1);
+    if (existingPendingRequestError) throw existingPendingRequestError;
+
+    if ((existingPendingRequest || []).length > 0) {
+      const pendingRequestId = existingPendingRequest![0].id;
+      const { error: updatePendingRequestError } = await supabaseAdmin
+        .from("company_access_requests")
+        .update({
+          notes: intakeNotes,
+          requested_at: nowIso,
+          reviewed_at: null,
+          reviewed_by: null,
+        })
+        .eq("id", pendingRequestId);
+      if (updatePendingRequestError) throw updatePendingRequestError;
+    } else {
+      const { error: createPendingRequestError } = await supabaseAdmin
+        .from("company_access_requests")
+        .insert({
+          company_id: pendingInvite.company_id,
+          user_id: userData.user.id,
+          status: "pending",
+          requested_at: nowIso,
+          notes: intakeNotes,
+        });
+      if (createPendingRequestError) throw createPendingRequestError;
+    }
+
     // Notify invited user + company approvers that account is pending approval.
     // Approval is handled in User Management (status transition pending -> approved).
     try {
@@ -484,7 +537,7 @@ serve(async (req: Request): Promise<Response> => {
               user_id: recipientId,
               title: "User Pending Approval",
               message: intakeMessage,
-              type: "intake_queue",
+              type: `intake_queue:${userData.user.id}`,
               read: false,
             })),
           );

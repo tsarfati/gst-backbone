@@ -102,7 +102,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send the email
     const emailResponse = await resend.emails.send({
-      from: "BuilderLYNK <noreply@builderlynk.com>",
+      from: "BuilderLYNK <noreply@send.com>",
       to: [vendorEmail],
       subject: `${companyName} invited you to join BuilderLYNK`,
       html: `

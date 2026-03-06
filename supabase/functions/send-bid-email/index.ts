@@ -25,7 +25,7 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
-    const inboundDomain = Deno.env.get("BID_EMAIL_INBOUND_DOMAIN") || "inbound.builderlynk.com";
+    const inboundDomain = Deno.env.get("BID_EMAIL_INBOUND_DOMAIN") || "inbound.com";
 
     if (!supabaseUrl || !serviceRole || !resendApiKey) {
       throw new Error("Missing required function environment variables");
@@ -120,7 +120,7 @@ serve(async (req) => {
     const taggedSubject = subject.includes(rfpNumber) ? subject : `[${rfpNumber}] ${subject}`;
 
     const sendResult = await resend.emails.send({
-      from: "BuilderLYNK <noreply@builderlynk.com>",
+      from: "BuilderLYNK <noreply@send.com>",
       to: [resolvedToEmail],
       subject: taggedSubject,
       reply_to: channel.tracking_email,
@@ -143,7 +143,7 @@ serve(async (req) => {
       company_id: (bidRow as any).company_id,
       vendor_id: (bidRow as any).vendor_id,
       direction: "outbound",
-      from_email: "noreply@builderlynk.com",
+      from_email: "noreply@send.com",
       to_emails: [resolvedToEmail],
       subject: taggedSubject,
       body_text: body,

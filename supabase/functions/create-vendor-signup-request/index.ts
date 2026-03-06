@@ -384,7 +384,7 @@ serve(async (req: Request): Promise<Response> => {
               user_id: recipientId,
               title: "New Intake Queue Request",
               message: intakeMessage,
-              type: "intake_queue",
+              type: `intake_queue:${userId}`,
               read: false,
             })),
           );

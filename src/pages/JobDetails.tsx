@@ -48,6 +48,15 @@ interface Job {
   } | null;
 }
 
+interface JobRfp {
+  id: string;
+  rfp_number: string;
+  title: string;
+  status: string;
+  due_date: string | null;
+  created_at: string;
+}
+
 export default function JobDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -61,6 +70,8 @@ export default function JobDetails() {
   const initialTab = searchParams.get('tab') || 'details';
   const [activeTab, setActiveTab] = useState<string>(initialTab);
   const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [jobRfps, setJobRfps] = useState<JobRfp[]>([]);
+  const [rfpsLoading, setRfpsLoading] = useState(false);
   const { loading: jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged } = useWebsiteJobAccess();
 
   useEffect(() => {
@@ -108,6 +119,23 @@ export default function JobDetails() {
           
           const total = budgetData?.reduce((sum, item) => sum + Number(item.budgeted_amount || 0), 0) || 0;
           setBudgetTotal(total);
+
+          if (currentCompany?.id) {
+            setRfpsLoading(true);
+            const { data: rfpData, error: rfpError } = await supabase
+              .from('rfps')
+              .select('id, rfp_number, title, status, due_date, created_at')
+              .eq('company_id', currentCompany.id)
+              .eq('job_id', id)
+              .order('created_at', { ascending: false });
+            if (rfpError) {
+              console.error('Error loading job RFPs:', rfpError);
+            } else {
+              setJobRfps((rfpData || []) as JobRfp[]);
+            }
+          } else {
+            setJobRfps([]);
+          }
         }
       } catch (err) {
         console.error('Error:', err);
@@ -117,6 +145,7 @@ export default function JobDetails() {
           variant: "destructive",
         });
       } finally {
+        setRfpsLoading(false);
         setLoading(false);
       }
     };
@@ -139,7 +168,7 @@ export default function JobDetails() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, toast, jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged]);
+  }, [id, toast, jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged, currentCompany?.id]);
 
   if (loading) {
     return (
@@ -245,6 +274,13 @@ export default function JobDetails() {
             >
               <ClipboardList className="h-4 w-4 mr-2" />
               RFIs
+            </TabsTrigger>
+            <TabsTrigger
+              value="rfps"
+              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <FileText className="h-4 w-4 mr-2" />
+              RFPs
             </TabsTrigger>
             <TabsTrigger
               value="submittals"
@@ -401,6 +437,58 @@ export default function JobDetails() {
 
           <TabsContent value="rfis" className="p-6">
             <JobRFIs jobId={id!} />
+          </TabsContent>
+
+          <TabsContent value="rfps" className="p-6">
+            <Card>
+              <CardHeader className="flex flex-row items-center justify-between">
+                <CardTitle>RFPs</CardTitle>
+                <div className="flex items-center gap-2">
+                  <Button variant="outline" onClick={() => navigate(`/construction/rfps?jobId=${id}`)}>
+                    View All
+                  </Button>
+                  <Button onClick={() => navigate(`/construction/rfps/add?jobId=${id}`)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    New RFP
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {rfpsLoading ? (
+                  <div className="py-6 text-sm text-muted-foreground">
+                    <span className="loading-dots">Loading RFPs</span>
+                  </div>
+                ) : jobRfps.length === 0 ? (
+                  <div className="py-10 text-center text-muted-foreground">
+                    No RFPs for this job yet.
+                  </div>
+                ) : (
+                  <div className="space-y-2">
+                    {jobRfps.map((rfp) => (
+                      <button
+                        key={rfp.id}
+                        type="button"
+                        onClick={() => navigate(`/construction/rfps/${rfp.id}`)}
+                        className="w-full rounded-md border px-3 py-2 text-left hover:bg-muted/50"
+                      >
+                        <div className="flex items-center justify-between gap-4">
+                          <div>
+                            <div className="font-medium">{rfp.title}</div>
+                            <div className="text-xs text-muted-foreground mt-1">
+                              {rfp.rfp_number} • Created {new Date(rfp.created_at).toLocaleDateString()}
+                              {rfp.due_date ? ` • Due ${new Date(rfp.due_date).toLocaleDateString()}` : ''}
+                            </div>
+                          </div>
+                          <Badge variant="outline" className="capitalize">
+                            {rfp.status || 'draft'}
+                          </Badge>
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="submittals" className="p-6">

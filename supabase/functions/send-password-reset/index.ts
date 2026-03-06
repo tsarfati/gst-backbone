@@ -164,7 +164,7 @@ serve(async (req) => {
 
     // Send branded email via Resend
     const { error: emailError } = await resend.emails.send({
-      from: "BuilderLYNK <noreply@builderlynk.com>",
+      from: "BuilderLYNK <noreply@send.com>",
       to: [email],
       subject: "Reset Your BuilderLynk Password",
       html,

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -61,6 +61,7 @@ interface Bid {
   taxes_included?: boolean | null;
   tax_amount?: number | null;
   discount_amount?: number | null;
+  comparison_notes?: string | null;
   vendor: {
     id: string;
     name: string;
@@ -116,16 +117,27 @@ export default function RFPDetails() {
   const [resendingInvite, setResendingInvite] = useState<string | null>(null);
   const drawingsInputRef = useRef<HTMLInputElement | null>(null);
   const [isDrawingsDragOver, setIsDrawingsDragOver] = useState(false);
+  const [bidSortBy, setBidSortBy] = useState<'vendor' | 'bid_amount' | 'submitted_at'>('submitted_at');
+  const [bidSortDirection, setBidSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [comparisonNotesDrafts, setComparisonNotesDrafts] = useState<Record<string, string>>({});
+  const [savingComparisonNoteId, setSavingComparisonNoteId] = useState<string | null>(null);
 
-  const getFinalBidTotal = (bid: Bid) => {
-    const base = Number(bid.bid_amount || 0);
-    const discount = Number(bid.discount_amount || 0);
-    const taxableBase = Math.max(0, base - discount);
-    const shipping = bid.shipping_included ? 0 : Number(bid.shipping_amount || 0);
-    const taxRatePercent = bid.taxes_included ? 0 : Number(bid.tax_amount || 0);
-    const tax = taxableBase * (Math.max(0, taxRatePercent) / 100);
-    return Math.max(0, taxableBase + shipping + tax);
-  };
+  const sortedBids = useMemo(() => {
+    const rows = [...bids];
+    rows.sort((a, b) => {
+      if (bidSortBy === 'vendor') {
+        const left = String(a.vendor?.name || '').toLowerCase();
+        const right = String(b.vendor?.name || '').toLowerCase();
+        return left.localeCompare(right);
+      }
+      if (bidSortBy === 'bid_amount') {
+        return Number(a.bid_amount || 0) - Number(b.bid_amount || 0);
+      }
+      return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
+    });
+    if (bidSortDirection === 'desc') rows.reverse();
+    return rows;
+  }, [bids, bidSortBy, bidSortDirection]);
 
   useEffect(() => {
     if (id && currentCompany?.id && !websiteJobAccessLoading) {
@@ -181,9 +193,54 @@ export default function RFPDetails() {
         .order('submitted_at', { ascending: false });
 
       if (error) throw error;
-      setBids(data || []);
+      const rows = (data || []) as Bid[];
+      setBids(rows);
+      setComparisonNotesDrafts(
+        rows.reduce<Record<string, string>>((acc, row) => {
+          acc[row.id] = row.comparison_notes || '';
+          return acc;
+        }, {}),
+      );
     } catch (error) {
       console.error('Error loading bids:', error);
+    }
+  };
+
+  const toggleBidSort = (column: 'vendor' | 'bid_amount' | 'submitted_at') => {
+    if (bidSortBy === column) {
+      setBidSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+    setBidSortBy(column);
+    setBidSortDirection(column === 'vendor' ? 'asc' : 'desc');
+  };
+
+  const getSortIndicator = (column: 'vendor' | 'bid_amount' | 'submitted_at') => {
+    if (bidSortBy !== column) return '';
+    return bidSortDirection === 'asc' ? ' ↑' : ' ↓';
+  };
+
+  const saveComparisonNote = async (bidId: string) => {
+    const nextValue = (comparisonNotesDrafts[bidId] || '').trim();
+    try {
+      setSavingComparisonNoteId(bidId);
+      const { error } = await supabase
+        .from('bids')
+        .update({ comparison_notes: nextValue || null } as any)
+        .eq('id', bidId)
+        .eq('rfp_id', id);
+      if (error) throw error;
+
+      setBids((prev) => prev.map((row) => (row.id === bidId ? { ...row, comparison_notes: nextValue || null } : row)));
+    } catch (error: any) {
+      console.error('Error saving bid comparison note:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to save comparison note',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingComparisonNoteId(null);
     }
   };
 
@@ -1044,19 +1101,46 @@ export default function RFPDetails() {
               <Table>
                 <TableHeader>
                   <TableRow>
-                    <TableHead className="py-2">Vendor</TableHead>
+                    <TableHead className="py-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="-ml-3 h-8 px-3 font-semibold"
+                        onClick={() => toggleBidSort('vendor')}
+                      >
+                        Vendor{getSortIndicator('vendor')}
+                      </Button>
+                    </TableHead>
                     <TableHead className="py-2">Version</TableHead>
-                    <TableHead className="py-2">Bid Amount</TableHead>
-                    <TableHead className="py-2">Final Total</TableHead>
+                    <TableHead className="py-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="-ml-3 h-8 px-3 font-semibold"
+                        onClick={() => toggleBidSort('bid_amount')}
+                      >
+                        Bid Amount{getSortIndicator('bid_amount')}
+                      </Button>
+                    </TableHead>
+                    <TableHead className="py-2 min-w-[260px]">Inclusions / Exclusions Notes</TableHead>
                     <TableHead className="py-2">Bid Contact</TableHead>
                     <TableHead className="py-2">Timeline</TableHead>
                     <TableHead className="py-2">Status</TableHead>
-                    <TableHead className="py-2">Submitted</TableHead>
+                    <TableHead className="py-2">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        className="-ml-3 h-8 px-3 font-semibold"
+                        onClick={() => toggleBidSort('submitted_at')}
+                      >
+                        Submitted{getSortIndicator('submitted_at')}
+                      </Button>
+                    </TableHead>
                     <TableHead className="py-2"></TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
-                  {bids.map(bid => (
+                  {sortedBids.map(bid => (
                     <TableRow
                       key={bid.id}
                       className="cursor-pointer hover:bg-muted/40"
@@ -1066,12 +1150,23 @@ export default function RFPDetails() {
                       <TableCell className="py-2">
                         <Badge variant="outline">v{Number(bid.version_number || 1)}</Badge>
                       </TableCell>
-                      <TableCell className="py-2">${bid.bid_amount.toLocaleString()}</TableCell>
                       <TableCell className="py-2 font-medium">
-                        ${getFinalBidTotal(bid).toLocaleString(undefined, {
+                        ${Number(bid.bid_amount || 0).toLocaleString(undefined, {
                           minimumFractionDigits: 2,
                           maximumFractionDigits: 2,
                         })}
+                      </TableCell>
+                      <TableCell className="py-2">
+                        <Input
+                          value={comparisonNotesDrafts[bid.id] ?? ''}
+                          placeholder="Add comparison / inclusion / exclusion notes"
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) =>
+                            setComparisonNotesDrafts((prev) => ({ ...prev, [bid.id]: e.target.value }))
+                          }
+                          onBlur={() => saveComparisonNote(bid.id)}
+                          disabled={savingComparisonNoteId === bid.id}
+                        />
                       </TableCell>
                       <TableCell className="py-2">
                         {bid.bid_contact_name ? (
