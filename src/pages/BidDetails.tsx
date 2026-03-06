@@ -98,6 +98,11 @@ const ATTACHMENT_TYPE_LABELS: Record<(typeof ATTACHMENT_TYPE_OPTIONS)[number], s
   other: "Other",
 };
 
+const isQuoteAttachmentType = (attachmentType: string | null | undefined) => {
+  const value = String(attachmentType || "").toLowerCase();
+  return value === "quote" || value.startsWith("quote_") || value === "best_and_final";
+};
+
 const getAttachmentTypeSelectValue = (attachmentType: string | null | undefined) => {
   const value = String(attachmentType || "quote");
   return ATTACHMENT_TYPE_OPTIONS.includes(value as (typeof ATTACHMENT_TYPE_OPTIONS)[number]) ? value : "custom";
@@ -192,10 +197,8 @@ export default function BidDetails() {
       if (error) throw error;
       const rows = (data as BidAttachment[]) || [];
       setAttachments(rows);
-      setSelectedAttachmentId((prev) => {
-        if (prev && rows.some((row) => row.id === prev)) return prev;
-        return rows[0]?.id || null;
-      });
+      const latestQuote = rows.find((row) => isQuoteAttachmentType(row.attachment_type)) || null;
+      setSelectedAttachmentId(latestQuote?.id || rows[0]?.id || null);
     } catch (error) {
       console.error("Error loading bid attachments:", error);
       setAttachments([]);
