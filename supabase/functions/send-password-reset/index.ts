@@ -4,8 +4,14 @@ import { Resend } from "npm:resend@4.0.0";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
 import React from "npm:react@18.3.1";
 import { PasswordResetEmail } from "./_templates/password-reset.tsx";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const authFrom = resolveBuilderlynkFrom(
+  Deno.env.get("AUTH_EMAIL_FROM") || Deno.env.get("INVITE_EMAIL_FROM"),
+  EMAIL_FROM.AUTH,
+  "send-password-reset",
+);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -164,7 +170,7 @@ serve(async (req) => {
 
     // Send branded email via Resend
     const { error: emailError } = await resend.emails.send({
-      from: "BuilderLYNK <noreply@send.com>",
+      from: authFrom,
       to: [email],
       subject: "Reset Your BuilderLynk Password",
       html,

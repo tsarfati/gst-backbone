@@ -20,7 +20,7 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
-    const inboundDomain = Deno.env.get("BID_EMAIL_INBOUND_DOMAIN") || "inbound.builderlynk.com";
+    const inboundDomain = Deno.env.get("BID_EMAIL_INBOUND_DOMAIN") || "send.builderlynk.com";
     if (!supabaseUrl || !serviceRole) throw new Error("Missing required environment variables");
 
     const authHeader = req.headers.get("Authorization");

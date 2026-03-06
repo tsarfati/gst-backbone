@@ -1,4 +1,4 @@
-const HARD_DEFAULT_FROM = "BuilderLYNK <no-reply@builderlynk.com>";
+const HARD_DEFAULT_FROM = "BuilderLYNK <no-reply@send.builderlynk.com>";
 
 function parseFromAddress(value?: string | null): { name?: string; email: string } | null {
   if (!value) return null;
@@ -18,7 +18,8 @@ function parseFromAddress(value?: string | null): { name?: string; email: string
 }
 
 function isBuilderlynkEmail(email: string): boolean {
-  return email.toLowerCase().endsWith("@builderlynk.com");
+  const normalized = email.toLowerCase();
+  return /^[^@\s]+@send\.builderlynk\.com$/.test(normalized);
 }
 
 function formatFromAddress(parsed: { name?: string; email: string }): string {
@@ -57,10 +58,10 @@ export function resolveBuilderlynkFrom(
 }
 
 export const EMAIL_FROM = {
-  AUTH: "BuilderLYNK <no-reply@builderlynk.com>",
-  INVITE: "BuilderLYNK <no-reply@builderlynk.com>",
-  SYSTEM: "System Notifications <system@builderlynk.com>",
-  REPORTS: "Financial Reports <reports@builderlynk.com>",
-  NOTIFICATIONS: "Notifications <notifications@builderlynk.com>",
-  TEST: "System Notifications <system@builderlynk.com>",
+  AUTH: "BuilderLYNK <no-reply@send.builderlynk.com>",
+  INVITE: "BuilderLYNK <no-reply@send.builderlynk.com>",
+  SYSTEM: "System Notifications <system@send.builderlynk.com>",
+  REPORTS: "Financial Reports <reports@send.builderlynk.com>",
+  NOTIFICATIONS: "Notifications <notifications@send.builderlynk.com>",
+  TEST: "System Notifications <system@send.builderlynk.com>",
 } as const;

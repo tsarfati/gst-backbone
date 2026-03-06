@@ -1,8 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const inviteFrom = resolveBuilderlynkFrom(
+  Deno.env.get("INVITE_EMAIL_FROM") || Deno.env.get("AUTH_EMAIL_FROM"),
+  EMAIL_FROM.INVITE,
+  "send-vendor-invite",
+);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -102,7 +108,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Send the email
     const emailResponse = await resend.emails.send({
-      from: "BuilderLYNK <noreply@send.com>",
+      from: inviteFrom,
       to: [vendorEmail],
       subject: `${companyName} invited you to join BuilderLYNK`,
       html: `

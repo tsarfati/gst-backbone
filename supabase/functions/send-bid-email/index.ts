@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -15,6 +16,10 @@ interface SendBidEmailRequest {
 }
 
 const randomSuffix = () => Math.random().toString(36).slice(2, 8);
+const extractEmailAddress = (fromValue: string) => {
+  const match = fromValue.match(/<([^>]+)>/);
+  return (match ? match[1] : fromValue).trim().toLowerCase();
+};
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
@@ -25,7 +30,12 @@ serve(async (req) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
     const serviceRole = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
-    const inboundDomain = Deno.env.get("BID_EMAIL_INBOUND_DOMAIN") || "inbound.com";
+    const inboundDomain = Deno.env.get("BID_EMAIL_INBOUND_DOMAIN") || "send.builderlynk.com";
+    const outboundFrom = resolveBuilderlynkFrom(
+      Deno.env.get("NOTIFICATIONS_EMAIL_FROM") || Deno.env.get("SYSTEM_EMAIL_FROM"),
+      EMAIL_FROM.NOTIFICATIONS,
+      "send-bid-email",
+    );
 
     if (!supabaseUrl || !serviceRole || !resendApiKey) {
       throw new Error("Missing required function environment variables");
@@ -120,7 +130,7 @@ serve(async (req) => {
     const taggedSubject = subject.includes(rfpNumber) ? subject : `[${rfpNumber}] ${subject}`;
 
     const sendResult = await resend.emails.send({
-      from: "BuilderLYNK <noreply@send.com>",
+      from: outboundFrom,
       to: [resolvedToEmail],
       subject: taggedSubject,
       reply_to: channel.tracking_email,
@@ -143,7 +153,7 @@ serve(async (req) => {
       company_id: (bidRow as any).company_id,
       vendor_id: (bidRow as any).vendor_id,
       direction: "outbound",
-      from_email: "noreply@send.com",
+      from_email: extractEmailAddress(outboundFrom),
       to_emails: [resolvedToEmail],
       subject: taggedSubject,
       body_text: body,

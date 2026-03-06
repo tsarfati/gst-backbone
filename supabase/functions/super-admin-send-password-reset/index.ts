@@ -1,8 +1,14 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { Resend } from "npm:resend@4.0.0";
+import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
+const authFrom = resolveBuilderlynkFrom(
+  Deno.env.get("AUTH_EMAIL_FROM") || Deno.env.get("INVITE_EMAIL_FROM"),
+  EMAIL_FROM.AUTH,
+  "super-admin-send-password-reset",
+);
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -129,7 +135,7 @@ serve(async (req) => {
     `;
 
     const { error: emailError } = await resend.emails.send({
-      from: "BuilderLYNK <noreply@builderlynk.com>",
+      from: authFrom,
       to: [targetEmail],
       subject: "Reset Your BuilderLynk Password",
       html,
