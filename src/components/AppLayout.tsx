@@ -166,11 +166,11 @@ export function AppSidebar() {
       location.pathname === item.href ||
       location.pathname.startsWith(item.href + '/');
 
-    // Notifications route redirects to profile settings tab; keep Settings item highlighted.
+    // Notifications route redirects to company email setup; keep Settings item highlighted.
     const notificationsRedirectMatch =
       item.href === '/settings/notifications' &&
-      location.pathname === '/profile-settings' &&
-      ['notifications', 'email'].includes(new URLSearchParams(location.search).get('tab') || '');
+      location.pathname === '/settings/company' &&
+      (new URLSearchParams(location.search).get('section') || '') === 'email-setup';
 
     // Keep Construction open when on job/subcontract/PO pages
     const constructionDetailMatch =

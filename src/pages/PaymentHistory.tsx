@@ -16,6 +16,7 @@ import { format } from "date-fns";
 import { cn } from "@/lib/utils";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 
 interface PaymentRow {
   id: string;
@@ -70,6 +71,8 @@ export default function PaymentHistory() {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
+  const { canViewJoblessFinancials } = useActionPermissions();
+  const allowJoblessFinancials = canViewJoblessFinancials();
 
   const [searchTerm, setSearchTerm] = useState("");
   const [filterStatus, setFilterStatus] = useState("all");
@@ -179,7 +182,10 @@ export default function PaymentHistory() {
           const invoiceId = invoiceMap[p.id];
           const invoiceJobId = invoiceId ? invoiceJobMap[invoiceId] : null;
           const distJobIds = invoiceId ? (invoiceDistributionJobs[invoiceId] || []) : [];
-          const canAccessPayment = canAccessAssignedJobOnly([invoiceJobId, ...distJobIds], isPrivileged, allowedJobIds);
+          const paymentJobIds = [invoiceJobId, ...distJobIds].filter((id): id is string => !!id);
+          const canAccessPayment = paymentJobIds.length === 0
+            ? allowJoblessFinancials
+            : canAccessAssignedJobOnly(paymentJobIds, isPrivileged, allowedJobIds);
           if (!canAccessPayment) return null as any;
           return {
             id: p.id,
@@ -204,7 +210,7 @@ export default function PaymentHistory() {
       }
     };
     load();
-  }, [currentCompany, toast, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
+  }, [currentCompany, toast, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(','), allowJoblessFinancials]);
 
   const filteredPayments = useMemo(() => {
     let list = [...rows];

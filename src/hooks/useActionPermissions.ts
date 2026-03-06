@@ -112,6 +112,11 @@ export function useActionPermissions() {
       return hasElevatedAccess;
     },
 
+    canViewJoblessFinancials: (): boolean => {
+      if (isAdmin) return true;
+      return hasAccess('financial-view-unassigned');
+    },
+
     canViewVendors: (): boolean => {
       if (isAdmin) return true;
       return hasAccess('vendors');
@@ -194,4 +199,3 @@ export function useActionPermissions() {
     },
   };
 }
-

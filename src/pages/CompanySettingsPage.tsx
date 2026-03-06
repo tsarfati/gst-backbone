@@ -94,6 +94,7 @@ export default function CompanySettingsPage() {
 
   const urlParams = new URLSearchParams(window.location.search);
   const initialTab = urlParams.get('tab') || 'overview';
+  const initialSection = urlParams.get('section') || '';
   const [activeTab, setActiveTab] = useState(initialTab);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
@@ -451,6 +452,12 @@ export default function CompanySettingsPage() {
       setLoadingCompanyEmailSettings(false);
     }
   };
+
+  useEffect(() => {
+    if (initialSection === 'email-setup' && currentCompany?.id) {
+      void openCompanyEmailSetup();
+    }
+  }, [initialSection, currentCompany?.id]);
 
   const saveCompanyEmailSetup = async () => {
     if (!currentCompany?.id) return;

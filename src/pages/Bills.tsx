@@ -127,8 +127,9 @@ export default function Bills() {
   const location = useLocation();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
-  const { canCreate, canDelete, canEdit } = useActionPermissions();
+  const { canCreate, canDelete, canEdit, canViewJoblessFinancials } = useActionPermissions();
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
+  const allowJoblessFinancials = canViewJoblessFinancials();
   
   // Initialize filters from navigation state if provided
   const initialVendorFilter = (location.state as any)?.vendorFilter || "all";
@@ -151,7 +152,7 @@ export default function Bills() {
     if (currentCompany && !websiteJobAccessLoading) {
       loadBills();
     }
-  }, [currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
+  }, [currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(','), allowJoblessFinancials]);
 
   const loadBills = async () => {
     if (!currentCompany) return;
@@ -211,7 +212,11 @@ export default function Bills() {
       .filter((bill: any) => {
         const directJobId = bill.jobs?.id || bill.job_id || null;
         const distJobIds = (distributionJobMap.get(bill.id) || []).map((j) => j.id);
-        return canAccessAssignedJobOnly([directJobId, ...distJobIds], isPrivileged, allowedJobIds);
+        const billJobIds = [directJobId, ...distJobIds].filter((id): id is string => !!id);
+        if (billJobIds.length === 0) {
+          return allowJoblessFinancials;
+        }
+        return canAccessAssignedJobOnly(billJobIds, isPrivileged, allowedJobIds);
       })
       .map((bill: any) => {
         // Use direct job name if available, otherwise get from distributions

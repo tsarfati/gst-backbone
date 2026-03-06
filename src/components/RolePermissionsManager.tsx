@@ -445,6 +445,7 @@ const menuCategories: MenuCategory[] = [
           { key: 'bills-edit', label: 'Edit Bills', description: 'Modify bill details' },
           { key: 'bills-delete', label: 'Delete Bills', description: 'Remove bills' },
           { key: 'bills-approve', label: 'Approve Bills', description: 'Approve bills for payment' },
+          { key: 'financial-view-unassigned', label: 'View Jobless Financials', description: 'View financial records that are not assigned to any job yet' },
         ]
       },
       { 
