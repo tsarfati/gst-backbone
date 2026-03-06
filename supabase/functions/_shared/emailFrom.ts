@@ -59,7 +59,7 @@ export function resolveBuilderlynkFrom(
 
 export const EMAIL_FROM = {
   AUTH: "BuilderLYNK <no-reply@send.builderlynk.com>",
-  INVITE: "BuilderLYNK <no-reply@send.builderlynk.com>",
+  INVITE: "BuilderLYNK <hello@send.builderlynk.com>",
   SYSTEM: "System Notifications <system@send.builderlynk.com>",
   REPORTS: "Financial Reports <reports@send.builderlynk.com>",
   NOTIFICATIONS: "Notifications <notifications@send.builderlynk.com>",
