@@ -83,20 +83,32 @@ export default function LandingPage() {
   }, []);
 
   useEffect(() => {
-    if (!location.hash) return;
+    if (!location.hash || loading || user) return;
 
     const sectionId = location.hash.replace('#', '');
-    const scrollToHashSection = () => {
-      const target = document.getElementById(sectionId);
-      if (!target) return;
+    let attempts = 0;
+    let timeoutId: number | null = null;
 
-      const navOffset = 80;
-      const targetTop = target.getBoundingClientRect().top + window.scrollY - navOffset;
-      window.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' });
+    const tryScroll = () => {
+      const target = document.getElementById(sectionId);
+      if (target) {
+        const navOffset = 80;
+        const targetTop = target.getBoundingClientRect().top + window.scrollY - navOffset;
+        window.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' });
+        return;
+      }
+
+      if (attempts < 10) {
+        attempts += 1;
+        timeoutId = window.setTimeout(tryScroll, 50);
+      }
     };
 
-    requestAnimationFrame(scrollToHashSection);
-  }, [location.hash]);
+    requestAnimationFrame(tryScroll);
+    return () => {
+      if (timeoutId !== null) window.clearTimeout(timeoutId);
+    };
+  }, [location.hash, loading, user]);
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
@@ -329,7 +341,7 @@ export default function LandingPage() {
                 setAuthModalMode('signUp');
                 setShowAuthModal(true);
               }}
-              className="text-base md:text-lg px-8 py-2 md:px-10 md:py-2.5 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)] transition-all duration-300 rounded-lg"
+              className="text-base md:text-lg px-8 py-1.5 md:px-10 md:py-2 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)] transition-all duration-300 rounded-lg"
               style={{ backgroundColor: '#E88A2D' }}
             >
               Start Building Today <ArrowRight className="ml-2 w-5 h-5 inline" />
@@ -339,7 +351,7 @@ export default function LandingPage() {
                 setAuthModalMode('signIn');
                 setShowAuthModal(true);
               }}
-              className="text-base md:text-lg px-8 py-2 md:px-10 md:py-2.5 rounded-lg text-white font-bold shadow-2xl hover:scale-105 transition-all duration-300"
+              className="text-base md:text-lg px-8 py-1.5 md:px-10 md:py-2 rounded-lg text-white font-bold shadow-2xl hover:scale-105 transition-all duration-300"
               style={{ backgroundColor: '#3B82F6' }}
             >
               Log In
