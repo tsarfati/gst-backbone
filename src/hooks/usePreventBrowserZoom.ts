@@ -9,6 +9,14 @@ type UsePreventBrowserZoomParams = {
   /** Update zoom (should clamp in caller or here via clamp) */
   setZoom: (updater: (prev: number) => number) => void;
   clamp?: (z: number) => number;
+  /** Optional callback for pointer-anchored zoom behavior in the caller */
+  onZoomChange?: (params: {
+    prevZoom: number;
+    nextZoom: number;
+    clientX: number;
+    clientY: number;
+    source: "wheel" | "gesture";
+  }) => void;
 };
 
 /**
@@ -23,6 +31,7 @@ export function usePreventBrowserZoom({
   zoom,
   setZoom,
   clamp,
+  onZoomChange,
 }: UsePreventBrowserZoomParams) {
   useEffect(() => {
     if (!enabled) return;
@@ -84,7 +93,17 @@ export function usePreventBrowserZoom({
       e.stopPropagation();
 
       const delta = -e.deltaY * 0.01;
-      setZoom((prev) => clampZoom(Math.round((prev + delta) * 100) / 100));
+      setZoom((prev) => {
+        const next = clampZoom(Math.round((prev + delta) * 100) / 100);
+        onZoomChange?.({
+          prevZoom: prev,
+          nextZoom: next,
+          clientX: e.clientX,
+          clientY: e.clientY,
+          source: "wheel",
+        });
+        return next;
+      });
     };
 
     // Safari (especially iOS/iPadOS) emits gesture events for pinch.
@@ -102,7 +121,19 @@ export function usePreventBrowserZoom({
       e.preventDefault?.();
       if (typeof ge.scale === "number") {
         const next = clampZoom(Math.round(gestureBase * ge.scale * 100) / 100);
-        setZoom(() => next);
+        const rect = containerRef.current?.getBoundingClientRect();
+        const clientX = rect ? rect.left + rect.width / 2 : window.innerWidth / 2;
+        const clientY = rect ? rect.top + rect.height / 2 : window.innerHeight / 2;
+        setZoom((prev) => {
+          onZoomChange?.({
+            prevZoom: prev,
+            nextZoom: next,
+            clientX,
+            clientY,
+            source: "gesture",
+          });
+          return next;
+        });
       }
     };
 
@@ -135,5 +166,5 @@ export function usePreventBrowserZoom({
       document.removeEventListener("gesturechange", handleGestureChange as any, true as any);
     };
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [enabled, zoom, setZoom, clamp, containerRef]);
+  }, [enabled, zoom, setZoom, clamp, containerRef, onZoomChange]);
 }

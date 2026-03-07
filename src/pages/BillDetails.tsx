@@ -91,6 +91,7 @@ export default function BillDetails() {
   const [totalPaid, setTotalPaid] = useState<number>(0);
   const [balanceDue, setBalanceDue] = useState<number>(0);
   const [distributions, setDistributions] = useState<any[]>([]);
+  const [requireBillDistributionBeforeApproval, setRequireBillDistributionBeforeApproval] = useState(true);
   const [selectedPreviewKey, setSelectedPreviewKey] = useState<string | null>(null);
   const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string | null>(null);
   const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
@@ -170,6 +171,21 @@ export default function BillDetails() {
       } else {
         const directJobId = data?.job_id || data?.jobs?.id || null;
         let distributionJobIds: string[] = [];
+        let requiresDistributionBeforeApproval = true;
+
+        if (data?.company_id) {
+          const { data: payablesSettings } = await supabase
+            .from('payables_settings')
+            .select('require_bill_distribution_before_approval')
+            .eq('company_id', data.company_id)
+            .maybeSingle();
+
+          requiresDistributionBeforeApproval =
+            (payablesSettings as any)?.require_bill_distribution_before_approval ?? true;
+          setRequireBillDistributionBeforeApproval(requiresDistributionBeforeApproval);
+        } else {
+          setRequireBillDistributionBeforeApproval(true);
+        }
 
         if (data?.id) {
           const { data: precheckDistData } = await supabase
@@ -276,7 +292,8 @@ export default function BillDetails() {
              setDistributions(distData);
              
              // Auto-transition pending_coding bills to pending_approval when cost distributions are found
-             if (data.status === 'pending_coding') {
+             // only when distribution gating is not enforced.
+             if (data.status === 'pending_coding' && !requiresDistributionBeforeApproval) {
                await supabase
                  .from('invoices')
                  .update({ status: 'pending_approval', pending_coding: false })
@@ -298,7 +315,8 @@ export default function BillDetails() {
              }]);
              
              // Auto-transition pending_coding bills to pending_approval when cost code is assigned
-             if (data.status === 'pending_coding') {
+             // only when distribution gating is not enforced.
+             if (data.status === 'pending_coding' && !requiresDistributionBeforeApproval) {
                await supabase
                  .from('invoices')
                  .update({ status: 'pending_approval', pending_coding: false })
@@ -411,7 +429,7 @@ export default function BillDetails() {
       cost_code_id: bill?.cost_code_id,
       distributions: distributions as any[],
     });
-    if (!codingValidation.isComplete) {
+    if (requireBillDistributionBeforeApproval && !codingValidation.isComplete) {
       toast({
         title: "Bill is not fully coded",
         description: codingValidation.issues[0] || "Complete job/cost coding and 100% distribution before approval.",
@@ -612,6 +630,7 @@ export default function BillDetails() {
     cost_code_id: bill?.cost_code_id,
     distributions: distributions as any[],
   });
+  const approvalBlockedByCoding = requireBillDistributionBeforeApproval && !codingValidation.isComplete;
 
   return (
     <div className="p-4 md:p-6">
@@ -681,59 +700,66 @@ export default function BillDetails() {
           
           {(bill?.status === 'pending_approval' || bill?.status === 'pending') && (
             <>
-              <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
-                <DialogTrigger asChild>
-                  <Button variant="default">
-                    <CheckCircle className="h-4 w-4 mr-2" />
-                    Approve Bill
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Approve Bill</DialogTitle>
-                    <DialogDescription>
-                      Are you sure you want to approve this bill for ${bill?.amount?.toLocaleString()} from {bill?.vendors?.name}?
-                    </DialogDescription>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div>
-                      <Label htmlFor="approval-notes">Approval Notes (Optional)</Label>
-                      <Textarea
-                        id="approval-notes"
-                        placeholder="Add any notes about this approval..."
-                        value={approvalNotes}
-                        onChange={(e) => setApprovalNotes(e.target.value)}
-                        className="mt-2"
-                      />
+              {approvalBlockedByCoding ? (
+                <Button variant="default" onClick={() => navigate(`/bills/${id}/edit`)}>
+                  <Edit className="h-4 w-4 mr-2" />
+                  Code Bill
+                </Button>
+              ) : (
+                <Dialog open={approvalDialogOpen} onOpenChange={setApprovalDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="default">
+                      <CheckCircle className="h-4 w-4 mr-2" />
+                      Approve Bill
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Approve Bill</DialogTitle>
+                      <DialogDescription>
+                        Are you sure you want to approve this bill for ${bill?.amount?.toLocaleString()} from {bill?.vendors?.name}?
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="approval-notes">Approval Notes (Optional)</Label>
+                        <Textarea
+                          id="approval-notes"
+                          placeholder="Add any notes about this approval..."
+                          value={approvalNotes}
+                          onChange={(e) => setApprovalNotes(e.target.value)}
+                          className="mt-2"
+                        />
+                      </div>
                     </div>
-                  </div>
-                  <DialogFooter>
-                    <Button 
-                      variant="outline" 
-                      onClick={() => setApprovalDialogOpen(false)}
-                      disabled={approvingBill}
-                    >
-                      Cancel
-                    </Button>
-                    <Button 
-                      onClick={handleApproveBill}
-                      disabled={approvingBill || !codingValidation.isComplete}
-                    >
-                      {approvingBill ? (
-                        <>
-                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                          Approving...
-                        </>
-                      ) : (
-                        <>
-                          <CheckCircle className="h-4 w-4 mr-2" />
-                          Approve Bill
-                        </>
-                      )}
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setApprovalDialogOpen(false)}
+                        disabled={approvingBill}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleApproveBill}
+                        disabled={approvingBill || (requireBillDistributionBeforeApproval && !codingValidation.isComplete)}
+                      >
+                        {approvingBill ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Approving...
+                          </>
+                        ) : (
+                          <>
+                            <CheckCircle className="h-4 w-4 mr-2" />
+                            Approve Bill
+                          </>
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              )}
 
               <Button 
                 variant="destructive"
@@ -1152,7 +1178,7 @@ export default function BillDetails() {
             ) : (
               <p className="text-muted-foreground text-center py-4">No cost distribution set</p>
             )}
-            {!codingValidation.isComplete && (
+            {requireBillDistributionBeforeApproval && !codingValidation.isComplete && (
               <div className="mt-4 rounded-md border border-destructive/40 bg-destructive/10 p-3 text-sm text-destructive">
                 {codingValidation.issues[0] || "Bill must be fully coded before approval."}
               </div>

@@ -732,6 +732,24 @@ export default function UserDetails() {
           });
       }
 
+      // Keep intake queue state aligned with profile status to avoid stale pending badges.
+      if (nextStatus === 'approved' || nextStatus === 'rejected') {
+        const { error: requestSyncError } = await supabase
+          .from('company_access_requests')
+          .update({
+            status: nextStatus as any,
+            reviewed_by: profile?.user_id || null,
+            reviewed_at: new Date().toISOString(),
+          })
+          .eq('company_id', currentCompany.id)
+          .eq('user_id', user.user_id)
+          .eq('status', 'pending');
+
+        if (requestSyncError) {
+          console.warn('Failed to sync company access request status:', requestSyncError);
+        }
+      }
+
       if (becameApproved) {
         const { error: notifyError } = await supabase.functions.invoke('notify-user-approved', {
           body: {

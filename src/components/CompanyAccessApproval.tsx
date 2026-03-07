@@ -20,6 +20,8 @@ interface AccessRequest {
   status: string;
   notes?: string;
   requested_role?: 'employee' | 'vendor' | 'design_professional';
+  custom_role_id?: string | null;
+  custom_role_name?: string | null;
   user_profile?: {
     first_name?: string;
     last_name?: string;
@@ -40,6 +42,28 @@ const parseRequestedRole = (notes?: string): 'employee' | 'vendor' | 'design_pro
     // use default
   }
   return 'employee';
+};
+
+const parseCustomRoleId = (notes?: string): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const value = String(parsed?.customRoleId || '').trim();
+    return value || null;
+  } catch {
+    return null;
+  }
+};
+
+const parseCustomRoleName = (notes?: string): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const value = String(parsed?.customRoleName || '').trim();
+    return value || null;
+  } catch {
+    return null;
+  }
 };
 
 export default function CompanyAccessApproval() {
@@ -86,6 +110,8 @@ export default function CompanyAccessApproval() {
           return {
             ...request,
             requested_role: parseRequestedRole(request.notes || undefined),
+            custom_role_id: parseCustomRoleId(request.notes || undefined),
+            custom_role_name: parseCustomRoleName(request.notes || undefined),
             user_profile: profile || {}
           };
         })
@@ -121,7 +147,6 @@ export default function CompanyAccessApproval() {
           status: action,
           reviewed_at: new Date().toISOString(),
           reviewed_by: user.id,
-          notes: notes
         })
         .eq('id', requestId);
 
@@ -129,6 +154,21 @@ export default function CompanyAccessApproval() {
 
       // If approved, grant company access
       if (action === 'approved') {
+        const targetRequest = requests.find((r) => r.id === requestId);
+        const customRoleId = targetRequest?.custom_role_id || null;
+
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            status: 'approved',
+            approved_at: new Date().toISOString(),
+            approved_by: user.id,
+            role: requestedRole,
+            custom_role_id: customRoleId,
+          })
+          .eq('user_id', userId);
+        if (profileError) throw profileError;
+
         const { error: accessError } = await supabase
           .from('user_company_access')
           .insert({
@@ -154,7 +194,21 @@ export default function CompanyAccessApproval() {
             console.warn('Error granting access:', updateError);
           }
         }
+      } else {
+        const { error: rejectProfileError } = await supabase
+          .from('profiles')
+          .update({ status: 'rejected' })
+          .eq('user_id', userId);
+        if (rejectProfileError) {
+          console.warn('Error updating profile on rejection:', rejectProfileError);
+        }
       }
+
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('type', `intake_queue:${userId}`);
 
       toast({
         title: action === 'approved' ? 'Request Approved' : 'Request Rejected',

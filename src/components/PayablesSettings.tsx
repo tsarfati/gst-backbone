@@ -36,6 +36,7 @@ const payablesSettingsSchema = z.object({
   default_payment_method: z.string(),
   require_receipt_attachment: z.boolean(),
   require_bill_documents: z.boolean(),
+  require_bill_distribution_before_approval: z.boolean(),
   require_cc_attachment: z.boolean(),
   allowed_subcontract_vendor_types: z.array(z.string()),
   allowed_po_vendor_types: z.array(z.string()),
@@ -84,6 +85,7 @@ interface PayablesSettingsData {
   default_payment_method: string;
   require_receipt_attachment: boolean;
   require_bill_documents: boolean;
+  require_bill_distribution_before_approval: boolean;
   require_cc_attachment: boolean;
   allowed_subcontract_vendor_types: string[];
   allowed_po_vendor_types: string[];
@@ -132,6 +134,7 @@ const defaultSettings: PayablesSettingsData = {
   default_payment_method: 'check',
   require_receipt_attachment: false,
   require_bill_documents: false,
+  require_bill_distribution_before_approval: true,
   require_cc_attachment: false,
   allowed_subcontract_vendor_types: ['Contractor', 'Design Professional'],
   allowed_po_vendor_types: ['Supplier'],
@@ -243,6 +246,7 @@ export default function PayablesSettings() {
           default_payment_method: data.default_payment_method,
           require_receipt_attachment: data.require_receipt_attachment,
           require_bill_documents: data.require_bill_documents ?? false,
+          require_bill_distribution_before_approval: typedData.require_bill_distribution_before_approval ?? true,
           require_cc_attachment: data.require_cc_attachment ?? false,
           allowed_subcontract_vendor_types: data.allowed_subcontract_vendor_types || ['Contractor', 'Design Professional'],
           allowed_po_vendor_types: data.allowed_po_vendor_types || ['Supplier'],
@@ -634,6 +638,19 @@ export default function PayablesSettings() {
             <Switch
               checked={settings.bills_require_approval}
               onCheckedChange={(checked) => updateSettings('bills_require_approval', checked)}
+            />
+          </div>
+
+          <div className="flex items-center justify-between">
+            <div className="space-y-1">
+              <Label>Require Distribution Before Approval</Label>
+              <p className="text-sm text-muted-foreground">
+                Block approval until bill coding/distribution is complete (recommended)
+              </p>
+            </div>
+            <Switch
+              checked={settings.require_bill_distribution_before_approval}
+              onCheckedChange={(checked) => updateSettings('require_bill_distribution_before_approval', checked)}
             />
           </div>
 

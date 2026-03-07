@@ -16,6 +16,7 @@ interface TenantRequestModalProps {
 }
 
 export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalProps) {
+  const brandBlue = '#3B82F6';
   const [step, setStep] = useState<'auth' | 'confirm-email' | 'request' | 'success'>('auth');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -177,7 +178,12 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
-      <DialogContent className="sm:max-w-md">
+      <DialogContent
+        className="sm:max-w-md border-0"
+        style={{
+          boxShadow: '0 0 0 3px rgba(59, 130, 246, 0.35), 0 25px 50px -12px rgba(0, 0, 0, 0.25)',
+        }}
+      >
         {currentStep === 'auth' && (
           <>
             <DialogHeader>
@@ -238,7 +244,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
                     required
                   />
                 </div>
-                <Button onClick={handleSignUp} className="w-full" disabled={loading}>
+                <Button onClick={handleSignUp} className="w-full text-white" style={{ backgroundColor: brandBlue }} disabled={loading}>
                   {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                   Create Account & Continue
                 </Button>
@@ -277,7 +283,8 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
               
               <Button 
                 onClick={() => setStep('request')} 
-                className="w-full"
+                className="w-full text-white"
+                style={{ backgroundColor: brandBlue }}
                 disabled={!user}
               >
                 {user ? "I've Confirmed My Email - Continue" : "Waiting for confirmation..."}
@@ -323,7 +330,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
                   rows={3}
                 />
               </div>
-              <Button type="submit" className="w-full" disabled={loading}>
+              <Button type="submit" className="w-full text-white" style={{ backgroundColor: brandBlue }} disabled={loading}>
                 {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Submit Request
               </Button>
@@ -345,7 +352,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
             </DialogHeader>
             
             <div className="mt-6">
-              <Button onClick={handleClose} className="w-full">
+              <Button onClick={handleClose} className="w-full text-white" style={{ backgroundColor: brandBlue }}>
                 Close
               </Button>
             </div>

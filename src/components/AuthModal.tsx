@@ -19,6 +19,8 @@ interface AuthModalProps {
 type AuthMode = 'signIn' | 'signUp' | 'forgotPassword';
 
 export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthModalProps) {
+  const brandBlue = '#3B82F6';
+  const brandOrange = '#E88A2D';
   const navigate = useNavigate();
   const [mode, setMode] = useState<AuthMode>(initialMode);
   const [email, setEmail] = useState('');
@@ -145,21 +147,21 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
         return (
           <>
             <span className="text-foreground">Create Your </span>
-            <span className="text-[#E88A2D]">BuilderLYNK</span>
+            <span style={{ color: brandOrange }}>BuilderLYNK</span>
           </>
         );
       case 'signIn':
         return (
           <>
             <span className="text-foreground">Welcome Back to </span>
-            <span className="text-[#E88A2D]">BuilderLYNK</span>
+            <span style={{ color: brandBlue }}>BuilderLYNK</span>
           </>
         );
       case 'forgotPassword':
         return (
           <>
             <span className="text-foreground">Reset Your </span>
-            <span className="text-[#E88A2D]">Password</span>
+            <span style={{ color: brandBlue }}>Password</span>
           </>
         );
     }
@@ -176,13 +178,19 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
     }
   };
 
+  const accentColor = mode === 'signUp' ? brandOrange : brandBlue;
+  const accentRing = mode === 'signUp' ? 'rgba(232, 138, 45, 0.3)' : 'rgba(59, 130, 246, 0.35)';
+  const inputFocusClass = mode === 'signUp'
+    ? 'focus:border-[#E88A2D] focus:ring-[#E88A2D]'
+    : 'focus:border-[#3B82F6] focus:ring-[#3B82F6]';
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent 
-        className="sm:max-w-md w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] p-0 overflow-y-auto overflow-x-hidden border-0 shadow-2xl [&>button]:hidden"
+        className="sm:max-w-lg w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] p-0 overflow-y-auto overflow-x-hidden border-0 shadow-2xl [&>button]:hidden"
         style={{ 
           borderRadius: '16px',
-          boxShadow: '0 0 0 3px rgba(232, 138, 45, 0.3), 0 25px 50px -12px rgba(0, 0, 0, 0.25)'
+          boxShadow: `0 0 0 3px ${accentRing}, 0 25px 50px -12px rgba(0, 0, 0, 0.25)`
         }}
       >
 
@@ -207,19 +215,21 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
             />
           </div>
 
-          {/* Title */}
-          <h2 className="text-2xl md:text-3xl font-black text-center mb-1 tracking-tight animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.2s' }}>
-            {getTitle()}
-          </h2>
-          
-          {/* Subtitle */}
-          <p className="text-center text-gray-500 mb-8 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.3s' }}>
-            {getSubtitle()}
-          </p>
+          <div className="min-h-[88px] mb-3">
+            {/* Title */}
+            <h2 className="text-xl md:text-2xl font-black text-center mb-1 tracking-tight leading-tight whitespace-nowrap animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.2s' }}>
+              {getTitle()}
+            </h2>
+            
+            {/* Subtitle */}
+            <p className="text-center text-gray-500 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.3s' }}>
+              {getSubtitle()}
+            </p>
+          </div>
 
           {/* Forgot Password Form */}
           {mode === 'forgotPassword' && (
-            <form onSubmit={handleForgotPassword} className="space-y-5 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.35s' }}>
+            <form onSubmit={handleForgotPassword} className="space-y-4 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.35s' }}>
               <div className="space-y-2">
               <Label htmlFor="auth-email" className="text-foreground font-semibold">
                   Email
@@ -231,14 +241,14 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="h-12 px-4 border-gray-300 rounded-lg focus:border-[#E88A2D] focus:ring-[#E88A2D]"
+                  className={`h-12 px-4 border-gray-300 rounded-lg ${inputFocusClass}`}
                 />
               </div>
 
               <Button 
                 type="submit" 
-                className="w-full h-12 text-lg font-bold rounded-lg shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)]"
-                style={{ backgroundColor: '#E88A2D' }}
+                className="w-full h-12 text-lg font-bold rounded-lg shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(59,130,246,0.55)]"
+                style={{ backgroundColor: accentColor }}
                 disabled={loading}
               >
                 {loading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
@@ -249,7 +259,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
 
           {/* Sign In / Sign Up Form */}
           {mode !== 'forgotPassword' && (
-            <form onSubmit={mode === 'signUp' ? handleSignUp : handleSignIn} className="space-y-5">
+            <form onSubmit={mode === 'signUp' ? handleSignUp : handleSignIn} className="space-y-3.5">
               <div className="space-y-2 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.35s' }}>
               <Label htmlFor="auth-email" className="text-foreground font-semibold">
                   Email
@@ -261,11 +271,11 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
                   required
-                  className="h-12 px-4 border-gray-300 rounded-lg focus:border-[#E88A2D] focus:ring-[#E88A2D]"
+                  className={`h-12 px-4 border-gray-300 rounded-lg ${inputFocusClass}`}
                 />
               </div>
               
-              <div className="space-y-2 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.4s' }}>
+              <div className="space-y-1.5 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.4s' }}>
               <Label htmlFor="auth-password" className="text-foreground font-semibold">
                   Password
                 </Label>
@@ -277,7 +287,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
                     value={password}
                     onChange={(e) => setPassword(e.target.value)}
                     required
-                    className="h-12 px-4 pr-12 border-gray-300 rounded-lg focus:border-[#E88A2D] focus:ring-[#E88A2D]"
+                    className={`h-12 px-4 pr-12 border-gray-300 rounded-lg ${inputFocusClass}`}
                   />
                   <button
                     type="button"
@@ -288,9 +298,9 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
                   </button>
                 </div>
                 
-                {/* Forgot Password Link */}
-                {mode === 'signIn' && (
-                  <div className="text-right">
+                {/* Reserve link space so layout does not jump between sign in / sign up */}
+                <div className="text-right min-h-5">
+                  {mode === 'signIn' ? (
                     <button
                       type="button"
                       onClick={() => {
@@ -298,16 +308,22 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
                         setPassword('');
                         setConfirmPassword('');
                       }}
-                      className="text-sm text-[#E88A2D] hover:underline font-medium"
+                      className="text-sm hover:underline font-medium"
+                      style={{ color: accentColor }}
                     >
                       Forgot Password?
                     </button>
-                  </div>
-                )}
+                  ) : (
+                    <span className="invisible text-sm">Forgot Password?</span>
+                  )}
+                </div>
               </div>
 
-              {mode === 'signUp' && (
-                <div className="space-y-2 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.45s' }}>
+              {mode === 'signUp' ? (
+                <div
+                  className="space-y-1.5 animate-[fade-in_0.4s_ease-out_forwards]"
+                  style={{ animationDelay: '0.45s' }}
+                >
                   <Label htmlFor="auth-confirm-password" className="text-foreground font-semibold">
                     Confirm Password
                   </Label>
@@ -318,17 +334,19 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
                     value={confirmPassword}
                     onChange={(e) => setConfirmPassword(e.target.value)}
                     required
-                    className="h-12 px-4 border-gray-300 rounded-lg focus:border-[#E88A2D] focus:ring-[#E88A2D]"
+                    className={`h-12 px-4 border-gray-300 rounded-lg ${inputFocusClass}`}
                   />
                 </div>
+              ) : (
+                <div aria-hidden="true" className="h-[78px]" />
               )}
 
               {/* Sign In / Sign Up Button */}
               <div className="animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.5s' }}>
                 <Button 
                   type="submit" 
-                  className="w-full h-12 text-lg font-bold rounded-lg shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)]"
-                  style={{ backgroundColor: '#E88A2D' }}
+                  className="w-full h-12 text-lg font-bold rounded-lg shadow-2xl transition-all duration-300 hover:scale-105 hover:shadow-[0_0_30px_rgba(59,130,246,0.55)]"
+                  style={{ backgroundColor: accentColor }}
                   disabled={loading}
                 >
                   {loading && <Loader2 className="mr-2 h-5 w-5 animate-spin" />}
@@ -393,7 +411,8 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
                   setMode(mode === 'signUp' ? 'signIn' : 'signUp');
                   resetForm();
                 }}
-                className="font-semibold text-[#E88A2D] hover:underline"
+                className="font-semibold hover:underline"
+                style={{ color: accentColor }}
               >
                 {mode === 'signUp' ? 'Sign In' : 'Sign Up'}
               </button>

@@ -22,7 +22,18 @@ export function NavBar({ scrollY, onSignIn }: NavBarProps) {
           <Link to="/" className="flex items-center gap-2">
             <img src={builderlynkIcon} alt="BuilderLYNK" className="h-14 w-auto" />
           </Link>
+          <div className="hidden md:flex items-center gap-6">
+            <Link to="/" className="text-white/80 hover:text-white transition-colors font-medium">
+              BuilderLYNK
+            </Link>
+            <Link to="/contact" className="text-white/80 hover:text-white transition-colors font-medium">
+              Contact
+            </Link>
+          </div>
           <div className="flex items-center gap-3">
+            <Link to="/contact" className="md:hidden text-white/80 hover:text-white transition-colors text-sm font-medium">
+              Contact
+            </Link>
             <Button
               onClick={onSignIn}
               variant="outline"

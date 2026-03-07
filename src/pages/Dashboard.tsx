@@ -42,6 +42,9 @@ interface Message {
   created_at: string;
   thread_id?: string;
   is_reply?: boolean;
+  message_source?: 'direct' | 'bill_communication' | 'receipt_message' | 'credit_card_transaction_communication';
+  source_record_id?: string;
+  target_path?: string;
   from_profile?: {
     display_name: string;
     avatar_url?: string | null;
@@ -302,12 +305,16 @@ export default function Dashboard() {
       const rawNotifications = (data || []) as Notification[];
       const approverRole = String(activeCompanyRole || profile?.role || '').toLowerCase();
       const canApproveIntake = ['admin', 'company_admin', 'owner', 'controller', 'super_admin'].includes(approverRole);
-      let baseNotifications = rawNotifications;
+      // Legacy intake notifications are noisy/stale; rely on live intake summary instead.
+      let baseNotifications = rawNotifications.filter((notification) => {
+        const rawType = String(notification.type || '').trim().toLowerCase();
+        return rawType !== 'intake_queue' && rawType !== 'intake_queue_summary';
+      });
 
       // Hide stale intake notifications for users who are no longer pending approval.
       if (currentCompany) {
         const intakeUserIds = Array.from(new Set(
-          rawNotifications
+          baseNotifications
             .map((notification) => {
               const type = String(notification.type || '');
               if (!type.startsWith('intake_queue:')) return null;
@@ -325,8 +332,20 @@ export default function Dashboard() {
             .eq('status', 'pending')
             .in('user_id', intakeUserIds);
 
-          const pendingUserIdSet = new Set((pendingRequests || []).map((row: any) => row.user_id));
-          baseNotifications = rawNotifications.filter((notification) => {
+          const requestPendingSet = new Set((pendingRequests || []).map((row: any) => row.user_id));
+          const requestPendingIds = Array.from(requestPendingSet);
+
+          let pendingUserIdSet = requestPendingSet;
+          if (requestPendingIds.length > 0) {
+            const { data: pendingProfiles } = await supabase
+              .from('profiles')
+              .select('user_id')
+              .eq('status', 'pending')
+              .in('user_id', requestPendingIds);
+            pendingUserIdSet = new Set((pendingProfiles || []).map((row: any) => row.user_id));
+          }
+
+          baseNotifications = baseNotifications.filter((notification) => {
             const type = String(notification.type || '');
             if (!type.startsWith('intake_queue:')) return true;
             const [, pendingUserId] = type.split(':');
@@ -355,13 +374,30 @@ export default function Dashboard() {
         return;
       }
 
-      const { count: pendingCount } = await supabase
+      const { data: pendingRows, error: pendingRowsError } = await supabase
         .from('company_access_requests')
-        .select('id', { count: 'exact', head: true })
+        .select('id, user_id')
         .eq('company_id', currentCompany.id)
         .eq('status', 'pending');
 
-      const hasPendingIntake = (pendingCount || 0) > 0;
+      if (pendingRowsError) throw pendingRowsError;
+
+      const pendingUserIds = Array.from(new Set((pendingRows || []).map((r: any) => r.user_id).filter(Boolean)));
+      let pendingCount = 0;
+
+      if (pendingUserIds.length > 0) {
+        const { data: pendingProfiles, error: pendingProfilesError } = await supabase
+          .from('profiles')
+          .select('user_id')
+          .eq('status', 'pending')
+          .in('user_id', pendingUserIds);
+
+        if (pendingProfilesError) throw pendingProfilesError;
+        const pendingProfileSet = new Set((pendingProfiles || []).map((p: any) => p.user_id));
+        pendingCount = (pendingRows || []).filter((row: any) => pendingProfileSet.has(row.user_id)).length;
+      }
+
+      const hasPendingIntake = pendingCount > 0;
       if (!hasPendingIntake) {
         setNotifications(baseNotifications);
         return;
@@ -401,16 +437,74 @@ export default function Dashboard() {
         .from('bill_communications')
         .select('*')
         .eq('company_id', currentCompany.id)
+        .neq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5);
 
       if (billCommsError) {
         console.error('Error fetching messages:', billCommsError);
       }
+
+      // Fetch receipt messages for dashboard
+      const { data: receiptComms, error: receiptCommsError } = await supabase
+        .from('receipt_messages')
+        .select('id, receipt_id, from_user_id, message, created_at, receipts!inner(company_id)')
+        .eq('receipts.company_id', currentCompany.id)
+        .neq('from_user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (receiptCommsError) {
+        console.error('Error fetching receipt messages:', receiptCommsError);
+      }
+
+      // Fetch credit card transaction communications for dashboard
+      const { data: creditCardComms, error: creditCardCommsError } = await supabase
+        .from('credit_card_transaction_communications')
+        .select(`
+          id,
+          transaction_id,
+          user_id,
+          message,
+          created_at,
+          credit_card_transactions!inner(credit_card_id)
+        `)
+        .eq('company_id', currentCompany.id)
+        .neq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(5);
+
+      if (creditCardCommsError) {
+        console.error('Error fetching credit card communications:', creditCardCommsError);
+      }
       
       // Fetch profiles separately for bill communications
       const billCommsWithProfiles = await Promise.all(
         (billComms || []).map(async (msg: any) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name, first_name, last_name, avatar_url')
+            .eq('user_id', msg.user_id)
+            .single();
+          return { ...msg, profiles: profile };
+        })
+      );
+
+      // Fetch profiles separately for receipt messages
+      const receiptCommsWithProfiles = await Promise.all(
+        (receiptComms || []).map(async (msg: any) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name, first_name, last_name, avatar_url')
+            .eq('user_id', msg.from_user_id)
+            .single();
+          return { ...msg, profiles: profile };
+        })
+      );
+
+      // Fetch profiles separately for credit card transaction communications
+      const creditCardCommsWithProfiles = await Promise.all(
+        (creditCardComms || []).map(async (msg: any) => {
           const { data: profile } = await supabase
             .from('profiles')
             .select('display_name, first_name, last_name, avatar_url')
@@ -431,6 +525,7 @@ export default function Dashboard() {
           
           return {
             ...message,
+            message_source: 'direct' as const,
             from_profile: profile
           };
         })
@@ -446,6 +541,9 @@ export default function Dashboard() {
         created_at: comm.created_at,
         read: false,
         is_reply: false,
+        message_source: 'bill_communication' as const,
+        source_record_id: comm.id,
+        target_path: `/invoices/${comm.bill_id}`,
         from_profile: {
           display_name: comm.profiles?.display_name || 
             `${comm.profiles?.first_name || ''} ${comm.profiles?.last_name || ''}`.trim() || 
@@ -453,9 +551,63 @@ export default function Dashboard() {
           avatar_url: comm.profiles?.avatar_url || null,
         }
       }));
+
+      // Format receipt messages
+      const formattedReceiptComms = (receiptCommsWithProfiles || []).map((comm: any) => ({
+        id: comm.id,
+        from_user_id: comm.from_user_id,
+        to_user_id: user.id,
+        subject: `Receipt Coding`,
+        content: comm.message,
+        created_at: comm.created_at,
+        read: false,
+        is_reply: false,
+        message_source: 'receipt_message' as const,
+        source_record_id: comm.id,
+        target_path: `/uncoded?receiptId=${encodeURIComponent(comm.receipt_id)}`,
+        from_profile: {
+          display_name: comm.profiles?.display_name ||
+            `${comm.profiles?.first_name || ''} ${comm.profiles?.last_name || ''}`.trim() ||
+            'Team Member',
+          avatar_url: comm.profiles?.avatar_url || null,
+        }
+      }));
+
+      // Format credit card transaction communications
+      const formattedCreditCardComms = (creditCardCommsWithProfiles || []).map((comm: any) => {
+        const creditCardId = Array.isArray(comm.credit_card_transactions)
+          ? comm.credit_card_transactions[0]?.credit_card_id
+          : comm.credit_card_transactions?.credit_card_id;
+        return {
+          id: comm.id,
+          from_user_id: comm.user_id,
+          to_user_id: user.id,
+          subject: `Credit Card Coding`,
+          content: comm.message,
+          created_at: comm.created_at,
+          read: false,
+          is_reply: false,
+          message_source: 'credit_card_transaction_communication' as const,
+          source_record_id: comm.id,
+          target_path: creditCardId
+            ? `/payables/credit-cards/${creditCardId}/transactions?transactionId=${encodeURIComponent(comm.transaction_id)}`
+            : '/payables/credit-cards',
+          from_profile: {
+            display_name: comm.profiles?.display_name ||
+              `${comm.profiles?.first_name || ''} ${comm.profiles?.last_name || ''}`.trim() ||
+              'Team Member',
+            avatar_url: comm.profiles?.avatar_url || null,
+          }
+        };
+      });
       
       // Combine and sort by date
-      const allMessages = [...messagesWithProfiles, ...formattedBillComms]
+      const allMessages = [
+        ...messagesWithProfiles,
+        ...formattedBillComms,
+        ...formattedReceiptComms,
+        ...formattedCreditCardComms,
+      ]
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 5);
 
@@ -468,6 +620,12 @@ export default function Dashboard() {
   const openMessageThread = (message: Message) => {
     setSelectedMessage(message);
     setShowThreadView(true);
+  };
+
+  const markLocalMessageRead = (messageId: string) => {
+    setMessages((prev) =>
+      prev.map((m) => (m.id === messageId ? { ...m, read: true } : m)),
+    );
   };
 
   const closeMessageThread = () => {
@@ -568,17 +726,45 @@ export default function Dashboard() {
   };
 
   const getNotificationPath = (notification: Notification): string | null => {
+    const rawType = String(notification.type || '').trim();
+    const loweredType = rawType.toLowerCase();
+    const title = String(notification.title || '');
+    const message = String(notification.message || '');
+    const combined = `${title} ${message}`.toLowerCase();
+
     if (notification.id === 'intake-queue-summary') return '/settings/users?tab=intake-queue';
-    if (String(notification.type || '') === 'intake_queue') {
+    if (loweredType === 'intake_queue') {
       return '/settings/users?tab=intake-queue';
     }
-    if (String(notification.type || '').startsWith('intake_queue:')) {
-      const [, pendingUserId] = String(notification.type || '').split(':');
+    if (rawType.startsWith('intake_queue:')) {
+      const [, pendingUserId] = rawType.split(':');
       if (pendingUserId) return `/settings/users/${pendingUserId}`;
       return '/settings/users?tab=intake-queue';
     }
-    if (String(notification.type || '').startsWith('mention:')) {
-      return notification.type.replace('mention:', '') || null;
+    if (rawType.startsWith('mention:')) {
+      return rawType.replace('mention:', '') || null;
+    }
+
+    // Backward compatibility: allow notifications.type to be a direct app path.
+    if (rawType.startsWith('/')) {
+      return rawType;
+    }
+
+    // Known communication-related notification fallbacks.
+    if (loweredType.includes('message') || loweredType.includes('chat')) {
+      return '/team-chat';
+    }
+    if (combined.includes('team chat') || combined.includes('mentioned you')) {
+      return '/team-chat';
+    }
+    if (combined.includes('direct message') || combined.includes('new message')) {
+      return '/messages';
+    }
+    if (loweredType.includes('bill') || combined.includes('bill discussion') || combined.includes('invoice')) {
+      return '/invoices';
+    }
+    if (loweredType.includes('task') || combined.includes('task')) {
+      return '/tasks';
     }
     return null;
   };
@@ -594,6 +780,12 @@ export default function Dashboard() {
   };
 
   const markMessageAsRead = async (messageId: string) => {
+    const message = messages.find((m) => m.id === messageId);
+    if (message?.message_source && message.message_source !== 'direct') {
+      markLocalMessageRead(messageId);
+      return;
+    }
+
     try {
       const { error } = await supabase
         .from('messages')
@@ -612,6 +804,10 @@ export default function Dashboard() {
 
   const markConversationAsRead = async (message: Message) => {
     if (!user) return;
+    if (message.message_source && message.message_source !== 'direct') {
+      markLocalMessageRead(message.id);
+      return;
+    }
 
     const senderId = message.from_user_id;
 
@@ -638,6 +834,20 @@ export default function Dashboard() {
   };
 
   const unreadMessages = messages.filter((m) => !m.read);
+
+  const getMessageBadgeLabel = (message: Message): string => {
+    switch (message.message_source) {
+      case 'bill_communication':
+        return 'Bill Discussion';
+      case 'receipt_message':
+        return 'Receipt Coding';
+      case 'credit_card_transaction_communication':
+        return 'CC Coding';
+      case 'direct':
+      default:
+        return 'Direct Message';
+    }
+  };
 
   // Filter stats based on permissions
   const allStats = [
@@ -851,7 +1061,14 @@ export default function Dashboard() {
                         }`}
                         onClick={async () => {
                           await markConversationAsRead(message);
-                          openMessageThread(message);
+                          if (message.message_source === 'direct' || !message.message_source) {
+                            openMessageThread(message);
+                            return;
+                          }
+
+                          if (message.target_path) {
+                            navigate(message.target_path);
+                          }
                         }}
                       >
                         <div className="flex items-start gap-3">
@@ -868,6 +1085,9 @@ export default function Dashboard() {
                                   <span className="font-medium text-sm truncate">
                                     {message.from_profile?.display_name || 'Unknown'}
                                   </span>
+                                  <Badge variant="outline" className="text-[10px] h-5 px-1.5 shrink-0">
+                                    {getMessageBadgeLabel(message)}
+                                  </Badge>
                                   {!message.read && (
                                     <span className="h-2 w-2 rounded-full bg-primary shrink-0" />
                                   )}

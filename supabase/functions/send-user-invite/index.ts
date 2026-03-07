@@ -38,6 +38,21 @@ interface InviteRequest {
    invitedBy: string;
    resendInvitationId?: string; // If provided, this is a resend
  }
+
+const normalizeAppBaseUrl = (url?: string | null): string => {
+  const fallback = "https://builderlynk.com";
+  const raw = String(url || "").trim();
+  if (!raw) return fallback;
+  try {
+    const parsed = new URL(raw);
+    if (parsed.hostname.toLowerCase().endsWith(".lovable.app")) {
+      return fallback;
+    }
+    return parsed.origin;
+  } catch {
+    return fallback;
+  }
+};
  
 // Convert HSL string "H S% L%" to hex color
 function hslToHex(hsl: string): string {
@@ -147,7 +162,7 @@ function hslToHex(hsl: string): string {
      const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 7 days
  
      // Build the invitation URL
-     const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.lovable.app";
+     const baseUrl = normalizeAppBaseUrl(Deno.env.get("PUBLIC_SITE_URL"));
      const inviteUrl = `${baseUrl}/auth?invite=${inviteToken}`;
     // Use company's primary color or fallback to BuilderLynk orange
     const brandPrimary = primaryColor ? hslToHex(primaryColor) : "#E88A2D";

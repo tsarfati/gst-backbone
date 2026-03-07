@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useMemo, useCallback } from "react";
+import { useState, useEffect, useRef, useMemo, useCallback, type PointerEvent as ReactPointerEvent } from "react";
 import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -12,11 +12,12 @@ import { Sidebar, SidebarContent, SidebarProvider, SidebarTrigger, useSidebar } 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler, ZoomIn, ZoomOut, Maximize2, Move } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler, ZoomIn, ZoomOut, Maximize2, Move, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import SinglePagePdfViewer from "@/components/SinglePagePdfViewer";
 import { format } from "date-fns";
+import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
 
 // Bundle worker locally (avoids relying on external CDNs that may be blocked)
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -97,6 +98,29 @@ type DetectedLinkCandidate = {
 type UnresolvedLinkCandidate = {
   source_page_number: number;
   ref_text: string;
+};
+
+type AskPlanAiCitation = {
+  source: string;
+  reason: string;
+  target_page_number?: number | null;
+  target_sheet_number?: string | null;
+};
+
+type AskPlanAiResult = {
+  answer: string;
+  confidence: "high" | "medium" | "low";
+  citations: AskPlanAiCitation[];
+  needsClarification?: boolean;
+  clarifyingQuestion?: string | null;
+  traceId?: string | null;
+};
+
+type NormalizedRect = {
+  x: number;
+  y: number;
+  w: number;
+  h: number;
 };
 
 const SHEET_REF_PATTERN = /\b(?:\d+\s*\/\s*)?([A-Z]{1,4}\s*[-.]?\s*\d{1,3}(?:\.\d{1,3})?)\b/g;
@@ -283,11 +307,26 @@ const toDateInputValue = (value: string | null | undefined) => {
   return /^\d{4}-\d{2}-\d{2}$/.test(value) ? value : value.slice(0, 10);
 };
 
+const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+
+const rectsOverlap = (a: NormalizedRect, b: NormalizedRect) =>
+  a.x < b.x + b.w &&
+  a.x + a.w > b.x &&
+  a.y < b.y + b.h &&
+  a.y + a.h > b.y;
+
+const isCountQuestion = (question: string) =>
+  /\b(how many|count|number of|qty|quantity)\b/i.test(question);
+
+const isSelectionVisionQuestion = (question: string) =>
+  /\b(what is this|what does this|note|callout|symbol|tag|detail|wall|assembly|spec|specification|reference)\b/i.test(question);
+
 export default function PlanViewer() {
   const { planId } = useParams();
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
+  const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess(["ai_plan_qa_v1"]);
 
   const [plan, setPlan] = useState<any>(null);
   const [jobName, setJobName] = useState<string>("");
@@ -323,6 +362,17 @@ export default function PlanViewer() {
   const [pdfPageRect, setPdfPageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [linkMinConfidence, setLinkMinConfidence] = useState<string>("all");
   const [unresolvedAutoRefs, setUnresolvedAutoRefs] = useState<UnresolvedLinkCandidate[]>([]);
+  const [aiQuestion, setAiQuestion] = useState("");
+  const [aiLoading, setAiLoading] = useState(false);
+  const [aiResult, setAiResult] = useState<AskPlanAiResult | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [aiFeedbackRating, setAiFeedbackRating] = useState<"up" | "down" | null>(null);
+  const [aiFeedbackReason, setAiFeedbackReason] = useState("");
+  const [aiFeedbackSaving, setAiFeedbackSaving] = useState(false);
+  const [activeSidebarTab, setActiveSidebarTab] = useState("plan-info");
+  const [aiSelectionMode, setAiSelectionMode] = useState(false);
+  const [aiSelectionNorm, setAiSelectionNorm] = useState<NormalizedRect | null>(null);
+  const [aiSelectionDraftNorm, setAiSelectionDraftNorm] = useState<NormalizedRect | null>(null);
   const [planInfoForm, setPlanInfoForm] = useState({
     plan_name: "",
     plan_number: "",
@@ -337,6 +387,8 @@ export default function PlanViewer() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
+  const aiSelectionStartRef = useRef<{ x: number; y: number } | null>(null);
+  const planAiEnabled = !featureLoading && hasFeature("ai_plan_qa_v1");
   
 
   useEffect(() => {
@@ -357,6 +409,21 @@ export default function PlanViewer() {
     if (!planId) return;
     fetchMarkups();
   }, [planId, currentPage]);
+
+  useEffect(() => {
+    setAiSelectionNorm(null);
+    setAiSelectionDraftNorm(null);
+    aiSelectionStartRef.current = null;
+    setAiSelectionMode(false);
+  }, [currentPage]);
+
+  useEffect(() => {
+    if (activeSidebarTab !== "ai") {
+      aiSelectionStartRef.current = null;
+      setAiSelectionMode(false);
+      setAiSelectionDraftNorm(null);
+    }
+  }, [activeSidebarTab]);
 
   // pdfPageRect is now provided directly by SinglePagePdfViewer so hotspots track
   // the actual internal scroll/zoom container correctly.
@@ -789,6 +856,39 @@ export default function PlanViewer() {
     () => filteredPageLinks.filter((l) => l.source_page_number === currentPage),
     [filteredPageLinks, currentPage]
   );
+
+  const aiSelectedAreaLinks = useMemo(() => {
+    if (!aiSelectionNorm) return [] as PlanPageLink[];
+    return currentPageLinks.filter((l) =>
+      rectsOverlap(aiSelectionNorm, {
+        x: l.x_norm,
+        y: l.y_norm,
+        w: l.w_norm,
+        h: l.h_norm,
+      })
+    );
+  }, [aiSelectionNorm, currentPageLinks]);
+
+  const aiSuggestedPrompts = useMemo(() => {
+    if (aiSelectionNorm) {
+      const topRef = aiSelectedAreaLinks[0]?.ref_text || selectedPageLink?.ref_text || null;
+      const hasAreaLinks = aiSelectedAreaLinks.length > 0;
+      return [
+        hasAreaLinks && topRef ? `What does reference ${topRef} mean?` : "What does this note/symbol mean?",
+        "What is this wall made of?",
+        "What is the fire rating for this wall assembly?",
+        "Where is the matching detail for this selected area?",
+        "What specs apply to this selected area?",
+        "Summarize what this selected area is telling me.",
+      ];
+    }
+    return [
+      "Where is the wall detail for this sheet?",
+      "Where are the foundation specs referenced?",
+      "What keynotes on this sheet are most important?",
+      "Which linked sheets should I review first?",
+    ];
+  }, [aiSelectionNorm]);
 
   const selectedPageLink = useMemo(
     () => filteredPageLinks.find((l) => l.id === selectedPageLinkId) || null,
@@ -1444,6 +1544,306 @@ export default function PlanViewer() {
 
   const currentPageData = pages.find(p => p.page_number === currentPage);
   const currentPageComments = comments.filter(c => c.page_number === currentPage);
+  const getNormalizedPointOnPage = (clientX: number, clientY: number, hostEl: HTMLElement) => {
+    if (!pdfPageRect) return null;
+    const hostRect = hostEl.getBoundingClientRect();
+    const pageLeft = hostRect.left + pdfPageRect.left;
+    const pageTop = hostRect.top + pdfPageRect.top;
+    const pageRight = pageLeft + pdfPageRect.width;
+    const pageBottom = pageTop + pdfPageRect.height;
+    if (clientX < pageLeft || clientX > pageRight || clientY < pageTop || clientY > pageBottom) return null;
+
+    const nx = clamp01((clientX - pageLeft) / Math.max(1, pdfPageRect.width));
+    const ny = clamp01((clientY - pageTop) / Math.max(1, pdfPageRect.height));
+    return { x: nx, y: ny };
+  };
+
+  const handleAiSelectionPointerDown = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!aiSelectionMode || activeSidebarTab !== "ai") return;
+    const point = getNormalizedPointOnPage(e.clientX, e.clientY, e.currentTarget);
+    if (!point) return;
+    e.preventDefault();
+    e.stopPropagation();
+    aiSelectionStartRef.current = point;
+    setAiSelectionDraftNorm({ x: point.x, y: point.y, w: 0, h: 0 });
+  };
+
+  const handleAiSelectionPointerMove = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!aiSelectionMode || activeSidebarTab !== "ai") return;
+    const start = aiSelectionStartRef.current;
+    if (!start) return;
+    const point = getNormalizedPointOnPage(e.clientX, e.clientY, e.currentTarget);
+    if (!point) return;
+    e.preventDefault();
+    e.stopPropagation();
+    const x1 = Math.min(start.x, point.x);
+    const y1 = Math.min(start.y, point.y);
+    const x2 = Math.max(start.x, point.x);
+    const y2 = Math.max(start.y, point.y);
+    setAiSelectionDraftNorm({ x: x1, y: y1, w: x2 - x1, h: y2 - y1 });
+  };
+
+  const handleAiSelectionPointerUp = (e: ReactPointerEvent<HTMLDivElement>) => {
+    if (!aiSelectionMode || activeSidebarTab !== "ai") return;
+    const start = aiSelectionStartRef.current;
+    if (!start) return;
+    const point = getNormalizedPointOnPage(e.clientX, e.clientY, e.currentTarget);
+    aiSelectionStartRef.current = null;
+    e.preventDefault();
+    e.stopPropagation();
+    if (!point) {
+      setAiSelectionDraftNorm(null);
+      return;
+    }
+    const x1 = Math.min(start.x, point.x);
+    const y1 = Math.min(start.y, point.y);
+    const x2 = Math.max(start.x, point.x);
+    const y2 = Math.max(start.y, point.y);
+    const w = x2 - x1;
+    const h = y2 - y1;
+    const minSize = 0.005;
+    if (w < minSize || h < minSize) {
+      setAiSelectionDraftNorm(null);
+      setAiSelectionNorm(null);
+      return;
+    }
+    const next = { x: x1, y: y1, w, h };
+    setAiSelectionDraftNorm(next);
+    setAiSelectionNorm(next);
+    setAiSelectionMode(false);
+    toast.success("Area selected for A-RFI");
+  };
+
+  const resolveCitationTargetPage = (citation: AskPlanAiCitation): number | null => {
+    if (citation.target_page_number && pageMapByNumber.has(citation.target_page_number)) {
+      return citation.target_page_number;
+    }
+
+    if (citation.target_sheet_number) {
+      const key = normalizeSheetRef(citation.target_sheet_number);
+      const bySheet = pages.find((p) => normalizeSheetRef(p.sheet_number) === key);
+      if (bySheet) return bySheet.page_number;
+    }
+
+    const source = String(citation.source || "").trim();
+    if (!source) return null;
+
+    const pageMatch = source.match(/\bP(?:AGE)?\s*(\d{1,4})\b/i);
+    if (pageMatch?.[1]) {
+      const pageNumber = Number(pageMatch[1]);
+      if (pageMapByNumber.has(pageNumber)) return pageNumber;
+    }
+
+    const sheetRefMatch = source.match(/\b([A-Z]{1,4}\s*[-.]?\s*\d{1,3}(?:\.\d{1,3})?)\b/i);
+    if (sheetRefMatch?.[1]) {
+      const key = normalizeSheetRef(sheetRefMatch[1]);
+      const bySheet = pages.find((p) => normalizeSheetRef(p.sheet_number) === key);
+      if (bySheet) return bySheet.page_number;
+    }
+
+    const normalizedSource = source.toLowerCase();
+    const byTitle = pages.find((p) => (p.page_title || "").toLowerCase() === normalizedSource);
+    if (byTitle) return byTitle.page_number;
+
+    return null;
+  };
+
+  const handleSubmitAiFeedback = async (rating: "up" | "down") => {
+    if (!aiResult || !plan?.id || !user?.id || aiFeedbackSaving) return;
+    setAiFeedbackSaving(true);
+    try {
+      const { error } = await supabase
+        .from("plan_ai_feedback" as any)
+        .insert({
+          plan_id: plan.id,
+          user_id: user.id,
+          page_number: currentPage,
+          question: aiQuestion.trim() || null,
+          answer: aiResult.answer,
+          confidence: aiResult.confidence,
+          citations: aiResult.citations as any,
+          trace_id: aiResult.traceId || null,
+          rating,
+          reason: aiFeedbackReason.trim() || null,
+        });
+      if (error) throw error;
+      setAiFeedbackRating(rating);
+      toast.success("Feedback saved");
+    } catch (error: any) {
+      console.error("Failed to save AI feedback:", error);
+      toast.error(error?.message || "Failed to save feedback");
+    } finally {
+      setAiFeedbackSaving(false);
+    }
+  };
+
+  const handleAskPlanAi = async () => {
+    if (!planAiEnabled) return;
+    if (!aiQuestion.trim()) {
+      toast.error("Please enter a question");
+      return;
+    }
+
+    setAiLoading(true);
+    setAiError(null);
+
+    try {
+      let visionPayload: {
+        page_image_base64: string;
+        selected_area_image_base64: string;
+      } | null = null;
+
+      const shouldGenerateVisionPayload =
+        !!aiSelectionNorm &&
+        !!plan?.file_url &&
+        (isCountQuestion(aiQuestion) || isSelectionVisionQuestion(aiQuestion) || aiSelectedAreaLinks.length === 0);
+
+      if (shouldGenerateVisionPayload) {
+        try {
+          const pdfjs: any = await import("pdfjs-dist");
+          pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+          const resp = await fetch(plan.file_url);
+          if (resp.ok) {
+            const buf = await resp.arrayBuffer();
+            const loadingTask = pdfjs.getDocument({ data: buf });
+            const pdf = await loadingTask.promise;
+            const page = await pdf.getPage(currentPage);
+            const viewport = page.getViewport({ scale: 1.5 });
+
+            const pageCanvas = document.createElement("canvas");
+            const pageCtx = pageCanvas.getContext("2d");
+            pageCanvas.width = viewport.width;
+            pageCanvas.height = viewport.height;
+            if (pageCtx) {
+              await page.render({
+                canvasContext: pageCtx,
+                viewport,
+                canvas: pageCanvas,
+              }).promise;
+
+              const px = Math.max(0, Math.floor(aiSelectionNorm.x * pageCanvas.width));
+              const py = Math.max(0, Math.floor(aiSelectionNorm.y * pageCanvas.height));
+              const pw = Math.max(12, Math.floor(aiSelectionNorm.w * pageCanvas.width));
+              const ph = Math.max(12, Math.floor(aiSelectionNorm.h * pageCanvas.height));
+              const sw = Math.min(pageCanvas.width - px, pw);
+              const sh = Math.min(pageCanvas.height - py, ph);
+
+              const cropCanvas = document.createElement("canvas");
+              const cropCtx = cropCanvas.getContext("2d");
+              cropCanvas.width = Math.max(1, sw);
+              cropCanvas.height = Math.max(1, sh);
+              if (cropCtx) {
+                cropCtx.drawImage(
+                  pageCanvas,
+                  px,
+                  py,
+                  Math.max(1, sw),
+                  Math.max(1, sh),
+                  0,
+                  0,
+                  Math.max(1, sw),
+                  Math.max(1, sh)
+                );
+
+                visionPayload = {
+                  page_image_base64: pageCanvas.toDataURL("image/jpeg", 0.82).split(",")[1],
+                  selected_area_image_base64: cropCanvas.toDataURL("image/jpeg", 0.9).split(",")[1],
+                };
+              }
+            }
+
+            try { await pdf.cleanup?.(); } catch {}
+            try { await pdf.destroy?.(); } catch {}
+          }
+        } catch (visionPrepError) {
+          console.warn("A-RFI vision payload generation failed:", visionPrepError);
+        }
+      }
+
+      const selectedLink = selectedPageLink || null;
+      const contextLinks = currentPageLinks.slice(0, 30).map((link) => ({
+        ref_text: link.ref_text,
+        target_page_number: link.target_page_number,
+        target_sheet_number: link.target_sheet_number,
+        target_title: link.target_title,
+        confidence: link.confidence,
+        x_norm: link.x_norm,
+        y_norm: link.y_norm,
+        w_norm: link.w_norm,
+        h_norm: link.h_norm,
+      }));
+      const selectedAreaLinks = aiSelectedAreaLinks.slice(0, 20).map((link) => ({
+        ref_text: link.ref_text,
+        target_page_number: link.target_page_number,
+        target_sheet_number: link.target_sheet_number,
+        target_title: link.target_title,
+        confidence: link.confidence,
+        x_norm: link.x_norm,
+        y_norm: link.y_norm,
+        w_norm: link.w_norm,
+        h_norm: link.h_norm,
+      }));
+      const contextPages = pages.slice(0, 200).map((p) => ({
+        page_number: p.page_number,
+        sheet_number: p.sheet_number,
+        page_title: p.page_title,
+        discipline: p.discipline,
+      }));
+
+      const { data, error } = await supabase.functions.invoke("ask-plan-ai", {
+        body: {
+          question: aiQuestion.trim(),
+          plan: {
+            id: plan?.id,
+            plan_name: plan?.plan_name,
+            plan_number: plan?.plan_number,
+            revision: plan?.revision || null,
+          },
+          selection: {
+            current_page_number: currentPage,
+            current_sheet_number: currentPageData?.sheet_number || null,
+            current_page_title: currentPageData?.page_title || null,
+            selected_link: selectedLink
+              ? {
+                  ref_text: selectedLink.ref_text,
+                  source_page_number: selectedLink.source_page_number,
+                  target_page_number: selectedLink.target_page_number,
+                  target_sheet_number: selectedLink.target_sheet_number,
+                  target_title: selectedLink.target_title,
+                  confidence: selectedLink.confidence,
+                }
+              : null,
+            selected_area_norm: aiSelectionNorm,
+          },
+          context: {
+            links_on_current_page: contextLinks,
+            links_in_selected_area: selectedAreaLinks,
+            indexed_pages: contextPages,
+            unresolved_references: unresolvedAutoRefs.slice(0, 40),
+          },
+          vision: visionPayload,
+        },
+      });
+
+      if (error) throw error;
+      if (!data?.result?.answer) {
+        throw new Error("AI did not return an answer");
+      }
+
+      setAiResult(data.result as AskPlanAiResult);
+      setAiFeedbackRating(null);
+      setAiFeedbackReason("");
+    } catch (error: any) {
+      console.error("Error asking plan AI:", error);
+      const msg = error?.message || "Failed to ask AI";
+      setAiError(msg);
+      toast.error(msg);
+    } finally {
+      setAiLoading(false);
+    }
+  };
+
   const getMarkupLabel = (markup: PlanMarkup) => {
     const author = markup.profiles?.full_name || "Unknown User";
     const pageMeta = pages.find((p) => p.page_number === markup.page_number);
@@ -1733,19 +2133,56 @@ export default function PlanViewer() {
                 })}
               </div>
             )}
+
+            {planAiEnabled && activeSidebarTab === "ai" && pdfPageRect && (
+              <div
+                className={`absolute inset-0 z-30 ${aiSelectionMode ? "pointer-events-auto cursor-crosshair" : "pointer-events-none"}`}
+                onPointerDown={handleAiSelectionPointerDown}
+                onPointerMove={handleAiSelectionPointerMove}
+                onPointerUp={handleAiSelectionPointerUp}
+                onPointerCancel={() => {
+                  aiSelectionStartRef.current = null;
+                  setAiSelectionDraftNorm(null);
+                }}
+              >
+                {(aiSelectionDraftNorm || aiSelectionNorm) && (() => {
+                  const r = aiSelectionDraftNorm || aiSelectionNorm!;
+                  const left = pdfPageRect.left + r.x * pdfPageRect.width;
+                  const top = pdfPageRect.top + r.y * pdfPageRect.height;
+                  const width = r.w * pdfPageRect.width;
+                  const height = r.h * pdfPageRect.height;
+                  return (
+                    <div
+                      className="absolute rounded-sm border-2 border-amber-400 bg-amber-300/15"
+                      style={{ left, top, width, height }}
+                    />
+                  );
+                })()}
+              </div>
+            )}
           </div>
 
           {/* Right Sidebar */}
           {sidebarOpen && (
           <div className="w-96 border-l bg-background flex flex-col min-h-0">
-            <Tabs defaultValue="plan-info" className="flex-1 min-h-0 grid grid-rows-[auto_minmax(0,1fr)] p-2 overflow-hidden gap-2">
-              <TabsList className="grid w-full grid-cols-3">
+            <Tabs
+              value={activeSidebarTab}
+              onValueChange={setActiveSidebarTab}
+              className="flex-1 min-h-0 grid grid-rows-[auto_minmax(0,1fr)] p-2 overflow-hidden gap-2"
+            >
+              <TabsList className={`grid w-full ${planAiEnabled ? "grid-cols-4" : "grid-cols-3"}`}>
                 <TabsTrigger value="plan-info">Plan Info</TabsTrigger>
                 <TabsTrigger value="markup">Markup</TabsTrigger>
                 <TabsTrigger value="comments">
                   <MessageSquare className="h-4 w-4 mr-1" />
                   Comments
                 </TabsTrigger>
+                {planAiEnabled && (
+                  <TabsTrigger value="ai">
+                    <Sparkles className="h-4 w-4 mr-1" />
+                    A-RFI
+                  </TabsTrigger>
+                )}
               </TabsList>
               <div className="relative min-h-0 overflow-hidden">
 
@@ -2239,6 +2676,217 @@ export default function PlanViewer() {
                 </ScrollArea>
               </div>
             </TabsContent>
+
+            {/* AI Tab */}
+            {planAiEnabled && (
+              <TabsContent value="ai" className="absolute inset-0 mt-0 overflow-hidden hidden data-[state=active]:flex data-[state=active]:flex-col">
+                <div className="flex-1 min-h-0 overflow-hidden">
+                  <ScrollArea className="h-full">
+                    <div className="pl-4 pr-6 py-4 space-y-4">
+                      <div className="rounded-lg border p-3 space-y-2">
+                        <h3 className="text-sm font-semibold">Ask A-RFI About This Plan</h3>
+                        <p className="text-xs text-muted-foreground">
+                          A-RFI answers are grounded to this plan set and include citations.
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          Current sheet: <span className="font-medium text-foreground">{currentPageData?.sheet_number || `Page ${currentPage}`}</span>
+                        </p>
+                        {selectedPageLink && (
+                          <p className="text-xs text-muted-foreground">
+                            Selected reference: <span className="font-medium text-foreground">{selectedPageLink.ref_text}</span> to{" "}
+                            <span className="font-medium text-foreground">
+                              {selectedPageLink.target_sheet_number || `Page ${selectedPageLink.target_page_number}`}
+                            </span>
+                          </p>
+                        )}
+                        {aiSelectionNorm && (
+                          <p className="text-xs text-muted-foreground">
+                            Selected area: {(aiSelectionNorm.w * 100).toFixed(1)}% x {(aiSelectionNorm.h * 100).toFixed(1)}% of sheet
+                            {aiSelectedAreaLinks.length > 0 ? ` • ${aiSelectedAreaLinks.length} linked refs in area` : " • no linked refs detected"}
+                          </p>
+                        )}
+                        <div className="flex items-center gap-2 pt-1">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant={aiSelectionMode ? "default" : "outline"}
+                            onClick={() => {
+                              setAiSelectionMode((prev) => !prev);
+                              setAiSelectionDraftNorm(null);
+                              aiSelectionStartRef.current = null;
+                            }}
+                          >
+                            {aiSelectionMode ? "Cancel Area Select" : "Select Area"}
+                          </Button>
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              setAiSelectionNorm(null);
+                              setAiSelectionDraftNorm(null);
+                              aiSelectionStartRef.current = null;
+                              setAiSelectionMode(false);
+                            }}
+                            disabled={!aiSelectionNorm && !aiSelectionDraftNorm}
+                          >
+                            Clear Area
+                          </Button>
+                        </div>
+                        {aiSelectionMode && (
+                          <p className="text-[11px] text-muted-foreground">
+                            Drag on the sheet to select the wall/area for A-RFI context.
+                          </p>
+                        )}
+                      </div>
+
+                      {aiResult && (
+                        <div className="rounded-lg border p-3 space-y-3">
+                          <div className="flex items-center justify-between gap-2">
+                            <h4 className="text-sm font-semibold">Answer</h4>
+                            <span className="text-xs rounded-full border px-2 py-0.5 capitalize">{aiResult.confidence}</span>
+                          </div>
+                          <p className="text-sm whitespace-pre-wrap">{aiResult.answer}</p>
+
+                          {aiResult.citations?.length > 0 && (
+                            <div className="space-y-2">
+                              <p className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Citations</p>
+                              <div className="space-y-2">
+                                {aiResult.citations.map((citation, idx) => (
+                                  <div key={`${citation.source}-${idx}`} className="rounded border p-2">
+                                    <div className="flex items-center justify-between gap-2">
+                                      <p className="text-xs font-medium">{citation.source}</p>
+                                      {(() => {
+                                        const targetPage = resolveCitationTargetPage(citation);
+                                        if (!targetPage) return null;
+                                        return (
+                                          <Button
+                                            size="sm"
+                                            variant="outline"
+                                            className="h-6 px-2 text-[11px]"
+                                            onClick={() => navigateToPage(targetPage)}
+                                          >
+                                            Open Sheet
+                                          </Button>
+                                        );
+                                      })()}
+                                    </div>
+                                    <p className="text-xs text-muted-foreground">{citation.reason}</p>
+                                  </div>
+                                ))}
+                              </div>
+                            </div>
+                          )}
+
+                          {aiResult.needsClarification && aiResult.clarifyingQuestion && (
+                            <div className="rounded-md border border-amber-300/60 bg-amber-50/50 p-2 text-xs">
+                              {aiResult.clarifyingQuestion}
+                            </div>
+                          )}
+
+                          <div className="pt-1 border-t space-y-2">
+                            <p className="text-xs text-muted-foreground">Was this answer helpful?</p>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={aiFeedbackRating === "up" ? "default" : "outline"}
+                                onClick={() => handleSubmitAiFeedback("up")}
+                                disabled={aiFeedbackSaving}
+                              >
+                                <ThumbsUp className="h-3.5 w-3.5 mr-1" />
+                                Helpful
+                              </Button>
+                              <Button
+                                type="button"
+                                size="sm"
+                                variant={aiFeedbackRating === "down" ? "default" : "outline"}
+                                onClick={() => handleSubmitAiFeedback("down")}
+                                disabled={aiFeedbackSaving}
+                              >
+                                <ThumbsDown className="h-3.5 w-3.5 mr-1" />
+                                Not Helpful
+                              </Button>
+                            </div>
+
+                            <Textarea
+                              value={aiFeedbackReason}
+                              onChange={(e) => setAiFeedbackReason(e.target.value)}
+                              placeholder="Optional: what was wrong or missing?"
+                              rows={2}
+                              disabled={aiFeedbackSaving}
+                            />
+
+                            {aiResult.traceId && (
+                              <p className="text-[11px] text-muted-foreground">Trace ID: {aiResult.traceId}</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {aiError && (
+                        <div className="rounded-md border border-destructive/40 bg-destructive/5 p-2 text-xs text-destructive">
+                          {aiError}
+                        </div>
+                      )}
+                    </div>
+                  </ScrollArea>
+                </div>
+
+                <div className="p-4 border-t space-y-2">
+                  <div className="space-y-2">
+                    <p className="text-xs text-muted-foreground">
+                      Suggested prompts {aiSelectionNorm ? "for selected area" : "for this sheet"}
+                    </p>
+                    <div className="flex flex-wrap gap-2">
+                      {aiSuggestedPrompts.map((prompt) => (
+                        <Button
+                          key={prompt}
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          className="h-7 px-2 text-[11px]"
+                          onClick={() => setAiQuestion(prompt)}
+                          disabled={aiLoading}
+                        >
+                          {prompt}
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
+                  <Textarea
+                    value={aiQuestion}
+                    onChange={(e) => setAiQuestion(e.target.value)}
+                    placeholder="Ask about this sheet. Example: Where are the foundation specs for this wall?"
+                    rows={4}
+                    disabled={aiLoading}
+                  />
+                  <div className="flex items-center gap-2">
+                    <Button onClick={handleAskPlanAi} className="flex-1" disabled={aiLoading || !aiQuestion.trim()}>
+                      {aiLoading ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Asking A-RFI...
+                        </>
+                      ) : (
+                        "Ask A-RFI"
+                      )}
+                    </Button>
+                    <Button
+                      variant="outline"
+                      onClick={() => {
+                        setAiQuestion("");
+                        setAiResult(null);
+                        setAiError(null);
+                      }}
+                      disabled={aiLoading}
+                    >
+                      Clear
+                    </Button>
+                  </div>
+                </div>
+              </TabsContent>
+            )}
 
             {/* Comments Tab */}
             <TabsContent value="comments" className="absolute inset-0 mt-0 overflow-hidden hidden data-[state=active]:flex data-[state=active]:flex-col">

@@ -9,7 +9,6 @@ import {
   Send, 
   MessageSquare, 
   Calendar,
-  User
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -17,11 +16,13 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { createMentionNotifications } from "@/utils/mentions";
 import MentionTextarea from "@/components/MentionTextarea";
+import UserAvatar from "@/components/UserAvatar";
 
 interface Message {
   id: string;
   content: string;
   sender: string;
+  avatar_url?: string | null;
   timestamp: string;
 }
 
@@ -62,7 +63,7 @@ export default function BillCommunications({ billId, vendorId, jobId }: BillComm
         (commData || []).map(async (msg: any) => {
           const { data: profile } = await supabase
             .from('profiles')
-            .select('display_name, first_name, last_name')
+            .select('display_name, first_name, last_name, avatar_url')
             .eq('user_id', msg.user_id)
             .single();
           return { ...msg, profiles: profile };
@@ -76,6 +77,7 @@ export default function BillCommunications({ billId, vendorId, jobId }: BillComm
           id: msg.id,
           content: msg.message,
           sender: msg.profiles?.display_name || `${msg.profiles?.first_name || ''} ${msg.profiles?.last_name || ''}`.trim() || 'Unknown User',
+          avatar_url: msg.profiles?.avatar_url || null,
           timestamp: msg.created_at,
         }));
         setIntercompanyMessages(formatted);
@@ -208,7 +210,12 @@ export default function BillCommunications({ billId, vendorId, jobId }: BillComm
                   intercompanyMessages.map((message) => (
                     <div key={message.id} className="bg-muted/50 p-3 rounded-lg">
                       <div className="flex items-center gap-2 mb-2">
-                        <User className="h-3 w-3" />
+                        <UserAvatar
+                          src={message.avatar_url || undefined}
+                          name={message.sender}
+                          className="h-6 w-6"
+                          fallbackClassName="text-[10px]"
+                        />
                         <span className="text-sm font-medium">
                           {message.sender}
                         </span>

@@ -237,89 +237,89 @@ export default function JobDetails() {
           <TabsList className="w-full flex-wrap h-auto justify-start rounded-none border-b bg-transparent p-0 gap-0">
             <TabsTrigger 
               value="details" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <FileText className="h-4 w-4 mr-2" />
               Job Details
             </TabsTrigger>
             <TabsTrigger 
-              value="committed-costs" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
-            >
-              <Calculator className="h-4 w-4 mr-2" />
-              Committed Costs
-            </TabsTrigger>
-            <TabsTrigger 
               value="cost-budget"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <DollarSign className="h-4 w-4 mr-2" />
-              Cost Codes & Budget
+              Budget
             </TabsTrigger>
             <TabsTrigger 
               value="forecasting"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <TrendingUp className="h-4 w-4 mr-2" />
               Forecasting
             </TabsTrigger>
             <TabsTrigger 
+              value="committed-costs" 
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <Calculator className="h-4 w-4 mr-2" />
+              Committed Costs
+            </TabsTrigger>
+            <TabsTrigger 
+              value="billing"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <DollarSign className="h-4 w-4 mr-2" />
+              Billing
+            </TabsTrigger>
+            <TabsTrigger 
               value="plans"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <LayoutTemplate className="h-4 w-4 mr-2" />
               Plans
             </TabsTrigger>
             <TabsTrigger 
               value="rfis"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <ClipboardList className="h-4 w-4 mr-2" />
               RFIs
             </TabsTrigger>
             <TabsTrigger
               value="rfps"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <FileText className="h-4 w-4 mr-2" />
               RFPs
             </TabsTrigger>
             <TabsTrigger
               value="submittals"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <FileCheck className="h-4 w-4 mr-2" />
               Submittals
             </TabsTrigger>
-            <TabsTrigger 
-              value="billing"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
-            >
-              <DollarSign className="h-4 w-4 mr-2" />
-              Billing
-            </TabsTrigger>
             {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
               <TabsTrigger 
                 value="filing-cabinet"
-                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+                className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
               >
                 <FileText className="h-4 w-4 mr-2" />
                 Filing Cabinet
               </TabsTrigger>
             )}
             <TabsTrigger 
-              value="visitor-logs"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
-            >
-              <Users className="h-4 w-4 mr-2" />
-              Visitor Logs
-            </TabsTrigger>
-            <TabsTrigger 
               value="photo-album"
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <Camera className="h-4 w-4 mr-2" />
               Photos
+            </TabsTrigger>
+            <TabsTrigger 
+              value="visitor-logs"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <Users className="h-4 w-4 mr-2" />
+              Visitor Logs
             </TabsTrigger>
           </TabsList>
           

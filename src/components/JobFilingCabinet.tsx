@@ -48,7 +48,7 @@ interface JobFilingCabinetProps {
   jobId: string;
 }
 
-const SYSTEM_FOLDERS = ["Delivery Tickets", "Permits"];
+const SYSTEM_FOLDERS = ["Plans", "Delivery Tickets", "Permits"];
 type DragItemPayload =
   | { type: "file"; id: string; sourceFolderId: string }
   | { type: "folder"; id: string };
@@ -217,6 +217,37 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
         setFolders(created || []);
       }
     } else {
+      if (!isVendorPortalUser) {
+        const existingFolderNames = new Set((data || []).map((folder) => folder.name.trim().toLowerCase()));
+        const missingSystemFolders = SYSTEM_FOLDERS.filter((name) => !existingFolderNames.has(name.toLowerCase()));
+
+        if (missingSystemFolders.length > 0) {
+          const maxSortOrder = Math.max(...(data || []).map((folder) => folder.sort_order ?? 0), 0);
+          const foldersToCreate = missingSystemFolders.map((name, index) => ({
+            job_id: jobId,
+            company_id: companyId,
+            name,
+            is_system_folder: true,
+            sort_order: maxSortOrder + index + 1,
+            created_by: user?.id || "",
+          }));
+
+          const { data: createdMissing, error: createMissingError } = await supabase
+            .from("job_folders")
+            .insert(foldersToCreate)
+            .select();
+
+          if (createMissingError) {
+            console.error("Error creating missing system folders:", createMissingError);
+            setFolders(data || []);
+          } else {
+            setFolders(([...(data || []), ...(createdMissing || [])] as Folder[]).sort(
+              (a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0),
+            ));
+          }
+          return;
+        }
+      }
       setFolders(data);
     }
   }, [jobId, companyId, user?.id, isVendorPortalUser]);

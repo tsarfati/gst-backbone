@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
-import { useNavigate, Link } from 'react-router-dom';
+import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
 import { TenantRequestModal } from '@/components/TenantRequestModal';
@@ -27,8 +27,6 @@ import {
   FileText,
   CheckCircle,
   ArrowRight,
-  Mail,
-  Phone,
   Building2,
   Zap,
   Target,
@@ -44,6 +42,7 @@ export default function LandingPage() {
   const [showTenantRequestModal, setShowTenantRequestModal] = useState(false);
   const { user, loading } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const parallaxOffset = useParallax(0.3);
   const [scrollY, setScrollY] = useState(0);
   const [showFirstVideo, setShowFirstVideo] = useState(true);
@@ -82,6 +81,22 @@ export default function LandingPage() {
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
+
+  useEffect(() => {
+    if (!location.hash) return;
+
+    const sectionId = location.hash.replace('#', '');
+    const scrollToHashSection = () => {
+      const target = document.getElementById(sectionId);
+      if (!target) return;
+
+      const navOffset = 80;
+      const targetTop = target.getBoundingClientRect().top + window.scrollY - navOffset;
+      window.scrollTo({ top: Math.max(0, targetTop), behavior: 'auto' });
+    };
+
+    requestAnimationFrame(scrollToHashSection);
+  }, [location.hash]);
 
   // Redirect authenticated users to dashboard
   useEffect(() => {
@@ -146,6 +161,7 @@ export default function LandingPage() {
     'Real-time job cost tracking & budget monitoring',
     'Manage subcontracts and purchase orders',
     'Generate professional invoices',
+    'Export complete job archives with files, plans, RFIs, submittals, photos, and communication history',
     'Comprehensive audit trails',
     'Mobile-ready for field teams'
   ];
@@ -158,6 +174,10 @@ export default function LandingPage() {
   ];
 
   const coreCapabilities = [
+    {
+      title: 'Complete Job Archive Export',
+      description: 'When a job is complete, export a full standalone archive deliverable with everything organized and in your hands: plans, photos, RFIs, RFPs, submittals, files, and communication history. Your data is never locked in.'
+    },
     {
       title: 'Precision Job Costing',
       description: 'Track every dollar across projects with detailed cost code breakdowns. Know exactly where your money goes and keep projects profitable.'
@@ -184,7 +204,6 @@ export default function LandingPage() {
   const darkBg = '#0f1419';
   const darkCardBg = '#1a1f2e';
   const lightCardBg = '#f5f5f0';
-  
   return (
     <div
       className="min-h-screen overflow-x-hidden"
@@ -207,7 +226,9 @@ export default function LandingPage() {
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-white/80 hover:text-white transition-colors font-medium">Features</a>
               <a href="#about" className="text-white/80 hover:text-white transition-colors font-medium">About</a>
-              <a href="#contact" className="text-white/80 hover:text-white transition-colors font-medium">Contact</a>
+              <Link to="/punch-clock-lynk" className="text-white/80 hover:text-white transition-colors font-medium">Punch Clock Lynk</Link>
+              <Link to="/pm-lynk" className="text-white/80 hover:text-white transition-colors font-medium">PM Lynk</Link>
+              <Link to="/contact" className="text-white/80 hover:text-white transition-colors font-medium">Contact</Link>
             </div>
             <div className="flex items-center gap-3">
               <Button
@@ -272,7 +293,7 @@ export default function LandingPage() {
           <img 
             src={builderlynkIcon} 
             alt="BuilderLYNK" 
-            className="h-48 sm:h-56 md:h-[26vh] lg:h-[30vh] w-auto mx-auto drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+            className="h-52 sm:h-56 md:h-[26vh] lg:h-[30vh] w-auto mx-auto drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
           />
           
           {/* Brand Name / Main Title */}
@@ -301,17 +322,27 @@ export default function LandingPage() {
             From punch clock to payables—all in one place.
           </p>
           
-          {/* CTA Button */}
-          <div>
+          {/* CTA Buttons */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button 
               onClick={() => {
                 setAuthModalMode('signUp');
                 setShowAuthModal(true);
               }}
-              className="text-base md:text-lg px-8 py-3 md:px-10 md:py-4 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)] transition-all duration-300 rounded-lg"
+              className="text-base md:text-lg px-8 py-2 md:px-10 md:py-2.5 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)] transition-all duration-300 rounded-lg"
               style={{ backgroundColor: '#E88A2D' }}
             >
               Start Building Today <ArrowRight className="ml-2 w-5 h-5 inline" />
+            </button>
+            <button
+              onClick={() => {
+                setAuthModalMode('signIn');
+                setShowAuthModal(true);
+              }}
+              className="text-base md:text-lg px-8 py-2 md:px-10 md:py-2.5 rounded-lg text-white font-bold shadow-2xl hover:scale-105 transition-all duration-300"
+              style={{ backgroundColor: '#3B82F6' }}
+            >
+              Log In
             </button>
           </div>
           
@@ -568,48 +599,6 @@ export default function LandingPage() {
         </div>
       </section>
 
-      <section id="contact" className="py-24" style={{ backgroundColor: darkBg }}>
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <AnimatedSection animation="fade-up">
-            <div className="text-center mb-16">
-              <h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
-                Get in <span className="text-[#E88A2D]">Touch</span>
-              </h2>
-              <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-                Have questions? We&apos;re here to help you find the right solution for your business.
-              </p>
-            </div>
-          </AnimatedSection>
-          
-          <div className="grid md:grid-cols-2 gap-8 max-w-2xl mx-auto">
-            <AnimatedSection animation="fade-right" delay={100}>
-              <div 
-                className="text-center p-8 rounded-xl border border-white/10 hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group"
-                style={{ backgroundColor: darkCardBg }}
-              >
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#E88A2D]/10 mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
-                  <Mail className="h-8 w-8 text-[#E88A2D] group-hover:text-white transition-colors" />
-                </div>
-                <h3 className="font-bold text-white mb-2 text-xl">Email Us</h3>
-                <p className="text-gray-400 text-lg">support@builderlynk.com</p>
-              </div>
-            </AnimatedSection>
-            <AnimatedSection animation="fade-left" delay={200}>
-              <div 
-                className="text-center p-8 rounded-xl border border-white/10 hover:border-[#E88A2D]/50 hover:shadow-xl transition-all duration-300 group"
-                style={{ backgroundColor: darkCardBg }}
-              >
-                <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-[#E88A2D]/10 mb-6 group-hover:bg-[#E88A2D] group-hover:scale-110 transition-all duration-300">
-                  <Phone className="h-8 w-8 text-[#E88A2D] group-hover:text-white transition-colors" />
-                </div>
-                <h3 className="font-bold text-white mb-2 text-xl">Call Us</h3>
-                <p className="text-gray-400 text-lg">(267) 625-4866</p>
-              </div>
-            </AnimatedSection>
-          </div>
-        </div>
-      </section>
-
       {/* Footer - Dark theme */}
       <footer style={{ backgroundColor: darkCardBg }} className="text-white py-16">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -635,7 +624,7 @@ export default function LandingPage() {
               <h4 className="font-bold text-white mb-4 text-lg">Company</h4>
               <ul className="space-y-3 text-sm text-gray-400">
                 <li><a href="#about" className="hover:text-white transition-colors">About</a></li>
-                <li><a href="#contact" className="hover:text-white transition-colors">Contact</a></li>
+                <li><Link to="/contact" className="hover:text-white transition-colors">Contact</Link></li>
                 <li><a href="#" className="hover:text-white transition-colors">Careers</a></li>
               </ul>
             </div>

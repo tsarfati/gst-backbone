@@ -13,7 +13,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
-import { Paperclip, FileText, X, ChevronsUpDown, Check, Search, ChevronDown, Upload } from "lucide-react";
+import { Paperclip, FileText, X, ChevronsUpDown, Check, Search, ChevronDown, Upload, RotateCcw } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
@@ -79,6 +79,7 @@ export function CreditCardTransactionModal({
   const [billDistribution, setBillDistribution] = useState<any[]>([]);
   const [distCostCodesMeta, setDistCostCodesMeta] = useState<any[]>([]);
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [rotationDeg, setRotationDeg] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
@@ -86,6 +87,31 @@ export function CreditCardTransactionModal({
   
   // Clamp zoom between 50% and 300%
   const clampZoom = useCallback((z: number) => Math.max(50, Math.min(300, z)), []);
+  const anchorZoomAtPoint = useCallback((prevZoom: number, nextZoom: number, clientX: number, clientY: number) => {
+    const container = previewScrollRef.current;
+    if (!container || prevZoom <= 0 || nextZoom <= 0) return;
+    if (Math.abs(nextZoom - prevZoom) < 0.001) return;
+
+    const rect = container.getBoundingClientRect();
+    const pointX = clientX - rect.left + container.scrollLeft;
+    const pointY = clientY - rect.top + container.scrollTop;
+    const ratio = nextZoom / prevZoom;
+
+    container.scrollLeft = pointX * ratio - (clientX - rect.left);
+    container.scrollTop = pointY * ratio - (clientY - rect.top);
+  }, []);
+  const applyZoomDeltaAtCenter = useCallback((delta: number) => {
+    const container = previewScrollRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const clientX = rect.left + rect.width / 2;
+    const clientY = rect.top + rect.height / 2;
+    setZoomLevel((prev) => {
+      const next = clampZoom(prev + delta);
+      anchorZoomAtPoint(prev, next, clientX, clientY);
+      return next;
+    });
+  }, [anchorZoomAtPoint, clampZoom]);
   
   // Use the hook to prevent browser zoom and route to app-level zoom
   usePreventBrowserZoom({
@@ -94,9 +120,47 @@ export function CreditCardTransactionModal({
     zoom: zoomLevel,
     setZoom: setZoomLevel,
     clamp: clampZoom,
+    onZoomChange: ({ prevZoom, nextZoom, clientX, clientY }) => {
+      anchorZoomAtPoint(prevZoom, nextZoom, clientX, clientY);
+    },
   });
+
+  const rotationStorageKey = (() => {
+    const src = String(attachmentPreview || transaction?.attachment_url || '');
+    if (!src || src.toLowerCase().includes('.pdf')) return null;
+    return `preview-rotation:cc:${transactionId}:${encodeURIComponent(src)}`;
+  })();
+
+  useEffect(() => {
+    if (!rotationStorageKey) {
+      setRotationDeg(0);
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem(rotationStorageKey);
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) {
+        const normalized = ((parsed % 360) + 360) % 360;
+        setRotationDeg(normalized);
+      } else {
+        setRotationDeg(0);
+      }
+    } catch {
+      setRotationDeg(0);
+    }
+  }, [rotationStorageKey]);
+
+  useEffect(() => {
+    if (!rotationStorageKey) return;
+    try {
+      sessionStorage.setItem(rotationStorageKey, String(rotationDeg));
+    } catch {
+      // Ignore storage errors in restricted contexts.
+    }
+  }, [rotationStorageKey, rotationDeg]);
   
   // Immediate persist for distribution changes triggered from UI
+
   const persistDistribution = async (dist: any[]) => {
     if (!transactionId || !currentCompany) return;
     try {
@@ -1740,7 +1804,7 @@ const resolveAttachmentRequirement = (): boolean => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setZoomLevel(prev => Math.max(50, prev - 25))}
+                    onClick={() => applyZoomDeltaAtCenter(-25)}
                     disabled={zoomLevel <= 50}
                   >
                     -
@@ -1751,7 +1815,7 @@ const resolveAttachmentRequirement = (): boolean => {
                   <Button
                     variant="outline"
                     size="sm"
-                    onClick={() => setZoomLevel(prev => Math.min(300, prev + 25))}
+                    onClick={() => applyZoomDeltaAtCenter(25)}
                     disabled={zoomLevel >= 300}
                   >
                     +
@@ -1763,6 +1827,15 @@ const resolveAttachmentRequirement = (): boolean => {
                   >
                     Reset
                   </Button>
+                  {!String(attachmentPreview || transaction?.attachment_url || '').toLowerCase().includes('.pdf') && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setRotationDeg((prev) => (prev + 90) % 360)}
+                    >
+                      <RotateCcw className="h-4 w-4" />
+                    </Button>
+                  )}
                 </div>
               )}
             </div>
@@ -1817,6 +1890,10 @@ const resolveAttachmentRequirement = (): boolean => {
                         src={(attachmentPreview || transaction.attachment_url) as string}
                         alt="Attachment preview"
                         className="w-full h-auto"
+                        style={{
+                          transform: `rotate(${rotationDeg}deg)`,
+                          transformOrigin: "center center",
+                        }}
                         draggable={false}
                       />
                     )}
@@ -2279,7 +2356,15 @@ const resolveAttachmentRequirement = (): boolean => {
                 String(attachmentPreview || transaction?.attachment_url).toLowerCase().includes('.pdf') ? (
                   <UrlPdfInlinePreview url={(attachmentPreview || transaction?.attachment_url) as string} className="w-full h-full overflow-auto" />
                 ) : (
-                  <img src={(attachmentPreview || transaction?.attachment_url) as string} alt="Attachment full size" className="w-full h-full object-contain" />
+                  <img
+                    src={(attachmentPreview || transaction?.attachment_url) as string}
+                    alt="Attachment full size"
+                    className="w-full h-full object-contain"
+                    style={{
+                      transform: `rotate(${rotationDeg}deg)`,
+                      transformOrigin: "center center",
+                    }}
+                  />
                 )
               )}
               <div className="absolute top-2 right-2">

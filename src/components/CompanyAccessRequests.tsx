@@ -296,6 +296,14 @@ export default function CompanyAccessRequests({
         if (rejectProfileError) throw rejectProfileError;
       }
 
+      if (currentUser?.id) {
+        await supabase
+          .from('notifications')
+          .delete()
+          .eq('user_id', currentUser.id)
+          .eq('type', `intake_queue:${request.user_id}`);
+      }
+
       toast({
         title: 'Success',
         description: `Access request ${action === 'approve' ? 'approved' : 'rejected'}`,

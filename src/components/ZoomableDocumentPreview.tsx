@@ -30,6 +30,7 @@ export default function ZoomableDocumentPreview({
   emptySubMessage = "Upload a document to see it here",
 }: ZoomableDocumentPreviewProps) {
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [rotationDeg, setRotationDeg] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
@@ -41,12 +42,41 @@ export default function ZoomableDocumentPreview({
   const clampZoom = useCallback((z: number) => Math.max(50, Math.min(300, z)), []);
 
   // Use the hook to prevent browser zoom and route to app-level zoom
+  const anchorZoomAtPoint = useCallback((prevZoom: number, nextZoom: number, clientX: number, clientY: number) => {
+    const container = previewScrollRef.current;
+    if (!container || prevZoom <= 0 || nextZoom <= 0) return;
+    if (Math.abs(nextZoom - prevZoom) < 0.001) return;
+
+    const rect = container.getBoundingClientRect();
+    const pointX = clientX - rect.left + container.scrollLeft;
+    const pointY = clientY - rect.top + container.scrollTop;
+    const ratio = nextZoom / prevZoom;
+
+    container.scrollLeft = pointX * ratio - (clientX - rect.left);
+    container.scrollTop = pointY * ratio - (clientY - rect.top);
+  }, []);
+  const applyZoomDeltaAtCenter = useCallback((delta: number) => {
+    const container = previewScrollRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const clientX = rect.left + rect.width / 2;
+    const clientY = rect.top + rect.height / 2;
+    setZoomLevel((prev) => {
+      const next = clampZoom(prev + delta);
+      anchorZoomAtPoint(prev, next, clientX, clientY);
+      return next;
+    });
+  }, [anchorZoomAtPoint, clampZoom]);
+
   usePreventBrowserZoom({
     containerRef: previewScrollRef,
     enabled: Boolean(url),
     zoom: zoomLevel,
     setZoom: setZoomLevel,
     clamp: clampZoom,
+    onZoomChange: ({ prevZoom, nextZoom, clientX, clientY }) => {
+      anchorZoomAtPoint(prevZoom, nextZoom, clientX, clientY);
+    },
   });
 
   const normalizedUrl = (url || "").toLowerCase();
@@ -55,6 +85,36 @@ export default function ZoomableDocumentPreview({
     normalizedName.endsWith(".pdf") ||
     normalizedUrl.includes(".pdf") ||
     normalizedUrl.includes("application/pdf");
+  const rotationStorageKey =
+    !isPdf && url ? `preview-rotation:zoomable:${encodeURIComponent(url)}` : null;
+
+  useEffect(() => {
+    if (!rotationStorageKey) {
+      setRotationDeg(0);
+      return;
+    }
+    try {
+      const raw = sessionStorage.getItem(rotationStorageKey);
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) {
+        const normalized = ((parsed % 360) + 360) % 360;
+        setRotationDeg(normalized);
+      } else {
+        setRotationDeg(0);
+      }
+    } catch {
+      setRotationDeg(0);
+    }
+  }, [rotationStorageKey]);
+
+  useEffect(() => {
+    if (!rotationStorageKey) return;
+    try {
+      sessionStorage.setItem(rotationStorageKey, String(rotationDeg));
+    } catch {
+      // Ignore storage errors in restricted contexts.
+    }
+  }, [rotationStorageKey, rotationDeg]);
 
   const handleMouseDown = (e: React.MouseEvent) => {
     if (zoomLevel > 100 && previewScrollRef.current) {
@@ -114,7 +174,7 @@ export default function ZoomableDocumentPreview({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setZoomLevel((prev) => clampZoom(prev - 25))}
+                onClick={() => applyZoomDeltaAtCenter(-25)}
                 disabled={zoomLevel <= 50}
               >
                 <ZoomOut className="h-4 w-4" />
@@ -125,18 +185,20 @@ export default function ZoomableDocumentPreview({
               <Button
                 variant="outline"
                 size="sm"
-                onClick={() => setZoomLevel((prev) => clampZoom(prev + 25))}
+                onClick={() => applyZoomDeltaAtCenter(25)}
                 disabled={zoomLevel >= 300}
               >
                 <ZoomIn className="h-4 w-4" />
               </Button>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setZoomLevel(100)}
-              >
-                <RotateCcw className="h-4 w-4" />
-              </Button>
+              {!isPdf && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setRotationDeg((prev) => (prev + 90) % 360)}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                </Button>
+              )}
             </div>
           )}
         </div>
@@ -176,6 +238,10 @@ export default function ZoomableDocumentPreview({
                   src={url}
                   alt={fileName || "Attachment preview"}
                   className="w-full h-auto"
+                  style={{
+                    transform: `rotate(${rotationDeg}deg)`,
+                    transformOrigin: "center center",
+                  }}
                   draggable={false}
                 />
               )}

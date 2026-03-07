@@ -9,7 +9,12 @@ interface PremiumLoadingScreenProps {
 }
 
 export function PremiumLoadingScreen({ text: _text }: PremiumLoadingScreenProps) {
-  const logoFallbacks = [builderLynkShield, builderLynkIcon, builderLynkLogo];
+  const logoFallbacks = [
+    builderLynkShield,
+    builderLynkIcon,
+    builderLynkLogo,
+    '/assets/company-icon-192.png',
+  ];
   const [logoIndex, setLogoIndex] = useState(0);
   const size = 260;
   const strokeWidth = 14;

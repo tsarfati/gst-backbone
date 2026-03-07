@@ -114,6 +114,36 @@ const getRecoveryRedirectTo = (siteUrl?: string, redirectTo?: string): string =>
   return `${origin}/auth?type=recovery`
 }
 
+const normalizeAppRedirectTo = (redirectTo?: string, siteUrl?: string): string => {
+  const canonicalOrigin = 'https://builderlynk.com'
+  const fallback = `${canonicalOrigin}/auth`
+
+  const normalizeOrigin = (value?: string): string => {
+    if (!value) return canonicalOrigin
+    try {
+      const parsed = new URL(value)
+      if (parsed.hostname.toLowerCase().endsWith('.lovable.app')) return canonicalOrigin
+      return parsed.origin
+    } catch {
+      return canonicalOrigin
+    }
+  }
+
+  const fallbackOrigin = normalizeOrigin(siteUrl)
+
+  if (!redirectTo) return `${fallbackOrigin}/auth`
+
+  try {
+    const parsed = new URL(redirectTo)
+    if (parsed.hostname.toLowerCase().endsWith('.lovable.app')) {
+      return `${canonicalOrigin}${parsed.pathname || '/auth'}${parsed.search || ''}${parsed.hash || ''}`
+    }
+    return parsed.toString()
+  } catch {
+    return fallback
+  }
+}
+
 function getJwtRoleFromAuthHeader(authHeader: string | null): string | null {
   if (!authHeader) return null
   const token = authHeader.replace(/^Bearer\s+/i, '').trim()
@@ -214,7 +244,7 @@ Deno.serve(async (req) => {
      const normalizedRedirectTo =
        email_action_type === 'recovery'
          ? getRecoveryRedirectTo(site_url, redirect_to)
-         : (redirect_to || `${site_url || 'https://builderlynk.com'}/auth`)
+         : normalizeAppRedirectTo(redirect_to, site_url)
      // Build the verification URL (redirect target must be URL-encoded)
      const verifyUrl = `${supabaseUrl}/auth/v1/verify?token=${encodeURIComponent(token_hash)}&type=${encodeURIComponent(email_action_type)}&redirect_to=${encodeURIComponent(normalizedRedirectTo)}`
  

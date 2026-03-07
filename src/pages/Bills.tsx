@@ -144,6 +144,7 @@ export default function Bills() {
   const [bills, setBills] = useState<Bill[]>([]);
   const [selectedBills, setSelectedBills] = useState<string[]>([]);
   const [loading, setLoading] = useState(true);
+  const [requireBillDistributionBeforeApproval, setRequireBillDistributionBeforeApproval] = useState(true);
   const { currentView, setCurrentView, setAsDefault, isDefault } = usePayablesViewPreference('bills');
   const [sortColumn, setSortColumn] = useState<SortColumn>('due_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
@@ -159,6 +160,15 @@ export default function Bills() {
     
     try {
       setLoading(true);
+
+      const { data: payablesSettings } = await supabase
+        .from('payables_settings')
+        .select('require_bill_distribution_before_approval')
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+      setRequireBillDistributionBeforeApproval(
+        (payablesSettings as any)?.require_bill_distribution_before_approval ?? true,
+      );
       
       const { data, error } = await supabase
         .from('invoices')
@@ -403,51 +413,53 @@ export default function Bills() {
 
   const handleBulkApprove = async () => {
     try {
-      const { data: invoiceRows, error: invoiceError } = await supabase
-        .from('invoices')
-        .select('id, invoice_number, amount, job_id, cost_code_id')
-        .in('id', selectedBills);
-      if (invoiceError) throw invoiceError;
+      if (requireBillDistributionBeforeApproval) {
+        const { data: invoiceRows, error: invoiceError } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, amount, job_id, cost_code_id')
+          .in('id', selectedBills);
+        if (invoiceError) throw invoiceError;
 
-      const { data: distributionRows, error: distError } = await supabase
-        .from('invoice_cost_distributions')
-        .select(`
-          invoice_id,
-          amount,
-          cost_code_id,
-          cost_codes (job_id, jobs(id))
-        `)
-        .in('invoice_id', selectedBills);
-      if (distError) throw distError;
+        const { data: distributionRows, error: distError } = await supabase
+          .from('invoice_cost_distributions')
+          .select(`
+            invoice_id,
+            amount,
+            cost_code_id,
+            cost_codes (job_id, jobs(id))
+          `)
+          .in('invoice_id', selectedBills);
+        if (distError) throw distError;
 
-      const distributionMap = new Map<string, any[]>();
-      (distributionRows || []).forEach((dist: any) => {
-        const rows = distributionMap.get(dist.invoice_id) || [];
-        rows.push(dist);
-        distributionMap.set(dist.invoice_id, rows);
-      });
-
-      const invalidInvoices = (invoiceRows || []).filter((invoice: any) => {
-        const validation = evaluateInvoiceCoding({
-          amount: invoice.amount,
-          job_id: invoice.job_id,
-          cost_code_id: invoice.cost_code_id,
-          distributions: distributionMap.get(invoice.id) || [],
+        const distributionMap = new Map<string, any[]>();
+        (distributionRows || []).forEach((dist: any) => {
+          const rows = distributionMap.get(dist.invoice_id) || [];
+          rows.push(dist);
+          distributionMap.set(dist.invoice_id, rows);
         });
-        return !validation.isComplete;
-      });
 
-      if (invalidInvoices.length > 0) {
-        const sample = invalidInvoices
-          .slice(0, 3)
-          .map((inv: any) => inv.invoice_number || inv.id.slice(0, 8))
-          .join(', ');
-        toast({
-          title: "Approval blocked",
-          description: `Complete coding first. Incomplete bill(s): ${sample}${invalidInvoices.length > 3 ? ', ...' : ''}.`,
-          variant: "destructive",
+        const invalidInvoices = (invoiceRows || []).filter((invoice: any) => {
+          const validation = evaluateInvoiceCoding({
+            amount: invoice.amount,
+            job_id: invoice.job_id,
+            cost_code_id: invoice.cost_code_id,
+            distributions: distributionMap.get(invoice.id) || [],
+          });
+          return !validation.isComplete;
         });
-        return;
+
+        if (invalidInvoices.length > 0) {
+          const sample = invalidInvoices
+            .slice(0, 3)
+            .map((inv: any) => inv.invoice_number || inv.id.slice(0, 8))
+            .join(', ');
+          toast({
+            title: "Approval blocked",
+            description: `Complete coding first. Incomplete bill(s): ${sample}${invalidInvoices.length > 3 ? ', ...' : ''}.`,
+            variant: "destructive",
+          });
+          return;
+        }
       }
 
       const approvedBillIds = [...selectedBills];

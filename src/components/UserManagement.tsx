@@ -77,6 +77,8 @@ interface PendingSignupMeta {
   requestType: string;
   requestedRole: 'employee' | 'vendor' | 'design_professional';
   businessName: string | null;
+  customRoleId: string | null;
+  customRoleName: string | null;
 }
 
 interface VendorCompanyOption {
@@ -239,6 +241,8 @@ export default function UserManagement() {
         try {
           const parsed = request?.notes ? JSON.parse(request.notes) : {};
           const requestedRole = String(parsed?.requestedRole || '').toLowerCase();
+          const customRoleId = String(parsed?.customRoleId || '').trim() || null;
+          const customRoleName = String(parsed?.customRoleName || '').trim() || null;
           pendingMap[request.user_id] = {
             requestId: request.id,
             requestType: String(parsed?.requestType || ''),
@@ -247,6 +251,8 @@ export default function UserManagement() {
                 ? requestedRole
                 : 'employee',
             businessName: parsed?.businessName ? String(parsed.businessName) : null,
+            customRoleId,
+            customRoleName,
           };
         } catch {
           pendingMap[request.user_id] = {
@@ -254,6 +260,8 @@ export default function UserManagement() {
             requestType: '',
             requestedRole: 'employee',
             businessName: null,
+            customRoleId: null,
+            customRoleName: null,
           };
         }
       });
@@ -344,6 +352,7 @@ export default function UserManagement() {
           approved_by: user.id,
           approved_at: new Date().toISOString(),
           role: requestedRole as any,
+          custom_role_id: pendingMeta?.customRoleId || targetUser?.custom_role_id || null,
           vendor_id: resolvedVendorId,
         })
         .eq('user_id', userId);
@@ -375,6 +384,12 @@ export default function UserManagement() {
           console.warn('Failed updating company_access_requests approval:', requestUpdateError);
         }
       }
+
+      await supabase
+        .from('notifications')
+        .delete()
+        .eq('user_id', user.id)
+        .eq('type', `intake_queue:${userId}`);
 
       const { error: notifyError } = await supabase.functions.invoke('notify-user-approved', {
         body: {
@@ -413,6 +428,14 @@ export default function UserManagement() {
             reviewed_at: new Date().toISOString(),
           })
           .eq('id', pendingMeta.requestId);
+      }
+
+      if (user?.id) {
+        await supabase
+          .from('notifications')
+          .delete()
+          .eq('user_id', user.id)
+          .eq('type', `intake_queue:${userId}`);
       }
 
       toast({ title: "User Rejected", description: "User has been rejected", variant: "destructive" });

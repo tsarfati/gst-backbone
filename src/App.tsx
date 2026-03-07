@@ -18,6 +18,7 @@ import SuperAdminDashboard from "@/pages/SuperAdminDashboard";
 import SubscriptionTierEditor from "@/pages/SubscriptionTierEditor";
 import TenantDetails from "@/pages/TenantDetails";
 import LandingPage from "@/pages/LandingPage";
+import ContactPage from "@/pages/ContactPage";
 import PunchClockLynkLanding from "@/pages/PunchClockLynkLanding";
 import PMLynkLanding from "@/pages/PMLynkLanding";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
@@ -238,6 +239,7 @@ function PublicRoutes() {
             <ReceiptProvider>
               <Routes>
                 <Route path="/" element={<LandingPage />} />
+                <Route path="/contact" element={<ContactPage />} />
                 <Route path="/punch-clock-lynk" element={<PunchClockLynkLanding />} />
                 <Route path="/pm-lynk" element={<PMLynkLanding />} />
                 <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -304,6 +306,7 @@ function AuthenticatedRoutes() {
                   </AccessControl>
                 </ProtectedRoute>
               } />
+              <Route path="/contact" element={<ContactPage />} />
             <Route path="/" element={
               <ProtectedRoute>
                 <AccessControl>

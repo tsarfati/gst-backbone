@@ -107,6 +107,7 @@ const NON_GRANULAR_FEATURE_KEYS = new Set([
   'pm_lynk',
   'punch_clock_app',
   'organization_management',
+  'ai_plan_qa_v1',
 ]);
 
 const GRANULAR_ROOT_LABELS: Record<string, string> = {
@@ -238,6 +239,7 @@ const FEATURE_TREE_BLUEPRINT: FeatureTreeBlueprintNode[] = [
     label: 'Platform',
     children: [
       { key: 'organization_management', label: 'Organization Management' },
+      { key: 'ai_plan_qa_v1', label: 'A-RFI' },
     ],
   },
 ];

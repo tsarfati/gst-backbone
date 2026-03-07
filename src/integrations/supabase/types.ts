@@ -5286,6 +5286,7 @@ export type Database = {
           payment_dual_approval_threshold: number | null
           payments_require_approval: boolean
           require_bill_documents: boolean
+          require_bill_distribution_before_approval: boolean
           require_cc_attachment: boolean | null
           require_receipt_attachment: boolean
           send_payment_confirmations: boolean
@@ -5314,6 +5315,7 @@ export type Database = {
           payment_dual_approval_threshold?: number | null
           payments_require_approval?: boolean
           require_bill_documents?: boolean
+          require_bill_distribution_before_approval?: boolean
           require_cc_attachment?: boolean | null
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean
@@ -5342,6 +5344,7 @@ export type Database = {
           payment_dual_approval_threshold?: number | null
           payments_require_approval?: boolean
           require_bill_documents?: boolean
+          require_bill_distribution_before_approval?: boolean
           require_cc_attachment?: boolean | null
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean

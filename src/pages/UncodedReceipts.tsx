@@ -1,4 +1,5 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
+import { useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +41,7 @@ interface CostDistribution {
 
 export default function UncodedReceipts() {
   const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt, refreshReceipts } = useReceipts();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [selectedReceipt, setSelectedReceipt] = useState<any>(null);
   const [uncodedBills, setUncodedBills] = useState<any[]>([]);
   const [selectedVendor, setSelectedVendor] = useState("");
@@ -54,6 +56,7 @@ export default function UncodedReceipts() {
   
   // Zoom state for image previews
   const [zoomLevel, setZoomLevel] = useState(100);
+  const [rotationDeg, setRotationDeg] = useState(0);
   const [isPanning, setIsPanning] = useState(false);
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
@@ -61,6 +64,31 @@ export default function UncodedReceipts() {
   
   // Clamp zoom between 50% and 300%
   const clampZoom = useCallback((z: number) => Math.max(50, Math.min(300, z)), []);
+  const anchorZoomAtPoint = useCallback((prevZoom: number, nextZoom: number, clientX: number, clientY: number) => {
+    const container = imagePreviewRef.current;
+    if (!container || prevZoom <= 0 || nextZoom <= 0) return;
+    if (Math.abs(nextZoom - prevZoom) < 0.001) return;
+
+    const rect = container.getBoundingClientRect();
+    const pointX = clientX - rect.left + container.scrollLeft;
+    const pointY = clientY - rect.top + container.scrollTop;
+    const ratio = nextZoom / prevZoom;
+
+    container.scrollLeft = pointX * ratio - (clientX - rect.left);
+    container.scrollTop = pointY * ratio - (clientY - rect.top);
+  }, []);
+  const applyZoomDeltaAtCenter = useCallback((delta: number) => {
+    const container = imagePreviewRef.current;
+    if (!container) return;
+    const rect = container.getBoundingClientRect();
+    const clientX = rect.left + rect.width / 2;
+    const clientY = rect.top + rect.height / 2;
+    setZoomLevel((prev) => {
+      const next = clampZoom(prev + delta);
+      anchorZoomAtPoint(prev, next, clientX, clientY);
+      return next;
+    });
+  }, [anchorZoomAtPoint, clampZoom]);
   
   // Use the hook to prevent browser zoom and route to app-level zoom for images
   usePreventBrowserZoom({
@@ -69,6 +97,9 @@ export default function UncodedReceipts() {
     zoom: zoomLevel,
     setZoom: setZoomLevel,
     clamp: clampZoom,
+    onZoomChange: ({ prevZoom, nextZoom, clientX, clientY }) => {
+      anchorZoomAtPoint(prevZoom, nextZoom, clientX, clientY);
+    },
   });
   
   // View preference management
@@ -104,6 +135,98 @@ export default function UncodedReceipts() {
 
   // Filter out receipts that are linked to bills
   const availableUncodedReceipts = uncodedReceipts.filter(receipt => !linkedReceiptIds.has(receipt.id));
+  const selectableItems = useMemo(
+    () => [
+      ...availableUncodedReceipts,
+      ...uncodedBills.map((bill) => ({
+        id: bill.id,
+        filename: bill.invoice_number || `Bill ${bill.id.slice(0, 8)}`,
+        amount: `$${bill.amount?.toFixed(2) || '0.00'}`,
+        date: bill.issue_date || bill.created_at?.split('T')[0] || 'Unknown',
+        vendor: bill.vendors?.name || 'Unknown Vendor',
+        type: 'bill',
+        billData: bill,
+        status: 'uncoded',
+        assignedUser: null,
+        previewUrl: null
+      }))
+    ],
+    [availableUncodedReceipts, uncodedBills]
+  );
+
+  const setReceiptQueryParam = useCallback((receiptId: string | null) => {
+    const next = new URLSearchParams(searchParams);
+    if (receiptId) {
+      next.set('receiptId', receiptId);
+    } else {
+      next.delete('receiptId');
+    }
+    setSearchParams(next, { replace: true });
+  }, [searchParams, setSearchParams]);
+
+  const openReceipt = useCallback((receipt: any) => {
+    setSelectedReceipt(receipt);
+    setReceiptQueryParam(receipt.id);
+  }, [setReceiptQueryParam]);
+
+  const closeSelectedReceipt = useCallback(() => {
+    setSelectedReceipt(null);
+    setReceiptQueryParam(null);
+  }, [setReceiptQueryParam]);
+
+  useEffect(() => {
+    const deepLinkedReceiptId = searchParams.get('receiptId');
+    if (!deepLinkedReceiptId) return;
+    if (selectedReceipt?.id === deepLinkedReceiptId) return;
+
+    const deepLinkedReceipt = selectableItems.find((item: any) => item.id === deepLinkedReceiptId)
+      || uncodedReceipts.find((item: any) => item.id === deepLinkedReceiptId);
+    if (deepLinkedReceipt) {
+      setSelectedReceipt(deepLinkedReceipt);
+    }
+  }, [searchParams, selectableItems, uncodedReceipts, selectedReceipt?.id]);
+
+  useEffect(() => {
+    const rotationStorageKey =
+      selectedReceipt &&
+      selectedReceipt.type !== 'pdf' &&
+      selectedReceipt.previewUrl
+        ? `preview-rotation:receipt:${selectedReceipt.id || encodeURIComponent(selectedReceipt.previewUrl)}`
+        : null;
+
+    if (!rotationStorageKey) {
+      setRotationDeg(0);
+      return;
+    }
+
+    try {
+      const raw = sessionStorage.getItem(rotationStorageKey);
+      const parsed = Number(raw);
+      if (Number.isFinite(parsed)) {
+        const normalized = ((parsed % 360) + 360) % 360;
+        setRotationDeg(normalized);
+      } else {
+        setRotationDeg(0);
+      }
+    } catch {
+      setRotationDeg(0);
+    }
+  }, [selectedReceipt?.id, selectedReceipt?.type, selectedReceipt?.previewUrl]);
+
+  useEffect(() => {
+    const rotationStorageKey =
+      selectedReceipt &&
+      selectedReceipt.type !== 'pdf' &&
+      selectedReceipt.previewUrl
+        ? `preview-rotation:receipt:${selectedReceipt.id || encodeURIComponent(selectedReceipt.previewUrl)}`
+        : null;
+    if (!rotationStorageKey) return;
+    try {
+      sessionStorage.setItem(rotationStorageKey, String(rotationDeg));
+    } catch {
+      // Ignore storage errors in restricted contexts.
+    }
+  }, [selectedReceipt?.id, selectedReceipt?.type, selectedReceipt?.previewUrl, rotationDeg]);
 
   useEffect(() => {
     if (selectedReceipt) {
@@ -341,7 +464,7 @@ export default function UncodedReceipts() {
         if (error) throw error;
 
         await loadUncodedBills();
-        setSelectedReceipt(null);
+        closeSelectedReceipt();
         
         toast({
           title: "Bill coded successfully",
@@ -407,7 +530,7 @@ export default function UncodedReceipts() {
         await refreshReceipts();
 
         // Close the receipt view and reset
-        setSelectedReceipt(null);
+        closeSelectedReceipt();
         setCostDistribution([]);
         setSelectedVendor("");
         setSelectedAmount("");
@@ -514,7 +637,7 @@ export default function UncodedReceipts() {
 
   const handleDeleteReceipt = async (receiptId: string) => {
     await deleteReceipt(receiptId);
-    setSelectedReceipt(null);
+    closeSelectedReceipt();
     toast({
       title: "Receipt Deleted",
       description: "The receipt has been permanently deleted.",
@@ -564,24 +687,13 @@ export default function UncodedReceipts() {
                 ? "space-y-4"
                 : "space-y-2"
             }>
-              {[...availableUncodedReceipts, ...uncodedBills.map(bill => ({
-                id: bill.id,
-                filename: bill.invoice_number || `Bill ${bill.id.slice(0, 8)}`,
-                amount: `$${bill.amount?.toFixed(2) || '0.00'}`,
-                date: bill.issue_date || bill.created_at?.split('T')[0] || 'Unknown',
-                vendor: bill.vendors?.name || 'Unknown Vendor',
-                type: 'bill',
-                billData: bill,
-                status: 'uncoded',
-                assignedUser: null,
-                previewUrl: null
-              }))].map((receipt) => (
+              {selectableItems.map((receipt) => (
                 currentView === 'grid' ? (
                   // Tile View
                   <Card
                     key={receipt.id}
                     className="cursor-pointer transition-all hover:shadow-md hover:scale-[1.02]"
-                    onClick={() => setSelectedReceipt(receipt)}
+                    onClick={() => openReceipt(receipt)}
                   >
                   <CardContent className="p-4">
                     <div className="flex items-start justify-between mb-3">
@@ -697,7 +809,7 @@ export default function UncodedReceipts() {
                   <Card
                     key={receipt.id}
                     className="cursor-pointer transition-all hover:shadow-md"
-                    onClick={() => setSelectedReceipt(receipt)}
+                    onClick={() => openReceipt(receipt)}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-center space-x-4">
@@ -797,7 +909,7 @@ export default function UncodedReceipts() {
                   <div
                     key={receipt.id}
                     className="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-primary/10 hover:border-primary"
-                    onClick={() => setSelectedReceipt(receipt)}
+                    onClick={() => openReceipt(receipt)}
                   >
                     <div className="flex-shrink-0 mr-3">
                       {receipt.type === 'pdf' ? (
@@ -871,7 +983,7 @@ export default function UncodedReceipts() {
                     <Button
                       variant="ghost"
                       size="sm"
-                      onClick={() => setSelectedReceipt(null)}
+                      onClick={closeSelectedReceipt}
                       className="mb-2"
                     >
                       ← Back to List
@@ -885,7 +997,7 @@ export default function UncodedReceipts() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setZoomLevel((prev) => clampZoom(prev - 25))}
+                          onClick={() => applyZoomDeltaAtCenter(-25)}
                           disabled={zoomLevel <= 50}
                         >
                           <ZoomOut className="h-4 w-4" />
@@ -896,7 +1008,7 @@ export default function UncodedReceipts() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setZoomLevel((prev) => clampZoom(prev + 25))}
+                          onClick={() => applyZoomDeltaAtCenter(25)}
                           disabled={zoomLevel >= 300}
                         >
                           <ZoomIn className="h-4 w-4" />
@@ -904,7 +1016,7 @@ export default function UncodedReceipts() {
                         <Button
                           variant="outline"
                           size="sm"
-                          onClick={() => setZoomLevel(100)}
+                          onClick={() => setRotationDeg((prev) => (prev + 90) % 360)}
                         >
                           <RotateCcw className="h-4 w-4" />
                         </Button>
@@ -1021,7 +1133,8 @@ export default function UncodedReceipts() {
                           style={{
                             width: `${zoomLevel}%`,
                             minWidth: "100%",
-                            transformOrigin: "top left",
+                            transform: `rotate(${rotationDeg}deg)`,
+                            transformOrigin: "center center",
                             pointerEvents: isPanning ? "none" : "auto",
                           }}
                         >

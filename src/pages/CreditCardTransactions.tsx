@@ -1,5 +1,5 @@
 import { useEffect, useState, useMemo, useRef } from "react";
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -26,6 +26,7 @@ import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 export default function CreditCardTransactions() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -48,6 +49,7 @@ export default function CreditCardTransactions() {
   const [sortColumn, setSortColumn] = useState<'date' | 'amount' | 'attachment' | 'status' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const scrollPositionRef = useRef<number>(0);
+  const deepLinkHandledRef = useRef<string | null>(null);
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   
   // New transaction form
@@ -364,7 +366,23 @@ export default function CreditCardTransactions() {
     scrollPositionRef.current = window.scrollY;
     setSelectedTransactionId(transactionId);
     setShowDetailModal(true);
+    const next = new URLSearchParams(searchParams);
+    next.set('transactionId', transactionId);
+    setSearchParams(next, { replace: true });
   };
+
+  useEffect(() => {
+    const deepLinkedTransactionId = searchParams.get('transactionId');
+    if (!deepLinkedTransactionId || loading || transactions.length === 0) return;
+    if (deepLinkHandledRef.current === deepLinkedTransactionId) return;
+
+    const exists = transactions.some((t: any) => t.id === deepLinkedTransactionId);
+    if (exists) {
+      deepLinkHandledRef.current = deepLinkedTransactionId;
+      setSelectedTransactionId(deepLinkedTransactionId);
+      setShowDetailModal(true);
+    }
+  }, [searchParams, loading, transactions]);
 
   const handleModalComplete = async () => {
     await fetchData();
@@ -912,7 +930,15 @@ export default function CreditCardTransactions() {
       {selectedTransactionId && (
         <CreditCardTransactionModal
           open={showDetailModal}
-          onOpenChange={setShowDetailModal}
+          onOpenChange={(open) => {
+            setShowDetailModal(open);
+            if (!open) {
+              setSelectedTransactionId(null);
+              const next = new URLSearchParams(searchParams);
+              next.delete('transactionId');
+              setSearchParams(next, { replace: true });
+            }
+          }}
           transactionId={selectedTransactionId}
           onComplete={handleModalComplete}
           initialMatches={matchedReceipts.get(selectedTransactionId) || []}
