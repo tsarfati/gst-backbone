@@ -6,11 +6,13 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Separator } from '@/components/ui/separator';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Badge } from '@/components/ui/badge';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { CheckCircle, XCircle, Loader2, Save, HardDrive, ChevronDown, ChevronRight } from 'lucide-react';
+import { CheckCircle, XCircle, Loader2, Save, HardDrive, ChevronDown, ChevronRight, ShieldCheck } from 'lucide-react';
 import GoogleDriveFolderPicker from '@/components/GoogleDriveFolderPicker';
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from '@/components/ui/collapsible';
 
@@ -37,6 +39,10 @@ interface JobWithSync {
   settings: SyncSettings;
   isOpen: boolean;
 }
+
+type StorageProvider = 'builderlink' | 'google_drive' | 'onedrive' | 'ftp';
+type BackupProvider = 'none' | 'google_drive' | 'onedrive' | 'ftp';
+type TestStatus = 'success' | 'warning' | 'failed';
 
 export default function ThirdPartyStorageSettings() {
   const { currentCompany } = useCompany();
@@ -65,6 +71,18 @@ export default function ThirdPartyStorageSettings() {
   const [ftpUsername, setFtpUsername] = useState('');
   const [ftpPassword, setFtpPassword] = useState('');
   const [ftpFolderPath, setFtpFolderPath] = useState('/');
+  const [primaryStorageProvider, setPrimaryStorageProvider] = useState<StorageProvider>('builderlink');
+  const [heavyFilesStorageProvider, setHeavyFilesStorageProvider] = useState<StorageProvider>('builderlink');
+  const [enableBackupCopy, setEnableBackupCopy] = useState(false);
+  const [backupStorageProvider, setBackupStorageProvider] = useState<BackupProvider>('none');
+  const [backupHeavyFilesOnly, setBackupHeavyFilesOnly] = useState(true);
+  const [backupPlans, setBackupPlans] = useState(true);
+  const [backupPhotos, setBackupPhotos] = useState(true);
+  const [backupReceipts, setBackupReceipts] = useState(false);
+  const [backupBills, setBackupBills] = useState(false);
+  const [backupCompanyFiles, setBackupCompanyFiles] = useState(false);
+  const [testingProvider, setTestingProvider] = useState<string | null>(null);
+  const [providerTestResults, setProviderTestResults] = useState<Record<string, { status: TestStatus; message: string; tested_at?: string }>>({});
 
   useEffect(() => {
     if (currentCompany) {
@@ -188,6 +206,7 @@ export default function ThirdPartyStorageSettings() {
       .eq('company_id', currentCompany.id)
       .maybeSingle();
     if (data) {
+      const row = data as any;
       setEnableOnedrive(data.enable_onedrive || false);
       setOnedriveFolderId(data.onedrive_folder_id || '');
       setEnableFtp(data.enable_ftp || false);
@@ -196,6 +215,59 @@ export default function ThirdPartyStorageSettings() {
       setFtpUsername(data.ftp_username || '');
       setFtpPassword(data.ftp_password || '');
       setFtpFolderPath(data.ftp_folder_path || '/');
+      setPrimaryStorageProvider(row.primary_storage_provider || 'builderlink');
+      setHeavyFilesStorageProvider(row.heavy_files_storage_provider || 'builderlink');
+      setEnableBackupCopy(!!row.enable_backup_copy);
+      setBackupStorageProvider(row.backup_storage_provider || 'none');
+      setBackupHeavyFilesOnly(row.backup_heavy_files_only ?? true);
+      setBackupPlans(row.backup_plans ?? true);
+      setBackupPhotos(row.backup_photos ?? true);
+      setBackupReceipts(!!row.backup_receipts);
+      setBackupBills(!!row.backup_bills);
+      setBackupCompanyFiles(!!row.backup_company_files);
+      setProviderTestResults((row.storage_test_results || {}) as Record<string, { status: TestStatus; message: string; tested_at?: string }>);
+    }
+  };
+
+  const testProviderConnection = async (provider: StorageProvider) => {
+    if (!currentCompany) return;
+    setTestingProvider(provider);
+    try {
+      const { data, error } = await supabase.functions.invoke('test-storage-connection', {
+        body: {
+          company_id: currentCompany.id,
+          provider,
+          settings: {
+            onedrive_folder_id: onedriveFolderId,
+            ftp_host: ftpHost,
+            ftp_port: ftpPort,
+            ftp_username: ftpUsername,
+          },
+        },
+      });
+      if (error) throw error;
+
+      const status = (data?.status || 'failed') as TestStatus;
+      const message = String(data?.message || 'No response message.');
+      const testedAt = data?.tested_at ? String(data.tested_at) : new Date().toISOString();
+      setProviderTestResults(prev => ({
+        ...prev,
+        [provider]: { status, message, tested_at: testedAt },
+      }));
+
+      toast({
+        title: `Test ${status === 'success' ? 'Passed' : status === 'warning' ? 'Completed with Warning' : 'Failed'}`,
+        description: message,
+        variant: status === 'failed' ? 'destructive' : 'default',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Connection Test Failed',
+        description: error?.message || 'Unable to run storage connection test.',
+        variant: 'destructive',
+      });
+    } finally {
+      setTestingProvider(null);
     }
   };
 
@@ -288,6 +360,16 @@ export default function ThirdPartyStorageSettings() {
           ftp_username: ftpUsername,
           ftp_password: ftpPassword,
           ftp_folder_path: ftpFolderPath,
+          primary_storage_provider: primaryStorageProvider,
+          heavy_files_storage_provider: heavyFilesStorageProvider,
+          enable_backup_copy: enableBackupCopy,
+          backup_storage_provider: backupStorageProvider,
+          backup_heavy_files_only: backupHeavyFilesOnly,
+          backup_plans: backupPlans,
+          backup_photos: backupPhotos,
+          backup_receipts: backupReceipts,
+          backup_bills: backupBills,
+          backup_company_files: backupCompanyFiles,
         } as any, { onConflict: 'company_id' });
 
       toast({ title: 'Settings saved', description: 'Third-party storage settings updated.' });
@@ -308,8 +390,147 @@ export default function ThirdPartyStorageSettings() {
     { key: 'sync_bills', label: 'Bills' },
   ];
 
+  const renderProviderStatus = (provider: StorageProvider) => {
+    const result = providerTestResults[provider];
+    if (!result) return <Badge variant="outline">Not tested</Badge>;
+    const label =
+      result.status === 'success' ? 'Healthy' :
+      result.status === 'warning' ? 'Warning' : 'Failed';
+    const className =
+      result.status === 'success'
+        ? 'bg-green-100 text-green-800'
+        : result.status === 'warning'
+          ? 'bg-amber-100 text-amber-800'
+          : 'bg-red-100 text-red-800';
+    return <Badge className={className}>{label}</Badge>;
+  };
+
   return (
     <div className="space-y-6">
+      {/* Phase 1 Storage Strategy */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <ShieldCheck className="h-5 w-5" />
+            Storage Strategy
+          </CardTitle>
+          <CardDescription>
+            Choose where files are stored by default, where heavy files go, and whether to keep backup copies.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-5">
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label>Primary Storage</Label>
+              <Select value={primaryStorageProvider} onValueChange={(v) => setPrimaryStorageProvider(v as StorageProvider)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="builderlink">BuilderLink Storage (Supabase)</SelectItem>
+                  <SelectItem value="google_drive">Google Drive</SelectItem>
+                  <SelectItem value="onedrive">OneDrive</SelectItem>
+                  <SelectItem value="ftp">FTP Server</SelectItem>
+                </SelectContent>
+              </Select>
+              <div className="flex items-center justify-between">
+                {renderProviderStatus(primaryStorageProvider)}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => testProviderConnection(primaryStorageProvider)}
+                  disabled={testingProvider === primaryStorageProvider}
+                >
+                  {testingProvider === primaryStorageProvider && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
+                  Test Connection
+                </Button>
+              </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Heavy Files Provider (Plans/Photos)</Label>
+              <Select value={heavyFilesStorageProvider} onValueChange={(v) => setHeavyFilesStorageProvider(v as StorageProvider)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select provider" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="builderlink">BuilderLink Storage (Supabase)</SelectItem>
+                  <SelectItem value="google_drive">Google Drive</SelectItem>
+                  <SelectItem value="onedrive">OneDrive</SelectItem>
+                  <SelectItem value="ftp">FTP Server</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
+          <Separator />
+
+          <div className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div>
+                <Label>Enable Backup Copy</Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Keep an additional copy in a secondary destination for resilience.
+                </p>
+              </div>
+              <Switch checked={enableBackupCopy} onCheckedChange={setEnableBackupCopy} />
+            </div>
+
+            {enableBackupCopy && (
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Backup Provider</Label>
+                  <Select value={backupStorageProvider} onValueChange={(v) => setBackupStorageProvider(v as BackupProvider)}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select backup provider" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">None</SelectItem>
+                      <SelectItem value="google_drive">Google Drive</SelectItem>
+                      <SelectItem value="onedrive">OneDrive</SelectItem>
+                      <SelectItem value="ftp">FTP Server</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="backup-heavy-only">Backup Heavy Files Only</Label>
+                  <Switch id="backup-heavy-only" checked={backupHeavyFilesOnly} onCheckedChange={setBackupHeavyFilesOnly} />
+                </div>
+
+                {!backupHeavyFilesOnly && (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="backup-plans" checked={backupPlans} onCheckedChange={(v) => setBackupPlans(!!v)} />
+                      <Label htmlFor="backup-plans" className="text-sm">Plans</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="backup-photos" checked={backupPhotos} onCheckedChange={(v) => setBackupPhotos(!!v)} />
+                      <Label htmlFor="backup-photos" className="text-sm">Photos</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="backup-receipts" checked={backupReceipts} onCheckedChange={(v) => setBackupReceipts(!!v)} />
+                      <Label htmlFor="backup-receipts" className="text-sm">Receipts</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="backup-bills" checked={backupBills} onCheckedChange={(v) => setBackupBills(!!v)} />
+                      <Label htmlFor="backup-bills" className="text-sm">Bills</Label>
+                    </div>
+                    <div className="flex items-center space-x-2">
+                      <Checkbox id="backup-company-files" checked={backupCompanyFiles} onCheckedChange={(v) => setBackupCompanyFiles(!!v)} />
+                      <Label htmlFor="backup-company-files" className="text-sm">Company Files</Label>
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Note: OneNote is not supported as a storage backend. Use OneDrive/SharePoint for Microsoft storage.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Google Drive */}
       <Card>
         <CardHeader>
@@ -448,6 +669,15 @@ export default function ThirdPartyStorageSettings() {
                 {driveLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
                 Disconnect Google Drive
               </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => testProviderConnection('google_drive')}
+                disabled={testingProvider === 'google_drive'}
+              >
+                {testingProvider === 'google_drive' && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
+                Test Connection
+              </Button>
             </>
           )}
         </CardContent>
@@ -465,14 +695,25 @@ export default function ThirdPartyStorageSettings() {
             <Switch id="enable-onedrive" checked={enableOnedrive} onCheckedChange={setEnableOnedrive} />
           </div>
           {enableOnedrive && (
-            <div className="space-y-2">
-              <Label htmlFor="onedrive-folder-id">OneDrive Folder ID</Label>
-              <Input
-                id="onedrive-folder-id"
-                value={onedriveFolderId}
-                onChange={(e) => setOnedriveFolderId(e.target.value)}
-                placeholder="Enter OneDrive folder ID"
-              />
+            <div className="space-y-3">
+              <div className="space-y-2">
+                <Label htmlFor="onedrive-folder-id">OneDrive Folder ID</Label>
+                <Input
+                  id="onedrive-folder-id"
+                  value={onedriveFolderId}
+                  onChange={(e) => setOnedriveFolderId(e.target.value)}
+                  placeholder="Enter OneDrive folder ID"
+                />
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => testProviderConnection('onedrive')}
+                disabled={testingProvider === 'onedrive'}
+              >
+                {testingProvider === 'onedrive' && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
+                Test OneDrive
+              </Button>
             </div>
           )}
         </CardContent>
@@ -513,6 +754,15 @@ export default function ThirdPartyStorageSettings() {
                 <Label htmlFor="ftp-folder">Remote Folder Path</Label>
                 <Input id="ftp-folder" value={ftpFolderPath} onChange={(e) => setFtpFolderPath(e.target.value)} placeholder="/uploads" />
               </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => testProviderConnection('ftp')}
+                disabled={testingProvider === 'ftp'}
+              >
+                {testingProvider === 'ftp' && <Loader2 className="h-3 w-3 mr-2 animate-spin" />}
+                Test FTP
+              </Button>
             </div>
           )}
         </CardContent>
