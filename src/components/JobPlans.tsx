@@ -39,10 +39,16 @@ interface JobPlan {
   revision_date: string | null;
 }
 
+interface PlanCabinetFile {
+  id: string;
+  file_url: string;
+}
+
 type PlanSortKey = "plan_name" | "plan_number" | "revision" | "architect" | "revision_date" | "uploaded_at";
 type SortDirection = "asc" | "desc";
 
-const PLAN_UPLOAD_MAX_SIZE_MB = 100;
+const PLAN_UPLOAD_MAX_SIZE_MB = 300;
+const PLAN_SYSTEM_FOLDER_NAME = "Plans";
 const INITIAL_PLAN_FORM = {
   plan_name: "",
   plan_number: "",
@@ -188,6 +194,127 @@ export default function JobPlans({ jobId }: JobPlansProps) {
     revision_date: "",
   });
 
+  const ensurePlansFolderId = async () => {
+    if (!currentCompany?.id || !user?.id) {
+      throw new Error("Missing company or user context");
+    }
+
+    const { data: existingFolder, error: folderError } = await supabase
+      .from("job_folders")
+      .select("id")
+      .eq("job_id", jobId)
+      .eq("company_id", currentCompany.id)
+      .ilike("name", PLAN_SYSTEM_FOLDER_NAME)
+      .maybeSingle();
+
+    if (folderError) throw folderError;
+    if (existingFolder?.id) return existingFolder.id;
+
+    const { data: maxSortFolder } = await supabase
+      .from("job_folders")
+      .select("sort_order")
+      .eq("job_id", jobId)
+      .eq("company_id", currentCompany.id)
+      .order("sort_order", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    const { data: createdFolder, error: createError } = await supabase
+      .from("job_folders")
+      .insert({
+        job_id: jobId,
+        company_id: currentCompany.id,
+        name: PLAN_SYSTEM_FOLDER_NAME,
+        is_system_folder: true,
+        sort_order: Number(maxSortFolder?.sort_order || 0) + 1,
+        created_by: user.id,
+      })
+      .select("id")
+      .single();
+
+    if (createError) throw createError;
+    return createdFolder.id;
+  };
+
+  const syncPlanToFilingCabinet = async (params: {
+    planId: string;
+    file: File;
+    fileName: string;
+    previousCabinetPath?: string | null;
+  }) => {
+    if (!currentCompany?.id || !user?.id) return;
+
+    const folderId = await ensurePlansFolderId();
+    const extension = params.file.name.split(".").pop() || "pdf";
+    const newPath = `${currentCompany.id}/${jobId}/${folderId}/plan-${params.planId}-${crypto.randomUUID()}.${extension}`;
+
+    const { error: uploadCabinetError } = await supabase.storage
+      .from("job-filing-cabinet")
+      .upload(newPath, params.file, { upsert: false });
+
+    if (uploadCabinetError) throw uploadCabinetError;
+
+    const { data: existingCabinetFile, error: existingCabinetFileError } = await supabase
+      .from("job_files")
+      .select("id, file_url")
+      .eq("source_plan_id", params.planId)
+      .maybeSingle();
+
+    if (existingCabinetFileError) throw existingCabinetFileError;
+
+    if (existingCabinetFile?.id) {
+      const { error: updateCabinetError } = await supabase
+        .from("job_files")
+        .update({
+          folder_id: folderId,
+          file_name: params.fileName,
+          original_file_name: params.fileName,
+          file_url: newPath,
+          file_size: params.file.size,
+          file_type: params.file.type || null,
+          uploaded_by: user.id,
+          updated_at: new Date().toISOString(),
+        } as any)
+        .eq("id", existingCabinetFile.id);
+      if (updateCabinetError) throw updateCabinetError;
+    } else {
+      const { error: insertCabinetError } = await supabase.from("job_files").insert({
+        job_id: jobId,
+        company_id: currentCompany.id,
+        folder_id: folderId,
+        file_name: params.fileName,
+        original_file_name: params.fileName,
+        file_url: newPath,
+        file_size: params.file.size,
+        file_type: params.file.type || null,
+        uploaded_by: user.id,
+        source_plan_id: params.planId,
+      } as any);
+      if (insertCabinetError) throw insertCabinetError;
+    }
+
+    const oldPath = params.previousCabinetPath || existingCabinetFile?.file_url;
+    if (oldPath && oldPath !== newPath) {
+      await supabase.storage.from("job-filing-cabinet").remove([oldPath]);
+    }
+  };
+
+  const removePlanFromFilingCabinet = async (planId: string) => {
+    const { data: cabinetFile, error: fileLookupError } = await supabase
+      .from("job_files")
+      .select("id, file_url")
+      .eq("source_plan_id", planId)
+      .maybeSingle();
+
+    if (fileLookupError) throw fileLookupError;
+    const typedCabinetFile = (cabinetFile as PlanCabinetFile | null) || null;
+    if (!typedCabinetFile?.id) return;
+
+    await supabase.storage.from("job-filing-cabinet").remove([typedCabinetFile.file_url]);
+    const { error: deleteError } = await supabase.from("job_files").delete().eq("id", typedCabinetFile.id);
+    if (deleteError) throw deleteError;
+  };
+
   useEffect(() => {
     if (currentCompany?.id) {
       fetchPlans();
@@ -299,10 +426,23 @@ export default function JobPlans({ jobId }: JobPlansProps) {
           .eq("id", editingPlan.id);
 
         if (updateError) throw updateError;
+        if (selectedFile) {
+          const { data: existingCabinet } = await supabase
+            .from("job_files")
+            .select("file_url")
+            .eq("source_plan_id", editingPlan.id)
+            .maybeSingle();
+          await syncPlanToFilingCabinet({
+            planId: editingPlan.id,
+            file: selectedFile,
+            fileName,
+            previousCabinetPath: existingCabinet?.file_url || null,
+          });
+        }
         toast.success("Plan updated successfully");
       } else {
         // Create new plan
-        const { error: insertError } = await supabase
+        const { data: createdPlan, error: insertError } = await supabase
           .from("job_plans")
           .insert({
             job_id: jobId,
@@ -318,9 +458,18 @@ export default function JobPlans({ jobId }: JobPlansProps) {
             file_url: fileUrl,
             file_name: fileName,
             file_size: fileSize,
-          });
+          })
+          .select("id")
+          .single();
 
         if (insertError) throw insertError;
+        if (selectedFile && createdPlan?.id) {
+          await syncPlanToFilingCabinet({
+            planId: createdPlan.id,
+            file: selectedFile,
+            fileName,
+          });
+        }
         toast.success("Plan uploaded successfully");
       }
 
@@ -421,6 +570,7 @@ export default function JobPlans({ jobId }: JobPlansProps) {
         .eq("id", infoPlan.id);
 
       if (error) throw error;
+      await removePlanFromFilingCabinet(infoPlan.id);
 
       setPlans((prev) => prev.filter((p) => p.id !== infoPlan.id));
       setDeleteConfirmOpen(false);

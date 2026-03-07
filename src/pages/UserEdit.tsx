@@ -18,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { UserPinSettings } from '@/components/UserPinSettings';
 import DragDropUpload from '@/components/DragDropUpload';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 
 interface UserProfile {
   id: string;
@@ -59,6 +60,7 @@ const roleColors = {
 } as const;
 
 const roleLabels = {
+  owner: 'Owner',
   admin: 'Administrator',
   controller: 'Controller',
   project_manager: 'Project Manager',
@@ -93,10 +95,10 @@ export default function UserEdit() {
   const [selectedVendorId, setSelectedVendorId] = useState<string | null>(null);
   const [groups, setGroups] = useState<EmployeeGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
+  const activeCompanyRole = useActiveCompanyRole();
 
-  const isAdmin = profile?.role === 'admin';
-  const isController = profile?.role === 'controller';
-  const canManageUsers = isAdmin || isController;
+  const normalizedActiveRole = String(activeCompanyRole || profile?.role || '').toLowerCase();
+  const canManageUsers = ['admin', 'controller', 'company_admin', 'owner'].includes(normalizedActiveRole);
   const { currentCompany } = useCompany();
 
   useEffect(() => {

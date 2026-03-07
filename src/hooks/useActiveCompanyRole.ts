@@ -1,6 +1,7 @@
 import { useMemo } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useTenant } from "@/contexts/TenantContext";
 
 /**
  * Returns the current user's role for the *active company*.
@@ -9,8 +10,12 @@ import { useCompany } from "@/contexts/CompanyContext";
 export function useActiveCompanyRole(): string | null {
   const { profile } = useAuth();
   const { currentCompany, userCompanies } = useCompany();
+  const { tenantMember } = useTenant();
 
   return useMemo(() => {
+    // Tenant owners should always be treated as owner in the app role model.
+    if (tenantMember?.role === "owner") return "owner";
+
     const companyId = currentCompany?.id ?? profile?.current_company_id ?? null;
     if (!companyId) return null;
 
@@ -19,5 +24,5 @@ export function useActiveCompanyRole(): string | null {
 
     // Normalize to avoid mismatch due to casing/whitespace from DB.
     return role ? role.trim().toLowerCase() : null;
-  }, [currentCompany?.id, profile?.current_company_id, userCompanies]);
+  }, [tenantMember?.role, currentCompany?.id, profile?.current_company_id, userCompanies]);
 }

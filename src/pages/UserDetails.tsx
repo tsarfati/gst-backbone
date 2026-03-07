@@ -42,6 +42,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
+import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
@@ -143,6 +144,7 @@ interface UserProfileFile {
 
 const roleLabels: Record<string, string> = {
   admin: 'Administrator',
+  owner: 'Owner',
   controller: 'Controller',
   project_manager: 'Project Manager',
   design_professional: 'Design Professional',
@@ -157,8 +159,9 @@ export default function UserDetails() {
   const navigate = useNavigate();
   const location = useLocation();
   const { currentCompany } = useCompany();
-  const { isSuperAdmin } = useTenant();
+  const { isSuperAdmin, tenantMember } = useTenant();
   const { profile } = useAuth();
+  const activeCompanyRole = useActiveCompanyRole();
   const { hasAccess } = useMenuPermissions();
   const { toast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -205,14 +208,14 @@ export default function UserDetails() {
   
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
   const fromEmployees = location.state?.fromEmployees || false;
-  const isAdmin = profile?.role === 'admin';
-  const isController = profile?.role === 'controller';
-  const canManage = isAdmin || isController;
+  const normalizedActiveRole = String(activeCompanyRole || "").toLowerCase();
+  const canManage = ['admin', 'controller', 'company_admin', 'owner'].includes(normalizedActiveRole);
   const canEditUserEmail = canManage && hasAccess('user-settings-edit-email');
   const canChangeUserPassword = canManage && hasAccess('user-settings-change-password');
 
   const roleColors: Record<string, string> = {
     admin: 'bg-destructive',
+    owner: 'bg-destructive',
     controller: 'bg-primary',
     project_manager: 'bg-accent',
     design_professional: 'bg-cyan-500',
@@ -239,7 +242,7 @@ export default function UserDetails() {
       if (currentCompany) fetchGroups();
       if (currentCompany) fetchVendors();
     }
-  }, [userId, currentCompany, isSuperAdmin]);
+  }, [userId, currentCompany, isSuperAdmin, tenantMember?.role, tenantMember?.user_id]);
 
   useEffect(() => {
     if (selectedVendorId) {
@@ -307,8 +310,10 @@ export default function UserDetails() {
       ]);
 
       if (profileRes.data) {
-        const role = accessRes.data?.role || profileRes.data.role;
-        setCompanyRole(accessRes.data?.role || null);
+      const role = accessRes.data?.role || profileRes.data.role;
+      const isTenantOwnerProfile = tenantMember?.role === 'owner' && tenantMember?.user_id === profileRes.data.user_id;
+      const effectiveRole = isTenantOwnerProfile ? 'owner' : role;
+      setCompanyRole(accessRes.data?.role || null);
         
         // Fallback avatar: use latest punch selfie if no avatar set
         let avatarUrl = profileRes.data.avatar_url;
@@ -328,7 +333,7 @@ export default function UserDetails() {
           }
         }
 
-        const userData = { ...profileRes.data, role, avatar_url: avatarUrl };
+        const userData = { ...profileRes.data, role: effectiveRole, avatar_url: avatarUrl };
         setUser(userData);
         setSelectedGroupId(profileRes.data.group_id || null);
         setEditForm({
@@ -338,7 +343,7 @@ export default function UserDetails() {
           email: userEmail || userData.email || '',
           phone: userData.phone || '',
           birthday: userData.birthday || '',
-          role: userData.custom_role_id ? `custom_${userData.custom_role_id}` : role,
+          role: userData.custom_role_id ? `custom_${userData.custom_role_id}` : (effectiveRole === 'owner' ? 'admin' : role),
           status: userData.status || 'approved',
         });
         
@@ -579,7 +584,7 @@ export default function UserDetails() {
       email: userEmail || user.email || '',
       phone: user.phone || '',
       birthday: user.birthday || '',
-      role: user.custom_role_id ? `custom_${user.custom_role_id}` : user.role,
+      role: user.custom_role_id ? `custom_${user.custom_role_id}` : (user.role === 'owner' ? 'admin' : user.role),
       status: user.status || 'approved',
     });
     setSelectedGroupId(user.group_id || null);
