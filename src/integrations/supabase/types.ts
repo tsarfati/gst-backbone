@@ -705,8 +705,10 @@ export type Database = {
       }
       bid_attachments: {
         Row: {
+          attachment_type: string
           bid_id: string
           company_id: string
+          description: string | null
           file_name: string
           file_size: number | null
           file_type: string | null
@@ -716,8 +718,10 @@ export type Database = {
           uploaded_by: string
         }
         Insert: {
+          attachment_type?: string
           bid_id: string
           company_id: string
+          description?: string | null
           file_name: string
           file_size?: number | null
           file_type?: string | null
@@ -727,8 +731,10 @@ export type Database = {
           uploaded_by: string
         }
         Update: {
+          attachment_type?: string
           bid_id?: string
           company_id?: string
+          description?: string | null
           file_name?: string
           file_size?: number | null
           file_type?: string | null
@@ -750,6 +756,228 @@ export type Database = {
             columns: ["company_id"]
             isOneToOne: false
             referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bid_communications: {
+        Row: {
+          bid_id: string
+          company_id: string
+          created_at: string
+          id: string
+          message: string
+          message_type: string
+          updated_at: string
+          user_id: string
+          vendor_id: string
+        }
+        Insert: {
+          bid_id: string
+          company_id: string
+          created_at?: string
+          id?: string
+          message: string
+          message_type?: string
+          updated_at?: string
+          user_id: string
+          vendor_id: string
+        }
+        Update: {
+          bid_id?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          message_type?: string
+          updated_at?: string
+          user_id?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bid_communications_bid_id_fkey"
+            columns: ["bid_id"]
+            isOneToOne: false
+            referencedRelation: "bids"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_communications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_communications_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_communications_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bid_email_channels: {
+        Row: {
+          bid_id: string
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          tracking_email: string
+          tracking_local_part: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          bid_id: string
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          tracking_email: string
+          tracking_local_part: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          bid_id?: string
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          tracking_email?: string
+          tracking_local_part?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bid_email_channels_bid_id_fkey"
+            columns: ["bid_id"]
+            isOneToOne: true
+            referencedRelation: "bids"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_email_channels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_email_channels_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_email_channels_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bid_email_messages: {
+        Row: {
+          bcc_emails: string[]
+          bid_id: string
+          body_html: string | null
+          body_text: string | null
+          cc_emails: string[]
+          company_id: string
+          created_at: string
+          direction: string
+          from_email: string | null
+          id: string
+          message_source: string
+          provider_message_id: string | null
+          provider_thread_id: string | null
+          sent_by_user_id: string | null
+          subject: string | null
+          to_emails: string[]
+          vendor_id: string
+        }
+        Insert: {
+          bcc_emails?: string[]
+          bid_id: string
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[]
+          company_id: string
+          created_at?: string
+          direction: string
+          from_email?: string | null
+          id?: string
+          message_source?: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          sent_by_user_id?: string | null
+          subject?: string | null
+          to_emails?: string[]
+          vendor_id: string
+        }
+        Update: {
+          bcc_emails?: string[]
+          bid_id?: string
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[]
+          company_id?: string
+          created_at?: string
+          direction?: string
+          from_email?: string | null
+          id?: string
+          message_source?: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          sent_by_user_id?: string | null
+          subject?: string | null
+          to_emails?: string[]
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bid_email_messages_bid_id_fkey"
+            columns: ["bid_id"]
+            isOneToOne: false
+            referencedRelation: "bids"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_email_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_email_messages_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bid_email_messages_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
             referencedColumns: ["id"]
           },
         ]
@@ -863,39 +1091,72 @@ export type Database = {
       bids: {
         Row: {
           bid_amount: number
+          bid_contact_email: string | null
+          bid_contact_name: string | null
+          bid_contact_phone: string | null
+          bid_version_group_id: string
           company_id: string
+          comparison_notes: string | null
+          discount_amount: number
           id: string
           notes: string | null
           proposed_timeline: string | null
           rfp_id: string
+          shipping_amount: number
+          shipping_included: boolean
           status: string
           submitted_at: string
+          tax_amount: number
+          taxes_included: boolean
           updated_at: string
           vendor_id: string
+          version_number: number
         }
         Insert: {
           bid_amount: number
+          bid_contact_email?: string | null
+          bid_contact_name?: string | null
+          bid_contact_phone?: string | null
+          bid_version_group_id?: string
           company_id: string
+          comparison_notes?: string | null
+          discount_amount?: number
           id?: string
           notes?: string | null
           proposed_timeline?: string | null
           rfp_id: string
+          shipping_amount?: number
+          shipping_included?: boolean
           status?: string
           submitted_at?: string
+          tax_amount?: number
+          taxes_included?: boolean
           updated_at?: string
           vendor_id: string
+          version_number?: number
         }
         Update: {
           bid_amount?: number
+          bid_contact_email?: string | null
+          bid_contact_name?: string | null
+          bid_contact_phone?: string | null
+          bid_version_group_id?: string
           company_id?: string
+          comparison_notes?: string | null
+          discount_amount?: number
           id?: string
           notes?: string | null
           proposed_timeline?: string | null
           rfp_id?: string
+          shipping_amount?: number
+          shipping_included?: boolean
           status?: string
           submitted_at?: string
+          tax_amount?: number
+          taxes_included?: boolean
           updated_at?: string
           vendor_id?: string
+          version_number?: number
         }
         Relationships: [
           {
@@ -1334,6 +1595,47 @@ export type Database = {
           },
         ]
       }
+      company_file_folders: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          id: string
+          is_system_folder: boolean
+          name: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          id?: string
+          is_system_folder?: boolean
+          name: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          id?: string
+          is_system_folder?: boolean
+          name?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_file_folders_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_files: {
         Row: {
           category: string
@@ -1347,12 +1649,14 @@ export type Database = {
           file_type: string | null
           file_url: string
           filing_document_id: string | null
+          folder_id: string | null
           id: string
           issue_date: string | null
           job_id: string | null
           name: string
           permit_number: string | null
           policy_number: string | null
+          sort_order: number
           status: string | null
           trade: string | null
           updated_at: string
@@ -1370,12 +1674,14 @@ export type Database = {
           file_type?: string | null
           file_url: string
           filing_document_id?: string | null
+          folder_id?: string | null
           id?: string
           issue_date?: string | null
           job_id?: string | null
           name: string
           permit_number?: string | null
           policy_number?: string | null
+          sort_order?: number
           status?: string | null
           trade?: string | null
           updated_at?: string
@@ -1393,12 +1699,14 @@ export type Database = {
           file_type?: string | null
           file_url?: string
           filing_document_id?: string | null
+          folder_id?: string | null
           id?: string
           issue_date?: string | null
           job_id?: string | null
           name?: string
           permit_number?: string | null
           policy_number?: string | null
+          sort_order?: number
           status?: string | null
           trade?: string | null
           updated_at?: string
@@ -1417,6 +1725,13 @@ export type Database = {
             columns: ["filing_document_id"]
             isOneToOne: false
             referencedRelation: "job_filing_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "company_files_folder_id_fkey"
+            columns: ["folder_id"]
+            isOneToOne: false
+            referencedRelation: "company_file_folders"
             referencedColumns: ["id"]
           },
           {
@@ -3059,11 +3374,19 @@ export type Database = {
       }
       file_upload_settings: {
         Row: {
+          backup_bills: boolean
+          backup_company_files: boolean
+          backup_heavy_files_only: boolean
+          backup_photos: boolean
+          backup_plans: boolean
+          backup_receipts: boolean
+          backup_storage_provider: string
           bank_statement_naming_pattern: string | null
           bill_naming_pattern: string | null
           company_id: string
           created_at: string | null
           created_by: string
+          enable_backup_copy: boolean
           enable_ftp: boolean | null
           enable_google_drive: boolean | null
           enable_onedrive: boolean | null
@@ -3073,19 +3396,34 @@ export type Database = {
           ftp_port: number | null
           ftp_username: string | null
           google_drive_folder_id: string | null
+          heavy_files_storage_provider: string
           id: string
+          last_storage_test_message: string | null
+          last_storage_test_provider: string | null
+          last_storage_test_status: string | null
+          last_storage_tested_at: string | null
           naming_variables: Json | null
           onedrive_folder_id: string | null
+          primary_storage_provider: string
           receipt_naming_pattern: string | null
+          storage_test_results: Json
           subcontract_naming_pattern: string | null
           updated_at: string | null
         }
         Insert: {
+          backup_bills?: boolean
+          backup_company_files?: boolean
+          backup_heavy_files_only?: boolean
+          backup_photos?: boolean
+          backup_plans?: boolean
+          backup_receipts?: boolean
+          backup_storage_provider?: string
           bank_statement_naming_pattern?: string | null
           bill_naming_pattern?: string | null
           company_id: string
           created_at?: string | null
           created_by: string
+          enable_backup_copy?: boolean
           enable_ftp?: boolean | null
           enable_google_drive?: boolean | null
           enable_onedrive?: boolean | null
@@ -3095,19 +3433,34 @@ export type Database = {
           ftp_port?: number | null
           ftp_username?: string | null
           google_drive_folder_id?: string | null
+          heavy_files_storage_provider?: string
           id?: string
+          last_storage_test_message?: string | null
+          last_storage_test_provider?: string | null
+          last_storage_test_status?: string | null
+          last_storage_tested_at?: string | null
           naming_variables?: Json | null
           onedrive_folder_id?: string | null
+          primary_storage_provider?: string
           receipt_naming_pattern?: string | null
+          storage_test_results?: Json
           subcontract_naming_pattern?: string | null
           updated_at?: string | null
         }
         Update: {
+          backup_bills?: boolean
+          backup_company_files?: boolean
+          backup_heavy_files_only?: boolean
+          backup_photos?: boolean
+          backup_plans?: boolean
+          backup_receipts?: boolean
+          backup_storage_provider?: string
           bank_statement_naming_pattern?: string | null
           bill_naming_pattern?: string | null
           company_id?: string
           created_at?: string | null
           created_by?: string
+          enable_backup_copy?: boolean
           enable_ftp?: boolean | null
           enable_google_drive?: boolean | null
           enable_onedrive?: boolean | null
@@ -3117,10 +3470,17 @@ export type Database = {
           ftp_port?: number | null
           ftp_username?: string | null
           google_drive_folder_id?: string | null
+          heavy_files_storage_provider?: string
           id?: string
+          last_storage_test_message?: string | null
+          last_storage_test_provider?: string | null
+          last_storage_test_status?: string | null
+          last_storage_tested_at?: string | null
           naming_variables?: Json | null
           onedrive_folder_id?: string | null
+          primary_storage_provider?: string
           receipt_naming_pattern?: string | null
+          storage_test_results?: Json
           subcontract_naming_pattern?: string | null
           updated_at?: string | null
         }
@@ -3766,6 +4126,7 @@ export type Database = {
           id: string
           job_id: string
           original_file_name: string
+          source_plan_id: string | null
           updated_at: string
           uploaded_by: string
         }
@@ -3780,6 +4141,7 @@ export type Database = {
           id?: string
           job_id: string
           original_file_name: string
+          source_plan_id?: string | null
           updated_at?: string
           uploaded_by: string
         }
@@ -3794,6 +4156,7 @@ export type Database = {
           id?: string
           job_id?: string
           original_file_name?: string
+          source_plan_id?: string | null
           updated_at?: string
           uploaded_by?: string
         }
@@ -3824,6 +4187,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_files_source_plan_id_fkey"
+            columns: ["source_plan_id"]
+            isOneToOne: false
+            referencedRelation: "job_plans"
             referencedColumns: ["id"]
           },
         ]
@@ -5175,7 +5545,8 @@ export type Database = {
           in_app_enabled: boolean
           invoices_paid: boolean
           job_assignments: boolean
-          mention_email_notifications: boolean | null
+          mention_email_notifications: boolean
+          new_bid_notifications: boolean
           overdue_bills_interval: string | null
           overdue_invoices: boolean
           receipt_uploaded: boolean
@@ -5195,7 +5566,8 @@ export type Database = {
           in_app_enabled?: boolean
           invoices_paid?: boolean
           job_assignments?: boolean
-          mention_email_notifications?: boolean | null
+          mention_email_notifications?: boolean
+          new_bid_notifications?: boolean
           overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean
@@ -5215,7 +5587,8 @@ export type Database = {
           in_app_enabled?: boolean
           invoices_paid?: boolean
           job_assignments?: boolean
-          mention_email_notifications?: boolean | null
+          mention_email_notifications?: boolean
+          new_bid_notifications?: boolean
           overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean
@@ -5276,6 +5649,14 @@ export type Database = {
           created_by: string
           default_payment_method: string | null
           default_payment_terms: string | null
+          design_professional_portal_enabled: boolean
+          design_professional_signup_background_color: string
+          design_professional_signup_background_image_url: string | null
+          design_professional_signup_header_subtitle: string | null
+          design_professional_signup_header_title: string | null
+          design_professional_signup_logo_url: string | null
+          design_professional_signup_modal_color: string
+          design_professional_signup_modal_opacity: number
           id: string
           notify_on_bill_submission: boolean
           notify_on_payment_approval: boolean
@@ -5285,13 +5666,34 @@ export type Database = {
           payment_dual_approval_roles: string[]
           payment_dual_approval_threshold: number | null
           payments_require_approval: boolean
-          require_bill_documents: boolean
           require_bill_distribution_before_approval: boolean
+          require_bill_documents: boolean
           require_cc_attachment: boolean | null
           require_receipt_attachment: boolean
           send_payment_confirmations: boolean
           show_vendor_compliance_warnings: boolean
           updated_at: string
+          vendor_portal_default_job_access_billing: boolean
+          vendor_portal_default_job_access_plans: boolean
+          vendor_portal_default_job_access_rfis: boolean
+          vendor_portal_default_job_access_team_directory: boolean
+          vendor_portal_enabled: boolean
+          vendor_portal_payment_changes_auto_approve: boolean
+          vendor_portal_require_company_logo: boolean
+          vendor_portal_require_insurance: boolean
+          vendor_portal_require_job_assignment_for_bills: boolean
+          vendor_portal_require_payment_method: boolean
+          vendor_portal_require_profile_completion: boolean
+          vendor_portal_require_user_avatar: boolean
+          vendor_portal_require_w9: boolean
+          vendor_portal_signup_background_color: string
+          vendor_portal_signup_background_image_url: string | null
+          vendor_portal_signup_company_logo_url: string | null
+          vendor_portal_signup_header_logo_url: string | null
+          vendor_portal_signup_header_subtitle: string | null
+          vendor_portal_signup_header_title: string | null
+          vendor_portal_signup_modal_color: string
+          vendor_portal_signup_modal_opacity: number
         }
         Insert: {
           allowed_po_vendor_types?: string[] | null
@@ -5305,6 +5707,14 @@ export type Database = {
           created_by: string
           default_payment_method?: string | null
           default_payment_terms?: string | null
+          design_professional_portal_enabled?: boolean
+          design_professional_signup_background_color?: string
+          design_professional_signup_background_image_url?: string | null
+          design_professional_signup_header_subtitle?: string | null
+          design_professional_signup_header_title?: string | null
+          design_professional_signup_logo_url?: string | null
+          design_professional_signup_modal_color?: string
+          design_professional_signup_modal_opacity?: number
           id?: string
           notify_on_bill_submission?: boolean
           notify_on_payment_approval?: boolean
@@ -5314,13 +5724,34 @@ export type Database = {
           payment_dual_approval_roles?: string[]
           payment_dual_approval_threshold?: number | null
           payments_require_approval?: boolean
-          require_bill_documents?: boolean
           require_bill_distribution_before_approval?: boolean
+          require_bill_documents?: boolean
           require_cc_attachment?: boolean | null
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean
           show_vendor_compliance_warnings?: boolean
           updated_at?: string
+          vendor_portal_default_job_access_billing?: boolean
+          vendor_portal_default_job_access_plans?: boolean
+          vendor_portal_default_job_access_rfis?: boolean
+          vendor_portal_default_job_access_team_directory?: boolean
+          vendor_portal_enabled?: boolean
+          vendor_portal_payment_changes_auto_approve?: boolean
+          vendor_portal_require_company_logo?: boolean
+          vendor_portal_require_insurance?: boolean
+          vendor_portal_require_job_assignment_for_bills?: boolean
+          vendor_portal_require_payment_method?: boolean
+          vendor_portal_require_profile_completion?: boolean
+          vendor_portal_require_user_avatar?: boolean
+          vendor_portal_require_w9?: boolean
+          vendor_portal_signup_background_color?: string
+          vendor_portal_signup_background_image_url?: string | null
+          vendor_portal_signup_company_logo_url?: string | null
+          vendor_portal_signup_header_logo_url?: string | null
+          vendor_portal_signup_header_subtitle?: string | null
+          vendor_portal_signup_header_title?: string | null
+          vendor_portal_signup_modal_color?: string
+          vendor_portal_signup_modal_opacity?: number
         }
         Update: {
           allowed_po_vendor_types?: string[] | null
@@ -5334,6 +5765,14 @@ export type Database = {
           created_by?: string
           default_payment_method?: string | null
           default_payment_terms?: string | null
+          design_professional_portal_enabled?: boolean
+          design_professional_signup_background_color?: string
+          design_professional_signup_background_image_url?: string | null
+          design_professional_signup_header_subtitle?: string | null
+          design_professional_signup_header_title?: string | null
+          design_professional_signup_logo_url?: string | null
+          design_professional_signup_modal_color?: string
+          design_professional_signup_modal_opacity?: number
           id?: string
           notify_on_bill_submission?: boolean
           notify_on_payment_approval?: boolean
@@ -5343,13 +5782,34 @@ export type Database = {
           payment_dual_approval_roles?: string[]
           payment_dual_approval_threshold?: number | null
           payments_require_approval?: boolean
-          require_bill_documents?: boolean
           require_bill_distribution_before_approval?: boolean
+          require_bill_documents?: boolean
           require_cc_attachment?: boolean | null
           require_receipt_attachment?: boolean
           send_payment_confirmations?: boolean
           show_vendor_compliance_warnings?: boolean
           updated_at?: string
+          vendor_portal_default_job_access_billing?: boolean
+          vendor_portal_default_job_access_plans?: boolean
+          vendor_portal_default_job_access_rfis?: boolean
+          vendor_portal_default_job_access_team_directory?: boolean
+          vendor_portal_enabled?: boolean
+          vendor_portal_payment_changes_auto_approve?: boolean
+          vendor_portal_require_company_logo?: boolean
+          vendor_portal_require_insurance?: boolean
+          vendor_portal_require_job_assignment_for_bills?: boolean
+          vendor_portal_require_payment_method?: boolean
+          vendor_portal_require_profile_completion?: boolean
+          vendor_portal_require_user_avatar?: boolean
+          vendor_portal_require_w9?: boolean
+          vendor_portal_signup_background_color?: string
+          vendor_portal_signup_background_image_url?: string | null
+          vendor_portal_signup_company_logo_url?: string | null
+          vendor_portal_signup_header_logo_url?: string | null
+          vendor_portal_signup_header_subtitle?: string | null
+          vendor_portal_signup_header_title?: string | null
+          vendor_portal_signup_modal_color?: string
+          vendor_portal_signup_modal_opacity?: number
         }
         Relationships: []
       }
@@ -5927,6 +6387,62 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      plan_ai_feedback: {
+        Row: {
+          answer: string
+          citations: Json | null
+          confidence: string | null
+          created_at: string
+          id: string
+          page_number: number | null
+          plan_id: string
+          question: string | null
+          rating: string
+          reason: string | null
+          trace_id: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          answer: string
+          citations?: Json | null
+          confidence?: string | null
+          created_at?: string
+          id?: string
+          page_number?: number | null
+          plan_id: string
+          question?: string | null
+          rating: string
+          reason?: string | null
+          trace_id?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          answer?: string
+          citations?: Json | null
+          confidence?: string | null
+          created_at?: string
+          id?: string
+          page_number?: number | null
+          plan_id?: string
+          question?: string | null
+          rating?: string
+          reason?: string | null
+          trace_id?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "plan_ai_feedback_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "job_plans"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       plan_comments: {
         Row: {
@@ -7308,80 +7824,6 @@ export type Database = {
         }
         Relationships: []
       }
-      submittals: {
-        Row: {
-          assigned_to: string | null
-          attachment_url: string | null
-          company_id: string
-          created_at: string
-          description: string | null
-          due_date: string | null
-          id: string
-          job_id: string
-          metadata: Json
-          review_notes: string | null
-          reviewed_at: string | null
-          reviewed_by: string | null
-          spec_section: string | null
-          status: Database["public"]["Enums"]["submittal_status"]
-          submitted_at: string | null
-          submitted_by: string
-          submittal_number: string
-          title: string
-          updated_at: string
-        }
-        Insert: {
-          assigned_to?: string | null
-          attachment_url?: string | null
-          company_id: string
-          created_at?: string
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          job_id: string
-          metadata?: Json
-          review_notes?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          spec_section?: string | null
-          status?: Database["public"]["Enums"]["submittal_status"]
-          submitted_at?: string | null
-          submitted_by: string
-          submittal_number: string
-          title: string
-          updated_at?: string
-        }
-        Update: {
-          assigned_to?: string | null
-          attachment_url?: string | null
-          company_id?: string
-          created_at?: string
-          description?: string | null
-          due_date?: string | null
-          id?: string
-          job_id?: string
-          metadata?: Json
-          review_notes?: string | null
-          reviewed_at?: string | null
-          reviewed_by?: string | null
-          spec_section?: string | null
-          status?: Database["public"]["Enums"]["submittal_status"]
-          submitted_at?: string | null
-          submitted_by?: string
-          submittal_number?: string
-          title?: string
-          updated_at?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "submittals_job_id_fkey"
-            columns: ["job_id"]
-            isOneToOne: false
-            referencedRelation: "jobs"
-            referencedColumns: ["id"]
-          },
-        ]
-      }
       rfp_attachments: {
         Row: {
           company_id: string
@@ -7499,6 +7941,7 @@ export type Database = {
           id: string
           issue_date: string | null
           job_id: string | null
+          logistics_details: string | null
           rfp_number: string
           scope_of_work: string | null
           status: string
@@ -7514,6 +7957,7 @@ export type Database = {
           id?: string
           issue_date?: string | null
           job_id?: string | null
+          logistics_details?: string | null
           rfp_number: string
           scope_of_work?: string | null
           status?: string
@@ -7529,6 +7973,7 @@ export type Database = {
           id?: string
           issue_date?: string | null
           job_id?: string | null
+          logistics_details?: string | null
           rfp_number?: string
           scope_of_work?: string | null
           status?: string
@@ -7795,6 +8240,87 @@ export type Database = {
           },
         ]
       }
+      submittals: {
+        Row: {
+          assigned_to: string | null
+          attachment_url: string | null
+          company_id: string
+          created_at: string
+          description: string | null
+          due_date: string | null
+          id: string
+          job_id: string
+          metadata: Json
+          review_notes: string | null
+          reviewed_at: string | null
+          reviewed_by: string | null
+          spec_section: string | null
+          status: Database["public"]["Enums"]["submittal_status"]
+          submittal_number: string
+          submitted_at: string | null
+          submitted_by: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          attachment_url?: string | null
+          company_id: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          job_id: string
+          metadata?: Json
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          spec_section?: string | null
+          status?: Database["public"]["Enums"]["submittal_status"]
+          submittal_number: string
+          submitted_at?: string | null
+          submitted_by: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          attachment_url?: string | null
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          due_date?: string | null
+          id?: string
+          job_id?: string
+          metadata?: Json
+          review_notes?: string | null
+          reviewed_at?: string | null
+          reviewed_by?: string | null
+          spec_section?: string | null
+          status?: Database["public"]["Enums"]["submittal_status"]
+          submittal_number?: string
+          submitted_at?: string | null
+          submitted_by?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "submittals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "submittals_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       subscription_tiers: {
         Row: {
           annual_price: number | null
@@ -7804,8 +8330,10 @@ export type Database = {
           id: string
           is_active: boolean
           is_default: boolean
+          locked_menu_upgrade_message: string | null
           monthly_price: number
           name: string
+          show_locked_menu_items: boolean
           sort_order: number
           stripe_price_id: string | null
           stripe_product_id: string | null
@@ -7819,8 +8347,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_default?: boolean
+          locked_menu_upgrade_message?: string | null
           monthly_price?: number
           name: string
+          show_locked_menu_items?: boolean
           sort_order?: number
           stripe_price_id?: string | null
           stripe_product_id?: string | null
@@ -7834,8 +8364,10 @@ export type Database = {
           id?: string
           is_active?: boolean
           is_default?: boolean
+          locked_menu_upgrade_message?: string | null
           monthly_price?: number
           name?: string
+          show_locked_menu_items?: boolean
           sort_order?: number
           stripe_price_id?: string | null
           stripe_product_id?: string | null
@@ -9039,6 +9571,92 @@ export type Database = {
           },
         ]
       }
+      vendor_job_access: {
+        Row: {
+          allowed_filing_cabinet_file_ids: string[] | null
+          allowed_filing_cabinet_folder_ids: string[] | null
+          can_access_filing_cabinet: boolean
+          can_download_filing_cabinet_files: boolean
+          can_submit_bills: boolean
+          can_submit_rfis: boolean
+          can_upload_compliance_docs: boolean
+          can_view_plans: boolean
+          can_view_team_directory: boolean
+          created_at: string
+          created_by: string | null
+          filing_cabinet_access_level: string
+          id: string
+          job_id: string
+          updated_at: string
+          vendor_id: string
+        }
+        Insert: {
+          allowed_filing_cabinet_file_ids?: string[] | null
+          allowed_filing_cabinet_folder_ids?: string[] | null
+          can_access_filing_cabinet?: boolean
+          can_download_filing_cabinet_files?: boolean
+          can_submit_bills?: boolean
+          can_submit_rfis?: boolean
+          can_upload_compliance_docs?: boolean
+          can_view_plans?: boolean
+          can_view_team_directory?: boolean
+          created_at?: string
+          created_by?: string | null
+          filing_cabinet_access_level?: string
+          id?: string
+          job_id: string
+          updated_at?: string
+          vendor_id: string
+        }
+        Update: {
+          allowed_filing_cabinet_file_ids?: string[] | null
+          allowed_filing_cabinet_folder_ids?: string[] | null
+          can_access_filing_cabinet?: boolean
+          can_download_filing_cabinet_files?: boolean
+          can_submit_bills?: boolean
+          can_submit_rfis?: boolean
+          can_upload_compliance_docs?: boolean
+          can_view_plans?: boolean
+          can_view_team_directory?: boolean
+          created_at?: string
+          created_by?: string | null
+          filing_cabinet_access_level?: string
+          id?: string
+          job_id?: string
+          updated_at?: string
+          vendor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "vendor_job_access_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "vendor_job_access_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_job_access_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_job_access_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       vendor_payment_methods: {
         Row: {
           account_number: string | null
@@ -9693,6 +10311,10 @@ export type Database = {
           user_id: string
         }[]
       }
+      get_company_theme_defaults: {
+        Args: { _company_id: string }
+        Returns: Json
+      }
       get_invoice_distributions: {
         Args: { p_invoice_id: string }
         Returns: {
@@ -10112,7 +10734,6 @@ export type Database = {
         | "admin"
         | "controller"
         | "project_manager"
-        | "design_professional"
         | "employee"
         | "view_only"
         | "company_admin"
@@ -10280,7 +10901,6 @@ export const Constants = {
         "admin",
         "controller",
         "project_manager",
-        "design_professional",
         "employee",
         "view_only",
         "company_admin",
