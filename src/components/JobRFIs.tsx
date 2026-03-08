@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -9,14 +9,16 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { toast } from "sonner";
-import { Plus, FileText, Send, MessageSquare, Paperclip, Calendar } from "lucide-react";
+import { Plus, FileText, Send, MessageSquare, Paperclip, Calendar, X } from "lucide-react";
 import { format } from "date-fns";
 import DragDropUpload from "@/components/DragDropUpload";
 import MentionTextarea from "@/components/MentionTextarea";
 import { createMentionNotifications } from "@/utils/mentions";
+import type { Json } from "@/integrations/supabase/types";
 
 interface JobRFIsProps {
   jobId: string;
@@ -27,6 +29,7 @@ interface RFI {
   rfi_number: string;
   subject: string;
   description: string;
+  metadata?: Json;
   created_by: string;
   assigned_to: string | null;
   status: string;
@@ -75,28 +78,56 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
   const [newMessage, setNewMessage] = useState("");
   const [sendingMessage, setSendingMessage] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
+  const [savingRfiDetails, setSavingRfiDetails] = useState(false);
+  const [creatingRfi, setCreatingRfi] = useState(false);
+  const [createAttachments, setCreateAttachments] = useState<File[]>([]);
+  const [rfiEditForm, setRfiEditForm] = useState({
+    rfi_number: "",
+    subject: "",
+    question: "",
+    assigned_to: "",
+    due_date: "",
+    received_from: "",
+    distribution_list: "",
+    responsible_contractor: "",
+    specification: "",
+    location: "",
+    rfi_stage: "",
+    drawing_number: "",
+    cost_code: "",
+    schedule_impact: "",
+    cost_impact: "",
+    reference: "",
+    is_private: false,
+  });
+  const userMetadata = (user?.user_metadata || {}) as Record<string, unknown>;
   const actorName =
-    (user as any)?.user_metadata?.full_name ||
-    (user as any)?.user_metadata?.name ||
-    (user as any)?.email ||
+    (typeof userMetadata.full_name === "string" && userMetadata.full_name) ||
+    (typeof userMetadata.name === "string" && userMetadata.name) ||
+    user?.email ||
     "A teammate";
 
   const [formData, setFormData] = useState({
     rfi_number: "",
     subject: "",
-    description: "",
+    question: "",
     assigned_to: "",
     due_date: "",
+    received_from: "",
+    distribution_list: "",
+    responsible_contractor: "",
+    specification: "",
+    location: "",
+    rfi_stage: "",
+    drawing_number: "",
+    cost_code: "",
+    schedule_impact: "",
+    cost_impact: "",
+    reference: "",
+    is_private: false,
   });
 
-  useEffect(() => {
-    if (currentCompany?.id) {
-      fetchRFIs();
-      fetchCompanyUsers();
-    }
-  }, [jobId, currentCompany?.id]);
-
-  const fetchRFIs = async () => {
+  const fetchRFIs = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("rfis")
@@ -113,9 +144,9 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentCompany?.id, jobId]);
 
-  const fetchCompanyUsers = async () => {
+  const fetchCompanyUsers = useCallback(async () => {
     try {
       const { data, error } = await supabase
         .from("user_company_access")
@@ -124,12 +155,19 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
         .eq("is_active", true);
 
       if (error) throw error;
-      const users = data?.map((item: any) => item.profiles).filter(Boolean) || [];
+      const users = data?.map((item) => (item as { profiles: Profile | null }).profiles).filter(Boolean) as Profile[];
       setCompanyUsers(users);
     } catch (error) {
       console.error("Error fetching company users:", error);
     }
-  };
+  }, [currentCompany?.id]);
+
+  useEffect(() => {
+    if (currentCompany?.id) {
+      void fetchRFIs();
+      void fetchCompanyUsers();
+    }
+  }, [currentCompany?.id, fetchCompanyUsers, fetchRFIs]);
 
   const fetchRFIDetails = async (rfi: RFI) => {
     try {
@@ -173,12 +211,133 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
     }
   };
 
-  const handleCreateRFI = async () => {
-    if (!formData.rfi_number || !formData.subject) {
-      toast.error("Please fill in RFI number and subject");
+  const queueCreateAttachment = (file: File) => {
+    setCreateAttachments((prev) => [...prev, file]);
+  };
+
+  const removeCreateAttachment = (index: number) => {
+    setCreateAttachments((prev) => prev.filter((_, i) => i !== index));
+  };
+
+  const uploadCreateAttachments = async (rfiId: string) => {
+    if (!createAttachments.length) return;
+
+    for (const file of createAttachments) {
+      const fileExt = file.name.split(".").pop();
+      const fileName = `${crypto.randomUUID()}.${fileExt}`;
+      const filePath = `${currentCompany?.id}/rfis/${rfiId}/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from("company-files")
+        .upload(filePath, file);
+
+      if (uploadError) throw uploadError;
+
+      const { data: { publicUrl } } = supabase.storage
+        .from("company-files")
+        .getPublicUrl(filePath);
+
+      const { error: dbError } = await supabase
+        .from("rfi_attachments")
+        .insert({
+          rfi_id: rfiId,
+          file_name: file.name,
+          file_url: publicUrl,
+          file_size: file.size,
+          uploaded_by: user?.id,
+        });
+
+      if (dbError) throw dbError;
+    }
+  };
+
+  const getMetadataObject = (metadata: Json | undefined) => {
+    if (!metadata || typeof metadata !== "object" || Array.isArray(metadata)) return {};
+    return metadata as Record<string, unknown>;
+  };
+
+  const toStr = (value: unknown) => (typeof value === "string" ? value : "");
+
+  const hydrateRfiEditForm = (rfi: RFI) => {
+    const metadata = getMetadataObject(rfi.metadata);
+    setRfiEditForm({
+      rfi_number: rfi.rfi_number || "",
+      subject: rfi.subject || "",
+      question: rfi.description || "",
+      assigned_to: rfi.assigned_to || "",
+      due_date: rfi.due_date || "",
+      received_from: toStr(metadata.received_from),
+      distribution_list: toStr(metadata.distribution_list),
+      responsible_contractor: toStr(metadata.responsible_contractor),
+      specification: toStr(metadata.specification),
+      location: toStr(metadata.location),
+      rfi_stage: toStr(metadata.rfi_stage),
+      drawing_number: toStr(metadata.drawing_number),
+      cost_code: toStr(metadata.cost_code),
+      schedule_impact: toStr(metadata.schedule_impact),
+      cost_impact: toStr(metadata.cost_impact),
+      reference: toStr(metadata.reference),
+      is_private: metadata.is_private === true,
+    });
+  };
+
+  const handleSaveRfiDetails = async () => {
+    if (!selectedRfi) return;
+    if (!rfiEditForm.rfi_number || !rfiEditForm.subject || !rfiEditForm.question) {
+      toast.error("Number, subject, and question are required");
       return;
     }
 
+    setSavingRfiDetails(true);
+    try {
+      const { data, error } = await supabase
+        .from("rfis")
+        .update({
+          rfi_number: rfiEditForm.rfi_number,
+          subject: rfiEditForm.subject,
+          description: rfiEditForm.question,
+          assigned_to: rfiEditForm.assigned_to || null,
+          due_date: rfiEditForm.due_date || null,
+          metadata: {
+            received_from: rfiEditForm.received_from || null,
+            distribution_list: rfiEditForm.distribution_list || null,
+            responsible_contractor: rfiEditForm.responsible_contractor || null,
+            specification: rfiEditForm.specification || null,
+            location: rfiEditForm.location || null,
+            rfi_stage: rfiEditForm.rfi_stage || null,
+            drawing_number: rfiEditForm.drawing_number || null,
+            cost_code: rfiEditForm.cost_code || null,
+            schedule_impact: rfiEditForm.schedule_impact || null,
+            cost_impact: rfiEditForm.cost_impact || null,
+            reference: rfiEditForm.reference || null,
+            is_private: rfiEditForm.is_private === true,
+            rfi_manager_id: user?.id || null,
+          },
+          updated_at: new Date().toISOString(),
+        })
+        .eq("id", selectedRfi.id)
+        .select()
+        .single();
+
+      if (error) throw error;
+      if (data) setSelectedRfi(data as RFI);
+      await fetchRFIs();
+      toast.success("RFI updated");
+    } catch (error) {
+      console.error("Error updating RFI:", error);
+      toast.error("Failed to update RFI");
+    } finally {
+      setSavingRfiDetails(false);
+    }
+  };
+
+  const handleCreateRFI = async () => {
+    if (!formData.rfi_number || !formData.subject || !formData.question) {
+      toast.error("Please fill in RFI number, subject, and question");
+      return;
+    }
+
+    setCreatingRfi(true);
     try {
       const { data, error } = await supabase
         .from("rfis")
@@ -188,24 +347,63 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
           created_by: user?.id,
           rfi_number: formData.rfi_number,
           subject: formData.subject,
-          description: formData.description,
+          description: formData.question,
           assigned_to: formData.assigned_to || null,
           due_date: formData.due_date || null,
           status: "draft",
           ball_in_court: "manager",
+          metadata: {
+            received_from: formData.received_from || null,
+            distribution_list: formData.distribution_list || null,
+            responsible_contractor: formData.responsible_contractor || null,
+            specification: formData.specification || null,
+            location: formData.location || null,
+            rfi_stage: formData.rfi_stage || null,
+            drawing_number: formData.drawing_number || null,
+            cost_code: formData.cost_code || null,
+            schedule_impact: formData.schedule_impact || null,
+            cost_impact: formData.cost_impact || null,
+            reference: formData.reference || null,
+            is_private: formData.is_private === true,
+            rfi_manager_id: user?.id || null,
+          },
         })
         .select()
         .single();
 
       if (error) throw error;
+      if (data?.id) {
+        await uploadCreateAttachments(data.id);
+      }
 
       toast.success("RFI created successfully");
       setDialogOpen(false);
-      setFormData({ rfi_number: "", subject: "", description: "", assigned_to: "", due_date: "" });
+      setCreateAttachments([]);
+      setFormData({
+        rfi_number: "",
+        subject: "",
+        question: "",
+        assigned_to: "",
+        due_date: "",
+        received_from: "",
+        distribution_list: "",
+        responsible_contractor: "",
+        specification: "",
+        location: "",
+        rfi_stage: "",
+        drawing_number: "",
+        cost_code: "",
+        schedule_impact: "",
+        cost_impact: "",
+        reference: "",
+        is_private: false,
+      });
       fetchRFIs();
-    } catch (error: any) {
+    } catch (error) {
       console.error("Error creating RFI:", error);
-      toast.error(error.message || "Failed to create RFI");
+      toast.error((error as { message?: string })?.message || "Failed to create RFI");
+    } finally {
+      setCreatingRfi(false);
     }
   };
 
@@ -407,73 +605,245 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
               Create RFI
             </Button>
           </DialogTrigger>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New RFI</DialogTitle>
             </DialogHeader>
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-4">
-                <div>
-                  <Label htmlFor="rfi_number">RFI Number *</Label>
-                  <Input
-                    id="rfi_number"
-                    value={formData.rfi_number}
-                    onChange={(e) => setFormData({ ...formData, rfi_number: e.target.value })}
-                    placeholder="RFI-001"
-                  />
-                </div>
-                <div>
-                  <Label htmlFor="due_date">Due Date</Label>
-                  <Input
-                    id="due_date"
-                    type="date"
-                    value={formData.due_date}
-                    onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
-                  />
-                </div>
-              </div>
-              <div>
-                <Label htmlFor="subject">Subject *</Label>
-                <Input
-                  id="subject"
-                  value={formData.subject}
-                  onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
-                  placeholder="Enter RFI subject"
-                />
-              </div>
-              <div>
-                <Label htmlFor="assigned_to">Assign to Design Professional</Label>
-                <Select
-                  value={formData.assigned_to}
-                  onValueChange={(value) => setFormData({ ...formData, assigned_to: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select user" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {companyUsers.map((profile) => (
-                      <SelectItem key={profile.user_id} value={profile.user_id}>
-                        {profile.first_name} {profile.last_name}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="description">Description</Label>
-                <Textarea
-                  id="description"
-                  value={formData.description}
-                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
-                  placeholder="Enter detailed description"
-                  rows={4}
-                />
-              </div>
+            <div className="space-y-6">
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">Request</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div>
+                    <Label htmlFor="subject">Subject *</Label>
+                    <Input
+                      id="subject"
+                      value={formData.subject}
+                      onChange={(e) => setFormData({ ...formData, subject: e.target.value })}
+                      placeholder="Enter RFI subject"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="question">Question *</Label>
+                    <Textarea
+                      id="question"
+                      value={formData.question}
+                      onChange={(e) => setFormData({ ...formData, question: e.target.value })}
+                      placeholder="Describe the question or clarification needed"
+                      rows={5}
+                    />
+                  </div>
+                  <div>
+                    <Label>Attachments</Label>
+                    <div className="mt-2 space-y-3">
+                      <DragDropUpload
+                        onFileSelect={(file) => queueCreateAttachment(file)}
+                        accept=".pdf,.jpg,.jpeg,.png,.doc,.docx,.xlsx,.xls"
+                        maxSize={20}
+                        size="compact"
+                        title="Attach files"
+                        dropTitle="Drop file here"
+                        helperText="You can add multiple files up to 20MB each"
+                        disabled={creatingRfi}
+                      />
+                      {createAttachments.length > 0 && (
+                        <div className="space-y-2">
+                          {createAttachments.map((file, index) => (
+                            <div key={`${file.name}-${index}`} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
+                              <span className="truncate pr-2">{file.name}</span>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeCreateAttachment(index)}
+                                disabled={creatingRfi}
+                              >
+                                <X className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="text-base">General Information</CardTitle>
+                </CardHeader>
+                <CardContent className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  <div>
+                    <Label htmlFor="rfi_number">Number *</Label>
+                    <Input
+                      id="rfi_number"
+                      value={formData.rfi_number}
+                      onChange={(e) => setFormData({ ...formData, rfi_number: e.target.value })}
+                      placeholder="RFI-001"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="due_date">Due Date</Label>
+                    <Input
+                      id="due_date"
+                      type="date"
+                      value={formData.due_date}
+                      onChange={(e) => setFormData({ ...formData, due_date: e.target.value })}
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="assigned_to">Assignee</Label>
+                    <Select
+                      value={formData.assigned_to}
+                      onValueChange={(value) => setFormData({ ...formData, assigned_to: value })}
+                    >
+                      <SelectTrigger id="assigned_to">
+                        <SelectValue placeholder="Select user" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {companyUsers.map((profile) => (
+                          <SelectItem key={profile.user_id} value={profile.user_id}>
+                            {profile.first_name} {profile.last_name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="received_from">Received From</Label>
+                    <Input
+                      id="received_from"
+                      value={formData.received_from}
+                      onChange={(e) => setFormData({ ...formData, received_from: e.target.value })}
+                      placeholder="Person or company"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="distribution_list">Distribution List</Label>
+                    <Input
+                      id="distribution_list"
+                      value={formData.distribution_list}
+                      onChange={(e) => setFormData({ ...formData, distribution_list: e.target.value })}
+                      placeholder="Comma-separated names"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="responsible_contractor">Responsible Contractor</Label>
+                    <Input
+                      id="responsible_contractor"
+                      value={formData.responsible_contractor}
+                      onChange={(e) => setFormData({ ...formData, responsible_contractor: e.target.value })}
+                      placeholder="Contractor name"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="specification">Specification</Label>
+                    <Input
+                      id="specification"
+                      value={formData.specification}
+                      onChange={(e) => setFormData({ ...formData, specification: e.target.value })}
+                      placeholder="Section number or title"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="location">Location</Label>
+                    <Input
+                      id="location"
+                      value={formData.location}
+                      onChange={(e) => setFormData({ ...formData, location: e.target.value })}
+                      placeholder="Location in project"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="rfi_stage">RFI Stage</Label>
+                    <Input
+                      id="rfi_stage"
+                      value={formData.rfi_stage}
+                      onChange={(e) => setFormData({ ...formData, rfi_stage: e.target.value })}
+                      placeholder="Stage"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="drawing_number">Drawing Number</Label>
+                    <Input
+                      id="drawing_number"
+                      value={formData.drawing_number}
+                      onChange={(e) => setFormData({ ...formData, drawing_number: e.target.value })}
+                      placeholder="A-101"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="cost_code">Cost Code</Label>
+                    <Input
+                      id="cost_code"
+                      value={formData.cost_code}
+                      onChange={(e) => setFormData({ ...formData, cost_code: e.target.value })}
+                      placeholder="Cost code"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="reference">Reference</Label>
+                    <Input
+                      id="reference"
+                      value={formData.reference}
+                      onChange={(e) => setFormData({ ...formData, reference: e.target.value })}
+                      placeholder="Reference number"
+                    />
+                  </div>
+                  <div>
+                    <Label htmlFor="schedule_impact">Schedule Impact</Label>
+                    <Select
+                      value={formData.schedule_impact}
+                      onValueChange={(value) => setFormData({ ...formData, schedule_impact: value })}
+                    >
+                      <SelectTrigger id="schedule_impact">
+                        <SelectValue placeholder="Select impact" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label htmlFor="cost_impact">Cost Impact</Label>
+                    <Select
+                      value={formData.cost_impact}
+                      onValueChange={(value) => setFormData({ ...formData, cost_impact: value })}
+                    >
+                      <SelectTrigger id="cost_impact">
+                        <SelectValue placeholder="Select impact" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="none">None</SelectItem>
+                        <SelectItem value="low">Low</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="high">High</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex items-end gap-2 pb-2">
+                    <Checkbox
+                      id="is_private"
+                      checked={formData.is_private}
+                      onCheckedChange={(checked) => setFormData({ ...formData, is_private: checked === true })}
+                    />
+                    <Label htmlFor="is_private">Private</Label>
+                  </div>
+                </CardContent>
+              </Card>
+
               <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setDialogOpen(false)}>
+                <Button variant="outline" onClick={() => setDialogOpen(false)} disabled={creatingRfi}>
                   Cancel
                 </Button>
-                <Button onClick={handleCreateRFI}>Create RFI</Button>
+                <Button onClick={handleCreateRFI} disabled={creatingRfi}>
+                  {creatingRfi ? "Creating..." : "Create RFI"}
+                </Button>
               </div>
             </div>
           </DialogContent>
@@ -497,6 +867,7 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
               className="cursor-pointer hover:shadow-md transition-shadow"
               onClick={() => {
                 setSelectedRfi(rfi);
+                hydrateRfiEditForm(rfi);
                 fetchRFIDetails(rfi);
               }}
             >
@@ -549,6 +920,176 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
               </DialogHeader>
 
               <div className="space-y-4">
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="text-base">Request & General Information</CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                      <div>
+                        <Label>Number *</Label>
+                        <Input
+                          value={rfiEditForm.rfi_number}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, rfi_number: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>Due Date</Label>
+                        <Input
+                          type="date"
+                          value={rfiEditForm.due_date}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, due_date: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div>
+                      <Label>Subject *</Label>
+                      <Input
+                        value={rfiEditForm.subject}
+                        onChange={(e) => setRfiEditForm((prev) => ({ ...prev, subject: e.target.value }))}
+                      />
+                    </div>
+                    <div>
+                      <Label>Question *</Label>
+                      <Textarea
+                        rows={4}
+                        value={rfiEditForm.question}
+                        onChange={(e) => setRfiEditForm((prev) => ({ ...prev, question: e.target.value }))}
+                      />
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                      <div>
+                        <Label>Assignee</Label>
+                        <Select
+                          value={rfiEditForm.assigned_to}
+                          onValueChange={(value) => setRfiEditForm((prev) => ({ ...prev, assigned_to: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select user" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {companyUsers.map((profile) => (
+                              <SelectItem key={profile.user_id} value={profile.user_id}>
+                                {profile.first_name} {profile.last_name}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Received From</Label>
+                        <Input
+                          value={rfiEditForm.received_from}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, received_from: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>Distribution List</Label>
+                        <Input
+                          value={rfiEditForm.distribution_list}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, distribution_list: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>Responsible Contractor</Label>
+                        <Input
+                          value={rfiEditForm.responsible_contractor}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, responsible_contractor: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>Specification</Label>
+                        <Input
+                          value={rfiEditForm.specification}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, specification: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>Location</Label>
+                        <Input
+                          value={rfiEditForm.location}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, location: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>RFI Stage</Label>
+                        <Input
+                          value={rfiEditForm.rfi_stage}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, rfi_stage: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>Drawing Number</Label>
+                        <Input
+                          value={rfiEditForm.drawing_number}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, drawing_number: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>Cost Code</Label>
+                        <Input
+                          value={rfiEditForm.cost_code}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, cost_code: e.target.value }))}
+                        />
+                      </div>
+                      <div>
+                        <Label>Schedule Impact</Label>
+                        <Select
+                          value={rfiEditForm.schedule_impact}
+                          onValueChange={(value) => setRfiEditForm((prev) => ({ ...prev, schedule_impact: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select impact" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Cost Impact</Label>
+                        <Select
+                          value={rfiEditForm.cost_impact}
+                          onValueChange={(value) => setRfiEditForm((prev) => ({ ...prev, cost_impact: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue placeholder="Select impact" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="none">None</SelectItem>
+                            <SelectItem value="low">Low</SelectItem>
+                            <SelectItem value="medium">Medium</SelectItem>
+                            <SelectItem value="high">High</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div>
+                        <Label>Reference</Label>
+                        <Input
+                          value={rfiEditForm.reference}
+                          onChange={(e) => setRfiEditForm((prev) => ({ ...prev, reference: e.target.value }))}
+                        />
+                      </div>
+                      <div className="flex items-end gap-2 pb-2">
+                        <Checkbox
+                          id="rfi-detail-private"
+                          checked={rfiEditForm.is_private}
+                          onCheckedChange={(checked) => setRfiEditForm((prev) => ({ ...prev, is_private: checked === true }))}
+                        />
+                        <Label htmlFor="rfi-detail-private">Private</Label>
+                      </div>
+                    </div>
+                    <div className="flex justify-end">
+                      <Button onClick={() => void handleSaveRfiDetails()} disabled={savingRfiDetails || selectedRfi.status === "closed"}>
+                        {savingRfiDetails ? "Saving..." : "Save RFI Details"}
+                      </Button>
+                    </div>
+                  </CardContent>
+                </Card>
+
                 {/* Description */}
                 {selectedRfi.description && (
                   <div>

@@ -7260,6 +7260,7 @@ export type Database = {
           due_date: string | null
           id: string
           job_id: string
+          metadata: Json
           responded_at: string | null
           response: string | null
           rfi_number: string
@@ -7278,6 +7279,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           job_id: string
+          metadata?: Json
           responded_at?: string | null
           response?: string | null
           rfi_number: string
@@ -7296,6 +7298,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           job_id?: string
+          metadata?: Json
           responded_at?: string | null
           response?: string | null
           rfi_number?: string
@@ -7315,6 +7318,7 @@ export type Database = {
           due_date: string | null
           id: string
           job_id: string
+          metadata: Json
           review_notes: string | null
           reviewed_at: string | null
           reviewed_by: string | null
@@ -7335,6 +7339,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           job_id: string
+          metadata?: Json
           review_notes?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
@@ -7355,6 +7360,7 @@ export type Database = {
           due_date?: string | null
           id?: string
           job_id?: string
+          metadata?: Json
           review_notes?: string | null
           reviewed_at?: string | null
           reviewed_by?: string | null
