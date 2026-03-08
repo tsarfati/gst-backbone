@@ -5,6 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -53,6 +54,7 @@ export default function Auth() {
   const [inviteHandledToken, setInviteHandledToken] = useState<string | null>(null);
   const [inviteRetryTick, setInviteRetryTick] = useState(0);
   const [inviteAcceptFailures, setInviteAcceptFailures] = useState(0);
+  const [showEmailConfirmModal, setShowEmailConfirmModal] = useState(false);
   const lastInviteAcceptAttemptAtRef = useRef<number>(0);
   const inviteAttemptCountRef = useRef(0);
   
@@ -318,14 +320,22 @@ export default function Auth() {
         variant: 'destructive',
       });
     } else {
-      toast({
-        title: 'Success',
-        description: inviteToken
-          ? 'Account created. If email confirmation is enabled, check your inbox; then sign in to finish accepting your invitation.'
-          : 'Account created! Please check your email for verification.',
-      });
+      setShowEmailConfirmModal(true);
+      setPassword('');
+      setConfirmPassword('');
     }
     setLoading(false);
+  };
+
+  const handleAcknowledgeEmailConfirmation = async () => {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.error('Failed to sign out after signup confirmation prompt:', error);
+    } finally {
+      setShowEmailConfirmModal(false);
+      setActiveTab('signin');
+    }
   };
 
   const handleGoogleSignIn = async () => {
@@ -747,6 +757,21 @@ export default function Auth() {
           )}
         </CardContent>
       </Card>
+      <Dialog open={showEmailConfirmModal} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle>Check Your Email</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            We sent a confirmation email to <span className="font-medium text-foreground">{email}</span>. Please click that confirmation link before signing in.
+          </p>
+          <DialogFooter>
+            <Button onClick={() => void handleAcknowledgeEmailConfirmation()} className="w-full">
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
