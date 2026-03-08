@@ -14,7 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import {
   FolderOpen, FolderClosed, Plus, Upload, FileText, MoreVertical,
-  ChevronRight, ChevronDown, Pencil, Trash2, Share2, Download, Loader2, Mail, X
+  ChevronRight, ChevronDown, Pencil, Trash2, Share2, Download, Loader2, Mail, X, ArrowUpDown
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -24,6 +24,7 @@ import { cn } from "@/lib/utils";
 import FileShareModal from "./FileShareModal";
 import FileCabinetPreviewModal from "./FileCabinetPreviewModal";
 import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 
 interface Folder {
   id: string;
@@ -31,6 +32,9 @@ interface Folder {
   is_system_folder: boolean;
   sort_order: number;
   parent_folder_id: string | null;
+  created_by?: string | null;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface JobFile {
@@ -41,7 +45,16 @@ interface JobFile {
   file_size: number | null;
   file_type: string | null;
   folder_id: string;
+  uploaded_by?: string | null;
   created_at: string;
+}
+
+interface OwnerProfile {
+  user_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
 }
 
 interface JobFilingCabinetProps {
@@ -53,11 +66,27 @@ type DragItemPayload =
   | { type: "file"; id: string; sourceFolderId: string }
   | { type: "folder"; id: string };
 const INTERNAL_DND_MIME = "application/x-job-filing-cabinet-item";
+type SortKey = "name" | "created" | "modified" | "size";
+type SortDir = "asc" | "desc";
+type FileColumnKey = "created" | "modified" | "size" | "count";
+type FileColumnVisibility = Record<FileColumnKey, boolean>;
+
+const compareStrings = (a: string, b: string, dir: SortDir) =>
+  dir === "asc" ? a.localeCompare(b) : b.localeCompare(a);
+const compareNumbers = (a: number, b: number, dir: SortDir) =>
+  dir === "asc" ? a - b : b - a;
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleString();
+};
 
 export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const { currentCompany } = useCompany();
   const { user, profile } = useAuth();
   const { toast } = useToast();
+  const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
 
   const [folders, setFolders] = useState<Folder[]>([]);
   const [files, setFiles] = useState<Record<string, JobFile[]>>({});
@@ -74,6 +103,8 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const [deleteItem, setDeleteItem] = useState<{ type: 'folder' | 'file'; id: string; name: string } | null>(null);
   const [shareFiles, setShareFiles] = useState<JobFile[]>([]);
   const [previewFile, setPreviewFile] = useState<JobFile | null>(null);
+  const [inlineEditFolderId, setInlineEditFolderId] = useState<string | null>(null);
+  const [inlineEditFolderName, setInlineEditFolderName] = useState("");
   const [inlineEditFileId, setInlineEditFileId] = useState<string | null>(null);
   const [inlineEditName, setInlineEditName] = useState("");
   const [uploadDestinationOpen, setUploadDestinationOpen] = useState(false);
@@ -97,12 +128,50 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
 
   // Multi-select state
   const [selectedFileIds, setSelectedFileIds] = useState<Set<string>>(new Set());
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
+  const [columnModalOpen, setColumnModalOpen] = useState(false);
+  const [visibleColumns, setVisibleColumns] = useState<FileColumnVisibility>({
+    created: true,
+    modified: true,
+    size: true,
+    count: true,
+  });
+  const [ownerProfilesById, setOwnerProfilesById] = useState<Record<string, OwnerProfile>>({});
 
   const companyId = currentCompany?.id;
+  const hasExpandedFolders = expandedFolders.size > 0;
   const isVendorPortalUser = profile?.role === "vendor" || profile?.role === "design_professional";
-  const vendorCanAccessCabinet = !isVendorPortalUser || vendorCabinetAccess.allowed;
-  const vendorCanWriteCabinet = !isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.accessLevel === "read_write");
-  const vendorCanDownloadCabinet = !isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.canDownload);
+  const roleCanViewCabinet = hasAccess("jobs-view-filing-cabinet");
+  const roleCanUploadCabinet = hasAccess("jobs-upload-files");
+  const roleCanDeleteCabinet = hasAccess("jobs-delete-files");
+  const roleCanDownloadCabinet = hasAccess("jobs-download-files");
+  const roleCanShareCabinet = hasAccess("jobs-share-files");
+  const vendorCanAccessCabinet = (!isVendorPortalUser || vendorCabinetAccess.allowed) && roleCanViewCabinet;
+  const vendorCanWriteCabinet = (!isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.accessLevel === "read_write")) && roleCanUploadCabinet;
+  const vendorCanDownloadCabinet = (!isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.canDownload)) && roleCanDownloadCabinet;
+
+  useEffect(() => {
+    const key = `job-filing-columns:${companyId || "default"}:${user?.id || "anon"}`;
+    const saved = window.localStorage.getItem(key);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved) as Partial<FileColumnVisibility>;
+      setVisibleColumns((prev) => ({
+        created: typeof parsed.created === "boolean" ? parsed.created : prev.created,
+        modified: typeof parsed.modified === "boolean" ? parsed.modified : prev.modified,
+        size: typeof parsed.size === "boolean" ? parsed.size : prev.size,
+        count: typeof parsed.count === "boolean" ? parsed.count : prev.count,
+      }));
+    } catch {
+      // ignore malformed settings
+    }
+  }, [companyId, user?.id]);
+
+  useEffect(() => {
+    const key = `job-filing-columns:${companyId || "default"}:${user?.id || "anon"}`;
+    window.localStorage.setItem(key, JSON.stringify(visibleColumns));
+  }, [visibleColumns, companyId, user?.id]);
 
   const loadVendorCabinetAccess = useCallback(async () => {
     if (!isVendorPortalUser) {
@@ -309,6 +378,72 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   }, [loadFolders, loadFiles, loadVendorCabinetAccess, isVendorPortalUser]);
 
   const allFiles = Object.values(files).flat();
+
+  useEffect(() => {
+    const ownerIds = new Set<string>();
+    folders.forEach((folder) => {
+      if (folder.created_by) ownerIds.add(folder.created_by);
+    });
+    allFiles.forEach((file) => {
+      if (file.uploaded_by) ownerIds.add(file.uploaded_by);
+    });
+
+    const ids = Array.from(ownerIds);
+    if (ids.length === 0) {
+      setOwnerProfilesById({});
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, display_name, avatar_url")
+        .in("user_id", ids);
+      if (cancelled) return;
+      if (error) {
+        console.error("Error loading owner profiles:", error);
+        return;
+      }
+      const mapped: Record<string, OwnerProfile> = {};
+      (data || []).forEach((row: any) => {
+        mapped[row.user_id] = row as OwnerProfile;
+      });
+      setOwnerProfilesById(mapped);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [folders, allFiles]);
+
+  const renderOwnerCell = (ownerUserId?: string | null) => {
+    if (!ownerUserId) return <span className="w-36 text-xs text-muted-foreground">-</span>;
+    const owner = ownerProfilesById[ownerUserId];
+    const label =
+      owner?.display_name ||
+      [owner?.first_name, owner?.last_name].filter(Boolean).join(" ") ||
+      ownerUserId.slice(0, 8);
+    const initials = label
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") || "?";
+
+    return (
+      <span className="w-36 inline-flex items-center gap-2 text-xs text-muted-foreground truncate">
+        {owner?.avatar_url ? (
+          <img src={owner.avatar_url} alt={label} className="h-5 w-5 rounded-full object-cover border" />
+        ) : (
+          <span className="h-5 w-5 rounded-full border bg-muted inline-flex items-center justify-center text-[10px]">
+            {initials}
+          </span>
+        )}
+        <span className="truncate">{label}</span>
+      </span>
+    );
+  };
   const folderById = new Map(folders.map((f) => [f.id, f]));
   const childFoldersByParent = folders.reduce<Record<string, Folder[]>>((acc, folder) => {
     const key = folder.parent_folder_id || "root";
@@ -319,6 +454,37 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   Object.values(childFoldersByParent).forEach((list) =>
     list.sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name))
   );
+  const getFolderTreeSize = useCallback((folderId: string): number => {
+    const ownFiles = files[folderId] || [];
+    const ownSize = ownFiles.reduce((sum, file) => sum + Number(file.file_size || 0), 0);
+    const children = childFoldersByParent[folderId] || [];
+    return ownSize + children.reduce((sum, child) => sum + getFolderTreeSize(child.id), 0);
+  }, [files, childFoldersByParent]);
+  const compareBySort = useCallback((
+    aName: string,
+    bName: string,
+    aCreated?: string | null,
+    bCreated?: string | null,
+    aModified?: string | null,
+    bModified?: string | null,
+    aSize?: number | null,
+    bSize?: number | null,
+  ) => {
+    if (sortKey === "name") return compareStrings(aName.toLowerCase(), bName.toLowerCase(), sortDir);
+    if (sortKey === "created") return compareNumbers(new Date(aCreated || 0).getTime(), new Date(bCreated || 0).getTime(), sortDir);
+    if (sortKey === "modified") return compareNumbers(new Date(aModified || 0).getTime(), new Date(bModified || 0).getTime(), sortDir);
+    return compareNumbers(Number(aSize || 0), Number(bSize || 0), sortDir);
+  }, [sortKey, sortDir]);
+  const onSort = (key: SortKey) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir("asc");
+      return key;
+    });
+  };
 
   const isDescendantFolder = (candidateFolderId: string, ancestorFolderId: string): boolean => {
     let current = folderById.get(candidateFolderId) || null;
@@ -346,6 +512,44 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const clearSelection = () => setSelectedFileIds(new Set());
+  const getDescendantFolderIds = useCallback((folderId: string): string[] => {
+    const collected: string[] = [];
+    const queue: string[] = [folderId];
+    while (queue.length > 0) {
+      const current = queue.shift() as string;
+      collected.push(current);
+      const children = childFoldersByParent[current] || [];
+      children.forEach((child) => queue.push(child.id));
+    }
+    return collected;
+  }, [childFoldersByParent]);
+
+  const getFolderTreeFileIds = useCallback((folderId: string): string[] => {
+    const folderIds = getDescendantFolderIds(folderId);
+    return folderIds.flatMap((id) => (files[id] || []).map((file) => file.id));
+  }, [files, getDescendantFolderIds]);
+
+  const getFolderSelectionState = useCallback((folderId: string): boolean | "indeterminate" => {
+    const fileIds = getFolderTreeFileIds(folderId);
+    if (fileIds.length === 0) return false;
+    const selectedCount = fileIds.filter((id) => selectedFileIds.has(id)).length;
+    if (selectedCount === 0) return false;
+    if (selectedCount === fileIds.length) return true;
+    return "indeterminate";
+  }, [getFolderTreeFileIds, selectedFileIds]);
+
+  const toggleFolderSelection = useCallback((folderId: string, e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    const fileIds = getFolderTreeFileIds(folderId);
+    if (fileIds.length === 0) return;
+    setSelectedFileIds((prev) => {
+      const next = new Set(prev);
+      const allSelected = fileIds.every((id) => next.has(id));
+      if (allSelected) fileIds.forEach((id) => next.delete(id));
+      else fileIds.forEach((id) => next.add(id));
+      return next;
+    });
+  }, [getFolderTreeFileIds]);
 
   const toggleFolder = (folderId: string) => {
     setExpandedFolders(prev => {
@@ -405,9 +609,28 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     }
   };
 
+  const saveInlineFolderRename = async (folderId: string) => {
+    if (!vendorCanWriteCabinet) return;
+    if (!inlineEditFolderName.trim()) {
+      setInlineEditFolderId(null);
+      return;
+    }
+    const { error } = await supabase
+      .from("job_folders")
+      .update({ name: inlineEditFolderName.trim() })
+      .eq("id", folderId);
+    if (error) {
+      toast({ title: "Error", description: "Failed to rename", variant: "destructive" });
+    } else {
+      toast({ title: "Folder renamed" });
+      loadFolders();
+    }
+    setInlineEditFolderId(null);
+  };
+
   const handleDelete = async () => {
-    if (!vendorCanWriteCabinet) {
-      toast({ title: "No access", description: "You do not have write access for this filing cabinet.", variant: "destructive" });
+    if (!roleCanDeleteCabinet) {
+      toast({ title: "No access", description: "You do not have permission to delete files/folders in this filing cabinet.", variant: "destructive" });
       return;
     }
     if (!deleteItem) return;
@@ -677,14 +900,23 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     }
   };
 
+  const downloadSelectedFiles = async () => {
+    const filesToDownload = getSelectedFiles();
+    if (filesToDownload.length === 0) return;
+    for (const file of filesToDownload) {
+      // Sequential downloads reduce browser popup blocking risk.
+      await downloadFile(file);
+    }
+  };
+
   const formatFileSize = (bytes: number | null) => {
-    if (!bytes) return '';
+    if (!bytes) return '0 MB';
     if (bytes < 1024) return `${bytes} B`;
     if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
-  if (loading) {
+  if (loading || permissionsLoading) {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
@@ -716,57 +948,116 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h3 className="text-lg font-semibold">Filing Cabinet</h3>
-        <Button size="sm" onClick={() => setNewFolderOpen(true)} disabled={!vendorCanWriteCabinet}>
-          <Plus className="h-4 w-4 mr-2" />
-          New Folder
-        </Button>
-      </div>
-
-      {/* Multi-select toolbar */}
-      {selectedFileIds.size > 0 && (
-        <div className="flex items-center gap-2 p-2 bg-primary/5 border border-primary/20 rounded-lg">
-          <Badge variant="secondary" className="text-xs">
-            {selectedFileIds.size} selected
-          </Badge>
+        <div className="flex items-center gap-2">
+          {selectedFileIds.size > 0 && (
+            <>
+              <Badge variant="secondary" className="text-xs">
+                {selectedFileIds.size} selected
+              </Badge>
+              {roleCanShareCabinet && (
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    setShareFiles(getSelectedFiles());
+                  }}
+                >
+                  <Mail className="h-4 w-4 mr-1.5" />
+                  Email Selected
+                </Button>
+              )}
+              {vendorCanDownloadCabinet && (
+                <Button size="sm" variant="outline" onClick={() => void downloadSelectedFiles()}>
+                  <Download className="h-4 w-4 mr-1.5" />
+                  Download Selected
+                </Button>
+              )}
+              <Button size="sm" variant="ghost" onClick={clearSelection}>
+                <X className="h-4 w-4 mr-1" />
+                Clear
+              </Button>
+            </>
+          )}
+          <Button size="sm" onClick={() => setNewFolderOpen(true)} disabled={!vendorCanWriteCabinet}>
+            <Plus className="h-4 w-4 mr-2" />
+            New Folder
+          </Button>
           <Button
             size="sm"
             variant="outline"
-            onClick={() => {
-              setShareFiles(getSelectedFiles());
-            }}
+            disabled={!hasExpandedFolders}
+            onClick={() => setExpandedFolders(new Set())}
           >
-            <Mail className="h-4 w-4 mr-1.5" />
-            Email Selected
+            Collapse All
           </Button>
-          <div className="flex-1" />
-          <Button size="sm" variant="ghost" onClick={clearSelection}>
-            <X className="h-4 w-4 mr-1" />
-            Clear
+          <Button size="sm" variant="outline" onClick={() => setColumnModalOpen(true)}>
+            Customize Columns
           </Button>
         </div>
-      )}
+      </div>
 
       <div
         className={cn(
-          "space-y-0 rounded-md",
+          "relative min-h-[420px] space-y-0 rounded-md",
           dragOverRoot && "ring-1 ring-primary/40 bg-primary/5"
         )}
         onDrop={handleRootDrop}
         onDragOver={handleRootDragOver}
         onDragLeave={() => setDragOverRoot(false)}
       >
-        <div className="px-2 py-1.5 mb-1 rounded-md border border-dashed border-border/70 bg-muted/20 flex items-center justify-between gap-2">
-          <div className="text-xs text-muted-foreground">
+        <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center">
+          <div className="text-sm font-medium text-muted-foreground/20">
             Drop files here
-            <span className="mx-2 text-border">|</span>
+            <span className="mx-2 text-border/40">|</span>
             Drag folders here to move them to top level
           </div>
-          <Button size="sm" variant="outline" className="h-7" onClick={handleGlobalFileInput} disabled={!vendorCanWriteCabinet}>
-            <Upload className="h-3.5 w-3.5 mr-1.5" />
-            Upload Files
-          </Button>
         </div>
-        {(childFoldersByParent["root"] || []).map(folder => {
+        <div className="relative z-10">
+        <div className="flex items-center gap-2 px-2.5 py-1 text-xs font-medium text-muted-foreground border-b">
+          <span className="flex-1">
+            <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => onSort("name")}>
+              Name
+              <ArrowUpDown className="h-3.5 w-3.5" />
+            </button>
+          </span>
+          {visibleColumns.created && <span className="w-44">
+            <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => onSort("created")}>
+              Created
+              <ArrowUpDown className="h-3.5 w-3.5" />
+            </button>
+          </span>}
+          {visibleColumns.modified && <span className="w-44">
+            <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => onSort("modified")}>
+              Modified
+              <ArrowUpDown className="h-3.5 w-3.5" />
+            </button>
+          </span>}
+          <span className="w-36">Owner</span>
+          {visibleColumns.size && <span className="w-28 text-right">
+            <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => onSort("size")}>
+              Size
+              <ArrowUpDown className="h-3.5 w-3.5" />
+            </button>
+          </span>}
+          {visibleColumns.count && <span className="w-14 text-right">Count</span>}
+          <span className="w-16 text-right">Actions</span>
+          <span className="w-24 text-right">Type</span>
+        </div>
+        {[...(childFoldersByParent["root"] || [])]
+          .sort((a, b) => {
+            if (a.is_system_folder !== b.is_system_folder) return a.is_system_folder ? -1 : 1;
+            return compareBySort(
+              a.name,
+              b.name,
+              a.created_at,
+              b.created_at,
+              a.updated_at || a.created_at,
+              b.updated_at || b.created_at,
+              getFolderTreeSize(a.id),
+              getFolderTreeSize(b.id),
+            );
+          })
+          .map(folder => {
           const isExpanded = expandedFolders.has(folder.id);
           const folderFiles = files[folder.id] || [];
           const isDragOver = dragOverFolder === folder.id;
@@ -777,7 +1068,32 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
             const nodeFiles = files[node.id] || [];
             const nodeIsDragOver = dragOverFolder === node.id;
             const nodeIsUploading = uploading === node.id;
-            const childFolders = childFoldersByParent[node.id] || [];
+            const childFolders = [...(childFoldersByParent[node.id] || [])].sort((a, b) => {
+              if (a.is_system_folder !== b.is_system_folder) return a.is_system_folder ? -1 : 1;
+              return compareBySort(
+                a.name,
+                b.name,
+                a.created_at,
+                b.created_at,
+                a.updated_at || a.created_at,
+                b.updated_at || b.created_at,
+                getFolderTreeSize(a.id),
+                getFolderTreeSize(b.id),
+              );
+            });
+            const sortedNodeFiles = [...nodeFiles].sort((a, b) =>
+              compareBySort(
+                a.file_name,
+                b.file_name,
+                a.created_at,
+                b.created_at,
+                a.updated_at || a.created_at,
+                b.updated_at || b.created_at,
+                a.file_size,
+                b.file_size,
+              ),
+            );
+            const folderTreeSize = getFolderTreeSize(node.id);
 
             return (
               <div key={node.id}>
@@ -789,7 +1105,6 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                   nodeIsDragOver && "bg-primary/10 border border-dashed border-primary",
                   nodeIsUploading && "opacity-70"
                 )}
-                style={{ marginLeft: depth * 14 }}
                 draggable={!node.is_system_folder}
                 onDragStart={(e) => {
                   e.stopPropagation();
@@ -801,25 +1116,63 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                 onDragOver={(e) => handleDragOver(e, node.id)}
                 onDragLeave={handleDragLeave}
               >
-                {nodeExpanded ? (
-                  <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
-                ) : (
-                  <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
-                )}
-                {nodeExpanded ? (
-                  <FolderOpen className="h-5 w-5 text-primary shrink-0" />
-                ) : (
-                  <FolderClosed className="h-5 w-5 text-primary shrink-0" />
-                )}
-                <span className="flex-1 text-sm font-medium">{node.name}</span>
-                {node.is_system_folder && (
-                  <Badge variant="secondary" className="text-xs">System</Badge>
-                )}
-                <Badge variant="outline" className="text-xs">{nodeFiles.length}</Badge>
+                <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft: `${depth * 14}px` }}>
+                  <div onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={getFolderSelectionState(node.id)}
+                      onCheckedChange={() => toggleFolderSelection(node.id)}
+                      className="shrink-0"
+                    />
+                  </div>
+                  {nodeExpanded ? (
+                    <ChevronDown className="h-4 w-4 text-muted-foreground shrink-0" />
+                  ) : (
+                    <ChevronRight className="h-4 w-4 text-muted-foreground shrink-0" />
+                  )}
+                  {nodeExpanded ? (
+                    <FolderOpen className="h-5 w-5 text-primary shrink-0" />
+                  ) : (
+                    <FolderClosed className="h-5 w-5 text-primary shrink-0" />
+                  )}
+                  <div className="flex-1 min-w-0">
+                    {inlineEditFolderId === node.id ? (
+                      <Input
+                        autoFocus
+                        value={inlineEditFolderName}
+                        onChange={(e) => setInlineEditFolderName(e.target.value)}
+                        onBlur={() => void saveInlineFolderRename(node.id)}
+                        onKeyDown={(e) => {
+                          if (e.key === "Enter") void saveInlineFolderRename(node.id);
+                          if (e.key === "Escape") setInlineEditFolderId(null);
+                        }}
+                        className="h-6 text-sm py-0 px-1"
+                        onClick={(e) => e.stopPropagation()}
+                      />
+                    ) : (
+                      <button
+                        type="button"
+                        className="inline-block max-w-full truncate text-left text-sm font-medium hover:underline"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!vendorCanWriteCabinet) return;
+                          setInlineEditFolderId(node.id);
+                          setInlineEditFolderName(node.name);
+                        }}
+                      >
+                        {node.name}
+                      </button>
+                    )}
+                  </div>
+                </div>
+                {visibleColumns.created && <span className="w-44 text-xs text-muted-foreground tabular-nums">{formatDateTime(node.created_at)}</span>}
+                {visibleColumns.modified && <span className="w-44 text-xs text-muted-foreground tabular-nums">{formatDateTime(node.updated_at || node.created_at)}</span>}
+                {renderOwnerCell(node.created_by)}
+                {visibleColumns.size && <span className="w-28 text-xs text-muted-foreground text-right tabular-nums">{formatFileSize(folderTreeSize)}</span>}
+                {visibleColumns.count && <span className="w-14 text-xs text-muted-foreground text-right tabular-nums">{nodeFiles.length}</span>}
 
                 {nodeIsUploading && <Loader2 className="h-4 w-4 animate-spin text-primary" />}
 
-                <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center" onClick={e => e.stopPropagation()}>
+                <div className="w-16 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end" onClick={e => e.stopPropagation()}>
                   <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => handleFileInput(node.id)} disabled={!vendorCanWriteCabinet}>
                     <Upload className="h-3.5 w-3.5" />
                   </Button>
@@ -835,7 +1188,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                       </DropdownMenuItem>
                       {!node.is_system_folder && (
                         <DropdownMenuItem
-                          disabled={!vendorCanWriteCabinet}
+                          disabled={!roleCanDeleteCabinet}
                           className="text-destructive"
                           onClick={() => setDeleteItem({ type: 'folder', id: node.id, name: node.name })}
                         >
@@ -845,16 +1198,20 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                     </DropdownMenuContent>
                   </DropdownMenu>
                 </div>
+                <span className="w-24 flex justify-end">
+                  {node.is_system_folder && (
+                    <Badge variant="secondary" className="text-xs">System</Badge>
+                  )}
+                </span>
               </div>
 
               {/* Files inside folder */}
               {nodeExpanded && (
                 <div
                   className={cn(
-                    "ml-6 border-l border-border pl-2 py-0 space-y-0",
+                    "border-l border-border pl-2 py-0 space-y-0",
                     nodeIsDragOver && "border-primary"
                   )}
-                  style={{ marginLeft: 24 + depth * 14 }}
                   onDrop={(e) => handleDrop(e, node.id)}
                   onDragOver={(e) => handleDragOver(e, node.id)}
                   onDragLeave={handleDragLeave}
@@ -863,7 +1220,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                   {nodeFiles.length === 0 && childFolders.length === 0 ? (
                     <div className="py-0.5 text-center text-[11px] text-muted-foreground/80">Empty folder</div>
                   ) : (
-                    nodeFiles.map(file => {
+                    sortedNodeFiles.map(file => {
                       const isSelected = selectedFileIds.has(file.id);
                       return (
                         <div
@@ -883,17 +1240,18 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                           }}
                           onClick={() => setPreviewFile(file)}
                         >
-                          <div onClick={e => e.stopPropagation()}>
-                            <Checkbox
-                              checked={isSelected}
-                              onCheckedChange={() => toggleFileSelection(file.id)}
-                              className="shrink-0"
-                            />
-                          </div>
-                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                          {inlineEditFileId === file.id ? (
-                            <form
-                              className="flex-1 min-w-0"
+                          <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft: `${(depth + 1) * 14}px` }}>
+                            <div onClick={e => e.stopPropagation()}>
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={() => toggleFileSelection(file.id)}
+                                className="shrink-0"
+                              />
+                            </div>
+                            <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                            {inlineEditFileId === file.id ? (
+                              <form
+                                className="flex-1 min-w-0"
                               onSubmit={async (e) => {
                                 e.preventDefault();
                                 if (!inlineEditName.trim()) return;
@@ -909,41 +1267,48 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                                 }
                                 setInlineEditFileId(null);
                               }}
-                            >
-                              <Input
-                                autoFocus
-                                value={inlineEditName}
-                                onChange={(e) => setInlineEditName(e.target.value)}
-                                onBlur={() => setInlineEditFileId(null)}
-                                onKeyDown={(e) => { if (e.key === 'Escape') setInlineEditFileId(null); }}
-                              className="h-6 text-sm py-0 px-1"
-                                onClick={(e) => e.stopPropagation()}
-                              />
-                            </form>
-                          ) : (
-                            <div className="flex-1 min-w-0">
-                              <button
-                                type="button"
-                                className="inline-block max-w-full truncate hover:underline cursor-text text-left"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  if (!vendorCanWriteCabinet) return;
-                                  setInlineEditFileId(file.id);
-                                  setInlineEditName(file.file_name);
-                                }}
                               >
-                                {file.file_name}
-                              </button>
-                            </div>
-                          )}
-                          <span className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</span>
-                          <div className="opacity-0 group-hover:opacity-100 transition-opacity flex items-center" onClick={e => e.stopPropagation()}>
+                                <Input
+                                  autoFocus
+                                  value={inlineEditName}
+                                  onChange={(e) => setInlineEditName(e.target.value)}
+                                  onBlur={() => setInlineEditFileId(null)}
+                                  onKeyDown={(e) => { if (e.key === 'Escape') setInlineEditFileId(null); }}
+                                className="h-6 text-sm py-0 px-1"
+                                  onClick={(e) => e.stopPropagation()}
+                                />
+                              </form>
+                            ) : (
+                              <div className="flex-1 min-w-0">
+                                <button
+                                  type="button"
+                                  className="inline-block max-w-full truncate hover:underline cursor-text text-left"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    if (!vendorCanWriteCabinet) return;
+                                    setInlineEditFileId(file.id);
+                                    setInlineEditName(file.file_name);
+                                  }}
+                                >
+                                  {file.file_name}
+                                </button>
+                              </div>
+                            )}
+                          </div>
+                          {visibleColumns.created && <span className="w-44 text-xs text-muted-foreground tabular-nums">{formatDateTime(file.created_at)}</span>}
+                          {visibleColumns.modified && <span className="w-44 text-xs text-muted-foreground tabular-nums">{formatDateTime(file.updated_at || file.created_at)}</span>}
+                          {renderOwnerCell(file.uploaded_by)}
+                          {visibleColumns.size && <span className="w-28 text-xs text-muted-foreground text-right tabular-nums">{formatFileSize(file.file_size)}</span>}
+                          {visibleColumns.count && <span className="w-14 text-xs text-muted-foreground text-right tabular-nums">1</span>}
+                          <div className="w-16 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-end" onClick={e => e.stopPropagation()}>
                             <Button variant="ghost" size="icon" className="h-7 w-7" disabled={!vendorCanDownloadCabinet} onClick={() => downloadFile(file)}>
                               <Download className="h-3.5 w-3.5" />
                             </Button>
-                            <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShareFiles([file])}>
-                              <Share2 className="h-3.5 w-3.5" />
-                            </Button>
+                            {roleCanShareCabinet && (
+                              <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShareFiles([file])}>
+                                <Share2 className="h-3.5 w-3.5" />
+                              </Button>
+                            )}
                             <DropdownMenu>
                               <DropdownMenuTrigger asChild>
                                 <Button variant="ghost" size="icon" className="h-7 w-7">
@@ -955,7 +1320,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                                   <Pencil className="h-4 w-4 mr-2" /> Rename
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  disabled={!vendorCanWriteCabinet}
+                                  disabled={!roleCanDeleteCabinet}
                                   className="text-destructive"
                                   onClick={() => setDeleteItem({ type: 'file', id: file.id, name: file.file_name })}
                                 >
@@ -964,6 +1329,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                               </DropdownMenuContent>
                             </DropdownMenu>
                           </div>
+                          <span className="w-24" />
                         </div>
                       );
                     })
@@ -976,6 +1342,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
 
           return renderFolderNode(folder, 0);
         })}
+        </div>
       </div>
 
       {/* New Folder Dialog */}
@@ -994,6 +1361,37 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
           <DialogFooter>
             <Button variant="outline" onClick={() => setNewFolderOpen(false)}>Cancel</Button>
             <Button onClick={handleCreateFolder} disabled={!newFolderName.trim()}>Create</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={columnModalOpen} onOpenChange={setColumnModalOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle>Customize Columns</DialogTitle>
+            <DialogDescription>Name is always shown.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3">
+            <div className="flex items-center justify-between text-sm">
+              <span>Name</span>
+              <Badge variant="secondary">Required</Badge>
+            </div>
+            {(["created", "modified", "size", "count"] as FileColumnKey[]).map((columnKey) => (
+              <label key={columnKey} className="flex items-center justify-between text-sm">
+                <span>{columnKey === "count" ? "Badge / Count" : columnKey[0].toUpperCase() + columnKey.slice(1)}</span>
+                <Checkbox
+                  checked={visibleColumns[columnKey]}
+                  onCheckedChange={(checked) =>
+                    setVisibleColumns((prev) => ({ ...prev, [columnKey]: checked === true }))
+                  }
+                />
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setColumnModalOpen(false)}>
+              Done
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

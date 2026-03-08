@@ -131,6 +131,8 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const [isScrubbing, setIsScrubbing] = useState(false);
   const [savedDefaultPhotoView, setSavedDefaultPhotoView] = useState<'cards' | 'compact' | 'super-compact'>('cards');
   const [photoViewPickerOpen, setPhotoViewPickerOpen] = useState(false);
+  const [savedDefaultAlbumView, setSavedDefaultAlbumView] = useState<'regular' | 'small'>('regular');
+  const [albumViewPickerOpen, setAlbumViewPickerOpen] = useState(false);
   const actorName =
     (user as any)?.user_metadata?.full_name ||
     (user as any)?.user_metadata?.name ||
@@ -190,13 +192,32 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   }, [jobId]);
 
   useEffect(() => {
-    const storageKey = `job-photo-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
-    const stored = window.localStorage.getItem(storageKey);
+    const companyScopedKey = `job-photo-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+    const fallbackKey = `job-photo-view-mode:default:${user?.id || 'anon'}`;
+    const stored = window.localStorage.getItem(companyScopedKey) || window.localStorage.getItem(fallbackKey);
     if (stored === 'cards' || stored === 'compact' || stored === 'super-compact') {
       setPhotoViewMode(stored);
       setSavedDefaultPhotoView(stored);
+      if (!window.localStorage.getItem(companyScopedKey)) {
+        window.localStorage.setItem(companyScopedKey, stored);
+      }
     } else {
       setSavedDefaultPhotoView('cards');
+    }
+  }, [currentCompany?.id, user?.id]);
+
+  useEffect(() => {
+    const companyScopedKey = `job-album-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+    const fallbackKey = `job-album-view-mode:default:${user?.id || 'anon'}`;
+    const stored = window.localStorage.getItem(companyScopedKey) || window.localStorage.getItem(fallbackKey);
+    if (stored === 'regular' || stored === 'small') {
+      setAlbumViewMode(stored);
+      setSavedDefaultAlbumView(stored);
+      if (!window.localStorage.getItem(companyScopedKey)) {
+        window.localStorage.setItem(companyScopedKey, stored);
+      }
+    } else {
+      setSavedDefaultAlbumView('regular');
     }
   }, [currentCompany?.id, user?.id]);
 
@@ -960,13 +981,22 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
     'Unknown User';
 
   const uploaderOptions = useMemo(() => {
-    const unique = new Map<string, string>();
+    const unique = new Map<string, { id: string; name: string; avatarUrl?: string; initials: string }>();
     photos.forEach((photo) => {
-      unique.set(photo.uploaded_by, getUploaderName(photo));
+      const name = getUploaderName(photo);
+      const initials =
+        `${photo.profiles?.first_name?.[0] || ''}${photo.profiles?.last_name?.[0] || ''}`.trim() ||
+        (name?.[0] || 'U').toUpperCase();
+      if (!unique.has(photo.uploaded_by)) {
+        unique.set(photo.uploaded_by, {
+          id: photo.uploaded_by,
+          name,
+          avatarUrl: photo.profiles?.avatar_url,
+          initials,
+        });
+      }
     });
-    return Array.from(unique.entries())
-      .map(([id, name]) => ({ id, name }))
-      .sort((a, b) => a.name.localeCompare(b.name));
+    return Array.from(unique.values()).sort((a, b) => a.name.localeCompare(b.name));
   }, [photos]);
 
   const filteredPhotos = useMemo(() => {
@@ -1228,18 +1258,56 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           ) : (
             // Album list view - only show Create Album
             <>
-              <Select
-                value={albumViewMode}
-                onValueChange={(v: 'regular' | 'small') => setAlbumViewMode(v)}
-              >
-                <SelectTrigger className="w-[180px]">
-                  <SelectValue placeholder="Album view" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="regular">Regular Grid</SelectItem>
-                  <SelectItem value="small">Small Grid</SelectItem>
-                </SelectContent>
-              </Select>
+              <Popover open={albumViewPickerOpen} onOpenChange={setAlbumViewPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[220px] justify-between">
+                    <span>{albumViewMode === 'small' ? 'Small Grid' : 'Regular Grid'}</span>
+                    <ChevronDown className="h-4 w-4 opacity-60" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[260px] p-1" align="start">
+                  <div className="space-y-1">
+                    {[
+                      { value: 'regular' as const, label: 'Regular Grid' },
+                      { value: 'small' as const, label: 'Small Grid' },
+                    ].map((opt) => (
+                      <div key={opt.value} className="flex items-center gap-1 rounded-md hover:bg-muted">
+                        <button
+                          type="button"
+                          className={`flex-1 text-left px-2 py-1.5 text-sm rounded-md ${albumViewMode === opt.value ? 'font-medium text-foreground' : 'text-muted-foreground'}`}
+                          onClick={() => {
+                            setAlbumViewMode(opt.value);
+                            setAlbumViewPickerOpen(false);
+                          }}
+                        >
+                          {opt.label}
+                        </button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7 mr-1"
+                          onClick={() => {
+                            setAlbumViewMode(opt.value);
+                            const storageKey = `job-album-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+                            window.localStorage.setItem(storageKey, opt.value);
+                            setSavedDefaultAlbumView(opt.value);
+                            toast({
+                              title: 'Default view saved',
+                              description: `${opt.label} is now your album default.`,
+                            });
+                          }}
+                          title={`Set ${opt.label} as default`}
+                        >
+                          <Star
+                            className={`h-4 w-4 ${savedDefaultAlbumView === opt.value ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`}
+                          />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </PopoverContent>
+              </Popover>
               <Button variant="outline" onClick={() => setShowCreateAlbumDialog(true)}>
                 <FolderPlus className="h-4 w-4 mr-2" />
                 Create Album
@@ -1339,7 +1407,13 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                       <SelectItem value="all">All uploaders</SelectItem>
                       {uploaderOptions.map((u) => (
                         <SelectItem key={u.id} value={u.id}>
-                          {u.name}
+                          <div className="flex items-center gap-2">
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={u.avatarUrl} />
+                              <AvatarFallback>{u.initials}</AvatarFallback>
+                            </Avatar>
+                            <span>{u.name}</span>
+                          </div>
                         </SelectItem>
                       ))}
                     </SelectContent>

@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect, useMemo } from 'react';
+import { useState, useCallback, useEffect, useMemo, useRef } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -39,6 +39,7 @@ export function useSearchIndex() {
     () => `search-index:${currentCompany?.id || 'default'}:${user?.id || 'anon'}:${effectiveRole || 'none'}`,
     [currentCompany?.id, user?.id, effectiveRole]
   );
+  const hydratedIndexKeyRef = useRef<string | null>(null);
 
   const buildSearchIndex = useCallback(async () => {
     if (!user || !currentCompany || permissionsLoading) return;
@@ -322,14 +323,20 @@ export function useSearchIndex() {
   // Build index on mount if user is available and index is empty
   useEffect(() => {
     if (!user || permissionsLoading) return;
+    if (hydratedIndexKeyRef.current === indexKey) return;
+
+    hydratedIndexKeyRef.current = indexKey;
     const saved = localStorage.getItem(indexKey);
     if (saved) {
-      try { setIndexedItems(JSON.parse(saved)); return; } catch {}
+      try {
+        const parsed = JSON.parse(saved) as SearchIndexItem[];
+        setIndexedItems(parsed);
+        return;
+      } catch {}
     }
-    if (indexedItems.length === 0) {
-      buildSearchIndex();
-    }
-  }, [user, permissionsLoading, indexKey, buildSearchIndex, indexedItems.length]);
+
+    buildSearchIndex();
+  }, [user, permissionsLoading, indexKey, buildSearchIndex]);
 
   return {
     isIndexing,

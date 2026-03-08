@@ -1,25 +1,13 @@
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
-import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { AnimatedSection } from '@/components/AnimatedSection';
-import { Loader2 } from 'lucide-react';
+import { ArrowRight, CheckCircle, ClipboardCheck, Loader2, MessageSquare, Receipt, Smartphone, Truck, Users } from 'lucide-react';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import pmLynkLogo from '@/assets/pm-lynk-logo.png';
-import {
-  Camera,
-  Truck,
-  Users,
-  MessageSquare,
-  Smartphone,
-  CheckCircle,
-  ArrowRight,
-  Receipt,
-  ClipboardCheck,
-  Mail,
-  Phone,
-} from 'lucide-react';
+import pmLynkHeroLogo from '@/assets/pm-lynk-hero-new.png';
+import { NavBar } from '@/components/punchclock-landing/NavBar';
 
 const darkBg = '#0f1419';
 const darkCardBg = '#1a1f2e';
@@ -30,6 +18,10 @@ export default function PMLynkLanding() {
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [scrollY, setScrollY] = useState(0);
+
+  useEffect(() => {
+    window.scrollTo(0, 0);
+  }, []);
 
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
@@ -84,97 +76,83 @@ export default function PMLynkLanding() {
     },
   ];
 
+  const handleGetStarted = () => {
+    setAuthModalMode('signUp');
+    setShowAuthModal(true);
+  };
+
+  const handleSignIn = () => {
+    setAuthModalMode('signIn');
+    setShowAuthModal(true);
+  };
+
   return (
     <div className="min-h-screen overflow-x-hidden" style={{ backgroundColor: darkBg }}>
-      {/* BuilderLYNK Navigation */}
-      <nav
-        className={`fixed top-0 left-0 right-0 z-50 transition-all duration-500 ${
-          scrollY > 50
-            ? 'backdrop-blur-lg shadow-lg border-b border-white/10 opacity-100 translate-y-0'
-            : 'opacity-0 -translate-y-full pointer-events-none'
-        }`}
-        style={{ backgroundColor: scrollY > 50 ? 'rgba(15, 20, 25, 0.95)' : 'transparent' }}
-      >
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-20">
-            <Link to="/" className="flex items-center gap-2">
-              <img src={builderlynkIcon} alt="BuilderLYNK" className="h-14 w-auto" />
-            </Link>
-            <div className="flex items-center gap-3">
-              <Button
-                onClick={() => {
-                  setAuthModalMode('signIn');
-                  setShowAuthModal(true);
-                }}
-                variant="outline"
-                className="border-white/50 text-gray-900 bg-white hover:bg-white/90"
-              >
-                Sign In
-              </Button>
-            </div>
-          </div>
-        </div>
-      </nav>
+      <NavBar scrollY={scrollY} onSignIn={handleSignIn} />
 
       {/* Hero */}
-      <section className="relative min-h-[90vh] flex flex-col items-center justify-center text-center px-4 pt-20">
+      <section className="relative min-h-screen flex items-center px-4 sm:px-6 lg:px-8">
         <div
-          className="absolute inset-0"
+          className="absolute inset-0 pointer-events-none"
           style={{
-            background: `radial-gradient(ellipse 60% 50% at 50% 45%, rgba(232,138,45,0.12), transparent 70%), ${darkBg}`,
+            background: `radial-gradient(circle at 70% 50%, rgba(232,138,45,0.06), transparent 50%), #0f1419`,
           }}
         />
 
-        <div className="relative z-10 max-w-4xl mx-auto">
-          <Link
-            to="/"
-            className="inline-flex items-center gap-2 text-white/60 text-sm font-medium mb-8 hover:text-white/80 transition-colors"
-          >
-            <img src={builderlynkIcon} alt="" className="h-5 w-auto" />
-            A BuilderLYNK Product
-          </Link>
+        <div className="relative z-10 max-w-7xl mx-auto w-full py-24">
+          <div className="grid lg:grid-cols-[1fr_30%] gap-12 lg:gap-16 items-center">
+            <div>
+              <div className="lg:hidden flex justify-center mb-10">
+                <img src={pmLynkHeroLogo} alt="PM LYNK" className="w-64 h-auto drop-shadow-2xl" />
+              </div>
 
-          <div className="mb-8">
-            <img
-              src={pmLynkLogo}
-              alt="PM LYNK"
-              className="h-28 w-28 mx-auto rounded-[1.75rem] shadow-2xl shadow-[#E88A2D]/20"
-            />
+              <h1 className="text-5xl sm:text-6xl xl:text-7xl font-extrabold text-white leading-[1.08] tracking-tight mb-7">
+                Run the field from one app.{' '}
+                <span className="text-[#E88A2D]">Keep every detail connected.</span>
+              </h1>
+
+              <p className="text-gray-400 text-xl sm:text-2xl leading-relaxed mb-12 max-w-lg">
+                Receipts, deliveries, visitors, tasks, and team communication in one PM workflow built for active jobsites.
+              </p>
+
+              <div className="flex flex-wrap gap-3 mb-12">
+                <button
+                  onClick={handleGetStarted}
+                  className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg"
+                  style={{ backgroundColor: '#E88A2D' }}
+                >
+                  Start Free Trial <ArrowRight className="w-5 h-5" />
+                </button>
+              </div>
+
+              <div className="flex flex-wrap gap-6 text-sm text-white/60">
+                <span className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-[#E88A2D]" /> Built for PMs
+                </span>
+                <span className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-[#E88A2D]" /> Apple & Android
+                </span>
+                <span className="flex items-center gap-2">
+                  <CheckCircle className="w-4 h-4 text-[#E88A2D]" /> Real-time team sync
+                </span>
+              </div>
+            </div>
+
+            <div className="hidden lg:flex items-center justify-center">
+              <div className="relative">
+                <div
+                  className="absolute -inset-10 rounded-full blur-3xl opacity-15"
+                  style={{ background: 'radial-gradient(circle, #E88A2D, transparent 70%)' }}
+                />
+                <img src={pmLynkHeroLogo} alt="PM LYNK" className="relative w-full h-auto object-contain drop-shadow-2xl" />
+              </div>
+            </div>
           </div>
+        </div>
 
-          <h1 className="text-5xl sm:text-6xl lg:text-7xl font-black text-white mb-6 leading-[1.05] tracking-tight">
-            PM <span className="text-[#E88A2D]">LYNK</span>
-          </h1>
-
-          <p className="text-xl sm:text-2xl text-gray-400 mb-10 max-w-2xl mx-auto leading-relaxed font-light">
-            The project manager's mobile companion.
-            <br className="hidden sm:block" />
-            Receipts, deliveries, visitors, and communication — all in your pocket.
-          </p>
-
-          <div className="flex flex-col sm:flex-row gap-4 justify-center mb-10">
-            <button
-              onClick={() => {
-                setAuthModalMode('signUp');
-                setShowAuthModal(true);
-              }}
-              className="text-lg px-10 py-4 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.5)] transition-all duration-300 rounded-full inline-flex items-center justify-center gap-2"
-              style={{ backgroundColor: '#E88A2D' }}
-            >
-              Get Started Free <ArrowRight className="w-5 h-5" />
-            </button>
-          </div>
-
-          <div className="flex flex-wrap gap-6 justify-center text-sm text-white/60">
-            <span className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-[#E88A2D]" /> No credit card required
-            </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-[#E88A2D]" /> 14-day free trial
-            </span>
-            <span className="flex items-center gap-2">
-              <CheckCircle className="w-4 h-4 text-[#E88A2D]" /> Apple & Android
-            </span>
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 animate-bounce">
+          <div className="w-8 h-12 rounded-full border-2 border-white/50 flex items-start justify-center p-2">
+            <div className="w-1.5 h-3 bg-white rounded-full animate-pulse" />
           </div>
         </div>
       </section>

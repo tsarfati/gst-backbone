@@ -44,6 +44,7 @@ const LINK_EXPIRY_OPTIONS = [
   { label: "14 days", value: 60 * 60 * 24 * 14 },
   { label: "30 days", value: 60 * 60 * 24 * 30 },
 ];
+const ATTACHMENT_WARNING_THRESHOLD_BYTES = 20 * 1024 * 1024;
 
 export default function FileShareModal({ open, onOpenChange, file, files, jobId, storageBucket = "job-filing-cabinet" }: FileShareModalProps) {
   const { user, profile } = useAuth();
@@ -115,6 +116,13 @@ export default function FileShareModal({ open, onOpenChange, file, files, jobId,
       },
     }));
   };
+
+  const attachmentFiles = allFiles.filter(
+    (f) => (fileOptions[f.id]?.method ?? "attachment") === "attachment",
+  );
+  const totalAttachmentBytes = attachmentFiles.reduce((sum, f) => sum + Number(f.file_size || 0), 0);
+  const showAttachmentSizeWarning =
+    attachmentFiles.length > 0 && totalAttachmentBytes > ATTACHMENT_WARNING_THRESHOLD_BYTES;
 
   const handleSend = async () => {
     if (!to.trim() || !user || allFiles.length === 0) return;
@@ -259,6 +267,13 @@ export default function FileShareModal({ open, onOpenChange, file, files, jobId,
               </div>
             ))}
           </div>
+
+          {showAttachmentSizeWarning && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 text-amber-900 px-3 py-2 text-sm">
+              Selected attachments total {formatBytes(totalAttachmentBytes) || "over 20 MB"}.
+              Many email servers reject large attachments. We recommend sending these files as secure links.
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="share-to">To (comma-separated emails)</Label>

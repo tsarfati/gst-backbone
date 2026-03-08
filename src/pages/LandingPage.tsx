@@ -110,6 +110,11 @@ export default function LandingPage() {
     };
   }, [location.hash, loading, user]);
 
+  useEffect(() => {
+    if (loading || user || location.hash) return;
+    window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
+  }, [loading, user, location.pathname, location.hash]);
+
   // Redirect authenticated users to dashboard
   useEffect(() => {
     if (!loading && user) {

@@ -17,9 +17,11 @@ import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, 
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Checkbox } from '@/components/ui/checkbox';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessJobIds } from '@/utils/jobAccess';
-import { getStoragePathForDb } from '@/utils/storageUtils';
+import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
+import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
 interface RFP {
   id: string;
   rfp_number: string;
@@ -43,6 +45,15 @@ interface RfpAttachment {
   file_size: number | null;
   file_type: string | null;
   uploaded_at: string;
+  uploaded_by: string;
+}
+
+interface OwnerProfile {
+  user_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
 }
 
 interface Bid {
@@ -107,6 +118,13 @@ export default function RFPDetails() {
   const [loading, setLoading] = useState(true);
   const [uploadingDrawings, setUploadingDrawings] = useState(false);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
+  const [editingAttachmentId, setEditingAttachmentId] = useState<string | null>(null);
+  const [editingAttachmentName, setEditingAttachmentName] = useState('');
+  const [savingAttachmentNameId, setSavingAttachmentNameId] = useState<string | null>(null);
+  const [attachmentComments, setAttachmentComments] = useState<Record<string, string>>({});
+  const [previewAttachmentId, setPreviewAttachmentId] = useState<string | null>(null);
+  const [previewAttachmentUrl, setPreviewAttachmentUrl] = useState<string | null>(null);
+  const [ownerProfilesById, setOwnerProfilesById] = useState<Record<string, OwnerProfile>>({});
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [invitedVendors, setInvitedVendors] = useState<InvitedVendor[]>([]);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -121,6 +139,8 @@ export default function RFPDetails() {
   const [bidSortDirection, setBidSortDirection] = useState<'asc' | 'desc'>('desc');
   const [comparisonNotesDrafts, setComparisonNotesDrafts] = useState<Record<string, string>>({});
   const [savingComparisonNoteId, setSavingComparisonNoteId] = useState<string | null>(null);
+
+  const commentStorageKey = `rfp-attachment-comments:${currentCompany?.id || 'default'}:${id || 'unknown'}:${user?.id || 'anon'}`;
 
   const sortedBids = useMemo(() => {
     const rows = [...bids];
@@ -144,6 +164,49 @@ export default function RFPDetails() {
       loadRFP();
     }
   }, [id, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
+
+  useEffect(() => {
+    const stored = window.localStorage.getItem(commentStorageKey);
+    if (!stored) return;
+    try {
+      const parsed = JSON.parse(stored) as Record<string, string>;
+      setAttachmentComments(parsed || {});
+    } catch {
+      // ignore malformed local storage
+    }
+  }, [commentStorageKey]);
+
+  useEffect(() => {
+    window.localStorage.setItem(commentStorageKey, JSON.stringify(attachmentComments));
+  }, [attachmentComments, commentStorageKey]);
+
+  useEffect(() => {
+    const ownerIds = Array.from(new Set(attachments.map((a) => a.uploaded_by).filter(Boolean)));
+    if (ownerIds.length === 0) {
+      setOwnerProfilesById({});
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, display_name, avatar_url')
+        .in('user_id', ownerIds);
+      if (cancelled) return;
+      if (error) {
+        console.error('Error loading drawing owner profiles:', error);
+        return;
+      }
+      const mapped: Record<string, OwnerProfile> = {};
+      (data || []).forEach((row: any) => {
+        mapped[row.user_id] = row as OwnerProfile;
+      });
+      setOwnerProfilesById(mapped);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [attachments]);
 
   const loadRFP = async () => {
     try {
@@ -299,7 +362,7 @@ export default function RFPDetails() {
     try {
       const { data, error } = await supabase
         .from('rfp_attachments')
-        .select('id, file_name, file_url, file_size, file_type, uploaded_at')
+        .select('id, file_name, file_url, file_size, file_type, uploaded_at, uploaded_by')
         .eq('rfp_id', id)
         .order('uploaded_at', { ascending: false });
       if (error) throw error;
@@ -411,6 +474,57 @@ export default function RFPDetails() {
     } finally {
       setDeletingAttachmentId(null);
     }
+  };
+
+  const getAttachmentOwnerName = (attachment: RfpAttachment): string => {
+    const owner = ownerProfilesById[attachment.uploaded_by];
+    return (
+      owner?.display_name ||
+      [owner?.first_name, owner?.last_name].filter(Boolean).join(' ') ||
+      'Unknown user'
+    );
+  };
+
+  const saveAttachmentName = async (attachmentId: string) => {
+    const nextName = editingAttachmentName.trim();
+    if (!nextName) {
+      setEditingAttachmentId(null);
+      return;
+    }
+    try {
+      setSavingAttachmentNameId(attachmentId);
+      const { error } = await supabase
+        .from('rfp_attachments')
+        .update({ file_name: nextName } as any)
+        .eq('id', attachmentId)
+        .eq('rfp_id', id);
+      if (error) throw error;
+      setAttachments((prev) => prev.map((row) => (row.id === attachmentId ? { ...row, file_name: nextName } : row)));
+    } catch (error: any) {
+      console.error('Error renaming drawing attachment:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to rename drawing',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingAttachmentNameId(null);
+      setEditingAttachmentId(null);
+    }
+  };
+
+  const openAttachmentPreview = async (attachment: RfpAttachment) => {
+    const resolved = await resolveStorageUrl('company-files', attachment.file_url);
+    if (!resolved) {
+      toast({
+        title: 'Error',
+        description: 'Failed to open drawing preview',
+        variant: 'destructive',
+      });
+      return;
+    }
+    setPreviewAttachmentId(attachment.id);
+    setPreviewAttachmentUrl(resolved);
   };
 
   const handleInviteVendors = async () => {
@@ -941,8 +1055,8 @@ export default function RFPDetails() {
             </CardHeader>
             <CardContent>
               <div
-                className={`mb-3 rounded-md border-2 border-dashed px-4 py-6 text-center text-sm transition-colors ${
-                  isDrawingsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                className={`relative rounded-md border px-3 py-3 pb-12 transition-colors ${
+                  isDrawingsDragOver ? 'border-primary bg-primary/5 ring-1 ring-primary/50' : 'border-border'
                 }`}
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -963,49 +1077,106 @@ export default function RFPDetails() {
                 }}
                 onClick={() => !uploadingDrawings && drawingsInputRef.current?.click()}
               >
-                {uploadingDrawings ? (
-                  <span className="loading-dots">Loading</span>
+                {attachments.length === 0 ? (
+                  <p className="py-8 text-sm text-muted-foreground text-center">
+                    No drawings uploaded yet.
+                  </p>
                 ) : (
-                  <span>Drag and drop drawings/specs here, or click to choose files</span>
-                )}
-              </div>
-              {uploadingDrawings && (
-                <p className="text-sm text-muted-foreground mb-3"><span className="loading-dots">Loading</span></p>
-              )}
-              {attachments.length === 0 ? (
-                <p className="text-sm text-muted-foreground">No drawings uploaded yet.</p>
-              ) : (
-                <div className="space-y-2">
-                  {attachments.map((attachment) => (
-                    <div key={attachment.id} className="flex items-center justify-between rounded-md border p-2">
-                      <a
-                        href={attachment.file_url}
-                        target="_blank"
-                        rel="noreferrer"
-                        className="text-sm font-medium hover:underline truncate pr-3"
-                      >
-                        {attachment.file_name}
-                      </a>
-                      <div className="flex items-center gap-2 shrink-0">
-                        <span className="text-xs text-muted-foreground">{formatFileSize(attachment.file_size)}</span>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          disabled={deletingAttachmentId === attachment.id}
-                          onClick={() => handleDeleteAttachment(attachment)}
-                        >
-                          {deletingAttachmentId === attachment.id ? (
-                            <span className="loading-dots text-xs">Loading</span>
-                          ) : (
-                            <Trash2 className="h-4 w-4 text-destructive" />
-                          )}
-                        </Button>
-                      </div>
+                  <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
+                    <div className="grid grid-cols-[minmax(220px,2fr)_170px_140px_110px_minmax(180px,1.4fr)_72px] gap-2 px-2 py-1 text-xs text-muted-foreground">
+                      <span>Name</span>
+                      <span>Owner</span>
+                      <span>Created</span>
+                      <span className="text-right">Size</span>
+                      <span>Comments</span>
+                      <span className="text-right">Actions</span>
                     </div>
-                  ))}
+                    {attachments.map((attachment) => {
+                      const owner = ownerProfilesById[attachment.uploaded_by];
+                      const ownerName = getAttachmentOwnerName(attachment);
+                      const ownerInitials =
+                        `${owner?.first_name?.[0] || ''}${owner?.last_name?.[0] || ''}`.trim() ||
+                        ownerName.charAt(0).toUpperCase();
+                      return (
+                        <div
+                          key={attachment.id}
+                          className="grid grid-cols-[minmax(220px,2fr)_170px_140px_110px_minmax(180px,1.4fr)_72px] items-center gap-2 rounded-md border px-2 py-1.5 hover:bg-muted/40 cursor-pointer"
+                          onClick={() => void openAttachmentPreview(attachment)}
+                        >
+                          <div className="min-w-0">
+                            {editingAttachmentId === attachment.id ? (
+                              <Input
+                                autoFocus
+                                value={editingAttachmentName}
+                                onClick={(e) => e.stopPropagation()}
+                                onChange={(e) => setEditingAttachmentName(e.target.value)}
+                                onBlur={() => void saveAttachmentName(attachment.id)}
+                                onKeyDown={(e) => {
+                                  if (e.key === 'Enter') void saveAttachmentName(attachment.id);
+                                  if (e.key === 'Escape') setEditingAttachmentId(null);
+                                }}
+                                disabled={savingAttachmentNameId === attachment.id}
+                                className="h-7 text-sm"
+                              />
+                            ) : (
+                              <button
+                                type="button"
+                                className="max-w-full truncate text-left text-sm font-medium hover:underline"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingAttachmentId(attachment.id);
+                                  setEditingAttachmentName(attachment.file_name);
+                                }}
+                              >
+                                {attachment.file_name}
+                              </button>
+                            )}
+                          </div>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <Avatar className="h-6 w-6 shrink-0">
+                              <AvatarImage src={owner?.avatar_url || undefined} />
+                              <AvatarFallback>{ownerInitials}</AvatarFallback>
+                            </Avatar>
+                            <span className="truncate text-sm">{ownerName}</span>
+                          </div>
+                          <span className="text-sm text-muted-foreground">{format(new Date(attachment.uploaded_at), 'MMM d, yyyy')}</span>
+                          <span className="text-sm text-muted-foreground text-right tabular-nums">{formatFileSize(attachment.file_size) || '0 MB'}</span>
+                          <Input
+                            value={attachmentComments[attachment.id] || ''}
+                            placeholder="Add comment..."
+                            className="h-7 text-sm"
+                            onClick={(e) => e.stopPropagation()}
+                            onChange={(e) =>
+                              setAttachmentComments((prev) => ({ ...prev, [attachment.id]: e.target.value }))
+                            }
+                          />
+                          <div className="flex justify-end">
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              disabled={deletingAttachmentId === attachment.id}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void handleDeleteAttachment(attachment);
+                              }}
+                            >
+                              {deletingAttachmentId === attachment.id ? (
+                                <span className="loading-dots text-xs">Loading</span>
+                              ) : (
+                                <Trash2 className="h-4 w-4 text-destructive" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+                <div className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-sm text-muted-foreground">
+                  {uploadingDrawings ? <span className="loading-dots">Loading</span> : 'Drag and drop drawings/specs here, or click to choose files to upload'}
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -1253,6 +1424,26 @@ export default function RFPDetails() {
           )}
         </TabsContent>
       </Tabs>
+
+      <Dialog
+        open={!!previewAttachmentId}
+        onOpenChange={(open) => {
+          if (!open) {
+            setPreviewAttachmentId(null);
+            setPreviewAttachmentUrl(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-6xl h-[90vh] p-0">
+          <ZoomableDocumentPreview
+            url={previewAttachmentUrl}
+            fileName={attachments.find((row) => row.id === previewAttachmentId)?.file_name || 'Drawing Preview'}
+            className="h-full"
+            emptyMessage="No preview available"
+            emptySubMessage="Select a drawing to preview it"
+          />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -1,12 +1,12 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useLocation } from "react-router-dom";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Trash2, Loader2, Share2, Mail, X, ChevronDown, ChevronRight } from "lucide-react";
+import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Loader2, Mail, Share2, ChevronDown, ChevronRight, Lock, ArrowUpDown, GripVertical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveStorageUrl } from "@/utils/storageUtils";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -15,12 +15,14 @@ import { useToast } from "@/hooks/use-toast";
 import { cn } from "@/lib/utils";
 import FileShareModal from "@/components/FileShareModal";
 import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 
 interface CompanyFolder {
   id: string;
   name: string;
   sort_order: number;
   is_system_folder: boolean;
+  created_by?: string | null;
 }
 
 interface CompanyFile {
@@ -32,12 +34,16 @@ interface CompanyFile {
   file_type: string | null;
   category: string;
   created_at: string;
+  updated_at?: string | null;
   description?: string | null;
+  uploaded_by?: string | null;
 }
 
 interface JobEntry {
   id: string;
   name: string;
+  created_at?: string | null;
+  updated_at?: string | null;
 }
 
 interface JobCabinetFolder {
@@ -45,6 +51,10 @@ interface JobCabinetFolder {
   name: string;
   parent_folder_id: string | null;
   sort_order: number;
+  is_system_folder?: boolean;
+  created_at?: string | null;
+  updated_at?: string | null;
+  created_by?: string | null;
 }
 
 interface JobCabinetFile {
@@ -55,6 +65,23 @@ interface JobCabinetFile {
   file_type: string | null;
   folder_id: string | null;
   created_at: string;
+  updated_at?: string | null;
+  uploaded_by?: string | null;
+}
+
+interface OwnerProfile {
+  user_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  display_name?: string | null;
+  avatar_url?: string | null;
+}
+
+interface JobFileStats {
+  count: number;
+  totalSize: number;
+  createdAt: string | null;
+  modifiedAt: string | null;
 }
 
 interface PreviewState {
@@ -73,6 +100,9 @@ interface UnassignedCompanyFile {
   id: string;
   category: string | null;
 }
+
+type MovableColumnKey = "created" | "modified" | "owner" | "size" | "count" | "actions";
+type FileColumnVisibility = Record<MovableColumnKey, boolean>;
 
 type DragItemPayload =
   | { type: "folder"; id: string }
@@ -95,11 +125,30 @@ const categoryForFolderName = (name: string): string => {
 };
 
 const formatFileSize = (bytes: number | null) => {
-  if (!bytes) return "";
+  if (!bytes) return "0 MB";
   if (bytes < 1024) return `${bytes} B`;
   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 };
+
+type SortKey = "name" | "created" | "modified" | "size";
+type SortDir = "asc" | "desc";
+
+const formatDateTime = (value?: string | null) => {
+  if (!value) return "";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return "";
+  return parsed.toLocaleString();
+};
+
+const compareStrings = (a: string, b: string, dir: SortDir) =>
+  dir === "asc" ? a.localeCompare(b) : b.localeCompare(a);
+
+const compareNumbers = (a: number, b: number, dir: SortDir) =>
+  dir === "asc" ? a - b : b - a;
+
+const safeText = (value: unknown): string => String(value ?? "");
+const normalizedName = (value: unknown): string => safeText(value).trim().toLowerCase();
 
 const parseStoragePathFromPublicUrl = (url: string): string | null => {
   try {
@@ -123,6 +172,7 @@ export default function CompanyFiles() {
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
+  const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
 
   const [loading, setLoading] = useState(true);
   const [folders, setFolders] = useState<CompanyFolder[]>([]);
@@ -145,7 +195,9 @@ export default function CompanyFiles() {
   const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
   const [previewState, setPreviewState] = useState<PreviewState>({ open: false, title: "", url: null });
   const [jobs, setJobs] = useState<JobEntry[]>([]);
-  const [jobFileCountByJobId, setJobFileCountByJobId] = useState<Record<string, number>>({});
+  const [jobFileStatsByJobId, setJobFileStatsByJobId] = useState<Record<string, JobFileStats>>({});
+  const [sortKey, setSortKey] = useState<SortKey>("name");
+  const [sortDir, setSortDir] = useState<SortDir>("asc");
   const [jobUploadTargetId, setJobUploadTargetId] = useState<string | null>(null);
   const [expandedJobIds, setExpandedJobIds] = useState<Set<string>>(new Set());
   const [expandedJobFolderKeys, setExpandedJobFolderKeys] = useState<Set<string>>(new Set());
@@ -154,6 +206,25 @@ export default function CompanyFiles() {
   const [editingJobFolderName, setEditingJobFolderName] = useState("");
   const [editingJobFileKey, setEditingJobFileKey] = useState<string | null>(null);
   const [editingJobFileName, setEditingJobFileName] = useState("");
+  const [customizingColumns, setCustomizingColumns] = useState(false);
+  const [draggingColumn, setDraggingColumn] = useState<MovableColumnKey | null>(null);
+  const [columnOrder, setColumnOrder] = useState<MovableColumnKey[]>([
+    "created",
+    "modified",
+    "owner",
+    "size",
+    "count",
+    "actions",
+  ]);
+  const [visibleColumns, setVisibleColumns] = useState<FileColumnVisibility>({
+    created: true,
+    modified: true,
+    owner: true,
+    size: true,
+    count: true,
+    actions: true,
+  });
+  const [ownerProfilesById, setOwnerProfilesById] = useState<Record<string, OwnerProfile>>({});
   const fileInputRef = useRef<HTMLInputElement | null>(null);
   const fileInputFolderRef = useRef<string | null>(null);
   const jobFileInputRef = useRef<HTMLInputElement | null>(null);
@@ -162,6 +233,17 @@ export default function CompanyFiles() {
   const userId = user?.id || null;
   const displayName = profile?.display_name || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ") || user?.email || "User";
   const dropboxFolderName = `Dropbox - ${displayName}`;
+  const hasExpandedSections = expandedFolderIds.size > 0 || expandedJobIds.size > 0 || expandedJobFolderKeys.size > 0;
+  const canViewCompanyFiles = hasAccess("company-files-view");
+  const canUploadCompanyFiles = hasAccess("company-files-upload");
+  const canDownloadCompanyFiles = hasAccess("company-files-download");
+  const canShareCompanyFiles = hasAccess("company-files-share");
+  const canDeleteCompanyFiles = hasAccess("company-files-delete");
+  const canViewJobCabinet = hasAccess("jobs-view-filing-cabinet");
+  const canUploadJobCabinet = hasAccess("jobs-upload-files");
+  const canDownloadJobCabinet = hasAccess("jobs-download-files");
+  const canShareJobCabinet = hasAccess("jobs-share-files");
+  const canDeleteJobCabinet = hasAccess("jobs-delete-files");
 
   const filesByFolderId = useMemo(() => {
     const grouped: Record<string, CompanyFile[]> = {};
@@ -221,14 +303,40 @@ export default function CompanyFiles() {
 
     return Array.from(map.values());
   }, [files, selectedFileIds, selectedCompanyFolderIds, filesByFolderId, selectedJobFileKeys, selectedJobFolderKeys, jobCabinetByJobId]);
+  const hasAnySelection =
+    selectedFileIds.size > 0 ||
+    selectedCompanyFolderIds.size > 0 ||
+    selectedJobFileKeys.size > 0 ||
+    selectedJobFolderKeys.size > 0;
+
+  const ownerIds = useMemo(() => {
+    const ids = new Set<string>();
+    folders.forEach((folder) => {
+      if (folder.created_by) ids.add(folder.created_by);
+    });
+    files.forEach((file) => {
+      if (file.uploaded_by) ids.add(file.uploaded_by);
+    });
+    Object.values(jobCabinetByJobId).forEach((cabinet) => {
+      cabinet.folders.forEach((folder) => {
+        if (folder.created_by) ids.add(folder.created_by);
+      });
+      Object.values(cabinet.filesByFolderId).forEach((jobFiles) => {
+        jobFiles.forEach((file) => {
+          if (file.uploaded_by) ids.add(file.uploaded_by);
+        });
+      });
+    });
+    return Array.from(ids);
+  }, [folders, files, jobCabinetByJobId]);
 
   const syncSystemFolders = useCallback(
     async (existing: CompanyFolder[]): Promise<CompanyFolder[]> => {
       if (!companyId || !userId) return existing;
 
       let folders = [...existing];
-      let jobsFolder = folders.find((folder) => folder.is_system_folder && folder.name.trim().toLowerCase() === "jobs");
-      let myDropbox = folders.find((folder) => folder.is_system_folder && folder.name.trim().toLowerCase() === dropboxFolderName.trim().toLowerCase());
+      let jobsFolder = folders.find((folder) => folder.is_system_folder && normalizedName(folder.name) === "jobs");
+      let myDropbox = folders.find((folder) => folder.is_system_folder && normalizedName(folder.name) === normalizedName(dropboxFolderName));
 
       if (!jobsFolder) {
         const { data, error } = await supabase
@@ -240,7 +348,7 @@ export default function CompanyFiles() {
             is_system_folder: true,
             created_by: userId,
           } as never)
-          .select("id, name, sort_order, is_system_folder")
+          .select("id, name, sort_order, is_system_folder, created_by")
           .single();
         if (!error && data) {
           jobsFolder = data as CompanyFolder;
@@ -258,7 +366,7 @@ export default function CompanyFiles() {
             is_system_folder: true,
             created_by: userId,
           } as never)
-          .select("id, name, sort_order, is_system_folder")
+          .select("id, name, sort_order, is_system_folder, created_by")
           .single();
         if (!error && data) {
           myDropbox = data as CompanyFolder;
@@ -270,7 +378,7 @@ export default function CompanyFiles() {
         const legacyFolders = folders.filter(
           (folder) =>
             folder.is_system_folder &&
-            LEGACY_SYSTEM_FOLDER_NAMES.includes(folder.name.trim().toLowerCase()),
+            LEGACY_SYSTEM_FOLDER_NAMES.includes(normalizedName(folder.name)),
         );
 
         for (const legacyFolder of legacyFolders) {
@@ -285,7 +393,7 @@ export default function CompanyFiles() {
 
       const { data: refreshed } = await supabase
         .from("company_file_folders" as never)
-        .select("id, name, sort_order, is_system_folder")
+        .select("id, name, sort_order, is_system_folder, created_by")
         .eq("company_id", companyId)
         .order("sort_order", { ascending: true });
 
@@ -299,7 +407,7 @@ export default function CompanyFiles() {
 
     const { data, error } = await supabase
       .from("company_file_folders" as never)
-      .select("id, name, sort_order, is_system_folder")
+      .select("id, name, sort_order, is_system_folder, created_by")
       .eq("company_id", companyId)
       .order("sort_order", { ascending: true });
 
@@ -316,7 +424,7 @@ export default function CompanyFiles() {
     if (!companyId) return;
     const { data, error } = await supabase
       .from("company_files" as never)
-      .select("id, folder_id, file_name, file_url, file_size, file_type, category, created_at")
+      .select("id, folder_id, file_name, file_url, file_size, file_type, category, created_at, updated_at, uploaded_by")
       .eq("company_id", companyId)
       .order("sort_order", { ascending: true })
       .order("created_at", { ascending: false });
@@ -332,7 +440,7 @@ export default function CompanyFiles() {
     if (!companyId) return;
     const { data, error } = await supabase
       .from("jobs")
-      .select("id, name")
+      .select("id, name, created_at, updated_at")
       .eq("company_id", companyId)
       .eq("is_active", true)
       .order("name", { ascending: true });
@@ -348,20 +456,29 @@ export default function CompanyFiles() {
     if (!companyId) return;
     const { data, error } = await supabase
       .from("job_files")
-      .select("job_id")
+      .select("job_id, file_size, created_at, updated_at")
       .eq("company_id", companyId);
     if (error) {
       console.error("Error loading job file counts:", error);
-      setJobFileCountByJobId({});
+      setJobFileStatsByJobId({});
       return;
     }
-    const counts: Record<string, number> = {};
+    const stats: Record<string, JobFileStats> = {};
     (data || []).forEach((row: any) => {
       const jobId = String(row.job_id || "");
       if (!jobId) return;
-      counts[jobId] = (counts[jobId] || 0) + 1;
+      if (!stats[jobId]) {
+        stats[jobId] = { count: 0, totalSize: 0, createdAt: null, modifiedAt: null };
+      }
+      const current = stats[jobId];
+      current.count += 1;
+      current.totalSize += Number(row.file_size || 0);
+      const createdAt = row.created_at ? String(row.created_at) : null;
+      const modifiedAt = row.updated_at ? String(row.updated_at) : createdAt;
+      if (createdAt && (!current.createdAt || createdAt < current.createdAt)) current.createdAt = createdAt;
+      if (modifiedAt && (!current.modifiedAt || modifiedAt > current.modifiedAt)) current.modifiedAt = modifiedAt;
     });
-    setJobFileCountByJobId(counts);
+    setJobFileStatsByJobId(stats);
   }, [companyId]);
 
   const loadJobCabinet = useCallback(
@@ -379,13 +496,13 @@ export default function CompanyFiles() {
       const [foldersRes, filesRes] = await Promise.all([
         supabase
           .from("job_folders")
-          .select("id, name, parent_folder_id, sort_order")
+          .select("id, name, parent_folder_id, sort_order, is_system_folder, created_at, updated_at, created_by")
           .eq("job_id", jobId)
           .eq("company_id", companyId)
           .order("sort_order", { ascending: true }),
         supabase
           .from("job_files")
-          .select("id, file_name, file_url, file_size, file_type, folder_id, created_at")
+          .select("id, file_name, file_url, file_size, file_type, folder_id, created_at, updated_at, uploaded_by")
           .eq("job_id", jobId)
           .eq("company_id", companyId)
           .order("created_at", { ascending: false }),
@@ -452,6 +569,10 @@ export default function CompanyFiles() {
 
   const downloadCompanyFile = useCallback(
     async (file: CompanyFile) => {
+      if (!canDownloadCompanyFiles) {
+        toast({ title: "No access", description: "You do not have permission to download company files.", variant: "destructive" });
+        return;
+      }
       try {
         const resolved = await resolveStorageUrl(STORAGE_BUCKET, file.file_url);
         if (!resolved) throw new Error("Failed to resolve file URL");
@@ -469,11 +590,15 @@ export default function CompanyFiles() {
         toast({ title: "Error", description: getErrorMessage(error, "Failed to download file"), variant: "destructive" });
       }
     },
-    [toast],
+    [canDownloadCompanyFiles, toast],
   );
 
   const downloadJobFile = useCallback(
     async (file: JobCabinetFile) => {
+      if (!canDownloadJobCabinet) {
+        toast({ title: "No access", description: "You do not have permission to download job filing cabinet files.", variant: "destructive" });
+        return;
+      }
       try {
         const { data, error } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(file.file_url, 120);
         if (error || !data?.signedUrl) throw new Error("Failed to resolve file URL");
@@ -491,7 +616,7 @@ export default function CompanyFiles() {
         toast({ title: "Error", description: getErrorMessage(error, "Failed to download file"), variant: "destructive" });
       }
     },
-    [toast],
+    [canDownloadJobCabinet, toast],
   );
 
   const ensureFolderAssignments = useCallback(
@@ -512,7 +637,7 @@ export default function CompanyFiles() {
       }
 
       const dropboxFolderId =
-        folderRows.find((folder) => folder.name.trim().toLowerCase() === dropboxFolderName.trim().toLowerCase())?.id || null;
+        folderRows.find((folder) => normalizedName(folder.name) === normalizedName(dropboxFolderName))?.id || null;
 
       await Promise.all(
         (unassigned as unknown as UnassignedCompanyFile[]).map((file, idx: number) => {
@@ -520,7 +645,7 @@ export default function CompanyFiles() {
             folderByCategory.get(String(file.category || "").toLowerCase()) ||
             folderByCategory.get("other") ||
             dropboxFolderId ||
-            folderRows.find((folder) => folder.name.trim().toLowerCase() !== "jobs")?.id ||
+            folderRows.find((folder) => normalizedName(folder.name) !== "jobs")?.id ||
             folderRows[0]?.id;
           if (!targetFolderId) return Promise.resolve();
           return supabase
@@ -550,6 +675,76 @@ export default function CompanyFiles() {
     if (!companyId || !userId) return;
     load();
   }, [companyId, userId, load]);
+
+  useEffect(() => {
+    const key = `company-files-columns:${companyId || "default"}:${userId || "anon"}`;
+    const saved = window.localStorage.getItem(key);
+    if (!saved) return;
+    try {
+      const parsed = JSON.parse(saved) as {
+        visible?: Partial<FileColumnVisibility>;
+        order?: MovableColumnKey[];
+      };
+      const savedVisible = parsed?.visible ?? (parsed as Partial<FileColumnVisibility>);
+      setVisibleColumns((prev) => ({
+        created: typeof savedVisible.created === "boolean" ? savedVisible.created : prev.created,
+        modified: typeof savedVisible.modified === "boolean" ? savedVisible.modified : prev.modified,
+        owner: typeof savedVisible.owner === "boolean" ? savedVisible.owner : prev.owner,
+        size: typeof savedVisible.size === "boolean" ? savedVisible.size : prev.size,
+        count: typeof savedVisible.count === "boolean" ? savedVisible.count : prev.count,
+        actions: typeof savedVisible.actions === "boolean" ? savedVisible.actions : prev.actions,
+      }));
+      if (Array.isArray(parsed?.order)) {
+        const allowed: MovableColumnKey[] = ["created", "modified", "owner", "size", "count", "actions"];
+        const normalized = parsed.order.filter((c): c is MovableColumnKey => allowed.includes(c));
+        if (normalized.length === allowed.length) {
+          setColumnOrder(normalized);
+        }
+      }
+    } catch {
+      // ignore malformed settings
+    }
+  }, [companyId, userId]);
+
+  useEffect(() => {
+    const key = `company-files-columns:${companyId || "default"}:${userId || "anon"}`;
+    window.localStorage.setItem(
+      key,
+      JSON.stringify({
+        visible: visibleColumns,
+        order: columnOrder,
+      }),
+    );
+  }, [visibleColumns, columnOrder, companyId, userId]);
+
+  useEffect(() => {
+    if (ownerIds.length === 0) {
+      setOwnerProfilesById({});
+      return;
+    }
+
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, display_name, avatar_url")
+        .in("user_id", ownerIds);
+      if (cancelled) return;
+      if (error) {
+        console.error("Error loading owner profiles:", error);
+        return;
+      }
+      const mapped: Record<string, OwnerProfile> = {};
+      (data || []).forEach((row: any) => {
+        mapped[row.user_id] = row as OwnerProfile;
+      });
+      setOwnerProfilesById(mapped);
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerIds]);
 
   const setFolderOrder = async (orderedFolderIds: string[]) => {
     await Promise.all(
@@ -588,6 +783,10 @@ export default function CompanyFiles() {
   };
 
   const uploadFilesToFolder = async (selectedFiles: File[], targetFolderId: string) => {
+    if (!canUploadCompanyFiles) {
+      toast({ title: "No access", description: "You do not have permission to upload company files.", variant: "destructive" });
+      return;
+    }
     if (!companyId || !userId || selectedFiles.length === 0) return;
     setUploadingFolderId(targetFolderId);
     const targetFolder = folders.find((folder) => folder.id === targetFolderId);
@@ -708,6 +907,10 @@ export default function CompanyFiles() {
   };
 
   const uploadFilesToJob = async (selectedFiles: File[], jobId: string) => {
+    if (!canUploadJobCabinet) {
+      toast({ title: "No access", description: "You do not have permission to upload job filing cabinet files.", variant: "destructive" });
+      return;
+    }
     if (!companyId || !userId || selectedFiles.length === 0) return;
     setJobUploadTargetId(jobId);
     try {
@@ -812,14 +1015,11 @@ export default function CompanyFiles() {
     });
   };
 
-  const clearSelection = () => {
-    setSelectedFileIds(new Set());
-    setSelectedCompanyFolderIds(new Set());
-    setSelectedJobFileKeys(new Set());
-    setSelectedJobFolderKeys(new Set());
-  };
-
   const downloadFolder = async (folder: CompanyFolder) => {
+    if (!canDownloadCompanyFiles) {
+      toast({ title: "No access", description: "You do not have permission to download company folders.", variant: "destructive" });
+      return;
+    }
     const folderFiles = filesByFolderId[folder.id] || [];
     if (folderFiles.length === 0) {
       toast({ title: "No files", description: "This folder has no files to download." });
@@ -848,6 +1048,10 @@ export default function CompanyFiles() {
   };
 
   const downloadJobFolder = async (jobId: string, folderId: string, folderName: string) => {
+    if (!canDownloadJobCabinet) {
+      toast({ title: "No access", description: "You do not have permission to download job filing cabinet folders.", variant: "destructive" });
+      return;
+    }
     const cabinet = jobCabinetByJobId[jobId];
     if (!cabinet) return;
     const folderFiles = cabinet.filesByFolderId[folderId] || [];
@@ -876,6 +1080,44 @@ export default function CompanyFiles() {
       URL.revokeObjectURL(link.href);
     } catch (error) {
       toast({ title: "Error", description: getErrorMessage(error, "Failed to download folder"), variant: "destructive" });
+    }
+  };
+
+  const downloadSelectedFiles = async () => {
+    if (!canDownloadCompanyFiles) {
+      toast({ title: "No access", description: "You do not have permission to download selected files.", variant: "destructive" });
+      return;
+    }
+    if (selectedFiles.length === 0) return;
+    try {
+      const JSZip = (await import("jszip")).default;
+      const zip = new JSZip();
+      for (const file of selectedFiles) {
+        const isAbsoluteUrl = /^https?:\/\//i.test(file.file_url);
+        let sourceUrl: string | null = null;
+        if (isAbsoluteUrl) {
+          sourceUrl = file.file_url;
+        } else {
+          const { data } = await supabase.storage.from(STORAGE_BUCKET).createSignedUrl(file.file_url, 120);
+          sourceUrl = data?.signedUrl || null;
+        }
+        if (!sourceUrl) continue;
+        const response = await fetch(sourceUrl);
+        if (!response.ok) continue;
+        const blob = await response.blob();
+        zip.file(file.file_name, blob);
+      }
+
+      const blob = await zip.generateAsync({ type: "blob" });
+      const link = document.createElement("a");
+      link.href = URL.createObjectURL(blob);
+      link.download = "selected-files.zip";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+    } catch (error) {
+      toast({ title: "Error", description: getErrorMessage(error, "Failed to download selected files"), variant: "destructive" });
     }
   };
 
@@ -968,6 +1210,10 @@ export default function CompanyFiles() {
   };
 
   const handleDeleteFile = async (file: CompanyFile) => {
+    if (!canDeleteCompanyFiles) {
+      toast({ title: "No access", description: "You do not have permission to delete company files.", variant: "destructive" });
+      return;
+    }
     const storagePath = parseStoragePathFromPublicUrl(file.file_url);
     if (storagePath) {
       await supabase.storage.from(STORAGE_BUCKET).remove([storagePath]);
@@ -980,19 +1226,11 @@ export default function CompanyFiles() {
     setFiles((prev) => prev.filter((item) => item.id !== file.id));
   };
 
-  if (loading) {
-    return (
-      <div className="p-6 flex items-center justify-center">
-        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
-      </div>
-    );
-  }
-
   const currentView: "all" | "jobs" | "dropbox" =
     location.pathname.endsWith("/jobs") ? "jobs" : location.pathname.endsWith("/dropbox") ? "dropbox" : "all";
-  const jobsFolder = folders.find((folder) => folder.is_system_folder && folder.name.trim().toLowerCase() === "jobs");
+  const jobsFolder = folders.find((folder) => folder.is_system_folder && normalizedName(folder.name) === "jobs");
   const myDropboxFolder = folders.find(
-    (folder) => folder.is_system_folder && folder.name.trim().toLowerCase() === dropboxFolderName.trim().toLowerCase(),
+    (folder) => folder.is_system_folder && normalizedName(folder.name) === normalizedName(dropboxFolderName),
   );
   const visibleFolders = folders.filter((folder) => {
     if (folder.is_system_folder) {
@@ -1002,6 +1240,78 @@ export default function CompanyFiles() {
     }
     return currentView === "all";
   });
+  const onSort = (key: SortKey) => {
+    setSortKey((prev) => {
+      if (prev === key) {
+        setSortDir((dir) => (dir === "asc" ? "desc" : "asc"));
+        return prev;
+      }
+      setSortDir("asc");
+      return key;
+    });
+  };
+  const compareBySort = (
+    aName: string,
+    bName: string,
+    aCreated?: string | null,
+    bCreated?: string | null,
+    aModified?: string | null,
+    bModified?: string | null,
+    aSize?: number | null,
+    bSize?: number | null,
+  ) => {
+    if (sortKey === "name") return compareStrings(safeText(aName).toLowerCase(), safeText(bName).toLowerCase(), sortDir);
+    if (sortKey === "created") return compareNumbers(new Date(aCreated || 0).getTime(), new Date(bCreated || 0).getTime(), sortDir);
+    if (sortKey === "modified") return compareNumbers(new Date(aModified || 0).getTime(), new Date(bModified || 0).getTime(), sortDir);
+    return compareNumbers(Number(aSize || 0), Number(bSize || 0), sortDir);
+  };
+  const companyFolderStatsById = useMemo(() => {
+    const map: Record<string, { size: number; createdAt: string | null; modifiedAt: string | null }> = {};
+    folders.forEach((folder) => {
+      const folderFiles = filesByFolderId[folder.id] || [];
+      let size = 0;
+      let createdAt: string | null = null;
+      let modifiedAt: string | null = null;
+      folderFiles.forEach((file) => {
+        size += Number(file.file_size || 0);
+        const created = file.created_at || null;
+        const modified = file.updated_at || file.created_at || null;
+        if (created && (!createdAt || created < createdAt)) createdAt = created;
+        if (modified && (!modifiedAt || modified > modifiedAt)) modifiedAt = modified;
+      });
+      map[folder.id] = { size, createdAt, modifiedAt };
+    });
+    return map;
+  }, [folders, filesByFolderId]);
+  const sortedVisibleFolders = useMemo(() => {
+    return [...visibleFolders].sort((a, b) => {
+      if (a.is_system_folder !== b.is_system_folder) return a.is_system_folder ? -1 : 1;
+      return compareBySort(
+        a.name,
+        b.name,
+        companyFolderStatsById[a.id]?.createdAt,
+        companyFolderStatsById[b.id]?.createdAt,
+        companyFolderStatsById[a.id]?.modifiedAt,
+        companyFolderStatsById[b.id]?.modifiedAt,
+        companyFolderStatsById[a.id]?.size,
+        companyFolderStatsById[b.id]?.size,
+      );
+    });
+  }, [visibleFolders, companyFolderStatsById, sortKey, sortDir]);
+  const sortedJobs = useMemo(() => {
+    return [...jobs].sort((a, b) => {
+      return compareBySort(
+        a.name,
+        b.name,
+        jobFileStatsByJobId[a.id]?.createdAt || a.created_at,
+        jobFileStatsByJobId[b.id]?.createdAt || b.created_at,
+        jobFileStatsByJobId[a.id]?.modifiedAt || a.updated_at,
+        jobFileStatsByJobId[b.id]?.modifiedAt || b.updated_at,
+        jobFileStatsByJobId[a.id]?.totalSize,
+        jobFileStatsByJobId[b.id]?.totalSize,
+      );
+    });
+  }, [jobs, jobFileStatsByJobId, sortKey, sortDir]);
 
   const toggleJobExpansion = (jobId: string) => {
     setExpandedJobIds((prev) => {
@@ -1026,11 +1336,117 @@ export default function CompanyFiles() {
     });
   };
 
+  const renderOwnerCell = (ownerUserId?: string | null) => {
+    if (!ownerUserId) {
+      return <span className="text-[11px] text-muted-foreground">-</span>;
+    }
+    const owner = ownerProfilesById[ownerUserId];
+    const label =
+      owner?.display_name ||
+      [owner?.first_name, owner?.last_name].filter(Boolean).join(" ") ||
+      ownerUserId.slice(0, 8);
+    const initials = label
+      .split(" ")
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((part) => part.charAt(0).toUpperCase())
+      .join("") || "?";
+
+    return (
+      <span className="inline-flex items-center gap-2 truncate text-[11px] text-muted-foreground">
+        {owner?.avatar_url ? (
+          <img src={owner.avatar_url} alt={label} className="h-5 w-5 rounded-full border object-cover" />
+        ) : (
+          <span className="inline-flex h-5 w-5 items-center justify-center rounded-full border bg-muted text-[10px]">
+            {initials}
+          </span>
+        )}
+        <span className="truncate">{label}</span>
+      </span>
+    );
+  };
+
+  const columnLabel: Record<MovableColumnKey, string> = {
+    created: "Created",
+    modified: "Modified",
+    owner: "Owner",
+    size: "Size",
+    count: "Count",
+    actions: "Actions",
+  };
+
+  const columnWidthClass: Record<MovableColumnKey, string> = {
+    created: "w-44",
+    modified: "w-44",
+    owner: "w-36",
+    size: "w-28",
+    count: "w-14",
+    actions: "w-16",
+  };
+
+  const renderRowColumns = (
+    data: {
+      created?: string | null;
+      modified?: string | null;
+      ownerId?: string | null;
+      sizeText?: string;
+      count?: number | string;
+      actions?: React.ReactNode;
+    },
+  ) =>
+    columnOrder.map((columnKey) => {
+      if (!visibleColumns[columnKey]) return null;
+      if (columnKey === "created") {
+        return (
+          <span key={columnKey} className={`${columnWidthClass[columnKey]} text-xs text-muted-foreground tabular-nums`}>
+            {formatDateTime(data.created)}
+          </span>
+        );
+      }
+      if (columnKey === "modified") {
+        return (
+          <span key={columnKey} className={`${columnWidthClass[columnKey]} text-xs text-muted-foreground tabular-nums`}>
+            {formatDateTime(data.modified)}
+          </span>
+        );
+      }
+      if (columnKey === "owner") {
+        return (
+          <span key={columnKey} className={`${columnWidthClass[columnKey]} shrink-0`}>
+            {renderOwnerCell(data.ownerId)}
+          </span>
+        );
+      }
+      if (columnKey === "size") {
+        return (
+          <span key={columnKey} className={`${columnWidthClass[columnKey]} text-xs text-muted-foreground text-right tabular-nums`}>
+            {data.sizeText || "0 MB"}
+          </span>
+        );
+      }
+      if (columnKey === "count") {
+        return (
+          <span key={columnKey} className={`${columnWidthClass[columnKey]} shrink-0 flex justify-end`}>
+            <Badge variant="outline" className="min-w-10 justify-center tabular-nums">
+              {data.count ?? 0}
+            </Badge>
+          </span>
+        );
+      }
+      return (
+        <span key={columnKey} className={`${columnWidthClass[columnKey]} shrink-0 flex items-center justify-end`}>
+          {data.actions ?? null}
+        </span>
+      );
+    });
+
   const renderJobFiles = (jobId: string, folderId: string | null, depth: number) => {
     const cabinet = jobCabinetByJobId[jobId];
     if (!cabinet) return null;
     const key = folderId || "__unassigned__";
-    const folderFiles = cabinet.filesByFolderId[key] || [];
+    const folderFiles = [...(cabinet.filesByFolderId[key] || [])].sort((a, b) =>
+      compareBySort(a.file_name, b.file_name, a.created_at, b.created_at, a.updated_at || a.created_at, b.updated_at || b.created_at, a.file_size, b.file_size),
+    );
     return folderFiles.map((file) => (
       <div
         key={file.id}
@@ -1038,7 +1454,6 @@ export default function CompanyFiles() {
           "flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 group cursor-pointer",
           selectedJobFileKeys.has(`${jobId}::${file.id}`) && "bg-primary/5 ring-1 ring-primary/20",
         )}
-        style={{ paddingLeft: `${depth * 14 + 8}px` }}
         onClick={() => void openJobCabinetFile(file.file_url)}
         draggable
         onDragStart={(e) => {
@@ -1054,71 +1469,79 @@ export default function CompanyFiles() {
           );
           e.dataTransfer.effectAllowed = "move";
         }}
-      >
-        <Checkbox
-          checked={selectedJobFileKeys.has(`${jobId}::${file.id}`)}
-          onCheckedChange={() => toggleJobFileSelection(jobId, file.id)}
-          onClick={(e) => e.stopPropagation()}
-        />
-        <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
-        {editingJobFileKey === `${jobId}::${file.id}` ? (
-          <Input
-            autoFocus
-            value={editingJobFileName}
-            className="h-6 text-xs"
-            onClick={(e) => e.stopPropagation()}
-            onChange={(e) => setEditingJobFileName(e.target.value)}
-            onBlur={() => void saveJobFileRename(jobId, file.id)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter") void saveJobFileRename(jobId, file.id);
-              if (e.key === "Escape") setEditingJobFileKey(null);
-            }}
-          />
-        ) : (
-          <button
-            type="button"
-            className="flex-1 truncate text-xs text-left hover:underline"
-            onClick={(e) => {
-              e.stopPropagation();
-              setEditingJobFileKey(`${jobId}::${file.id}`);
-              setEditingJobFileName(file.file_name);
-            }}
-          >
-            {file.file_name}
-          </button>
-        )}
-        <span className="text-[11px] text-muted-foreground">{formatFileSize(file.file_size)}</span>
-        <div className="opacity-0 group-hover:opacity-100 flex items-center">
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(e) => {
-              e.stopPropagation();
-              void downloadJobFile(file);
-            }}
-          >
-            <Download className="h-3.5 w-3.5" />
-          </Button>
-          <Button
-            variant="ghost"
-            size="icon"
-            className="h-7 w-7"
-            onClick={(e) => {
-              e.stopPropagation();
-              setShareFiles([
-                {
-                  id: `job-${jobId}-${file.id}`,
-                  file_name: file.file_name,
-                  file_url: file.file_url,
-                  file_size: file.file_size ?? null,
-                },
-              ]);
-            }}
-          >
-            <Share2 className="h-3.5 w-3.5" />
-          </Button>
-        </div>
+        >
+          <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft: `${depth * 14 + 8}px` }}>
+            <Checkbox
+              checked={selectedJobFileKeys.has(`${jobId}::${file.id}`)}
+              onCheckedChange={() => toggleJobFileSelection(jobId, file.id)}
+              onClick={(e) => e.stopPropagation()}
+            />
+            <FileText className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+          {editingJobFileKey === `${jobId}::${file.id}` ? (
+            <Input
+              autoFocus
+              value={editingJobFileName}
+              className="h-6 text-xs"
+              onClick={(e) => e.stopPropagation()}
+              onChange={(e) => setEditingJobFileName(e.target.value)}
+              onBlur={() => void saveJobFileRename(jobId, file.id)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") void saveJobFileRename(jobId, file.id);
+                if (e.key === "Escape") setEditingJobFileKey(null);
+              }}
+            />
+          ) : (
+            <button
+              type="button"
+              className="flex-1 truncate text-xs text-left hover:underline"
+              onClick={(e) => {
+                e.stopPropagation();
+                setEditingJobFileKey(`${jobId}::${file.id}`);
+                setEditingJobFileName(file.file_name);
+              }}
+            >
+                {file.file_name}
+              </button>
+            )}
+          </div>
+        {renderRowColumns({
+          created: file.created_at,
+          modified: file.updated_at || file.created_at,
+          ownerId: file.uploaded_by,
+          sizeText: formatFileSize(file.file_size),
+          count: 1,
+          actions: (
+            <div className="opacity-0 group-hover:opacity-100 flex items-center">
+              {canShareJobCabinet && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShareFiles([{ id: `job-${jobId}-${file.id}`, file_name: file.file_name, file_url: file.file_url, file_size: file.file_size ?? null }]);
+                  }}
+                >
+                  <Share2 className="h-3.5 w-3.5" />
+                </Button>
+              )}
+              {canDownloadJobCabinet && (
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    void downloadJobFile(file);
+                  }}
+                >
+                  <Download className="h-3.5 w-3.5" />
+                </Button>
+              )}
+            </div>
+          ),
+        })}
+        <span className="w-24 shrink-0" />
       </div>
     ));
   };
@@ -1126,13 +1549,28 @@ export default function CompanyFiles() {
   const renderJobFolderTree = (jobId: string, parentFolderId: string | null, depth: number): JSX.Element[] => {
     const cabinet = jobCabinetByJobId[jobId];
     if (!cabinet) return [];
-    const children = cabinet.folders.filter((f) => (f.parent_folder_id || null) === parentFolderId);
+    const children = cabinet.folders
+      .filter((f) => (f.parent_folder_id || null) === parentFolderId)
+      .sort((a, b) => {
+        if (Boolean(a.is_system_folder) !== Boolean(b.is_system_folder)) return a.is_system_folder ? -1 : 1;
+        return compareBySort(
+          a.name,
+          b.name,
+          a.created_at,
+          b.created_at,
+          a.updated_at || a.created_at,
+          b.updated_at || b.created_at,
+          (cabinet.filesByFolderId[a.id] || []).reduce((sum, file) => sum + Number(file.file_size || 0), 0),
+          (cabinet.filesByFolderId[b.id] || []).reduce((sum, file) => sum + Number(file.file_size || 0), 0),
+        );
+      });
 
     return children.flatMap((folder) => {
       const folderKey = `${jobId}:${folder.id}`;
       const isExpanded = expandedJobFolderKeys.has(folderKey);
       const childCount = cabinet.folders.filter((f) => f.parent_folder_id === folder.id).length;
       const fileCount = (cabinet.filesByFolderId[folder.id] || []).length;
+      const folderSize = (cabinet.filesByFolderId[folder.id] || []).reduce((sum, file) => sum + Number(file.file_size || 0), 0);
       return [
         <div
           key={folderKey}
@@ -1140,7 +1578,6 @@ export default function CompanyFiles() {
             "flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 cursor-pointer group",
             selectedJobFolderKeys.has(`${jobId}::${folder.id}`) && "bg-primary/5 ring-1 ring-primary/20",
           )}
-          style={{ paddingLeft: `${depth * 14 + 8}px` }}
           onClick={() => toggleJobFolderExpansion(jobId, folder.id)}
           draggable
           onDragStart={(e) => {
@@ -1174,76 +1611,87 @@ export default function CompanyFiles() {
             }
           }}
         >
-          <Checkbox
-            checked={selectedJobFolderKeys.has(`${jobId}::${folder.id}`)}
-            onCheckedChange={() => toggleJobFolderSelection(jobId, folder.id)}
-            onClick={(e) => e.stopPropagation()}
-          />
-          {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
-          {isExpanded ? <FolderOpen className="h-3.5 w-3.5 text-primary" /> : <FolderClosed className="h-3.5 w-3.5 text-primary" />}
-          {editingJobFolderKey === `${jobId}::${folder.id}` ? (
-            <Input
-              autoFocus
-              value={editingJobFolderName}
-              className="h-6 text-xs"
+          <div className="flex items-center gap-2 flex-1 min-w-0" style={{ paddingLeft: `${depth * 14 + 8}px` }}>
+            <Checkbox
+              checked={selectedJobFolderKeys.has(`${jobId}::${folder.id}`)}
+              onCheckedChange={() => toggleJobFolderSelection(jobId, folder.id)}
               onClick={(e) => e.stopPropagation()}
-              onChange={(e) => setEditingJobFolderName(e.target.value)}
-              onBlur={() => void saveJobFolderRename(jobId, folder.id)}
-              onKeyDown={(e) => {
-                if (e.key === "Enter") void saveJobFolderRename(jobId, folder.id);
-                if (e.key === "Escape") setEditingJobFolderKey(null);
-              }}
             />
-          ) : (
-            <button
-              type="button"
-              className="flex-1 truncate text-xs text-left hover:underline"
-              onClick={(e) => {
-                e.stopPropagation();
-                setEditingJobFolderKey(`${jobId}::${folder.id}`);
-                setEditingJobFolderName(folder.name);
-              }}
-            >
-              {folder.name}
-            </button>
-          )}
-          <Badge variant="outline" className="text-[10px] h-5">
-            {fileCount + childCount}
-          </Badge>
-          <div className="opacity-0 group-hover:opacity-100 flex items-center">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={(e) => {
-                e.stopPropagation();
-                void downloadJobFolder(jobId, folder.id, folder.name);
-              }}
-            >
-              <Download className="h-3.5 w-3.5" />
-            </Button>
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-7 w-7"
-              onClick={(e) => {
-                e.stopPropagation();
-                const folderShareFiles = (cabinet.filesByFolderId[folder.id] || []).map((f) => ({
-                  id: `job-${jobId}-${f.id}`,
-                  file_name: f.file_name,
-                  file_url: f.file_url,
-                  file_size: f.file_size ?? null,
-                }));
-                if (folderShareFiles.length === 0) {
-                  toast({ title: "No files", description: "This folder has no files to share." });
-                  return;
-                }
-                setShareFiles(folderShareFiles);
-              }}
-            >
-              <Share2 className="h-3.5 w-3.5" />
-            </Button>
+            {isExpanded ? <ChevronDown className="h-3.5 w-3.5 text-muted-foreground" /> : <ChevronRight className="h-3.5 w-3.5 text-muted-foreground" />}
+            {isExpanded ? <FolderOpen className="h-3.5 w-3.5 text-primary" /> : <FolderClosed className="h-3.5 w-3.5 text-primary" />}
+            {editingJobFolderKey === `${jobId}::${folder.id}` ? (
+              <Input
+                autoFocus
+                value={editingJobFolderName}
+                className="h-6 text-xs"
+                onClick={(e) => e.stopPropagation()}
+                onChange={(e) => setEditingJobFolderName(e.target.value)}
+                onBlur={() => void saveJobFolderRename(jobId, folder.id)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void saveJobFolderRename(jobId, folder.id);
+                  if (e.key === "Escape") setEditingJobFolderKey(null);
+                }}
+              />
+            ) : (
+              <span className="flex-1 min-w-0">
+                <button
+                  type="button"
+                  className="inline-block max-w-full truncate text-xs text-left hover:underline"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setEditingJobFolderKey(`${jobId}::${folder.id}`);
+                    setEditingJobFolderName(folder.name);
+                  }}
+                >
+                  {folder.name}
+                </button>
+              </span>
+            )}
           </div>
+          {renderRowColumns({
+            created: folder.created_at,
+            modified: folder.updated_at || folder.created_at,
+            ownerId: folder.created_by,
+            sizeText: formatFileSize(folderSize),
+            count: fileCount + childCount,
+            actions: (
+              <div className="opacity-0 group-hover:opacity-100 flex items-center">
+                {canShareJobCabinet && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const folderShareFiles = (cabinet.filesByFolderId[folder.id] || []).map((f) => ({
+                        id: `job-${jobId}-${f.id}`,
+                        file_name: f.file_name,
+                        file_url: f.file_url,
+                        file_size: f.file_size ?? null,
+                      }));
+                      setShareFiles(folderShareFiles);
+                    }}
+                  >
+                    <Share2 className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+                {canDownloadJobCabinet && (
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    className="h-7 w-7"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      void downloadJobFolder(jobId, folder.id, folder.name);
+                    }}
+                  >
+                    <Download className="h-3.5 w-3.5" />
+                  </Button>
+                )}
+              </div>
+            ),
+          })}
+          <span className="w-24 shrink-0" />
         </div>,
         ...(isExpanded ? renderJobFiles(jobId, folder.id, depth + 1) : []),
         ...(isExpanded ? renderJobFolderTree(jobId, folder.id, depth + 1) : []),
@@ -1251,53 +1699,79 @@ export default function CompanyFiles() {
     });
   };
 
+  if (loading || permissionsLoading) {
+    return (
+      <div className="p-6 flex items-center justify-center">
+        <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+      </div>
+    );
+  }
+
+  if (!canViewCompanyFiles) {
+    return (
+      <div className="p-6 text-sm text-muted-foreground">
+        You do not have permission to view Company Files.
+      </div>
+    );
+  }
+
   return (
     <div className="p-6 space-y-4">
       <input ref={fileInputRef} type="file" multiple className="hidden" onChange={handleHiddenFileInputChange} />
       <input ref={jobFileInputRef} type="file" multiple className="hidden" onChange={handleJobUploadInputChange} />
 
       <div className="flex items-center justify-between gap-3">
-        <div>
+        <div className="flex items-center gap-3">
           <h1 className="text-2xl font-bold text-foreground">Company Files</h1>
           <p className="text-sm text-muted-foreground">All Documents</p>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setNewFolderOpen(true)}>
+          {hasAnySelection && (
+            <>
+              <Badge variant="secondary">{selectedFiles.length} selected</Badge>
+              {canShareCompanyFiles && (
+                <Button size="sm" variant="outline" disabled={selectedFiles.length === 0} onClick={() => setShareFiles(selectedFiles)}>
+                  <Mail className="h-4 w-4 mr-1.5" />
+                  Email Selected
+                </Button>
+              )}
+              {canDownloadCompanyFiles && (
+                <Button size="sm" variant="outline" disabled={selectedFiles.length === 0} onClick={() => void downloadSelectedFiles()}>
+                  <Download className="h-4 w-4 mr-1.5" />
+                  Download Selected
+                </Button>
+              )}
+            </>
+          )}
+          <Button variant="outline" onClick={() => setNewFolderOpen(true)} disabled={!canUploadCompanyFiles}>
             <Plus className="h-4 w-4 mr-2" />
             New Folder
           </Button>
-          <Button variant="outline" onClick={() => handleOpenFilePicker(null)}>
+          <Button variant="outline" onClick={() => handleOpenFilePicker(null)} disabled={!canUploadCompanyFiles}>
             <Upload className="h-4 w-4 mr-2" />
             Upload Files
+          </Button>
+          <Button
+            variant="outline"
+            disabled={!hasExpandedSections}
+            onClick={() => {
+              setExpandedFolderIds(new Set());
+              setExpandedJobIds(new Set());
+              setExpandedJobFolderKeys(new Set());
+            }}
+          >
+            Collapse All
+          </Button>
+          <Button variant={customizingColumns ? "default" : "outline"} onClick={() => setCustomizingColumns((prev) => !prev)}>
+            Customize Columns
           </Button>
         </div>
       </div>
 
       <Card>
-        <CardHeader>
-          <CardTitle>Document Library</CardTitle>
-        </CardHeader>
-        <CardContent>
-          {selectedFiles.length > 0 && (
-            <div className="mb-2 flex items-center gap-2 rounded-md border bg-muted/20 px-2 py-1.5">
-              <Badge variant="secondary">{selectedFiles.length} selected</Badge>
-              <Button size="sm" variant="outline" onClick={() => setShareFiles(selectedFiles)}>
-                <Mail className="h-4 w-4 mr-1.5" />
-                Email Selected
-              </Button>
-              <div className="flex-1" />
-              <Button size="sm" variant="ghost" onClick={clearSelection}>
-                <X className="h-4 w-4 mr-1" />
-                Clear
-              </Button>
-            </div>
-          )}
-
+        <CardContent className="pt-6">
           <div
-            className={cn(
-              "rounded-md border border-dashed p-3 text-sm text-muted-foreground mb-3",
-              dragOverRoot && "bg-primary/5 border-primary",
-            )}
+            className={cn("relative min-h-[480px] rounded-md", dragOverRoot && "bg-primary/5")}
             onDragOver={(e) => {
               e.preventDefault();
               e.stopPropagation();
@@ -1309,20 +1783,92 @@ export default function CompanyFiles() {
             }}
             onDrop={(e) => void onRootDrop(e)}
           >
-            Drag and drop files here or directly onto a folder
-          </div>
+            <div className="pointer-events-none absolute inset-0 flex items-end justify-center pb-3">
+              <span className="text-sm md:text-base font-medium text-muted-foreground/20">
+                Drag files here or onto a folder
+              </span>
+            </div>
 
-          <div className="space-y-1">
-            {visibleFolders.map((folder) => {
+            <div className="relative space-y-0.5">
+            <div className="flex items-center gap-2 px-2 py-1 text-xs font-medium text-muted-foreground border-b">
+              <span className="flex-1 inline-flex items-center gap-2">
+                {customizingColumns && <Checkbox checked disabled />}
+                <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => onSort("name")}>
+                  Name
+                  <ArrowUpDown className="h-3.5 w-3.5" />
+                </button>
+              </span>
+              {columnOrder.map((columnKey) => {
+                const isVisible = visibleColumns[columnKey];
+                if (!isVisible && !customizingColumns) return null;
+                const widthClass = columnWidthClass[columnKey];
+                const allowSort = columnKey === "created" || columnKey === "modified" || columnKey === "size";
+                return (
+                  <span
+                    key={columnKey}
+                    className={cn(widthClass, "shrink-0 inline-flex items-center gap-1", !isVisible && customizingColumns && "opacity-50")}
+                    draggable={customizingColumns}
+                    onDragStart={() => setDraggingColumn(columnKey)}
+                    onDragOver={(e) => {
+                      if (!customizingColumns) return;
+                      e.preventDefault();
+                    }}
+                    onDrop={() => {
+                      if (!customizingColumns || !draggingColumn || draggingColumn === columnKey) return;
+                      setColumnOrder((prev) => {
+                        const next = [...prev];
+                        const from = next.indexOf(draggingColumn);
+                        const to = next.indexOf(columnKey);
+                        if (from === -1 || to === -1) return prev;
+                        next.splice(from, 1);
+                        next.splice(to, 0, draggingColumn);
+                        return next;
+                      });
+                      setDraggingColumn(null);
+                    }}
+                    onDragEnd={() => setDraggingColumn(null)}
+                  >
+                    {customizingColumns && (
+                      <>
+                        <Checkbox
+                          checked={isVisible}
+                          onCheckedChange={(checked) =>
+                            setVisibleColumns((prev) => ({ ...prev, [columnKey]: checked === true }))
+                          }
+                        />
+                        <GripVertical className="h-3.5 w-3.5 opacity-70" />
+                      </>
+                    )}
+                    {allowSort ? (
+                      <button type="button" className="inline-flex items-center gap-1 hover:text-foreground" onClick={() => onSort(columnKey as "created" | "modified" | "size")}>
+                        {columnLabel[columnKey]}
+                        <ArrowUpDown className="h-3.5 w-3.5" />
+                      </button>
+                    ) : (
+                      <span>{columnLabel[columnKey]}</span>
+                    )}
+                  </span>
+                );
+              })}
+              <span className="w-24 shrink-0 inline-flex items-center gap-2 justify-end">
+                {customizingColumns && <Checkbox checked disabled />}
+                <span>Type</span>
+              </span>
+            </div>
+            {sortedVisibleFolders.map((folder) => {
               const folderFiles = filesByFolderId[folder.id] || [];
               const isExpanded = expandedFolderIds.has(folder.id);
               const isJobsSystemFolder = folder.name.trim().toLowerCase() === "jobs";
+              const folderBadgeCount = isJobsSystemFolder ? jobs.length : folderFiles.length;
+              const folderCreatedAt = companyFolderStatsById[folder.id]?.createdAt || null;
+              const folderModifiedAt = companyFolderStatsById[folder.id]?.modifiedAt || null;
+              const folderSize = companyFolderStatsById[folder.id]?.size || 0;
               return (
-                <div key={folder.id} className="rounded-md border">
+                <div key={folder.id}>
                   <div
                     className={cn(
-                      "flex items-center gap-2 px-2 py-0.5 cursor-pointer group",
-                      dragOverFolderId === folder.id && "bg-primary/5 border border-primary border-dashed rounded-md",
+                      "flex items-center gap-2 px-2 py-0.5 rounded-md cursor-pointer group hover:bg-muted/40",
+                      dragOverFolderId === folder.id && "bg-primary/5 border border-primary border-dashed",
                     )}
                     draggable
                     onDragStart={(e) => {
@@ -1368,71 +1914,81 @@ export default function CompanyFiles() {
                         }}
                       />
                     ) : (
-                      <button
-                        type="button"
-                        className="flex-1 text-left truncate cursor-text hover:underline"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setEditingFolderId(folder.id);
-                          setEditingFolderName(folder.name);
-                        }}
-                      >
-                        {folder.name}
-                      </button>
-                    )}
-                    <Badge variant="outline">{folderFiles.length}</Badge>
-                    {uploadingFolderId === folder.id && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-                    <div className="opacity-0 group-hover:opacity-100 flex items-center">
-                      {!isJobsSystemFolder && (
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
+                      <span className="flex-1 min-w-0">
+                        <button
+                          type="button"
+                          className="inline-block max-w-full truncate text-left cursor-text hover:underline"
                           onClick={(e) => {
                             e.stopPropagation();
-                            handleOpenFilePicker(folder.id);
+                            setEditingFolderId(folder.id);
+                            setEditingFolderName(folder.name);
                           }}
                         >
-                          <Upload className="h-4 w-4" />
-                        </Button>
-                      )}
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          void downloadFolder(folder);
-                        }}
-                      >
-                        <Download className="h-4 w-4" />
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          const folderShareFiles = (filesByFolderId[folder.id] || []).map(getShareableFile);
-                          if (folderShareFiles.length === 0) {
-                            toast({ title: "No files", description: "This folder has no files to share." });
-                            return;
-                          }
-                          setShareFiles(folderShareFiles);
-                        }}
-                      >
-                        <Share2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                          {folder.name}
+                        </button>
+                      </span>
+                    )}
+                    {renderRowColumns({
+                      created: folderCreatedAt,
+                      modified: folderModifiedAt,
+                      ownerId: folder.created_by,
+                      sizeText: formatFileSize(folderSize),
+                      count: folderBadgeCount,
+                      actions: (
+                        <div className="opacity-0 group-hover:opacity-100 flex items-center">
+                          {uploadingFolderId === folder.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-1" />
+                          ) : null}
+                          {canShareCompanyFiles && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              disabled={folderFiles.length === 0}
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setShareFiles(folderFiles.map(getShareableFile));
+                              }}
+                            >
+                              <Share2 className="h-4 w-4" />
+                            </Button>
+                          )}
+                          {canDownloadCompanyFiles && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void downloadFolder(folder);
+                              }}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                          )}
+                        </div>
+                      ),
+                    })}
+                    <span className="w-24 shrink-0 flex justify-end">
+                      {folder.is_system_folder ? (
+                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px] inline-flex items-center gap-1">
+                          <Lock className="h-3 w-3" />
+                          System
+                        </Badge>
+                      ) : null}
+                    </span>
                   </div>
 
                   {isExpanded && (
                     <div className="pl-8 pr-2 pb-1 space-y-0">
                       {isJobsSystemFolder ? (
+                        !canViewJobCabinet ? (
+                          <div className="py-0.5 text-xs text-muted-foreground">No permission to view job filing cabinet</div>
+                        ) : (
                         jobs.length === 0 ? (
                           <div className="py-0.5 text-xs text-muted-foreground">No active jobs</div>
                         ) : (
-                          jobs.map((job) => (
+                          sortedJobs.map((job) => (
                             <div key={job.id} className="space-y-0.5">
                               <div
                                 className="flex items-center gap-2 px-1.5 py-0.5 rounded hover:bg-muted/40 group cursor-pointer"
@@ -1449,21 +2005,17 @@ export default function CompanyFiles() {
                                   <FolderClosed className="h-3.5 w-3.5 text-primary" />
                                 )}
                                 <span className="flex-1 truncate text-sm">{job.name}</span>
-                              <Badge variant="outline">{jobFileCountByJobId[job.id] || 0}</Badge>
-                              {jobUploadTargetId === job.id && <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />}
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setJobUploadTargetId(job.id);
-                                  jobFileInputRef.current?.click();
-                                }}
-                                title="Upload to Job Filing Cabinet"
-                              >
-                                <Upload className="h-3.5 w-3.5" />
-                              </Button>
+                                {renderRowColumns({
+                                  created: jobFileStatsByJobId[job.id]?.createdAt || job.created_at,
+                                  modified: jobFileStatsByJobId[job.id]?.modifiedAt || job.updated_at,
+                                  ownerId: null,
+                                  sizeText: formatFileSize(jobFileStatsByJobId[job.id]?.totalSize || 0),
+                                  count: jobFileStatsByJobId[job.id]?.count || 0,
+                                  actions: jobUploadTargetId === job.id ? (
+                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                                  ) : null,
+                                })}
+                                <span className="w-24 shrink-0" />
                               </div>
 
                               {expandedJobIds.has(job.id) && (
@@ -1509,10 +2061,24 @@ export default function CompanyFiles() {
                             </div>
                           ))
                         )
+                        )
                       ) : folderFiles.length === 0 ? (
                         <div className="py-0" />
                       ) : (
-                        folderFiles.map((file) => (
+                        [...folderFiles]
+                          .sort((a, b) =>
+                            compareBySort(
+                              a.file_name,
+                              b.file_name,
+                              a.created_at,
+                              b.created_at,
+                              a.updated_at || a.created_at,
+                              b.updated_at || b.created_at,
+                              a.file_size,
+                              b.file_size,
+                            ),
+                          )
+                          .map((file) => (
                           <div
                             key={file.id}
                             className={cn(
@@ -1562,42 +2128,44 @@ export default function CompanyFiles() {
                                 {file.file_name}
                               </button>
                             )}
-                            <span className="text-xs text-muted-foreground">{formatFileSize(file.file_size)}</span>
-                            <div className="opacity-0 group-hover:opacity-100 flex items-center">
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void downloadCompanyFile(file);
-                                }}
-                              >
-                                <Download className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  setShareFiles([getShareableFile(file)]);
-                                }}
-                              >
-                                <Share2 className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                variant="ghost"
-                                size="icon"
-                                className="h-7 w-7 text-destructive"
-                                onClick={(e) => {
-                                  e.stopPropagation();
-                                  void handleDeleteFile(file);
-                                }}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
+                            {renderRowColumns({
+                              created: file.created_at,
+                              modified: file.updated_at || file.created_at,
+                              ownerId: file.uploaded_by,
+                              sizeText: formatFileSize(file.file_size),
+                              count: 1,
+                              actions: (
+                                <div className="opacity-0 group-hover:opacity-100 flex items-center">
+                                  {canShareCompanyFiles && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setShareFiles([getShareableFile(file)]);
+                                      }}
+                                    >
+                                      <Share2 className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                  {canDownloadCompanyFiles && (
+                                    <Button
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        void downloadCompanyFile(file);
+                                      }}
+                                    >
+                                      <Download className="h-4 w-4" />
+                                    </Button>
+                                  )}
+                                </div>
+                              ),
+                            })}
+                            <span className="w-24 shrink-0" />
                           </div>
                         ))
                       )}
@@ -1606,6 +2174,7 @@ export default function CompanyFiles() {
                 </div>
               );
             })}
+            </div>
           </div>
         </CardContent>
       </Card>

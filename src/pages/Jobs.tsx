@@ -13,6 +13,12 @@ import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { Badge } from "@/components/ui/badge";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
+const resolveJobBannerUrl = (bannerUrl?: string | null): string | null => {
+  if (!bannerUrl) return null;
+  if (/^https?:\/\//i.test(bannerUrl)) return bannerUrl;
+  return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/job-banners/${bannerUrl.replace(/^job-banners\//, "")}`;
+};
+
 export default function Jobs() {
   const navigate = useNavigate();
   const [searchParams, setSearchParams] = useSearchParams();
@@ -173,7 +179,7 @@ export default function Jobs() {
           startDate: j.start_date || "-",
           status: j.status || "planning",
           company_id: j.company_id, // Keep company_id for debugging
-          banner_url: j.banner_url || null,
+          banner_url: resolveJobBannerUrl(j.banner_url),
         };
       });
       
@@ -247,7 +253,23 @@ export default function Jobs() {
                       className="border-t hover:bg-muted/30 cursor-pointer transition-colors"
                       onClick={() => handleJobClick(job)}
                     >
-                      <td className="p-3 font-medium">{job.name}</td>
+                      <td className="p-3 font-medium">
+                        <div className="flex items-center gap-3 min-w-0">
+                          {job.banner_url ? (
+                            <img
+                              src={job.banner_url}
+                              alt={`${job.name} banner`}
+                              className="h-8 w-12 rounded object-cover border border-border/60 shrink-0"
+                              loading="lazy"
+                            />
+                          ) : (
+                            <div className="h-8 w-12 rounded border border-border/60 bg-muted/50 flex items-center justify-center shrink-0">
+                              <Building className="h-3.5 w-3.5 text-muted-foreground" />
+                            </div>
+                          )}
+                          <span className="truncate">{job.name}</span>
+                        </div>
+                      </td>
                       <td className="p-3 text-muted-foreground">{job.customer || "-"}</td>
                       <td className="p-3 text-right">{job.budget}</td>
                       <td className="p-3 text-right">{job.spent}</td>

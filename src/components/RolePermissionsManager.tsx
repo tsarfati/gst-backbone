@@ -222,6 +222,8 @@ const menuCategories: MenuCategory[] = [
             actions: [
               { key: 'jobs-view-filing-cabinet', label: 'View Files', description: 'Open job filing cabinet/documents' },
               { key: 'jobs-upload-files', label: 'Upload Files', description: 'Upload job documents and files' },
+              { key: 'jobs-download-files', label: 'Download Files', description: 'Download job documents/files' },
+              { key: 'jobs-share-files', label: 'Share/Email Files', description: 'Share or email job documents/files' },
               { key: 'jobs-delete-files', label: 'Delete Files', description: 'Delete job documents/files' },
             ]
           },
@@ -499,6 +501,8 @@ const menuCategories: MenuCategory[] = [
         actions: [
           { key: 'company-files-view', label: 'View Files', description: 'Access company files' },
           { key: 'company-files-upload', label: 'Upload Files', description: 'Upload new files' },
+          { key: 'company-files-download', label: 'Download Files', description: 'Download company files' },
+          { key: 'company-files-share', label: 'Share/Email Files', description: 'Share or email company files' },
           { key: 'company-files-delete', label: 'Delete Files', description: 'Remove files' },
         ]
       },
