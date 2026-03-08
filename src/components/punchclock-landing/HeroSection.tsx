@@ -59,7 +59,7 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
                   iOS
                 </a>
                 <a
-                  href="https://play.google.com"
+                  href="https://play.google.com/store/apps/details?id=com.gst.punchclock"
                   target="_blank"
                   rel="noopener noreferrer"
                   className="px-6 py-4 text-white/70 font-medium border border-white/10 hover:border-white/25 rounded-lg inline-flex items-center gap-2 transition-colors text-lg"
