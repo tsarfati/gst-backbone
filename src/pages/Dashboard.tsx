@@ -511,8 +511,11 @@ export default function Dashboard() {
       // Fetch bill communications for dashboard
       const { data: billComms, error: billCommsError } = await supabase
         .from('bill_communications')
-        .select('*')
+        .select('id, bill_id, user_id, message, created_at, invoices!inner(id, status, company_id)')
         .eq('company_id', currentCompany.id)
+        .eq('invoices.company_id', currentCompany.id)
+        // Hide messages for bills that are fully closed out (e.g. paid/processed).
+        .in('invoices.status', ['pending', 'pending_approval', 'pending_coding', 'approved', 'pending_payment'])
         .neq('user_id', user.id)
         .order('created_at', { ascending: false })
         .limit(5);
