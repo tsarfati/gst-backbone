@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 import { useCompany } from '@/contexts/CompanyContext';
