@@ -901,6 +901,14 @@ export default function BillDetails() {
               )}
             </CardContent>
           </Card>
+
+          <div className="mt-6">
+            <BillCommunications
+              billId={bill?.id || ''}
+              vendorId={bill?.vendor_id || ''}
+              jobId={bill?.job_id || null}
+            />
+          </div>
         </div>
 
         <div className="xl:col-span-1 space-y-6">
@@ -1216,14 +1224,6 @@ export default function BillDetails() {
           </div>
         </CardContent>
       </Card>
-
-      <div>
-        <BillCommunications
-          billId={bill?.id || ''}
-          vendorId={bill?.vendor_id || ''}
-          jobId={bill?.job_id || null}
-        />
-      </div>
 
       </div>
       </div>

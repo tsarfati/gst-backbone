@@ -225,9 +225,10 @@ export default function ZoomableDocumentPreview({
             )}
           >
             <div
-              className="inline-block select-none"
+              className="inline-block shrink-0 select-none"
               style={{
                 width: `${zoomLevel}%`,
+                maxWidth: "none",
                 pointerEvents: isPanning ? "none" : "auto",
               }}
             >

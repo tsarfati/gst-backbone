@@ -51,6 +51,11 @@ interface Message {
   };
 }
 
+interface NotificationSettingsRow {
+  in_app_enabled?: boolean | null;
+  chat_channel_notifications?: boolean | null;
+}
+
 interface Job {
   id: string;
   name: string;
@@ -215,6 +220,66 @@ export default function Dashboard() {
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
   const [pendingBillsTotal, setPendingBillsTotal] = useState(0);
+
+  const nonDirectReadKey =
+    user && currentCompany
+      ? `dashboard:read-non-direct:${currentCompany.id}:${user.id}`
+      : null;
+
+  const getStoredReadMap = () => {
+    if (!nonDirectReadKey) return new Set<string>();
+    try {
+      const raw = localStorage.getItem(nonDirectReadKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      if (!Array.isArray(parsed)) return new Set<string>();
+      return new Set(parsed.filter((value) => typeof value === "string"));
+    } catch {
+      return new Set<string>();
+    }
+  };
+
+  const buildNonDirectReadToken = (message: Pick<Message, "message_source" | "source_record_id" | "id">) => {
+    const source = message.message_source || "unknown";
+    const sourceId = message.source_record_id || message.id;
+    return `${source}:${sourceId}`;
+  };
+
+  const isNonDirectMessageRead = (message: Pick<Message, "message_source" | "source_record_id" | "id">) => {
+    if (!message.message_source || message.message_source === "direct") return false;
+    const stored = getStoredReadMap();
+    return stored.has(buildNonDirectReadToken(message));
+  };
+
+  const persistNonDirectMessageRead = (message: Pick<Message, "message_source" | "source_record_id" | "id">) => {
+    if (!message.message_source || message.message_source === "direct" || !nonDirectReadKey) return;
+    try {
+      const stored = getStoredReadMap();
+      stored.add(buildNonDirectReadToken(message));
+      localStorage.setItem(nonDirectReadKey, JSON.stringify(Array.from(stored)));
+    } catch {
+      // Ignore storage failures.
+    }
+  };
+
+  const wasMentionedInMessage = (content: string) => {
+    if (!user) return false;
+    const text = (content || "").toLowerCase();
+    if (!text.includes("@")) return false;
+
+    const nameTokens = new Set<string>();
+    const displayName = (profile as any)?.display_name?.trim();
+    const firstName = (profile as any)?.first_name?.trim();
+    const lastName = (profile as any)?.last_name?.trim();
+    const emailName = (user.email || "").split("@")[0]?.trim();
+
+    if (displayName) nameTokens.add(displayName.toLowerCase());
+    if (firstName) nameTokens.add(firstName.toLowerCase());
+    if (lastName) nameTokens.add(lastName.toLowerCase());
+    if (firstName && lastName) nameTokens.add(`${firstName} ${lastName}`.toLowerCase());
+    if (emailName) nameTokens.add(emailName.toLowerCase());
+
+    return Array.from(nameTokens).some((token) => text.includes(`@${token}`));
+  };
 
   useEffect(() => {
     if (user && currentCompany && !websiteJobAccessLoading) {
@@ -431,6 +496,17 @@ export default function Dashboard() {
         .limit(5);
 
       if (messagesError) throw messagesError;
+
+      const { data: notificationSettings } = await supabase
+        .from('notification_settings')
+        .select('in_app_enabled, chat_channel_notifications')
+        .eq('user_id', user.id)
+        .eq('company_id', currentCompany.id)
+        .maybeSingle();
+
+      const showIntercompanyByDefault =
+        (notificationSettings as NotificationSettingsRow | null)?.in_app_enabled !== false &&
+        (notificationSettings as NotificationSettingsRow | null)?.chat_channel_notifications !== false;
       
       // Fetch bill communications for dashboard
       const { data: billComms, error: billCommsError } = await supabase
@@ -532,14 +608,20 @@ export default function Dashboard() {
       );
 
       // Format bill communications
-      const formattedBillComms = (billCommsWithProfiles || []).map((comm: any) => ({
+      const formattedBillComms = (billCommsWithProfiles || [])
+        .filter((comm: any) => showIntercompanyByDefault || wasMentionedInMessage(comm.message || ""))
+        .map((comm: any) => ({
         id: comm.id,
         from_user_id: comm.user_id,
         to_user_id: user.id,
         subject: `Bill Discussion`,
         content: comm.message,
         created_at: comm.created_at,
-        read: false,
+        read: isNonDirectMessageRead({
+          id: comm.id,
+          message_source: 'bill_communication',
+          source_record_id: comm.id,
+        }),
         is_reply: false,
         message_source: 'bill_communication' as const,
         source_record_id: comm.id,
@@ -553,14 +635,20 @@ export default function Dashboard() {
       }));
 
       // Format receipt messages
-      const formattedReceiptComms = (receiptCommsWithProfiles || []).map((comm: any) => ({
+      const formattedReceiptComms = (receiptCommsWithProfiles || [])
+        .filter((comm: any) => showIntercompanyByDefault || wasMentionedInMessage(comm.message || ""))
+        .map((comm: any) => ({
         id: comm.id,
         from_user_id: comm.from_user_id,
         to_user_id: user.id,
         subject: `Receipt Coding`,
         content: comm.message,
         created_at: comm.created_at,
-        read: false,
+        read: isNonDirectMessageRead({
+          id: comm.id,
+          message_source: 'receipt_message',
+          source_record_id: comm.id,
+        }),
         is_reply: false,
         message_source: 'receipt_message' as const,
         source_record_id: comm.id,
@@ -574,7 +662,9 @@ export default function Dashboard() {
       }));
 
       // Format credit card transaction communications
-      const formattedCreditCardComms = (creditCardCommsWithProfiles || []).map((comm: any) => {
+      const formattedCreditCardComms = (creditCardCommsWithProfiles || [])
+        .filter((comm: any) => showIntercompanyByDefault || wasMentionedInMessage(comm.message || ""))
+        .map((comm: any) => {
         const creditCardId = Array.isArray(comm.credit_card_transactions)
           ? comm.credit_card_transactions[0]?.credit_card_id
           : comm.credit_card_transactions?.credit_card_id;
@@ -585,7 +675,11 @@ export default function Dashboard() {
           subject: `Credit Card Coding`,
           content: comm.message,
           created_at: comm.created_at,
-          read: false,
+          read: isNonDirectMessageRead({
+            id: comm.id,
+            message_source: 'credit_card_transaction_communication',
+            source_record_id: comm.id,
+          }),
           is_reply: false,
           message_source: 'credit_card_transaction_communication' as const,
           source_record_id: comm.id,
@@ -622,9 +716,10 @@ export default function Dashboard() {
     setShowThreadView(true);
   };
 
-  const markLocalMessageRead = (messageId: string) => {
+  const markLocalMessageRead = (message: Message) => {
+    persistNonDirectMessageRead(message);
     setMessages((prev) =>
-      prev.map((m) => (m.id === messageId ? { ...m, read: true } : m)),
+      prev.map((m) => (m.id === message.id ? { ...m, read: true } : m)),
     );
   };
 
@@ -782,7 +877,7 @@ export default function Dashboard() {
   const markMessageAsRead = async (messageId: string) => {
     const message = messages.find((m) => m.id === messageId);
     if (message?.message_source && message.message_source !== 'direct') {
-      markLocalMessageRead(messageId);
+      markLocalMessageRead(message);
       return;
     }
 
@@ -805,7 +900,7 @@ export default function Dashboard() {
   const markConversationAsRead = async (message: Message) => {
     if (!user) return;
     if (message.message_source && message.message_source !== 'direct') {
-      markLocalMessageRead(message.id);
+      markLocalMessageRead(message);
       return;
     }
 

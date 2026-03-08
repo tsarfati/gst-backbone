@@ -1021,6 +1021,14 @@ export default function BillEdit() {
             </div>
           </CardContent>
         </Card>
+
+        <div className="mt-6">
+          <BillCommunications
+            billId={id || bill?.id || ""}
+            vendorId={formData.vendor_id || bill?.vendor_id || ""}
+            jobId={formData.job_id || bill?.job_id || null}
+          />
+        </div>
         </div>
 
         <div className="xl:col-span-1 space-y-6">
@@ -1295,12 +1303,6 @@ export default function BillEdit() {
             </div>
           </CardContent>
         </Card>
-
-        <BillCommunications
-          billId={id || bill?.id || ""}
-          vendorId={formData.vendor_id || bill?.vendor_id || ""}
-          jobId={formData.job_id || bill?.job_id || null}
-        />
 
       </div>
     </div>
