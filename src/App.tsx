@@ -166,6 +166,8 @@ import DesignProfessionalSignup from "./pages/DesignProfessionalSignup";
 import SubscriptionPortal from "./pages/SubscriptionPortal";
 import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 const queryClient = new QueryClient();
 
@@ -563,8 +565,21 @@ function AuthenticatedRoutes() {
 
 function AppRoutes() {
   const location = useLocation();
+  const [showMobileWarning, setShowMobileWarning] = React.useState(false);
+  const [hasDismissedMobileWarning, setHasDismissedMobileWarning] = React.useState(() => {
+    if (typeof window === "undefined") return false;
+    return window.sessionStorage.getItem("builderlynk_mobile_web_warning_dismissed") === "1";
+  });
   
-  // Landing page and auth are public
+  const handleContinueOnWeb = React.useCallback(() => {
+    setShowMobileWarning(false);
+    setHasDismissedMobileWarning(true);
+    if (typeof window !== "undefined") {
+      window.sessionStorage.setItem("builderlynk_mobile_web_warning_dismissed", "1");
+    }
+  }, []);
+
+  // Landing/auth pages are public and should never show the mobile warning modal.
   const publicExactPaths = [
     '/',
     '/auth',
@@ -584,12 +599,66 @@ function AppRoutes() {
     || location.pathname.includes('/visitor-logs')
     || /^\/jobs\/[^/]+\/visitor-logs\/?$/.test(location.pathname)
     || /^\/visitor\/checkout\/[^/]+$/.test(location.pathname);
+
+  const dashboardRoutes = new Set([
+    '/dashboard',
+    '/construction/dashboard',
+    '/vendor/dashboard',
+    '/design-professional/dashboard',
+    '/punch-clock/dashboard',
+    '/payables-dashboard',
+    '/receivables/dashboard',
+  ]);
+  const isDashboardRoute = dashboardRoutes.has(location.pathname);
+
+  React.useEffect(() => {
+    if (isPublicRoute || !isDashboardRoute || hasDismissedMobileWarning) {
+      setShowMobileWarning(false);
+      return;
+    }
+
+    const evaluate = () => {
+      const isPhoneWidth = window.matchMedia("(max-width: 820px)").matches;
+      const hasTouch = "ontouchstart" in window || navigator.maxTouchPoints > 0;
+      const isMobileUA = /iphone|android.+mobile|ipod|windows phone|blackberry/i.test(
+        navigator.userAgent.toLowerCase()
+      );
+      const shouldWarn = isPhoneWidth && (hasTouch || isMobileUA);
+      setShowMobileWarning(shouldWarn);
+    };
+
+    evaluate();
+    window.addEventListener("resize", evaluate);
+    return () => window.removeEventListener("resize", evaluate);
+  }, [isPublicRoute, isDashboardRoute, hasDismissedMobileWarning]);
   
   if (isPublicRoute) {
     return <PublicRoutes />;
   }
   
-  return <AuthenticatedRoutes />;
+  return (
+    <>
+      <Dialog open={showMobileWarning} onOpenChange={setShowMobileWarning}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Using BuilderLynk on a Phone</DialogTitle>
+            <DialogDescription>
+              This web app is optimized for desktop. For the best phone experience and faster job management, use PM Lynk on iOS or Android.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={handleContinueOnWeb}>
+              Continue on Web
+            </Button>
+            <Button onClick={() => (window.location.href = "/pm-lynk")}>
+              Go to PM Lynk
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      <AuthenticatedRoutes />
+    </>
+  );
 }
 
 function App() {
