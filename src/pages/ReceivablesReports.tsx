@@ -3,14 +3,14 @@ import ReportCatalogPage, { type ReportCatalogItem } from "@/components/ReportCa
 
 export default function ReceivablesReports() {
   const reports: ReportCatalogItem[] = [
-    { key: "aging", title: "Aging Report", description: "View outstanding invoices by aging buckets (30/60/90 days)", icon: Clock, to: "/receivables/reports/aging", isBuilt: false, requiredPermissions: ["receivables-reports-view"] },
-    { key: "statements", title: "Customer Statement", description: "Generate statements for customers showing their account activity", icon: FileText, to: "/receivables/reports/statements", isBuilt: false, requiredPermissions: ["receivables-reports-view"] },
-    { key: "invoice-summary", title: "Invoice Summary", description: "Summary of all invoices by status and customer", icon: BarChart3, to: "/receivables/reports/invoice-summary", isBuilt: false, requiredPermissions: ["receivables-reports-view"] },
-    { key: "payment-history", title: "Payment History", description: "Complete payment history by customer or date range", icon: DollarSign, to: "/receivables/reports/payment-history", isBuilt: false, requiredPermissions: ["receivables-reports-view"] },
-    { key: "revenue-by-customer", title: "Revenue by Customer", description: "Revenue breakdown by customer over time", icon: TrendingUp, to: "/receivables/reports/revenue-by-customer", isBuilt: false, requiredPermissions: ["receivables-reports-view"] },
-    { key: "revenue-by-project", title: "Revenue by Project", description: "Revenue breakdown by project/job", icon: BarChart3, to: "/receivables/reports/revenue-by-project", isBuilt: false, requiredPermissions: ["receivables-reports-view"] },
-    { key: "top-customers", title: "Top Customers", description: "Top customers by revenue and payment history", icon: Users, to: "/receivables/reports/top-customers", isBuilt: false, requiredPermissions: ["receivables-reports-view"] },
-    { key: "collections", title: "Collections Report", description: "Track overdue invoices and collection status", icon: Clock, to: "/receivables/reports/collections", isBuilt: false, requiredPermissions: ["receivables-reports-view"] },
+    { key: "aging", title: "Aging Report", description: "Open AR invoices and filter by overdue aging buckets", icon: Clock, to: "/receivables/invoices", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
+    { key: "statements", title: "Customer Statement", description: "Open customers and statements workflow", icon: FileText, to: "/receivables/customers", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
+    { key: "invoice-summary", title: "Invoice Summary", description: "Open invoice summary and status tracking", icon: BarChart3, to: "/receivables/invoices", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
+    { key: "payment-history", title: "Payment History", description: "Open receivables payment history", icon: DollarSign, to: "/receivables/payments", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
+    { key: "revenue-by-customer", title: "Revenue by Customer", description: "Open receivables dashboard customer revenue metrics", icon: TrendingUp, to: "/receivables/dashboard", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
+    { key: "revenue-by-project", title: "Revenue by Project", description: "Open receivables dashboard project revenue view", icon: BarChart3, to: "/receivables/dashboard", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
+    { key: "top-customers", title: "Top Customers", description: "Open customer list with top-customer indicators", icon: Users, to: "/receivables/customers", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
+    { key: "collections", title: "Collections Report", description: "Open overdue invoices for collections follow-up", icon: Clock, to: "/receivables/invoices", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
   ];
 
   return (

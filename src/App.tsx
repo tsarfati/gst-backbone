@@ -113,6 +113,7 @@ import CreditCardEdit from "./pages/CreditCardEdit";
 import CreditCardTransactions from "./pages/CreditCardTransactions";
 import CreditCardMakePayment from "./pages/CreditCardMakePayment";
 import BankingReports from "./pages/BankingReports";
+import BalanceSheet from "./pages/BalanceSheet";
 import JournalEntries from "./pages/JournalEntries";
 import JournalEntryDetails from "./pages/JournalEntryDetails";
 import JournalEntryEdit from "./pages/JournalEntryEdit";
@@ -524,6 +525,7 @@ function AuthenticatedRoutes() {
               <Route path="payables/credit-cards/:id/transactions" element={<CreditCardTransactions />} />
               <Route path="payables/credit-cards/:id/make-payment" element={<CreditCardMakePayment />} />
               <Route path="banking/reports" element={<BankingReports />} />
+              <Route path="banking/balance-sheet" element={<BalanceSheet />} />
               <Route path="banking/general-ledger" element={<GeneralLedger />} />
               <Route path="banking/journal-entries" element={<JournalEntries />} />
               <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />

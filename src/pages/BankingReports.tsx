@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -21,6 +22,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 
 export default function BankingReports() {
+  const navigate = useNavigate();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [selectedPeriod, setSelectedPeriod] = useState("1month");
@@ -167,6 +169,35 @@ export default function BankingReports() {
     { name: "Trust Account Balance", category: "accounts" },
     { name: "Trust Account Detail", category: "accounts" },
   ];
+
+  const openReport = (reportName: string) => {
+    const routeMap: Record<string, string> = {
+      "General Ledger": "/banking/general-ledger",
+      "Balance Sheet": "/banking/balance-sheet",
+      "Balance Sheet - Comparative": "/banking/balance-sheet",
+      "Balance Sheet - Property Comparison": "/banking/balance-sheet",
+      "Trial Balance": "/banking/balance-sheet",
+      "Trial Balance by Property": "/banking/balance-sheet",
+      "Account Totals": "/banking/chart-of-accounts",
+      "Chart of Accounts": "/banking/chart-of-accounts",
+      "Bank Account Activity": "/banking/accounts",
+      "Bank Account Association": "/banking/accounts",
+      "Trust Account Balance": "/banking/accounts",
+      "Trust Account Detail": "/banking/accounts",
+      "Expense Distribution": "/payables/payment-reports",
+    };
+
+    const destination = routeMap[reportName];
+    if (destination) {
+      navigate(destination);
+      return;
+    }
+
+    toast({
+      title: "Report Not Ready Yet",
+      description: `${reportName} is not fully implemented yet. Core reports (Balance Sheet, General Ledger, Account Totals, Expense Distribution) are available.`,
+    });
+  };
 
   return (
     <div className="p-6">
@@ -318,7 +349,7 @@ export default function BankingReports() {
               <AccordionContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
                   {accountingReports.filter(r => r.category === 'accounts').map((report, idx) => (
-                    <Button key={idx} variant="outline" className="justify-between h-auto py-3">
+                    <Button key={idx} variant="outline" className="justify-between h-auto py-3" onClick={() => openReport(report.name)}>
                       <span className="text-sm">{report.name}</span>
                       <div className="flex items-center gap-2">
                         <Star className="h-3 w-3 text-muted-foreground" />
@@ -340,7 +371,7 @@ export default function BankingReports() {
               <AccordionContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
                   {accountingReports.filter(r => r.category === 'cashflow').map((report, idx) => (
-                    <Button key={idx} variant="outline" className="justify-between h-auto py-3">
+                    <Button key={idx} variant="outline" className="justify-between h-auto py-3" onClick={() => openReport(report.name)}>
                       <span className="text-sm">{report.name}</span>
                       <div className="flex items-center gap-2">
                         <Star className="h-3 w-3 text-muted-foreground" />
@@ -362,7 +393,7 @@ export default function BankingReports() {
               <AccordionContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
                   {accountingReports.filter(r => r.category === 'income').map((report, idx) => (
-                    <Button key={idx} variant="outline" className="justify-between h-auto py-3">
+                    <Button key={idx} variant="outline" className="justify-between h-auto py-3" onClick={() => openReport(report.name)}>
                       <span className="text-sm">{report.name}</span>
                       <div className="flex items-center gap-2">
                         <Star className="h-3 w-3 text-muted-foreground" />
@@ -384,7 +415,7 @@ export default function BankingReports() {
               <AccordionContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
                   {accountingReports.filter(r => r.category === 'expenses').map((report, idx) => (
-                    <Button key={idx} variant="outline" className="justify-between h-auto py-3">
+                    <Button key={idx} variant="outline" className="justify-between h-auto py-3" onClick={() => openReport(report.name)}>
                       <span className="text-sm">{report.name}</span>
                       <div className="flex items-center gap-2">
                         <Star className="h-3 w-3 text-muted-foreground" />
@@ -408,15 +439,11 @@ export default function BankingReports() {
                   {accountingReports.filter(r => r.category === 'ledger').map((report, idx) => {
                     const isGeneralLedger = report.name === "General Ledger";
                     return (
-                      <Button 
-                        key={idx} 
-                        variant="outline" 
+                      <Button
+                        key={idx}
+                        variant="outline"
                         className="justify-between h-auto py-3"
-                        onClick={() => {
-                          if (isGeneralLedger) {
-                            window.location.href = "/banking/general-ledger";
-                          }
-                        }}
+                        onClick={() => openReport(report.name)}
                       >
                         <span className="text-sm">{report.name}</span>
                         <div className="flex items-center gap-2">
@@ -440,7 +467,7 @@ export default function BankingReports() {
               <AccordionContent>
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-2 pt-2">
                   {accountingReports.filter(r => r.category === 'liabilities').map((report, idx) => (
-                    <Button key={idx} variant="outline" className="justify-between h-auto py-3">
+                    <Button key={idx} variant="outline" className="justify-between h-auto py-3" onClick={() => openReport(report.name)}>
                       <span className="text-sm">{report.name}</span>
                       <div className="flex items-center gap-2">
                         <Star className="h-3 w-3 text-muted-foreground" />
