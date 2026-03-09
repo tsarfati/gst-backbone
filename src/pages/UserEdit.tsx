@@ -329,7 +329,7 @@ export default function UserEdit() {
           first_name: user.first_name,
           last_name: user.last_name,
           display_name: user.display_name,
-          role: user.role,
+          role: user.role as any,
           has_global_job_access: user.has_global_job_access,
           status: user.status,
           vendor_id: user.role === 'vendor' ? selectedVendorId : null,

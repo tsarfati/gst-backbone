@@ -173,11 +173,11 @@ export default function BillDetails() {
         let distributionJobIds: string[] = [];
         let requiresDistributionBeforeApproval = true;
 
-        if (data?.company_id) {
+        if ((data as any)?.company_id) {
           const { data: payablesSettings } = await supabase
             .from('payables_settings')
             .select('require_bill_distribution_before_approval')
-            .eq('company_id', data.company_id)
+            .eq('company_id', (data as any).company_id)
             .maybeSingle();
 
           requiresDistributionBeforeApproval =

@@ -300,7 +300,7 @@ export default function CompanySettingsPage() {
           .from('user_company_access')
           .update({
             is_active: true,
-            role: assignUserRole,
+            role: assignUserRole as any,
             granted_by: user.id,
           })
           .eq('id', existing.id);
@@ -311,10 +311,10 @@ export default function CompanySettingsPage() {
           .insert({
             company_id: currentCompany.id,
             user_id: selectedExistingUserId,
-            role: assignUserRole,
+            role: assignUserRole as any,
             granted_by: user.id,
             is_active: true,
-          });
+          } as any);
         if (error) throw error;
       }
 

@@ -855,7 +855,7 @@ export default function UserDetails() {
           {fromCompanyManagement ? 'Back to Company Management' : fromEmployees ? 'Back to All Employees' : 'Back to Users'}
         </Button>
         <div className="flex items-center gap-2">
-          {isAdmin && !isSelf && (
+          {canManage && !isSelf && (
             <AlertDialog onOpenChange={(open) => { if (!open) setRemoveConfirmName(''); }}>
               <AlertDialogTrigger asChild>
                 <Button variant="destructive" size="sm">
