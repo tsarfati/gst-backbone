@@ -338,15 +338,6 @@ export default function DesignProfessionalSignup() {
         </CardContent>
       </Card>
 
-      <a
-        href="https://builderlink.com"
-        target="_blank"
-        rel="noreferrer"
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-2 text-xs text-slate-100 transition-colors hover:bg-black/45"
-      >
-        <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain" />
-        <span>Powered by BuilderLYNK</span>
-      </a>
     </div>
   );
 }
