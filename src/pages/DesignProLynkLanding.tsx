@@ -182,35 +182,73 @@ export default function DesignProLynkLanding() {
           style={{ background: 'radial-gradient(circle at 70% 40%, rgba(45,182,232,0.16), transparent 52%)' }}
         />
         <div className="relative z-10 max-w-7xl mx-auto w-full py-24">
-          <div className="max-w-4xl">
-            <p className="uppercase tracking-[0.24em] text-xs font-bold mb-5" style={{ color: accent }}>
-              Powered By BuilderLYNK
-            </p>
-            <h1 className="text-5xl sm:text-6xl xl:text-7xl font-extrabold text-white leading-[1.07] tracking-tight mb-7">
-              DesignProLYNK for
-              <span style={{ color: accent }}> architects and engineers.</span>
-            </h1>
-            <p className="text-gray-400 text-xl sm:text-2xl leading-relaxed mb-10 max-w-3xl">
-              One place for design teams to manage RFIs, submittals, and plan intelligence across every assigned project and contractor.
-            </p>
-            <div className="flex flex-wrap gap-3 mb-10">
-              <Button asChild size="lg" className="text-white font-bold" style={{ backgroundColor: accent }}>
-                <Link to="/design-professional-signup">
-                  Request Design Access <ArrowRight className="w-5 h-5 ml-1" />
+          <div className="grid lg:grid-cols-[1fr_30%] gap-12 lg:gap-16 items-center">
+            {/* Left — Copy */}
+            <div>
+              {/* Mobile logo */}
+              <div className="lg:hidden flex justify-center mb-10">
+                <img
+                  src={designProShield}
+                  alt="DesignProLYNK"
+                  className="w-64 h-auto drop-shadow-2xl"
+                />
+              </div>
+
+              <p className="uppercase tracking-[0.24em] text-xs font-bold mb-5" style={{ color: accent }}>
+                Powered By BuilderLYNK
+              </p>
+              <h1 className="text-5xl sm:text-6xl xl:text-7xl font-extrabold text-white leading-[1.07] tracking-tight mb-7">
+                DesignProLYNK for{' '}
+                <span style={{ color: accent }}>architects and engineers.</span>
+              </h1>
+              <p className="text-gray-400 text-xl sm:text-2xl leading-relaxed mb-10 max-w-3xl">
+                One place for design teams to manage RFIs, submittals, and plan intelligence across every assigned project and contractor.
+              </p>
+              <div className="flex flex-wrap gap-3 mb-10">
+                <Link
+                  to="/design-professional-signup"
+                  className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg"
+                  style={{ backgroundColor: accent }}
+                >
+                  Request Design Access <ArrowRight className="w-5 h-5" />
                 </Link>
-              </Button>
-              <Button asChild size="lg" variant="outline" className="border-white/20 text-white hover:bg-white/5">
-                <Link to="/auth">I already have an account</Link>
-              </Button>
+                <Link
+                  to="/auth"
+                  className="px-6 py-4 text-white/70 font-medium border border-white/10 hover:border-white/25 rounded-lg inline-flex items-center gap-2 transition-colors text-lg"
+                >
+                  I already have an account
+                </Link>
+              </div>
+              <div className="flex flex-wrap gap-6 text-sm text-white/65">
+                <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" style={{ color: accent }} /> Architecture + Engineering</span>
+                <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" style={{ color: accent }} /> Cross-company job view</span>
+                <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" style={{ color: accent }} /> Grounded plan answers</span>
+              </div>
+
+              <Link
+                to="/"
+                className="inline-flex items-center gap-2 text-white/40 text-xs font-medium uppercase tracking-widest hover:text-white/60 transition-colors mt-12"
+              >
+                <img src={builderlynkIcon} alt="" className="h-4 w-auto opacity-60" />
+                A BuilderLYNK Product
+              </Link>
             </div>
-            <div className="flex flex-wrap gap-6 text-sm text-white/65">
-              <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" style={{ color: accent }} /> Architecture + Engineering</span>
-              <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" style={{ color: accent }} /> Cross-company job view</span>
-              <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" style={{ color: accent }} /> Grounded plan answers</span>
+
+            {/* Right — Shield Logo */}
+            <div className="hidden lg:flex items-center justify-center">
+              <div className="relative">
+                <div
+                  className="absolute -inset-10 rounded-full blur-3xl opacity-15"
+                  style={{ background: `radial-gradient(circle, ${accent}, transparent 70%)` }}
+                />
+                <img
+                  src={designProShield}
+                  alt="DesignProLYNK"
+                  className="relative w-full h-auto object-contain drop-shadow-2xl"
+                />
+              </div>
             </div>
           </div>
-        </div>
-      </section>
 
       <section id="features" className="py-24 sm:py-32">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
