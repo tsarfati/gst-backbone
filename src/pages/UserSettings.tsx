@@ -422,7 +422,7 @@ export default function UserSettings() {
       // Update the role in user_company_access for this specific company
       const { error } = await supabase
         .from('user_company_access')
-        .update({ role: newRole })
+        .update({ role: newRole as any })
         .eq('user_id', userId)
         .eq('company_id', currentCompany.id);
 

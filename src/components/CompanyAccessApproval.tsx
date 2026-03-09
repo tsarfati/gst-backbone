@@ -163,7 +163,7 @@ export default function CompanyAccessApproval() {
             status: 'approved',
             approved_at: new Date().toISOString(),
             approved_by: user.id,
-            role: requestedRole,
+            role: requestedRole as any,
             custom_role_id: customRoleId,
           })
           .eq('user_id', userId);
@@ -174,10 +174,10 @@ export default function CompanyAccessApproval() {
           .insert({
             user_id: userId,
             company_id: currentCompany.id,
-            role: requestedRole,
+            role: requestedRole as any,
             is_active: true,
             granted_by: user.id
-          });
+          } as any);
 
         if (accessError) {
           // If access already exists, try to update it

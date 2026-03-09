@@ -453,7 +453,7 @@ export default function VendorDashboard() {
         .order('created_at', { ascending: false })
         .limit(50);
 
-      setContracts((contractData as VendorContract[]) || []);
+      setContracts((contractData as unknown as VendorContract[]) || []);
 
       const { data: vendorAssignmentsData } = await supabase
         .from('vendor_job_access' as any)
@@ -2017,7 +2017,8 @@ export default function VendorDashboard() {
                                 {rfp.attachments.map((attachment) => (
                                   <a
                                     key={attachment.id}
-                                    href={resolveStorageUrl(attachment.file_url)}
+                                    href="#"
+                                    onClick={async (e) => { e.preventDefault(); const url = await resolveStorageUrl('rfp-attachments', attachment.file_url); window.open(url, '_blank'); }}
                                     target="_blank"
                                     rel="noreferrer"
                                     className="flex items-center justify-between rounded-sm px-2 py-1 text-xs hover:bg-background/70"

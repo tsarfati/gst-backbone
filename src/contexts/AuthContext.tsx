@@ -61,7 +61,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       if (lastMs && nowMs - lastMs < LOGIN_AUDIT_DEDUPE_MS) return;
       safeLocalStorage.set(dedupeKey, String(nowMs));
 
-      const { error: rpcError } = await supabase.rpc('log_user_login_event', {
+      const { error: rpcError } = await supabase.rpc('log_user_login_event' as any, {
         p_app_source: 'builderlynk_web',
         p_login_method: method,
         p_success: success,

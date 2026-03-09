@@ -114,13 +114,13 @@ export default function EmployeeGroupManager({ onGroupChange }: EmployeeGroupMan
       return;
     }
 
-    const { data: authData, error: authError } = await supabase.rpc('get_users_emails', { user_ids: userIds });
+    const { data: authData, error: authError } = await supabase.rpc('get_users_emails' as any, { user_ids: userIds });
     if (authError) {
       console.warn('Could not load user emails:', authError);
     }
 
     const emailMap = new Map<string, string>();
-    (authData || []).forEach((row: any) => emailMap.set(row.user_id, row.email));
+    ((authData as any[]) || []).forEach((row: any) => emailMap.set(row.user_id, row.email));
 
     const mapped: ManagedUser[] = (profilesData || []).map((p: any) => ({
       user_id: p.user_id,

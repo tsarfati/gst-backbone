@@ -206,7 +206,7 @@ export default function UserRoleManagement() {
         if (error) throw error;
       } else {
         // System roles are stored in user_company_access for the specific company
-        const validRole = newRole as 'admin' | 'company_admin' | 'controller' | 'employee' | 'project_manager' | 'design_professional' | 'vendor' | 'view_only';
+        const validRole = newRole as any;
         const { error } = await supabase
           .from('user_company_access')
           .update({ role: validRole })
@@ -287,7 +287,7 @@ export default function UserRoleManagement() {
 
   const updateUserDefaultPage = async (userId: string, role: string, defaultPage: string) => {
     try {
-      const roleEnum = role as 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
+      const roleEnum = role as any;
       
       // Check if role_default_pages entry exists for this role
       const { data: existing, error: fetchError } = await supabase
@@ -314,7 +314,7 @@ export default function UserRoleManagement() {
             role: roleEnum, 
             default_page: defaultPage,
             created_by: userId 
-          });
+          } as any);
         
         if (error) throw error;
       }

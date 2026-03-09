@@ -80,7 +80,7 @@ export function useMenuPermissions() {
       const { data, error } = await supabase
         .from('role_permissions')
         .select('menu_item, can_access')
-        .eq('role', role);
+        .eq('role', role as any);
 
       if (error) throw error;
 

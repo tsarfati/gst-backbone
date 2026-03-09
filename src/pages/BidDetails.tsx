@@ -224,7 +224,7 @@ export default function BidDetails() {
           .order("created_at", { ascending: false }),
       ]);
       setTrackingEmail(String((channelData as any)?.trackingEmail || ""));
-      setEmailMessages((messageRows as BidEmailMessage[]) || []);
+      setEmailMessages((messageRows as unknown as BidEmailMessage[]) || []);
     } catch (error) {
       console.error("Error loading bid emails:", error);
       setTrackingEmail("");
@@ -245,7 +245,7 @@ export default function BidDetails() {
         .order("created_at", { ascending: true });
       if (messageError) throw messageError;
 
-      const rows = (messageRows || []) as Array<{
+      const rows = ((messageRows || []) as unknown) as Array<{
         id: string;
         message: string;
         message_type: "intercompany" | "vendor";

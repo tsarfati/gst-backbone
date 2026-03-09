@@ -47,6 +47,7 @@ interface JobFile {
   folder_id: string;
   uploaded_by?: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 interface OwnerProfile {
@@ -231,11 +232,11 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     }
 
     const resolved = {
-      allowed: !!data.can_access_filing_cabinet,
-      accessLevel: (data.filing_cabinet_access_level || "view_only") as "view_only" | "read_write",
-      canDownload: !!data.can_download_filing_cabinet_files,
-      allowedFolderIds: (data.allowed_filing_cabinet_folder_ids as string[] | null) || null,
-      allowedFileIds: (data.allowed_filing_cabinet_file_ids as string[] | null) || null,
+      allowed: !!(data as any).can_access_filing_cabinet,
+      accessLevel: ((data as any).filing_cabinet_access_level || "view_only") as "view_only" | "read_write",
+      canDownload: !!(data as any).can_download_filing_cabinet_files,
+      allowedFolderIds: ((data as any).allowed_filing_cabinet_folder_ids as string[] | null) || null,
+      allowedFileIds: ((data as any).allowed_filing_cabinet_file_ids as string[] | null) || null,
     };
     setVendorCabinetAccess({ loading: false, ...resolved });
     return resolved;
