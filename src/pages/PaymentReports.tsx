@@ -160,7 +160,7 @@ export default function PaymentReports() {
         const invoicesResponse: any = await supabase
           .from("invoices")
           .select("id, created_at")
-          .in("id", invoiceIds);
+          .in("id", invoiceIds as string[]);
 
         if (invoicesResponse.error) throw invoicesResponse.error;
 
