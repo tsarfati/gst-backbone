@@ -40,6 +40,7 @@ interface CompanyUser {
 interface OrganizationCompany {
   id: string;
   name: string;
+  company_type?: 'construction' | 'design_professional' | null;
   display_name?: string | null;
   logo_url?: string | null;
   created_by?: string | null;
@@ -148,6 +149,7 @@ export default function CompanyManagement() {
   const [newCompanyForm, setNewCompanyForm] = useState({
     name: '',
     display_name: '',
+    company_type: 'construction' as 'construction' | 'design_professional',
     address: '',
     city: '',
     state: '',
@@ -594,6 +596,7 @@ export default function CompanyManagement() {
       setNewCompanyForm({
         name: '',
         display_name: '',
+        company_type: 'construction',
         address: '',
         city: '',
         state: '',
@@ -1472,6 +1475,23 @@ export default function CompanyManagement() {
                   placeholder="Acme"
                 />
               </div>
+            </div>
+            <div>
+              <Label htmlFor="new_company_type">Company Type</Label>
+              <Select
+                value={newCompanyForm.company_type}
+                onValueChange={(value: 'construction' | 'design_professional') =>
+                  setNewCompanyForm(prev => ({ ...prev, company_type: value }))
+                }
+              >
+                <SelectTrigger id="new_company_type">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="construction">Construction Company</SelectItem>
+                  <SelectItem value="design_professional">Design Professional</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label htmlFor="new_address">Address</Label>

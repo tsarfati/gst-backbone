@@ -30,7 +30,7 @@ const defaults: DesignProfessionalPortalSettingsData = {
   design_professional_signup_background_color: '#030B20',
   design_professional_signup_logo_url: '',
   design_professional_signup_header_title: 'Design Professional Signup',
-  design_professional_signup_header_subtitle: 'Create your design professional account and request company approval.',
+  design_professional_signup_header_subtitle: 'Create your design professional account.',
   design_professional_signup_modal_color: '#071231',
   design_professional_signup_modal_opacity: 0.96,
 };

@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Dialog, DialogContent } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -28,6 +28,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
   const [confirmPassword, setConfirmPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [showEmailConfirmModal, setShowEmailConfirmModal] = useState(false);
   
   const { signIn, signUp, signInWithGoogle } = useAuth();
   const { toast } = useToast();
@@ -93,14 +94,23 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
         variant: 'destructive',
       });
     } else {
-      toast({
-        title: 'Success',
-        description: 'Account created! Please check your email to verify your account.',
-      });
-      resetForm();
-      setMode('signIn');
+      setShowEmailConfirmModal(true);
+      setPassword('');
+      setConfirmPassword('');
     }
     setLoading(false);
+  };
+
+  const handleAcknowledgeEmailConfirmation = async () => {
+    try {
+      await supabase.auth.signOut({ scope: 'local' });
+    } catch (error) {
+      console.error('Failed to sign out after signup confirmation prompt:', error);
+    } finally {
+      setShowEmailConfirmModal(false);
+      setMode('signIn');
+      resetForm();
+    }
   };
 
   const handleForgotPassword = async (e: React.FormEvent) => {
@@ -185,8 +195,9 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
     : 'focus:border-[#3B82F6] focus:ring-[#3B82F6]';
 
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent 
+    <>
+      <Dialog open={open} onOpenChange={onOpenChange}>
+        <DialogContent 
         className="sm:max-w-lg w-[calc(100vw-1rem)] max-h-[calc(100dvh-1rem)] p-0 overflow-y-auto overflow-x-hidden border-0 shadow-2xl [&>button]:hidden"
         style={{ 
           borderRadius: '16px',
@@ -419,7 +430,24 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
             </p>
           )}
         </div>
-      </DialogContent>
-    </Dialog>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showEmailConfirmModal} onOpenChange={() => {}}>
+        <DialogContent className="sm:max-w-md [&>button]:hidden">
+          <DialogHeader>
+            <DialogTitle>Check Your Email</DialogTitle>
+          </DialogHeader>
+          <p className="text-sm text-muted-foreground">
+            We sent a confirmation email to <span className="font-medium text-foreground">{email}</span>. Please click that confirmation link before signing in.
+          </p>
+          <DialogFooter>
+            <Button onClick={() => void handleAcknowledgeEmailConfirmation()} className="w-full">
+              OK
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </>
   );
 }

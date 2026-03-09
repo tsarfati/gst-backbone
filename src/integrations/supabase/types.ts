@@ -1351,6 +1351,7 @@ export type Database = {
           address: string | null
           allow_journal_entry_deletion: boolean
           city: string | null
+          company_type: string
           created_at: string
           created_by: string
           display_name: string | null
@@ -1374,6 +1375,7 @@ export type Database = {
           address?: string | null
           allow_journal_entry_deletion?: boolean
           city?: string | null
+          company_type?: string
           created_at?: string
           created_by: string
           display_name?: string | null
@@ -1397,6 +1399,7 @@ export type Database = {
           address?: string | null
           allow_journal_entry_deletion?: boolean
           city?: string | null
+          company_type?: string
           created_at?: string
           created_by?: string
           display_name?: string | null

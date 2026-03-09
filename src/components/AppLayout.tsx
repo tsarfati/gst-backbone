@@ -16,10 +16,13 @@ import { CompanySwitcher } from '@/components/CompanySwitcher';
 import { useToast } from '@/hooks/use-toast';
 import { useTierNavigationSettings } from '@/hooks/useTierNavigationSettings';
 
+type CompanyType = 'construction' | 'design_professional';
+
 const navigationCategories = [
   {
     title: "Dashboard",
     icon: LayoutDashboard,
+    companyTypes: ['construction', 'design_professional'] as CompanyType[],
     items: [
       { name: "Dashboard", href: "/", menuKey: "dashboard", employeeHidden: true },
     ],
@@ -28,13 +31,14 @@ const navigationCategories = [
   {
     title: "Construction",
     icon: HardHat,
+      companyTypes: ['construction', 'design_professional'] as CompanyType[],
       items: [
         { name: "Dashboard", href: "/construction/dashboard", menuKey: "jobs" },
         { name: "Jobs", href: "/jobs", menuKey: "jobs" },
-        { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors" },
+        { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors", companyTypes: ['construction'] as CompanyType[] },
         { name: "RFPs & Bids", href: "/construction/rfps", menuKey: "jobs" },
         { name: "Submittals", href: "/construction/submittals", menuKey: "jobs" },
-        { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors" },
+        { name: "Purchase Orders", href: "/purchase-orders", menuKey: "vendors", companyTypes: ['construction'] as CompanyType[] },
         { name: "Reports", href: "/construction/reports", menuKey: "jobs" },
       ],
     collapsible: true,
@@ -42,6 +46,7 @@ const navigationCategories = [
   {
     title: "Receipts",
     icon: Receipt,
+    companyTypes: ['construction'] as CompanyType[],
     items: [
       { name: "Upload Receipts", href: "/upload", menuKey: "receipts" },
       { name: "Uncoded Receipts", href: "/uncoded", menuKey: "receipts" },
@@ -53,6 +58,7 @@ const navigationCategories = [
   {
     title: "Receivables",
     icon: HandCoins,
+    companyTypes: ['construction'] as CompanyType[],
     items: [
       { name: "Dashboard", href: "/receivables", menuKey: "receivables" },
       { name: "Customers", href: "/receivables/customers", menuKey: "receivables" },
@@ -65,6 +71,7 @@ const navigationCategories = [
   {
     title: "Payables",
     icon: CreditCard,
+    companyTypes: ['construction'] as CompanyType[],
     items: [
       { name: "Payables Dashboard", href: "/payables-dashboard", menuKey: "payables-dashboard" },
       { name: "Vendors", href: "/vendors", menuKey: "vendors" },
@@ -79,6 +86,7 @@ const navigationCategories = [
   {
     title: "Company Files",
     icon: FolderArchive,
+    companyTypes: ['construction', 'design_professional'] as CompanyType[],
     items: [
       { name: "All Documents", href: "/company-files", menuKey: "company-files" },
       { name: "Jobs", href: "/company-files/jobs", menuKey: "company-files" },
@@ -89,6 +97,7 @@ const navigationCategories = [
   {
     title: "Employees",
     icon: Users,
+    companyTypes: ['construction'] as CompanyType[],
     items: [
       { name: "All Employees", href: "/employees", menuKey: "employees" },
       { name: "Punch Clock", href: "/punch-clock/dashboard", menuKey: "punch-clock-dashboard", featureKey: "punch_clock_app" },
@@ -101,6 +110,7 @@ const navigationCategories = [
   {
     title: "Messaging",
     icon: MessageSquare,
+    companyTypes: ['construction', 'design_professional'] as CompanyType[],
     items: [
       { name: "All Messages", href: "/messages", menuKey: "messages" },
       { name: "Team Chat", href: "/team-chat", menuKey: "messages" },
@@ -111,6 +121,7 @@ const navigationCategories = [
   {
     title: "Tasks",
     icon: CheckSquare,
+    companyTypes: ['construction', 'design_professional'] as CompanyType[],
     items: [
       { name: "All Tasks", href: "/tasks", menuKey: "jobs" },
       { name: "Project Tasks", href: "/tasks/projects", menuKey: "jobs" },
@@ -121,6 +132,7 @@ const navigationCategories = [
   {
     title: "Banking",
     icon: Building,
+    companyTypes: ['construction'] as CompanyType[],
     items: [
       { name: "Bank Accounts", href: "/banking/accounts", menuKey: "banking-accounts" },
       { name: "Reporting", href: "/banking/reports", menuKey: "banking-reports" },
@@ -133,6 +145,7 @@ const navigationCategories = [
   {
     title: "Settings",
     icon: Settings,
+    companyTypes: ['construction', 'design_professional'] as CompanyType[],
     items: [
       { name: "Super Admin Dashboard", href: "/super-admin", menuKey: "settings", superAdminOnly: true },
       { name: "Organization Management", href: "/settings/organization-management", menuKey: "organization-management", ownerOnly: true, featureKey: "organization_management" },
@@ -161,6 +174,7 @@ export function AppSidebar() {
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
   const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
   const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
+  const companyType: CompanyType = currentCompany?.company_type === 'design_professional' ? 'design_professional' : 'construction';
   const isItemRouteActive = (item: { href: string }, categoryTitle?: string) => {
     const pathnameMatch =
       location.pathname === item.href ||
@@ -269,12 +283,17 @@ export function AppSidebar() {
         {!loading && navigationCategories.filter((category) => {
           if (!isExternalUser) return true;
           return category.title === 'Dashboard';
+        }).filter((category: any) => {
+          const allowedTypes = (category.companyTypes as CompanyType[] | undefined) || ['construction', 'design_professional'];
+          return allowedTypes.includes(companyType);
         }).map((category) => {
           const isDashboard = category.title === "Dashboard";
           const isDirectLink = !category.collapsible;
           
            // Filter items based on permissions and role
            const visibleItems = category.items.flatMap((item) => {
+             const itemAllowedTypes = ((item as any).companyTypes as CompanyType[] | undefined) || ['construction', 'design_professional'];
+             if (!itemAllowedTypes.includes(companyType)) return [];
              const superAdminOnly = 'superAdminOnly' in item && !!(item as any).superAdminOnly;
              if (superAdminOnly && !isSuperAdmin) return [];
 
@@ -454,6 +473,8 @@ export function AppSidebar() {
 export default function Layout() {
   const location = useLocation();
   const { profile, signOut } = useAuth();
+  const effectiveRole = String(profile?.role || '').trim().toLowerCase();
+  const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
   const isPunchClockPage = location.pathname === '/time-tracking';
   const [impersonationMode, setImpersonationMode] = useState(false);
 
@@ -495,7 +516,7 @@ export default function Layout() {
                     Help
                   </Link>
                 </Button>
-                <CompanySwitcher />
+                {!isExternalUser && <CompanySwitcher />}
                 <DateTimeDisplay />
                 <Button asChild variant="ghost" className="flex items-center gap-2 h-8 px-2">
                   <Link to="/profile-settings">

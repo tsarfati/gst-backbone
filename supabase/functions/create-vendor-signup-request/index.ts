@@ -17,13 +17,19 @@ type RequestPayload = {
   firstName: string;
   lastName: string;
   phone?: string | null;
-  companyId: string;
+  companyId?: string | null;
   requestedRole: RequestedRole;
   businessName?: string | null;
   jobInviteToken?: string | null;
 };
 
 const safeString = (value: unknown) => String(value || "").trim();
+const toSlug = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "")
+    .slice(0, 40);
 const builderLynkLogo = "https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png";
 const ADMIN_ROLES = new Set(["admin", "company_admin", "controller", "owner"]);
 
@@ -99,11 +105,12 @@ serve(async (req: Request): Promise<Response> => {
     const lastName = safeString(body.lastName);
     const companyId = safeString(body.companyId);
     const requestedRole = body.requestedRole === "design_professional" ? "design_professional" : "vendor";
+    const autoApprove = requestedRole === "design_professional";
     const businessName = safeString(body.businessName || "");
     const phone = safeString(body.phone || "");
     const jobInviteToken = safeString(body.jobInviteToken || "");
 
-    if (!userId || !email || !firstName || !lastName || !companyId) {
+    if (!userId || !email || !firstName || !lastName) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -137,16 +144,81 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    const { data: company, error: companyError } = await supabase
-      .from("companies")
-      .select("id,name,display_name,is_active")
-      .eq("id", companyId)
-      .single();
-    if (companyError || !company || !company.is_active) {
-      return new Response(JSON.stringify({ error: "Company not found or inactive" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
+    let resolvedCompanyId = companyId;
+    let company: any = null;
+
+    if (!resolvedCompanyId) {
+      if (!autoApprove) {
+        return new Response(JSON.stringify({ error: "Company is required for this signup flow" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      if (jobInviteToken) {
+        return new Response(JSON.stringify({ error: "A job invite requires a company context" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      const workspaceName =
+        businessName ||
+        `${firstName} ${lastName}`.trim() ||
+        `${email.split("@")[0]} Design`;
+      const tenantSlug = `${toSlug(workspaceName) || "design-pro"}-${Date.now().toString(36)}`;
+
+      const { data: tenantRow, error: tenantError } = await supabase
+        .from("tenants")
+        .insert({
+          name: workspaceName,
+          slug: tenantSlug,
+          owner_id: userId,
+          is_active: true,
+        })
+        .select("id, name")
+        .single();
+      if (tenantError || !tenantRow) throw tenantError || new Error("Failed to create tenant workspace");
+
+      const { error: tenantMemberError } = await supabase
+        .from("tenant_members")
+        .insert({
+          tenant_id: tenantRow.id,
+          user_id: userId,
+          role: "owner",
+          invited_by: userId,
+        });
+      if (tenantMemberError) throw tenantMemberError;
+
+      const { data: companyRow, error: companyCreateError } = await supabase
+        .from("companies")
+        .insert({
+          name: workspaceName,
+          display_name: workspaceName,
+          email,
+          tenant_id: tenantRow.id,
+          created_by: userId,
+          company_type: "design_professional",
+          is_active: true,
+        } as any)
+        .select("id,name,display_name,is_active,logo_url")
+        .single();
+      if (companyCreateError || !companyRow) throw companyCreateError || new Error("Failed to create design company");
+
+      resolvedCompanyId = String(companyRow.id);
+      company = companyRow;
+    } else {
+      const { data: companyRow, error: companyError } = await supabase
+        .from("companies")
+        .select("id,name,display_name,is_active,logo_url")
+        .eq("id", resolvedCompanyId)
+        .single();
+      if (companyError || !companyRow || !companyRow.is_active) {
+        return new Response(JSON.stringify({ error: "Company not found or inactive" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      company = companyRow;
     }
 
     let invitedJobId: string | null = null;
@@ -163,7 +235,7 @@ serve(async (req: Request): Promise<Response> => {
           headers: { "Content-Type": "application/json", ...corsHeaders },
         });
       }
-      if (inviteRow.company_id !== companyId) {
+      if (inviteRow.company_id !== resolvedCompanyId) {
         return new Response(JSON.stringify({ error: "Invite token company mismatch" }), {
           status: 403,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -200,12 +272,12 @@ serve(async (req: Request): Promise<Response> => {
           last_name: lastName,
           display_name: `${firstName} ${lastName}`.trim(),
           phone: phone || null,
-          current_company_id: companyId,
-          default_company_id: companyId,
+          current_company_id: resolvedCompanyId,
+          default_company_id: resolvedCompanyId,
           role: requestedRole,
-          status: "pending",
-          approved_at: null,
-          approved_by: null,
+          status: autoApprove ? "active" : "pending",
+          approved_at: autoApprove ? new Date().toISOString() : null,
+          approved_by: autoApprove ? userId : null,
         },
         { onConflict: "user_id" },
       );
@@ -215,7 +287,7 @@ serve(async (req: Request): Promise<Response> => {
       .from("user_company_access")
       .select("user_id")
       .eq("user_id", userId)
-      .eq("company_id", companyId)
+      .eq("company_id", resolvedCompanyId)
       .limit(1);
     if (existingAccessError) throw existingAccessError;
 
@@ -224,21 +296,21 @@ serve(async (req: Request): Promise<Response> => {
         .from("user_company_access")
         .update({
           role: requestedRole,
-          is_active: false,
-          granted_by: null,
+          is_active: autoApprove,
+          granted_by: autoApprove ? userId : null,
         })
         .eq("user_id", userId)
-        .eq("company_id", companyId);
+        .eq("company_id", resolvedCompanyId);
       if (updateAccessError) throw updateAccessError;
     } else {
       const { error: insertAccessError } = await supabase
         .from("user_company_access")
         .insert({
           user_id: userId,
-          company_id: companyId,
+          company_id: resolvedCompanyId,
           role: requestedRole,
-          is_active: false,
-          granted_by: null,
+          is_active: autoApprove,
+          granted_by: autoApprove ? userId : null,
         });
       if (insertAccessError) throw insertAccessError;
     }
@@ -257,7 +329,7 @@ serve(async (req: Request): Promise<Response> => {
       .from("company_access_requests")
       .select("id")
       .eq("user_id", userId)
-      .eq("company_id", companyId)
+      .eq("company_id", resolvedCompanyId)
       .eq("status", "pending")
       .order("created_at", { ascending: false })
       .limit(1)
@@ -268,17 +340,18 @@ serve(async (req: Request): Promise<Response> => {
       const { error: updateRequestError } = await supabase
         .from("company_access_requests")
         .update({
+          status: autoApprove ? "approved" : "pending",
           notes: JSON.stringify(notesPayload),
-          reviewed_at: null,
-          reviewed_by: null,
+          reviewed_at: autoApprove ? new Date().toISOString() : null,
+          reviewed_by: autoApprove ? userId : null,
           requested_at: new Date().toISOString(),
         })
         .eq("id", existingPendingRequest.id);
       if (updateRequestError) throw updateRequestError;
-    } else {
+    } else if (!autoApprove) {
       const { error: requestError } = await supabase.from("company_access_requests").insert({
         user_id: userId,
-        company_id: companyId,
+        company_id: resolvedCompanyId,
         status: "pending",
         requested_at: new Date().toISOString(),
         notes: JSON.stringify(notesPayload),
@@ -295,7 +368,7 @@ serve(async (req: Request): Promise<Response> => {
           accepted_at: new Date().toISOString(),
         })
         .eq("invite_token", jobInviteToken)
-        .eq("company_id", companyId)
+        .eq("company_id", resolvedCompanyId)
         .eq("status", "pending");
       if (inviteUpdateError) {
         console.warn("Failed to mark design professional invite accepted:", inviteUpdateError);
@@ -306,7 +379,7 @@ serve(async (req: Request): Promise<Response> => {
       const { data: adminAccessRows, error: adminAccessError } = await supabase
         .from("user_company_access")
         .select("user_id, role")
-        .eq("company_id", companyId)
+        .eq("company_id", resolvedCompanyId)
         .eq("is_active", true);
       if (adminAccessError) throw adminAccessError;
 
@@ -362,11 +435,11 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       const intakeRecipients = Array.from(recipientUserIds).filter((id) => Boolean(id) && id !== userId);
-      if (intakeRecipients.length > 0) {
+      if (!autoApprove && intakeRecipients.length > 0) {
         const { data: notifRows } = await supabase
           .from("notification_settings")
           .select("user_id, in_app_enabled, intake_queue_requests")
-          .eq("company_id", companyId)
+          .eq("company_id", resolvedCompanyId)
           .in("user_id", intakeRecipients);
 
         const notifMap = new Map<string, any>((notifRows || []).map((row: any) => [String(row.user_id), row]));
@@ -392,7 +465,7 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       const finalRecipients = Array.from(notificationRecipients);
-      if (finalRecipients.length > 0) {
+      if (!autoApprove && finalRecipients.length > 0) {
         const companyName = String(company.display_name || company.name || "Company").trim();
         const companyLogoUrl = resolveCompanyLogoUrl((company as any)?.logo_url);
         const applicantName = `${firstName} ${lastName}`.trim();
@@ -402,7 +475,7 @@ serve(async (req: Request): Promise<Response> => {
           supabaseUrl,
           serviceRoleKey: supabaseServiceKey,
           resend,
-          companyId,
+          companyId: resolvedCompanyId,
           defaultFrom: inviteEmailFrom,
           to: finalRecipients,
           subject: `New ${requestedRole === "design_professional" ? "Design Professional" : "Vendor"} signup request for ${companyName}`,
@@ -425,6 +498,7 @@ serve(async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({
         success: true,
+        autoApproved: autoApprove,
         companyName: company.display_name || company.name,
         requestedRole,
       }),

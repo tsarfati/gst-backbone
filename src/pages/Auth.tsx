@@ -552,7 +552,7 @@ export default function Auth() {
           </CardTitle>
           <CardDescription>
             {inviteToken
-              ? `${invitePreview?.companyName || 'A company'} invited you to join their team on BuilderLYNK. Sign in or create your account to continue.`
+              ? `${invitePreview?.companyName || 'A company'} invited you to join their team on BuilderLYNK. Create your account to continue.`
               : 'Sign in to your account or create a new one'}
           </CardDescription>
         </CardHeader>
@@ -565,12 +565,13 @@ export default function Auth() {
             </div>
           )}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="signin">Sign In</TabsTrigger>
+            <TabsList className={`grid w-full ${inviteToken ? 'grid-cols-1' : 'grid-cols-2'}`}>
+              {!inviteToken && <TabsTrigger value="signin">Sign In</TabsTrigger>}
               <TabsTrigger value="signup">Sign Up</TabsTrigger>
             </TabsList>
             
-            <TabsContent value="signin" className="animate-fade-in">
+            {!inviteToken && (
+              <TabsContent value="signin" className="animate-fade-in">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
@@ -658,7 +659,8 @@ export default function Auth() {
                   Continue with Google
                 </Button>
               </form>
-            </TabsContent>
+              </TabsContent>
+            )}
             
             <TabsContent value="signup" className="animate-fade-in">
               <form onSubmit={handleSignUp} className="space-y-4">
@@ -744,15 +746,24 @@ export default function Auth() {
             </TabsContent>
           </Tabs>
           {!inviteToken && (
-            <div className="mt-5 border-t pt-4 text-center text-sm text-muted-foreground">
-              Vendor or design professional?{" "}
-              <button
-                type="button"
-                className="text-[#E88A2D] font-medium hover:underline"
-                onClick={() => navigate('/vendor-signup')}
-              >
-                Sign up for approval
-              </button>
+            <div className="mt-5 border-t pt-4 space-y-3">
+              <p className="text-center text-sm text-muted-foreground">Choose account type</p>
+              <div className="grid gap-2">
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => setActiveTab('signup')}
+                >
+                  Builder / Contractor Account
+                </Button>
+                <Button
+                  type="button"
+                  variant="outline"
+                  onClick={() => navigate('/design-professional-signup')}
+                >
+                  Design Professional (Architect / Engineer)
+                </Button>
+              </div>
             </div>
           )}
         </CardContent>

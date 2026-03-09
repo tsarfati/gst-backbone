@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { useToast } from '@/hooks/use-toast';
 import { Building2, Loader2, User, Plus, ArrowRight } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -24,6 +25,7 @@ export default function CompanyRequest() {
   const [newCompanyForm, setNewCompanyForm] = useState({
     name: '',
     display_name: '',
+    company_type: 'construction' as 'construction' | 'design_professional',
     address: '',
     city: '',
     state: '',
@@ -288,6 +290,24 @@ export default function CompanyRequest() {
                   onChange={(e) => setNewCompanyForm({ ...newCompanyForm, display_name: e.target.value })}
                   placeholder="Optional short name"
                 />
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="company-type">Company Type</Label>
+                <Select
+                  value={newCompanyForm.company_type}
+                  onValueChange={(value: 'construction' | 'design_professional') =>
+                    setNewCompanyForm({ ...newCompanyForm, company_type: value })
+                  }
+                >
+                  <SelectTrigger id="company-type">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="construction">Construction Company</SelectItem>
+                    <SelectItem value="design_professional">Design Professional</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="grid grid-cols-2 gap-4">

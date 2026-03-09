@@ -7,9 +7,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
-import { Upload, User, Loader2 } from 'lucide-react';
+import { User, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import DragDropUpload from '@/components/DragDropUpload';
 
 export default function ProfileCompletion() {
   const { user, profile, refreshProfile } = useAuth();
@@ -25,6 +24,7 @@ export default function ProfileCompletion() {
   });
   const [avatarFile, setAvatarFile] = useState<File | null>(null);
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile?.avatar_url || null);
+  const [isAvatarDragOver, setIsAvatarDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -70,6 +70,10 @@ export default function ProfileCompletion() {
       };
       reader.readAsDataURL(file);
     }
+
+    if (!(eventOrFile instanceof File)) {
+      eventOrFile.target.value = '';
+    }
   };
 
   const uploadAvatar = async (): Promise<string | null> => {
@@ -101,7 +105,8 @@ export default function ProfileCompletion() {
     if (!user) return;
 
     // Validate required fields
-    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.birthday || !avatarFile) {
+    const hasExistingAvatar = Boolean(profile?.avatar_url || avatarPreview);
+    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.birthday || (!avatarFile && !hasExistingAvatar)) {
       toast({
         title: 'Required Fields Missing',
         description: 'Please fill in first name, last name, birthday, and profile picture.',
@@ -177,22 +182,58 @@ export default function ProfileCompletion() {
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">
             {/* Avatar Upload */}
-            <div className="flex flex-col items-center space-y-4">
-              <div className="relative">
-                <Avatar className="w-24 h-24">
-                  <AvatarImage src={avatarPreview || undefined} />
-                  <AvatarFallback className="text-lg">
-                    {getInitials() || <User className="h-8 w-8" />}
-                  </AvatarFallback>
-                </Avatar>
-                <Button
-                  type="button"
-                  size="sm"
-                  className="absolute -bottom-2 -right-2 rounded-full h-8 w-8 p-0"
+            <div className="flex flex-col items-center space-y-3">
+              <div
+                className="flex flex-col items-center text-center"
+              >
+                <div
+                  className={`rounded-full border-2 border-dashed p-2 transition-colors cursor-pointer ${
+                    isAvatarDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25 hover:border-primary/50'
+                  }`}
                   onClick={() => fileInputRef.current?.click()}
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsAvatarDragOver(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsAvatarDragOver(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsAvatarDragOver(false);
+                    const droppedFile = e.dataTransfer.files?.[0];
+                    if (droppedFile) {
+                      handleAvatarChange(droppedFile);
+                    }
+                  }}
+                  role="button"
+                  tabIndex={0}
+                  onKeyDown={(e) => {
+                    if (e.key === 'Enter' || e.key === ' ') {
+                      e.preventDefault();
+                      fileInputRef.current?.click();
+                    }
+                  }}
                 >
-                  <Upload className="h-4 w-4" />
-                </Button>
+                  <Avatar className="w-24 h-24">
+                    <AvatarImage src={avatarPreview || undefined} />
+                    <AvatarFallback className="text-lg">
+                      {getInitials() || <User className="h-8 w-8" />}
+                    </AvatarFallback>
+                  </Avatar>
+                </div>
+                <div className="mt-2 space-y-1">
+                  <p className="text-sm font-medium">
+                    {isAvatarDragOver ? 'Drop your photo here' : 'Drag your photo here or click here to choose a file'}
+                  </p>
+                  <p className="text-xs text-muted-foreground">
+                    Required photo (max 5MB)
+                  </p>
+                </div>
               </div>
               <input
                 ref={fileInputRef}
@@ -201,20 +242,6 @@ export default function ProfileCompletion() {
                 onChange={handleAvatarChange}
                 className="hidden"
               />
-              <p className="text-sm text-muted-foreground text-center">
-                Click the upload button to add a profile picture *
-              </p>
-              <div className="w-full">
-                <DragDropUpload
-                  onFileSelect={(file) => handleAvatarChange(file)}
-                  accept=".jpg,.jpeg,.png,.webp"
-                  maxSize={5}
-                  size="compact"
-                  title="Drop profile photo"
-                  subtitle="or click to choose image"
-                  helperText="Required profile photo (max 5MB)"
-                />
-              </div>
             </div>
 
             {/* Form Fields */}
@@ -237,9 +264,6 @@ export default function ProfileCompletion() {
                   id="first_name"
                   value={formData.first_name}
                   onChange={(e) => handleInputChange('first_name', e.target.value)}
-                  disabled
-                  readOnly
-                  className="bg-muted/40"
                   required
                 />
               </div>
@@ -249,9 +273,6 @@ export default function ProfileCompletion() {
                   id="last_name"
                   value={formData.last_name}
                   onChange={(e) => handleInputChange('last_name', e.target.value)}
-                  disabled
-                  readOnly
-                  className="bg-muted/40"
                   required
                 />
               </div>

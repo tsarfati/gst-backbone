@@ -132,16 +132,12 @@ export default function DesignProfessionalSignup() {
   const signupSubheader = selectedCompany?.design_professional_signup_header_subtitle?.trim()
     || (selectedCompany
       ? `Create your BuilderLYNK design professional account for ${selectedCompany.display_name || selectedCompany.name}.`
-      : 'Create your BuilderLYNK design professional account and request approval.');
+      : 'Create your BuilderLYNK design professional account.');
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
     setError(null);
 
-    if (!form.companyId) {
-      setError('Please select the company you want to request access to.');
-      return;
-    }
     if (!form.firstName.trim() || !form.lastName.trim()) {
       setError('First name and last name are required.');
       return;
@@ -184,7 +180,7 @@ export default function DesignProfessionalSignup() {
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
           phone: form.phone.trim() || null,
-          companyId: form.companyId,
+          companyId: form.companyId || null,
           requestedRole: 'design_professional',
           businessName: form.businessName.trim() || null,
           jobInviteToken: jobInviteToken || null,
@@ -194,7 +190,10 @@ export default function DesignProfessionalSignup() {
       if (requestError) throw requestError;
 
       setSubmitted(true);
-      toast({ title: 'Request submitted', description: 'Your account is now pending approval.' });
+      toast({
+        title: 'Account created',
+        description: 'Please confirm your email, then sign in to access your design professional account.',
+      });
     } catch (e: any) {
       console.error('Design professional signup failed', e);
       const message = e?.message || 'Failed to submit your signup request.';
@@ -215,10 +214,11 @@ export default function DesignProfessionalSignup() {
         <Card className="w-full max-w-lg border-slate-700 bg-[#071231] text-slate-100">
           <CardContent className="pt-6 text-center">
             <CheckCircle2 className="mx-auto h-14 w-14 text-green-500 mb-4" />
-            <h2 className="text-2xl font-semibold mb-2">Request Submitted</h2>
+            <h2 className="text-2xl font-semibold mb-2">Account Created</h2>
             <p className="text-slate-300 mb-6">
-              Your design professional signup is pending approval for{' '}
+              Your design professional account has been created for{' '}
               <strong>{selectedCompany?.display_name || selectedCompany?.name || 'the selected company'}</strong>.
+              Please confirm your email, then sign in.
             </p>
             <Button onClick={() => navigate('/auth')}>Go to Sign In</Button>
           </CardContent>
@@ -266,13 +266,17 @@ export default function DesignProfessionalSignup() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="signup-company">Company</Label>
+              <Label htmlFor="signup-company">Company (Optional)</Label>
               {isCompanyLocked ? (
                 <Input id="signup-company" value={selectedCompany?.display_name || selectedCompany?.name || 'Loading company...'} disabled />
               ) : (
-                <Select value={form.companyId} onValueChange={(value) => setForm((prev) => ({ ...prev, companyId: value }))}>
-                  <SelectTrigger id="signup-company"><SelectValue placeholder="Select company" /></SelectTrigger>
+                <Select
+                  value={form.companyId || '__none__'}
+                  onValueChange={(value) => setForm((prev) => ({ ...prev, companyId: value === '__none__' ? '' : value }))}
+                >
+                  <SelectTrigger id="signup-company"><SelectValue placeholder="No company selected (self-serve)" /></SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="__none__">No company selected (create my design workspace)</SelectItem>
                     {companies.map((company) => (
                       <SelectItem key={company.id} value={company.id}>{company.display_name || company.name}</SelectItem>
                     ))}
@@ -327,7 +331,7 @@ export default function DesignProfessionalSignup() {
 
             <div className="flex flex-col items-center gap-2 pt-2">
               <Button type="submit" disabled={submitting}>
-                {submitting ? 'Submitting...' : 'Submit For Approval'}
+                {submitting ? 'Creating Account...' : 'Create Account'}
               </Button>
             </div>
           </form>

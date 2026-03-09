@@ -39,7 +39,7 @@ const isAppRole = (value: unknown): value is AppRole => {
 export function useMenuPermissions() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
-  const { loading: companyLoading } = useCompany();
+  const { currentCompany, loading: companyLoading } = useCompany();
   const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess();
   const activeCompanyRole = useActiveCompanyRole();
 
@@ -128,6 +128,34 @@ export function useMenuPermissions() {
 
     // Super admins have access to everything
     if (isSuperAdmin) return true;
+
+    const companyType = currentCompany?.company_type === 'design_professional'
+      ? 'design_professional'
+      : 'construction';
+    if (companyType === 'design_professional') {
+      const constructionOnlyMenuItems = new Set([
+        'receipts',
+        'receivables',
+        'payables-dashboard',
+        'bills',
+        'banking-credit-cards',
+        'make-payment',
+        'payment-history',
+        'payment-reports',
+        'employees',
+        'punch-clock-dashboard',
+        'punch-clock-settings',
+        'banking-accounts',
+        'banking-reports',
+        'journal-entries',
+        'deposits',
+        'print-checks',
+        'vendors',
+      ]);
+      if (constructionOnlyMenuItems.has(menuItem)) {
+        return false;
+      }
+    }
 
     const isPrivilegedSystemRole =
       !profile?.custom_role_id &&

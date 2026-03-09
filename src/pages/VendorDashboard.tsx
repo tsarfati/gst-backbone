@@ -98,6 +98,7 @@ interface AssignedJobAlbum {
   created_at: string;
   job_id: string;
   job_name: string;
+  company_name: string | null;
   photo_count: number;
   cover_photo_url: string | null;
 }
@@ -118,6 +119,7 @@ interface VendorContract {
 
 interface VendorRFP {
   id: string;
+  company_id: string;
   rfp_number: string;
   title: string;
   description: string | null;
@@ -164,6 +166,8 @@ export default function VendorDashboard() {
   const [assignedJobs, setAssignedJobs] = useState<Array<{
     id: string;
     name: string;
+    company_id: string | null;
+    company_name?: string | null;
     can_submit_bills: boolean;
     can_negotiate_contracts: boolean;
     can_submit_sov_proposals: boolean;
@@ -243,11 +247,11 @@ export default function VendorDashboard() {
   }, [location.pathname, vendorInfo?.vendor_type]);
 
   useEffect(() => {
-    if (!user?.id || !currentCompany?.id || loading) return;
-    const key = `vendor-onboarding-seen:${currentCompany.id}:${user.id}`;
+    if (!user?.id || loading) return;
+    const key = `vendor-onboarding-seen:${user.id}`;
     const seen = localStorage.getItem(key);
     if (!seen) setShowOnboarding(true);
-  }, [user?.id, currentCompany?.id, loading]);
+  }, [user?.id, loading]);
 
   const fetchVendorData = async () => {
     if (!profile?.vendor_id) return;
@@ -334,6 +338,7 @@ export default function VendorDashboard() {
       const { data: invitedRfpsData, error: invitedRfpsError } = await supabase
         .from('rfp_invited_vendors')
         .select(`
+          company_id,
           rfp_id,
           invited_at,
           response_status,
@@ -350,7 +355,6 @@ export default function VendorDashboard() {
           )
         `)
         .eq('vendor_id', profile.vendor_id)
-        .eq('company_id', currentCompany.id)
         .order('invited_at', { ascending: false });
 
       if (invitedRfpsError) {
@@ -404,6 +408,7 @@ export default function VendorDashboard() {
             if (!baseRfp?.id) return null;
             return {
               id: baseRfp.id,
+              company_id: String(row.company_id || ''),
               rfp_number: baseRfp.rfp_number,
               title: baseRfp.title,
               description: baseRfp.description,
@@ -458,7 +463,7 @@ export default function VendorDashboard() {
           can_negotiate_contracts,
           can_submit_sov_proposals,
           can_upload_signed_contracts,
-          jobs:job_id(id, name)
+          jobs:job_id(id, name, company_id)
         `)
         .eq('vendor_id', profile.vendor_id);
 
@@ -480,49 +485,77 @@ export default function VendorDashboard() {
           .not('job_id', 'is', null),
       ]);
 
-      const assignedJobMap = new Map<string, { id: string; name: string }>();
+      const assignedJobMap = new Map<string, { id: string; name: string; company_id: string | null }>();
       [invoiceJobsData.data, subcontractJobsData.data, poJobsData.data].forEach((rows: any[] | null) => {
         (rows || []).forEach((row: any) => {
           if (row?.jobs?.id && row?.jobs?.name) {
-            assignedJobMap.set(row.jobs.id, { id: row.jobs.id, name: row.jobs.name });
+            assignedJobMap.set(row.jobs.id, {
+              id: row.jobs.id,
+              name: row.jobs.name,
+              company_id: row.jobs.company_id || null,
+            });
           }
         });
       });
       const assignmentRows = (vendorAssignmentsData as any[]) || [];
-      if (assignmentRows.length > 0) {
-        setAssignedJobs(
-          assignmentRows
+      const rawAssignedJobs = assignmentRows.length > 0
+        ? assignmentRows
             .filter((row) => row?.jobs?.id && row?.jobs?.name)
             .map((row) => ({
               id: row.jobs.id as string,
               name: row.jobs.name as string,
+              company_id: (row.jobs.company_id as string) || null,
               can_submit_bills: !!row.can_submit_bills,
               can_negotiate_contracts: !!row.can_negotiate_contracts,
               can_submit_sov_proposals: !!row.can_submit_sov_proposals,
               can_upload_signed_contracts: !!row.can_upload_signed_contracts,
             }))
-        );
-      } else {
-        setAssignedJobs(
-          Array.from(assignedJobMap.values()).map((job) => ({
+        : Array.from(assignedJobMap.values()).map((job) => ({
             ...job,
             can_submit_bills: true,
             can_negotiate_contracts: true,
             can_submit_sov_proposals: true,
             can_upload_signed_contracts: true,
-          }))
-        );
+          }));
+
+      const companyIds = Array.from(
+        new Set(
+          rawAssignedJobs
+            .map((job) => job.company_id)
+            .filter((value): value is string => Boolean(value))
+        )
+      );
+
+      const companyNameById = new Map<string, string>();
+      if (companyIds.length > 0) {
+        const { data: companiesData } = await supabase
+          .from('companies')
+          .select('id, display_name, name')
+          .in('id', companyIds);
+
+        (companiesData || []).forEach((company: any) => {
+          companyNameById.set(company.id, company.display_name || company.name || 'Unknown company');
+        });
       }
 
+      setAssignedJobs(
+        rawAssignedJobs.map((job) => ({
+          ...job,
+          company_name: job.company_id ? companyNameById.get(job.company_id) || null : null,
+        }))
+      );
+
       // Fetch messages for the user
-      if (user?.id && currentCompany?.id) {
+      if (user?.id) {
         const [{ data: notifSettings }, { data: paymentMethod }] = await Promise.all([
-          supabase
-            .from('notification_settings')
-            .select('email_enabled,in_app_enabled,invoices_paid,job_assignments,overdue_invoices')
-            .eq('user_id', user.id)
-            .eq('company_id', currentCompany.id)
-            .maybeSingle(),
+          currentCompany?.id
+            ? supabase
+                .from('notification_settings')
+                .select('email_enabled,in_app_enabled,invoices_paid,job_assignments,overdue_invoices')
+                .eq('user_id', user.id)
+                .eq('company_id', currentCompany.id)
+                .maybeSingle()
+            : Promise.resolve({ data: null } as any),
           supabase
             .from('vendor_payment_methods')
             .select('type,check_delivery')
@@ -545,8 +578,7 @@ export default function VendorDashboard() {
         const { data: jobAccessData } = await supabase
           .from('user_job_access')
           .select('job_id, jobs!inner(id, name, company_id)')
-          .eq('user_id', user.id)
-          .eq('jobs.company_id', currentCompany.id);
+          .eq('user_id', user.id);
 
         const { data: rfiData } = await supabase
           .from('rfis')
@@ -561,7 +593,6 @@ export default function VendorDashboard() {
             job_id,
             jobs (id, name)
           `)
-          .eq('company_id', currentCompany.id)
           .eq('assigned_to', user.id)
           .order('updated_at', { ascending: false })
           .limit(20);
@@ -582,7 +613,6 @@ export default function VendorDashboard() {
             job_id,
             jobs (id, name)
           `)
-          .eq('company_id', currentCompany.id)
           .eq('assigned_to', user.id)
           .order('updated_at', { ascending: false })
           .limit(20);
@@ -611,7 +641,7 @@ export default function VendorDashboard() {
               description,
               created_at,
               job_id,
-              jobs (id, name)
+              jobs (id, name, company_id)
             `)
             .in('job_id', Array.from(assignedJobIds))
             .order('created_at', { ascending: false })
@@ -645,6 +675,7 @@ export default function VendorDashboard() {
                   created_at: album.created_at,
                   job_id: album.job_id,
                   job_name: album.jobs?.name || 'Unknown job',
+                  company_name: album.jobs?.company_id ? companyNameById.get(album.jobs.company_id) || null : null,
                   photo_count: Number(count || 0),
                   cover_photo_url: coverUrl,
                 } as AssignedJobAlbum;
@@ -669,7 +700,6 @@ export default function VendorDashboard() {
             created_at
           `)
           .eq('to_user_id', user.id)
-          .eq('company_id', currentCompany.id)
           .order('created_at', { ascending: false })
           .limit(10);
         
@@ -782,6 +812,12 @@ export default function VendorDashboard() {
       can_submit_sov_proposals: job.can_submit_sov_proposals,
       can_upload_signed_contracts: job.can_upload_signed_contracts,
     };
+    return acc;
+  }, {});
+  const jobCompanyNameByJobId = assignedJobs.reduce<Record<string, string>>((acc, job) => {
+    if (job.id && job.company_name) {
+      acc[job.id] = job.company_name;
+    }
     return acc;
   }, {});
 
@@ -953,7 +989,7 @@ export default function VendorDashboard() {
   };
 
   const submitVendorBid = async () => {
-    if (!selectedRfpForBid || !currentCompany?.id || !profile?.vendor_id) return;
+    if (!selectedRfpForBid || !profile?.vendor_id) return;
 
     const amount = Number(bidForm.bid_amount);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -969,7 +1005,7 @@ export default function VendorDashboard() {
       setSubmittingBid(true);
       const payload = {
         rfp_id: selectedRfpForBid.id,
-        company_id: currentCompany.id,
+        company_id: selectedRfpForBid.company_id,
         vendor_id: profile.vendor_id,
         bid_amount: amount,
         proposed_timeline: bidForm.proposed_timeline?.trim() || null,
@@ -1593,6 +1629,11 @@ export default function VendorDashboard() {
                               <p className="text-sm">{rfi.subject}</p>
                               <p className="text-sm text-muted-foreground">
                                 {rfi.jobs?.name || 'Unknown job'}
+                                {jobCompanyNameByJobId[rfi.job_id] && (
+                                  <Badge variant="outline" className="ml-2 text-[10px] align-middle">
+                                    {jobCompanyNameByJobId[rfi.job_id]}
+                                  </Badge>
+                                )}
                               </p>
                             </div>
                             <div className="text-right">
@@ -1656,6 +1697,11 @@ export default function VendorDashboard() {
                               <p className="text-sm">{submittal.title}</p>
                               <p className="text-sm text-muted-foreground">
                                 {submittal.jobs?.name || 'Unknown job'}
+                                {jobCompanyNameByJobId[submittal.job_id] && (
+                                  <Badge variant="outline" className="ml-2 text-[10px] align-middle">
+                                    {jobCompanyNameByJobId[submittal.job_id]}
+                                  </Badge>
+                                )}
                               </p>
                             </div>
                             <div className="text-right">
@@ -1724,6 +1770,11 @@ export default function VendorDashboard() {
                             <Badge variant="secondary" className="shrink-0">{album.photo_count}</Badge>
                           </div>
                           <p className="text-sm text-muted-foreground truncate">{album.job_name}</p>
+                          {album.company_name && (
+                            <Badge variant="outline" className="text-[10px]">
+                              {album.company_name}
+                            </Badge>
+                          )}
                           {album.description && (
                             <p className="text-xs text-muted-foreground line-clamp-2">{album.description}</p>
                           )}
@@ -1871,6 +1922,11 @@ export default function VendorDashboard() {
                             </div>
                             <p className="text-sm text-muted-foreground">
                               {invoice.jobs?.name || 'No job assigned'}
+                              {invoice.jobs?.id && jobCompanyNameByJobId[invoice.jobs.id] && (
+                                <Badge variant="outline" className="ml-2 text-[10px] align-middle">
+                                  {jobCompanyNameByJobId[invoice.jobs.id]}
+                                </Badge>
+                              )}
                               {invoice.issue_date && ` • ${format(new Date(invoice.issue_date), 'MMM d, yyyy')}`}
                             </p>
                           </div>
@@ -1928,6 +1984,11 @@ export default function VendorDashboard() {
                               </div>
                               <p className="text-sm text-muted-foreground">
                                 Job: {rfp.job?.name || 'No job assigned'}
+                                {rfp.job?.id && jobCompanyNameByJobId[rfp.job.id] && (
+                                  <Badge variant="outline" className="ml-2 text-[10px] align-middle">
+                                    {jobCompanyNameByJobId[rfp.job.id]}
+                                  </Badge>
+                                )}
                               </p>
                               {rfp.description && (
                                 <p className="text-sm text-muted-foreground line-clamp-2">
@@ -2028,6 +2089,11 @@ export default function VendorDashboard() {
                             <p className="font-medium">{contract.name}</p>
                             <p className="text-sm text-muted-foreground">
                               {contract.jobs?.name || 'No job'} • ${Number(contract.contract_amount || 0).toLocaleString()}
+                              {contract.jobs?.id && jobCompanyNameByJobId[contract.jobs.id] && (
+                                <Badge variant="outline" className="ml-2 text-[10px] align-middle">
+                                  {jobCompanyNameByJobId[contract.jobs.id]}
+                                </Badge>
+                              )}
                             </p>
                           </div>
                           <div className="flex items-center gap-2">
@@ -2382,8 +2448,8 @@ export default function VendorDashboard() {
       <Dialog
         open={showOnboarding}
         onOpenChange={(open) => {
-          if (!open && user?.id && currentCompany?.id) {
-            localStorage.setItem(`vendor-onboarding-seen:${currentCompany.id}:${user.id}`, '1');
+          if (!open && user?.id) {
+            localStorage.setItem(`vendor-onboarding-seen:${user.id}`, '1');
           }
           setShowOnboarding(open);
         }}
@@ -2483,7 +2549,9 @@ export default function VendorDashboard() {
                 </SelectTrigger>
                 <SelectContent>
                   {assignedJobs.map((job) => (
-                    <SelectItem key={job.id} value={job.id}>{job.name}</SelectItem>
+                    <SelectItem key={job.id} value={job.id}>
+                      {job.name}{job.company_name ? ` - ${job.company_name}` : ''}
+                    </SelectItem>
                   ))}
                 </SelectContent>
               </Select>

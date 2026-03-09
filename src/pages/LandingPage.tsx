@@ -243,6 +243,7 @@ export default function LandingPage() {
             <div className="hidden md:flex items-center gap-6">
               <a href="#features" className="text-white/80 hover:text-white transition-colors font-medium">Features</a>
               <a href="#about" className="text-white/80 hover:text-white transition-colors font-medium">About</a>
+              <Link to="/design-pro-lynk" className="text-white/80 hover:text-white transition-colors font-medium">DesignProLYNK</Link>
               <Link to="/punch-clock-lynk" className="text-white/80 hover:text-white transition-colors font-medium">Punch Clock Lynk</Link>
               <Link to="/pm-lynk" className="text-white/80 hover:text-white transition-colors font-medium">PM Lynk</Link>
               <Link to="/contact" className="text-white/80 hover:text-white transition-colors font-medium">Contact</Link>
@@ -648,6 +649,7 @@ export default function LandingPage() {
             <div>
               <h4 className="font-bold text-white mb-4 text-lg">LYNK Family</h4>
               <ul className="space-y-3 text-sm text-gray-400">
+                <li><Link to="/design-pro-lynk" className="hover:text-white transition-colors">DesignProLYNK</Link></li>
                 <li><Link to="/punch-clock-lynk" className="hover:text-white transition-colors">Punch Clock LYNK</Link></li>
                 <li><Link to="/pm-lynk" className="hover:text-white transition-colors">PM LYNK</Link></li>
                 <li><a href="https://jobsitelynk.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">JobSiteLYNK</a></li>

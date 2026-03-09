@@ -221,6 +221,7 @@ export default function ContactPage() {
             <div>
               <h4 className="font-bold text-white mb-4 text-lg">LYNK Family</h4>
               <ul className="space-y-3 text-sm text-gray-400">
+                <li><Link to="/design-pro-lynk" className="hover:text-white transition-colors">DesignProLYNK</Link></li>
                 <li><Link to="/punch-clock-lynk" className="hover:text-white transition-colors">Punch Clock LYNK</Link></li>
                 <li><Link to="/pm-lynk" className="hover:text-white transition-colors">PM LYNK</Link></li>
                 <li><a href="https://jobsitelynk.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">JobSiteLYNK</a></li>
