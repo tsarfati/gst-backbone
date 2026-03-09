@@ -152,7 +152,7 @@ export default function DesignProLynkLanding() {
             muted
             playsInline
             onEnded={showFirstVideo ? handleVideoEnded : undefined}
-            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            className="absolute inset-0 w-full h-full object-cover object-[center_25%] transition-opacity duration-1000"
             style={{
               transform: `translateY(${parallaxOffset}px)`,
               opacity: showFirstVideo ? 1 : 0,
@@ -167,7 +167,7 @@ export default function DesignProLynkLanding() {
             playsInline
             preload="auto"
             onEnded={!showFirstVideo ? handleVideoEnded : undefined}
-            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            className="absolute inset-0 w-full h-full object-cover object-[center_25%] transition-opacity duration-1000"
             style={{
               transform: `translateY(${parallaxOffset}px)`,
               opacity: showFirstVideo ? 0 : 1,
