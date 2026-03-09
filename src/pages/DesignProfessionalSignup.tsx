@@ -238,17 +238,19 @@ export default function DesignProfessionalSignup() {
         className="w-full max-w-2xl border-slate-700 text-slate-100"
         style={{ backgroundColor: hexToRgba(selectedModalColor, selectedModalOpacity) }}
       >
-        <CardHeader className="text-center">
+        <CardHeader className="text-center pb-2">
           {signupLogoUrl ? (
             <img
               src={signupLogoUrl}
               alt={`${selectedCompany?.display_name || selectedCompany?.name || 'Company'} logo`}
-              className="mx-auto h-24 w-auto max-w-[320px] object-contain sm:h-28"
+              className="mx-auto w-64 h-auto object-contain drop-shadow-2xl sm:w-72"
             />
           ) : (
-            <div className="mx-auto h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-              <Building2 className="h-9 w-9 text-primary" />
-            </div>
+            <img
+              src={designProLogo}
+              alt="Design Pro LYNK"
+              className="mx-auto w-64 h-auto object-contain drop-shadow-2xl sm:w-72"
+            />
           )}
         </CardHeader>
         <CardContent>
@@ -260,9 +262,13 @@ export default function DesignProfessionalSignup() {
               </div>
             )}
 
-            <div className="space-y-2 text-center pb-1">
-              <CardTitle className="text-xl sm:text-2xl">{signupHeader}</CardTitle>
-              <CardDescription className="text-slate-300">{signupSubheader}</CardDescription>
+            <div className="text-center pb-2">
+              <h1 className="text-3xl sm:text-4xl xl:text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
+                {signupHeader}
+              </h1>
+              <p className="text-gray-400 text-lg sm:text-xl leading-relaxed max-w-lg mx-auto">
+                {signupSubheader}
+              </p>
             </div>
 
             <div className="space-y-2">
