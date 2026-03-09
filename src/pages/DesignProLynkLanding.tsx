@@ -194,9 +194,6 @@ export default function DesignProLynkLanding() {
                 />
               </div>
 
-              <p className="uppercase tracking-[0.24em] text-xs font-bold mb-5" style={{ color: accent }}>
-                Powered By BuilderLYNK
-              </p>
               <h1 className="text-5xl sm:text-6xl xl:text-7xl font-extrabold text-white leading-[1.07] tracking-tight mb-7">
                 DesignProLYNK for{' '}
                 <span style={{ color: accent }}>architects and engineers.</span>
