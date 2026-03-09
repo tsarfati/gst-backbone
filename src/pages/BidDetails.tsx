@@ -224,7 +224,7 @@ export default function BidDetails() {
           .order("created_at", { ascending: false }),
       ]);
       setTrackingEmail(String((channelData as any)?.trackingEmail || ""));
-      setEmailMessages((messageRows as BidEmailMessage[]) || []);
+      setEmailMessages((messageRows as unknown as BidEmailMessage[]) || []);
     } catch (error) {
       console.error("Error loading bid emails:", error);
       setTrackingEmail("");
