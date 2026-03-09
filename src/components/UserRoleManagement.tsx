@@ -206,7 +206,7 @@ export default function UserRoleManagement() {
         if (error) throw error;
       } else {
         // System roles are stored in user_company_access for the specific company
-        const validRole = newRole as 'admin' | 'company_admin' | 'controller' | 'employee' | 'project_manager' | 'design_professional' | 'vendor' | 'view_only';
+        const validRole = newRole as any;
         const { error } = await supabase
           .from('user_company_access')
           .update({ role: validRole })
