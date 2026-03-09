@@ -143,7 +143,7 @@ export default function DesignProLynkLanding() {
         </div>
       </nav>
 
-      <section className="relative min-h-screen flex items-center px-4 sm:px-6 lg:px-8 overflow-hidden">
+      <section className="relative h-screen flex items-center justify-center overflow-hidden">
         <div className="absolute inset-0 z-0">
           <video
             ref={videoARef}
@@ -176,75 +176,65 @@ export default function DesignProLynkLanding() {
             <source src={designHeroVideos[videoBSource]} type="video/mp4" />
           </video>
         </div>
-        <div className="absolute inset-0 z-[1] bg-black/55" />
-        <div
-          className="absolute inset-0 pointer-events-none z-[2]"
-          style={{ background: 'radial-gradient(circle at 70% 40%, rgba(45,182,232,0.16), transparent 52%)' }}
-        />
-        <div className="relative z-10 max-w-7xl mx-auto w-full py-24">
-          <div className="grid lg:grid-cols-[1fr_30%] gap-12 lg:gap-16 items-center">
-            {/* Left — Copy */}
-            <div>
-              {/* Mobile logo */}
-              <div className="lg:hidden flex justify-center mb-10">
-                <img
-                  src={designProShield}
-                  alt="DesignProLYNK"
-                  className="w-64 h-auto drop-shadow-2xl"
-                />
-              </div>
 
-              <h1 className="text-5xl sm:text-6xl xl:text-7xl font-extrabold text-white leading-[1.07] tracking-tight mb-7">
-                DesignProLYNK for{' '}
-                <span style={{ color: accent }}>architects and engineers.</span>
-              </h1>
-              <p className="text-gray-400 text-xl sm:text-2xl leading-relaxed mb-10 max-w-3xl">
-                One place for design teams to manage RFIs, submittals, and plan intelligence across every assigned project and contractor.
-              </p>
-              <div className="flex flex-wrap gap-3 mb-10">
-                <Link
-                  to="/design-professional-signup"
-                  className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg"
-                  style={{ backgroundColor: accent }}
-                >
-                  Request Design Access <ArrowRight className="w-5 h-5" />
-                </Link>
-                <Link
-                  to="/auth"
-                  className="px-6 py-4 text-white/70 font-medium border border-white/10 hover:border-white/25 rounded-lg inline-flex items-center gap-2 transition-colors text-lg"
-                >
-                  I already have an account
-                </Link>
-              </div>
-              <div className="flex flex-wrap gap-6 text-sm text-white/65">
-                <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" style={{ color: accent }} /> Architecture + Engineering</span>
-                <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" style={{ color: accent }} /> Cross-company job view</span>
-                <span className="flex items-center gap-2"><CheckCircle className="w-4 h-4" style={{ color: accent }} /> Grounded plan answers</span>
-              </div>
+        <div className="absolute inset-0 bg-black/45 z-[1]" />
 
-              <Link
-                to="/"
-                className="inline-flex items-center gap-2 text-white/40 text-xs font-medium uppercase tracking-widest hover:text-white/60 transition-colors mt-12"
-              >
-                <img src={builderlynkIcon} alt="" className="h-4 w-auto opacity-60" />
-                A BuilderLYNK Product
-              </Link>
-            </div>
+        <div className="relative z-10 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 text-center flex flex-col justify-center h-full py-6">
+          {/* Logo — same sizing as BuilderLYNK hero */}
+          <img
+            src={designProShield}
+            alt="DesignProLYNK"
+            className="h-52 sm:h-56 md:h-[26vh] lg:h-[30vh] w-auto mx-auto drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+          />
 
-            {/* Right — Shield Logo */}
-            <div className="hidden lg:flex items-center justify-center">
-              <div className="relative">
-                <div
-                  className="absolute -inset-10 rounded-full blur-3xl opacity-15"
-                  style={{ background: `radial-gradient(circle, ${accent}, transparent 70%)` }}
-                />
-                <img
-                  src={designProShield}
-                  alt="DesignProLYNK"
-                  className="relative w-full h-auto object-contain drop-shadow-2xl"
-                />
-              </div>
-            </div>
+          {/* Brand Name — matching BuilderLYNK h1 sizing */}
+          <h1
+            className="text-6xl sm:text-7xl md:text-8xl lg:text-9xl font-black mb-2 md:mb-3 tracking-tight drop-shadow-[0_8px_32px_rgba(0,0,0,0.7)] leading-none"
+            style={{ textShadow: '4px 4px 16px rgba(0,0,0,0.6)' }}
+          >
+            <span className="text-white">DesignPro</span>
+            <span style={{ color: accent }}>LYNK</span>
+          </h1>
+
+          {/* Tagline — matching BuilderLYNK h2 sizing */}
+          <h2
+            className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-black mb-4 md:mb-5 tracking-tight drop-shadow-lg leading-tight"
+            style={{ textShadow: '2px 2px 8px rgba(0,0,0,0.5)' }}
+          >
+            <span className="text-white">Design </span>
+            <span style={{ color: accent }}>Smarter.</span>
+            <span className="text-white"> Build </span>
+            <span style={{ color: accent }}>Together.</span>
+          </h2>
+
+          {/* Description — matching BuilderLYNK body text */}
+          <p className="text-base sm:text-lg md:text-xl text-white/90 max-w-md md:max-w-lg lg:max-w-xl mx-auto mb-5 md:mb-6 font-light leading-relaxed">
+            One place for design teams to manage RFIs, submittals, and plan intelligence across every assigned project and contractor.
+          </p>
+
+          {/* CTA Buttons — matching BuilderLYNK button styling */}
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
+            <Link
+              to="/design-professional-signup"
+              className="text-base md:text-lg px-8 py-1.5 md:px-10 md:py-2 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(45,182,232,0.6)] transition-all duration-300 rounded-lg inline-flex items-center gap-2"
+              style={{ backgroundColor: accent }}
+            >
+              Request Design Access <ArrowRight className="w-5 h-5" />
+            </Link>
+            <Link
+              to="/auth"
+              className="text-base md:text-lg px-8 py-1.5 md:px-10 md:py-2 rounded-lg text-white font-bold shadow-2xl hover:scale-105 transition-all duration-300"
+              style={{ backgroundColor: '#3B82F6' }}
+            >
+              Log In
+            </Link>
+          </div>
+        </div>
+
+        {/* Scroll indicator */}
+        <div className="absolute bottom-8 left-1/2 -translate-x-1/2 z-10 animate-bounce">
+          <div className="w-8 h-12 rounded-full border-2 border-white/50 flex items-start justify-center p-2">
+            <div className="w-1.5 h-3 bg-white rounded-full animate-pulse" />
           </div>
         </div>
       </section>
