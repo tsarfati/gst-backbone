@@ -375,8 +375,8 @@ export default function UserDetails() {
   const fetchVendorJobs = async (vendorId: string) => {
     if (!currentCompany) return;
     try {
-      const { data, error } = await supabase
-        .from('vendor_job_access')
+      const { data, error } = await (supabase
+        .from('vendor_job_access') as any)
         .select('jobs(id, name)')
         .eq('vendor_id', vendorId)
         .eq('company_id', currentCompany.id)
