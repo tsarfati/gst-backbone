@@ -184,7 +184,7 @@ export default function DesignProLynkLanding() {
           <img
             src={designProShield}
             alt="DesignProLYNK"
-            className="h-52 sm:h-56 md:h-[26vh] lg:h-[30vh] w-auto mx-auto drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
+            className="h-64 sm:h-72 md:h-[32vh] lg:h-[38vh] w-auto mx-auto drop-shadow-[0_8px_32px_rgba(0,0,0,0.5)]"
           />
 
           {/* Brand Name — matching BuilderLYNK h1 sizing */}
