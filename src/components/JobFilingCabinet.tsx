@@ -47,6 +47,7 @@ interface JobFile {
   folder_id: string;
   uploaded_by?: string | null;
   created_at: string;
+  updated_at?: string;
 }
 
 interface OwnerProfile {
