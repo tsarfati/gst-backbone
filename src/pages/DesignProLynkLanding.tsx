@@ -15,6 +15,7 @@ import {
   ShieldCheck,
 } from 'lucide-react';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
+import designProShield from '@/assets/design-pro-lynk-shield.png';
 import heroVideo1 from '@/assets/design-pro-hero-v2-1.mp4';
 import heroVideo2 from '@/assets/design-pro-hero-2.mp4';
 import heroVideo3 from '@/assets/design-pro-hero-v2-2.mp4';
