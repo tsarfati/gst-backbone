@@ -249,6 +249,8 @@ export default function DesignProLynkLanding() {
               </div>
             </div>
           </div>
+        </div>
+      </section>
 
       <section id="features" className="py-24 sm:py-32">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
