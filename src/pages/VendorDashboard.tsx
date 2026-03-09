@@ -453,7 +453,7 @@ export default function VendorDashboard() {
         .order('created_at', { ascending: false })
         .limit(50);
 
-      setContracts((contractData as VendorContract[]) || []);
+      setContracts((contractData as unknown as VendorContract[]) || []);
 
       const { data: vendorAssignmentsData } = await supabase
         .from('vendor_job_access' as any)
