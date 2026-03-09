@@ -155,7 +155,7 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
         .eq("is_active", true);
 
       if (error) throw error;
-      const users = data?.map((item) => (item as { profiles: Profile | null }).profiles).filter(Boolean) as Profile[];
+      const users = data?.map((item) => (item as any).profiles).filter(Boolean) as Profile[];
       setCompanyUsers(users);
     } catch (error) {
       console.error("Error fetching company users:", error);

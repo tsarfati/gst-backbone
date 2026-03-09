@@ -92,7 +92,7 @@ const mapContainer = useRef<HTMLDivElement>(null);
       try {
         const { data, error } = await supabase
           .from('jobs')
-          .select('latitude, longitude, address, city, state, zip_code')
+          .select('latitude, longitude, address, city, state, zip_code' as any)
           .eq('id', punch.job_id!)
           .maybeSingle();
         if (error) {
@@ -100,10 +100,11 @@ const mapContainer = useRef<HTMLDivElement>(null);
           return;
         }
         if (!data) return;
-        const fullAddress = [data.address, data.city, data.state, data.zip_code].filter(Boolean).join(', ');
+        const d = data as any;
+        const fullAddress = [d.address, d.city, d.state, d.zip_code].filter(Boolean).join(', ');
         setResolvedJobCoords({
-          latitude: data.latitude ?? undefined,
-          longitude: data.longitude ?? undefined,
+          latitude: d.latitude ?? undefined,
+          longitude: d.longitude ?? undefined,
           address: fullAddress || undefined,
         });
       } catch (error) {

@@ -140,7 +140,7 @@ export default function RoleDefaultPageSettings() {
         const { data: existing, error: fetchErr } = await supabase
           .from('role_default_pages')
           .select('id')
-          .eq('role', u.role)
+           .eq('role', u.role as any)
           .maybeSingle();
         if (fetchErr && fetchErr.code !== 'PGRST116') throw fetchErr;
 
@@ -153,7 +153,7 @@ export default function RoleDefaultPageSettings() {
         } else {
           const { error: insErr } = await supabase
             .from('role_default_pages')
-            .insert(u);
+            .insert(u as any);
           if (insErr) throw insErr;
         }
       }

@@ -287,7 +287,7 @@ export default function UserRoleManagement() {
 
   const updateUserDefaultPage = async (userId: string, role: string, defaultPage: string) => {
     try {
-      const roleEnum = role as 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
+      const roleEnum = role as any;
       
       // Check if role_default_pages entry exists for this role
       const { data: existing, error: fetchError } = await supabase
@@ -314,7 +314,7 @@ export default function UserRoleManagement() {
             role: roleEnum, 
             default_page: defaultPage,
             created_by: userId 
-          });
+          } as any);
         
         if (error) throw error;
       }
