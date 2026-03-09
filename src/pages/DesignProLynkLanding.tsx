@@ -16,9 +16,9 @@ import {
 } from 'lucide-react';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import heroVideo1 from '@/assets/design-pro-hero-v2-1.mp4';
-import heroVideo2 from '@/assets/design-pro-hero-v2-2.mp4';
+import heroVideo2 from '@/assets/design-pro-hero-2.mp4';
 import heroVideo3 from '@/assets/design-pro-hero-v2-3.mp4';
-import heroVideo4 from '@/assets/design-pro-hero-v2-4.mp4';
+import heroVideo4 from '@/assets/design-pro-hero-4.mp4';
 import heroVideo5 from '@/assets/design-pro-hero-v2-5.mp4';
 
 const darkBg = '#0f1419';
