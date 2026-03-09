@@ -5,10 +5,10 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Building2, CheckCircle2, XCircle } from 'lucide-react';
+import { ArrowRight, Building2, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
-import builderlynkLogo from '@/assets/builderlynk-icon-shield.png';
+import designProLogo from '@/assets/design-pro-lynk-logo.png';
 import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 
@@ -238,17 +238,19 @@ export default function DesignProfessionalSignup() {
         className="w-full max-w-2xl border-slate-700 text-slate-100"
         style={{ backgroundColor: hexToRgba(selectedModalColor, selectedModalOpacity) }}
       >
-        <CardHeader className="text-center">
+        <CardHeader className="text-center pb-2">
           {signupLogoUrl ? (
             <img
               src={signupLogoUrl}
               alt={`${selectedCompany?.display_name || selectedCompany?.name || 'Company'} logo`}
-              className="mx-auto h-24 w-auto max-w-[320px] object-contain sm:h-28"
+              className="mx-auto w-64 h-auto object-contain drop-shadow-2xl sm:w-72"
             />
           ) : (
-            <div className="mx-auto h-20 w-20 rounded-full bg-primary/10 flex items-center justify-center">
-              <Building2 className="h-9 w-9 text-primary" />
-            </div>
+            <img
+              src={designProLogo}
+              alt="Design Pro LYNK"
+              className="mx-auto w-64 h-auto object-contain drop-shadow-2xl sm:w-72"
+            />
           )}
         </CardHeader>
         <CardContent>
@@ -260,9 +262,13 @@ export default function DesignProfessionalSignup() {
               </div>
             )}
 
-            <div className="space-y-2 text-center pb-1">
-              <CardTitle className="text-xl sm:text-2xl">{signupHeader}</CardTitle>
-              <CardDescription className="text-slate-300">{signupSubheader}</CardDescription>
+            <div className="text-center pb-2">
+              <h1 className="text-3xl sm:text-4xl xl:text-5xl font-extrabold text-white leading-tight tracking-tight mb-3">
+                {signupHeader}
+              </h1>
+              <p className="text-gray-400 text-lg sm:text-xl leading-relaxed max-w-lg mx-auto">
+                {signupSubheader}
+              </p>
             </div>
 
             <div className="space-y-2">
@@ -329,10 +335,15 @@ export default function DesignProfessionalSignup() {
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-2 pt-2">
-              <Button type="submit" disabled={submitting}>
-                {submitting ? 'Creating Account...' : 'Create Account'}
-              </Button>
+            <div className="flex flex-col items-center gap-2 pt-4">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg disabled:opacity-50 disabled:pointer-events-none"
+                style={{ backgroundColor: '#E88A2D' }}
+              >
+                {submitting ? 'Creating Account...' : 'Create Account'} <ArrowRight className="w-5 h-5" />
+              </button>
             </div>
           </form>
         </CardContent>
