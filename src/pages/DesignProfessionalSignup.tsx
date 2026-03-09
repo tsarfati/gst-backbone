@@ -335,10 +335,15 @@ export default function DesignProfessionalSignup() {
               </div>
             </div>
 
-            <div className="flex flex-col items-center gap-2 pt-2">
-              <Button type="submit" disabled={submitting}>
-                {submitting ? 'Creating Account...' : 'Create Account'}
-              </Button>
+            <div className="flex flex-col items-center gap-2 pt-4">
+              <button
+                type="submit"
+                disabled={submitting}
+                className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg disabled:opacity-50 disabled:pointer-events-none"
+                style={{ backgroundColor: '#E88A2D' }}
+              >
+                {submitting ? 'Creating Account...' : 'Create Account'} <ArrowRight className="w-5 h-5" />
+              </button>
             </div>
           </form>
         </CardContent>
