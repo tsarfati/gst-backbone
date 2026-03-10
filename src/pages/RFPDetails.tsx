@@ -1310,7 +1310,7 @@ export default function RFPDetails() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="invited">Invited ({invitedVendors.length})</TabsTrigger>
-          <TabsTrigger value="bids">Bids & Analysis ({bids.length})</TabsTrigger>
+          <TabsTrigger value="bids">Bids ({bids.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -1584,7 +1584,7 @@ export default function RFPDetails() {
           <Card>
             <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
-                <CardTitle>Bids & Analysis</CardTitle>
+                <CardTitle>Bids</CardTitle>
                 <CardDescription>Received bids and comparison matrix in one view.</CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
@@ -1595,16 +1595,6 @@ export default function RFPDetails() {
                 <Button variant="outline" onClick={() => navigate(`/construction/rfps/${id}/criteria/add`)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Criteria
-                </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  title="Score Criteria"
-                  aria-label="Score Criteria"
-                  onClick={() => setScoringBidId(analyzedSortedBids[0]?.id || null)}
-                  disabled={analyzedSortedBids.length === 0}
-                >
-                  <BarChart3 className="h-4 w-4" />
                 </Button>
               </div>
             </CardHeader>
@@ -1661,21 +1651,7 @@ export default function RFPDetails() {
                               Submitted{getSortIndicator('submitted_at')}
                             </Button>
                           </TableHead>
-                          {effectiveCriteria.map((criterion) => (
-                            <TableHead key={criterion.id} className="py-2 text-center min-w-[120px]">
-                              <div className="font-medium">{criterion.criterion_name}</div>
-                              <div className="text-xs text-muted-foreground">
-                                {priceCriteriaIds.has(criterion.id)
-                                  ? `Auto ${bids.length}->1`
-                                  : normalizeCriterionType(criterion.criterion_type) === 'yes_no'
-                                    ? `Yes=${criterion.max_score}, No=0`
-                                    : normalizeCriterionType(criterion.criterion_type) === 'picklist'
-                                      ? 'Picklist'
-                                      : `Max ${criterion.max_score}`}
-                              </div>
-                            </TableHead>
-                          ))}
-                          <TableHead className="py-2 text-center bg-muted/40">Weighted</TableHead>
+                          <TableHead className="py-2 text-center bg-muted/40">Score</TableHead>
                           <TableHead className="py-2 text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1723,15 +1699,6 @@ export default function RFPDetails() {
                             </TableCell>
                             <TableCell className="py-2">{getBidStatusBadge(bid.status)}</TableCell>
                             <TableCell className="py-2">{format(new Date(bid.submitted_at), 'MMM d, yyyy')}</TableCell>
-                            {effectiveCriteria.map((criterion) => (
-                              <TableCell key={`${bid.id}-${criterion.id}`} className="py-2 text-center" onClick={(e) => e.stopPropagation()}>
-                                {priceCriteriaIds.has(criterion.id) ? (
-                                  <span className="text-sm tabular-nums">{bidScoreMap[bid.id]?.[criterion.id] ?? '-'}</span>
-                                ) : (
-                                  <span className="text-sm tabular-nums">{bidScoreMap[bid.id]?.[criterion.id] ?? '-'}</span>
-                                )}
-                              </TableCell>
-                            ))}
                             <TableCell className="py-2 text-center bg-muted/40 font-semibold">
                               {(bid.weighted_total || 0).toFixed(1)}
                             </TableCell>
