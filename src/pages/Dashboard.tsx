@@ -42,7 +42,12 @@ interface Message {
   created_at: string;
   thread_id?: string;
   is_reply?: boolean;
-  message_source?: 'direct' | 'bill_communication' | 'receipt_message' | 'credit_card_transaction_communication';
+  message_source?:
+    | 'direct'
+    | 'bill_communication'
+    | 'receipt_message'
+    | 'credit_card_transaction_communication'
+    | 'bid_intercompany_communication';
   source_record_id?: string;
   target_path?: string;
   from_profile?: {
@@ -556,6 +561,32 @@ export default function Dashboard() {
       if (creditCardCommsError) {
         console.error('Error fetching credit card communications:', creditCardCommsError);
       }
+
+      // Fetch bid intercompany communications (team notes) for dashboard
+      const { data: bidTeamComms, error: bidTeamCommsError } = await supabase
+        .from('bid_communications')
+        .select(`
+          id,
+          bid_id,
+          user_id,
+          message,
+          created_at,
+          bids!inner(
+            id,
+            company_id,
+            rfp:rfps!inner(job_id)
+          )
+        `)
+        .eq('company_id', currentCompany.id)
+        .eq('message_type', 'intercompany')
+        .eq('bids.company_id', currentCompany.id)
+        .neq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(10);
+
+      if (bidTeamCommsError) {
+        console.error('Error fetching bid team communications:', bidTeamCommsError);
+      }
       
       // Fetch profiles separately for bill communications
       const billCommsWithProfiles = await Promise.all(
@@ -584,6 +615,18 @@ export default function Dashboard() {
       // Fetch profiles separately for credit card transaction communications
       const creditCardCommsWithProfiles = await Promise.all(
         (creditCardComms || []).map(async (msg: any) => {
+          const { data: profile } = await supabase
+            .from('profiles')
+            .select('display_name, first_name, last_name, avatar_url')
+            .eq('user_id', msg.user_id)
+            .single();
+          return { ...msg, profiles: profile };
+        })
+      );
+
+      // Fetch profiles separately for bid team communications
+      const bidTeamCommsWithProfiles = await Promise.all(
+        (bidTeamComms || []).map(async (msg: any) => {
           const { data: profile } = await supabase
             .from('profiles')
             .select('display_name, first_name, last_name, avatar_url')
@@ -697,6 +740,37 @@ export default function Dashboard() {
           }
         };
       });
+
+      // Format bid team communications (only users connected to the bid's job)
+      const formattedBidTeamComms = (bidTeamCommsWithProfiles || [])
+        .filter((comm: any) => {
+          const jobId = comm?.bids?.rfp?.job_id || null;
+          return canAccessAssignedJobOnly([jobId], isPrivileged, allowedJobIds);
+        })
+        .filter((comm: any) => showIntercompanyByDefault || wasMentionedInMessage(comm.message || ""))
+        .map((comm: any) => ({
+          id: comm.id,
+          from_user_id: comm.user_id,
+          to_user_id: user.id,
+          subject: `Bid Team Notes`,
+          content: comm.message,
+          created_at: comm.created_at,
+          read: isNonDirectMessageRead({
+            id: comm.id,
+            message_source: 'bid_intercompany_communication',
+            source_record_id: comm.id,
+          }),
+          is_reply: false,
+          message_source: 'bid_intercompany_communication' as const,
+          source_record_id: comm.id,
+          target_path: `/construction/bids/${comm.bid_id}`,
+          from_profile: {
+            display_name: comm.profiles?.display_name ||
+              `${comm.profiles?.first_name || ''} ${comm.profiles?.last_name || ''}`.trim() ||
+              'Team Member',
+            avatar_url: comm.profiles?.avatar_url || null,
+          }
+        }));
       
       // Combine and sort by date
       const allMessages = [
@@ -704,6 +778,7 @@ export default function Dashboard() {
         ...formattedBillComms,
         ...formattedReceiptComms,
         ...formattedCreditCardComms,
+        ...formattedBidTeamComms,
       ]
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime())
         .slice(0, 5);
@@ -941,6 +1016,8 @@ export default function Dashboard() {
         return 'Receipt Coding';
       case 'credit_card_transaction_communication':
         return 'CC Coding';
+      case 'bid_intercompany_communication':
+        return 'Bid Team Notes';
       case 'direct':
       default:
         return 'Direct Message';

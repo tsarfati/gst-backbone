@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Save, MessageSquare, Send, Users, Building2, User, Calendar, Copy } from "lucide-react";
+import { ArrowLeft, Save, MessageSquare, Send, Users, Building2, Calendar, Copy } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -21,6 +21,7 @@ import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import MentionTextarea from "@/components/MentionTextarea";
 import { createMentionNotifications } from "@/utils/mentions";
+import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 
 interface BidRecord {
   id: string;
@@ -52,6 +53,7 @@ interface BidCommunication {
   user_id: string;
   created_at: string;
   sender_name: string;
+  sender_avatar_url?: string | null;
 }
 
 interface BidEmailMessage {
@@ -254,18 +256,24 @@ export default function BidDetails() {
       }>;
 
       const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
-      let profileMap = new Map<string, string>();
+      let profileMap = new Map<string, { name: string; avatarUrl: string | null }>();
 
       if (userIds.length > 0) {
         const { data: profiles } = await supabase
           .from("profiles")
-          .select("user_id, display_name, first_name, last_name")
+          .select("user_id, display_name, first_name, last_name, avatar_url")
           .in("user_id", userIds);
 
         profileMap = new Map(
           (profiles || []).map((profile: any) => {
             const fullName = `${profile?.first_name || ""} ${profile?.last_name || ""}`.trim();
-            return [profile.user_id, profile?.display_name || fullName || "Unknown User"];
+            return [
+              profile.user_id,
+              {
+                name: profile?.display_name || fullName || "Unknown User",
+                avatarUrl: profile?.avatar_url || null,
+              },
+            ];
           }),
         );
       }
@@ -273,7 +281,8 @@ export default function BidDetails() {
       setCommunications(
         rows.map((row) => ({
           ...row,
-          sender_name: profileMap.get(row.user_id) || "Unknown User",
+          sender_name: profileMap.get(row.user_id)?.name || "Unknown User",
+          sender_avatar_url: profileMap.get(row.user_id)?.avatarUrl || null,
         })),
       );
 
@@ -934,7 +943,17 @@ export default function BidDetails() {
                       teamMessages.map((message) => (
                         <div key={message.id} className="rounded-md bg-muted/40 p-3">
                           <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                            <User className="h-3 w-3" />
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={message.sender_avatar_url || undefined} alt={message.sender_name} />
+                              <AvatarFallback className="text-[10px]">
+                                {message.sender_name
+                                  .split(" ")
+                                  .map((part) => part[0] || "")
+                                  .join("")
+                                  .slice(0, 2)
+                                  .toUpperCase() || "U"}
+                              </AvatarFallback>
+                            </Avatar>
                             <span>{message.sender_name}</span>
                             <Calendar className="h-3 w-3" />
                             <span>{format(new Date(message.created_at), "MMM d, yyyy h:mm a")}</span>
@@ -978,7 +997,17 @@ export default function BidDetails() {
                       vendorMessages.map((message) => (
                         <div key={message.id} className="rounded-md bg-muted/40 p-3">
                           <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                            <User className="h-3 w-3" />
+                            <Avatar className="h-5 w-5">
+                              <AvatarImage src={message.sender_avatar_url || undefined} alt={message.sender_name} />
+                              <AvatarFallback className="text-[10px]">
+                                {message.sender_name
+                                  .split(" ")
+                                  .map((part) => part[0] || "")
+                                  .join("")
+                                  .slice(0, 2)
+                                  .toUpperCase() || "U"}
+                              </AvatarFallback>
+                            </Avatar>
                             <span>{message.sender_name}</span>
                             <Calendar className="h-3 w-3" />
                             <span>{format(new Date(message.created_at), "MMM d, yyyy h:mm a")}</span>
