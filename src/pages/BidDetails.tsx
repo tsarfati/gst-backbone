@@ -43,6 +43,7 @@ interface BidRecord {
   taxes_included?: boolean;
   tax_amount?: number;
   discount_amount?: number;
+  comparison_notes?: string | null;
   rfp?: { id: string; title: string; rfp_number: string; job_id?: string | null } | null;
   vendor?: {
     id: string;
@@ -112,11 +113,9 @@ const ATTACHMENT_TYPE_LABELS: Record<(typeof ATTACHMENT_TYPE_OPTIONS)[number], s
 const BID_STATUS_OPTIONS = [
   { value: "submitted", label: "Submitted" },
   { value: "verbal_quote", label: "Verbal Quote" },
-  { value: "awaiting_formal_paperwork", label: "Awaiting Formal Paperwork" },
-  { value: "under_review", label: "Under Review" },
   { value: "questions_pending", label: "Questions Pending" },
-  { value: "comments_requested", label: "Comments Requested" },
   { value: "waiting_for_revisions", label: "Waiting for Revisions" },
+  { value: "subcontract_review", label: "Reviewing Subcontract" },
   { value: "shortlisted", label: "Shortlisted" },
   { value: "accepted", label: "Accepted" },
   { value: "rejected", label: "Rejected" },
@@ -205,6 +204,7 @@ export default function BidDetails() {
     taxes_included: true,
     tax_amount: "0",
     discount_amount: "0",
+    comparison_notes: "",
   });
 
   const totalBid = useMemo(() => computeTotal(form), [form]);
@@ -311,8 +311,7 @@ export default function BidDetails() {
       const { count } = await supabase
         .from("profiles")
         .select("user_id", { head: true, count: "exact" })
-        .eq("vendor_id", vendorId)
-        .in("role", ["vendor", "design_professional"] as any);
+        .eq("vendor_id", vendorId);
       setVendorHasAccount((count || 0) > 0);
     } catch (error) {
       console.error("Error loading bid communications:", error);
@@ -371,6 +370,7 @@ export default function BidDetails() {
         taxes_included: bidData.taxes_included ?? true,
         tax_amount: String(bidData.tax_amount ?? 0),
         discount_amount: String(bidData.discount_amount ?? 0),
+        comparison_notes: bidData.comparison_notes || "",
       });
 
       await loadCommunications(bidData.id, bidData.vendor_id);
@@ -622,6 +622,7 @@ export default function BidDetails() {
           taxes_included: form.taxes_included,
           tax_amount: form.taxes_included ? 0 : Number(form.tax_amount || 0),
           discount_amount: Number(form.discount_amount || 0),
+          comparison_notes: form.comparison_notes || null,
         } as any)
         .eq("id", bid.id);
       if (error) throw error;
@@ -887,25 +888,26 @@ export default function BidDetails() {
         <div className="xl:col-span-3 space-y-4">
           <Card>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="space-y-2">
-                <Label>Status</Label>
-                <Select
-                  value={form.status || "submitted"}
-                  onValueChange={(value) => setForm((p) => ({ ...p, status: value }))}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select status" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {BID_STATUS_OPTIONS.map((statusOption) => (
-                      <SelectItem key={statusOption.value} value={statusOption.value}>
-                        {statusOption.label}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+            <div className="space-y-2">
+              <Label>Status</Label>
+              <Select
+                value={form.status || "submitted"}
+                onValueChange={(value) => setForm((p) => ({ ...p, status: value }))}
+              >
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  {BID_STATUS_OPTIONS.map((statusOption) => (
+                    <SelectItem key={statusOption.value} value={statusOption.value}>
+                      {statusOption.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Base Bid Amount</Label>
                 <Input type="number" step="0.01" min="0" value={form.bid_amount} onChange={(e) => setForm((p) => ({ ...p, bid_amount: e.target.value }))} />
@@ -918,41 +920,45 @@ export default function BidDetails() {
 
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label>Bid Contact Name</Label>
+                <Label>Contact Name</Label>
                 <Input value={form.bid_contact_name} onChange={(e) => setForm((p) => ({ ...p, bid_contact_name: e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Bid Contact Email</Label>
+                <Label>Contact Email</Label>
                 <Input type="email" value={form.bid_contact_email} onChange={(e) => setForm((p) => ({ ...p, bid_contact_email: e.target.value }))} />
               </div>
               <div className="space-y-2">
-                <Label>Bid Contact Phone</Label>
+                <Label>Contact Phone</Label>
                 <Input value={form.bid_contact_phone} onChange={(e) => setForm((p) => ({ ...p, bid_contact_phone: e.target.value }))} />
               </div>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="rounded-md border p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Shipping Included</Label>
-                  <Checkbox checked={form.shipping_included} onCheckedChange={(v) => setForm((p) => ({ ...p, shipping_included: !!v }))} />
-                </div>
-                {!form.shipping_included && (
-                  <Input type="number" step="0.01" min="0" value={form.shipping_amount} onChange={(e) => setForm((p) => ({ ...p, shipping_amount: e.target.value }))} />
-                )}
-              </div>
-              <div className="rounded-md border p-3 space-y-2">
-                <div className="flex items-center justify-between">
-                  <Label>Taxes Included</Label>
-                  <Checkbox checked={form.taxes_included} onCheckedChange={(v) => setForm((p) => ({ ...p, taxes_included: !!v }))} />
-                </div>
-                {!form.taxes_included && (
-                  <div className="space-y-1">
-                    <Label>Tax Rate (%)</Label>
-                    <Input type="number" step="0.01" min="0" max="100" value={form.tax_amount} onChange={(e) => setForm((p) => ({ ...p, tax_amount: e.target.value }))} />
-                    <p className="text-xs text-muted-foreground">Tax rate %, applied to (Base Bid - Discount)</p>
+            <div className="rounded-md border p-2">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div className="rounded-md border px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="mb-0">Shipping Included</Label>
+                    <Checkbox checked={form.shipping_included} onCheckedChange={(v) => setForm((p) => ({ ...p, shipping_included: !!v }))} />
                   </div>
-                )}
+                  {!form.shipping_included && (
+                    <div className="mt-2">
+                      <Input type="number" step="0.01" min="0" value={form.shipping_amount} onChange={(e) => setForm((p) => ({ ...p, shipping_amount: e.target.value }))} />
+                    </div>
+                  )}
+                </div>
+                <div className="rounded-md border px-3 py-2">
+                  <div className="flex items-center justify-between">
+                    <Label className="mb-0">Taxes Included</Label>
+                    <Checkbox checked={form.taxes_included} onCheckedChange={(v) => setForm((p) => ({ ...p, taxes_included: !!v }))} />
+                  </div>
+                  {!form.taxes_included && (
+                    <div className="mt-2 space-y-1">
+                      <Label>Tax Rate (%)</Label>
+                      <Input type="number" step="0.01" min="0" max="100" value={form.tax_amount} onChange={(e) => setForm((p) => ({ ...p, tax_amount: e.target.value }))} />
+                      <p className="text-xs text-muted-foreground">Tax rate %, applied to (Base Bid - Discount)</p>
+                    </div>
+                  )}
+                </div>
               </div>
             </div>
 
@@ -967,6 +973,16 @@ export default function BidDetails() {
                   ${totalBid.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                 </div>
               </div>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Inclusions / Exclusions Notes</Label>
+              <Textarea
+                rows={3}
+                value={form.comparison_notes}
+                onChange={(e) => setForm((p) => ({ ...p, comparison_notes: e.target.value }))}
+                placeholder="Notes used for bid comparison"
+              />
             </div>
 
             <div className="space-y-2">

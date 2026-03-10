@@ -58,6 +58,7 @@ export default function QuickAddVendor({
 
     setLoading(true);
 
+    let createdVendorId: string | null = null;
     try {
       const { data, error } = await supabase
         .from('vendors')
@@ -76,6 +77,7 @@ export default function QuickAddVendor({
         .single();
 
       if (error) throw error;
+      createdVendorId = data.id;
 
       toast({
         title: "Success",
@@ -84,8 +86,6 @@ export default function QuickAddVendor({
 
       // Invalidate vendors query to refresh all vendor lists
       queryClient.invalidateQueries({ queryKey: ['vendors'] });
-      
-      onVendorAdded(data.id);
       setOpen(false);
       
       // Reset form
@@ -99,18 +99,23 @@ export default function QuickAddVendor({
       });
     } catch (error: any) {
       console.error('Error adding vendor:', error);
-      // Only show error toast, don't log to console to avoid flash
       const errorMessage = error?.message || "Failed to add vendor";
-      // Skip showing generic constraint errors that are temporary
-      if (!errorMessage.includes('constraint') && !errorMessage.includes('schema cache')) {
-        toast({
-          title: "Error",
-          description: errorMessage,
-          variant: "destructive"
-        });
-      }
+      toast({
+        title: "Error",
+        description: errorMessage,
+        variant: "destructive"
+      });
     } finally {
       setLoading(false);
+    }
+
+    // Run parent callback after successful creation; callback failures should not show as create failures.
+    if (createdVendorId) {
+      try {
+        await Promise.resolve(onVendorAdded(createdVendorId));
+      } catch (callbackError) {
+        console.error('QuickAddVendor onVendorAdded callback failed:', callbackError);
+      }
     }
   };
 

@@ -6,7 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, Send, Trash2, Mail, Search, Upload, Save } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, Send, Trash2, Mail, Search } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
@@ -96,20 +96,6 @@ interface ScoringCriterion {
   criterion_options?: Array<{ label: string; score: number }> | null;
   sort_order: number;
 }
-
-const BID_STATUS_OPTIONS = [
-  { value: 'submitted', label: 'Submitted' },
-  { value: 'verbal_quote', label: 'Verbal Quote' },
-  { value: 'awaiting_formal_paperwork', label: 'Awaiting Formal Paperwork' },
-  { value: 'under_review', label: 'Under Review' },
-  { value: 'questions_pending', label: 'Questions Pending' },
-  { value: 'comments_requested', label: 'Comments Requested' },
-  { value: 'waiting_for_revisions', label: 'Waiting for Revisions' },
-  { value: 'shortlisted', label: 'Shortlisted' },
-  { value: 'accepted', label: 'Accepted' },
-  { value: 'rejected', label: 'Rejected' },
-  { value: 'retracted', label: 'Retracted' },
-] as const;
 
 const isPriceCriterion = (criterionName: string) => {
   const value = String(criterionName || '').toLowerCase();
@@ -241,11 +227,8 @@ export default function RFPDetails() {
   const [isDrawingsDragOver, setIsDrawingsDragOver] = useState(false);
   const [bidSortBy, setBidSortBy] = useState<'vendor' | 'bid_amount' | 'submitted_at'>('submitted_at');
   const [bidSortDirection, setBidSortDirection] = useState<'asc' | 'desc'>('desc');
-  const [comparisonNotesDrafts, setComparisonNotesDrafts] = useState<Record<string, string>>({});
-  const [savingComparisonNoteId, setSavingComparisonNoteId] = useState<string | null>(null);
-  const [updatingBidStatusId, setUpdatingBidStatusId] = useState<string | null>(null);
   const [bidScoreMap, setBidScoreMap] = useState<Record<string, Record<string, number>>>({});
-  const [savingBidScores, setSavingBidScores] = useState(false);
+  const [autoSavingScores, setAutoSavingScores] = useState(false);
   const [scoringBidId, setScoringBidId] = useState<string | null>(null);
   const [editingCriterion, setEditingCriterion] = useState<ScoringCriterion | null>(null);
   const [criterionForm, setCriterionForm] = useState({
@@ -277,23 +260,42 @@ export default function RFPDetails() {
     return rows;
   }, [bids, bidSortBy, bidSortDirection]);
 
+  const effectiveCriteria = useMemo<ScoringCriterion[]>(() => {
+    if (criteria.length > 0) return criteria;
+    if (bids.length === 0) return [];
+    return [
+      {
+        id: '__default_price_rank__',
+        criterion_name: 'Price Rank (Auto)',
+        description: 'Auto-scored by lowest final total',
+        weight: 1,
+        max_score: bids.length,
+        criterion_type: 'numeric',
+        criterion_options: null,
+        sort_order: 0,
+      },
+    ];
+  }, [criteria, bids.length]);
+
+  const persistableCriterionIds = useMemo(() => new Set(criteria.map((entry) => entry.id)), [criteria]);
+
   const analyzedBids = useMemo(
     () =>
       bids.map((bid) => ({
         ...bid,
         scores: bidScoreMap[bid.id] || {},
-        weighted_total: calculateWeightedTotal(bid.id, criteria, bidScoreMap),
+        weighted_total: calculateWeightedTotal(bid.id, effectiveCriteria, bidScoreMap),
       })),
-    [bids, criteria, bidScoreMap],
+    [bids, effectiveCriteria, bidScoreMap],
   );
   const analyzedSortedBids = useMemo(
     () =>
       sortedBids.map((bid) => ({
         ...bid,
         scores: bidScoreMap[bid.id] || {},
-        weighted_total: calculateWeightedTotal(bid.id, criteria, bidScoreMap),
+        weighted_total: calculateWeightedTotal(bid.id, effectiveCriteria, bidScoreMap),
       })),
-    [sortedBids, criteria, bidScoreMap],
+    [sortedBids, effectiveCriteria, bidScoreMap],
   );
   const lowestBidId = useMemo(() => {
     if (!analyzedBids.length) return null;
@@ -328,7 +330,7 @@ export default function RFPDetails() {
   }, [attachmentComments, commentStorageKey]);
 
   useEffect(() => {
-    if (!id || bids.length === 0 || criteria.length === 0) {
+    if (!id || bids.length === 0) {
       setBidScoreMap({});
       return;
     }
@@ -338,21 +340,23 @@ export default function RFPDetails() {
 
     (async () => {
       try {
-        const { data: scoresData, error } = await supabase
-          .from('bid_scores')
-          .select('bid_id, criterion_id, score')
-          .in('bid_id', bidIds);
-
-        if (error) throw error;
-        if (cancelled) return;
-
         const manualScores: Record<string, Record<string, number>> = {};
-        (scoresData || []).forEach((row: any) => {
-          if (!manualScores[row.bid_id]) manualScores[row.bid_id] = {};
-          manualScores[row.bid_id][row.criterion_id] = Number(row.score || 0);
-        });
+        if (criteria.length > 0) {
+          const { data: scoresData, error } = await supabase
+            .from('bid_scores')
+            .select('bid_id, criterion_id, score')
+            .in('bid_id', bidIds);
 
-        const autoPrice = buildAutoPriceScores(bids, criteria);
+          if (error) throw error;
+          if (cancelled) return;
+
+          (scoresData || []).forEach((row: any) => {
+            if (!manualScores[row.bid_id]) manualScores[row.bid_id] = {};
+            manualScores[row.bid_id][row.criterion_id] = Number(row.score || 0);
+          });
+        }
+
+        const autoPrice = buildAutoPriceScores(bids, effectiveCriteria);
         setBidScoreMap(mergeScoresWithAutoPrice(manualScores, autoPrice));
       } catch (error) {
         console.error('Error loading bid scores:', error);
@@ -370,7 +374,8 @@ export default function RFPDetails() {
           `${bid.id}:${bid.bid_amount}:${bid.shipping_included ? 1 : 0}:${bid.shipping_amount || 0}:${bid.taxes_included ? 1 : 0}:${bid.tax_amount || 0}:${bid.discount_amount || 0}`,
       )
       .join('|'),
-    criteria.map((criterion) => `${criterion.id}:${criterion.criterion_name}:${criterion.weight}:${criterion.max_score}:${criterion.criterion_type || ''}`).join('|'),
+    effectiveCriteria.map((criterion) => `${criterion.id}:${criterion.criterion_name}:${criterion.weight}:${criterion.max_score}:${criterion.criterion_type || ''}`).join('|'),
+    criteria.length,
   ]);
 
   useEffect(() => {
@@ -465,12 +470,6 @@ export default function RFPDetails() {
         }),
       );
       setBids(rowsWithVendorLogo);
-      setComparisonNotesDrafts(
-        rowsWithVendorLogo.reduce<Record<string, string>>((acc, row) => {
-          acc[row.id] = row.comparison_notes || '';
-          return acc;
-        }, {}),
-      );
     } catch (error) {
       console.error('Error loading bids:', error);
     }
@@ -491,7 +490,7 @@ export default function RFPDetails() {
   };
 
   const updateBidScore = (bidId: string, criterionId: string, value: number) => {
-    const criterion = criteria.find((entry) => entry.id === criterionId);
+    const criterion = effectiveCriteria.find((entry) => entry.id === criterionId);
     if (criterion && isPriceCriterion(criterion.criterion_name)) return;
 
     const clampedValue = Math.max(0, Math.min(value, Number(criterion?.max_score || value)));
@@ -502,95 +501,35 @@ export default function RFPDetails() {
         [criterionId]: clampedValue,
       },
     }));
+    void persistBidScore(bidId, criterionId, clampedValue);
   };
 
-  const saveBidScores = async () => {
+  const persistBidScore = async (bidId: string, criterionId: string, score: number) => {
     if (!currentCompany?.id || !user?.id) return;
+    if (!persistableCriterionIds.has(criterionId)) return;
     try {
-      setSavingBidScores(true);
-      const rows: any[] = [];
-      Object.entries(bidScoreMap).forEach(([bidId, scores]) => {
-        Object.entries(scores).forEach(([criterionId, score]) => {
-          rows.push({
-            bid_id: bidId,
-            criterion_id: criterionId,
-            company_id: currentCompany.id,
-            score,
-            scored_by: user.id,
-            scored_at: new Date().toISOString(),
-          });
-        });
-      });
-
-      if (rows.length > 0) {
-        const { error } = await supabase.from('bid_scores').upsert(rows, { onConflict: 'bid_id,criterion_id' });
-        if (error) throw error;
-      }
-
-      toast({
-        title: 'Saved',
-        description: 'Bid analysis scores saved successfully',
-      });
-    } catch (error: any) {
-      console.error('Error saving bid scores:', error);
-      toast({
-        title: 'Error',
-        description: error?.message || 'Failed to save bid scores',
-        variant: 'destructive',
-      });
-    } finally {
-      setSavingBidScores(false);
-    }
-  };
-
-  const saveComparisonNote = async (bidId: string) => {
-    const nextValue = (comparisonNotesDrafts[bidId] || '').trim();
-    try {
-      setSavingComparisonNoteId(bidId);
-      const { error } = await supabase
-        .from('bids')
-        .update({ comparison_notes: nextValue || null } as any)
-        .eq('id', bidId)
-        .eq('rfp_id', id);
+      setAutoSavingScores(true);
+      const { error } = await supabase.from('bid_scores').upsert(
+        {
+          bid_id: bidId,
+          criterion_id: criterionId,
+          company_id: currentCompany.id,
+          score,
+          scored_by: user.id,
+          scored_at: new Date().toISOString(),
+        } as any,
+        { onConflict: 'bid_id,criterion_id' },
+      );
       if (error) throw error;
-
-      setBids((prev) => prev.map((row) => (row.id === bidId ? { ...row, comparison_notes: nextValue || null } : row)));
     } catch (error: any) {
-      console.error('Error saving bid comparison note:', error);
+      console.error('Error auto-saving bid score:', error);
       toast({
         title: 'Error',
-        description: error?.message || 'Failed to save comparison note',
+        description: error?.message || 'Failed to auto-save bid score',
         variant: 'destructive',
       });
     } finally {
-      setSavingComparisonNoteId(null);
-    }
-  };
-
-  const updateBidStatus = async (bidId: string, status: string) => {
-    try {
-      setUpdatingBidStatusId(bidId);
-      const { error } = await supabase
-        .from('bids')
-        .update({ status } as any)
-        .eq('id', bidId)
-        .eq('rfp_id', id);
-      if (error) throw error;
-
-      setBids((prev) => prev.map((row) => (row.id === bidId ? { ...row, status } : row)));
-      toast({
-        title: 'Status updated',
-        description: 'Bid status updated successfully.',
-      });
-    } catch (error: any) {
-      console.error('Error updating bid status:', error);
-      toast({
-        title: 'Error',
-        description: error?.message || 'Failed to update bid status',
-        variant: 'destructive',
-      });
-    } finally {
-      setUpdatingBidStatusId(null);
+      setAutoSavingScores(false);
     }
   };
 
@@ -1110,8 +1049,24 @@ export default function RFPDetails() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
+  const getBidStatusBadge = (status: string) => {
+    const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
+      submitted: { variant: 'secondary', label: 'Submitted' },
+      verbal_quote: { variant: 'outline', label: 'Verbal Quote' },
+      questions_pending: { variant: 'outline', label: 'Questions Pending' },
+      waiting_for_revisions: { variant: 'outline', label: 'Waiting for Revisions' },
+      subcontract_review: { variant: 'outline', label: 'Reviewing Subcontract' },
+      shortlisted: { variant: 'default', label: 'Shortlisted' },
+      accepted: { variant: 'default', label: 'Accepted' },
+      rejected: { variant: 'destructive', label: 'Rejected' },
+      retracted: { variant: 'destructive', label: 'Retracted' },
+    };
+    const config = statusConfig[status] || { variant: 'secondary', label: status };
+    return <Badge variant={config.variant}>{config.label}</Badge>;
+  };
+
   const priceCriteriaIds = new Set(
-    criteria.filter((criterion) => isPriceCriterion(criterion.criterion_name)).map((criterion) => criterion.id),
+    effectiveCriteria.filter((criterion) => isPriceCriterion(criterion.criterion_name)).map((criterion) => criterion.id),
   );
 
   if (loading) {
@@ -1404,26 +1359,15 @@ export default function RFPDetails() {
                 <CardTitle>Drawings</CardTitle>
                 <CardDescription>Upload and manage plan sheets and drawing files for this RFP</CardDescription>
               </div>
-              <div>
-                <input
-                  ref={drawingsInputRef}
-                  type="file"
-                  multiple
-                  accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
-                  onChange={handleUploadDrawings}
-                  disabled={uploadingDrawings}
-                  className="hidden"
-                />
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => drawingsInputRef.current?.click()}
-                  disabled={uploadingDrawings}
-                >
-                  <Upload className="h-4 w-4 mr-2" />
-                  Choose files
-                </Button>
-              </div>
+              <input
+                ref={drawingsInputRef}
+                type="file"
+                multiple
+                accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
+                onChange={handleUploadDrawings}
+                disabled={uploadingDrawings}
+                className="hidden"
+              />
             </CardHeader>
             <CardContent>
               <div
@@ -1545,8 +1489,26 @@ export default function RFPDetails() {
                     })}
                   </div>
                 )}
-                <div className="pointer-events-none absolute bottom-3 left-0 right-0 text-center text-sm text-muted-foreground">
-                  {uploadingDrawings ? <span className="loading-dots">Loading</span> : 'Drag and drop drawings/specs here, or click to choose files to upload'}
+                <div className="absolute bottom-3 left-0 right-0 text-center text-sm text-muted-foreground">
+                  {uploadingDrawings ? (
+                    <span className="loading-dots">Loading</span>
+                  ) : (
+                    <span className="inline-flex items-center gap-2">
+                      <span>Drag and drop drawings/specs here, or</span>
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        className="h-7 px-2 text-xs"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          drawingsInputRef.current?.click();
+                        }}
+                      >
+                        choose files to upload
+                      </Button>
+                    </span>
+                  )}
                 </div>
               </div>
             </CardContent>
@@ -1636,19 +1598,20 @@ export default function RFPDetails() {
                 </Button>
                 <Button
                   variant="outline"
+                  size="icon"
+                  title="Score Criteria"
+                  aria-label="Score Criteria"
                   onClick={() => setScoringBidId(analyzedSortedBids[0]?.id || null)}
-                  disabled={analyzedSortedBids.length === 0 || criteria.length === 0}
+                  disabled={analyzedSortedBids.length === 0}
                 >
-                  <BarChart3 className="h-4 w-4 mr-2" />
-                  Score Criteria
-                </Button>
-                <Button onClick={saveBidScores} disabled={savingBidScores || bids.length === 0 || criteria.length === 0}>
-                  <Save className="h-4 w-4 mr-2" />
-                  {savingBidScores ? 'Saving...' : 'Save Scores'}
+                  <BarChart3 className="h-4 w-4" />
                 </Button>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
+              <div className="text-xs text-muted-foreground">
+                {autoSavingScores ? 'Auto-saving scores...' : 'Scores auto-save when changed.'}
+              </div>
               {bids.length === 0 ? (
                 <div className="py-12 text-center">
                   <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -1698,7 +1661,7 @@ export default function RFPDetails() {
                               Submitted{getSortIndicator('submitted_at')}
                             </Button>
                           </TableHead>
-                          {criteria.map((criterion) => (
+                          {effectiveCriteria.map((criterion) => (
                             <TableHead key={criterion.id} className="py-2 text-center min-w-[120px]">
                               <div className="font-medium">{criterion.criterion_name}</div>
                               <div className="text-xs text-muted-foreground">
@@ -1712,7 +1675,7 @@ export default function RFPDetails() {
                               </div>
                             </TableHead>
                           ))}
-                          {criteria.length > 0 && <TableHead className="py-2 text-center bg-muted/40">Weighted</TableHead>}
+                          <TableHead className="py-2 text-center bg-muted/40">Weighted</TableHead>
                           <TableHead className="py-2 text-right">Actions</TableHead>
                         </TableRow>
                       </TableHeader>
@@ -1753,37 +1716,14 @@ export default function RFPDetails() {
                                 {lowestBidId === bid.id && <Badge className="bg-emerald-600 hover:bg-emerald-600">Lowest Bid</Badge>}
                               </div>
                             </TableCell>
-                            <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
-                              <Input
-                                value={comparisonNotesDrafts[bid.id] ?? ''}
-                                placeholder="Add comparison / inclusion / exclusion notes"
-                                onChange={(e) =>
-                                  setComparisonNotesDrafts((prev) => ({ ...prev, [bid.id]: e.target.value }))
-                                }
-                                onBlur={() => saveComparisonNote(bid.id)}
-                                disabled={savingComparisonNoteId === bid.id}
-                              />
+                            <TableCell className="py-2 text-sm text-muted-foreground">
+                              <span className="block truncate">
+                                {bid.comparison_notes?.trim() || '-'}
+                              </span>
                             </TableCell>
-                            <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
-                              <Select
-                                value={bid.status || 'submitted'}
-                                onValueChange={(value) => updateBidStatus(bid.id, value)}
-                                disabled={updatingBidStatusId === bid.id}
-                              >
-                                <SelectTrigger className="h-8 min-w-[170px]">
-                                  <SelectValue />
-                                </SelectTrigger>
-                                <SelectContent>
-                                  {BID_STATUS_OPTIONS.map((statusOption) => (
-                                    <SelectItem key={statusOption.value} value={statusOption.value}>
-                                      {statusOption.label}
-                                    </SelectItem>
-                                  ))}
-                                </SelectContent>
-                              </Select>
-                            </TableCell>
+                            <TableCell className="py-2">{getBidStatusBadge(bid.status)}</TableCell>
                             <TableCell className="py-2">{format(new Date(bid.submitted_at), 'MMM d, yyyy')}</TableCell>
-                            {criteria.map((criterion) => (
+                            {effectiveCriteria.map((criterion) => (
                               <TableCell key={`${bid.id}-${criterion.id}`} className="py-2 text-center" onClick={(e) => e.stopPropagation()}>
                                 {priceCriteriaIds.has(criterion.id) ? (
                                   <span className="text-sm tabular-nums">{bidScoreMap[bid.id]?.[criterion.id] ?? '-'}</span>
@@ -1792,20 +1732,19 @@ export default function RFPDetails() {
                                 )}
                               </TableCell>
                             ))}
-                            {criteria.length > 0 && (
-                              <TableCell className="py-2 text-center bg-muted/40 font-semibold">
-                                {(bid.weighted_total || 0).toFixed(1)}
-                              </TableCell>
-                            )}
+                            <TableCell className="py-2 text-center bg-muted/40 font-semibold">
+                              {(bid.weighted_total || 0).toFixed(1)}
+                            </TableCell>
                             <TableCell className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
                               <div className="flex justify-end gap-1">
-                                {criteria.length > 0 && (
-                                  <Button variant="outline" size="sm" onClick={() => setScoringBidId(bid.id)}>
-                                    Score Criteria
-                                  </Button>
-                                )}
-                                <Button variant="ghost" size="sm" onClick={() => navigate(`/construction/bids/${bid.id}`)}>
-                                  View
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Score Criteria"
+                                  aria-label="Score Criteria"
+                                  onClick={() => setScoringBidId(bid.id)}
+                                >
+                                  <BarChart3 className="h-4 w-4" />
                                 </Button>
                               </div>
                             </TableCell>
@@ -1816,26 +1755,54 @@ export default function RFPDetails() {
                   </div>
 
                   <div className="space-y-2">
-                    <div className="text-sm font-medium">Bid Amount Comparison</div>
+                    <div className="flex items-center justify-between">
+                      <div className="text-sm font-medium">Bid Amount Comparison</div>
+                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                        <span className="inline-flex items-center gap-1">
+                          <span className="inline-block h-2.5 w-2.5 rounded bg-primary/70" />
+                          Price Position (lower amount = higher bar)
+                        </span>
+                        <span className="inline-flex items-center gap-1">
+                          <span className="inline-block h-2.5 w-2.5 rounded bg-emerald-600/80" />
+                          Weighted Score
+                        </span>
+                      </div>
+                    </div>
                     <div className="space-y-2">
                       {analyzedSortedBids
-                        .map((bid) => ({ ...bid, finalTotal: computeBidFinalTotal(bid) }))
+                        .map((bid) => ({ ...bid, finalTotal: computeBidFinalTotal(bid), weighted: Number(bid.weighted_total || 0) }))
                         .sort((a, b) => a.finalTotal - b.finalTotal)
                         .map((bid, index, rows) => {
-                          const max = Math.max(...rows.map((row) => row.finalTotal), 1);
-                          const width = Math.max((bid.finalTotal / max) * 100, 6);
+                          const maxFinal = Math.max(...rows.map((row) => row.finalTotal), 1);
+                          const minFinal = Math.min(...rows.map((row) => row.finalTotal));
+                          const maxWeighted = Math.max(...rows.map((row) => row.weighted), 1);
+                          const amountWidth =
+                            maxFinal === minFinal
+                              ? 100
+                              : Math.max(((maxFinal - bid.finalTotal) / (maxFinal - minFinal)) * 100, 6);
+                          const weightedWidth = Math.max((bid.weighted / maxWeighted) * 100, bid.weighted > 0 ? 6 : 0);
                           return (
-                            <div key={`bar-${bid.id}`} className="grid grid-cols-[minmax(140px,180px)_1fr_180px] items-center gap-3">
+                            <div key={`bar-${bid.id}`} className="grid grid-cols-[minmax(140px,180px)_1fr_220px] items-center gap-3">
                               <div className="w-40 truncate text-sm">{bid.vendor.name}</div>
-                              <div className="h-6 flex-1 rounded bg-muted overflow-hidden">
-                                <div className="h-full bg-primary/70" style={{ width: `${width}%` }} />
-                              </div>
-                              <div className="w-[180px] text-right">
-                                <div className="text-sm tabular-nums">
-                                  ${bid.finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              <div className="space-y-1">
+                                <div className="h-4 w-full rounded bg-muted overflow-hidden">
+                                  <div className="h-full bg-primary/70 px-2 text-[10px] font-medium text-primary-foreground flex items-center justify-end truncate" style={{ width: `${amountWidth}%` }}>
+                                    ${bid.finalTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                  </div>
                                 </div>
-                                <div className="mt-1 h-5">
+                                <div className="h-4 w-full rounded bg-muted overflow-hidden">
+                                  <div className="h-full bg-emerald-600/80 px-2 text-[10px] font-medium text-white flex items-center justify-end truncate" style={{ width: `${weightedWidth}%` }}>
+                                    {bid.weighted.toFixed(1)}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="w-[220px] text-left">
+                                <div className="text-sm tabular-nums inline-flex items-center gap-2">
+                                  ${bid.finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                                   {index === 0 && <Badge className="bg-emerald-600 hover:bg-emerald-600">Lowest</Badge>}
+                                </div>
+                                <div className="text-xs text-muted-foreground tabular-nums">
+                                  Score {bid.weighted.toFixed(1)}
                                 </div>
                               </div>
                             </div>
@@ -1906,11 +1873,11 @@ export default function RFPDetails() {
                 </div>
               </div>
 
-              {criteria.length === 0 ? (
+              {effectiveCriteria.length === 0 ? (
                 <div className="text-sm text-muted-foreground">No scoring criteria set yet.</div>
               ) : (
                 <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
-                  {criteria.map((criterion) => (
+                  {effectiveCriteria.map((criterion) => (
                     <div key={`modal-${criterion.id}`} className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-2 items-center">
                       <div>
                         <div className="font-medium text-sm">{criterion.criterion_name}</div>
@@ -1981,15 +1948,6 @@ export default function RFPDetails() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setScoringBidId(null)}>
               Close
-            </Button>
-            <Button
-              onClick={async () => {
-                await saveBidScores();
-                setScoringBidId(null);
-              }}
-              disabled={savingBidScores || criteria.length === 0}
-            >
-              {savingBidScores ? 'Saving...' : 'Save Scores'}
             </Button>
           </DialogFooter>
         </DialogContent>

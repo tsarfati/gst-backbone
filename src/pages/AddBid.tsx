@@ -55,11 +55,9 @@ interface PendingFile {
 const BID_STATUS_OPTIONS = [
   { value: 'submitted', label: 'Submitted' },
   { value: 'verbal_quote', label: 'Verbal Quote' },
-  { value: 'awaiting_formal_paperwork', label: 'Awaiting Formal Paperwork' },
-  { value: 'under_review', label: 'Under Review' },
   { value: 'questions_pending', label: 'Questions Pending' },
-  { value: 'comments_requested', label: 'Comments Requested' },
   { value: 'waiting_for_revisions', label: 'Waiting for Revisions' },
+  { value: 'subcontract_review', label: 'Reviewing Subcontract' },
   { value: 'shortlisted', label: 'Shortlisted' },
   { value: 'accepted', label: 'Accepted' },
   { value: 'rejected', label: 'Rejected' },
