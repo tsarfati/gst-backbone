@@ -5,6 +5,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowLeft, Save, Plus, Trash2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -17,14 +18,16 @@ interface Criterion {
   description: string;
   weight: string;
   max_score: string;
+  criterion_type: 'numeric' | 'yes_no' | 'picklist';
+  picklist_options_text: string;
 }
 
 const DEFAULT_CRITERIA: Omit<Criterion, 'id'>[] = [
-  { criterion_name: 'Price/Cost', description: 'Competitiveness of the bid amount', weight: '3', max_score: '10' },
-  { criterion_name: 'Experience', description: 'Relevant project experience and track record', weight: '2', max_score: '10' },
-  { criterion_name: 'Timeline', description: 'Proposed schedule and ability to meet deadlines', weight: '2', max_score: '10' },
-  { criterion_name: 'Quality', description: 'Expected quality of work and materials', weight: '2', max_score: '10' },
-  { criterion_name: 'References', description: 'Quality of references and past client satisfaction', weight: '1', max_score: '10' },
+  { criterion_name: 'Price/Cost', description: 'Competitiveness of the bid amount', weight: '3', max_score: '10', criterion_type: 'numeric', picklist_options_text: '' },
+  { criterion_name: 'Experience', description: 'Relevant project experience and track record', weight: '2', max_score: '10', criterion_type: 'numeric', picklist_options_text: '' },
+  { criterion_name: 'Timeline', description: 'Proposed schedule and ability to meet deadlines', weight: '2', max_score: '10', criterion_type: 'numeric', picklist_options_text: '' },
+  { criterion_name: 'Quality', description: 'Expected quality of work and materials', weight: '2', max_score: '10', criterion_type: 'numeric', picklist_options_text: '' },
+  { criterion_name: 'References', description: 'Quality of references and past client satisfaction', weight: '1', max_score: '10', criterion_type: 'numeric', picklist_options_text: '' },
 ];
 
 export default function AddScoringCriterion() {
@@ -35,13 +38,13 @@ export default function AddScoringCriterion() {
   
   const [loading, setLoading] = useState(false);
   const [criteria, setCriteria] = useState<Criterion[]>([
-    { criterion_name: '', description: '', weight: '1', max_score: '10' }
+    { criterion_name: '', description: '', weight: '1', max_score: '10', criterion_type: 'numeric', picklist_options_text: '' }
   ]);
 
   const addCriterion = () => {
     setCriteria(prev => [
       ...prev,
-      { criterion_name: '', description: '', weight: '1', max_score: '10' }
+      { criterion_name: '', description: '', weight: '1', max_score: '10', criterion_type: 'numeric', picklist_options_text: '' }
     ]);
   };
 
@@ -55,6 +58,22 @@ export default function AddScoringCriterion() {
     setCriteria(prev => prev.map((c, i) => 
       i === index ? { ...c, [field]: value } : c
     ));
+  };
+
+  const parsePicklistOptions = (raw: string) => {
+    return raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [labelPart, scorePart] = line.split('|').map((value) => value?.trim() ?? '');
+        const score = Number(scorePart);
+        return {
+          label: labelPart,
+          score: Number.isFinite(score) ? score : 0,
+        };
+      })
+      .filter((option) => option.label.length > 0);
   };
 
   const loadDefaultCriteria = () => {
@@ -75,6 +94,18 @@ export default function AddScoringCriterion() {
       return;
     }
 
+    const invalidPicklist = validCriteria.find(
+      (criterion) => criterion.criterion_type === 'picklist' && parsePicklistOptions(criterion.picklist_options_text).length === 0,
+    );
+    if (invalidPicklist) {
+      toast({
+        title: 'Validation Error',
+        description: `Add at least one picklist option for "${invalidPicklist.criterion_name}".`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
     try {
       setLoading(true);
 
@@ -85,6 +116,8 @@ export default function AddScoringCriterion() {
         description: c.description.trim() || null,
         weight: parseFloat(c.weight) || 1,
         max_score: parseInt(c.max_score) || 10,
+        criterion_type: c.criterion_type,
+        criterion_options: c.criterion_type === 'picklist' ? parsePicklistOptions(c.picklist_options_text) : null,
         sort_order: index
       }));
 
@@ -186,6 +219,50 @@ export default function AddScoringCriterion() {
                     </div>
                   </div>
                 </div>
+
+                <div className="space-y-2">
+                  <Label>Input Type</Label>
+                  <Select
+                    value={criterion.criterion_type}
+                    onValueChange={(value) => {
+                      setCriteria((prev) =>
+                        prev.map((entry, entryIndex) =>
+                          entryIndex === index
+                            ? {
+                                ...entry,
+                                criterion_type: value as Criterion['criterion_type'],
+                                max_score: value === 'yes_no' ? '1' : entry.max_score,
+                              }
+                            : entry,
+                        ),
+                      );
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="numeric">Numeric Score</SelectItem>
+                      <SelectItem value="yes_no">Yes / No</SelectItem>
+                      <SelectItem value="picklist">Picklist</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                {criterion.criterion_type === 'picklist' && (
+                  <div className="space-y-2">
+                    <Label>Picklist Options</Label>
+                    <Textarea
+                      value={criterion.picklist_options_text}
+                      onChange={(e) => updateCriterion(index, 'picklist_options_text', e.target.value)}
+                      placeholder={`Concrete | 10\nWood | 7\nOther | 4`}
+                      rows={4}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      One option per line using format: <code>Label | Score</code>
+                    </p>
+                  </div>
+                )}
 
                 <div className="space-y-2">
                   <Label>Description</Label>

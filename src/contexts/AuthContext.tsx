@@ -102,6 +102,14 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const resolveLoginMethodFromSession = (session: Session | null): string => {
+    const provider = (session?.user as any)?.app_metadata?.provider;
+    if (typeof provider === 'string' && provider.trim().length > 0) {
+      return provider.toLowerCase();
+    }
+    return 'email';
+  };
+
   useEffect(() => {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
@@ -117,9 +125,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
               // Log OAuth sign-in once (only if we initiated an OAuth flow in this tab)
               if (event === 'SIGNED_IN') {
                 const provider = consumePendingOAuthLogin();
-                if (provider) {
-                  await logLoginAttempt(session.user.id, true, provider);
-                }
+                const method = provider || resolveLoginMethodFromSession(session);
+                await logLoginAttempt(session.user.id, true, method);
               }
               
               const { data: profileData } = await supabase

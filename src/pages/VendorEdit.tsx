@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getStoragePathForDb } from '@/utils/storageUtils';
+import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Upload, Building, Archive, CheckCircle } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Building, Archive, CheckCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -19,7 +19,6 @@ import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 import PaymentTermsSelect from "@/components/PaymentTermsSelect";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useQueryClient } from "@tanstack/react-query";
-import DragDropUpload from "@/components/DragDropUpload";
 
 export default function VendorEdit() {
   const { id } = useParams();
@@ -54,6 +53,7 @@ export default function VendorEdit() {
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
+  const [isLogoDragOver, setIsLogoDragOver] = useState(false);
   const [saving, setSaving] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [complianceDocuments, setComplianceDocuments] = useState<any[]>([]);
@@ -151,7 +151,8 @@ export default function VendorEdit() {
         });
         
         if (data.logo_url) {
-          setLogoPreview(data.logo_url);
+          const resolvedLogo = await resolveStorageUrl('receipts', data.logo_url);
+          setLogoPreview(resolvedLogo || data.logo_url);
         }
       }
     } catch (error) {
@@ -560,45 +561,51 @@ export default function VendorEdit() {
             {/* Logo Upload */}
             <div className="space-y-2">
               <Label>Vendor Logo</Label>
+              <input
+                type="file"
+                accept="image/*"
+                onChange={handleLogoUpload}
+                className="hidden"
+                id="logo-upload"
+              />
               <div className="flex items-center gap-4">
-                <div className="h-16 w-16 border border-border rounded-lg flex items-center justify-center bg-muted">
+                <label
+                  htmlFor="logo-upload"
+                  onDragOver={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsLogoDragOver(true);
+                  }}
+                  onDragLeave={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsLogoDragOver(false);
+                  }}
+                  onDrop={(e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    setIsLogoDragOver(false);
+                    const file = e.dataTransfer.files?.[0];
+                    if (file) handleLogoUpload(file);
+                  }}
+                  className="group relative flex h-24 w-24 cursor-pointer items-center justify-center overflow-hidden rounded-xl border border-border bg-muted"
+                >
                   {logoPreview ? (
-                    <img src={logoPreview} alt="Logo preview" className="h-full w-full object-cover rounded-lg" />
+                    <img src={logoPreview} alt="Logo preview" className="h-full w-full object-cover" />
                   ) : (
                     <Building className="h-8 w-8 text-muted-foreground" />
                   )}
-                </div>
-                <div>
-                  <input
-                    type="file"
-                    accept="image/*"
-                    onChange={handleLogoUpload}
-                    className="hidden"
-                    id="logo-upload"
-                  />
-                  <Label htmlFor="logo-upload" className="cursor-pointer">
-                    <Button type="button" variant="outline" asChild>
-                      <span>
-                        <Upload className="h-4 w-4 mr-2" />
-                        Upload Logo
-                      </span>
-                    </Button>
-                  </Label>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Recommended: Square image, max 2MB
-                  </p>
-                  <div className="mt-2 w-full min-w-[220px]">
-                    <DragDropUpload
-                      onFileSelect={(file) => handleLogoUpload(file)}
-                      accept=".jpg,.jpeg,.png,.webp,.svg"
-                      maxSize={2}
-                      size="compact"
-                      title="Drop vendor logo"
-                      subtitle="or click to choose image"
-                      helperText="Square logo image (max 2MB)"
-                    />
+                  <div
+                    className={`absolute inset-0 flex items-center justify-center bg-black/60 p-2 text-center text-[11px] font-medium leading-tight text-white transition-opacity ${
+                      isLogoDragOver ? "opacity-100" : "opacity-0 group-hover:opacity-100"
+                    }`}
+                  >
+                    {isLogoDragOver ? "Drop vendor logo" : "Drop vendor logo or click to choose file"}
                   </div>
-                </div>
+                </label>
+                <p className="text-xs text-muted-foreground">
+                  Square image recommended, max 2MB
+                </p>
               </div>
             </div>
 

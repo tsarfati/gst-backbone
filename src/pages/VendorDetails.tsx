@@ -12,6 +12,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
+import VendorAvatar from "@/components/VendorAvatar";
 import {
   Dialog,
   DialogContent,
@@ -640,15 +641,12 @@ export default function VendorDetails() {
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div className="flex items-center gap-3">
-            {vendor.logo_url ? (
-              <img 
-                src={vendor.logo_url} 
-                alt={`${vendor.name} logo`}
-                className="h-12 w-12 object-contain rounded-lg border"
-              />
-            ) : (
-              <Building className="h-12 w-12 p-2 bg-muted rounded-lg text-muted-foreground" />
-            )}
+            <VendorAvatar
+              name={vendor.name}
+              logoUrl={vendor.logo_url}
+              size="lg"
+              className="rounded-lg border"
+            />
             <div>
               <h1 className="text-2xl font-bold text-foreground">{vendor.name}</h1>
             </div>
@@ -716,12 +714,6 @@ export default function VendorDetails() {
           {/* Main Info */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building className="h-5 w-5" />
-                  Company Information
-                </CardTitle>
-              </CardHeader>
               <CardContent className="space-y-4">
                 {vendor.contact_person && (
                   <div>

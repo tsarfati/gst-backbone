@@ -1,6 +1,6 @@
 import React, { useRef, useState, useCallback, useEffect } from "react";
 import { Button } from "@/components/ui/button";
-import { FileText, ZoomIn, ZoomOut, RotateCcw } from "lucide-react";
+import { FileText, ZoomIn, ZoomOut, RotateCw } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { usePreventBrowserZoom } from "@/hooks/usePreventBrowserZoom";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
@@ -85,8 +85,7 @@ export default function ZoomableDocumentPreview({
     normalizedName.endsWith(".pdf") ||
     normalizedUrl.includes(".pdf") ||
     normalizedUrl.includes("application/pdf");
-  const rotationStorageKey =
-    !isPdf && url ? `preview-rotation:zoomable:${encodeURIComponent(url)}` : null;
+  const rotationStorageKey = url ? `preview-rotation:zoomable:${encodeURIComponent(url)}` : null;
 
   useEffect(() => {
     if (!rotationStorageKey) {
@@ -94,7 +93,7 @@ export default function ZoomableDocumentPreview({
       return;
     }
     try {
-      const raw = sessionStorage.getItem(rotationStorageKey);
+      const raw = localStorage.getItem(rotationStorageKey);
       const parsed = Number(raw);
       if (Number.isFinite(parsed)) {
         const normalized = ((parsed % 360) + 360) % 360;
@@ -110,7 +109,7 @@ export default function ZoomableDocumentPreview({
   useEffect(() => {
     if (!rotationStorageKey) return;
     try {
-      sessionStorage.setItem(rotationStorageKey, String(rotationDeg));
+      localStorage.setItem(rotationStorageKey, String(rotationDeg));
     } catch {
       // Ignore storage errors in restricted contexts.
     }
@@ -190,15 +189,13 @@ export default function ZoomableDocumentPreview({
               >
                 <ZoomIn className="h-4 w-4" />
               </Button>
-              {!isPdf && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setRotationDeg((prev) => (prev + 90) % 360)}
-                >
-                  <RotateCcw className="h-4 w-4" />
-                </Button>
-              )}
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setRotationDeg((prev) => (prev + 90) % 360)}
+              >
+                <RotateCw className="h-4 w-4" />
+              </Button>
             </div>
           )}
         </div>
@@ -233,7 +230,7 @@ export default function ZoomableDocumentPreview({
               }}
             >
               {isPdf ? (
-                <UrlPdfInlinePreview url={url} className="w-full h-auto" />
+                <UrlPdfInlinePreview url={url} className="w-full h-auto" rotationDeg={rotationDeg} />
               ) : (
                 <img
                   src={url}

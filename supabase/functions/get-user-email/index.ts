@@ -168,10 +168,16 @@ serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ email: userData.user.email }), {
+    return new Response(
+      JSON.stringify({
+        email: userData.user.email,
+        lastSignInAt: userData.user.last_sign_in_at ?? null,
+      }),
+      {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
-    });
+      },
+    );
   } catch (error) {
     const message = (error as any)?.message ?? String(error);
     console.error("[get-user-email] error", { requestId, message });

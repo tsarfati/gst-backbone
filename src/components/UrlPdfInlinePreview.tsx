@@ -8,10 +8,11 @@ import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 interface UrlPdfInlinePreviewProps {
   url: string;
   className?: string;
+  rotationDeg?: number;
 }
 
 // Renders all pages of a PDF from a URL using pdfjs to avoid iframe blocking
-export default function UrlPdfInlinePreview({ url, className }: UrlPdfInlinePreviewProps) {
+export default function UrlPdfInlinePreview({ url, className, rotationDeg = 0 }: UrlPdfInlinePreviewProps) {
   const containerRef = useRef<HTMLDivElement | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -95,7 +96,14 @@ export default function UrlPdfInlinePreview({ url, className }: UrlPdfInlinePrev
 
   return (
     <div className={cn("relative w-full", className)}>
-      <div ref={containerRef} className="w-full space-y-0" />
+      <div
+        ref={containerRef}
+        className="w-full space-y-0"
+        style={{
+          transform: `rotate(${rotationDeg}deg)`,
+          transformOrigin: "center center",
+        }}
+      />
       {loading && (
         <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground bg-background/60">
           {pageCount > 0 ? `Rendering ${pageCount} page${pageCount !== 1 ? 's' : ''}...` : 'Loading PDF...'}

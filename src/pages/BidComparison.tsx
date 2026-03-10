@@ -5,7 +5,12 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Badge } from '@/components/ui/badge';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
-import { ArrowLeft, Download, FileSpreadsheet, Trophy, DollarSign, Clock, Star, Save, BarChart3 } from 'lucide-react';
+import { Textarea } from '@/components/ui/textarea';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Label } from '@/components/ui/label';
+import { ArrowLeft, Download, FileSpreadsheet, Trophy, DollarSign, Star, Save, BarChart3, MessageSquare, Send } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -13,6 +18,7 @@ import { useToast } from '@/hooks/use-toast';
 import { format } from 'date-fns';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 
 interface RFP {
   id: string;
@@ -27,6 +33,11 @@ interface RFP {
 interface Bid {
   id: string;
   bid_amount: number;
+  shipping_included?: boolean | null;
+  shipping_amount?: number | null;
+  taxes_included?: boolean | null;
+  tax_amount?: number | null;
+  discount_amount?: number | null;
   proposed_timeline: string | null;
   notes: string | null;
   status: string;
@@ -42,8 +53,12 @@ interface Bid {
 interface ScoringCriterion {
   id: string;
   criterion_name: string;
+  description?: string | null;
   weight: number;
   max_score: number;
+  criterion_type?: 'numeric' | 'yes_no' | 'picklist' | null;
+  criterion_options?: Array<{ label: string; score: number }> | null;
+  sort_order?: number | null;
 }
 
 interface BidScore {
@@ -51,6 +66,117 @@ interface BidScore {
   criterion_id: string;
   score: number;
 }
+
+interface ComparisonMessage {
+  id: string;
+  message: string;
+  user_id: string;
+  created_at: string;
+  sender_name: string;
+  sender_avatar_url?: string | null;
+}
+
+const isPriceCriterion = (criterionName: string) => {
+  const value = String(criterionName || '').toLowerCase();
+  return value.includes('price') || value.includes('cost');
+};
+
+const normalizeCriterionType = (value: unknown): 'numeric' | 'yes_no' | 'picklist' => {
+  if (value === 'yes_no' || value === 'picklist' || value === 'numeric') return value;
+  return 'numeric';
+};
+
+const normalizeCriterionOptions = (value: unknown): Array<{ label: string; score: number }> => {
+  if (!Array.isArray(value)) return [];
+  return value
+    .map((entry) => {
+      const label = String((entry as any)?.label ?? '').trim();
+      const score = Number((entry as any)?.score);
+      return {
+        label,
+        score: Number.isFinite(score) ? score : 0,
+      };
+    })
+    .filter((entry) => entry.label.length > 0);
+};
+
+const toNumber = (value: string | number | null | undefined) => Number(value || 0);
+
+const computeBidFinalTotal = (bid: {
+  bid_amount: number;
+  shipping_included?: boolean | null;
+  shipping_amount?: number | null;
+  taxes_included?: boolean | null;
+  tax_amount?: number | null;
+  discount_amount?: number | null;
+}) => {
+  const base = toNumber(bid.bid_amount);
+  const discount = toNumber(bid.discount_amount);
+  const taxableBase = Math.max(0, base - discount);
+  const shipping = bid.shipping_included ? 0 : toNumber(bid.shipping_amount);
+  const taxRatePercent = bid.taxes_included ? 0 : toNumber(bid.tax_amount);
+  const tax = taxableBase * (Math.max(0, taxRatePercent) / 100);
+  return Math.max(0, taxableBase + shipping + tax);
+};
+
+const buildAutoPriceScores = (bids: Bid[], criteria: ScoringCriterion[]) => {
+  const priceCriteria = criteria.filter((criterion) => isPriceCriterion(criterion.criterion_name));
+  if (priceCriteria.length === 0 || bids.length === 0) return {} as Record<string, Record<string, number>>;
+
+  const sorted = [...bids].sort((a, b) => computeBidFinalTotal(a) - computeBidFinalTotal(b));
+  const rankByBidId: Record<string, number> = {};
+  let currentRank = 1;
+  sorted.forEach((bid, index) => {
+    if (index > 0 && computeBidFinalTotal(bid) > computeBidFinalTotal(sorted[index - 1])) {
+      currentRank = index + 1;
+    }
+    rankByBidId[bid.id] = currentRank;
+  });
+
+  const scores: Record<string, Record<string, number>> = {};
+  bids.forEach((bid) => {
+    const rank = rankByBidId[bid.id] || bids.length;
+    const autoScore = Math.max(1, bids.length - rank + 1);
+    if (!scores[bid.id]) scores[bid.id] = {};
+    priceCriteria.forEach((criterion) => {
+      scores[bid.id][criterion.id] = autoScore;
+    });
+  });
+
+  return scores;
+};
+
+const mergeScoresWithAutoPrice = (
+  manualScores: Record<string, Record<string, number>>,
+  autoPriceScores: Record<string, Record<string, number>>,
+) => {
+  const merged: Record<string, Record<string, number>> = {};
+
+  Object.entries(manualScores).forEach(([bidId, bidScores]) => {
+    merged[bidId] = { ...(bidScores || {}) };
+  });
+
+  Object.entries(autoPriceScores).forEach(([bidId, bidScores]) => {
+    merged[bidId] = {
+      ...(merged[bidId] || {}),
+      ...(bidScores || {}),
+    };
+  });
+
+  return merged;
+};
+
+const calculateWeightedTotal = (
+  bidId: string,
+  criteria: ScoringCriterion[],
+  scoreMap: Record<string, Record<string, number>>,
+) => {
+  const bidScores = scoreMap[bidId] || {};
+  return criteria.reduce((total, criterion) => {
+    const score = bidScores[criterion.id] || 0;
+    return total + score * criterion.weight;
+  }, 0);
+};
 
 export default function BidComparison() {
   const { id } = useParams<{ id: string }>();
@@ -66,6 +192,21 @@ export default function BidComparison() {
   const [scores, setScores] = useState<Record<string, Record<string, number>>>({});
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [comparisonMessages, setComparisonMessages] = useState<ComparisonMessage[]>([]);
+  const [loadingComparisonMessages, setLoadingComparisonMessages] = useState(false);
+  const [newComparisonMessage, setNewComparisonMessage] = useState('');
+  const [sendingComparisonMessage, setSendingComparisonMessage] = useState(false);
+  const [analysisView, setAnalysisView] = useState<'matrix' | 'criteria'>('matrix');
+  const [editingCriterion, setEditingCriterion] = useState<ScoringCriterion | null>(null);
+  const [criterionForm, setCriterionForm] = useState({
+    criterion_name: '',
+    description: '',
+    weight: '1',
+    max_score: '10',
+    criterion_type: 'numeric' as 'numeric' | 'yes_no' | 'picklist',
+    options_text: '',
+  });
+  const [savingCriterion, setSavingCriterion] = useState(false);
 
   useEffect(() => {
     if (id && currentCompany?.id && !websiteJobAccessLoading) {
@@ -103,22 +244,27 @@ export default function BidComparison() {
       // Load criteria
       const { data: criteriaData, error: criteriaError } = await supabase
         .from('bid_scoring_criteria')
-        .select('id, criterion_name, weight, max_score')
+        .select('id, criterion_name, description, weight, max_score, criterion_type, criterion_options, sort_order')
         .eq('rfp_id', id)
         .order('sort_order');
 
       if (criteriaError) throw criteriaError;
-      setCriteria(criteriaData || []);
+      const normalizedCriteria = ((criteriaData || []) as any[]).map((criterion) => ({
+        ...criterion,
+        criterion_type: normalizeCriterionType(criterion.criterion_type),
+        criterion_options: normalizeCriterionOptions(criterion.criterion_options),
+      })) as ScoringCriterion[];
+      setCriteria(normalizedCriteria);
 
       // Load bids
       const { data: bidsData, error: bidsError } = await supabase
         .from('bids')
         .select(`
-          id, bid_amount, proposed_timeline, notes, status, submitted_at,
+          id, bid_amount, shipping_included, shipping_amount, taxes_included, tax_amount, discount_amount, proposed_timeline, notes, status, submitted_at,
           vendor:vendors(id, name)
         `)
         .eq('rfp_id', id)
-        .order('bid_amount');
+        .order('submitted_at', { ascending: false });
 
       if (bidsError) throw bidsError;
 
@@ -130,19 +276,22 @@ export default function BidComparison() {
 
       if (scoresError) throw scoresError;
 
-      // Build scores map
-      const scoresMap: Record<string, Record<string, number>> = {};
+      // Build manual scores map from saved values
+      const manualScoresMap: Record<string, Record<string, number>> = {};
       (scoresData || []).forEach(s => {
-        if (!scoresMap[s.bid_id]) scoresMap[s.bid_id] = {};
-        scoresMap[s.bid_id][s.criterion_id] = s.score;
+        if (!manualScoresMap[s.bid_id]) manualScoresMap[s.bid_id] = {};
+        manualScoresMap[s.bid_id][s.criterion_id] = s.score;
       });
+
+      const autoPriceScores = buildAutoPriceScores((bidsData as any) || [], normalizedCriteria);
+      const scoresMap = mergeScoresWithAutoPrice(manualScoresMap, autoPriceScores);
       setScores(scoresMap);
 
       // Calculate weighted totals for each bid
       const bidsWithScores = (bidsData || []).map(bid => {
         const bidScores = scoresMap[bid.id] || {};
         let weightedTotal = 0;
-        (criteriaData || []).forEach(c => {
+        normalizedCriteria.forEach(c => {
           const score = bidScores[c.id] || 0;
           weightedTotal += score * c.weight;
         });
@@ -154,6 +303,7 @@ export default function BidComparison() {
       });
 
       setBids(bidsWithScores);
+      await loadComparisonMessages(String(id));
     } catch (error: any) {
       console.error('Error loading data:', error);
       toast({
@@ -166,12 +316,103 @@ export default function BidComparison() {
     }
   };
 
+  const loadComparisonMessages = async (rfpId: string) => {
+    if (!rfpId) return;
+    try {
+      setLoadingComparisonMessages(true);
+      const { data, error } = await supabase
+        .from('rfp_bid_comparison_messages' as any)
+        .select('id, message, user_id, created_at')
+        .eq('rfp_id', rfpId)
+        .order('created_at', { ascending: true });
+      if (error) throw error;
+
+      const rows = (data || []) as Array<{ id: string; message: string; user_id: string; created_at: string }>;
+      const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
+      let profileMap = new Map<string, { name: string; avatarUrl: string | null }>();
+
+      if (userIds.length > 0) {
+        const { data: profiles } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, first_name, last_name, avatar_url')
+          .in('user_id', userIds);
+
+        profileMap = new Map(
+          (profiles || []).map((profile: any) => {
+            const fullName = `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim();
+            return [
+              profile.user_id,
+              {
+                name: profile?.display_name || fullName || 'Unknown User',
+                avatarUrl: profile?.avatar_url || null,
+              },
+            ];
+          }),
+        );
+      }
+
+      setComparisonMessages(
+        rows.map((row) => ({
+          ...row,
+          sender_name: profileMap.get(row.user_id)?.name || 'Unknown User',
+          sender_avatar_url: profileMap.get(row.user_id)?.avatarUrl || null,
+        })),
+      );
+    } catch (error) {
+      console.error('Error loading comparison messages:', error);
+      setComparisonMessages([]);
+    } finally {
+      setLoadingComparisonMessages(false);
+    }
+  };
+
+  const sendComparisonMessage = async () => {
+    if (!id || !currentCompany?.id || !user?.id) return;
+    const value = newComparisonMessage.trim();
+    if (!value) return;
+
+    try {
+      setSendingComparisonMessage(true);
+      const { error } = await supabase
+        .from('rfp_bid_comparison_messages' as any)
+        .insert({
+          company_id: currentCompany.id,
+          rfp_id: id,
+          user_id: user.id,
+          message: value,
+        });
+      if (error) throw error;
+
+      setNewComparisonMessage('');
+      await loadComparisonMessages(id);
+      toast({
+        title: 'Message posted',
+        description: 'Team discussion updated',
+      });
+    } catch (error: any) {
+      console.error('Error sending comparison message:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to post message',
+        variant: 'destructive',
+      });
+    } finally {
+      setSendingComparisonMessage(false);
+    }
+  };
+
   const updateScore = (bidId: string, criterionId: string, value: number) => {
+    const criterion = criteria.find((entry) => entry.id === criterionId);
+    if (criterion && isPriceCriterion(criterion.criterion_name)) {
+      return;
+    }
+    const clampedValue = Math.max(0, Math.min(value, criterion?.max_score ?? value));
+
     setScores(prev => ({
       ...prev,
       [bidId]: {
         ...(prev[bidId] || {}),
-        [criterionId]: value
+        [criterionId]: clampedValue
       }
     }));
 
@@ -180,13 +421,9 @@ export default function BidComparison() {
       if (bid.id !== bidId) return bid;
       const bidScores = {
         ...(scores[bidId] || {}),
-        [criterionId]: value
+        [criterionId]: clampedValue
       };
-      let weightedTotal = 0;
-      criteria.forEach(c => {
-        const score = bidScores[c.id] || 0;
-        weightedTotal += score * c.weight;
-      });
+      const weightedTotal = calculateWeightedTotal(bidId, criteria, { ...scores, [bidId]: bidScores });
       return { ...bid, scores: bidScores, weighted_total: weightedTotal };
     }));
   };
@@ -235,13 +472,89 @@ export default function BidComparison() {
     }
   };
 
+  const openEditCriterionModal = (criterion: ScoringCriterion) => {
+    const optionsText = (criterion.criterion_options || [])
+      .map((option) => `${option.label} | ${option.score}`)
+      .join('\n');
+    setCriterionForm({
+      criterion_name: criterion.criterion_name || '',
+      description: criterion.description || '',
+      weight: String(criterion.weight ?? 1),
+      max_score: String(criterion.max_score ?? 10),
+      criterion_type: normalizeCriterionType(criterion.criterion_type),
+      options_text: optionsText,
+    });
+    setEditingCriterion(criterion);
+  };
+
+  const parseCriterionOptions = (raw: string) => {
+    return raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [labelPart, scorePart] = line.split('|').map((part) => part?.trim() ?? '');
+        const score = Number(scorePart);
+        return {
+          label: labelPart,
+          score: Number.isFinite(score) ? score : 0,
+        };
+      })
+      .filter((option) => option.label.length > 0);
+  };
+
+  const saveCriterionEdit = async () => {
+    if (!editingCriterion?.id) return;
+    if (!id) return;
+
+    const name = criterionForm.criterion_name.trim();
+    if (!name) {
+      toast({ title: 'Validation', description: 'Criterion name is required', variant: 'destructive' });
+      return;
+    }
+
+    const options = criterionForm.criterion_type === 'picklist' ? parseCriterionOptions(criterionForm.options_text) : [];
+    if (criterionForm.criterion_type === 'picklist' && options.length === 0) {
+      toast({ title: 'Validation', description: 'Picklist requires at least one option', variant: 'destructive' });
+      return;
+    }
+
+    try {
+      setSavingCriterion(true);
+      const payload: any = {
+        criterion_name: name,
+        description: criterionForm.description.trim() || null,
+        weight: Number(criterionForm.weight) || 1,
+        max_score: criterionForm.criterion_type === 'yes_no' ? 1 : (Number(criterionForm.max_score) || 10),
+        criterion_type: criterionForm.criterion_type,
+        criterion_options: criterionForm.criterion_type === 'picklist' ? options : null,
+      };
+
+      const { error } = await supabase
+        .from('bid_scoring_criteria')
+        .update(payload)
+        .eq('id', editingCriterion.id)
+        .eq('rfp_id', id);
+      if (error) throw error;
+
+      setEditingCriterion(null);
+      await loadData();
+      toast({ title: 'Saved', description: 'Criterion updated' });
+    } catch (error: any) {
+      console.error('Error updating criterion:', error);
+      toast({ title: 'Error', description: error?.message || 'Failed to update criterion', variant: 'destructive' });
+    } finally {
+      setSavingCriterion(false);
+    }
+  };
+
   const exportToCSV = () => {
     if (!rfp || bids.length === 0) return;
 
-    const headers = ['Vendor', 'Bid Amount', 'Timeline', ...criteria.map(c => `${c.criterion_name} (${c.weight}x)`), 'Weighted Total'];
+    const headers = ['Vendor', 'Final Total Bid', 'Timeline', ...criteria.map(c => `${c.criterion_name} (${c.weight}x)`), 'Weighted Total'];
     const rows = bids.map(bid => [
       bid.vendor.name,
-      `$${bid.bid_amount.toLocaleString()}`,
+      `$${computeBidFinalTotal(bid).toLocaleString()}`,
       bid.proposed_timeline || '-',
       ...criteria.map(c => scores[bid.id]?.[c.id] || 0),
       bid.weighted_total.toFixed(2)
@@ -259,7 +572,7 @@ export default function BidComparison() {
 
   const getLowestBid = () => {
     if (bids.length === 0) return null;
-    return bids.reduce((min, bid) => bid.bid_amount < min.bid_amount ? bid : min);
+    return bids.reduce((min, bid) => (computeBidFinalTotal(bid) < computeBidFinalTotal(min) ? bid : min));
   };
 
   const getHighestScore = () => {
@@ -269,6 +582,7 @@ export default function BidComparison() {
 
   const lowestBid = getLowestBid();
   const highestScore = getHighestScore();
+  const priceCriteriaIds = new Set(criteria.filter((criterion) => isPriceCriterion(criterion.criterion_name)).map((criterion) => criterion.id));
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><span className="loading-dots">Loading</span></div>;
@@ -335,7 +649,7 @@ export default function BidComparison() {
                 </div>
                 <div>
                   <p className="text-sm text-muted-foreground">Lowest Bid</p>
-                  <p className="text-lg font-bold">${lowestBid.bid_amount.toLocaleString()}</p>
+                  <p className="text-lg font-bold">${computeBidFinalTotal(lowestBid).toLocaleString()}</p>
                   <p className="text-xs text-muted-foreground">{lowestBid.vendor.name}</p>
                 </div>
               </div>
@@ -410,15 +724,24 @@ export default function BidComparison() {
                 <TableHeader>
                   <TableRow>
                     <TableHead className="min-w-[150px]">Vendor</TableHead>
-                    <TableHead className="text-right">Bid Amount</TableHead>
+                    <TableHead className="text-right">Final Total Bid</TableHead>
                     <TableHead>Timeline</TableHead>
                     {criteria.map(c => (
                       <TableHead key={c.id} className="text-center min-w-[120px]">
                         <div>
                           <span>{c.criterion_name}</span>
                           <Badge variant="outline" className="ml-1">{c.weight}x</Badge>
+                          {priceCriteriaIds.has(c.id) && <Badge variant="secondary" className="ml-1">Auto</Badge>}
                         </div>
-                        <span className="text-xs text-muted-foreground">Max: {c.max_score}</span>
+                        <span className="text-xs text-muted-foreground">
+                          {priceCriteriaIds.has(c.id)
+                            ? `Auto: ${bids.length} (low) to 1 (high)`
+                            : normalizeCriterionType(c.criterion_type) === 'yes_no'
+                              ? `Yes=${c.max_score}, No=0`
+                              : normalizeCriterionType(c.criterion_type) === 'picklist'
+                                ? 'Picklist scoring'
+                                : `Max: ${c.max_score}`}
+                        </span>
                       </TableHead>
                     ))}
                     <TableHead className="text-center bg-muted/50">
@@ -444,21 +767,71 @@ export default function BidComparison() {
                           <div className="flex items-center justify-end gap-2">
                             {isLowest && <Badge variant="outline" className="text-green-600">Lowest</Badge>}
                             <span className={isLowest ? 'text-green-600 font-semibold' : ''}>
-                              ${bid.bid_amount.toLocaleString()}
+                              ${computeBidFinalTotal(bid).toLocaleString()}
                             </span>
                           </div>
                         </TableCell>
                         <TableCell>{bid.proposed_timeline || '-'}</TableCell>
                         {criteria.map(c => (
                           <TableCell key={c.id} className="text-center">
-                            <Input
-                              type="number"
-                              min={0}
-                              max={c.max_score}
-                              value={scores[bid.id]?.[c.id] || ''}
-                              onChange={(e) => updateScore(bid.id, c.id, parseInt(e.target.value) || 0)}
-                              className="w-20 mx-auto text-center"
-                            />
+                            {priceCriteriaIds.has(c.id) ? (
+                              <Input
+                                type="number"
+                                min={0}
+                                max={bids.length}
+                                value={scores[bid.id]?.[c.id] || ''}
+                                onChange={(e) => updateScore(bid.id, c.id, parseInt(e.target.value) || 0)}
+                                className="w-20 mx-auto text-center"
+                                disabled
+                              />
+                            ) : normalizeCriterionType(c.criterion_type) === 'yes_no' ? (
+                              <Select
+                                value={
+                                  scores[bid.id]?.[c.id] === c.max_score
+                                    ? 'yes'
+                                    : scores[bid.id]?.[c.id] === 0
+                                      ? 'no'
+                                      : ''
+                                }
+                                onValueChange={(selected) => {
+                                  if (selected === 'yes') updateScore(bid.id, c.id, c.max_score);
+                                  if (selected === 'no') updateScore(bid.id, c.id, 0);
+                                }}
+                              >
+                                <SelectTrigger className="w-28 mx-auto">
+                                  <SelectValue placeholder="Select" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  <SelectItem value="yes">Yes</SelectItem>
+                                  <SelectItem value="no">No</SelectItem>
+                                </SelectContent>
+                              </Select>
+                            ) : normalizeCriterionType(c.criterion_type) === 'picklist' ? (
+                              <Select
+                                value={String(scores[bid.id]?.[c.id] ?? '')}
+                                onValueChange={(selected) => updateScore(bid.id, c.id, Number(selected))}
+                              >
+                                <SelectTrigger className="w-36 mx-auto">
+                                  <SelectValue placeholder="Select" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {(c.criterion_options || []).map((option) => (
+                                    <SelectItem key={`${c.id}-${option.label}-${option.score}`} value={String(option.score)}>
+                                      {option.label} ({option.score})
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Input
+                                type="number"
+                                min={0}
+                                max={c.max_score}
+                                value={scores[bid.id]?.[c.id] || ''}
+                                onChange={(e) => updateScore(bid.id, c.id, parseInt(e.target.value) || 0)}
+                                className="w-20 mx-auto text-center"
+                              />
+                            )}
                           </TableCell>
                         ))}
                         <TableCell className="text-center bg-muted/50">
@@ -486,21 +859,23 @@ export default function BidComparison() {
           <CardContent>
             <div className="space-y-4">
               {bids.map((bid, index) => {
-                const minBid = Math.min(...bids.map(b => b.bid_amount));
-                const maxBid = Math.max(...bids.map(b => b.bid_amount));
+                const totals = bids.map((entry) => computeBidFinalTotal(entry));
+                const minBid = Math.min(...totals);
+                const maxBid = Math.max(...totals);
+                const bidTotal = computeBidFinalTotal(bid);
                 const range = maxBid - minBid;
-                const percentage = range > 0 ? ((bid.bid_amount - minBid) / range) * 100 : 0;
-                const isLowest = bid.bid_amount === minBid;
+                const percentage = range > 0 ? ((bidTotal - minBid) / range) * 100 : 0;
+                const isLowest = bidTotal === minBid;
 
                 return (
                   <div key={bid.id} className="space-y-2">
                     <div className="flex justify-between items-center">
                       <span className="font-medium">{bid.vendor.name}</span>
                       <span className={isLowest ? 'text-green-600 font-semibold' : ''}>
-                        ${bid.bid_amount.toLocaleString()}
+                        ${bidTotal.toLocaleString()}
                         {!isLowest && minBid > 0 && (
                           <span className="text-muted-foreground text-sm ml-2">
-                            (+{(((bid.bid_amount - minBid) / minBid) * 100).toFixed(1)}%)
+                            (+{(((bidTotal - minBid) / minBid) * 100).toFixed(1)}%)
                           </span>
                         )}
                       </span>
@@ -514,6 +889,60 @@ export default function BidComparison() {
                   </div>
                 );
               })}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {criteria.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <MessageSquare className="h-4 w-4" />
+              Internal Bid Discussion
+            </CardTitle>
+            <CardDescription>Team-only chat about this bid comparison and scoring</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            <div className="max-h-72 overflow-y-auto space-y-2 rounded-md border p-3">
+              {loadingComparisonMessages ? (
+                <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading</span></p>
+              ) : comparisonMessages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No discussion yet.</p>
+              ) : (
+                comparisonMessages.map((message) => (
+                  <div key={message.id} className="rounded-md bg-muted/40 p-3">
+                    <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                      <Avatar className="h-5 w-5">
+                        <AvatarImage src={message.sender_avatar_url || undefined} alt={message.sender_name} />
+                        <AvatarFallback className="text-[10px]">
+                          {message.sender_name
+                            .split(' ')
+                            .map((part) => part[0] || '')
+                            .join('')
+                            .slice(0, 2)
+                            .toUpperCase() || 'U'}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span>{message.sender_name}</span>
+                      <span>{format(new Date(message.created_at), 'MMM d, yyyy h:mm a')}</span>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap">{message.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+            <div className="space-y-2">
+              <Textarea
+                rows={3}
+                placeholder="Discuss bids and scoring with your team..."
+                value={newComparisonMessage}
+                onChange={(e) => setNewComparisonMessage(e.target.value)}
+              />
+              <Button onClick={sendComparisonMessage} disabled={sendingComparisonMessage || !newComparisonMessage.trim()}>
+                <Send className="mr-2 h-4 w-4" />
+                {sendingComparisonMessage ? 'Sending...' : 'Post Message'}
+              </Button>
             </div>
           </CardContent>
         </Card>

@@ -52,6 +52,20 @@ interface PendingFile {
   previewUrl: string | null;
 }
 
+const BID_STATUS_OPTIONS = [
+  { value: 'submitted', label: 'Submitted' },
+  { value: 'verbal_quote', label: 'Verbal Quote' },
+  { value: 'awaiting_formal_paperwork', label: 'Awaiting Formal Paperwork' },
+  { value: 'under_review', label: 'Under Review' },
+  { value: 'questions_pending', label: 'Questions Pending' },
+  { value: 'comments_requested', label: 'Comments Requested' },
+  { value: 'waiting_for_revisions', label: 'Waiting for Revisions' },
+  { value: 'shortlisted', label: 'Shortlisted' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'retracted', label: 'Retracted' },
+] as const;
+
 export default function AddBid() {
   const { rfpId } = useParams<{ rfpId: string }>();
   const navigate = useNavigate();
@@ -71,6 +85,7 @@ export default function AddBid() {
   
   const [formData, setFormData] = useState({
     vendor_id: '',
+    status: 'submitted',
     bid_amount: '',
     proposed_timeline: '',
     notes: '',
@@ -255,7 +270,7 @@ export default function AddBid() {
           taxes_included: formData.taxes_included,
           tax_amount: formData.taxes_included ? 0 : Number(formData.tax_amount || 0),
           discount_amount: Number(formData.discount_amount || 0),
-          status: 'submitted'
+          status: formData.status || 'submitted'
         } as any)
         .select('id')
         .single();
@@ -353,7 +368,25 @@ export default function AddBid() {
               )}
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="space-y-2">
+                <Label>Status</Label>
+                <Select
+                  value={formData.status}
+                  onValueChange={(value) => setFormData(prev => ({ ...prev, status: value }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select status" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {BID_STATUS_OPTIONS.map((statusOption) => (
+                      <SelectItem key={statusOption.value} value={statusOption.value}>
+                        {statusOption.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
               <div className="space-y-2">
                 <Label htmlFor="bid_amount">Bid Amount *</Label>
                 <Input

@@ -6,8 +6,10 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, Send, Trash2, Mail, Search, Upload } from 'lucide-react';
+import { ArrowLeft, Edit, FileText, Users, BarChart3, Plus, Building2, Calendar, Send, Trash2, Mail, Search, Upload, Save } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -76,8 +78,12 @@ interface Bid {
   vendor: {
     id: string;
     name: string;
+    logo_url?: string | null;
+    logo_display_url?: string | null;
   };
   total_score?: number;
+  scores?: Record<string, number>;
+  weighted_total?: number;
 }
 
 interface ScoringCriterion {
@@ -86,8 +92,106 @@ interface ScoringCriterion {
   description: string | null;
   weight: number;
   max_score: number;
+  criterion_type?: 'numeric' | 'yes_no' | 'picklist' | null;
+  criterion_options?: Array<{ label: string; score: number }> | null;
   sort_order: number;
 }
+
+const BID_STATUS_OPTIONS = [
+  { value: 'submitted', label: 'Submitted' },
+  { value: 'verbal_quote', label: 'Verbal Quote' },
+  { value: 'awaiting_formal_paperwork', label: 'Awaiting Formal Paperwork' },
+  { value: 'under_review', label: 'Under Review' },
+  { value: 'questions_pending', label: 'Questions Pending' },
+  { value: 'comments_requested', label: 'Comments Requested' },
+  { value: 'waiting_for_revisions', label: 'Waiting for Revisions' },
+  { value: 'shortlisted', label: 'Shortlisted' },
+  { value: 'accepted', label: 'Accepted' },
+  { value: 'rejected', label: 'Rejected' },
+  { value: 'retracted', label: 'Retracted' },
+] as const;
+
+const isPriceCriterion = (criterionName: string) => {
+  const value = String(criterionName || '').toLowerCase();
+  return value.includes('price') || value.includes('cost');
+};
+
+const normalizeCriterionType = (value: unknown): 'numeric' | 'yes_no' | 'picklist' => {
+  if (value === 'yes_no' || value === 'picklist' || value === 'numeric') return value;
+  return 'numeric';
+};
+
+const toNumber = (value: string | number | null | undefined) => Number(value || 0);
+
+const computeBidFinalTotal = (bid: {
+  bid_amount: number;
+  shipping_included?: boolean | null;
+  shipping_amount?: number | null;
+  taxes_included?: boolean | null;
+  tax_amount?: number | null;
+  discount_amount?: number | null;
+}) => {
+  const base = toNumber(bid.bid_amount);
+  const discount = toNumber(bid.discount_amount);
+  const taxableBase = Math.max(0, base - discount);
+  const shipping = bid.shipping_included ? 0 : toNumber(bid.shipping_amount);
+  const taxRatePercent = bid.taxes_included ? 0 : toNumber(bid.tax_amount);
+  const tax = taxableBase * (Math.max(0, taxRatePercent) / 100);
+  return Math.max(0, taxableBase + shipping + tax);
+};
+
+const buildAutoPriceScores = (bids: Bid[], criteria: ScoringCriterion[]) => {
+  const priceCriteria = criteria.filter((criterion) => isPriceCriterion(criterion.criterion_name));
+  if (priceCriteria.length === 0 || bids.length === 0) return {} as Record<string, Record<string, number>>;
+
+  const sorted = [...bids].sort((a, b) => computeBidFinalTotal(a) - computeBidFinalTotal(b));
+  const rankByBidId: Record<string, number> = {};
+  let currentRank = 1;
+  sorted.forEach((bid, index) => {
+    if (index > 0 && computeBidFinalTotal(bid) > computeBidFinalTotal(sorted[index - 1])) {
+      currentRank = index + 1;
+    }
+    rankByBidId[bid.id] = currentRank;
+  });
+
+  const scores: Record<string, Record<string, number>> = {};
+  bids.forEach((bid) => {
+    const rank = rankByBidId[bid.id] || bids.length;
+    const autoScore = Math.max(1, bids.length - rank + 1);
+    if (!scores[bid.id]) scores[bid.id] = {};
+    priceCriteria.forEach((criterion) => {
+      scores[bid.id][criterion.id] = autoScore;
+    });
+  });
+
+  return scores;
+};
+
+const mergeScoresWithAutoPrice = (
+  manualScores: Record<string, Record<string, number>>,
+  autoPriceScores: Record<string, Record<string, number>>,
+) => {
+  const merged: Record<string, Record<string, number>> = {};
+  Object.entries(manualScores).forEach(([bidId, bidScores]) => {
+    merged[bidId] = { ...(bidScores || {}) };
+  });
+  Object.entries(autoPriceScores).forEach(([bidId, bidScores]) => {
+    merged[bidId] = { ...(merged[bidId] || {}), ...(bidScores || {}) };
+  });
+  return merged;
+};
+
+const calculateWeightedTotal = (
+  bidId: string,
+  criteria: ScoringCriterion[],
+  scoreMap: Record<string, Record<string, number>>,
+) => {
+  const bidScores = scoreMap[bidId] || {};
+  return criteria.reduce((total, criterion) => {
+    const score = bidScores[criterion.id] || 0;
+    return total + score * Number(criterion.weight || 0);
+  }, 0);
+};
 
 interface Vendor {
   id: string;
@@ -139,6 +243,20 @@ export default function RFPDetails() {
   const [bidSortDirection, setBidSortDirection] = useState<'asc' | 'desc'>('desc');
   const [comparisonNotesDrafts, setComparisonNotesDrafts] = useState<Record<string, string>>({});
   const [savingComparisonNoteId, setSavingComparisonNoteId] = useState<string | null>(null);
+  const [updatingBidStatusId, setUpdatingBidStatusId] = useState<string | null>(null);
+  const [bidScoreMap, setBidScoreMap] = useState<Record<string, Record<string, number>>>({});
+  const [savingBidScores, setSavingBidScores] = useState(false);
+  const [scoringBidId, setScoringBidId] = useState<string | null>(null);
+  const [editingCriterion, setEditingCriterion] = useState<ScoringCriterion | null>(null);
+  const [criterionForm, setCriterionForm] = useState({
+    criterion_name: '',
+    description: '',
+    weight: '1',
+    max_score: '10',
+    criterion_type: 'numeric' as 'numeric' | 'yes_no' | 'picklist',
+    options_text: '',
+  });
+  const [savingCriterion, setSavingCriterion] = useState(false);
 
   const commentStorageKey = `rfp-attachment-comments:${currentCompany?.id || 'default'}:${id || 'unknown'}:${user?.id || 'anon'}`;
 
@@ -151,13 +269,42 @@ export default function RFPDetails() {
         return left.localeCompare(right);
       }
       if (bidSortBy === 'bid_amount') {
-        return Number(a.bid_amount || 0) - Number(b.bid_amount || 0);
+        return computeBidFinalTotal(a) - computeBidFinalTotal(b);
       }
       return new Date(a.submitted_at).getTime() - new Date(b.submitted_at).getTime();
     });
     if (bidSortDirection === 'desc') rows.reverse();
     return rows;
   }, [bids, bidSortBy, bidSortDirection]);
+
+  const analyzedBids = useMemo(
+    () =>
+      bids.map((bid) => ({
+        ...bid,
+        scores: bidScoreMap[bid.id] || {},
+        weighted_total: calculateWeightedTotal(bid.id, criteria, bidScoreMap),
+      })),
+    [bids, criteria, bidScoreMap],
+  );
+  const analyzedSortedBids = useMemo(
+    () =>
+      sortedBids.map((bid) => ({
+        ...bid,
+        scores: bidScoreMap[bid.id] || {},
+        weighted_total: calculateWeightedTotal(bid.id, criteria, bidScoreMap),
+      })),
+    [sortedBids, criteria, bidScoreMap],
+  );
+  const lowestBidId = useMemo(() => {
+    if (!analyzedBids.length) return null;
+    return analyzedBids.reduce((min, row) => (
+      computeBidFinalTotal(row) < computeBidFinalTotal(min) ? row : min
+    )).id;
+  }, [analyzedBids]);
+  const scoringBid = useMemo(
+    () => analyzedBids.find((row) => row.id === scoringBidId) || null,
+    [analyzedBids, scoringBidId],
+  );
 
   useEffect(() => {
     if (id && currentCompany?.id && !websiteJobAccessLoading) {
@@ -179,6 +326,52 @@ export default function RFPDetails() {
   useEffect(() => {
     window.localStorage.setItem(commentStorageKey, JSON.stringify(attachmentComments));
   }, [attachmentComments, commentStorageKey]);
+
+  useEffect(() => {
+    if (!id || bids.length === 0 || criteria.length === 0) {
+      setBidScoreMap({});
+      return;
+    }
+
+    const bidIds = bids.map((bid) => bid.id);
+    let cancelled = false;
+
+    (async () => {
+      try {
+        const { data: scoresData, error } = await supabase
+          .from('bid_scores')
+          .select('bid_id, criterion_id, score')
+          .in('bid_id', bidIds);
+
+        if (error) throw error;
+        if (cancelled) return;
+
+        const manualScores: Record<string, Record<string, number>> = {};
+        (scoresData || []).forEach((row: any) => {
+          if (!manualScores[row.bid_id]) manualScores[row.bid_id] = {};
+          manualScores[row.bid_id][row.criterion_id] = Number(row.score || 0);
+        });
+
+        const autoPrice = buildAutoPriceScores(bids, criteria);
+        setBidScoreMap(mergeScoresWithAutoPrice(manualScores, autoPrice));
+      } catch (error) {
+        console.error('Error loading bid scores:', error);
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [
+    id,
+    bids
+      .map(
+        (bid) =>
+          `${bid.id}:${bid.bid_amount}:${bid.shipping_included ? 1 : 0}:${bid.shipping_amount || 0}:${bid.taxes_included ? 1 : 0}:${bid.tax_amount || 0}:${bid.discount_amount || 0}`,
+      )
+      .join('|'),
+    criteria.map((criterion) => `${criterion.id}:${criterion.criterion_name}:${criterion.weight}:${criterion.max_score}:${criterion.criterion_type || ''}`).join('|'),
+  ]);
 
   useEffect(() => {
     const ownerIds = Array.from(new Set(attachments.map((a) => a.uploaded_by).filter(Boolean)));
@@ -250,16 +443,30 @@ export default function RFPDetails() {
         .from('bids')
         .select(`
           *,
-          vendor:vendors(id, name)
+          vendor:vendors(id, name, logo_url)
         `)
         .eq('rfp_id', id)
         .order('submitted_at', { ascending: false });
 
       if (error) throw error;
       const rows = (data || []) as Bid[];
-      setBids(rows);
+      const rowsWithVendorLogo = await Promise.all(
+        rows.map(async (row) => {
+          const logoPath = row.vendor?.logo_url || null;
+          if (!logoPath) return row;
+          const logoDisplayUrl = await resolveStorageUrl('receipts', logoPath);
+          return {
+            ...row,
+            vendor: {
+              ...row.vendor,
+              logo_display_url: logoDisplayUrl,
+            },
+          };
+        }),
+      );
+      setBids(rowsWithVendorLogo);
       setComparisonNotesDrafts(
-        rows.reduce<Record<string, string>>((acc, row) => {
+        rowsWithVendorLogo.reduce<Record<string, string>>((acc, row) => {
           acc[row.id] = row.comparison_notes || '';
           return acc;
         }, {}),
@@ -281,6 +488,59 @@ export default function RFPDetails() {
   const getSortIndicator = (column: 'vendor' | 'bid_amount' | 'submitted_at') => {
     if (bidSortBy !== column) return '';
     return bidSortDirection === 'asc' ? ' ↑' : ' ↓';
+  };
+
+  const updateBidScore = (bidId: string, criterionId: string, value: number) => {
+    const criterion = criteria.find((entry) => entry.id === criterionId);
+    if (criterion && isPriceCriterion(criterion.criterion_name)) return;
+
+    const clampedValue = Math.max(0, Math.min(value, Number(criterion?.max_score || value)));
+    setBidScoreMap((prev) => ({
+      ...prev,
+      [bidId]: {
+        ...(prev[bidId] || {}),
+        [criterionId]: clampedValue,
+      },
+    }));
+  };
+
+  const saveBidScores = async () => {
+    if (!currentCompany?.id || !user?.id) return;
+    try {
+      setSavingBidScores(true);
+      const rows: any[] = [];
+      Object.entries(bidScoreMap).forEach(([bidId, scores]) => {
+        Object.entries(scores).forEach(([criterionId, score]) => {
+          rows.push({
+            bid_id: bidId,
+            criterion_id: criterionId,
+            company_id: currentCompany.id,
+            score,
+            scored_by: user.id,
+            scored_at: new Date().toISOString(),
+          });
+        });
+      });
+
+      if (rows.length > 0) {
+        const { error } = await supabase.from('bid_scores').upsert(rows, { onConflict: 'bid_id,criterion_id' });
+        if (error) throw error;
+      }
+
+      toast({
+        title: 'Saved',
+        description: 'Bid analysis scores saved successfully',
+      });
+    } catch (error: any) {
+      console.error('Error saving bid scores:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to save bid scores',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingBidScores(false);
+    }
   };
 
   const saveComparisonNote = async (bidId: string) => {
@@ -307,6 +567,33 @@ export default function RFPDetails() {
     }
   };
 
+  const updateBidStatus = async (bidId: string, status: string) => {
+    try {
+      setUpdatingBidStatusId(bidId);
+      const { error } = await supabase
+        .from('bids')
+        .update({ status } as any)
+        .eq('id', bidId)
+        .eq('rfp_id', id);
+      if (error) throw error;
+
+      setBids((prev) => prev.map((row) => (row.id === bidId ? { ...row, status } : row)));
+      toast({
+        title: 'Status updated',
+        description: 'Bid status updated successfully.',
+      });
+    } catch (error: any) {
+      console.error('Error updating bid status:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to update bid status',
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingBidStatusId(null);
+    }
+  };
+
   const loadCriteria = async () => {
     try {
       const { data, error } = await supabase
@@ -319,6 +606,100 @@ export default function RFPDetails() {
       setCriteria(data || []);
     } catch (error) {
       console.error('Error loading criteria:', error);
+    }
+  };
+
+  const openEditCriterionModal = (criterion: ScoringCriterion) => {
+    const optionsText = (criterion.criterion_options || [])
+      .map((option) => `${option.label} | ${option.score}`)
+      .join('\n');
+
+    setCriterionForm({
+      criterion_name: criterion.criterion_name || '',
+      description: criterion.description || '',
+      weight: String(criterion.weight ?? 1),
+      max_score: String(criterion.max_score ?? 10),
+      criterion_type: criterion.criterion_type || 'numeric',
+      options_text: optionsText,
+    });
+    setEditingCriterion(criterion);
+  };
+
+  const parseCriterionOptions = (raw: string) => {
+    return raw
+      .split('\n')
+      .map((line) => line.trim())
+      .filter(Boolean)
+      .map((line) => {
+        const [labelPart, scorePart] = line.split('|').map((part) => part?.trim() ?? '');
+        const score = Number(scorePart);
+        return {
+          label: labelPart,
+          score: Number.isFinite(score) ? score : 0,
+        };
+      })
+      .filter((option) => option.label.length > 0);
+  };
+
+  const saveCriterionEdit = async () => {
+    if (!editingCriterion?.id) return;
+    const name = criterionForm.criterion_name.trim();
+    if (!name) {
+      toast({ title: 'Validation', description: 'Criterion name is required', variant: 'destructive' });
+      return;
+    }
+
+    const parsedWeight = Number(criterionForm.weight);
+    const parsedMax = Number(criterionForm.max_score);
+    if (!Number.isFinite(parsedWeight) || parsedWeight <= 0) {
+      toast({ title: 'Validation', description: 'Weight must be greater than 0', variant: 'destructive' });
+      return;
+    }
+    if (!Number.isFinite(parsedMax) || parsedMax < 0) {
+      toast({ title: 'Validation', description: 'Max score must be 0 or higher', variant: 'destructive' });
+      return;
+    }
+
+    const options = criterionForm.criterion_type === 'picklist' ? parseCriterionOptions(criterionForm.options_text) : [];
+    if (criterionForm.criterion_type === 'picklist' && options.length === 0) {
+      toast({
+        title: 'Validation',
+        description: 'Picklist criteria require at least one option',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setSavingCriterion(true);
+      const payload: any = {
+        criterion_name: name,
+        description: criterionForm.description.trim() || null,
+        weight: parsedWeight,
+        max_score: criterionForm.criterion_type === 'yes_no' ? 1 : parsedMax,
+        criterion_type: criterionForm.criterion_type,
+        criterion_options: criterionForm.criterion_type === 'picklist' ? options : null,
+      };
+
+      const { error } = await supabase
+        .from('bid_scoring_criteria')
+        .update(payload)
+        .eq('id', editingCriterion.id)
+        .eq('rfp_id', id);
+
+      if (error) throw error;
+      setEditingCriterion(null);
+      await loadCriteria();
+      toast({ title: 'Saved', description: 'Scoring criterion updated' });
+    } catch (error: any) {
+      console.error('Error updating criterion:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to update criterion',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingCriterion(false);
     }
   };
 
@@ -729,17 +1110,9 @@ export default function RFPDetails() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const getBidStatusBadge = (status: string) => {
-    const statusConfig: Record<string, { variant: 'default' | 'secondary' | 'destructive' | 'outline'; label: string }> = {
-      submitted: { variant: 'secondary', label: 'Submitted' },
-      under_review: { variant: 'default', label: 'Under Review' },
-      shortlisted: { variant: 'default', label: 'Shortlisted' },
-      accepted: { variant: 'default', label: 'Accepted' },
-      rejected: { variant: 'destructive', label: 'Rejected' }
-    };
-    const config = statusConfig[status] || { variant: 'secondary', label: status };
-    return <Badge variant={config.variant}>{config.label}</Badge>;
-  };
+  const priceCriteriaIds = new Set(
+    criteria.filter((criterion) => isPriceCriterion(criterion.criterion_name)).map((criterion) => criterion.id),
+  );
 
   if (loading) {
     return <div className="flex items-center justify-center h-64"><span className="loading-dots">Loading</span></div>;
@@ -794,9 +1167,9 @@ export default function RFPDetails() {
             <Mail className="h-4 w-4 mr-2" />
             Invite Vendors
           </Button>
-          <Button onClick={() => navigate(`/construction/rfps/${id}/compare`)}>
+          <Button variant="outline" onClick={() => navigate(`/construction/rfps/${id}/compare`)}>
             <BarChart3 className="h-4 w-4 mr-2" />
-            Compare Bids
+            Detailed Analysis
           </Button>
         </div>
       </div>
@@ -982,8 +1355,7 @@ export default function RFPDetails() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="invited">Invited ({invitedVendors.length})</TabsTrigger>
-          <TabsTrigger value="bids">Bids ({bids.length})</TabsTrigger>
-          <TabsTrigger value="scoring">Scoring Criteria</TabsTrigger>
+          <TabsTrigger value="bids">Bids & Analysis ({bids.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -1247,181 +1619,234 @@ export default function RFPDetails() {
         </TabsContent>
 
         <TabsContent value="bids" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <h3 className="text-lg font-semibold">Received Bids</h3>
-            <Button onClick={() => navigate(`/construction/rfps/${id}/bids/add`)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Bid
-            </Button>
-          </div>
-          
-          {bids.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">No Bids Yet</h3>
-                <p className="text-muted-foreground mb-4">No vendors have submitted bids for this RFP</p>
+          <Card>
+            <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+              <div>
+                <CardTitle>Bids & Analysis</CardTitle>
+                <CardDescription>Received bids and comparison matrix in one view.</CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={() => navigate(`/construction/rfps/${id}/bids/add`)}>
                   <Plus className="h-4 w-4 mr-2" />
                   Add Bid
                 </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="py-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="-ml-3 h-8 px-3 font-semibold"
-                        onClick={() => toggleBidSort('vendor')}
-                      >
-                        Vendor{getSortIndicator('vendor')}
-                      </Button>
-                    </TableHead>
-                    <TableHead className="py-2">Version</TableHead>
-                    <TableHead className="py-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="-ml-3 h-8 px-3 font-semibold"
-                        onClick={() => toggleBidSort('bid_amount')}
-                      >
-                        Bid Amount{getSortIndicator('bid_amount')}
-                      </Button>
-                    </TableHead>
-                    <TableHead className="py-2 min-w-[260px]">Inclusions / Exclusions Notes</TableHead>
-                    <TableHead className="py-2">Bid Contact</TableHead>
-                    <TableHead className="py-2">Timeline</TableHead>
-                    <TableHead className="py-2">Status</TableHead>
-                    <TableHead className="py-2">
-                      <Button
-                        variant="ghost"
-                        size="sm"
-                        className="-ml-3 h-8 px-3 font-semibold"
-                        onClick={() => toggleBidSort('submitted_at')}
-                      >
-                        Submitted{getSortIndicator('submitted_at')}
-                      </Button>
-                    </TableHead>
-                    <TableHead className="py-2"></TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {sortedBids.map(bid => (
-                    <TableRow
-                      key={bid.id}
-                      className="cursor-pointer hover:bg-muted/40"
-                      onClick={() => navigate(`/construction/bids/${bid.id}`)}
-                    >
-                      <TableCell className="py-2 font-medium">{bid.vendor.name}</TableCell>
-                      <TableCell className="py-2">
-                        <Badge variant="outline">v{Number(bid.version_number || 1)}</Badge>
-                      </TableCell>
-                      <TableCell className="py-2 font-medium">
-                        ${Number(bid.bid_amount || 0).toLocaleString(undefined, {
-                          minimumFractionDigits: 2,
-                          maximumFractionDigits: 2,
-                        })}
-                      </TableCell>
-                      <TableCell className="py-2">
-                        <Input
-                          value={comparisonNotesDrafts[bid.id] ?? ''}
-                          placeholder="Add comparison / inclusion / exclusion notes"
-                          onClick={(e) => e.stopPropagation()}
-                          onChange={(e) =>
-                            setComparisonNotesDrafts((prev) => ({ ...prev, [bid.id]: e.target.value }))
-                          }
-                          onBlur={() => saveComparisonNote(bid.id)}
-                          disabled={savingComparisonNoteId === bid.id}
-                        />
-                      </TableCell>
-                      <TableCell className="py-2">
-                        {bid.bid_contact_name ? (
-                          <div className="leading-tight">
-                            <div>{bid.bid_contact_name}</div>
-                            <div className="text-xs text-muted-foreground">
-                              {bid.bid_contact_email || bid.bid_contact_phone || "-"}
-                            </div>
-                          </div>
-                        ) : (
-                          "-"
-                        )}
-                      </TableCell>
-                      <TableCell className="py-2">{bid.proposed_timeline || '-'}</TableCell>
-                      <TableCell className="py-2">{getBidStatusBadge(bid.status)}</TableCell>
-                      <TableCell className="py-2">{format(new Date(bid.submitted_at), 'MMM d, yyyy')}</TableCell>
-                      <TableCell className="py-2">
-                        <Button 
-                          variant="ghost" 
-                          size="sm"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            navigate(`/construction/bids/${bid.id}`);
-                          }}
-                        >
-                          View
-                        </Button>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
-        </TabsContent>
-
-        <TabsContent value="scoring" className="space-y-4">
-          <div className="flex justify-between items-center">
-            <div>
-              <h3 className="text-lg font-semibold">Scoring Criteria</h3>
-              <p className="text-sm text-muted-foreground">Define weighted criteria for bid evaluation</p>
-            </div>
-            <Button onClick={() => navigate(`/construction/rfps/${id}/criteria/add`)}>
-              <Plus className="h-4 w-4 mr-2" />
-              Add Criterion
-            </Button>
-          </div>
-
-          {criteria.length === 0 ? (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <BarChart3 className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium">No Scoring Criteria</h3>
-                <p className="text-muted-foreground mb-4">Add criteria to evaluate and compare bids</p>
-                <Button onClick={() => navigate(`/construction/rfps/${id}/criteria/add`)}>
+                <Button variant="outline" onClick={() => navigate(`/construction/rfps/${id}/criteria/add`)}>
                   <Plus className="h-4 w-4 mr-2" />
-                  Add Criterion
+                  Add Criteria
                 </Button>
-              </CardContent>
-            </Card>
-          ) : (
-            <Card>
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="py-2">Criterion</TableHead>
-                    <TableHead className="py-2">Description</TableHead>
-                    <TableHead className="py-2">Weight</TableHead>
-                    <TableHead className="py-2">Max Score</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {criteria.map(c => (
-                    <TableRow key={c.id}>
-                      <TableCell className="py-2 font-medium">{c.criterion_name}</TableCell>
-                      <TableCell className="py-2">{c.description || '-'}</TableCell>
-                      <TableCell className="py-2">{c.weight}x</TableCell>
-                      <TableCell className="py-2">{c.max_score}</TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </Card>
-          )}
+                <Button
+                  variant="outline"
+                  onClick={() => setScoringBidId(analyzedSortedBids[0]?.id || null)}
+                  disabled={analyzedSortedBids.length === 0 || criteria.length === 0}
+                >
+                  <BarChart3 className="h-4 w-4 mr-2" />
+                  Score Criteria
+                </Button>
+                <Button onClick={saveBidScores} disabled={savingBidScores || bids.length === 0 || criteria.length === 0}>
+                  <Save className="h-4 w-4 mr-2" />
+                  {savingBidScores ? 'Saving...' : 'Save Scores'}
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {bids.length === 0 ? (
+                <div className="py-12 text-center">
+                  <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium">No Bids Yet</h3>
+                  <p className="text-muted-foreground mb-4">No vendors have submitted bids for this RFP</p>
+                  <Button onClick={() => navigate(`/construction/rfps/${id}/bids/add`)}>
+                    <Plus className="h-4 w-4 mr-2" />
+                    Add Bid
+                  </Button>
+                </div>
+              ) : (
+                <>
+                  <div className="overflow-x-auto">
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead className="py-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="-ml-3 h-8 px-3 font-semibold"
+                              onClick={() => toggleBidSort('vendor')}
+                            >
+                              Vendor{getSortIndicator('vendor')}
+                            </Button>
+                          </TableHead>
+                          <TableHead className="py-2">Version</TableHead>
+                          <TableHead className="py-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="-ml-3 h-8 px-3 font-semibold"
+                              onClick={() => toggleBidSort('bid_amount')}
+                            >
+                              Final Total{getSortIndicator('bid_amount')}
+                            </Button>
+                          </TableHead>
+                          <TableHead className="py-2 min-w-[240px]">Inclusions / Exclusions Notes</TableHead>
+                          <TableHead className="py-2">Status</TableHead>
+                          <TableHead className="py-2">
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="-ml-3 h-8 px-3 font-semibold"
+                              onClick={() => toggleBidSort('submitted_at')}
+                            >
+                              Submitted{getSortIndicator('submitted_at')}
+                            </Button>
+                          </TableHead>
+                          {criteria.map((criterion) => (
+                            <TableHead key={criterion.id} className="py-2 text-center min-w-[120px]">
+                              <div className="font-medium">{criterion.criterion_name}</div>
+                              <div className="text-xs text-muted-foreground">
+                                {priceCriteriaIds.has(criterion.id)
+                                  ? `Auto ${bids.length}->1`
+                                  : normalizeCriterionType(criterion.criterion_type) === 'yes_no'
+                                    ? `Yes=${criterion.max_score}, No=0`
+                                    : normalizeCriterionType(criterion.criterion_type) === 'picklist'
+                                      ? 'Picklist'
+                                      : `Max ${criterion.max_score}`}
+                              </div>
+                            </TableHead>
+                          ))}
+                          {criteria.length > 0 && <TableHead className="py-2 text-center bg-muted/40">Weighted</TableHead>}
+                          <TableHead className="py-2 text-right">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {analyzedSortedBids.map((bid) => (
+                          <TableRow
+                            key={bid.id}
+                            className="cursor-pointer hover:bg-muted/40"
+                            onClick={() => navigate(`/construction/bids/${bid.id}`)}
+                          >
+                            <TableCell className="py-2 font-medium">
+                              <div className="flex items-center gap-2">
+                                <Avatar className="h-7 w-7">
+                                  <AvatarImage src={bid.vendor.logo_display_url || bid.vendor.logo_url || undefined} alt={bid.vendor.name} />
+                                  <AvatarFallback className="text-[10px]">
+                                    {String(bid.vendor.name || '')
+                                      .split(' ')
+                                      .map((part) => part[0] || '')
+                                      .join('')
+                                      .slice(0, 2)
+                                      .toUpperCase() || 'V'}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <span className="truncate">{bid.vendor.name}</span>
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-2">
+                              <Badge variant="outline">v{Number(bid.version_number || 1)}</Badge>
+                            </TableCell>
+                            <TableCell className="py-2 font-medium">
+                              <div className="flex items-center gap-2">
+                                <span>
+                                  ${computeBidFinalTotal(bid).toLocaleString(undefined, {
+                                    minimumFractionDigits: 2,
+                                    maximumFractionDigits: 2,
+                                  })}
+                                </span>
+                                {lowestBidId === bid.id && <Badge className="bg-emerald-600 hover:bg-emerald-600">Lowest Bid</Badge>}
+                              </div>
+                            </TableCell>
+                            <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
+                              <Input
+                                value={comparisonNotesDrafts[bid.id] ?? ''}
+                                placeholder="Add comparison / inclusion / exclusion notes"
+                                onChange={(e) =>
+                                  setComparisonNotesDrafts((prev) => ({ ...prev, [bid.id]: e.target.value }))
+                                }
+                                onBlur={() => saveComparisonNote(bid.id)}
+                                disabled={savingComparisonNoteId === bid.id}
+                              />
+                            </TableCell>
+                            <TableCell className="py-2" onClick={(e) => e.stopPropagation()}>
+                              <Select
+                                value={bid.status || 'submitted'}
+                                onValueChange={(value) => updateBidStatus(bid.id, value)}
+                                disabled={updatingBidStatusId === bid.id}
+                              >
+                                <SelectTrigger className="h-8 min-w-[170px]">
+                                  <SelectValue />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {BID_STATUS_OPTIONS.map((statusOption) => (
+                                    <SelectItem key={statusOption.value} value={statusOption.value}>
+                                      {statusOption.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            </TableCell>
+                            <TableCell className="py-2">{format(new Date(bid.submitted_at), 'MMM d, yyyy')}</TableCell>
+                            {criteria.map((criterion) => (
+                              <TableCell key={`${bid.id}-${criterion.id}`} className="py-2 text-center" onClick={(e) => e.stopPropagation()}>
+                                {priceCriteriaIds.has(criterion.id) ? (
+                                  <span className="text-sm tabular-nums">{bidScoreMap[bid.id]?.[criterion.id] ?? '-'}</span>
+                                ) : (
+                                  <span className="text-sm tabular-nums">{bidScoreMap[bid.id]?.[criterion.id] ?? '-'}</span>
+                                )}
+                              </TableCell>
+                            ))}
+                            {criteria.length > 0 && (
+                              <TableCell className="py-2 text-center bg-muted/40 font-semibold">
+                                {(bid.weighted_total || 0).toFixed(1)}
+                              </TableCell>
+                            )}
+                            <TableCell className="py-2 text-right" onClick={(e) => e.stopPropagation()}>
+                              <div className="flex justify-end gap-1">
+                                {criteria.length > 0 && (
+                                  <Button variant="outline" size="sm" onClick={() => setScoringBidId(bid.id)}>
+                                    Score Criteria
+                                  </Button>
+                                )}
+                                <Button variant="ghost" size="sm" onClick={() => navigate(`/construction/bids/${bid.id}`)}>
+                                  View
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        ))}
+                      </TableBody>
+                    </Table>
+                  </div>
+
+                  <div className="space-y-2">
+                    <div className="text-sm font-medium">Bid Amount Comparison</div>
+                    <div className="space-y-2">
+                      {analyzedSortedBids
+                        .map((bid) => ({ ...bid, finalTotal: computeBidFinalTotal(bid) }))
+                        .sort((a, b) => a.finalTotal - b.finalTotal)
+                        .map((bid, index, rows) => {
+                          const max = Math.max(...rows.map((row) => row.finalTotal), 1);
+                          const width = Math.max((bid.finalTotal / max) * 100, 6);
+                          return (
+                            <div key={`bar-${bid.id}`} className="grid grid-cols-[minmax(140px,180px)_1fr_180px] items-center gap-3">
+                              <div className="w-40 truncate text-sm">{bid.vendor.name}</div>
+                              <div className="h-6 flex-1 rounded bg-muted overflow-hidden">
+                                <div className="h-full bg-primary/70" style={{ width: `${width}%` }} />
+                              </div>
+                              <div className="w-[180px] text-right">
+                                <div className="text-sm tabular-nums">
+                                  ${bid.finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                </div>
+                                <div className="mt-1 h-5">
+                                  {index === 0 && <Badge className="bg-emerald-600 hover:bg-emerald-600">Lowest</Badge>}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 
@@ -1442,6 +1867,238 @@ export default function RFPDetails() {
             emptyMessage="No preview available"
             emptySubMessage="Select a drawing to preview it"
           />
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!scoringBid}
+        onOpenChange={(open) => {
+          if (!open) setScoringBidId(null);
+        }}
+      >
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Score Bid</DialogTitle>
+            <DialogDescription>
+              {scoringBid ? `Set comparison criteria scores for ${scoringBid.vendor.name}` : 'Set comparison criteria scores'}
+            </DialogDescription>
+          </DialogHeader>
+
+          {scoringBid && (
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 gap-3 rounded-md border p-3 md:grid-cols-3">
+                <div>
+                  <p className="text-xs text-muted-foreground">Vendor</p>
+                  <p className="font-medium">{scoringBid.vendor.name}</p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Final Total</p>
+                  <p className="font-medium">
+                    ${computeBidFinalTotal(scoringBid).toLocaleString(undefined, {
+                      minimumFractionDigits: 2,
+                      maximumFractionDigits: 2,
+                    })}
+                  </p>
+                </div>
+                <div>
+                  <p className="text-xs text-muted-foreground">Weighted Total</p>
+                  <p className="font-medium">{(scoringBid.weighted_total || 0).toFixed(1)}</p>
+                </div>
+              </div>
+
+              {criteria.length === 0 ? (
+                <div className="text-sm text-muted-foreground">No scoring criteria set yet.</div>
+              ) : (
+                <div className="space-y-3 max-h-[55vh] overflow-y-auto pr-1">
+                  {criteria.map((criterion) => (
+                    <div key={`modal-${criterion.id}`} className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-2 items-center">
+                      <div>
+                        <div className="font-medium text-sm">{criterion.criterion_name}</div>
+                        <div className="text-xs text-muted-foreground">Weight {criterion.weight} | Max {criterion.max_score}</div>
+                      </div>
+                      {priceCriteriaIds.has(criterion.id) ? (
+                        <Input
+                          type="number"
+                          value={bidScoreMap[scoringBid.id]?.[criterion.id] || ''}
+                          disabled
+                          className="w-full md:w-56"
+                        />
+                      ) : normalizeCriterionType(criterion.criterion_type) === 'yes_no' ? (
+                        <Select
+                          value={
+                            bidScoreMap[scoringBid.id]?.[criterion.id] === criterion.max_score
+                              ? 'yes'
+                              : bidScoreMap[scoringBid.id]?.[criterion.id] === 0
+                                ? 'no'
+                                : ''
+                          }
+                          onValueChange={(selected) => {
+                            if (selected === 'yes') updateBidScore(scoringBid.id, criterion.id, criterion.max_score);
+                            if (selected === 'no') updateBidScore(scoringBid.id, criterion.id, 0);
+                          }}
+                        >
+                          <SelectTrigger className="w-full md:w-56">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="yes">Yes</SelectItem>
+                            <SelectItem value="no">No</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      ) : normalizeCriterionType(criterion.criterion_type) === 'picklist' ? (
+                        <Select
+                          value={String(bidScoreMap[scoringBid.id]?.[criterion.id] ?? '')}
+                          onValueChange={(selected) => updateBidScore(scoringBid.id, criterion.id, Number(selected))}
+                        >
+                          <SelectTrigger className="w-full md:w-72">
+                            <SelectValue placeholder="Select" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {(criterion.criterion_options || []).map((option) => (
+                              <SelectItem key={`modal-opt-${criterion.id}-${option.label}-${option.score}`} value={String(option.score)}>
+                                {option.label} ({option.score})
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Input
+                          type="number"
+                          min={0}
+                          max={criterion.max_score}
+                          value={bidScoreMap[scoringBid.id]?.[criterion.id] || ''}
+                          onChange={(e) => updateBidScore(scoringBid.id, criterion.id, parseInt(e.target.value, 10) || 0)}
+                          className="w-full md:w-56"
+                        />
+                      )}
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setScoringBidId(null)}>
+              Close
+            </Button>
+            <Button
+              onClick={async () => {
+                await saveBidScores();
+                setScoringBidId(null);
+              }}
+              disabled={savingBidScores || criteria.length === 0}
+            >
+              {savingBidScores ? 'Saving...' : 'Save Scores'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!editingCriterion}
+        onOpenChange={(open) => {
+          if (!open) setEditingCriterion(null);
+        }}
+      >
+        <DialogContent className="max-w-xl">
+          <DialogHeader>
+            <DialogTitle>Edit Scoring Criterion</DialogTitle>
+            <DialogDescription>
+              Update this criterion. Manual per-bid scoring is entered in Bid Comparison.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Criterion Name</Label>
+              <Input
+                value={criterionForm.criterion_name}
+                onChange={(e) => setCriterionForm((prev) => ({ ...prev, criterion_name: e.target.value }))}
+                placeholder="e.g., Build Approach"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label>Description</Label>
+              <Textarea
+                value={criterionForm.description}
+                onChange={(e) => setCriterionForm((prev) => ({ ...prev, description: e.target.value }))}
+                placeholder="How should this be evaluated?"
+                rows={3}
+              />
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+              <div className="space-y-2">
+                <Label>Type</Label>
+                <Select
+                  value={criterionForm.criterion_type}
+                  onValueChange={(value) =>
+                    setCriterionForm((prev) => ({
+                      ...prev,
+                      criterion_type: value as 'numeric' | 'yes_no' | 'picklist',
+                      max_score: value === 'yes_no' ? '1' : prev.max_score,
+                    }))
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="numeric">Numeric</SelectItem>
+                    <SelectItem value="yes_no">Yes / No</SelectItem>
+                    <SelectItem value="picklist">Picklist</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              <div className="space-y-2">
+                <Label>Weight</Label>
+                <Input
+                  type="number"
+                  min={0.1}
+                  step={0.1}
+                  value={criterionForm.weight}
+                  onChange={(e) => setCriterionForm((prev) => ({ ...prev, weight: e.target.value }))}
+                />
+              </div>
+
+              <div className="space-y-2">
+                <Label>Max Score</Label>
+                <Input
+                  type="number"
+                  min={0}
+                  step={1}
+                  value={criterionForm.max_score}
+                  onChange={(e) => setCriterionForm((prev) => ({ ...prev, max_score: e.target.value }))}
+                  disabled={criterionForm.criterion_type === 'yes_no'}
+                />
+              </div>
+            </div>
+
+            {criterionForm.criterion_type === 'picklist' && (
+              <div className="space-y-2">
+                <Label>Picklist Options</Label>
+                <Textarea
+                  value={criterionForm.options_text}
+                  onChange={(e) => setCriterionForm((prev) => ({ ...prev, options_text: e.target.value }))}
+                  placeholder={`Concrete | 10\nWood | 6\nOther | 3`}
+                  rows={4}
+                />
+                <p className="text-xs text-muted-foreground">One option per line as: Label | Score</p>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEditingCriterion(null)} disabled={savingCriterion}>
+              Cancel
+            </Button>
+            <Button onClick={saveCriterionEdit} disabled={savingCriterion}>
+              {savingCriterion ? 'Saving...' : 'Save Criterion'}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

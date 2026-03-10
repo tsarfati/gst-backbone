@@ -166,6 +166,7 @@ export default function UserDetails() {
   const { toast } = useToast();
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
+  const [lastSignInAt, setLastSignInAt] = useState<string | null>(null);
   const [userJobs, setUserJobs] = useState<Job[]>([]);
   const [vendorJobs, setVendorJobs] = useState<VendorJob[]>([]);
   const [loginAudit, setLoginAudit] = useState<LoginAudit[]>([]);
@@ -427,6 +428,7 @@ export default function UserDetails() {
       if (!session) return;
       const response = await supabase.functions.invoke('get-user-email', { body: { userId, companyId: currentCompany?.id } });
       if (response.data?.email) setUserEmail(response.data.email);
+      setLastSignInAt(response.data?.lastSignInAt || null);
     } catch (error) {
       console.error('Error fetching user email:', error);
     }
@@ -1394,7 +1396,21 @@ export default function UserDetails() {
             </div>
           ) : (
             <div className="text-center py-6 text-muted-foreground">
-              No login history available
+              {lastSignInAt ? (
+                <div className="space-y-2">
+                  <div className="flex items-center justify-center gap-2">
+                    <Clock className="h-4 w-4" />
+                    <span>
+                      Last sign-in: {new Date(lastSignInAt).toLocaleString()}
+                    </span>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Showing auth fallback because no audit rows were found yet.
+                  </p>
+                </div>
+              ) : (
+                "No login history available"
+              )}
             </div>
           )}
         </CardContent>
