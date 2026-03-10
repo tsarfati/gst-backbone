@@ -126,10 +126,7 @@ const computeBidFinalTotal = (bid: {
   return Math.max(0, taxableBase + shipping + tax);
 };
 
-const buildAutoPriceScores = (bids: Bid[], criteria: ScoringCriterion[]) => {
-  const priceCriteria = criteria.filter((criterion) => isPriceCriterion(criterion.criterion_name));
-  if (priceCriteria.length === 0 || bids.length === 0) return {} as Record<string, Record<string, number>>;
-
+const buildPriceRankByBidId = (bids: Bid[]) => {
   const sorted = [...bids].sort((a, b) => computeBidFinalTotal(a) - computeBidFinalTotal(b));
   const rankByBidId: Record<string, number> = {};
   let currentRank = 1;
@@ -139,6 +136,25 @@ const buildAutoPriceScores = (bids: Bid[], criteria: ScoringCriterion[]) => {
     }
     rankByBidId[bid.id] = currentRank;
   });
+  return rankByBidId;
+};
+
+const formatOrdinal = (value: number) => {
+  const abs = Math.abs(value);
+  const mod100 = abs % 100;
+  if (mod100 >= 11 && mod100 <= 13) return `${value}th`;
+  const mod10 = abs % 10;
+  if (mod10 === 1) return `${value}st`;
+  if (mod10 === 2) return `${value}nd`;
+  if (mod10 === 3) return `${value}rd`;
+  return `${value}th`;
+};
+
+const buildAutoPriceScores = (bids: Bid[], criteria: ScoringCriterion[]) => {
+  const priceCriteria = criteria.filter((criterion) => isPriceCriterion(criterion.criterion_name));
+  if (priceCriteria.length === 0 || bids.length === 0) return {} as Record<string, Record<string, number>>;
+
+  const rankByBidId = buildPriceRankByBidId(bids);
 
   const scores: Record<string, Record<string, number>> = {};
   bids.forEach((bid) => {
@@ -261,9 +277,11 @@ export default function RFPDetails() {
   }, [bids, bidSortBy, bidSortDirection]);
 
   const effectiveCriteria = useMemo<ScoringCriterion[]>(() => {
-    if (criteria.length > 0) return criteria;
-    if (bids.length === 0) return [];
+    if (bids.length === 0) return criteria;
+    const hasExplicitPriceCriterion = criteria.some((criterion) => isPriceCriterion(criterion.criterion_name));
+    if (hasExplicitPriceCriterion) return criteria;
     return [
+      ...criteria,
       {
         id: '__default_price_rank__',
         criterion_name: 'Price Rank (Auto)',
@@ -272,7 +290,7 @@ export default function RFPDetails() {
         max_score: bids.length,
         criterion_type: 'numeric',
         criterion_options: null,
-        sort_order: 0,
+        sort_order: 9999,
       },
     ];
   }, [criteria, bids.length]);
@@ -307,6 +325,7 @@ export default function RFPDetails() {
     () => analyzedBids.find((row) => row.id === scoringBidId) || null,
     [analyzedBids, scoringBidId],
   );
+  const priceRankByBidId = useMemo(() => buildPriceRankByBidId(bids), [bids]);
 
   useEffect(() => {
     if (id && currentCompany?.id && !websiteJobAccessLoading) {
@@ -1851,12 +1870,17 @@ export default function RFPDetails() {
                         <div className="text-xs text-muted-foreground">Weight {criterion.weight} | Max {criterion.max_score}</div>
                       </div>
                       {priceCriteriaIds.has(criterion.id) ? (
-                        <Input
-                          type="number"
-                          value={bidScoreMap[scoringBid.id]?.[criterion.id] || ''}
-                          disabled
-                          className="w-full md:w-56"
-                        />
+                        <div className="space-y-1">
+                          <Input
+                            type="number"
+                            value={bidScoreMap[scoringBid.id]?.[criterion.id] || ''}
+                            disabled
+                            className="w-full md:w-56"
+                          />
+                          <p className="text-xs text-muted-foreground">
+                            {`${formatOrdinal(priceRankByBidId[scoringBid.id] || bids.length)} lowest -> ${bidScoreMap[scoringBid.id]?.[criterion.id] ?? '-'} point(s)`}
+                          </p>
+                        </div>
                       ) : normalizeCriterionType(criterion.criterion_type) === 'yes_no' ? (
                         <Select
                           value={
