@@ -114,9 +114,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   }, [currentCompany?.id, profile?.current_company_id, userCompanies]);
 
   const isCompanyAdminRole = useMemo(() => {
-    const role = (activeCompanyRole || '').toLowerCase();
-    return role === 'admin' || role === 'company_admin' || role === 'controller';
-  }, [activeCompanyRole]);
+    const scopedRole = (activeCompanyRole || '').toLowerCase();
+    const profileRole = String(profile?.role || '').toLowerCase();
+    return (
+      scopedRole === 'admin' ||
+      scopedRole === 'company_admin' ||
+      scopedRole === 'controller' ||
+      scopedRole === 'owner' ||
+      profileRole === 'design_professional'
+    );
+  }, [activeCompanyRole, profile?.role]);
 
   const hexToHsl = (hex: string): string => {
     const r = parseInt(hex.slice(1, 3), 16) / 255;
@@ -333,7 +340,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         }
 
         const role = (activeCompanyRole || '').toLowerCase();
-        const isCompanyAdmin = role === 'admin' || role === 'company_admin' || role === 'controller';
+        const profileRole = String(profile?.role || '').toLowerCase();
+        const isCompanyAdmin =
+          role === 'admin' ||
+          role === 'company_admin' ||
+          role === 'controller' ||
+          role === 'owner' ||
+          profileRole === 'design_professional';
 
         // Enforce company-wide colors: non-admins cannot persist custom color overrides
         if (!isCompanyAdmin) {

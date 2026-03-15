@@ -164,6 +164,11 @@ import VisitorCheckout from "./pages/VisitorCheckout";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
+import DesignProfessionalDashboard from "./pages/DesignProfessionalDashboard";
+import DesignProfessionalJobs from "./pages/DesignProfessionalJobs";
+import DesignProfessionalCompanySettings from "./pages/DesignProfessionalCompanySettings";
+import DesignProfessionalRFIs from "./pages/DesignProfessionalRFIs";
+import DesignProfessionalSubmittals from "./pages/DesignProfessionalSubmittals";
 import VendorRegister from "./pages/VendorRegister";
 import VendorSignup from "./pages/VendorSignup";
 import DesignProfessionalSignup from "./pages/DesignProfessionalSignup";
@@ -190,6 +195,20 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   return <>{children}</>;
 }
 
+function DashboardEntryRoute() {
+  const { profile } = useAuth();
+  const role = String(profile?.role || '').toLowerCase();
+
+  if (role === 'design_professional') {
+    return <Navigate to="/design-professional/dashboard" replace />;
+  }
+  if (role === 'vendor') {
+    return <Navigate to="/vendor/dashboard" replace />;
+  }
+
+  return <Dashboard />;
+}
+
 function OrganizationOwnerRoute({ children }: { children: React.ReactNode }) {
   const { tenantMember, isSuperAdmin, loading } = useTenant();
   const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess(['organization_management']);
@@ -204,6 +223,20 @@ function OrganizationOwnerRoute({ children }: { children: React.ReactNode }) {
 
   if (!hasFeature('organization_management')) {
     return <Navigate to="/settings/company" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function CompanyOwnerOnlyRoute({ children }: { children: React.ReactNode }) {
+  const { tenantMember, isSuperAdmin, loading } = useTenant();
+
+  if (loading) {
+    return <PremiumLoadingScreen />;
+  }
+
+  if (!isSuperAdmin && tenantMember?.role !== 'owner') {
+    return <Navigate to="/design-professional/settings/company" replace />;
   }
 
   return <>{children}</>;
@@ -352,16 +385,50 @@ function AuthenticatedRoutes() {
                 </AccessControl>
               </ProtectedRoute>
             }>
-              <Route index element={<Dashboard />} />
-              <Route path="dashboard" element={<Dashboard />} />
+              <Route index element={<DashboardEntryRoute />} />
+              <Route path="dashboard" element={<DashboardEntryRoute />} />
+              <Route path="design-professional-dashboard" element={<Navigate to="/design-professional/dashboard" replace />} />
+              <Route path="vendor-dashboard" element={<Navigate to="/vendor/dashboard" replace />} />
               <Route path="vendor/dashboard" element={
                 <RoleGuard allowedRoles={['vendor', 'design_professional']}>
                   <VendorDashboard />
                 </RoleGuard>
               } />
               <Route path="design-professional/dashboard" element={
-                <RoleGuard allowedRoles={['vendor', 'design_professional']}>
-                  <VendorDashboard />
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <DesignProfessionalDashboard />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/jobs" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <DesignProfessionalJobs />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/jobs/rfis" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <DesignProfessionalRFIs />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/jobs/submittals" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <DesignProfessionalSubmittals />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/settings/company" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <DesignProfessionalCompanySettings />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/settings/users" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <UserSettings />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/subscription" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <CompanyOwnerOnlyRoute>
+                    <SubscriptionPortal />
+                  </CompanyOwnerOnlyRoute>
                 </RoleGuard>
               } />
               <Route path="vendor/compliance" element={
@@ -565,6 +632,21 @@ function AuthenticatedRoutes() {
               <Route path="company-files" element={<CompanyFiles />} />
               <Route path="company-files/jobs" element={<CompanyFiles />} />
               <Route path="company-files/dropbox" element={<CompanyFiles />} />
+              <Route path="design-professional/company-files" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <CompanyFiles />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/company-files/jobs" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <CompanyFiles />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/company-files/dropbox" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <CompanyFiles />
+                </RoleGuard>
+              } />
               <Route path="company-files/contracts" element={<CompanyContracts />} />
               <Route path="company-files/permits" element={<CompanyPermits />} />
               <Route path="company-files/insurance" element={<CompanyInsurance />} />

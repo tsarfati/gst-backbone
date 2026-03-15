@@ -36,6 +36,14 @@ export default function ProfileCompletion() {
     'company_admin',
     'vendor',
   ]);
+  const allowedStatuses = new Set([
+    'active',
+    'pending',
+    'approved',
+    'rejected',
+    'suspended',
+    'inactive',
+  ]);
 
   useEffect(() => {
     setFormData((prev) => ({
@@ -135,17 +143,32 @@ export default function ProfileCompletion() {
         avatar_url = await uploadAvatar();
       }
 
-      const metadataRequestedRole = String((user?.user_metadata as any)?.requested_role || '').toLowerCase();
-      const existingRole = String(profile?.role || '').toLowerCase();
-      const resolvedRole =
-        (allowedRoles.has(existingRole) ? existingRole : null) ||
-        (allowedRoles.has(metadataRequestedRole) ? metadataRequestedRole : null) ||
-        'employee';
-      const existingStatus = String(profile?.status || '').toLowerCase();
-      const resolvedStatus =
-        existingStatus === 'pending' || existingStatus === 'approved' || existingStatus === 'rejected'
-          ? existingStatus
-          : 'approved';
+      const { data: existingProfile } = await supabase
+        .from('profiles')
+        .select('role, status')
+        .eq('user_id', user.id)
+        .maybeSingle();
+
+      const metadata = (user?.user_metadata || {}) as Record<string, any>;
+      const candidateRoles = [
+        existingProfile?.role,
+        profile?.role,
+        metadata.requested_role,
+        metadata.requestedRole,
+        metadata.role,
+      ]
+        .map((v) => String(v || '').trim().toLowerCase())
+        .filter(Boolean);
+      const resolvedRole = candidateRoles.find((r) => allowedRoles.has(r)) || 'employee';
+
+      const candidateStatuses = [
+        existingProfile?.status,
+        profile?.status,
+        metadata.status,
+      ]
+        .map((v) => String(v || '').trim().toLowerCase())
+        .filter(Boolean);
+      const resolvedStatus = candidateStatuses.find((s) => allowedStatuses.has(s)) || 'active';
 
       // Create-or-update profile so first-time users do not get stuck if trigger/profile creation failed.
       const { error } = await supabase

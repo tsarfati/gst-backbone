@@ -160,8 +160,7 @@ export default function ProfileSettings() {
 
   const requestedTab = searchParams.get('tab') || 'profile';
   const effectiveRole = String(profile?.role || '').toLowerCase();
-  const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
-  const initialTab = isExternalUser && requestedTab === 'email' ? 'notifications' : requestedTab;
+  const initialTab = requestedTab;
 
   useEffect(() => {
     if (profile) {
@@ -518,15 +517,13 @@ export default function ProfileSettings() {
             <Bell className="h-4 w-4 mr-2" />
             Notifications
           </TabsTrigger>
-          {!isExternalUser && (
-            <TabsTrigger 
-              value="email" 
-              className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-            >
-              <Mail className="h-4 w-4 mr-2" />
-              Email Settings
-            </TabsTrigger>
-          )}
+          <TabsTrigger 
+            value="email" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
+            <Mail className="h-4 w-4 mr-2" />
+            Email Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="profile">

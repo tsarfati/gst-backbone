@@ -26,7 +26,8 @@ import {
   HelpCircle,
   Settings2,
   Sparkles,
-  Gavel
+  Gavel,
+  Plus
 } from "lucide-react";
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -1446,6 +1447,36 @@ export default function VendorDashboard() {
   }
 
   if (!profile?.vendor_id) {
+    if (String(profile?.role || '').toLowerCase() === 'design_professional') {
+      return (
+        <div className="p-4 md:p-6">
+          <Card>
+            <CardContent className="flex flex-col items-center justify-center py-12 text-center">
+              <Building2 className="h-12 w-12 text-muted-foreground mb-4" />
+              <h2 className="text-xl font-semibold mb-2">Welcome to DesignProLYNK</h2>
+              <p className="text-muted-foreground max-w-2xl mb-6">
+                You do not have any shared jobs yet. Create your first project or wait for a builder to share a job with your account.
+              </p>
+              <div className="flex flex-wrap items-center justify-center gap-3">
+                <Button onClick={() => navigate('/jobs/add')}>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Create First Job
+                </Button>
+                <Button variant="outline" onClick={() => navigate('/jobs')}>
+                  <ClipboardList className="h-4 w-4 mr-2" />
+                  View Jobs
+                </Button>
+                <Button variant="outline" onClick={() => navigate('/settings/company')}>
+                  <Settings2 className="h-4 w-4 mr-2" />
+                  Company Settings
+                </Button>
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+      );
+    }
+
     return (
       <div className="p-4 md:p-6">
         <Card>

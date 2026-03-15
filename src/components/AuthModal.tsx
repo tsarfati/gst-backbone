@@ -67,7 +67,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
       });
       resetForm();
       onOpenChange(false);
-      navigate('/dashboard', { replace: true });
+      navigate('/', { replace: true });
     }
     setLoading(false);
   };

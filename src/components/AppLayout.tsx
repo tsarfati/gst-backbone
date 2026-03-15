@@ -40,7 +40,7 @@ const navigationCategories = [
   {
     title: "Construction",
     icon: HardHat,
-      companyTypes: ['construction', 'design_professional'] as CompanyType[],
+      companyTypes: ['construction'] as CompanyType[],
       items: [
         { name: "Dashboard", href: "/construction/dashboard", menuKey: "jobs" },
         { name: "Jobs", href: "/jobs", menuKey: "jobs" },
@@ -170,6 +170,51 @@ const navigationCategories = [
   },
 ];
 
+const designProfessionalNavigationCategories = [
+  {
+    title: "Dashboard",
+    icon: LayoutDashboard,
+    companyTypes: ['design_professional'] as CompanyType[],
+    items: [
+      { name: "Dashboard", href: "/design-professional/dashboard", menuKey: "dashboard" },
+    ],
+    collapsible: false,
+  },
+  {
+    title: "Jobs",
+    icon: Briefcase,
+    companyTypes: ['design_professional'] as CompanyType[],
+    items: [
+      { name: "All Jobs", href: "/design-professional/jobs", menuKey: "jobs" },
+      { name: "RFIs", href: "/design-professional/jobs/rfis", menuKey: "jobs" },
+      { name: "Submittals", href: "/design-professional/jobs/submittals", menuKey: "jobs" },
+    ],
+    collapsible: true,
+  },
+  {
+    title: "Company Files",
+    icon: FolderArchive,
+    companyTypes: ['design_professional'] as CompanyType[],
+    items: [
+      { name: "All Documents", href: "/design-professional/company-files", menuKey: "company-files" },
+      { name: "Jobs", href: "/design-professional/company-files/jobs", menuKey: "company-files" },
+      { name: "User Dropbox", href: "/design-professional/company-files/dropbox", menuKey: "company-files" },
+    ],
+    collapsible: true,
+  },
+  {
+    title: "Settings",
+    icon: Settings,
+    companyTypes: ['design_professional'] as CompanyType[],
+    items: [
+      { name: "Company Settings", href: "/design-professional/settings/company", menuKey: "company-settings" },
+      { name: "User Management", href: "/design-professional/settings/users", menuKey: "user-settings" },
+      { name: "Subscription", href: "/design-professional/subscription", menuKey: "subscription-settings", ownerOnly: true },
+    ],
+    collapsible: true,
+  },
+];
+
 export function AppSidebar() {
   const location = useLocation();
   const { state } = useSidebar();
@@ -181,9 +226,18 @@ export function AppSidebar() {
   const { toast } = useToast();
   const { showLockedMenuItems, lockedMenuUpgradeMessage } = useTierNavigationSettings();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
+  const profileRole = String(profile?.role || '').trim().toLowerCase();
   const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
-  const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
+  const isExternalUser = profileRole === 'vendor' || profileRole === 'design_professional';
   const companyType: CompanyType = currentCompany?.company_type === 'design_professional' ? 'design_professional' : 'construction';
+  const isDesignProfessionalRoute = location.pathname.startsWith('/design-professional');
+  const isDesignProfessionalWorkspace =
+    isDesignProfessionalRoute ||
+    companyType === 'design_professional' ||
+    profileRole === 'design_professional';
+  const sidebarCategories = isDesignProfessionalWorkspace
+    ? designProfessionalNavigationCategories
+    : navigationCategories;
   const isItemRouteActive = (item: { href: string }, categoryTitle?: string) => {
     const pathnameMatch =
       location.pathname === item.href ||
@@ -213,7 +267,7 @@ export function AppSidebar() {
 
   const toggleGroup = (groupTitle: string) => {
     // Dashboard doesn't expand - just navigate
-    const dashboardCategory = navigationCategories.find(cat => cat.title === "Dashboard");
+    const dashboardCategory = sidebarCategories.find(cat => cat.title === "Dashboard");
     if (dashboardCategory && groupTitle === "Dashboard") {
       return; // Don't toggle dashboard
     }
@@ -238,7 +292,7 @@ export function AppSidebar() {
     }
   };
 
-  const activeGroups = navigationCategories
+  const activeGroups = sidebarCategories
     .filter(category => 
       category.items.some(item => isItemRouteActive(item, category.title))
     )
@@ -289,9 +343,13 @@ export function AppSidebar() {
       </SidebarHeader>
       
       <SidebarContent className="gap-0 sidebar-scroll-area">
-        {!loading && navigationCategories.filter((category) => {
+        {!loading && sidebarCategories.filter((category) => {
+          if (isDesignProfessionalWorkspace) return true;
           if (!isExternalUser) return true;
-          return category.title === 'Dashboard';
+          if (profileRole === 'vendor') {
+            return category.title === 'Dashboard';
+          }
+          return false;
         }).filter((category: any) => {
           const allowedTypes = (category.companyTypes as CompanyType[] | undefined) || ['construction', 'design_professional'];
           return allowedTypes.includes(companyType);
@@ -309,8 +367,13 @@ export function AppSidebar() {
               const ownerOnly = 'ownerOnly' in item && !!(item as any).ownerOnly;
               if (ownerOnly && tenantMember?.role !== 'owner' && !isSuperAdmin) return [];
 
-              const employeeHidden = 'employeeHidden' in item && !!(item as any).employeeHidden;
-              if (employeeHidden && effectiveRole === 'employee') return [];
+             const employeeHidden = 'employeeHidden' in item && !!(item as any).employeeHidden;
+             if (employeeHidden && effectiveRole === 'employee') return [];
+
+             if (isDesignProfessionalWorkspace) {
+               // Design Professional workspace uses its own dedicated nav model.
+               return [{ ...(item as any), _locked: false }];
+             }
 
              const menuKey = ('menuKey' in item ? (item as any).menuKey : undefined) as string | undefined;
              const allowed = !menuKey || hasAccess(menuKey);

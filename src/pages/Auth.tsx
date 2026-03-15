@@ -172,8 +172,14 @@ export default function Auth() {
     if (!profile || profile?.profile_completed === false) {
       navigate('/profile-completion', { replace: true });
     } else {
-      // Let useRoleBasedRouting handle it, but if no role yet just go to dashboard
-      navigate('/dashboard', { replace: true });
+      const role = String(profile?.role || '').toLowerCase();
+      if (role === 'design_professional') {
+        navigate('/design-professional/dashboard', { replace: true });
+      } else if (role === 'vendor') {
+        navigate('/vendor/dashboard', { replace: true });
+      } else {
+        navigate('/dashboard', { replace: true });
+      }
     }
   }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting]);
 
@@ -308,9 +314,7 @@ export default function Auth() {
         title: 'Success',
         description: 'Signed in successfully!',
       });
-      // Fallback redirect: prevents rare cases where profile hydration lags
-      // and leaves the user visually stuck on /auth after successful sign-in.
-      navigate('/dashboard', { replace: true });
+      // Auth effect above handles role-aware redirect after profile hydration.
     }
     setLoading(false);
   };

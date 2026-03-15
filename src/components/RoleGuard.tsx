@@ -45,7 +45,13 @@ export function RoleGuard({
     return r.length ? r : null;
   };
 
-  const effectiveRole = normalizeRole(activeCompanyRole || profile.role);
+  const profileRole = normalizeRole(profile.role);
+  const activeRole = normalizeRole(activeCompanyRole);
+  // External portal users keep their portal role regardless of company access role rows.
+  const effectiveRole =
+    profileRole === 'vendor' || profileRole === 'design_professional'
+      ? profileRole
+      : normalizeRole(activeRole || profileRole);
   const normalizedAllowedRoles = allowedRoles.map((r) => r.trim().toLowerCase());
 
   // Debug logging for development only
