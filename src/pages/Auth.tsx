@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useRoleBasedRouting } from '@/hooks/useRoleBasedRouting';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
+import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 
 type InvitePreview = {
   companyName: string;
@@ -55,6 +56,7 @@ export default function Auth() {
   const [inviteRetryTick, setInviteRetryTick] = useState(0);
   const [inviteAcceptFailures, setInviteAcceptFailures] = useState(0);
   const [showEmailConfirmModal, setShowEmailConfirmModal] = useState(false);
+  const [signupConfirmed, setSignupConfirmed] = useState(false);
   const lastInviteAcceptAttemptAtRef = useRef<number>(0);
   const inviteAttemptCountRef = useRef(0);
   
@@ -121,6 +123,7 @@ export default function Auth() {
     const hashImpersonating = hashParams.get('impersonating');
     
     const isRecovery = type === 'recovery' || hashType === 'recovery';
+    const isSignupConfirmation = type === 'signup' || hashType === 'signup';
     const isImpersonationSession = impersonating === '1' || hashImpersonating === '1';
 
     if (isImpersonationSession) {
@@ -140,6 +143,21 @@ export default function Auth() {
           refresh_token: refresh,
         });
       }
+      return;
+    }
+
+    if (isSignupConfirmation) {
+      setSignupConfirmed(true);
+      setActiveTab('signin');
+
+      const token = accessToken || hashAccessToken;
+      const refresh = refreshToken || hashRefreshToken;
+      if (token && refresh) {
+        supabase.auth.setSession({
+          access_token: token,
+          refresh_token: refresh,
+        });
+      }
     }
   }, [searchParams]);
 
@@ -151,7 +169,7 @@ export default function Auth() {
     if (inviteToken && inviteAccepting) return;
     
     // User is authenticated — redirect away from auth page
-    if (profile?.profile_completed === false) {
+    if (!profile || profile?.profile_completed === false) {
       navigate('/profile-completion', { replace: true });
     } else {
       // Let useRoleBasedRouting handle it, but if no role yet just go to dashboard
@@ -564,6 +582,11 @@ export default function Auth() {
                 : `Invitation link detected${invitePreview?.companyName ? ` for ${invitePreview.companyName}` : ''}.`}
             </div>
           )}
+          {signupConfirmed && (
+            <div className="mb-4 rounded-md border border-emerald-200 bg-emerald-50 p-3 text-sm text-emerald-800">
+              Email confirmed. Sign in to continue to your workspace.
+            </div>
+          )}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
             <TabsList className={`grid w-full ${inviteToken ? 'grid-cols-1' : 'grid-cols-2'}`}>
               {!inviteToken && <TabsTrigger value="signin">Sign In</TabsTrigger>}
@@ -616,7 +639,7 @@ export default function Auth() {
                         }
                         setLoading(true);
                         const { error } = await supabase.auth.resetPasswordForEmail(email, {
-                          redirectTo: `${window.location.origin}/auth?type=recovery`,
+                          redirectTo: `${getPublicAuthOrigin()}/auth?type=recovery`,
                         });
                         if (error) {
                           toast({

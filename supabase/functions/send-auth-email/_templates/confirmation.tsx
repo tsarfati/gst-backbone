@@ -22,12 +22,10 @@ interface ConfirmationEmailProps {
 export const ConfirmationEmail = ({
   confirmUrl,
   userEmail,
-  companyName,
-  companyLogoUrl,
 }: ConfirmationEmailProps) => (
    <Html>
      <Head />
-     <Preview>{companyName ? `Confirm your ${companyName} BuilderLYNK account` : 'Confirm your BuilderLYNK account'}</Preview>
+     <Preview>Confirm your BuilderLYNK account</Preview>
      <Body style={main}>
        <Container style={container}>
          <Section style={header}>
@@ -35,22 +33,12 @@ export const ConfirmationEmail = ({
              src="https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png"
              alt="BuilderLYNK"
              height="150"
-             style={{ margin: '0 auto', width: 'auto', maxWidth: '420px' }}
+             style={{ display: 'block', margin: '0 auto', width: 'auto', maxWidth: '420px' }}
            />
          </Section>
  
         <Section style={content}>
-          {companyLogoUrl ? (
-            <Section style={companyLogoSection}>
-              <Img
-                src={companyLogoUrl}
-                alt={companyName || "Company"}
-                height="72"
-                style={companyLogo}
-              />
-            </Section>
-          ) : null}
-          <Heading style={h1}>{companyName ? `Join ${companyName} on BuilderLYNK` : "Welcome to BuilderLYNK"}</Heading>
+          <Heading style={h1}>Confirm Your BuilderLYNK Account</Heading>
            
            <Text style={text}>
              Thanks for signing up! Please confirm your email address to get started.
@@ -59,7 +47,9 @@ export const ConfirmationEmail = ({
            <Text style={text}>
              Click the button below to verify your account:
            </Text>
- 
+
+           <Text style={smallText}>Email: {userEmail}</Text>
+
            <Section style={buttonContainer}>
              <Link href={confirmUrl} style={button}>
                Confirm Your Email
@@ -111,19 +101,7 @@ const header = {
 
 const content = {
   backgroundColor: '#ffffff',
-  padding: '32px 28px',
-}
-
-const companyLogoSection = {
-  textAlign: 'center' as const,
-  margin: '0 0 24px 0',
-}
-
-const companyLogo = {
-  margin: '0 auto',
-  width: 'auto',
-  maxWidth: '240px',
-  objectFit: 'contain' as const,
+  padding: '40px 30px',
 }
  
  const h1 = {

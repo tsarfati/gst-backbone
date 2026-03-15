@@ -2,6 +2,7 @@ import React, { createContext, useContext, useEffect, useState } from 'react';
 import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
+import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 
 interface AuthContextType {
   user: User | null;
@@ -194,9 +195,10 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signUp = async (email: string, password: string, firstName?: string, lastName?: string) => {
     const currentUrl = new URL(window.location.href);
     const inviteToken = currentUrl.searchParams.get('invite');
+    const authOrigin = getPublicAuthOrigin();
     const redirectUrl = inviteToken
-      ? `${window.location.origin}/auth?invite=${encodeURIComponent(inviteToken)}`
-      : `${window.location.origin}/`;
+      ? `${authOrigin}/auth?invite=${encodeURIComponent(inviteToken)}`
+      : `${authOrigin}/`;
     
     const { error } = await supabase.auth.signUp({
       email,

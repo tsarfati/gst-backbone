@@ -29,6 +29,15 @@ const navigationCategories = [
     collapsible: false,
   },
   {
+    title: "Calendar",
+    icon: Calendar,
+    companyTypes: ['construction', 'design_professional'] as CompanyType[],
+    items: [
+      { name: "Calendar", href: "/calendar", menuKey: "dashboard" },
+    ],
+    collapsible: false,
+  },
+  {
     title: "Construction",
     icon: HardHat,
       companyTypes: ['construction', 'design_professional'] as CompanyType[],

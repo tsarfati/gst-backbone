@@ -36,6 +36,7 @@ interface AccessRequest {
     last_name: string;
     display_name: string;
   };
+  source?: 'request' | 'fallback_profile';
 }
 
 const parseRequestedRole = (notes?: string): string => {
@@ -136,15 +137,15 @@ export default function CompanyAccessRequests({
 
       if (error) throw error;
 
-      // Fetch profiles for all user_ids
+      // Fetch profiles for all request user_ids
       const userIds = requestsData?.map(r => r.user_id) || [];
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('user_id, first_name, last_name, display_name')
         .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000']);
 
-      // Combine the data
-      const mapped = requestsData?.map(request => {
+      // Combine explicit company access requests
+      const mappedFromRequests = requestsData?.map(request => {
         const profile = profilesData?.find(p => p.user_id === request.user_id);
         const requestedRole = parseRequestedRole(request.notes || undefined);
         return {
@@ -159,6 +160,7 @@ export default function CompanyAccessRequests({
           custom_role_name: parseCustomRoleName(request.notes || undefined),
           business_name: parseBusinessName(request.notes || undefined),
           invited_job_id: parseInvitedJobId(request.notes || undefined),
+          source: 'request' as const,
           profiles: profile ? {
             first_name: profile.first_name || '',
             last_name: profile.last_name || '',
@@ -166,6 +168,70 @@ export default function CompanyAccessRequests({
           } : undefined
         };
       }) || [];
+
+      // Fallback path: include pending profiles linked to this company even when
+      // company_access_requests row is missing (legacy/inconsistent data path).
+      const { data: pendingAccessRows, error: pendingAccessError } = await supabase
+        .from('user_company_access')
+        .select('user_id, role, granted_at')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (pendingAccessError) throw pendingAccessError;
+
+      const pendingAccessUserIds = Array.from(
+        new Set((pendingAccessRows || []).map((row: any) => String(row.user_id || '')).filter(Boolean))
+      );
+      let pendingProfilesByUserId = new Map<string, any>();
+      if (pendingAccessUserIds.length > 0) {
+        const { data: pendingProfiles, error: pendingProfilesError } = await supabase
+          .from('profiles')
+          .select('user_id, first_name, last_name, display_name, status, created_at')
+          .in('user_id', pendingAccessUserIds)
+          .eq('status', 'pending');
+        if (pendingProfilesError) throw pendingProfilesError;
+        pendingProfilesByUserId = new Map(
+          (pendingProfiles || []).map((profile: any) => [String(profile.user_id), profile])
+        );
+      }
+
+      const requestUserIdSet = new Set(mappedFromRequests.map((row) => row.user_id));
+      const mappedFallback = (pendingAccessRows || [])
+        .filter((row: any) => !requestUserIdSet.has(String(row.user_id || '')))
+        .filter((row: any) => pendingProfilesByUserId.has(String(row.user_id || '')))
+        .map((row: any) => {
+          const pendingProfile = pendingProfilesByUserId.get(String(row.user_id || ''));
+          const fallbackRole = String(row.role || 'employee').toLowerCase();
+          const createdAt = String(
+            pendingProfile?.created_at
+            || row.granted_at
+            || new Date().toISOString()
+          );
+          return {
+            id: `fallback:${currentCompany.id}:${row.user_id}`,
+            user_id: row.user_id,
+            status: 'pending',
+            requested_at: createdAt,
+            notes: JSON.stringify({
+              requestType: 'fallback_pending_profile',
+              inferredFrom: 'user_company_access',
+            }),
+            requested_role: fallbackRole,
+            requested_role_label: fallbackRole.replace('_', ' '),
+            custom_role_id: null,
+            custom_role_name: null,
+            business_name: null,
+            invited_job_id: null,
+            source: 'fallback_profile' as const,
+            profiles: {
+              first_name: pendingProfile?.first_name || '',
+              last_name: pendingProfile?.last_name || '',
+              display_name: pendingProfile?.display_name || '',
+            },
+          } satisfies AccessRequest;
+        });
+
+      const mapped = [...mappedFromRequests, ...mappedFallback];
 
       const roleFiltered = requestedRoleFilter?.length
         ? mapped.filter((r) => requestedRoleFilter.includes((r.requested_role || 'employee') as RequestedRole))
@@ -193,18 +259,21 @@ export default function CompanyAccessRequests({
 
     try {
       const { id, action } = requestToProcess;
+      const isFallbackRequest = id.startsWith(`fallback:${currentCompany.id}:`);
       
-      // Update the request status
-      const { error: updateError } = await supabase
-        .from('company_access_requests')
-        .update({
-          status: action === 'approve' ? 'approved' : 'rejected',
-          reviewed_by: currentUser?.id,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', id);
+      if (!isFallbackRequest) {
+        // Update the request status
+        const { error: updateError } = await supabase
+          .from('company_access_requests')
+          .update({
+            status: action === 'approve' ? 'approved' : 'rejected',
+            reviewed_by: currentUser?.id,
+            reviewed_at: new Date().toISOString()
+          })
+          .eq('id', id);
 
-      if (updateError) throw updateError;
+        if (updateError) throw updateError;
+      }
 
       const request = requests.find(r => r.id === id);
       if (!request) throw new Error("Request not found");

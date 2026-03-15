@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, EyeOff, X, ArrowLeft } from 'lucide-react';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
+import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 
 interface AuthModalProps {
   open: boolean;
@@ -118,7 +119,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
     setLoading(true);
 
     const { error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${window.location.origin}/auth?type=recovery`,
+      redirectTo: `${getPublicAuthOrigin()}/auth?type=recovery`,
     });
 
     if (error) {

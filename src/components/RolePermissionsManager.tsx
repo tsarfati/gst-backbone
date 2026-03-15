@@ -942,10 +942,8 @@ const roles = [
   { key: 'controller', label: 'Controller', color: 'bg-blue-100 text-blue-800', description: 'Financial oversight' },
   { key: 'company_admin', label: 'Company Admin', color: 'bg-orange-100 text-orange-800', description: 'Company-wide management' },
   { key: 'project_manager', label: 'Project Manager', color: 'bg-green-100 text-green-800', description: 'Project management' },
-  { key: 'design_professional', label: 'Design Professional', color: 'bg-cyan-100 text-cyan-800', description: 'Design review and submittal workflows' },
   { key: 'employee', label: 'Employee', color: 'bg-gray-100 text-gray-800', description: 'Basic employee access' },
   { key: 'view_only', label: 'View Only', color: 'bg-purple-100 text-purple-800', description: 'Read-only access - Cannot create, edit, or delete' },
-  { key: 'vendor', label: 'Vendor', color: 'bg-amber-100 text-amber-800', description: 'External vendor access' },
 ];
 
 // Get all permission keys for migration/seeding

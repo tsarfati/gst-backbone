@@ -4,6 +4,9 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate, Download, FileCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -62,8 +65,8 @@ export default function JobDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
-  const { profile } = useAuth();
-  const { currentCompany } = useCompany();
+  const { user, profile } = useAuth();
+  const { currentCompany, switchCompany } = useCompany();
   const permissions = useActionPermissions();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
@@ -75,6 +78,15 @@ export default function JobDetails() {
   const [jobRfps, setJobRfps] = useState<JobRfp[]>([]);
   const [rfpsLoading, setRfpsLoading] = useState(false);
   const { loading: jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged } = useWebsiteJobAccess();
+  const [handoffDialogOpen, setHandoffDialogOpen] = useState(false);
+  const [handoffMode, setHandoffMode] = useState<"copy" | "transfer">("copy");
+  const [targetCompanyId, setTargetCompanyId] = useState<string>("");
+  const [targetCompanies, setTargetCompanies] = useState<Array<{ id: string; name: string }>>([]);
+  const [loadingTargetCompanies, setLoadingTargetCompanies] = useState(false);
+  const [submittingHandoff, setSubmittingHandoff] = useState(false);
+  const canHandoffProject =
+    String(profile?.role || "").toLowerCase() === "design_professional"
+    || String(currentCompany?.company_type || "").toLowerCase() === "design_professional";
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -172,6 +184,97 @@ export default function JobDetails() {
     };
   }, [id, toast, jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged, currentCompany?.id]);
 
+  useEffect(() => {
+    const loadTargetCompanies = async () => {
+      if (!handoffDialogOpen || !canHandoffProject) return;
+      if (!user?.id) return;
+
+      try {
+        setLoadingTargetCompanies(true);
+        const { data, error } = await supabase
+          .from("user_company_access")
+          .select("company_id, companies!inner(id, name, display_name, company_type, is_active)")
+          .eq("user_id", user.id)
+          .eq("is_active", true);
+        if (error) throw error;
+
+        const options = ((data || []) as any[])
+          .map((row) => row.companies)
+          .filter((company: any) =>
+            company
+            && company.is_active !== false
+            && String(company.company_type || "").toLowerCase() === "construction"
+            && String(company.id) !== String(currentCompany?.id || ""),
+          )
+          .map((company: any) => ({
+            id: String(company.id),
+            name: String(company.display_name || company.name || "Construction Company"),
+          }));
+
+        const deduped = Array.from(new Map(options.map((item) => [item.id, item])).values());
+        setTargetCompanies(deduped);
+        if (deduped.length > 0) {
+          setTargetCompanyId((prev) => prev || deduped[0].id);
+        }
+      } catch (error) {
+        console.error("Failed to load target companies:", error);
+        toast({
+          title: "Error",
+          description: "Could not load target builder companies.",
+          variant: "destructive",
+        });
+      } finally {
+        setLoadingTargetCompanies(false);
+      }
+    };
+
+    loadTargetCompanies();
+  }, [handoffDialogOpen, canHandoffProject, user?.id, currentCompany?.id, toast]);
+
+  const handleProjectHandoff = async () => {
+    if (!id || !targetCompanyId) {
+      toast({
+        title: "Missing target company",
+        description: "Select a builder company first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSubmittingHandoff(true);
+      const { data, error } = await supabase.functions.invoke("design-pro-project-handoff", {
+        body: {
+          jobId: id,
+          targetCompanyId,
+          mode: handoffMode,
+        },
+      });
+      if (error) throw error;
+
+      toast({
+        title: handoffMode === "copy" ? "Project copied" : "Project transferred",
+        description: data?.message || "Project handoff completed.",
+      });
+
+      setHandoffDialogOpen(false);
+
+      if ((handoffMode === "transfer" || handoffMode === "copy") && targetCompanyId && data?.resultJobId) {
+        await switchCompany(targetCompanyId);
+        navigate(`/jobs/${data.resultJobId}`);
+      }
+    } catch (error: any) {
+      console.error("Project handoff failed:", error);
+      toast({
+        title: "Handoff failed",
+        description: error?.message || "Could not complete the handoff.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingHandoff(false);
+    }
+  };
+
   if (loading) {
     return (
       <div className="p-6">
@@ -227,6 +330,11 @@ export default function JobDetails() {
           <Button variant="outline" size="sm" onClick={() => setExportModalOpen(true)}>
             <Download className="h-4 w-4 mr-2" />
             Archive Job
+          </Button>
+        )}
+        {canHandoffProject && (
+          <Button variant="outline" size="sm" onClick={() => setHandoffDialogOpen(true)}>
+            Share / Handoff
           </Button>
         )}
       </div>
@@ -522,6 +630,65 @@ export default function JobDetails() {
         jobId={id!}
         jobName={job.name}
       />
+
+      <Dialog open={handoffDialogOpen} onOpenChange={setHandoffDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Share Or Transfer Project</DialogTitle>
+            <DialogDescription>
+              Copy this project to a builder company, or transfer ownership to that builder company.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Action</Label>
+              <Select value={handoffMode} onValueChange={(value: "copy" | "transfer") => setHandoffMode(value)}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="copy">Copy Project To Builder</SelectItem>
+                  <SelectItem value="transfer">Transfer Ownership To Builder</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Builder Company</Label>
+              <Select value={targetCompanyId} onValueChange={setTargetCompanyId} disabled={loadingTargetCompanies || targetCompanies.length === 0}>
+                <SelectTrigger>
+                  <SelectValue placeholder={loadingTargetCompanies ? "Loading builder companies..." : "Select builder company"} />
+                </SelectTrigger>
+                <SelectContent>
+                  {targetCompanies.map((company) => (
+                    <SelectItem key={company.id} value={company.id}>
+                      {company.name}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {handoffMode === "transfer" ? (
+              <p className="text-sm text-amber-500">
+                Transfer moves this project record to the selected builder company.
+              </p>
+            ) : (
+              <p className="text-sm text-muted-foreground">
+                Copy creates a new project in the selected builder company and keeps your original.
+              </p>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setHandoffDialogOpen(false)} disabled={submittingHandoff}>
+              Cancel
+            </Button>
+            <Button onClick={handleProjectHandoff} disabled={submittingHandoff || !targetCompanyId || targetCompanies.length === 0}>
+              {submittingHandoff ? "Processing..." : handoffMode === "copy" ? "Copy Project" : "Transfer Ownership"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

@@ -74,6 +74,8 @@ export default function ZoomableDocumentPreview({
     zoom: zoomLevel,
     setZoom: setZoomLevel,
     clamp: clampZoom,
+    wheelSensitivity: 0.06,
+    minWheelStep: 5,
     onZoomChange: ({ prevZoom, nextZoom, clientX, clientY }) => {
       anchorZoomAtPoint(prevZoom, nextZoom, clientX, clientY);
     },

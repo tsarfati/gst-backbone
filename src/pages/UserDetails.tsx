@@ -154,6 +154,15 @@ const roleLabels: Record<string, string> = {
   vendor: 'Vendor'
 };
 
+const INTERNAL_ROLE_OPTIONS = [
+  { value: 'admin', label: 'Administrator' },
+  { value: 'controller', label: 'Controller' },
+  { value: 'project_manager', label: 'Project Manager' },
+  { value: 'employee', label: 'Employee' },
+  { value: 'view_only', label: 'View Only' },
+  { value: 'company_admin', label: 'Company Admin' },
+] as const;
+
 export default function UserDetails() {
   const { userId } = useParams();
   const navigate = useNavigate();
@@ -977,14 +986,16 @@ export default function UserDetails() {
                       <Select value={editForm.role} onValueChange={(v) => setEditForm(f => ({ ...f, role: v }))}>
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
-                          <SelectItem value="admin">Administrator</SelectItem>
-                          <SelectItem value="controller">Controller</SelectItem>
-                          <SelectItem value="project_manager">Project Manager</SelectItem>
-                          <SelectItem value="design_professional">Design Professional</SelectItem>
-                          <SelectItem value="employee">Employee</SelectItem>
-                          <SelectItem value="view_only">View Only</SelectItem>
-                          <SelectItem value="company_admin">Company Admin</SelectItem>
-                          <SelectItem value="vendor">Vendor</SelectItem>
+                          {INTERNAL_ROLE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                          {(editForm.role === 'vendor' || editForm.role === 'design_professional') && (
+                            <SelectItem value={editForm.role} disabled>
+                              {roleLabels[editForm.role]} (External Access)
+                            </SelectItem>
+                          )}
                           {customRoles.length > 0 && (
                             <>
                               <div className="px-2 py-1.5 text-xs font-medium text-muted-foreground">

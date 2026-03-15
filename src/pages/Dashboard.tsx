@@ -763,7 +763,7 @@ export default function Dashboard() {
           is_reply: false,
           message_source: 'bid_intercompany_communication' as const,
           source_record_id: comm.id,
-          target_path: `/construction/bids/${comm.bid_id}`,
+          target_path: `/construction/bids/${comm.bid_id}?messageId=${encodeURIComponent(comm.id)}&messageSource=bid_intercompany_communication`,
           from_profile: {
             display_name: comm.profiles?.display_name ||
               `${comm.profiles?.first_name || ''} ${comm.profiles?.last_name || ''}`.trim() ||

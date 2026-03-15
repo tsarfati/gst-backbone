@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -227,6 +227,26 @@ export default function VendorDashboard() {
     preferredPaymentType: 'check',
     checkDelivery: 'mail',
   });
+  const [settingsTab, setSettingsTab] = useState<'overview' | 'compliance' | 'taxes' | 'payment'>('overview');
+  const [savingCompanyInfo, setSavingCompanyInfo] = useState(false);
+  const [savingCompliance, setSavingCompliance] = useState(false);
+  const [savingTaxes, setSavingTaxes] = useState(false);
+  const [insuranceExpiryDate, setInsuranceExpiryDate] = useState('');
+  const [vendorCompanyForm, setVendorCompanyForm] = useState({
+    name: '',
+    contact_person: '',
+    email: '',
+    phone: '',
+    address: '',
+    city: '',
+    state: '',
+    zip_code: '',
+    logo_url: '',
+    tax_id: '',
+  });
+  const insuranceInputRef = useRef<HTMLInputElement | null>(null);
+  const w9InputRef = useRef<HTMLInputElement | null>(null);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
     if (profile?.vendor_id) {
@@ -253,6 +273,21 @@ export default function VendorDashboard() {
     if (!seen) setShowOnboarding(true);
   }, [user?.id, loading]);
 
+  useEffect(() => {
+    setVendorCompanyForm({
+      name: vendorInfo?.name || '',
+      contact_person: vendorInfo?.contact_person || '',
+      email: vendorInfo?.email || '',
+      phone: vendorInfo?.phone || '',
+      address: vendorInfo?.address || '',
+      city: vendorInfo?.city || '',
+      state: vendorInfo?.state || '',
+      zip_code: vendorInfo?.zip_code || '',
+      logo_url: vendorInfo?.logo_url || '',
+      tax_id: vendorInfo?.tax_id || '',
+    });
+  }, [vendorInfo]);
+
   const fetchVendorData = async () => {
     if (!profile?.vendor_id) return;
     
@@ -262,7 +297,7 @@ export default function VendorDashboard() {
       // Fetch vendor info
       const { data: vendor } = await supabase
         .from('vendors')
-        .select('id, name, email, phone, address, city, state, zip_code, logo_url, vendor_type')
+        .select('id, name, contact_person, email, phone, address, city, state, zip_code, logo_url, tax_id, vendor_type')
         .eq('id', profile.vendor_id)
         .single();
       
@@ -1115,6 +1150,157 @@ export default function VendorDashboard() {
       });
     } finally {
       setSavingVendorPrefs(false);
+    }
+  };
+
+  const saveVendorCompanyInfo = async () => {
+    if (!profile?.vendor_id) return;
+    try {
+      setSavingCompanyInfo(true);
+      const payload = {
+        name: vendorCompanyForm.name.trim() || 'Vendor',
+        contact_person: vendorCompanyForm.contact_person.trim() || null,
+        email: vendorCompanyForm.email.trim() || null,
+        phone: vendorCompanyForm.phone.trim() || null,
+        address: vendorCompanyForm.address.trim() || null,
+        city: vendorCompanyForm.city.trim() || null,
+        state: vendorCompanyForm.state.trim() || null,
+        zip_code: vendorCompanyForm.zip_code.trim() || null,
+        logo_url: vendorCompanyForm.logo_url || null,
+      };
+      const { error } = await supabase
+        .from('vendors')
+        .update(payload as any)
+        .eq('id', profile.vendor_id);
+      if (error) throw error;
+      setVendorInfo((prev: any) => ({ ...(prev || {}), ...payload }));
+      toast({
+        title: 'Company settings saved',
+        description: 'Vendor company profile was updated.',
+      });
+    } catch (error: any) {
+      console.error('Failed to save vendor company info:', error);
+      toast({
+        title: 'Save failed',
+        description: error?.message || 'Could not save vendor company settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingCompanyInfo(false);
+    }
+  };
+
+  const uploadVendorLogo = async (file: File) => {
+    if (!profile?.vendor_id || !currentCompany?.id) return;
+    try {
+      const ext = file.name.split('.').pop() || 'png';
+      const path = `${currentCompany.id}/vendor-logos/${profile.vendor_id}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('company-files')
+        .upload(path, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('company-files').getPublicUrl(path);
+      setVendorCompanyForm((prev) => ({ ...prev, logo_url: data.publicUrl }));
+      toast({
+        title: 'Logo uploaded',
+        description: 'Save Company Settings to apply this logo.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Upload failed',
+        description: error?.message || 'Could not upload logo.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const upsertComplianceDoc = async (docType: 'insurance' | 'w9', file: File, expirationDate?: string) => {
+    if (!profile?.vendor_id || !currentCompany?.id) return;
+    try {
+      setSavingCompliance(true);
+      const ext = file.name.split('.').pop() || 'pdf';
+      const path = `${currentCompany.id}/vendor-compliance/${profile.vendor_id}/${docType}/${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('company-files')
+        .upload(path, file, { upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('company-files').getPublicUrl(path);
+
+      const { data: existingDoc } = await supabase
+        .from('vendor_compliance_documents')
+        .select('id, is_required')
+        .eq('vendor_id', profile.vendor_id)
+        .eq('type', docType)
+        .maybeSingle();
+
+      const updatePayload = {
+        file_name: file.name,
+        file_url: data.publicUrl,
+        is_uploaded: true,
+        uploaded_at: new Date().toISOString(),
+        expiration_date: docType === 'insurance' ? (expirationDate || null) : null,
+      } as any;
+
+      if (existingDoc?.id) {
+        const { error: updateError } = await supabase
+          .from('vendor_compliance_documents')
+          .update(updatePayload)
+          .eq('id', existingDoc.id);
+        if (updateError) throw updateError;
+      } else {
+        const { error: insertError } = await supabase
+          .from('vendor_compliance_documents')
+          .insert({
+            vendor_id: profile.vendor_id,
+            type: docType,
+            is_required: docType === 'insurance' ? portalSettings.requireInsurance : portalSettings.requireW9,
+            ...updatePayload,
+          } as any);
+        if (insertError) throw insertError;
+      }
+
+      await fetchVendorData();
+      toast({
+        title: docType === 'insurance' ? 'Insurance uploaded' : 'W-9 uploaded',
+        description: 'Compliance document updated.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Upload failed',
+        description: error?.message || 'Could not upload compliance document.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingCompliance(false);
+    }
+  };
+
+  const saveVendorTaxSettings = async () => {
+    if (!profile?.vendor_id) return;
+    try {
+      setSavingTaxes(true);
+      const { error } = await supabase
+        .from('vendors')
+        .update({
+          tax_id: vendorCompanyForm.tax_id.trim() || null,
+        } as any)
+        .eq('id', profile.vendor_id);
+      if (error) throw error;
+      setVendorInfo((prev: any) => ({ ...(prev || {}), tax_id: vendorCompanyForm.tax_id.trim() || null }));
+      toast({
+        title: 'Tax settings saved',
+        description: 'Vendor tax information was updated.',
+      });
+    } catch (error: any) {
+      toast({
+        title: 'Save failed',
+        description: error?.message || 'Could not save tax settings.',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingTaxes(false);
     }
   };
 
@@ -2193,88 +2379,237 @@ export default function VendorDashboard() {
         <TabsContent value="settings" className="space-y-4">
           <Card>
             <CardHeader>
-              <CardTitle>Vendor Settings</CardTitle>
-              <CardDescription>Manage your notifications and payment preferences.</CardDescription>
+              <CardTitle>Company Settings</CardTitle>
+              <CardDescription>Manage your vendor company profile, compliance, taxes, and payment preferences.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Notification Preferences</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="flex items-center justify-between rounded-md border p-3">
-                    <Label>Email notifications</Label>
-                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, notificationEmail: !p.notificationEmail }))}>
-                      {vendorPreferences.notificationEmail ? 'On' : 'Off'}
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between rounded-md border p-3">
-                    <Label>In-app notifications</Label>
-                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, notificationInApp: !p.notificationInApp }))}>
-                      {vendorPreferences.notificationInApp ? 'On' : 'Off'}
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between rounded-md border p-3">
-                    <Label>Invoice paid alerts</Label>
-                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, invoicePaid: !p.invoicePaid }))}>
-                      {vendorPreferences.invoicePaid ? 'On' : 'Off'}
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between rounded-md border p-3">
-                    <Label>Job assignment alerts</Label>
-                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, jobAssignments: !p.jobAssignments }))}>
-                      {vendorPreferences.jobAssignments ? 'On' : 'Off'}
-                    </Button>
-                  </div>
-                  <div className="flex items-center justify-between rounded-md border p-3">
-                    <Label>Overdue invoice alerts</Label>
-                    <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, overdueInvoices: !p.overdueInvoices }))}>
-                      {vendorPreferences.overdueInvoices ? 'On' : 'Off'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
+              <Tabs value={settingsTab} onValueChange={(value) => setSettingsTab(value as typeof settingsTab)} className="w-full">
+                <TabsList className="grid w-full grid-cols-4">
+                  <TabsTrigger value="overview">Overview</TabsTrigger>
+                  <TabsTrigger value="compliance">Insurance</TabsTrigger>
+                  <TabsTrigger value="taxes">Taxes</TabsTrigger>
+                  <TabsTrigger value="payment">Payment Methods</TabsTrigger>
+                </TabsList>
 
-              <div className="space-y-3">
-                <Label className="text-sm font-medium">Default Payment Method</Label>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                  <div className="space-y-2">
-                    <Label>Method</Label>
-                    <Select
-                      value={vendorPreferences.preferredPaymentType}
-                      onValueChange={(value) => setVendorPreferences((p) => ({ ...p, preferredPaymentType: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="check">Check</SelectItem>
-                        <SelectItem value="ach">ACH</SelectItem>
-                        <SelectItem value="wire">Wire</SelectItem>
-                      </SelectContent>
-                    </Select>
+                <TabsContent value="overview" className="space-y-4 pt-4">
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Company Logo</Label>
+                      <div className="flex items-center gap-3 rounded-md border p-3">
+                        {vendorCompanyForm.logo_url ? (
+                          <img src={vendorCompanyForm.logo_url} alt="Vendor logo" className="h-16 w-16 rounded object-cover border" />
+                        ) : (
+                          <div className="h-16 w-16 rounded border flex items-center justify-center text-xs text-muted-foreground">No logo</div>
+                        )}
+                        <div>
+                          <Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()}>
+                            Upload Logo
+                          </Button>
+                          <Input
+                            ref={logoInputRef}
+                            type="file"
+                            accept=".png,.jpg,.jpeg,.webp"
+                            className="hidden"
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) void uploadVendorLogo(file);
+                            }}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Company Name</Label>
+                      <Input value={vendorCompanyForm.name} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, name: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Contact Person</Label>
+                      <Input value={vendorCompanyForm.contact_person} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, contact_person: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Email</Label>
+                      <Input type="email" value={vendorCompanyForm.email} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, email: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Phone</Label>
+                      <Input value={vendorCompanyForm.phone} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, phone: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2 md:col-span-2">
+                      <Label>Address</Label>
+                      <Input value={vendorCompanyForm.address} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, address: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>City</Label>
+                      <Input value={vendorCompanyForm.city} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, city: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>State</Label>
+                      <Input value={vendorCompanyForm.state} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, state: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Zip Code</Label>
+                      <Input value={vendorCompanyForm.zip_code} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, zip_code: e.target.value }))} />
+                    </div>
                   </div>
-                  <div className="space-y-2">
-                    <Label>Check Delivery</Label>
-                    <Select
-                      value={vendorPreferences.checkDelivery}
-                      onValueChange={(value) => setVendorPreferences((p) => ({ ...p, checkDelivery: value }))}
-                    >
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="mail">Mail Check</SelectItem>
-                        <SelectItem value="pickup">Pick Up Check</SelectItem>
-                      </SelectContent>
-                    </Select>
+                  <div className="flex justify-end">
+                    <Button onClick={saveVendorCompanyInfo} disabled={savingCompanyInfo}>
+                      {savingCompanyInfo ? 'Saving...' : 'Save Company Settings'}
+                    </Button>
                   </div>
-                </div>
-              </div>
+                </TabsContent>
 
-              <div className="flex justify-end">
-                <Button onClick={saveVendorPreferences} disabled={savingVendorPrefs}>
-                  {savingVendorPrefs ? 'Saving...' : 'Save Vendor Settings'}
-                </Button>
-              </div>
+                <TabsContent value="compliance" className="space-y-4 pt-4">
+                  <div className="rounded-md border p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">Insurance Certificate</p>
+                        <p className="text-sm text-muted-foreground">
+                          {hasInsuranceDoc ? 'Uploaded' : 'Not uploaded'}
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" onClick={() => insuranceInputRef.current?.click()} disabled={savingCompliance}>
+                        Upload Insurance
+                      </Button>
+                    </div>
+                    <Input
+                      ref={insuranceInputRef}
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void upsertComplianceDoc('insurance', file, insuranceExpiryDate || undefined);
+                      }}
+                    />
+                    <div className="space-y-1">
+                      <Label>Insurance Expiration Date</Label>
+                      <Input type="date" value={insuranceExpiryDate} onChange={(e) => setInsuranceExpiryDate(e.target.value)} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-md border p-4 space-y-3">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <p className="font-medium">W-9</p>
+                        <p className="text-sm text-muted-foreground">
+                          {hasW9Doc ? 'Uploaded' : 'Not uploaded'}
+                        </p>
+                      </div>
+                      <Button type="button" variant="outline" onClick={() => w9InputRef.current?.click()} disabled={savingCompliance}>
+                        Upload W-9
+                      </Button>
+                    </div>
+                    <Input
+                      ref={w9InputRef}
+                      type="file"
+                      accept=".pdf,.jpg,.jpeg,.png"
+                      className="hidden"
+                      onChange={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) void upsertComplianceDoc('w9', file);
+                      }}
+                    />
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="taxes" className="space-y-4 pt-4">
+                  <div className="rounded-md border p-4 space-y-3">
+                    <div className="space-y-2">
+                      <Label>Tax ID / EIN</Label>
+                      <Input value={vendorCompanyForm.tax_id} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, tax_id: e.target.value }))} />
+                    </div>
+                    <p className="text-xs text-muted-foreground">
+                      This value is used for your vendor profile and tax reporting workflows.
+                    </p>
+                  </div>
+                  <div className="flex justify-end">
+                    <Button onClick={saveVendorTaxSettings} disabled={savingTaxes}>
+                      {savingTaxes ? 'Saving...' : 'Save Tax Settings'}
+                    </Button>
+                  </div>
+                </TabsContent>
+
+                <TabsContent value="payment" className="space-y-4 pt-4">
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Notification Preferences</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="flex items-center justify-between rounded-md border p-3">
+                        <Label>Email notifications</Label>
+                        <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, notificationEmail: !p.notificationEmail }))}>
+                          {vendorPreferences.notificationEmail ? 'On' : 'Off'}
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border p-3">
+                        <Label>In-app notifications</Label>
+                        <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, notificationInApp: !p.notificationInApp }))}>
+                          {vendorPreferences.notificationInApp ? 'On' : 'Off'}
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border p-3">
+                        <Label>Invoice paid alerts</Label>
+                        <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, invoicePaid: !p.invoicePaid }))}>
+                          {vendorPreferences.invoicePaid ? 'On' : 'Off'}
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border p-3">
+                        <Label>Job assignment alerts</Label>
+                        <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, jobAssignments: !p.jobAssignments }))}>
+                          {vendorPreferences.jobAssignments ? 'On' : 'Off'}
+                        </Button>
+                      </div>
+                      <div className="flex items-center justify-between rounded-md border p-3">
+                        <Label>Overdue invoice alerts</Label>
+                        <Button variant="outline" size="sm" onClick={() => setVendorPreferences((p) => ({ ...p, overdueInvoices: !p.overdueInvoices }))}>
+                          {vendorPreferences.overdueInvoices ? 'On' : 'Off'}
+                        </Button>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    <Label className="text-sm font-medium">Preferred Payment Method</Label>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                      <div className="space-y-2">
+                        <Label>Method</Label>
+                        <Select
+                          value={vendorPreferences.preferredPaymentType}
+                          onValueChange={(value) => setVendorPreferences((p) => ({ ...p, preferredPaymentType: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="check">Check</SelectItem>
+                            <SelectItem value="ach">ACH</SelectItem>
+                            <SelectItem value="wire">Wire</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Check Delivery</Label>
+                        <Select
+                          value={vendorPreferences.checkDelivery}
+                          onValueChange={(value) => setVendorPreferences((p) => ({ ...p, checkDelivery: value }))}
+                        >
+                          <SelectTrigger>
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="mail">Mail Check</SelectItem>
+                            <SelectItem value="pickup">Pick Up Check</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex justify-end">
+                    <Button onClick={saveVendorPreferences} disabled={savingVendorPrefs}>
+                      {savingVendorPrefs ? 'Saving...' : 'Save Payment Settings'}
+                    </Button>
+                  </div>
+                </TabsContent>
+              </Tabs>
             </CardContent>
           </Card>
         </TabsContent>

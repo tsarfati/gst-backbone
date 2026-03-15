@@ -99,7 +99,7 @@ export default function CompanyManagement() {
   const [showAssignExistingUserDialog, setShowAssignExistingUserDialog] = useState(false);
   const [selectedCompanyForUsers, setSelectedCompanyForUsers] = useState<OrganizationCompany | null>(null);
   const [selectedExistingUserId, setSelectedExistingUserId] = useState<string>('');
-  const [assignUserRole, setAssignUserRole] = useState<"admin" | "company_admin" | "controller" | "employee" | "project_manager" | "design_professional" | "vendor" | "view_only">('employee');
+  const [assignUserRole, setAssignUserRole] = useState<"admin" | "company_admin" | "controller" | "employee" | "project_manager" | "view_only">('employee');
   const [existingUserSearch, setExistingUserSearch] = useState('');
   const [companyUsers, setCompanyUsers] = useState<CompanyUser[]>([]);
   const [eligibleOrganizationUsers, setEligibleOrganizationUsers] = useState<OrganizationUserProfile[]>([]);
@@ -1378,7 +1378,6 @@ export default function CompanyManagement() {
                 <SelectContent>
                   <SelectItem value="employee">Employee</SelectItem>
                   <SelectItem value="project_manager">Project Manager</SelectItem>
-                  <SelectItem value="design_professional">Design Professional</SelectItem>
                   <SelectItem value="controller">Controller</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                   <SelectItem value="company_admin">Company Admin</SelectItem>
@@ -1429,7 +1428,6 @@ export default function CompanyManagement() {
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="employee">Employee</SelectItem>
-                  <SelectItem value="design_professional">Design Professional</SelectItem>
                   <SelectItem value="controller">Controller</SelectItem>
                   <SelectItem value="admin">Admin</SelectItem>
                 </SelectContent>

@@ -51,7 +51,7 @@ interface CompanyProviderProps {
 }
 
 export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) => {
-  const { user, profile } = useAuth();
+  const { user, profile, loading: authLoading } = useAuth();
   const { currentTenant, isSuperAdmin, loading: tenantLoading } = useTenant();
   const { toast } = useToast();
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
@@ -85,7 +85,12 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
   };
 
   const fetchUserCompanies = async () => {
-    if (!user) return;
+    if (!user) {
+      setCurrentCompany(null);
+      setUserCompanies([]);
+      setLoading(false);
+      return;
+    }
 
     try {
       setLoading(true);
@@ -261,15 +266,21 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
       return;
     }
 
-    // User exists but profile hasn't hydrated yet → keep loading so we don't mis-route (e.g. super admin → /super-admin)
+    // User exists but profile hasn't hydrated yet.
+    // Keep loading while auth context is still resolving, but fail-safe to avoid an infinite loading screen
+    // when profile fetch/create fails for first-time signups.
     if (!profile) {
-      setLoading(true);
+      setLoading(authLoading);
+      if (!authLoading) {
+        setCurrentCompany(null);
+        setUserCompanies([]);
+      }
       return;
     }
 
     fetchUserCompanies();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, profile?.current_company_id, currentTenant?.id, isSuperAdmin, tenantLoading]);
+  }, [user?.id, profile?.current_company_id, currentTenant?.id, isSuperAdmin, tenantLoading, authLoading, profile]);
 
   const value = {
     currentCompany,

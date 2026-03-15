@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -160,6 +160,7 @@ const computeTotal = (bid: {
 export default function BidDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
@@ -211,6 +212,8 @@ export default function BidDetails() {
   const teamMessages = communications.filter((message) => message.message_type === "intercompany");
   const vendorMessages = communications.filter((message) => message.message_type === "vendor");
   const selectedAttachment = attachments.find((attachment) => attachment.id === selectedAttachmentId) || null;
+  const highlightedMessageId = searchParams.get("messageId");
+  const highlightedMessageSource = searchParams.get("messageSource");
 
   const loadAttachments = async (bidId: string) => {
     try {
@@ -387,6 +390,34 @@ export default function BidDetails() {
   useEffect(() => {
     load();
   }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+
+  useEffect(() => {
+    if (!user?.id || !bid?.company_id || communications.length === 0) return;
+    const storageKey = `dashboard:read-non-direct:${bid.company_id}:${user.id}`;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      const parsed = raw ? JSON.parse(raw) : [];
+      const stored = new Set<string>(Array.isArray(parsed) ? parsed.filter((value) => typeof value === "string") : []);
+
+      communications.forEach((message) => {
+        if (message.user_id === user.id) return;
+        if (message.message_type !== "intercompany") return;
+        stored.add(`bid_intercompany_communication:${message.id}`);
+      });
+
+      localStorage.setItem(storageKey, JSON.stringify(Array.from(stored)));
+    } catch {
+      // Ignore storage issues.
+    }
+  }, [communications, user?.id, bid?.company_id]);
+
+  useEffect(() => {
+    if (!highlightedMessageId) return;
+    const el = document.getElementById(`bid-message-${highlightedMessageId}`);
+    if (el) {
+      el.scrollIntoView({ behavior: "smooth", block: "center" });
+    }
+  }, [highlightedMessageId, communications]);
 
   const sendMessage = async (messageType: "intercompany" | "vendor") => {
     if (!bid || !user || !currentCompany) return;
@@ -640,6 +671,146 @@ export default function BidDetails() {
   if (loading) return <div className="p-6 text-center"><span className="loading-dots">Loading bid</span></div>;
   if (!bid) return <div className="p-6 text-center text-muted-foreground">Bid not found</div>;
 
+  const communicationsCard = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <MessageSquare className="h-4 w-4" />
+          Communications
+        </CardTitle>
+      </CardHeader>
+      <CardContent>
+        <Tabs defaultValue="intercompany" className="space-y-4">
+          <TabsList className="grid w-full grid-cols-2">
+            <TabsTrigger value="intercompany" className="flex items-center gap-2">
+              <Users className="h-4 w-4" />
+              Team Notes ({teamMessages.length})
+            </TabsTrigger>
+            <TabsTrigger value="vendor" className="flex items-center gap-2">
+              <Building2 className="h-4 w-4" />
+              Vendor Communication ({vendorMessages.length})
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="intercompany" className="space-y-3">
+            <div className="max-h-64 overflow-y-auto space-y-2 rounded-md border p-3">
+              {loadingCommunications ? (
+                <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading</span></p>
+              ) : teamMessages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No team notes yet.</p>
+              ) : (
+                teamMessages.map((message) => (
+                  <div
+                    key={message.id}
+                    id={`bid-message-${message.id}`}
+                    className={`rounded-md bg-muted/40 p-3 ${
+                      highlightedMessageSource === "bid_intercompany_communication" && highlightedMessageId === message.id
+                        ? "ring-2 ring-primary/60 bg-primary/5"
+                        : ""
+                    }`}
+                  >
+                    <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                      <Avatar className="h-5 w-5">
+                        <AvatarImage src={message.sender_avatar_url || undefined} alt={message.sender_name} />
+                        <AvatarFallback className="text-[10px]">
+                          {message.sender_name
+                            .split(" ")
+                            .map((part) => part[0] || "")
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span>{message.sender_name}</span>
+                      <Calendar className="h-3 w-3" />
+                      <span>{format(new Date(message.created_at), "MMM d, yyyy h:mm a")}</span>
+                      {highlightedMessageSource === "bid_intercompany_communication" && highlightedMessageId === message.id && (
+                        <Badge variant="default" className="ml-1 h-5 text-[10px]">
+                          New
+                        </Badge>
+                      )}
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap">{message.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <MentionTextarea
+                companyId={currentCompany?.id}
+                jobId={bid?.rfp?.job_id || null}
+                currentUserId={user?.id}
+                rows={3}
+                placeholder="Add internal notes or updates for your team..."
+                value={newTeamMessage}
+                onValueChange={setNewTeamMessage}
+              />
+              <Button onClick={() => sendMessage("intercompany")} disabled={sendingTeam || !newTeamMessage.trim()}>
+                <Send className="mr-2 h-4 w-4" />
+                {sendingTeam ? "Sending..." : "Post Team Note"}
+              </Button>
+            </div>
+          </TabsContent>
+
+          <TabsContent value="vendor" className="space-y-3">
+            <div className="rounded-md border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
+              {vendorHasAccount
+                ? "Vendor account detected. Messages here are visible in the vendor portal."
+                : "No vendor portal account detected yet. You can still log communications for this bid."}
+            </div>
+
+            <div className="max-h-64 overflow-y-auto space-y-2 rounded-md border p-3">
+              {loadingCommunications ? (
+                <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading</span></p>
+              ) : vendorMessages.length === 0 ? (
+                <p className="text-sm text-muted-foreground">No vendor communications yet.</p>
+              ) : (
+                vendorMessages.map((message) => (
+                  <div key={message.id} className="rounded-md bg-muted/40 p-3">
+                    <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
+                      <Avatar className="h-5 w-5">
+                        <AvatarImage src={message.sender_avatar_url || undefined} alt={message.sender_name} />
+                        <AvatarFallback className="text-[10px]">
+                          {message.sender_name
+                            .split(" ")
+                            .map((part) => part[0] || "")
+                            .join("")
+                            .slice(0, 2)
+                            .toUpperCase() || "U"}
+                        </AvatarFallback>
+                      </Avatar>
+                      <span>{message.sender_name}</span>
+                      <Calendar className="h-3 w-3" />
+                      <span>{format(new Date(message.created_at), "MMM d, yyyy h:mm a")}</span>
+                    </div>
+                    <p className="text-sm whitespace-pre-wrap">{message.message}</p>
+                  </div>
+                ))
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <MentionTextarea
+                companyId={currentCompany?.id}
+                jobId={bid?.rfp?.job_id || null}
+                currentUserId={user?.id}
+                rows={3}
+                placeholder="Type a message to the vendor..."
+                value={newVendorMessage}
+                onValueChange={setNewVendorMessage}
+              />
+              <Button onClick={() => sendMessage("vendor")} disabled={sendingVendor || !newVendorMessage.trim()}>
+                <Send className="mr-2 h-4 w-4" />
+                {sendingVendor ? "Sending..." : "Send Vendor Message"}
+              </Button>
+            </div>
+          </TabsContent>
+        </Tabs>
+      </CardContent>
+    </Card>
+  );
+
   return (
     <div className="space-y-4 px-4 md:px-6 pb-6">
       <div className="flex items-center justify-between gap-3">
@@ -883,6 +1054,8 @@ export default function BidDetails() {
             </CardContent>
           </Card>
 
+          {communicationsCard}
+
         </div>
 
         <div className="xl:col-span-3 space-y-4">
@@ -1059,131 +1232,6 @@ export default function BidDetails() {
           </Card>
         </div>
       </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <MessageSquare className="h-4 w-4" />
-            Communications
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <Tabs defaultValue="intercompany" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-2">
-              <TabsTrigger value="intercompany" className="flex items-center gap-2">
-                <Users className="h-4 w-4" />
-                Team Notes ({teamMessages.length})
-              </TabsTrigger>
-              <TabsTrigger value="vendor" className="flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                Vendor Communication ({vendorMessages.length})
-              </TabsTrigger>
-            </TabsList>
-
-            <TabsContent value="intercompany" className="space-y-3">
-              <div className="max-h-64 overflow-y-auto space-y-2 rounded-md border p-3">
-                {loadingCommunications ? (
-                  <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading</span></p>
-                ) : teamMessages.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No team notes yet.</p>
-                ) : (
-                  teamMessages.map((message) => (
-                    <div key={message.id} className="rounded-md bg-muted/40 p-3">
-                      <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={message.sender_avatar_url || undefined} alt={message.sender_name} />
-                          <AvatarFallback className="text-[10px]">
-                            {message.sender_name
-                              .split(" ")
-                              .map((part) => part[0] || "")
-                              .join("")
-                              .slice(0, 2)
-                              .toUpperCase() || "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span>{message.sender_name}</span>
-                        <Calendar className="h-3 w-3" />
-                        <span>{format(new Date(message.created_at), "MMM d, yyyy h:mm a")}</span>
-                      </div>
-                      <p className="text-sm whitespace-pre-wrap">{message.message}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <MentionTextarea
-                  companyId={currentCompany?.id}
-                  jobId={bid?.rfp?.job_id || null}
-                  currentUserId={user?.id}
-                  rows={3}
-                  placeholder="Add internal notes or updates for your team..."
-                  value={newTeamMessage}
-                  onValueChange={setNewTeamMessage}
-                />
-                <Button onClick={() => sendMessage("intercompany")} disabled={sendingTeam || !newTeamMessage.trim()}>
-                  <Send className="mr-2 h-4 w-4" />
-                  {sendingTeam ? "Sending..." : "Post Team Note"}
-                </Button>
-              </div>
-            </TabsContent>
-
-            <TabsContent value="vendor" className="space-y-3">
-              <div className="rounded-md border bg-muted/20 px-3 py-2 text-sm text-muted-foreground">
-                {vendorHasAccount
-                  ? "Vendor account detected. Messages here are visible in the vendor portal."
-                  : "No vendor portal account detected yet. You can still log communications for this bid."}
-              </div>
-
-              <div className="max-h-64 overflow-y-auto space-y-2 rounded-md border p-3">
-                {loadingCommunications ? (
-                  <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading</span></p>
-                ) : vendorMessages.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No vendor communications yet.</p>
-                ) : (
-                  vendorMessages.map((message) => (
-                    <div key={message.id} className="rounded-md bg-muted/40 p-3">
-                      <div className="mb-1 flex items-center gap-2 text-xs text-muted-foreground">
-                        <Avatar className="h-5 w-5">
-                          <AvatarImage src={message.sender_avatar_url || undefined} alt={message.sender_name} />
-                          <AvatarFallback className="text-[10px]">
-                            {message.sender_name
-                              .split(" ")
-                              .map((part) => part[0] || "")
-                              .join("")
-                              .slice(0, 2)
-                              .toUpperCase() || "U"}
-                          </AvatarFallback>
-                        </Avatar>
-                        <span>{message.sender_name}</span>
-                        <Calendar className="h-3 w-3" />
-                        <span>{format(new Date(message.created_at), "MMM d, yyyy h:mm a")}</span>
-                      </div>
-                      <p className="text-sm whitespace-pre-wrap">{message.message}</p>
-                    </div>
-                  ))
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <MentionTextarea
-                  companyId={currentCompany?.id}
-                  jobId={bid?.rfp?.job_id || null}
-                  currentUserId={user?.id}
-                  rows={3}
-                  placeholder="Type a message to the vendor..."
-                  value={newVendorMessage}
-                  onValueChange={setNewVendorMessage}
-                />
-                <Button onClick={() => sendMessage("vendor")} disabled={sendingVendor || !newVendorMessage.trim()}>
-                  <Send className="mr-2 h-4 w-4" />
-                  {sendingVendor ? "Sending..." : "Send Vendor Message"}
-                </Button>
-              </div>
-            </TabsContent>
-          </Tabs>
-        </CardContent>
-      </Card>
 
       <Dialog open={!!activeEmailPreview} onOpenChange={(open) => !open && setActiveEmailPreview(null)}>
         <DialogContent className="max-w-4xl w-[95vw]">

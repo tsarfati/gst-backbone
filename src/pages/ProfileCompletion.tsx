@@ -26,6 +26,16 @@ export default function ProfileCompletion() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile?.avatar_url || null);
   const [isAvatarDragOver, setIsAvatarDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
+  const allowedRoles = new Set([
+    'admin',
+    'controller',
+    'project_manager',
+    'design_professional',
+    'employee',
+    'view_only',
+    'company_admin',
+    'vendor',
+  ]);
 
   useEffect(() => {
     setFormData((prev) => ({
@@ -125,10 +135,26 @@ export default function ProfileCompletion() {
         avatar_url = await uploadAvatar();
       }
 
-      // Update profile with complete information
+      const metadataRequestedRole = String((user?.user_metadata as any)?.requested_role || '').toLowerCase();
+      const existingRole = String(profile?.role || '').toLowerCase();
+      const resolvedRole =
+        (allowedRoles.has(existingRole) ? existingRole : null) ||
+        (allowedRoles.has(metadataRequestedRole) ? metadataRequestedRole : null) ||
+        'employee';
+      const existingStatus = String(profile?.status || '').toLowerCase();
+      const resolvedStatus =
+        existingStatus === 'pending' || existingStatus === 'approved' || existingStatus === 'rejected'
+          ? existingStatus
+          : 'approved';
+
+      // Create-or-update profile so first-time users do not get stuck if trigger/profile creation failed.
       const { error } = await supabase
         .from('profiles')
-        .update({
+        .upsert({
+          user_id: user.id,
+          email: user.email || profile?.email || null,
+          role: resolvedRole as any,
+          status: resolvedStatus,
           first_name: formData.first_name.trim(),
           last_name: formData.last_name.trim(),
           nickname: formData.nickname.trim() || null,
@@ -137,8 +163,7 @@ export default function ProfileCompletion() {
           display_name: formData.nickname.trim() || `${formData.first_name} ${formData.last_name}`,
           profile_completed: true,
           profile_completed_at: new Date().toISOString()
-        })
-        .eq('user_id', user.id);
+        }, { onConflict: 'user_id' });
 
       if (error) throw error;
 
@@ -149,9 +174,13 @@ export default function ProfileCompletion() {
 
       // Refresh profile data
       await refreshProfile();
-      
-      // Navigate to company request page
-      navigate('/company-request');
+
+      const targetPath = resolvedRole === 'design_professional'
+        ? '/design-professional/dashboard'
+        : resolvedRole === 'vendor'
+          ? '/vendor/dashboard'
+          : '/company-request';
+      navigate(targetPath, { replace: true });
     } catch (error: any) {
       console.error('Error completing profile:', error);
       toast({

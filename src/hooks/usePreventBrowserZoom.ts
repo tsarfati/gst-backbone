@@ -17,6 +17,10 @@ type UsePreventBrowserZoomParams = {
     clientY: number;
     source: "wheel" | "gesture";
   }) => void;
+  /** Multiplier for wheel/trackpad pinch delta-to-zoom conversion */
+  wheelSensitivity?: number;
+  /** Minimum zoom delta step (in zoom units) for wheel pinch gestures */
+  minWheelStep?: number;
 };
 
 /**
@@ -32,6 +36,8 @@ export function usePreventBrowserZoom({
   setZoom,
   clamp,
   onZoomChange,
+  wheelSensitivity = 0.01,
+  minWheelStep = 0,
 }: UsePreventBrowserZoomParams) {
   useEffect(() => {
     if (!enabled) return;
@@ -92,7 +98,11 @@ export function usePreventBrowserZoom({
       e.preventDefault();
       e.stopPropagation();
 
-      const delta = -e.deltaY * 0.01;
+      const rawDelta = -e.deltaY * wheelSensitivity;
+      const delta =
+        Math.abs(rawDelta) < minWheelStep && rawDelta !== 0
+          ? Math.sign(rawDelta) * minWheelStep
+          : rawDelta;
       setZoom((prev) => {
         const next = clampZoom(Math.round((prev + delta) * 100) / 100);
         onZoomChange?.({

@@ -22,6 +22,8 @@ interface UserProfile {
   default_page?: string;
 }
 
+const INTERNAL_ROLES = ['admin', 'controller', 'company_admin', 'project_manager', 'employee', 'view_only'] as const;
+
 interface CustomRole {
   id: string;
   role_key: string;
@@ -31,21 +33,20 @@ interface CustomRole {
 }
 
 const AVAILABLE_PAGES = [
-  { value: '/dashboard', label: 'Dashboard', roles: ['admin', 'controller', 'project_manager', 'design_professional', 'employee', 'view_only', 'vendor'] },
-  { value: '/design-professional/dashboard', label: 'Design Professional Dashboard', roles: ['design_professional'] },
-  { value: '/jobs', label: 'All Jobs', roles: ['admin', 'controller', 'project_manager', 'design_professional', 'employee', 'view_only', 'vendor'] },
+  { value: '/dashboard', label: 'Dashboard', roles: ['admin', 'controller', 'project_manager', 'employee', 'view_only'] },
+  { value: '/jobs', label: 'All Jobs', roles: ['admin', 'controller', 'project_manager', 'employee', 'view_only'] },
   { value: '/payables-dashboard', label: 'Payables Dashboard', roles: ['admin', 'controller'] },
   { value: '/punch-clock-dashboard', label: 'Punch Clock Dashboard', roles: ['admin', 'controller', 'project_manager'] },
   { value: '/time-sheets', label: 'Timesheets', roles: ['admin', 'controller', 'project_manager', 'employee'] },
   { value: '/vendors', label: 'All Vendors', roles: ['admin', 'controller', 'project_manager', 'view_only'] },
-  { value: '/bills', label: 'All Bills', roles: ['admin', 'controller', 'view_only', 'vendor'] },
+  { value: '/bills', label: 'All Bills', roles: ['admin', 'controller', 'view_only'] },
   { value: '/upload', label: 'Upload Receipts', roles: ['admin', 'controller', 'project_manager', 'employee'] },
   { value: '/uncoded', label: 'Uncoded Receipts', roles: ['admin', 'controller', 'project_manager'] },
   { value: '/receipts', label: 'Coded Receipts', roles: ['admin', 'controller', 'project_manager', 'view_only'] },
   { value: '/employees', label: 'All Employees', roles: ['admin', 'controller', 'project_manager'] },
-  { value: '/messages', label: 'All Messages', roles: ['admin', 'controller', 'project_manager', 'design_professional', 'employee', 'vendor'] },
+  { value: '/messages', label: 'All Messages', roles: ['admin', 'controller', 'project_manager', 'employee'] },
   { value: '/team-chat', label: 'Team Chat', roles: ['admin', 'controller', 'project_manager', 'employee'] },
-  { value: '/company-files', label: 'All Documents', roles: ['admin', 'controller', 'project_manager', 'design_professional', 'view_only', 'vendor'] },
+  { value: '/company-files', label: 'All Documents', roles: ['admin', 'controller', 'project_manager', 'view_only'] },
   { value: '/banking/accounts', label: 'Bank Accounts', roles: ['admin', 'controller'] },
   { value: '/settings', label: 'Settings', roles: ['admin', 'controller'] },
 ];
@@ -123,7 +124,8 @@ export default function UserRoleManagement() {
         role: roleMap.get(user.user_id) || user.role
       }));
 
-      setUsers(usersWithCompanyRoles);
+      const internalUsersOnly = usersWithCompanyRoles.filter((u) => INTERNAL_ROLES.includes(u.role as typeof INTERNAL_ROLES[number]));
+      setUsers(internalUsersOnly);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -387,10 +389,8 @@ export default function UserRoleManagement() {
                 <SelectItem value="controller">Controller</SelectItem>
                 <SelectItem value="company_admin">Company Admin</SelectItem>
                 <SelectItem value="project_manager">Project Manager</SelectItem>
-                <SelectItem value="design_professional">Design Professional</SelectItem>
                 <SelectItem value="employee">Employee</SelectItem>
                 <SelectItem value="view_only">View Only</SelectItem>
-                <SelectItem value="vendor">Vendor</SelectItem>
               </SelectContent>
             </Select>
           </div>
@@ -475,10 +475,8 @@ export default function UserRoleManagement() {
                                   <SelectItem value="controller">Controller</SelectItem>
                                   <SelectItem value="company_admin">Company Admin</SelectItem>
                                   <SelectItem value="project_manager">Project Manager</SelectItem>
-                                  <SelectItem value="design_professional">Design Professional</SelectItem>
                                   <SelectItem value="employee">Employee</SelectItem>
                                   <SelectItem value="view_only">View Only</SelectItem>
-                                  <SelectItem value="vendor">Vendor</SelectItem>
                                   {customRoles.length > 0 && (
                                     <>
                                       <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">

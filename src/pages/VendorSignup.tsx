@@ -4,12 +4,14 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Building2, CheckCircle2, XCircle } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import builderlynkLogo from "@/assets/builderlynk-icon-shield.png";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
+import { getPublicAuthOrigin } from "@/utils/publicAuthOrigin";
 
 type PublicCompany = {
   id: string;
@@ -93,10 +95,7 @@ export default function VendorSignup() {
 
   useEffect(() => {
     if (loadingCompanies) return;
-    if (!preselectedCompanyId) {
-      setError("This vendor signup link is invalid. Please use the company-specific signup link.");
-      return;
-    }
+    if (!preselectedCompanyId) return;
     const exists = companies.some((c) => c.id === preselectedCompanyId);
     if (!exists) {
       setError("This company signup link is invalid.");
@@ -159,10 +158,6 @@ export default function VendorSignup() {
       return;
     }
 
-    if (!form.companyId) {
-      setError("Please select the company you want to request access to.");
-      return;
-    }
     if (!form.firstName.trim() || !form.lastName.trim()) {
       setError("First name and last name are required.");
       return;
@@ -192,12 +187,12 @@ export default function VendorSignup() {
         email: normalizedEmail,
         password: form.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth`,
+          emailRedirectTo: `${getPublicAuthOrigin()}/auth`,
           data: {
             first_name: form.firstName.trim(),
             last_name: form.lastName.trim(),
             requested_role: "vendor",
-            requested_company_id: form.companyId,
+            requested_company_id: form.companyId || null,
             business_name: form.businessName.trim(),
           },
         },
@@ -215,7 +210,7 @@ export default function VendorSignup() {
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
           phone: form.phone.trim(),
-          companyId: form.companyId,
+          companyId: form.companyId || null,
           requestedRole: "vendor",
           businessName: form.businessName.trim(),
         },
@@ -301,9 +296,20 @@ export default function VendorSignup() {
             <CheckCircle2 className="mx-auto h-14 w-14 text-green-500 mb-4" />
             <h2 className="text-2xl font-semibold mb-2">Request Submitted</h2>
             <p className="text-slate-300 mb-6">
-              Your {roleLabel.toLowerCase()} signup is pending approval for{" "}
-              <strong>{selectedCompany?.display_name || selectedCompany?.name || "the selected company"}</strong>.
-              You will receive an email once approved.
+              {selectedCompany
+                ? (
+                  <>
+                    Your {roleLabel.toLowerCase()} account is created and your access request is pending approval for{" "}
+                    <strong>{selectedCompany.display_name || selectedCompany.name}</strong>.
+                    You will receive an email once approved.
+                  </>
+                )
+                : (
+                  <>
+                    Your independent {roleLabel.toLowerCase()} account has been created.
+                    You can now sign in and manage your workspace.
+                  </>
+                )}
             </p>
             <Button onClick={() => navigate("/auth")}>Go to Sign In</Button>
           </CardContent>
@@ -352,6 +358,34 @@ export default function VendorSignup() {
             <div className="space-y-2 text-center pb-1">
               <CardTitle className="text-xl sm:text-2xl">{vendorSignupHeaderTitle}</CardTitle>
               <CardDescription className="text-slate-300">{vendorSignupHeaderSubtitle}</CardDescription>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="signup-company">Request Access To (Optional)</Label>
+              {preselectedCompanyId ? (
+                <Input
+                  id="signup-company"
+                  value={selectedCompany?.display_name || selectedCompany?.name || "Loading company..."}
+                  disabled
+                />
+              ) : (
+                <Select
+                  value={form.companyId || "__none__"}
+                  onValueChange={(value) => setForm((prev) => ({ ...prev, companyId: value === "__none__" ? "" : value }))}
+                >
+                  <SelectTrigger id="signup-company">
+                    <SelectValue placeholder="No company selected (create independent vendor account)" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="__none__">No company selected (create independent vendor account)</SelectItem>
+                    {companies.map((company) => (
+                      <SelectItem key={company.id} value={company.id}>
+                        {company.display_name || company.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

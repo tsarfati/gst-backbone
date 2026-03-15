@@ -29,10 +29,10 @@
          {/* Header */}
          <Section style={header}>
            <Img
-             src="https://builderlynk.lovable.app/email-assets/builderlynk-logo.png?v=2"
+             src="https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png"
              alt="BuilderLYNK"
-             height="50"
-             style={{ margin: '0 auto' }}
+             height="150"
+             style={{ display: 'block', margin: '0 auto', width: 'auto', maxWidth: '420px' }}
            />
          </Section>
  

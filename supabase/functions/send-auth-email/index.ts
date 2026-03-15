@@ -114,15 +114,25 @@ const getRecoveryRedirectTo = (siteUrl?: string, redirectTo?: string): string =>
   return `${origin}/auth?type=recovery`
 }
 
+const isDisallowedAuthRedirectHost = (hostname: string): boolean => {
+  const value = String(hostname || '').toLowerCase()
+  return (
+    value.endsWith('.lovable.app')
+    || value === 'lovable.app'
+    || value.endsWith('.lovableproject.com')
+    || value === 'lovableproject.com'
+  )
+}
+
 const normalizeAppRedirectTo = (redirectTo?: string, siteUrl?: string): string => {
-  const canonicalOrigin = 'https://builderlynk.com'
+  const canonicalOrigin = Deno.env.get('PUBLIC_SITE_URL') || 'https://builderlynk.com'
   const fallback = `${canonicalOrigin}/auth`
 
   const normalizeOrigin = (value?: string): string => {
     if (!value) return canonicalOrigin
     try {
       const parsed = new URL(value)
-      if (parsed.hostname.toLowerCase().endsWith('.lovable.app')) return canonicalOrigin
+      if (isDisallowedAuthRedirectHost(parsed.hostname)) return canonicalOrigin
       return parsed.origin
     } catch {
       return canonicalOrigin
@@ -135,7 +145,7 @@ const normalizeAppRedirectTo = (redirectTo?: string, siteUrl?: string): string =
 
   try {
     const parsed = new URL(redirectTo)
-    if (parsed.hostname.toLowerCase().endsWith('.lovable.app')) {
+    if (isDisallowedAuthRedirectHost(parsed.hostname)) {
       return `${canonicalOrigin}${parsed.pathname || '/auth'}${parsed.search || ''}${parsed.hash || ''}`
     }
     return parsed.toString()
@@ -291,7 +301,7 @@ Deno.serve(async (req) => {
                    <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
                      <tr>
                        <td style="background-color: #1e3a5f; padding: 30px; text-align: center;">
-                         <img src="https://builderlynk.lovable.app/email-assets/builderlynk-logo.png?v=2" alt="BuilderLYNK" style="height: 50px; width: auto;" />
+                         <img src="https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png" alt="BuilderLYNK" style="display:block; margin:0 auto; height: 150px; width: auto; max-width: 420px;" />
                        </td>
                      </tr>
                      <tr>

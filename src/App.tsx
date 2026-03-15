@@ -66,6 +66,7 @@ import Announcements from "./pages/Announcements";
 import AllTasks from "./pages/AllTasks";
 import ProjectTasks from "./pages/ProjectTasks";
 import TaskDeadlines from "./pages/TaskDeadlines";
+import CalendarPage from "./pages/CalendarPage";
 import BillDetails from "./pages/BillDetails";
 import BillEdit from "./pages/BillEdit";
 import PaymentHistory from "./pages/PaymentHistory";
@@ -500,6 +501,7 @@ function AuthenticatedRoutes() {
               <Route path="team-chat" element={<TeamChat />} />
               <Route path="announcements" element={<Announcements />} />
               <Route path="messaging" element={<AllMessages />} />
+              <Route path="calendar" element={<CalendarPage />} />
               <Route path="tasks" element={<AllTasks />} />
               <Route path="tasks/projects" element={<ProjectTasks />} />
               <Route path="tasks/deadlines" element={<TaskDeadlines />} />

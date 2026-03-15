@@ -9,7 +9,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveStorageUrl } from '@/utils/storageUtils';
-import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight, Mail, MailCheck, MailOpen, MailX, Clock, RefreshCw, Loader2, X, Briefcase, HardHat } from 'lucide-react';
+import { Users, UserCheck, UserPlus, Shield, ChevronDown, ChevronRight, Mail, MailCheck, MailOpen, MailX, Clock, RefreshCw, Loader2, X, Briefcase, HardHat, Store } from 'lucide-react';
 import { UserPinSettings } from "@/components/UserPinSettings";
 import CompanyAccessRequests from "@/components/CompanyAccessRequests";
 import { useNavigate } from 'react-router-dom';
@@ -101,11 +101,11 @@ const roleGroupDefs: RoleGroupDef[] = [
   { key: 'admins', label: 'Administrators', icon: <Shield className="h-5 w-5" />, roles: ['admin', 'company_admin', 'owner'] },
   { key: 'controllers', label: 'Controllers', icon: <Briefcase className="h-5 w-5" />, roles: ['controller'] },
   { key: 'project_managers', label: 'Project Managers', icon: <HardHat className="h-5 w-5" />, roles: ['project_manager'] },
-  { key: 'design_professionals', label: 'Design Professionals', icon: <HardHat className="h-5 w-5" />, roles: ['design_professional'] },
   { key: 'employees', label: 'Employees', icon: <Users className="h-5 w-5" />, roles: ['employee'] },
   { key: 'view_only', label: 'View Only', icon: <UserCheck className="h-5 w-5" />, roles: ['view_only'] },
-  { key: 'vendors', label: 'Vendors', icon: <UserCheck className="h-5 w-5" />, roles: ['vendor'] },
 ];
+
+const EXTERNAL_ACCESS_ROLES = ['vendor', 'design_professional'] as const;
 
 export default function UserSettings() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -467,6 +467,9 @@ export default function UserSettings() {
     return users.filter((u) => !u.custom_role_id && roles.includes(u.role));
   };
 
+  const getExternalUsers = (role: typeof EXTERNAL_ACCESS_ROLES[number]) =>
+    users.filter((u) => u.role === role);
+
   const getInvitationRoleBadge = (invitation: Invitation) => {
     if (invitation.custom_role_id) {
       const customRole = customRoles.find((r) => r.id === invitation.custom_role_id);
@@ -519,6 +522,20 @@ export default function UserSettings() {
           >
             <Shield className="h-4 w-4 mr-2" />
             User Roles
+          </TabsTrigger>
+          <TabsTrigger
+            value="vendor-access"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
+            <Store className="h-4 w-4 mr-2" />
+            Vendor Access
+          </TabsTrigger>
+          <TabsTrigger
+            value="design-professional-access"
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
+            <HardHat className="h-4 w-4 mr-2" />
+            Design Professional Access
           </TabsTrigger>
           <TabsTrigger
             value="intake-queue" 
@@ -806,6 +823,76 @@ export default function UserSettings() {
 
         <TabsContent value="user-roles">
           <UserRoleManagement />
+        </TabsContent>
+
+        <TabsContent value="vendor-access">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Vendor Access Users ({getExternalUsers('vendor').length})</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {getExternalUsers('vendor').length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No vendor users are currently linked to this company.</p>
+                ) : (
+                  getExternalUsers('vendor').map((user) => (
+                    <div
+                      key={user.user_id}
+                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                      className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
+                        <p className="text-sm text-muted-foreground">{user.phone || 'No phone on file'}</p>
+                      </div>
+                      <Badge variant="secondary">Vendor</Badge>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+            <CompanyAccessRequests
+              requestedRoleFilter={['vendor']}
+              statusFilter={intakePendingOnly ? 'pending' : 'all'}
+              title="Vendor Intake Queue"
+              description="Approve or reject vendor signup requests for this company."
+            />
+          </div>
+        </TabsContent>
+
+        <TabsContent value="design-professional-access">
+          <div className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Design Professional Access Users ({getExternalUsers('design_professional').length})</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {getExternalUsers('design_professional').length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No design professional users are currently linked to this company.</p>
+                ) : (
+                  getExternalUsers('design_professional').map((user) => (
+                    <div
+                      key={user.user_id}
+                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                      className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <div>
+                        <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
+                        <p className="text-sm text-muted-foreground">{user.phone || 'No phone on file'}</p>
+                      </div>
+                      <Badge variant="secondary">Design Professional</Badge>
+                    </div>
+                  ))
+                )}
+              </CardContent>
+            </Card>
+            <CompanyAccessRequests
+              requestedRoleFilter={['design_professional']}
+              statusFilter={intakePendingOnly ? 'pending' : 'all'}
+              title="Design Professional Intake Queue"
+              description="Approve or reject design professional signup requests for this company."
+            />
+          </div>
         </TabsContent>
 
         <TabsContent value="intake-queue">

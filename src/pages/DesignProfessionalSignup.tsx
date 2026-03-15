@@ -4,13 +4,13 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { ArrowRight, Building2, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import designProLogo from '@/assets/design-pro-lynk-logo.png';
 import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
+import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 
 type PublicCompany = {
   id: string;
@@ -44,6 +44,24 @@ const formatUsPhone = (input: string) => {
   return `(${digits.slice(0, 3)}) ${digits.slice(3, 6)}-${digits.slice(6)}`;
 };
 
+const parseFunctionInvokeError = async (error: any) => {
+  let payload: any = null;
+  try {
+    if (typeof error?.context?.json === 'function') {
+      payload = await error.context.json();
+    }
+  } catch {
+    payload = null;
+  }
+
+  return {
+    message: payload?.error || error?.message || 'Failed to submit your signup request.',
+    code: payload?.code || null,
+    details: payload?.details || null,
+    hint: payload?.hint || null,
+  };
+};
+
 export default function DesignProfessionalSignup() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -51,7 +69,9 @@ export default function DesignProfessionalSignup() {
 
   const preselectedCompanyId = searchParams.get('company');
   const jobInviteToken = searchParams.get('jobInvite');
-  const isCompanyLocked = Boolean(preselectedCompanyId);
+  const isInviteFlow = Boolean(jobInviteToken);
+  const confirmationSuccess = searchParams.get('confirmed') === '1';
+  const isCompanyLocked = isInviteFlow && Boolean(preselectedCompanyId);
 
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -64,13 +84,19 @@ export default function DesignProfessionalSignup() {
     lastName: '',
     email: '',
     phone: '',
-    companyId: preselectedCompanyId || '',
+    companyId: isInviteFlow ? (preselectedCompanyId || '') : '',
     businessName: '',
     password: '',
     confirmPassword: '',
   });
 
   useEffect(() => {
+    if (!isInviteFlow) {
+      setLoadingCompanies(false);
+      setCompanies([]);
+      return;
+    }
+
     const loadCompanies = async () => {
       try {
         const { data, error: fnError } = await supabase.functions.invoke('list-public-signup-companies', {
@@ -91,17 +117,17 @@ export default function DesignProfessionalSignup() {
     };
 
     void loadCompanies();
-  }, []);
+  }, [isInviteFlow, preselectedCompanyId]);
 
   useEffect(() => {
-    if (!isCompanyLocked || loadingCompanies || !preselectedCompanyId) return;
+    if (!isInviteFlow || !isCompanyLocked || loadingCompanies || !preselectedCompanyId) return;
     const exists = companies.some((c) => c.id === preselectedCompanyId);
     if (!exists) {
       setError('This company signup link is invalid or unavailable.');
       return;
     }
     setForm((prev) => ({ ...prev, companyId: preselectedCompanyId }));
-  }, [companies, isCompanyLocked, loadingCompanies, preselectedCompanyId]);
+  }, [companies, isInviteFlow, isCompanyLocked, loadingCompanies, preselectedCompanyId]);
 
   const selectedCompany = useMemo(
     () => companies.find((c) => c.id === form.companyId) || null,
@@ -132,7 +158,7 @@ export default function DesignProfessionalSignup() {
   const signupSubheader = selectedCompany?.design_professional_signup_header_subtitle?.trim()
     || (selectedCompany
       ? `Create your BuilderLYNK design professional account for ${selectedCompany.display_name || selectedCompany.name}.`
-      : 'Create your BuilderLYNK design professional account.');
+      : 'Create your BuilderLYNK design professional account. Company/job access is granted only through invite links.');
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -140,6 +166,10 @@ export default function DesignProfessionalSignup() {
 
     if (!form.firstName.trim() || !form.lastName.trim()) {
       setError('First name and last name are required.');
+      return;
+    }
+    if (isInviteFlow && !form.companyId) {
+      setError('This invitation is invalid. Please use your latest invite link.');
       return;
     }
     if (form.password.length < 6) {
@@ -159,12 +189,12 @@ export default function DesignProfessionalSignup() {
         email: normalizedEmail,
         password: form.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/auth`,
+          emailRedirectTo: `${getPublicAuthOrigin()}/auth?type=signup&portal=designpro`,
           data: {
             first_name: form.firstName.trim(),
             last_name: form.lastName.trim(),
             requested_role: 'design_professional',
-            requested_company_id: form.companyId,
+            requested_company_id: isInviteFlow ? form.companyId : null,
             business_name: form.businessName.trim() || null,
           },
         },
@@ -180,14 +210,21 @@ export default function DesignProfessionalSignup() {
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
           phone: form.phone.trim() || null,
-          companyId: form.companyId || null,
+          companyId: isInviteFlow ? (form.companyId || null) : null,
           requestedRole: 'design_professional',
           businessName: form.businessName.trim() || null,
           jobInviteToken: jobInviteToken || null,
         },
       });
 
-      if (requestError) throw requestError;
+      if (requestError) {
+        const parsed = await parseFunctionInvokeError(requestError);
+        const enrichedError = new Error(parsed.message);
+        (enrichedError as any).code = parsed.code;
+        (enrichedError as any).details = parsed.details;
+        (enrichedError as any).hint = parsed.hint;
+        throw enrichedError;
+      }
 
       setSubmitted(true);
       toast({
@@ -197,8 +234,13 @@ export default function DesignProfessionalSignup() {
     } catch (e: any) {
       console.error('Design professional signup failed', e);
       const message = e?.message || 'Failed to submit your signup request.';
+      const suffix = e?.hint
+        ? ` Hint: ${e.hint}`
+        : e?.details
+          ? ` (${e.details})`
+          : '';
       setError(message);
-      toast({ title: 'Signup failed', description: message, variant: 'destructive' });
+      toast({ title: 'Signup failed', description: `${message}${suffix}`, variant: 'destructive' });
     } finally {
       setSubmitting(false);
     }
@@ -221,6 +263,23 @@ export default function DesignProfessionalSignup() {
               Please confirm your email, then sign in.
             </p>
             <Button onClick={() => navigate('/auth')}>Go to Sign In</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (confirmationSuccess) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
+        <Card className="w-full max-w-lg border-slate-700 bg-[#071231] text-slate-100">
+          <CardContent className="pt-6 text-center">
+            <CheckCircle2 className="mx-auto h-14 w-14 text-green-500 mb-4" />
+            <h2 className="text-2xl font-semibold mb-2">Email Confirmed</h2>
+            <p className="text-slate-300 mb-6">
+              Your email has been confirmed. Sign in to continue to your DesignProLYNK workspace.
+            </p>
+            <Button onClick={() => navigate('/auth?type=signup&portal=designpro')}>Go to Sign In</Button>
           </CardContent>
         </Card>
       </div>
@@ -271,25 +330,16 @@ export default function DesignProfessionalSignup() {
               </p>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="signup-company">Company (Optional)</Label>
-              {isCompanyLocked ? (
+            {isInviteFlow ? (
+              <div className="space-y-2">
+                <Label htmlFor="signup-company">Invited Company</Label>
+                {isCompanyLocked ? (
                 <Input id="signup-company" value={selectedCompany?.display_name || selectedCompany?.name || 'Loading company...'} disabled />
-              ) : (
-                <Select
-                  value={form.companyId || '__none__'}
-                  onValueChange={(value) => setForm((prev) => ({ ...prev, companyId: value === '__none__' ? '' : value }))}
-                >
-                  <SelectTrigger id="signup-company"><SelectValue placeholder="No company selected (self-serve)" /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="__none__">No company selected (create my design workspace)</SelectItem>
-                    {companies.map((company) => (
-                      <SelectItem key={company.id} value={company.id}>{company.display_name || company.name}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              )}
-            </div>
+                ) : (
+                  <Input id="signup-company" value="Loading invitation details..." disabled />
+                )}
+              </div>
+            ) : null}
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div className="space-y-2">

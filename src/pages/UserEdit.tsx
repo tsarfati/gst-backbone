@@ -71,6 +71,15 @@ const roleLabels = {
   vendor: 'Vendor'
 };
 
+const INTERNAL_ROLE_OPTIONS = [
+  { value: 'admin', label: 'Administrator' },
+  { value: 'controller', label: 'Controller' },
+  { value: 'project_manager', label: 'Project Manager' },
+  { value: 'employee', label: 'Employee' },
+  { value: 'view_only', label: 'View Only' },
+  { value: 'company_admin', label: 'Company Admin' },
+] as const;
+
 export default function UserEdit() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
@@ -706,14 +715,16 @@ export default function UserEdit() {
                       <SelectValue />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="admin">Administrator</SelectItem>
-                      <SelectItem value="controller">Controller</SelectItem>
-                      <SelectItem value="project_manager">Project Manager</SelectItem>
-                      <SelectItem value="design_professional">Design Professional</SelectItem>
-                      <SelectItem value="employee">Employee</SelectItem>
-                      <SelectItem value="view_only">View Only</SelectItem>
-                      <SelectItem value="company_admin">Company Admin</SelectItem>
-                      <SelectItem value="vendor">Vendor</SelectItem>
+                      {INTERNAL_ROLE_OPTIONS.map((option) => (
+                        <SelectItem key={option.value} value={option.value}>
+                          {option.label}
+                        </SelectItem>
+                      ))}
+                      {(user.role === 'vendor' || user.role === 'design_professional') && (
+                        <SelectItem value={user.role} disabled>
+                          {roleLabels[user.role]} (External Access)
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
                 </div>

@@ -105,7 +105,6 @@ serve(async (req: Request): Promise<Response> => {
     const lastName = safeString(body.lastName);
     const companyId = safeString(body.companyId);
     const requestedRole = body.requestedRole === "design_professional" ? "design_professional" : "vendor";
-    const autoApprove = requestedRole === "design_professional";
     const businessName = safeString(body.businessName || "");
     const phone = safeString(body.phone || "");
     const jobInviteToken = safeString(body.jobInviteToken || "");
@@ -144,28 +143,93 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    let resolvedCompanyId = companyId;
-    let company: any = null;
+    let invitedJobId: string | null = null;
+    let externalCompanyId = companyId || null;
+    let externalCompany: any = null;
 
-    if (!resolvedCompanyId) {
-      if (!autoApprove) {
-        return new Response(JSON.stringify({ error: "Company is required for this signup flow" }), {
+    // Design professionals can only be linked to external companies/jobs via invite token.
+    if (requestedRole === "design_professional" && !jobInviteToken) {
+      externalCompanyId = null;
+    }
+
+    if (requestedRole === "design_professional" && jobInviteToken) {
+      const { data: inviteRow, error: inviteError } = await supabase
+        .from("design_professional_job_invites")
+        .select("id, company_id, job_id, email, status, expires_at")
+        .eq("invite_token", jobInviteToken)
+        .maybeSingle();
+      if (inviteError) throw inviteError;
+      if (!inviteRow) {
+        return new Response(JSON.stringify({ error: "Invalid design professional invite token" }), {
           status: 400,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         });
       }
-      if (jobInviteToken) {
-        return new Response(JSON.stringify({ error: "A job invite requires a company context" }), {
+      if (externalCompanyId && inviteRow.company_id !== externalCompanyId) {
+        return new Response(JSON.stringify({ error: "Invite token company mismatch" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      if (String(inviteRow.status || "").toLowerCase() !== "pending") {
+        return new Response(JSON.stringify({ error: "This invite has already been used or is inactive" }), {
           status: 400,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         });
       }
+      if (new Date(inviteRow.expires_at).getTime() < Date.now()) {
+        return new Response(JSON.stringify({ error: "This invite has expired" }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      if (safeString(inviteRow.email).toLowerCase() !== email) {
+        return new Response(JSON.stringify({ error: "Invite email does not match signup email" }), {
+          status: 403,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      externalCompanyId = String(inviteRow.company_id);
+      invitedJobId = inviteRow.job_id;
+    }
 
+    if (externalCompanyId) {
+      const { data: companyRow, error: companyError } = await supabase
+        .from("companies")
+        .select("id,name,display_name,is_active,logo_url")
+        .eq("id", externalCompanyId)
+        .single();
+      if (companyError || !companyRow || !companyRow.is_active) {
+        return new Response(JSON.stringify({ error: "Company not found or inactive" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      externalCompany = companyRow;
+    }
+
+    // Always provision/resolve an independent "home" workspace for vendor/design professional users.
+    // External company/job links are granted separately and never become the user's default workspace.
+    let homeCompany: any = null;
+    const { data: existingHomeCompany, error: existingHomeCompanyError } = await supabase
+      .from("companies")
+      .select("id,name,display_name,is_active,logo_url")
+      .eq("created_by", userId)
+      .eq("company_type", requestedRole)
+      .eq("is_active", true)
+      .order("created_at", { ascending: true })
+      .limit(1)
+      .maybeSingle();
+    if (existingHomeCompanyError) throw existingHomeCompanyError;
+    homeCompany = existingHomeCompany || null;
+
+    if (!homeCompany) {
       const workspaceName =
         businessName ||
         `${firstName} ${lastName}`.trim() ||
-        `${email.split("@")[0]} Design`;
-      const tenantSlug = `${toSlug(workspaceName) || "design-pro"}-${Date.now().toString(36)}`;
+        `${email.split("@")[0]} ${requestedRole === "design_professional" ? "Design" : "Vendor"}`;
+      const slugPrefix = requestedRole === "design_professional" ? "design-pro" : "vendor";
+      const tenantSlug = `${toSlug(workspaceName) || slugPrefix}-${Date.now().toString(36)}`;
 
       const { data: tenantRow, error: tenantError } = await supabase
         .from("tenants")
@@ -197,70 +261,20 @@ serve(async (req: Request): Promise<Response> => {
           email,
           tenant_id: tenantRow.id,
           created_by: userId,
-          company_type: "design_professional",
+          company_type: requestedRole,
           is_active: true,
         } as any)
         .select("id,name,display_name,is_active,logo_url")
         .single();
-      if (companyCreateError || !companyRow) throw companyCreateError || new Error("Failed to create design company");
-
-      resolvedCompanyId = String(companyRow.id);
-      company = companyRow;
-    } else {
-      const { data: companyRow, error: companyError } = await supabase
-        .from("companies")
-        .select("id,name,display_name,is_active,logo_url")
-        .eq("id", resolvedCompanyId)
-        .single();
-      if (companyError || !companyRow || !companyRow.is_active) {
-        return new Response(JSON.stringify({ error: "Company not found or inactive" }), {
-          status: 404,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-      company = companyRow;
+      if (companyCreateError || !companyRow) throw companyCreateError || new Error("Failed to create home company");
+      homeCompany = companyRow;
     }
 
-    let invitedJobId: string | null = null;
-    if (requestedRole === "design_professional" && jobInviteToken) {
-      const { data: inviteRow, error: inviteError } = await supabase
-        .from("design_professional_job_invites")
-        .select("id, company_id, job_id, email, status, expires_at")
-        .eq("invite_token", jobInviteToken)
-        .maybeSingle();
-      if (inviteError) throw inviteError;
-      if (!inviteRow) {
-        return new Response(JSON.stringify({ error: "Invalid design professional invite token" }), {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-      if (inviteRow.company_id !== resolvedCompanyId) {
-        return new Response(JSON.stringify({ error: "Invite token company mismatch" }), {
-          status: 403,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-      if (String(inviteRow.status || "").toLowerCase() !== "pending") {
-        return new Response(JSON.stringify({ error: "This invite has already been used or is inactive" }), {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-      if (new Date(inviteRow.expires_at).getTime() < Date.now()) {
-        return new Response(JSON.stringify({ error: "This invite has expired" }), {
-          status: 400,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-      if (safeString(inviteRow.email).toLowerCase() !== email) {
-        return new Response(JSON.stringify({ error: "Invite email does not match signup email" }), {
-          status: 403,
-          headers: { "Content-Type": "application/json", ...corsHeaders },
-        });
-      }
-      invitedJobId = inviteRow.job_id;
-    }
+    const homeCompanyId = String(homeCompany.id);
+
+    const externalAccessNeedsApproval =
+      requestedRole === "vendor" && Boolean(externalCompanyId) && !jobInviteToken;
+    const externalAccessAutoApprove = Boolean(externalCompanyId) && !externalAccessNeedsApproval;
 
     const { error: profileError } = await supabase
       .from("profiles")
@@ -272,91 +286,128 @@ serve(async (req: Request): Promise<Response> => {
           last_name: lastName,
           display_name: `${firstName} ${lastName}`.trim(),
           phone: phone || null,
-          current_company_id: resolvedCompanyId,
-          default_company_id: resolvedCompanyId,
+          current_company_id: homeCompanyId,
+          default_company_id: homeCompanyId,
           role: requestedRole,
-          status: autoApprove ? "active" : "pending",
-          approved_at: autoApprove ? new Date().toISOString() : null,
-          approved_by: autoApprove ? userId : null,
+          status: "approved",
+          approved_at: new Date().toISOString(),
+          approved_by: userId,
         },
         { onConflict: "user_id" },
       );
     if (profileError) throw profileError;
 
-    const { data: existingAccessRows, error: existingAccessError } = await supabase
+    const { data: existingHomeAccessRows, error: existingHomeAccessError } = await supabase
       .from("user_company_access")
       .select("user_id")
       .eq("user_id", userId)
-      .eq("company_id", resolvedCompanyId)
+      .eq("company_id", homeCompanyId)
       .limit(1);
-    if (existingAccessError) throw existingAccessError;
+    if (existingHomeAccessError) throw existingHomeAccessError;
 
-    if ((existingAccessRows || []).length > 0) {
-      const { error: updateAccessError } = await supabase
+    if ((existingHomeAccessRows || []).length > 0) {
+      const { error: updateHomeAccessError } = await supabase
         .from("user_company_access")
         .update({
           role: requestedRole,
-          is_active: autoApprove,
-          granted_by: autoApprove ? userId : null,
+          is_active: true,
+          granted_by: userId,
         })
         .eq("user_id", userId)
-        .eq("company_id", resolvedCompanyId);
-      if (updateAccessError) throw updateAccessError;
+        .eq("company_id", homeCompanyId);
+      if (updateHomeAccessError) throw updateHomeAccessError;
     } else {
-      const { error: insertAccessError } = await supabase
+      const { error: insertHomeAccessError } = await supabase
         .from("user_company_access")
         .insert({
           user_id: userId,
-          company_id: resolvedCompanyId,
+          company_id: homeCompanyId,
           role: requestedRole,
-          is_active: autoApprove,
-          granted_by: autoApprove ? userId : null,
+          is_active: true,
+          granted_by: userId,
         });
-      if (insertAccessError) throw insertAccessError;
+      if (insertHomeAccessError) throw insertHomeAccessError;
     }
 
     const notesPayload = {
-      requestType: "vendor_self_signup",
+      requestType: "external_access_signup",
       requestedRole,
       businessName: businessName || null,
       invitedJobId: invitedJobId || null,
       jobInviteToken: jobInviteToken || null,
+      homeCompanyId,
+      homeCompanyName: homeCompany?.display_name || homeCompany?.name || null,
+      externalCompanyId: externalCompanyId || null,
       requestedAt: new Date().toISOString(),
       email,
     };
 
-    const { data: existingPendingRequest, error: existingPendingRequestError } = await supabase
-      .from("company_access_requests")
-      .select("id")
-      .eq("user_id", userId)
-      .eq("company_id", resolvedCompanyId)
-      .eq("status", "pending")
-      .order("created_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
-    if (existingPendingRequestError) throw existingPendingRequestError;
+    if (externalCompanyId && externalCompanyId !== homeCompanyId) {
+      const { data: existingExternalAccessRows, error: existingExternalAccessError } = await supabase
+        .from("user_company_access")
+        .select("user_id")
+        .eq("user_id", userId)
+        .eq("company_id", externalCompanyId)
+        .limit(1);
+      if (existingExternalAccessError) throw existingExternalAccessError;
 
-    if (existingPendingRequest?.id) {
-      const { error: updateRequestError } = await supabase
+      if ((existingExternalAccessRows || []).length > 0) {
+        const { error: updateExternalAccessError } = await supabase
+          .from("user_company_access")
+          .update({
+            role: requestedRole,
+            is_active: externalAccessAutoApprove,
+            granted_by: externalAccessAutoApprove ? userId : null,
+          })
+          .eq("user_id", userId)
+          .eq("company_id", externalCompanyId);
+        if (updateExternalAccessError) throw updateExternalAccessError;
+      } else {
+        const { error: insertExternalAccessError } = await supabase
+          .from("user_company_access")
+          .insert({
+            user_id: userId,
+            company_id: externalCompanyId,
+            role: requestedRole,
+            is_active: externalAccessAutoApprove,
+            granted_by: externalAccessAutoApprove ? userId : null,
+          });
+        if (insertExternalAccessError) throw insertExternalAccessError;
+      }
+
+      const { data: existingPendingRequest, error: existingPendingRequestError } = await supabase
         .from("company_access_requests")
-        .update({
-          status: autoApprove ? "approved" : "pending",
-          notes: JSON.stringify(notesPayload),
-          reviewed_at: autoApprove ? new Date().toISOString() : null,
-          reviewed_by: autoApprove ? userId : null,
+        .select("id")
+        .eq("user_id", userId)
+        .eq("company_id", externalCompanyId)
+        .eq("status", "pending")
+        .order("created_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (existingPendingRequestError) throw existingPendingRequestError;
+
+      if (existingPendingRequest?.id) {
+        const { error: updateRequestError } = await supabase
+          .from("company_access_requests")
+          .update({
+            status: externalAccessNeedsApproval ? "pending" : "approved",
+            notes: JSON.stringify(notesPayload),
+            reviewed_at: externalAccessNeedsApproval ? null : new Date().toISOString(),
+            reviewed_by: externalAccessNeedsApproval ? null : userId,
+            requested_at: new Date().toISOString(),
+          })
+          .eq("id", existingPendingRequest.id);
+        if (updateRequestError) throw updateRequestError;
+      } else if (externalAccessNeedsApproval) {
+        const { error: requestError } = await supabase.from("company_access_requests").insert({
+          user_id: userId,
+          company_id: externalCompanyId,
+          status: "pending",
           requested_at: new Date().toISOString(),
-        })
-        .eq("id", existingPendingRequest.id);
-      if (updateRequestError) throw updateRequestError;
-    } else if (!autoApprove) {
-      const { error: requestError } = await supabase.from("company_access_requests").insert({
-        user_id: userId,
-        company_id: resolvedCompanyId,
-        status: "pending",
-        requested_at: new Date().toISOString(),
-        notes: JSON.stringify(notesPayload),
-      });
-      if (requestError) throw requestError;
+          notes: JSON.stringify(notesPayload),
+        });
+        if (requestError) throw requestError;
+      }
     }
 
     if (requestedRole === "design_professional" && jobInviteToken) {
@@ -368,7 +419,7 @@ serve(async (req: Request): Promise<Response> => {
           accepted_at: new Date().toISOString(),
         })
         .eq("invite_token", jobInviteToken)
-        .eq("company_id", resolvedCompanyId)
+        .eq("company_id", externalCompanyId)
         .eq("status", "pending");
       if (inviteUpdateError) {
         console.warn("Failed to mark design professional invite accepted:", inviteUpdateError);
@@ -376,10 +427,14 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     try {
+      if (!externalCompanyId || !externalAccessNeedsApproval) {
+        throw new Error("skip_external_approval_notifications");
+      }
+
       const { data: adminAccessRows, error: adminAccessError } = await supabase
         .from("user_company_access")
         .select("user_id, role")
-        .eq("company_id", resolvedCompanyId)
+        .eq("company_id", externalCompanyId)
         .eq("is_active", true);
       if (adminAccessError) throw adminAccessError;
 
@@ -435,11 +490,11 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       const intakeRecipients = Array.from(recipientUserIds).filter((id) => Boolean(id) && id !== userId);
-      if (!autoApprove && intakeRecipients.length > 0) {
+      if (intakeRecipients.length > 0) {
         const { data: notifRows } = await supabase
           .from("notification_settings")
           .select("user_id, in_app_enabled, intake_queue_requests")
-          .eq("company_id", resolvedCompanyId)
+          .eq("company_id", externalCompanyId)
           .in("user_id", intakeRecipients);
 
         const notifMap = new Map<string, any>((notifRows || []).map((row: any) => [String(row.user_id), row]));
@@ -465,9 +520,9 @@ serve(async (req: Request): Promise<Response> => {
       }
 
       const finalRecipients = Array.from(notificationRecipients);
-      if (!autoApprove && finalRecipients.length > 0) {
-        const companyName = String(company.display_name || company.name || "Company").trim();
-        const companyLogoUrl = resolveCompanyLogoUrl((company as any)?.logo_url);
+      if (finalRecipients.length > 0) {
+        const companyName = String(externalCompany.display_name || externalCompany.name || "Company").trim();
+        const companyLogoUrl = resolveCompanyLogoUrl((externalCompany as any)?.logo_url);
         const applicantName = `${firstName} ${lastName}`.trim();
         const reviewUrl = `${Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com"}/settings/users`;
 
@@ -475,7 +530,7 @@ serve(async (req: Request): Promise<Response> => {
           supabaseUrl,
           serviceRoleKey: supabaseServiceKey,
           resend,
-          companyId: resolvedCompanyId,
+          companyId: externalCompanyId,
           defaultFrom: inviteEmailFrom,
           to: finalRecipients,
           subject: `New ${requestedRole === "design_professional" ? "Design Professional" : "Vendor"} signup request for ${companyName}`,
@@ -492,25 +547,41 @@ serve(async (req: Request): Promise<Response> => {
         });
       }
     } catch (notifyError) {
-      console.warn("Failed to send admin signup notification email:", notifyError);
+      if (String((notifyError as any)?.message || "") !== "skip_external_approval_notifications") {
+        console.warn("Failed to send admin signup notification email:", notifyError);
+      }
     }
 
     return new Response(
       JSON.stringify({
         success: true,
-        autoApproved: autoApprove,
-        companyName: company.display_name || company.name,
+        homeCompanyId,
+        homeCompanyName: homeCompany?.display_name || homeCompany?.name,
+        linkedCompanyId: externalCompanyId || null,
+        linkedCompanyName: externalCompany?.display_name || externalCompany?.name || null,
+        externalApprovalRequired: externalAccessNeedsApproval,
+        externalAccessAutoApproved: externalAccessAutoApprove,
         requestedRole,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
     );
   } catch (error: any) {
     console.error("Error in create-vendor-signup-request:", error);
+    const rawMessage = String(error?.message || "");
+    const normalizedMessage = rawMessage.toLowerCase();
+    const enumRoleError =
+      normalizedMessage.includes("invalid input value for enum user_role") &&
+      normalizedMessage.includes("design_professional");
+
     return new Response(JSON.stringify({
-      error: error?.message || "Failed to create signup request",
-      code: error?.code || null,
+      error: enumRoleError
+        ? "The database is missing the design_professional role enum value. Apply the latest Supabase migrations, then try signup again."
+        : (error?.message || "Failed to create signup request"),
+      code: enumRoleError ? "missing_design_professional_role_enum" : (error?.code || null),
       details: error?.details || null,
-      hint: error?.hint || null,
+      hint: enumRoleError
+        ? "Run the migration that adds 'design_professional' to public.user_role before using the Design Professional signup flow."
+        : (error?.hint || null),
     }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },

@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { Building2, CheckCircle, XCircle } from 'lucide-react';
 import builderlynkLogo from '@/assets/builderlynk-logo-new.png';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
+import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 
 interface Invitation {
   id: string;
@@ -130,7 +131,7 @@ export default function VendorRegister() {
         email: invitation!.email,
         password: formData.password,
         options: {
-          emailRedirectTo: `${window.location.origin}/`,
+          emailRedirectTo: `${getPublicAuthOrigin()}/`,
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,

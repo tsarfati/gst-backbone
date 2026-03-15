@@ -1604,7 +1604,6 @@ export default function RFPDetails() {
             <CardHeader className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
               <div>
                 <CardTitle>Bids</CardTitle>
-                <CardDescription>Received bids and comparison matrix in one view.</CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <Button onClick={() => navigate(`/construction/rfps/${id}/bids/add`)}>
@@ -1617,10 +1616,7 @@ export default function RFPDetails() {
                 </Button>
               </div>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="text-xs text-muted-foreground">
-                {autoSavingScores ? 'Auto-saving scores...' : 'Scores auto-save when changed.'}
-              </div>
+            <CardContent className="space-y-3 pt-0">
               {bids.length === 0 ? (
                 <div className="py-12 text-center">
                   <Users className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
@@ -1633,6 +1629,60 @@ export default function RFPDetails() {
                 </div>
               ) : (
                 <>
+                  <div className="space-y-2">
+                    <div className="space-y-2">
+                      {analyzedSortedBids
+                        .map((bid) => ({ ...bid, finalTotal: computeBidFinalTotal(bid), weighted: Number(bid.weighted_total || 0) }))
+                        .sort((a, b) => a.finalTotal - b.finalTotal)
+                        .map((bid, index, rows) => {
+                          const maxFinal = Math.max(...rows.map((row) => row.finalTotal), 1);
+                          const minFinal = Math.min(...rows.map((row) => row.finalTotal));
+                          const maxWeighted = Math.max(...rows.map((row) => row.weighted), 1);
+                          const amountWidth =
+                            maxFinal === minFinal
+                              ? 100
+                              : Math.max(((maxFinal - bid.finalTotal) / (maxFinal - minFinal)) * 100, 6);
+                          const weightedWidth = Math.max((bid.weighted / maxWeighted) * 100, bid.weighted > 0 ? 6 : 0);
+                          return (
+                            <div key={`bar-${bid.id}`} className="grid grid-cols-[minmax(140px,180px)_1fr_220px] items-center gap-3">
+                              <div className="w-40 truncate text-sm">{bid.vendor.name}</div>
+                              <div className="space-y-1">
+                                <div className="h-4 w-full rounded bg-muted overflow-hidden">
+                                  <div className="h-full bg-primary/70 px-2 text-[10px] font-medium text-primary-foreground flex items-center justify-end truncate" style={{ width: `${amountWidth}%` }}>
+                                    ${bid.finalTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
+                                  </div>
+                                </div>
+                                <div className="h-4 w-full rounded bg-muted overflow-hidden">
+                                  <div className="h-full bg-emerald-600/80 px-2 text-[10px] font-medium text-white flex items-center justify-end truncate" style={{ width: `${weightedWidth}%` }}>
+                                    {bid.weighted.toFixed(1)}
+                                  </div>
+                                </div>
+                              </div>
+                              <div className="w-[220px] text-left">
+                                <div className="text-sm tabular-nums inline-flex items-center gap-2">
+                                  ${bid.finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {index === 0 && <Badge className="bg-emerald-600 hover:bg-emerald-600">Lowest</Badge>}
+                                </div>
+                                <div className="text-xs text-muted-foreground tabular-nums">
+                                  Score {bid.weighted.toFixed(1)}
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        })}
+                    </div>
+                    <div className="flex items-center gap-4 text-xs text-muted-foreground">
+                      <span className="inline-flex items-center gap-1">
+                        <span className="inline-block h-2.5 w-2.5 rounded bg-primary/70" />
+                        Price Position (lower amount = higher bar)
+                      </span>
+                      <span className="inline-flex items-center gap-1">
+                        <span className="inline-block h-2.5 w-2.5 rounded bg-emerald-600/80" />
+                        Weighted Score
+                      </span>
+                    </div>
+                  </div>
+
                   <div className="overflow-x-auto">
                     <Table>
                       <TableHeader>
@@ -1738,63 +1788,6 @@ export default function RFPDetails() {
                         ))}
                       </TableBody>
                     </Table>
-                  </div>
-
-                  <div className="space-y-2">
-                    <div className="flex items-center justify-between">
-                      <div className="text-sm font-medium">Bid Amount Comparison</div>
-                      <div className="flex items-center gap-4 text-xs text-muted-foreground">
-                        <span className="inline-flex items-center gap-1">
-                          <span className="inline-block h-2.5 w-2.5 rounded bg-primary/70" />
-                          Price Position (lower amount = higher bar)
-                        </span>
-                        <span className="inline-flex items-center gap-1">
-                          <span className="inline-block h-2.5 w-2.5 rounded bg-emerald-600/80" />
-                          Weighted Score
-                        </span>
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      {analyzedSortedBids
-                        .map((bid) => ({ ...bid, finalTotal: computeBidFinalTotal(bid), weighted: Number(bid.weighted_total || 0) }))
-                        .sort((a, b) => a.finalTotal - b.finalTotal)
-                        .map((bid, index, rows) => {
-                          const maxFinal = Math.max(...rows.map((row) => row.finalTotal), 1);
-                          const minFinal = Math.min(...rows.map((row) => row.finalTotal));
-                          const maxWeighted = Math.max(...rows.map((row) => row.weighted), 1);
-                          const amountWidth =
-                            maxFinal === minFinal
-                              ? 100
-                              : Math.max(((maxFinal - bid.finalTotal) / (maxFinal - minFinal)) * 100, 6);
-                          const weightedWidth = Math.max((bid.weighted / maxWeighted) * 100, bid.weighted > 0 ? 6 : 0);
-                          return (
-                            <div key={`bar-${bid.id}`} className="grid grid-cols-[minmax(140px,180px)_1fr_220px] items-center gap-3">
-                              <div className="w-40 truncate text-sm">{bid.vendor.name}</div>
-                              <div className="space-y-1">
-                                <div className="h-4 w-full rounded bg-muted overflow-hidden">
-                                  <div className="h-full bg-primary/70 px-2 text-[10px] font-medium text-primary-foreground flex items-center justify-end truncate" style={{ width: `${amountWidth}%` }}>
-                                    ${bid.finalTotal.toLocaleString(undefined, { maximumFractionDigits: 0 })}
-                                  </div>
-                                </div>
-                                <div className="h-4 w-full rounded bg-muted overflow-hidden">
-                                  <div className="h-full bg-emerald-600/80 px-2 text-[10px] font-medium text-white flex items-center justify-end truncate" style={{ width: `${weightedWidth}%` }}>
-                                    {bid.weighted.toFixed(1)}
-                                  </div>
-                                </div>
-                              </div>
-                              <div className="w-[220px] text-left">
-                                <div className="text-sm tabular-nums inline-flex items-center gap-2">
-                                  ${bid.finalTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
-                                  {index === 0 && <Badge className="bg-emerald-600 hover:bg-emerald-600">Lowest</Badge>}
-                                </div>
-                                <div className="text-xs text-muted-foreground tabular-nums">
-                                  Score {bid.weighted.toFixed(1)}
-                                </div>
-                              </div>
-                            </div>
-                          );
-                        })}
-                    </div>
                   </div>
                 </>
               )}
