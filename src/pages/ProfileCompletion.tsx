@@ -19,6 +19,7 @@ export default function ProfileCompletion() {
   const [formData, setFormData] = useState({
     first_name: profile?.first_name || (user?.user_metadata as any)?.first_name || (user?.user_metadata as any)?.firstName || '',
     last_name: profile?.last_name || (user?.user_metadata as any)?.last_name || (user?.user_metadata as any)?.lastName || '',
+    phone: profile?.phone || (user?.user_metadata as any)?.phone || '',
     nickname: profile?.nickname || '',
     birthday: profile?.birthday || '',
   });
@@ -60,10 +61,15 @@ export default function ProfileCompletion() {
         (user?.user_metadata as any)?.last_name ||
         (user?.user_metadata as any)?.lastName ||
         '',
+      phone:
+        prev.phone ||
+        profile?.phone ||
+        (user?.user_metadata as any)?.phone ||
+        '',
       nickname: prev.nickname || profile?.nickname || '',
       birthday: prev.birthday || profile?.birthday || '',
     }));
-  }, [profile?.first_name, profile?.last_name, profile?.nickname, profile?.birthday, user?.user_metadata]);
+  }, [profile?.first_name, profile?.last_name, profile?.phone, profile?.nickname, profile?.birthday, user?.user_metadata]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
@@ -124,10 +130,10 @@ export default function ProfileCompletion() {
 
     // Validate required fields
     const hasExistingAvatar = Boolean(profile?.avatar_url || avatarPreview);
-    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.birthday || (!avatarFile && !hasExistingAvatar)) {
+    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.phone.trim() || !formData.birthday || (!avatarFile && !hasExistingAvatar)) {
       toast({
         title: 'Required Fields Missing',
-        description: 'Please fill in first name, last name, birthday, and profile picture.',
+        description: 'Please fill in first name, last name, phone number, birthday, and profile picture.',
         variant: 'destructive'
       });
       return;
@@ -180,6 +186,7 @@ export default function ProfileCompletion() {
           status: resolvedStatus,
           first_name: formData.first_name.trim(),
           last_name: formData.last_name.trim(),
+          phone: formData.phone.trim(),
           nickname: formData.nickname.trim() || null,
           birthday: formData.birthday,
           avatar_url,
@@ -347,6 +354,18 @@ export default function ProfileCompletion() {
                 type="date"
                 value={formData.birthday}
                 onChange={(e) => handleInputChange('birthday', e.target.value)}
+                required
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number *</Label>
+              <Input
+                id="phone"
+                type="tel"
+                placeholder="(555) 555-5555"
+                value={formData.phone}
+                onChange={(e) => handleInputChange('phone', e.target.value)}
                 required
               />
             </div>

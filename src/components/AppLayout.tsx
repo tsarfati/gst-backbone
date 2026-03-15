@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Outlet, Link, useLocation } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
@@ -159,7 +159,6 @@ const navigationCategories = [
       { name: "Super Admin Dashboard", href: "/super-admin", menuKey: "settings", superAdminOnly: true },
       { name: "Organization Management", href: "/settings/organization-management", menuKey: "organization-management", ownerOnly: true, featureKey: "organization_management" },
       { name: "Company Settings", href: "/settings/company", menuKey: "company-settings" },
-      { name: "Notifications & Email", href: "/settings/notifications", menuKey: "notification-settings" },
       { name: "Data & Security", href: "/settings/security", menuKey: "security-settings" },
       { name: "User Management", href: "/settings/users", menuKey: "user-settings" },
       { name: "PunchClock Link", href: "/punch-clock/settings", menuKey: "punch-clock-settings", featureKey: "punch_clock_app", mobileAppBadge: true },
@@ -221,11 +220,13 @@ export function AppSidebar() {
   const { settings } = useSettings();
   const { profile } = useAuth();
   const { tenantMember, isSuperAdmin } = useTenant();
-  const { currentCompany } = useCompany();
+  const { currentCompany, refreshCompanies } = useCompany();
   const { hasAccess, loading } = useMenuPermissions();
   const { toast } = useToast();
   const { showLockedMenuItems, lockedMenuUpgradeMessage } = useTierNavigationSettings();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
+  const [uploadingSidebarLogo, setUploadingSidebarLogo] = useState(false);
+  const logoInputRef = useRef<HTMLInputElement | null>(null);
   const profileRole = String(profile?.role || '').trim().toLowerCase();
   const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
   const isExternalUser = profileRole === 'vendor' || profileRole === 'design_professional';
@@ -238,16 +239,58 @@ export function AppSidebar() {
   const sidebarCategories = isDesignProfessionalWorkspace
     ? designProfessionalNavigationCategories
     : navigationCategories;
+  const canUploadDesignProLogo = isDesignProfessionalWorkspace
+    && !currentCompany?.logo_url
+    && ['owner', 'admin', 'company_admin'].includes(effectiveRole);
+
+  const handleSidebarLogoUpload = async (file?: File | null) => {
+    if (!file || !currentCompany?.id || !canUploadDesignProLogo) return;
+    if (!file.type.startsWith('image/')) {
+      toast({
+        title: 'Invalid file type',
+        description: 'Please choose an image file for your logo.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setUploadingSidebarLogo(true);
+      const ext = file.name.split('.').pop() || 'png';
+      const objectPath = `${currentCompany.id}/design-pro-logo-${Date.now()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from('company-logos')
+        .upload(objectPath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const storagePath = `company-logos/${objectPath}`;
+      const { error: updateError } = await supabase
+        .from('companies')
+        .update({ logo_url: storagePath })
+        .eq('id', currentCompany.id);
+      if (updateError) throw updateError;
+
+      await refreshCompanies();
+      toast({
+        title: 'Logo updated',
+        description: 'Your Design Pro logo has been saved.',
+      });
+    } catch (error: any) {
+      console.error('Failed to upload Design Pro sidebar logo:', error);
+      toast({
+        title: 'Upload failed',
+        description: error?.message || 'Could not upload your logo.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingSidebarLogo(false);
+    }
+  };
+
   const isItemRouteActive = (item: { href: string }, categoryTitle?: string) => {
     const pathnameMatch =
       location.pathname === item.href ||
       location.pathname.startsWith(item.href + '/');
-
-    // Notifications route redirects to company email setup; keep Settings item highlighted.
-    const notificationsRedirectMatch =
-      item.href === '/settings/notifications' &&
-      location.pathname === '/settings/company' &&
-      (new URLSearchParams(location.search).get('section') || '') === 'email-setup';
 
     // Keep Construction open when on job/subcontract/PO pages
     const constructionDetailMatch =
@@ -262,7 +305,7 @@ export function AppSidebar() {
       item.href === '/vendors' &&
       location.pathname.startsWith('/vendors/');
 
-    return pathnameMatch || notificationsRedirectMatch || constructionDetailMatch || payablesDetailMatch;
+    return pathnameMatch || constructionDetailMatch || payablesDetailMatch;
   };
 
   const toggleGroup = (groupTitle: string) => {
@@ -313,7 +356,7 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader>
-        <div className="flex items-center justify-center p-2 min-h-[60px] w-full">
+        <div className="relative flex items-center justify-center p-2 min-h-[60px] w-full">
           {currentCompany?.logo_url ? (
             <img 
               src={currentCompany.logo_url.includes('http') 
@@ -329,7 +372,7 @@ export function AppSidebar() {
               }}
             />
           ) : null}
-          {!currentCompany?.logo_url && (
+          {!currentCompany?.logo_url && !canUploadDesignProLogo && (
             <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center">
               <Building2 className="h-8 w-8 text-primary" />
             </div>
@@ -338,6 +381,45 @@ export function AppSidebar() {
             <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center hidden">
               <Building2 className="h-8 w-8 text-primary" />
             </div>
+          )}
+          {canUploadDesignProLogo && (
+            <>
+              <input
+                ref={logoInputRef}
+                type="file"
+                accept="image/*"
+                className="hidden"
+                onChange={(e) => {
+                  void handleSidebarLogoUpload(e.target.files?.[0]);
+                  e.target.value = '';
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => logoInputRef.current?.click()}
+                className="absolute inset-2 rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 transition-colors hover:bg-primary/10"
+              >
+                {uploadingSidebarLogo ? (
+                  <div className="flex h-full items-center justify-center">
+                    <span className="text-xs font-medium text-primary">Uploading...</span>
+                  </div>
+                ) : (
+                  <div className="relative flex h-full items-center justify-center">
+                    <div className="absolute left-1 top-1/2 -translate-y-1/2">
+                      <Building2 className="h-6 w-6 text-primary" />
+                    </div>
+                    <div className="-mt-1 text-center">
+                      <span className="block text-[11px] font-medium leading-tight text-primary">
+                        Click Here To
+                      </span>
+                      <span className="block text-[11px] font-medium leading-tight text-primary">
+                        Upload Your Logo
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </button>
+            </>
           )}
         </div>
       </SidebarHeader>

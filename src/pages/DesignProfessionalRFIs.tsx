@@ -101,9 +101,6 @@ export default function DesignProfessionalRFIs() {
     <div className="p-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold">RFIs</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Request-for-information items assigned to you and your Design Pro company jobs.
-        </p>
       </div>
 
       <Card>

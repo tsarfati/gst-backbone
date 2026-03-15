@@ -22,6 +22,10 @@ import BillsNeedingCoding from '@/components/BillsNeedingCoding';
 import CreditCardCodingRequests from '@/components/CreditCardCodingRequests';
 import UserAvatar from '@/components/UserAvatar';
 import MessageThreadView from '@/components/MessageThreadView';
+import {
+  isNonDirectMessageReadStored,
+  persistNonDirectMessageReadStored,
+} from '@/utils/nonDirectMessageRead';
 
 interface Notification {
   id: string;
@@ -226,44 +230,14 @@ export default function Dashboard() {
   const [activeJobsCount, setActiveJobsCount] = useState(0);
   const [pendingBillsTotal, setPendingBillsTotal] = useState(0);
 
-  const nonDirectReadKey =
-    user && currentCompany
-      ? `dashboard:read-non-direct:${currentCompany.id}:${user.id}`
-      : null;
-
-  const getStoredReadMap = () => {
-    if (!nonDirectReadKey) return new Set<string>();
-    try {
-      const raw = localStorage.getItem(nonDirectReadKey);
-      const parsed = raw ? JSON.parse(raw) : [];
-      if (!Array.isArray(parsed)) return new Set<string>();
-      return new Set(parsed.filter((value) => typeof value === "string"));
-    } catch {
-      return new Set<string>();
-    }
-  };
-
-  const buildNonDirectReadToken = (message: Pick<Message, "message_source" | "source_record_id" | "id">) => {
-    const source = message.message_source || "unknown";
-    const sourceId = message.source_record_id || message.id;
-    return `${source}:${sourceId}`;
-  };
-
   const isNonDirectMessageRead = (message: Pick<Message, "message_source" | "source_record_id" | "id">) => {
     if (!message.message_source || message.message_source === "direct") return false;
-    const stored = getStoredReadMap();
-    return stored.has(buildNonDirectReadToken(message));
+    return isNonDirectMessageReadStored(message, user?.id, currentCompany?.id);
   };
 
   const persistNonDirectMessageRead = (message: Pick<Message, "message_source" | "source_record_id" | "id">) => {
-    if (!message.message_source || message.message_source === "direct" || !nonDirectReadKey) return;
-    try {
-      const stored = getStoredReadMap();
-      stored.add(buildNonDirectReadToken(message));
-      localStorage.setItem(nonDirectReadKey, JSON.stringify(Array.from(stored)));
-    } catch {
-      // Ignore storage failures.
-    }
+    if (!message.message_source || message.message_source === "direct") return;
+    persistNonDirectMessageReadStored(message, user?.id, currentCompany?.id);
   };
 
   const wasMentionedInMessage = (content: string) => {

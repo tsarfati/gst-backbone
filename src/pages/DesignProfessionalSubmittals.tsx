@@ -79,9 +79,6 @@ export default function DesignProfessionalSubmittals() {
     <div className="p-6 space-y-4">
       <div>
         <h1 className="text-2xl font-bold">Submittals</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Submittal packages assigned to you and your Design Pro company jobs.
-        </p>
       </div>
 
       <Card>

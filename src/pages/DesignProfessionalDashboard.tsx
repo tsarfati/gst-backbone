@@ -110,10 +110,9 @@ export default function DesignProfessionalDashboard() {
   return (
     <div className="p-6 space-y-6">
       <div>
-        <h1 className="text-2xl font-bold">Design Professional Dashboard</h1>
-        <p className="text-sm text-muted-foreground mt-1">
-          Welcome back, {profile?.display_name || "Design Professional"}.
-        </p>
+        <h1 className="text-3xl font-bold text-foreground">
+          Welcome back, {profile?.display_name || profile?.first_name || "Design Professional"}! 👋
+        </h1>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

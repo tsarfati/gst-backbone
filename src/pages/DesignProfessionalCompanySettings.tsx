@@ -10,7 +10,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Building2, Loader2, Save, Upload, UserCircle2 } from "lucide-react";
+import { ArrowRight, Briefcase, Building2, Loader2, Mail, Save, Upload, UserCircle2, Users } from "lucide-react";
+import { Link, useNavigate } from "react-router-dom";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import ThemeSettings from "@/pages/ThemeSettings";
 
@@ -43,6 +44,7 @@ const blankForm: CompanyForm = {
 };
 
 export default function DesignProfessionalCompanySettings() {
+  const navigate = useNavigate();
   const { user } = useAuth();
   const { currentCompany, refreshCompanies } = useCompany();
   const { toast } = useToast();
@@ -176,29 +178,98 @@ export default function DesignProfessionalCompanySettings() {
       <div className="flex items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Design Pro Settings</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Configure your independent Design Pro company profile and branding.
-          </p>
         </div>
         <Badge variant="outline" className="uppercase tracking-wide">Design Pro</Badge>
       </div>
 
-      <Tabs defaultValue="company" className="space-y-4">
+      <Tabs defaultValue="overview" className="space-y-4">
         <TabsList>
-          <TabsTrigger value="company">Company</TabsTrigger>
-          <TabsTrigger value="branding">Branding</TabsTrigger>
-          <TabsTrigger value="customization">Site Customization</TabsTrigger>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="jobs">Jobs</TabsTrigger>
+          <TabsTrigger value="appearance">Themes and Appearance</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="company">
+        <TabsContent value="overview">
+          <Card>
+            <CardContent className="space-y-6 pt-6">
+              <div className="flex">
+                <label className="group relative block h-24 w-52 overflow-hidden rounded-md border bg-muted/30 cursor-pointer">
+                  <input
+                    id="dp-logo-upload"
+                    type="file"
+                    className="hidden"
+                    accept="image/*"
+                    onChange={uploadLogo}
+                    disabled={uploadingLogo}
+                  />
+                  {companyLogoUrl ? (
+                    <>
+                      <img
+                        src={companyLogoUrl}
+                        alt={currentCompany?.display_name || currentCompany?.name || "Design Pro"}
+                        className="h-full w-full object-contain p-2"
+                      />
+                      <div className="absolute inset-0 flex items-center justify-center bg-black/50 text-white text-sm font-medium opacity-0 transition-opacity group-hover:opacity-100">
+                        Upload Logo
+                      </div>
+                    </>
+                  ) : (
+                    <div className="h-full w-full flex items-center justify-center text-sm text-muted-foreground">
+                      {uploadingLogo ? "Uploading..." : "Upload Logo"}
+                    </div>
+                  )}
+                  {uploadingLogo && (
+                    <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-white text-sm font-medium">
+                      <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                      Uploading...
+                    </div>
+                  )}
+                </label>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Company Name</Label>
+                  <p className="text-sm">{currentCompany?.name || "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Display Name</Label>
+                  <p className="text-sm">{currentCompany?.display_name || "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Phone</Label>
+                  <p className="text-sm">{currentCompany?.phone || "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Email</Label>
+                  <p className="text-sm break-all">{currentCompany?.email || "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Website</Label>
+                  <p className="text-sm break-all">{currentCompany?.website || "Not set"}</p>
+                </div>
+                <div>
+                  <Label className="text-xs font-medium text-muted-foreground">Address</Label>
+                  <p className="text-sm">
+                    {[
+                      currentCompany?.address,
+                      [currentCompany?.city, currentCompany?.state].filter(Boolean).join(", "),
+                      currentCompany?.zip_code,
+                    ].filter(Boolean).join(" ") || "Not set"}
+                  </p>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <Building2 className="h-4 w-4" />
-                Company Profile
+                <UserCircle2 className="h-4 w-4" />
+                Brand & Identity
               </CardTitle>
               <CardDescription>
-                This information represents your Design Pro organization account.
+                This logo is used in the left navigation header and Design Pro-facing UI.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -256,46 +327,80 @@ export default function DesignProfessionalCompanySettings() {
               </div>
             </CardContent>
           </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Company Email Setup</CardTitle>
+                <CardDescription>
+                  Configure email sending from your user profile for Design Pro communication workflows.
+                </CardDescription>
+              </div>
+              <Button onClick={() => navigate("/profile-settings?tab=email-setup")}>
+                <Mail className="h-4 w-4 mr-2" />
+                Email Setup
+              </Button>
+            </CardHeader>
+          </Card>
+
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Manage Users</CardTitle>
+                <CardDescription>
+                  Manage your Design Pro team members and their workspace access.
+                </CardDescription>
+              </div>
+              <Button onClick={() => navigate("/design-professional/settings/users")}>
+                <Users className="h-4 w-4 mr-2" />
+                Open User Management
+              </Button>
+            </CardHeader>
+          </Card>
         </TabsContent>
 
-        <TabsContent value="branding">
+        <TabsContent value="jobs">
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
-                <UserCircle2 className="h-4 w-4" />
-                Brand & Identity
+                <Briefcase className="h-4 w-4" />
+                Jobs Workspace
               </CardTitle>
               <CardDescription>
-                This logo is used in the left navigation header and Design Pro-facing UI.
+                Manage the Design Pro job experience, including your active jobs, RFIs, and submittals workspace.
               </CardDescription>
             </CardHeader>
-            <CardContent className="space-y-4">
-              <div className="h-24 w-24 rounded-md border bg-muted/30 flex items-center justify-center overflow-hidden">
-                {companyLogoUrl ? (
-                  <img src={companyLogoUrl} alt="Design Pro logo" className="h-full w-full object-cover" />
-                ) : (
-                  <Building2 className="h-8 w-8 text-muted-foreground" />
-                )}
+            <CardContent className="space-y-3">
+              <div className="rounded-lg border bg-muted/20 p-4">
+                <p className="text-sm text-muted-foreground">
+                  Your Design Pro company can create its own jobs and also work inside jobs shared by builders. Use the links below to manage that workspace.
+                </p>
               </div>
-              <div>
-                <Label htmlFor="dp-logo-upload" className="sr-only">Upload logo</Label>
-                <Input
-                  id="dp-logo-upload"
-                  type="file"
-                  accept="image/*"
-                  onChange={uploadLogo}
-                  disabled={uploadingLogo}
-                />
+              <div className="flex flex-wrap gap-3">
+                <Button asChild variant="outline">
+                  <Link to="/design-professional/jobs">
+                    Open Jobs
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/design-professional/jobs/rfis">
+                    Open RFIs
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link to="/design-professional/jobs/submittals">
+                    Open Submittals
+                    <ArrowRight className="ml-2 h-4 w-4" />
+                  </Link>
+                </Button>
               </div>
-              <Button variant="outline" disabled={uploadingLogo} onClick={() => document.getElementById("dp-logo-upload")?.click()}>
-                {uploadingLogo ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Upload className="h-4 w-4 mr-2" />}
-                Upload Logo
-              </Button>
             </CardContent>
           </Card>
         </TabsContent>
 
-        <TabsContent value="customization">
+        <TabsContent value="appearance">
           <ThemeSettings embedded hideSaveButtons />
         </TabsContent>
       </Tabs>

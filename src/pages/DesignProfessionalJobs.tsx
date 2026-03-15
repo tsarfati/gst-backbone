@@ -352,9 +352,6 @@ export default function DesignProfessionalJobs() {
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
           <h1 className="text-2xl font-bold">Design Pro Jobs</h1>
-          <p className="text-sm text-muted-foreground mt-1">
-            Manage your own projects and external builder jobs shared to your account.
-          </p>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={() => setShowCreateDialog(true)}>

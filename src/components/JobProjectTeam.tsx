@@ -253,14 +253,25 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       if (empIdsForJob.length > 0) {
         const { data: empProfiles } = await supabase
           .from('profiles')
-          .select('user_id, first_name, last_name, phone, avatar_url')
+          .select('user_id, first_name, last_name, display_name, phone, avatar_url')
           .in('user_id', empIdsForJob);
+
+        const { data: employeeEmailData } = await supabase.functions.invoke('get-user-email', {
+          body: { user_ids: empIdsForJob }
+        });
+
+        const employeeEmailMap = new Map<string, string>();
+        if (employeeEmailData?.users) {
+          employeeEmailData.users.forEach((u: { id: string; email: string }) => {
+            employeeEmailMap.set(u.id, u.email);
+          });
+        }
 
         for (const emp of (empProfiles || []) as any[]) {
           autoMembers.push({
             id: `emp-${emp.user_id}`,
-            name: [emp.first_name, emp.last_name].filter(Boolean).join(' ') || 'Unknown',
-            email: null,
+            name: [emp.first_name, emp.last_name].filter(Boolean).join(' ') || emp.display_name || 'Unknown',
+            email: employeeEmailMap.get(emp.user_id) || null,
             phone: emp.phone,
             company_name: currentCompany?.name || null,
             avatar_url: emp.avatar_url,

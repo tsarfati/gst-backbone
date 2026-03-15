@@ -23,6 +23,7 @@ import MentionTextarea from "@/components/MentionTextarea";
 import { createMentionNotifications } from "@/utils/mentions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { resolveStorageUrl } from "@/utils/storageUtils";
+import { persistNonDirectMessageReadStored } from "@/utils/nonDirectMessageRead";
 
 interface BidRecord {
   id: string;
@@ -393,22 +394,19 @@ export default function BidDetails() {
 
   useEffect(() => {
     if (!user?.id || !bid?.company_id || communications.length === 0) return;
-    const storageKey = `dashboard:read-non-direct:${bid.company_id}:${user.id}`;
-    try {
-      const raw = localStorage.getItem(storageKey);
-      const parsed = raw ? JSON.parse(raw) : [];
-      const stored = new Set<string>(Array.isArray(parsed) ? parsed.filter((value) => typeof value === "string") : []);
-
-      communications.forEach((message) => {
-        if (message.user_id === user.id) return;
-        if (message.message_type !== "intercompany") return;
-        stored.add(`bid_intercompany_communication:${message.id}`);
-      });
-
-      localStorage.setItem(storageKey, JSON.stringify(Array.from(stored)));
-    } catch {
-      // Ignore storage issues.
-    }
+    communications.forEach((message) => {
+      if (message.user_id === user.id) return;
+      if (message.message_type !== "intercompany") return;
+      persistNonDirectMessageReadStored(
+        {
+          id: message.id,
+          message_source: "bid_intercompany_communication",
+          source_record_id: message.id,
+        },
+        user.id,
+        bid.company_id,
+      );
+    });
   }, [communications, user?.id, bid?.company_id]);
 
   useEffect(() => {
