@@ -29,15 +29,6 @@ const navigationCategories = [
     collapsible: false,
   },
   {
-    title: "Calendar",
-    icon: Calendar,
-    companyTypes: ['construction', 'design_professional'] as CompanyType[],
-    items: [
-      { name: "Calendar", href: "/calendar", menuKey: "dashboard" },
-    ],
-    collapsible: false,
-  },
-  {
     title: "Construction",
     icon: HardHat,
       companyTypes: ['construction'] as CompanyType[],
@@ -93,17 +84,6 @@ const navigationCategories = [
     collapsible: true,
   },
   {
-    title: "Company Files",
-    icon: FolderArchive,
-    companyTypes: ['construction', 'design_professional'] as CompanyType[],
-    items: [
-      { name: "All Documents", href: "/company-files", menuKey: "company-files" },
-      { name: "Jobs", href: "/company-files/jobs", menuKey: "company-files" },
-      { name: "User Dropbox", href: "/company-files/dropbox", menuKey: "company-files" },
-    ],
-    collapsible: true,
-  },
-  {
     title: "Employees",
     icon: Users,
     companyTypes: ['construction'] as CompanyType[],
@@ -139,6 +119,15 @@ const navigationCategories = [
     collapsible: true,
   },
   {
+    title: "Calendar",
+    icon: Calendar,
+    companyTypes: ['construction', 'design_professional'] as CompanyType[],
+    items: [
+      { name: "Calendar", href: "/calendar", menuKey: "dashboard" },
+    ],
+    collapsible: false,
+  },
+  {
     title: "Banking",
     icon: Building,
     companyTypes: ['construction'] as CompanyType[],
@@ -148,6 +137,17 @@ const navigationCategories = [
       { name: "Journal Entries", href: "/banking/journal-entries", menuKey: "journal-entries" },
       { name: "Deposits", href: "/banking/deposits", menuKey: "deposits" },
       { name: "Print Checks", href: "/banking/print-checks", menuKey: "print-checks" },
+    ],
+    collapsible: true,
+  },
+  {
+    title: "Company Files",
+    icon: FolderArchive,
+    companyTypes: ['construction', 'design_professional'] as CompanyType[],
+    items: [
+      { name: "All Documents", href: "/company-files", menuKey: "company-files" },
+      { name: "Jobs", href: "/company-files/jobs", menuKey: "company-files" },
+      { name: "User Dropbox", href: "/company-files/dropbox", menuKey: "company-files" },
     ],
     collapsible: true,
   },

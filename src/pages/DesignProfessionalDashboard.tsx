@@ -21,6 +21,18 @@ type MessageRow = {
   created_at: string;
 };
 
+const safeParseNotes = (value: unknown): Record<string, any> => {
+  if (!value) return {};
+  if (typeof value === "object") return value as Record<string, any>;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 export default function DesignProfessionalDashboard() {
   const navigate = useNavigate();
   const { profile, user } = useAuth();
@@ -33,6 +45,7 @@ export default function DesignProfessionalDashboard() {
   const [submittalCount, setSubmittalCount] = useState(0);
   const [messages, setMessages] = useState<MessageRow[]>([]);
   const [unreadMessages, setUnreadMessages] = useState(0);
+  const [pendingInviteCount, setPendingInviteCount] = useState(0);
 
   useEffect(() => {
     const loadDashboard = async () => {
@@ -44,7 +57,7 @@ export default function DesignProfessionalDashboard() {
       try {
         setLoading(true);
 
-        const [ownedJobsRes, sharedJobsRes, rfiRes, submittalRes, messageRpcRes] = await Promise.all([
+        const [ownedJobsRes, sharedJobsRes, rfiRes, submittalRes, messageRpcRes, pendingRequestRes] = await Promise.all([
           supabase.from("jobs").select("id").eq("company_id", currentCompany.id),
           supabase.from("user_job_access").select("job_id").eq("user_id", user.id),
           supabase
@@ -59,6 +72,11 @@ export default function DesignProfessionalDashboard() {
             p_user_id: user.id,
             p_company_id: currentCompany.id,
           }),
+          supabase
+            .from("company_access_requests")
+            .select("company_id, notes, status")
+            .eq("user_id", user.id)
+            .in("status", ["pending", "approved"]),
         ]);
 
         if (ownedJobsRes.error) throw ownedJobsRes.error;
@@ -66,6 +84,7 @@ export default function DesignProfessionalDashboard() {
         if (rfiRes.error) throw rfiRes.error;
         if (submittalRes.error) throw submittalRes.error;
         if (messageRpcRes.error) throw messageRpcRes.error;
+        if (pendingRequestRes.error) throw pendingRequestRes.error;
 
         const ownedJobs = (ownedJobsRes.data || []) as JobCountRow[];
         const sharedJobs = (sharedJobsRes.data || []) as SharedJobCountRow[];
@@ -83,6 +102,14 @@ export default function DesignProfessionalDashboard() {
         setUnreadMessages(
           allMessages.filter((row) => row.to_user_id === user.id && row.read !== true).length,
         );
+
+        const pendingInviteTotal = (pendingRequestRes.data || []).reduce((count: number, row: any) => {
+          const parsed = safeParseNotes(row.notes);
+          if (String(parsed?.requestedRole || "").toLowerCase() !== "design_professional") return count;
+          if (Array.isArray(parsed?.pendingJobInvites)) return count + parsed.pendingJobInvites.length;
+          return parsed?.invitedJobId ? count + 1 : count;
+        }, 0);
+        setPendingInviteCount(pendingInviteTotal);
       } catch (error: any) {
         console.error("Failed to load design professional dashboard:", error);
         toast({
@@ -137,6 +164,23 @@ export default function DesignProfessionalDashboard() {
           </button>
         ))}
       </div>
+
+      {pendingInviteCount > 0 && (
+        <Card className="border-primary/30">
+          <CardHeader className="flex flex-row items-center justify-between gap-3">
+            <CardTitle className="text-base">Pending Job Invitations</CardTitle>
+            <Badge>New</Badge>
+          </CardHeader>
+          <CardContent className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+            <p className="text-sm text-muted-foreground">
+              You have {pendingInviteCount} pending job invitation{pendingInviteCount === 1 ? "" : "s"} waiting for acceptance.
+            </p>
+            <Button variant="outline" onClick={() => navigate("/design-professional/jobs")}>
+              Review Invitations
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">

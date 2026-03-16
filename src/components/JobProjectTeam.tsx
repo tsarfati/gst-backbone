@@ -8,13 +8,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
-import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, Star, UserCheck } from 'lucide-react';
+import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, Star, UserCheck, Search, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAvatars } from '@/hooks/useUserAvatar';
 import UserAvatar from '@/components/UserAvatar';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
+import { sendDesignProfessionalJobInvite } from '@/utils/sendDesignProfessionalJobInvite';
+import { searchDesignProfessionalAccounts, type DesignProfessionalAccountSearchResult } from '@/utils/searchDesignProfessionalAccounts';
 
 
 interface ProjectRole {
@@ -65,6 +67,9 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
   const [refreshKey, setRefreshKey] = useState(0);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [inviteSubmitting, setInviteSubmitting] = useState(false);
+  const [designProfessionalSearch, setDesignProfessionalSearch] = useState('');
+  const [designProfessionalSearchLoading, setDesignProfessionalSearchLoading] = useState(false);
+  const [designProfessionalSearchResults, setDesignProfessionalSearchResults] = useState<DesignProfessionalAccountSearchResult[]>([]);
   const [pendingDesignInvites, setPendingDesignInvites] = useState<PendingDesignInvite[]>([]);
   const [inviteForm, setInviteForm] = useState({
     firstName: '',
@@ -78,6 +83,32 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       loadData();
     }
   }, [currentCompany?.id, jobId, refreshKey]);
+
+  useEffect(() => {
+    if (!inviteDialogOpen || !currentCompany?.id) return;
+
+    const query = designProfessionalSearch.trim();
+    if (query.length < 2) {
+      setDesignProfessionalSearchResults([]);
+      setDesignProfessionalSearchLoading(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setDesignProfessionalSearchLoading(true);
+        const results = await searchDesignProfessionalAccounts(currentCompany.id, query);
+        setDesignProfessionalSearchResults(results);
+      } catch (error) {
+        console.error('Error searching design professional accounts:', error);
+        setDesignProfessionalSearchResults([]);
+      } finally {
+        setDesignProfessionalSearchLoading(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [inviteDialogOpen, currentCompany?.id, designProfessionalSearch]);
 
   const loadData = async () => {
     try {
@@ -314,16 +345,13 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
 
     try {
       setInviteSubmitting(true);
-      const { error } = await supabase.functions.invoke('send-design-professional-job-invite', {
-        body: {
-          companyId: currentCompany.id,
-          jobId,
-          email: inviteForm.email.trim().toLowerCase(),
-          firstName: inviteForm.firstName.trim() || null,
-          lastName: inviteForm.lastName.trim() || null,
-        },
+      await sendDesignProfessionalJobInvite({
+        companyId: currentCompany.id,
+        jobId,
+        email: inviteForm.email.trim().toLowerCase(),
+        firstName: inviteForm.firstName.trim() || null,
+        lastName: inviteForm.lastName.trim() || null,
       });
-      if (error) throw error;
 
       toast({
         title: "Invite sent",
@@ -342,6 +370,16 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     } finally {
       setInviteSubmitting(false);
     }
+  };
+
+  const selectDesignProfessionalSearchResult = (result: DesignProfessionalAccountSearchResult) => {
+    setInviteForm({
+      firstName: result.firstName || '',
+      lastName: result.lastName || '',
+      email: result.email || '',
+    });
+    setDesignProfessionalSearch(result.email || result.displayName || result.companyName || '');
+    setDesignProfessionalSearchResults([]);
   };
 
   const handleDirectoryChange = () => {
@@ -496,7 +534,13 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
         </div>
         <div className="flex items-center gap-2">
           {canInviteDesignProfessional && (
-            <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+            <Dialog open={inviteDialogOpen} onOpenChange={(open) => {
+              setInviteDialogOpen(open);
+              if (!open) {
+                setDesignProfessionalSearch('');
+                setDesignProfessionalSearchResults([]);
+              }
+            }}>
               <DialogTrigger asChild>
                 <Button size="sm" variant="outline">
                   <Mail className="h-4 w-4 mr-2" />
@@ -511,6 +555,46 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                 </DialogDescription>
               </DialogHeader>
               <div className="space-y-3 py-2">
+                <div className="space-y-1">
+                  <Label>Search Existing Design Pro Accounts</Label>
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={designProfessionalSearch}
+                      onChange={(e) => setDesignProfessionalSearch(e.target.value)}
+                      placeholder="Search by firm, name, or email"
+                      className="pl-9"
+                    />
+                    {designProfessionalSearchLoading && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+                  </div>
+                  {designProfessionalSearch.trim().length >= 2 && (
+                    <div className="rounded-md border bg-background">
+                      {designProfessionalSearchResults.length > 0 ? (
+                        <div className="max-h-56 overflow-y-auto p-1">
+                          {designProfessionalSearchResults.map((result) => (
+                            <button
+                              key={`${result.userId || result.companyId || result.email}`}
+                              type="button"
+                              onClick={() => selectDesignProfessionalSearchResult(result)}
+                              className="flex w-full items-start justify-between rounded-md px-3 py-2 text-left hover:bg-muted"
+                            >
+                              <div className="min-w-0">
+                                <p className="truncate text-sm font-medium">{result.displayName}</p>
+                                <p className="truncate text-xs text-muted-foreground">{result.companyName || 'Design Pro Account'}</p>
+                                <p className="truncate text-xs text-muted-foreground">{result.email}</p>
+                              </div>
+                              <Badge variant="outline" className="ml-3 shrink-0">Has Account</Badge>
+                            </button>
+                          ))}
+                        </div>
+                      ) : !designProfessionalSearchLoading ? (
+                        <div className="px-3 py-2 text-xs text-muted-foreground">
+                          No existing DesignProLYNK account found. You can still send a new invite below.
+                        </div>
+                      ) : null}
+                    </div>
+                  )}
+                </div>
                 <div className="grid grid-cols-2 gap-3">
                   <div className="space-y-1">
                     <Label>First Name</Label>

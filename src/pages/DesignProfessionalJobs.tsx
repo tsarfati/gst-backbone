@@ -12,7 +12,10 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Briefcase, Building2, Copy, Link2, Loader2, Plus, Send, Shuffle } from "lucide-react";
+import { Briefcase, Building2, Copy, Link2, Loader2, Plus, Search, Send, Shuffle } from "lucide-react";
+import { sendDesignProfessionalJobInvite } from "@/utils/sendDesignProfessionalJobInvite";
+import { acceptDesignProfessionalJobInvite } from "@/utils/acceptDesignProfessionalJobInvite";
+import { searchDesignProfessionalAccounts, type DesignProfessionalAccountSearchResult } from "@/utils/searchDesignProfessionalAccounts";
 
 type JobRow = {
   id: string;
@@ -41,6 +44,27 @@ type CompanyRow = {
   logo_url: string | null;
 };
 
+type PendingInviteRow = {
+  companyId: string;
+  companyName: string;
+  jobId: string;
+  jobName: string;
+  invitedAt: string;
+  inviteToken: string | null;
+};
+
+const safeParseNotes = (value: unknown): Record<string, any> => {
+  if (!value) return {};
+  if (typeof value === "object") return value as Record<string, any>;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
 const blankJobForm = {
   name: "",
   client: "",
@@ -58,8 +82,13 @@ export default function DesignProfessionalJobs() {
   const [creating, setCreating] = useState(false);
   const [sendingInvite, setSendingInvite] = useState(false);
   const [submittingHandoff, setSubmittingHandoff] = useState(false);
+  const [acceptingInviteJobId, setAcceptingInviteJobId] = useState<string | null>(null);
+  const [designProfessionalSearch, setDesignProfessionalSearch] = useState("");
+  const [designProfessionalSearchLoading, setDesignProfessionalSearchLoading] = useState(false);
+  const [designProfessionalSearchResults, setDesignProfessionalSearchResults] = useState<DesignProfessionalAccountSearchResult[]>([]);
   const [ownedJobs, setOwnedJobs] = useState<JobRow[]>([]);
   const [sharedJobs, setSharedJobs] = useState<Array<JobRow & { granted_at: string; sourceCompany?: CompanyRow | null }>>([]);
+  const [pendingInvites, setPendingInvites] = useState<PendingInviteRow[]>([]);
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [showHandoffDialog, setShowHandoffDialog] = useState(false);
@@ -88,7 +117,7 @@ export default function DesignProfessionalJobs() {
     try {
       setLoading(true);
 
-      const [ownedRes, sharedRes, companiesRes, targetCompaniesRes] = await Promise.all([
+      const [ownedRes, sharedRes, companiesRes, targetCompaniesRes, pendingRequestRes] = await Promise.all([
         supabase
           .from("jobs")
           .select("id,name,client,description,status,start_date,end_date,company_id,created_at")
@@ -105,12 +134,18 @@ export default function DesignProfessionalJobs() {
           .select("company_id,companies!inner(id,name,display_name,company_type,is_active)")
           .eq("user_id", user.id)
           .eq("is_active", true),
+        supabase
+          .from("company_access_requests")
+          .select("company_id, notes, status, requested_at")
+          .eq("user_id", user.id)
+          .in("status", ["pending", "approved"]),
       ]);
 
       if (ownedRes.error) throw ownedRes.error;
       if (sharedRes.error) throw sharedRes.error;
       if (companiesRes.error) throw companiesRes.error;
       if (targetCompaniesRes.error) throw targetCompaniesRes.error;
+      if (pendingRequestRes.error) throw pendingRequestRes.error;
 
       const companies = (companiesRes.data || []) as CompanyRow[];
       const companyMap = new Map(companies.map((company) => [company.id, company]));
@@ -130,6 +165,73 @@ export default function DesignProfessionalJobs() {
 
       setOwnedJobs(normalizedOwned);
       setSharedJobs(normalizedShared);
+
+      const pendingInviteCandidates = (pendingRequestRes.data || [])
+        .flatMap((row: any) => {
+          const parsed = safeParseNotes(row.notes);
+          if (String(parsed?.requestedRole || "").toLowerCase() !== "design_professional") {
+            return [];
+          }
+
+          const jobInvites = Array.isArray(parsed?.pendingJobInvites)
+            ? parsed.pendingJobInvites
+            : parsed?.invitedJobId
+              ? [{
+                  jobId: parsed.invitedJobId,
+                  companyId: parsed.externalCompanyId || row.company_id,
+                  inviteToken: parsed.jobInviteToken || null,
+                  invitedAt: parsed.requestedAt || row.requested_at,
+                }]
+              : [];
+
+          return jobInvites.map((invite: any) => ({
+            companyId: String(invite?.companyId || parsed?.externalCompanyId || row.company_id || ""),
+            jobId: String(invite?.jobId || ""),
+            inviteToken: invite?.inviteToken ? String(invite.inviteToken) : null,
+            invitedAt: String(invite?.invitedAt || parsed?.requestedAt || row.requested_at || ""),
+          }));
+        })
+        .filter((invite: any) => invite.companyId && invite.jobId);
+
+      const uniquePendingInvites = Array.from(
+        new Map(
+          pendingInviteCandidates.map((invite: any) => [`${invite.companyId}:${invite.jobId}`, invite]),
+        ).values(),
+      );
+
+      if (uniquePendingInvites.length > 0) {
+        const inviteCompanyIds = Array.from(new Set(uniquePendingInvites.map((invite) => invite.companyId)));
+        const inviteJobIds = Array.from(new Set(uniquePendingInvites.map((invite) => invite.jobId)));
+        const [{ data: inviteCompanies }, { data: inviteJobs }] = await Promise.all([
+          supabase.from("companies").select("id,name,display_name").in("id", inviteCompanyIds),
+          supabase.from("jobs").select("id,name,company_id").in("id", inviteJobIds),
+        ]);
+
+        const inviteCompanyMap = new Map((inviteCompanies || []).map((company: any) => [
+          String(company.id),
+          String(company.display_name || company.name || "Builder Company"),
+        ]));
+        const inviteJobMap = new Map((inviteJobs || []).map((job: any) => [
+          String(job.id),
+          String(job.name || "Shared Job"),
+        ]));
+        const existingSharedJobIds = new Set(normalizedShared.map((job) => String(job.id)));
+
+        setPendingInvites(
+          uniquePendingInvites
+            .filter((invite) => !existingSharedJobIds.has(String(invite.jobId)))
+            .map((invite) => ({
+              companyId: invite.companyId,
+              companyName: inviteCompanyMap.get(invite.companyId) || "Builder Company",
+              jobId: invite.jobId,
+              jobName: inviteJobMap.get(invite.jobId) || "Shared Job",
+              invitedAt: invite.invitedAt,
+              inviteToken: invite.inviteToken,
+            })),
+        );
+      } else {
+        setPendingInvites([]);
+      }
 
       const targetCompanies = ((targetCompaniesRes.data || []) as any[])
         .map((row) => row.companies)
@@ -165,6 +267,32 @@ export default function DesignProfessionalJobs() {
   useEffect(() => {
     void loadData();
   }, [user?.id, currentCompany?.id]);
+
+  useEffect(() => {
+    if (!showInviteDialog || !currentCompany?.id) return;
+
+    const query = designProfessionalSearch.trim();
+    if (query.length < 2) {
+      setDesignProfessionalSearchResults([]);
+      setDesignProfessionalSearchLoading(false);
+      return;
+    }
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        setDesignProfessionalSearchLoading(true);
+        const results = await searchDesignProfessionalAccounts(currentCompany.id, query);
+        setDesignProfessionalSearchResults(results);
+      } catch (error) {
+        console.error("Error searching design professional accounts:", error);
+        setDesignProfessionalSearchResults([]);
+      } finally {
+        setDesignProfessionalSearchLoading(false);
+      }
+    }, 250);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [showInviteDialog, currentCompany?.id, designProfessionalSearch]);
 
   const handleCreateJob = async () => {
     if (!user?.id || !currentCompany?.id || !jobForm.name.trim()) return;
@@ -207,16 +335,13 @@ export default function DesignProfessionalJobs() {
 
     try {
       setSendingInvite(true);
-      const { data, error } = await supabase.functions.invoke("send-design-professional-job-invite", {
-        body: {
-          companyId: currentCompany.id,
-          jobId: selectedJobForAction.id,
-          email: inviteForm.email.trim().toLowerCase(),
-          firstName: inviteForm.first_name.trim() || null,
-          lastName: inviteForm.last_name.trim() || null,
-        },
+      const data = await sendDesignProfessionalJobInvite({
+        companyId: currentCompany.id,
+        jobId: selectedJobForAction.id,
+        email: inviteForm.email.trim().toLowerCase(),
+        firstName: inviteForm.first_name.trim() || null,
+        lastName: inviteForm.last_name.trim() || null,
       });
-      if (error) throw error;
 
       toast({
         title: "Invite sent",
@@ -242,6 +367,8 @@ export default function DesignProfessionalJobs() {
   const openShareDialog = (job: JobRow) => {
     setSelectedJobForAction(job);
     setInviteForm({ email: "", first_name: "", last_name: "" });
+    setDesignProfessionalSearch("");
+    setDesignProfessionalSearchResults([]);
     setShowInviteDialog(true);
   };
 
@@ -289,6 +416,41 @@ export default function DesignProfessionalJobs() {
     } finally {
       setSubmittingHandoff(false);
     }
+  };
+
+  const handleAcceptInvite = async (invite: PendingInviteRow) => {
+    try {
+      setAcceptingInviteJobId(invite.jobId);
+      await acceptDesignProfessionalJobInvite({
+        companyId: invite.companyId,
+        jobId: invite.jobId,
+        inviteToken: invite.inviteToken,
+      });
+      toast({
+        title: "Invitation accepted",
+        description: `${invite.jobName} was added to your shared jobs.`,
+      });
+      await loadData();
+    } catch (error: any) {
+      console.error("Error accepting design professional invite:", error);
+      toast({
+        title: "Accept failed",
+        description: error?.message || "Could not accept this job invitation.",
+        variant: "destructive",
+      });
+    } finally {
+      setAcceptingInviteJobId(null);
+    }
+  };
+
+  const selectDesignProfessionalSearchResult = (result: DesignProfessionalAccountSearchResult) => {
+    setInviteForm({
+      email: result.email || "",
+      first_name: result.firstName || "",
+      last_name: result.lastName || "",
+    });
+    setDesignProfessionalSearch(result.email || result.displayName || result.companyName || "");
+    setDesignProfessionalSearchResults([]);
   };
 
   const renderJobCard = (job: JobRow & { granted_at?: string; sourceCompany?: CompanyRow | null }, isShared = false) => (
@@ -361,10 +523,47 @@ export default function DesignProfessionalJobs() {
         </div>
       </div>
 
+      {pendingInvites.length > 0 && (
+        <Card className="border-primary/30">
+          <CardHeader className="pb-3">
+            <CardTitle className="text-base flex items-center gap-2">
+              <Link2 className="h-4 w-4 text-primary" />
+              Pending Job Invitations
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-3">
+            {pendingInvites.map((invite) => (
+              <div
+                key={`${invite.companyId}-${invite.jobId}`}
+                className="flex flex-col gap-3 rounded-lg border border-primary/20 bg-primary/5 p-4 md:flex-row md:items-center md:justify-between"
+              >
+                <div>
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">{invite.jobName}</p>
+                    <Badge>New</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">Invited by {invite.companyName}</p>
+                  <p className="text-xs text-muted-foreground">
+                    {invite.invitedAt ? `Invited ${new Date(invite.invitedAt).toLocaleDateString()}` : "Pending invitation"}
+                  </p>
+                </div>
+                <Button
+                  onClick={() => void handleAcceptInvite(invite)}
+                  disabled={acceptingInviteJobId === invite.jobId}
+                >
+                  {acceptingInviteJobId === invite.jobId ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : null}
+                  Accept Invitation
+                </Button>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
+
       <Tabs defaultValue="owned" className="space-y-4">
         <TabsList>
           <TabsTrigger value="owned">My Projects ({ownedJobs.length})</TabsTrigger>
-          <TabsTrigger value="shared">Shared With Me ({sharedJobs.length})</TabsTrigger>
+          <TabsTrigger value="shared">Shared With Me ({sharedJobs.length + pendingInvites.length})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="owned" className="space-y-3">
@@ -402,9 +601,11 @@ export default function DesignProfessionalJobs() {
             <Card>
               <CardContent className="py-10 text-center space-y-2">
                 <Building2 className="h-8 w-8 mx-auto text-muted-foreground" />
-                <p className="font-medium">No shared jobs yet</p>
+                <p className="font-medium">{pendingInvites.length > 0 ? "Invitation pending" : "No shared jobs yet"}</p>
                 <p className="text-sm text-muted-foreground">
-                  Jobs shared by builder companies will appear here.
+                  {pendingInvites.length > 0
+                    ? "Accept your invitation above to add this job to your workspace."
+                    : "Jobs shared by builder companies will appear here."}
                 </p>
               </CardContent>
             </Card>
@@ -484,7 +685,13 @@ export default function DesignProfessionalJobs() {
         </DialogContent>
       </Dialog>
 
-      <Dialog open={showInviteDialog} onOpenChange={setShowInviteDialog}>
+      <Dialog open={showInviteDialog} onOpenChange={(open) => {
+        setShowInviteDialog(open);
+        if (!open) {
+          setDesignProfessionalSearch("");
+          setDesignProfessionalSearchResults([]);
+        }
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Share Job Invite</DialogTitle>
@@ -493,6 +700,47 @@ export default function DesignProfessionalJobs() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3">
+            <div className="space-y-1">
+              <Label htmlFor="design-pro-search">Search Existing Design Pro Accounts</Label>
+              <div className="relative">
+                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                <Input
+                  id="design-pro-search"
+                  value={designProfessionalSearch}
+                  onChange={(event) => setDesignProfessionalSearch(event.target.value)}
+                  placeholder="Search by firm, name, or email"
+                  className="pl-9"
+                />
+                {designProfessionalSearchLoading && <Loader2 className="absolute right-3 top-1/2 h-4 w-4 -translate-y-1/2 animate-spin text-muted-foreground" />}
+              </div>
+              {designProfessionalSearch.trim().length >= 2 && (
+                <div className="rounded-md border bg-background">
+                  {designProfessionalSearchResults.length > 0 ? (
+                    <div className="max-h-56 overflow-y-auto p-1">
+                      {designProfessionalSearchResults.map((result) => (
+                        <button
+                          key={`${result.userId || result.companyId || result.email}`}
+                          type="button"
+                          onClick={() => selectDesignProfessionalSearchResult(result)}
+                          className="flex w-full items-start justify-between rounded-md px-3 py-2 text-left hover:bg-muted"
+                        >
+                          <div className="min-w-0">
+                            <p className="truncate text-sm font-medium">{result.displayName}</p>
+                            <p className="truncate text-xs text-muted-foreground">{result.companyName || "Design Pro Account"}</p>
+                            <p className="truncate text-xs text-muted-foreground">{result.email}</p>
+                          </div>
+                          <Badge variant="outline" className="ml-3 shrink-0">Has Account</Badge>
+                        </button>
+                      ))}
+                    </div>
+                  ) : !designProfessionalSearchLoading ? (
+                    <div className="px-3 py-2 text-xs text-muted-foreground">
+                      No existing DesignProLYNK account found. You can still send a new invite below.
+                    </div>
+                  ) : null}
+                </div>
+              )}
+            </div>
             <div className="grid grid-cols-2 gap-3">
               <div className="space-y-1">
                 <Label htmlFor="invite-first-name">First Name</Label>

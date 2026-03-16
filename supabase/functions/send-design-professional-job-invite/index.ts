@@ -36,6 +36,38 @@ type InvitePayload = {
   lastName?: string;
 };
 
+type PendingJobInviteNote = {
+  inviteToken: string;
+  jobId: string;
+  companyId: string;
+  invitedAt: string;
+  invitedBy: string;
+  email: string;
+  firstName?: string | null;
+  lastName?: string | null;
+};
+
+const safeParseNotes = (value: unknown): Record<string, unknown> => {
+  if (!value) return {};
+  if (typeof value === "object") return value as Record<string, unknown>;
+  if (typeof value !== "string") return {};
+  try {
+    const parsed = JSON.parse(value);
+    return parsed && typeof parsed === "object" ? parsed : {};
+  } catch {
+    return {};
+  }
+};
+
+const isMissingRelationError = (error: unknown, relationName: string): boolean => {
+  const message = String((error as any)?.message || error || "").toLowerCase();
+  return message.includes(relationName.toLowerCase()) && (
+    message.includes("schema cache") ||
+    message.includes("does not exist") ||
+    message.includes("relation")
+  );
+};
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -110,8 +142,10 @@ const handler = async (req: Request): Promise<Response> => {
     if (jobError || !jobRow || jobRow.company_id !== companyId) throw jobError || new Error("Job not found");
 
     const inviteToken = crypto.randomUUID();
+    const invitedAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
+    let inviteTableAvailable = true;
     const { error: upsertError } = await admin
       .from("design_professional_job_invites")
       .upsert(
@@ -133,14 +167,113 @@ const handler = async (req: Request): Promise<Response> => {
         },
         { onConflict: "invite_token" },
       );
-    if (upsertError) throw upsertError;
+    if (upsertError) {
+      if (isMissingRelationError(upsertError, "design_professional_job_invites")) {
+        inviteTableAvailable = false;
+      } else {
+        throw upsertError;
+      }
+    }
 
-    const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
-    const inviteUrl = `${baseUrl}/design-professional-signup?company=${encodeURIComponent(companyId)}&jobInvite=${encodeURIComponent(inviteToken)}`;
+    const { data: existingProfile } = await admin
+      .from("profiles")
+      .select("user_id, display_name, current_company_id")
+      .ilike("email", normalizedEmail)
+      .maybeSingle();
+
     const companyName = escapeHtml(String(companyRow.display_name || companyRow.name || "BuilderLYNK"));
     const jobName = escapeHtml(String(jobRow.name || "Project"));
     const jobNumber = escapeHtml(String(jobRow.project_number || ""));
     const companyLogoUrl = resolveCompanyLogoUrl((companyRow as any).logo_url);
+
+    if (!existingProfile?.user_id && !inviteTableAvailable) {
+      throw new Error(
+        "This database is missing the design professional invite table. Existing Design Pro accounts can still be invited, but signup-based job invites require the latest database migration.",
+      );
+    }
+
+    if (existingProfile?.user_id) {
+      const { data: existingAccess } = await admin
+        .from("user_company_access")
+        .select("user_id, company_id, is_active")
+        .eq("user_id", existingProfile.user_id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+      const { data: existingRequest } = await admin
+        .from("company_access_requests")
+        .select("id, status, notes")
+        .eq("user_id", existingProfile.user_id)
+        .eq("company_id", companyId)
+        .maybeSingle();
+
+      const parsedNotes = safeParseNotes(existingRequest?.notes);
+      const pendingJobInvites = Array.isArray(parsedNotes.pendingJobInvites)
+        ? parsedNotes.pendingJobInvites.filter(Boolean)
+        : [];
+      const nextPendingJobInvites = [
+        ...pendingJobInvites.filter((row: any) => String(row?.jobId || "") !== String(jobId)),
+        {
+          inviteToken,
+          jobId,
+          companyId,
+          invitedAt,
+          invitedBy: authData.user.id,
+          email: normalizedEmail,
+          firstName: firstName || null,
+          lastName: lastName || null,
+        } satisfies PendingJobInviteNote,
+      ];
+
+      const mergedNotes = {
+        ...parsedNotes,
+        requestType: "design_professional_job_invite",
+        requestedRole: "design_professional",
+        email: normalizedEmail,
+        invitedJobId: jobId,
+        jobInviteToken: inviteToken,
+        pendingJobInvites: nextPendingJobInvites,
+      };
+
+      if (existingRequest?.id) {
+        const nextStatus = existingAccess?.is_active ? existingRequest.status || "approved" : "pending";
+        const { error: requestUpdateError } = await admin
+          .from("company_access_requests")
+          .update({
+            status: nextStatus,
+            requested_at: invitedAt,
+            reviewed_at: nextStatus === "pending" ? null : null,
+            reviewed_by: nextStatus === "pending" ? null : null,
+            notes: JSON.stringify(mergedNotes),
+          })
+          .eq("id", existingRequest.id);
+        if (requestUpdateError) throw requestUpdateError;
+      } else {
+        const { error: requestInsertError } = await admin
+          .from("company_access_requests")
+          .insert({
+            user_id: existingProfile.user_id,
+            company_id: companyId,
+            status: existingAccess?.is_active ? "approved" : "pending",
+            requested_at: invitedAt,
+            notes: JSON.stringify(mergedNotes),
+          });
+        if (requestInsertError) throw requestInsertError;
+      }
+
+      await admin.from("notifications").insert({
+        user_id: existingProfile.user_id,
+        title: "New Job Invitation",
+        message: `${companyName} invited you to ${jobName}${jobNumber ? ` (${jobNumber})` : ""}.`,
+        type: `design_pro_job_invite:${jobId}`,
+        read: false,
+      });
+    }
+
+    const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
+    const inviteUrl = existingProfile?.user_id
+      ? `${baseUrl}/auth?portal=designpro`
+      : `${baseUrl}/design-professional-signup?company=${encodeURIComponent(companyId)}&jobInvite=${encodeURIComponent(inviteToken)}`;
 
     if (resend) {
       await sendTransactionalEmailWithFallback({
@@ -164,8 +297,9 @@ const handler = async (req: Request): Promise<Response> => {
           ${companyLogoUrl ? `<div style="text-align:center;margin-bottom:24px;"><img src="${companyLogoUrl}" alt="Company logo" style="max-height:72px;max-width:240px;object-fit:contain;" /></div>` : ""}
           <h1 style="color:#1e3a5f;font-size:24px;font-weight:700;margin:0 0 16px 0;text-align:center;">Design Professional Invitation</h1>
           <p style="color:#374151;font-size:16px;line-height:1.6;margin:0 0 12px 0;">You were invited by <strong>${companyName}</strong> to join job <strong>${jobName}${jobNumber ? ` (${jobNumber})` : ""}</strong> as a design professional.</p>
+          <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 18px 0;">${existingProfile?.user_id ? "Sign in to BuilderLYNK and accept the invitation from your dashboard or jobs page." : "Use the button below to create your design professional account and accept this invitation."}</p>
           <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
-            <a href="${inviteUrl}" style="display:inline-block;background-color:#E88A2D;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:12px 26px;border-radius:8px;">Accept Invitation</a>
+            <a href="${inviteUrl}" style="display:inline-block;background-color:#E88A2D;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:12px 26px;border-radius:8px;">${existingProfile?.user_id ? "Open BuilderLYNK" : "Accept Invitation"}</a>
           </td></tr></table>
           <p style="color:#6b7280;font-size:12px;line-height:1.6;margin:18px 0 0 0;text-align:center;">This invitation expires in 7 days.</p>
         </td></tr>
@@ -177,7 +311,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    return new Response(JSON.stringify({ success: true, inviteToken }), {
+    return new Response(JSON.stringify({ success: true, inviteToken, inviteTableAvailable }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });

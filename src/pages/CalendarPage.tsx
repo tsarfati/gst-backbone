@@ -22,6 +22,7 @@ import {
   MapPin,
   Plus,
   RefreshCw,
+  Settings,
   Trash2,
   Briefcase,
 } from "lucide-react";
@@ -166,6 +167,7 @@ export default function CalendarPage() {
   const [saving, setSaving] = useState(false);
   const [deleting, setDeleting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [settingsDialogOpen, setSettingsDialogOpen] = useState(false);
   const [visibilityFilter, setVisibilityFilter] = useState<"all" | CalendarVisibility>("all");
   const [syncFilter, setSyncFilter] = useState<"all" | CalendarSyncState>("all");
   const [error, setError] = useState<string | null>(null);
@@ -405,6 +407,10 @@ export default function CalendarPage() {
             <RefreshCw className={cn("mr-2 h-4 w-4", loading && "animate-spin")} />
             Refresh
           </Button>
+          <Button variant="outline" onClick={() => setSettingsDialogOpen(true)}>
+            <Settings className="mr-2 h-4 w-4" />
+            Settings
+          </Button>
           <Button onClick={() => openCreateDialog()}>
             <Plus className="mr-2 h-4 w-4" />
             New Event
@@ -604,40 +610,6 @@ export default function CalendarPage() {
                     </div>
                   </button>
                 ))
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
-            <CardHeader>
-              <CardTitle>Google Calendar</CardTitle>
-              <CardDescription>Connection status for sync and Google Meet generation.</CardDescription>
-            </CardHeader>
-            <CardContent className="space-y-3 text-sm">
-              {connection ? (
-                <>
-                  <div className="flex items-center justify-between rounded-lg border p-3">
-                    <div>
-                      <div className="font-medium">{connection.provider_account_email || "Connected account"}</div>
-                      <div className="text-muted-foreground">
-                        {connection.sync_enabled ? "Sync enabled" : "Sync disabled"}
-                        {connection.last_sync_at ? ` · Last sync ${format(parseISO(connection.last_sync_at), "MMM d, h:mm a")}` : ""}
-                      </div>
-                    </div>
-                    <Badge variant={connection.sync_enabled ? "success" : "secondary"}>
-                      {connection.sync_enabled ? "Connected" : "Paused"}
-                    </Badge>
-                  </div>
-                  <div className="rounded-lg border border-dashed p-3 text-muted-foreground">
-                    {connection.meet_enabled
-                      ? "Google Meet links can be requested on meeting events. Server-side sync still needs to be deployed for links to populate automatically."
-                      : "Google Meet creation is disabled for this account."}
-                  </div>
-                </>
-              ) : (
-                <div className="rounded-lg border border-dashed p-3 text-muted-foreground">
-                  No Google Calendar account is connected yet. The event UI is ready; OAuth and sync functions can be added next.
-                </div>
               )}
             </CardContent>
           </Card>
@@ -848,6 +820,71 @@ export default function CalendarPage() {
                 {saving ? "Saving..." : form.id ? "Save Changes" : "Create Event"}
               </Button>
             </div>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Calendar Settings</DialogTitle>
+            <DialogDescription>
+              Manage Google Calendar and future third-party calendar sync connections here.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-2">
+            <Card>
+              <CardHeader>
+                <CardTitle>Google Calendar</CardTitle>
+                <CardDescription>Connection status for sync and Google Meet generation.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm">
+                {connection ? (
+                  <>
+                    <div className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <div className="font-medium">{connection.provider_account_email || "Connected account"}</div>
+                        <div className="text-muted-foreground">
+                          {connection.sync_enabled ? "Sync enabled" : "Sync disabled"}
+                          {connection.last_sync_at ? ` · Last sync ${format(parseISO(connection.last_sync_at), "MMM d, h:mm a")}` : ""}
+                        </div>
+                      </div>
+                      <Badge variant={connection.sync_enabled ? "success" : "secondary"}>
+                        {connection.sync_enabled ? "Connected" : "Paused"}
+                      </Badge>
+                    </div>
+                    <div className="rounded-lg border border-dashed p-3 text-muted-foreground">
+                      {connection.meet_enabled
+                        ? "Google Meet links can be requested on meeting events. Server-side sync still needs to be deployed for links to populate automatically."
+                        : "Google Meet creation is disabled for this account."}
+                    </div>
+                  </>
+                ) : (
+                  <div className="rounded-lg border border-dashed p-3 text-muted-foreground">
+                    No Google Calendar account is connected yet. OAuth connection and sync controls can be built here next.
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle>Integration Roadmap</CardTitle>
+                <CardDescription>Reserved for future calendar sync setup.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3 text-sm text-muted-foreground">
+                <div className="rounded-lg border border-dashed p-4">
+                  This settings area is now the home for Google Calendar, Outlook, Apple Calendar, default sync direction, default calendar selection, and sync conflict handling.
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSettingsDialogOpen(false)}>
+              Close
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>
