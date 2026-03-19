@@ -5,12 +5,21 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 
 export function useWebsiteJobAccess() {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const activeCompanyRole = useActiveCompanyRole();
   const [loading, setLoading] = useState(true);
   const [hasGlobalJobAccess, setHasGlobalJobAccess] = useState(false);
   const [allowedJobIds, setAllowedJobIds] = useState<string[]>([]);
+  const isDesignProfessionalUser = useMemo(
+    () => String(profile?.role || "").toLowerCase() === "design_professional",
+    [profile?.role],
+  );
+  const isVendorUser = useMemo(
+    () => String(profile?.role || "").toLowerCase() === "vendor",
+    [profile?.role],
+  );
+  const isExternalSharedUser = isDesignProfessionalUser || isVendorUser;
 
   const isPrivilegedRole = useMemo(() => {
     const role = (activeCompanyRole || "").toLowerCase();
@@ -42,7 +51,11 @@ export function useWebsiteJobAccess() {
         setHasGlobalJobAccess(false);
 
         const ids = (accessData || [])
-          .filter((row: any) => row.jobs?.company_id === currentCompany.id)
+          .filter((row: any) =>
+            isExternalSharedUser
+              ? true
+              : row.jobs?.company_id === currentCompany.id,
+          )
           .map((row: any) => row.job_id);
         setAllowedJobIds(Array.from(new Set(ids)));
       } catch (error) {
@@ -55,7 +68,7 @@ export function useWebsiteJobAccess() {
     };
 
     load();
-  }, [user?.id, currentCompany?.id, isPrivilegedRole]);
+  }, [user?.id, currentCompany?.id, isPrivilegedRole, isExternalSharedUser]);
 
   const canAccessJob = useCallback((jobId: string | null | undefined) => {
     if (!jobId) return false;

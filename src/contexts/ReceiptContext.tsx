@@ -5,7 +5,7 @@ import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
-import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
+import { canAccessAssignedJobOnly, canAccessJobIds } from '@/utils/jobAccess';
 import { createMentionNotifications } from '@/utils/mentions';
 
 export interface Receipt {
@@ -160,12 +160,14 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
         })
       );
 
-      const processedReceipts = resolvedReceipts.filter((receipt: any) =>
-        canAccessAssignedJobOnly([receipt.job_id], isPrivileged, allowedJobIds)
-      );
+      const uncoded = resolvedReceipts
+        .filter((receipt: any) => receipt.status === 'uncoded' || receipt.status === 'partially_coded')
+        .filter((receipt: any) => canAccessJobIds([receipt.job_id], isPrivileged, allowedJobIds));
 
-      const uncoded = processedReceipts.filter(r => r.status === 'uncoded' || r.status === 'partially_coded');
-      const coded = processedReceipts.filter(r => r.status !== 'uncoded' && r.status !== 'partially_coded').map(r => {
+      const coded = resolvedReceipts
+        .filter((receipt: any) => receipt.status !== 'uncoded' && receipt.status !== 'partially_coded')
+        .filter((receipt: any) => canAccessAssignedJobOnly([receipt.job_id], isPrivileged, allowedJobIds))
+        .map(r => {
         const job = r.job_id ? jobsMap.get(r.job_id) : null;
         const costCode = r.cost_code_id ? costCodesMap.get(r.cost_code_id) : null;
         return {
@@ -185,7 +187,7 @@ export function ReceiptProvider({ children }: { children: React.ReactNode }) {
       const { data: messageData, error: messageError } = await supabase
         .from('receipt_messages')
         .select('*')
-        .in('receipt_id', processedReceipts.map(r => r.id))
+        .in('receipt_id', resolvedReceipts.map(r => r.id))
         .order('created_at', { ascending: true });
 
       if (!messageError) {

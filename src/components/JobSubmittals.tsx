@@ -20,6 +20,7 @@ import DragDropUpload from "@/components/DragDropUpload";
 
 interface JobSubmittalsProps {
   jobId: string;
+  canCreate?: boolean;
 }
 
 type SubmittalStatus = Enums<"submittal_status">;
@@ -53,7 +54,7 @@ type UserCompanyAccessProfileRow = {
   } | null;
 };
 
-export default function JobSubmittals({ jobId }: JobSubmittalsProps) {
+export default function JobSubmittals({ jobId, canCreate = true }: JobSubmittalsProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const [loading, setLoading] = useState(true);
@@ -427,13 +428,21 @@ export default function JobSubmittals({ jobId }: JobSubmittalsProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">Submittals</h2>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              New Submittal
-            </Button>
-          </DialogTrigger>
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            if (!canCreate && open) return;
+            setDialogOpen(open);
+          }}
+        >
+          {canCreate && (
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                New Submittal
+              </Button>
+            </DialogTrigger>
+          )}
           <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create Submittal</DialogTitle>

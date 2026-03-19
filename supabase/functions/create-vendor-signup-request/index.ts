@@ -12,7 +12,7 @@ const corsHeaders = {
 type RequestedRole = "vendor" | "design_professional";
 
 type RequestPayload = {
-  userId: string;
+  userId?: string;
   email: string;
   firstName: string;
   lastName: string;
@@ -21,6 +21,7 @@ type RequestPayload = {
   requestedRole: RequestedRole;
   businessName?: string | null;
   jobInviteToken?: string | null;
+  password?: string | null;
 };
 
 const safeString = (value: unknown) => String(value || "").trim();
@@ -92,6 +93,50 @@ const buildAdminIntakeEmailHtml = ({
 </html>`;
 };
 
+const buildVendorConfirmationEmailHtml = ({
+  companyName,
+  companyLogoUrl,
+  recipientName,
+  confirmUrl,
+}: {
+  companyName?: string | null;
+  companyLogoUrl?: string | null;
+  recipientName: string;
+  confirmUrl: string;
+}) => `<!DOCTYPE html>
+<html>
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"></head>
+<body style="margin:0;padding:0;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,'Helvetica Neue',Arial,sans-serif;background-color:#f4f4f5;">
+  <table width="100%" cellpadding="0" cellspacing="0" style="background-color:#f4f4f5;padding:40px 20px;">
+    <tr><td align="center">
+      <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
+        <tr><td style="background-color:#1e3a5f;padding:16px 20px;text-align:center;">
+          <img src="${builderLynkLogo}" alt="BuilderLYNK" style="display:block;margin:0 auto;height:150px;width:auto;max-width:420px;" />
+        </td></tr>
+        <tr><td style="padding:32px 28px;">
+          ${companyLogoUrl ? `<div style="text-align:center;margin-bottom:24px;"><img src="${companyLogoUrl}" alt="Company logo" style="max-height:72px;max-width:240px;object-fit:contain;" /></div>` : ""}
+          <h1 style="color:#1e3a5f;font-size:24px;font-weight:700;margin:0 0 16px 0;text-align:center;">Confirm Your Vendor Account</h1>
+          <p style="color:#374151;font-size:16px;line-height:1.6;margin:0 0 12px 0;">Hi ${recipientName},</p>
+          <p style="color:#374151;font-size:16px;line-height:1.6;margin:0 0 12px 0;">
+            Your vendor account has been created${companyName ? ` for <strong>${companyName}</strong>` : ""}. Click the button below to confirm your email address and finish setup.
+          </p>
+          <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:12px 0 20px 0;">
+            <a href="${confirmUrl}" style="display:inline-block;background-color:#E88A2D;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:12px 26px;border-radius:8px;">Confirm My Email</a>
+          </td></tr></table>
+          <p style="color:#6b7280;font-size:13px;line-height:1.6;margin:0;text-align:center;">
+            If the button doesn't work, copy and paste this link into your browser:<br />
+            <a href="${confirmUrl}" style="color:#1e3a5f;word-break:break-all;">${confirmUrl}</a>
+          </p>
+        </td></tr>
+        <tr><td style="background-color:#1e3a5f;padding:18px 24px;text-align:center;">
+          <p style="color:#ffffff;font-size:12px;margin:0;">© ${new Date().getFullYear()} BuilderLYNK. All rights reserved.</p>
+        </td></tr>
+      </table>
+    </td></tr>
+  </table>
+</body>
+</html>`;
+
 serve(async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -99,7 +144,7 @@ serve(async (req: Request): Promise<Response> => {
 
   try {
     const body = (await req.json()) as RequestPayload;
-    const userId = safeString(body.userId);
+    let userId = safeString(body.userId);
     const email = safeString(body.email).toLowerCase();
     const firstName = safeString(body.firstName);
     const lastName = safeString(body.lastName);
@@ -108,8 +153,9 @@ serve(async (req: Request): Promise<Response> => {
     const businessName = safeString(body.businessName || "");
     const phone = safeString(body.phone || "");
     const jobInviteToken = safeString(body.jobInviteToken || "");
+    const password = safeString(body.password || "");
 
-    if (!userId || !email || !firstName || !lastName) {
+    if (!email || !firstName || !lastName) {
       return new Response(JSON.stringify({ error: "Missing required fields" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -127,15 +173,104 @@ serve(async (req: Request): Promise<Response> => {
     const resendApiKey = Deno.env.get("RESEND_API_KEY") || "";
     const resend = resendApiKey ? new Resend(resendApiKey) : null;
 
-    const { data: authUser, error: authError } = await supabase.auth.admin.getUserById(userId);
-    if (authError || !authUser?.user) {
-      return new Response(JSON.stringify({ error: "User not found" }), {
-        status: 404,
-        headers: { "Content-Type": "application/json", ...corsHeaders },
+    let authUser:
+      | {
+          user: {
+            id: string;
+            email?: string | null;
+          } | null;
+        }
+      | null = null;
+    let confirmationUrl: string | null = null;
+
+    if (userId) {
+      const { data, error: authError } = await supabase.auth.admin.getUserById(userId);
+      if (authError || !data?.user) {
+        return new Response(JSON.stringify({ error: "User not found" }), {
+          status: 404,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+      authUser = data as any;
+    } else {
+      if (!password || password.length < 6) {
+        return new Response(JSON.stringify({ error: "Password must be at least 6 characters." }), {
+          status: 400,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      const normalizedEmail = email.toLowerCase();
+      let existingUserId: string | null = null;
+      let page = 1;
+
+      while (!existingUserId) {
+        const { data: userList, error: listUsersError } = await supabase.auth.admin.listUsers({
+          page,
+          perPage: 1000,
+        });
+        if (listUsersError) throw listUsersError;
+
+        const matchedUser = (userList?.users || []).find(
+          (candidate) => safeString(candidate.email).toLowerCase() === normalizedEmail,
+        );
+        if (matchedUser) {
+          existingUserId = matchedUser.id;
+          break;
+        }
+
+        if (!userList?.users?.length || userList.users.length < 1000) break;
+        page += 1;
+      }
+
+      if (existingUserId) {
+        return new Response(JSON.stringify({
+          error: "An account with this email already exists. Sign in instead, or use password reset if needed.",
+          code: "email_already_registered",
+        }), {
+          status: 409,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      const { data: createdUser, error: createUserError } = await supabase.auth.admin.createUser({
+        email: normalizedEmail,
+        password,
+        email_confirm: false,
+        user_metadata: {
+          first_name: firstName,
+          last_name: lastName,
+          business_name: businessName || null,
+          requested_role: requestedRole,
+          requested_company_id: companyId || null,
+        },
       });
+
+      if (createUserError || !createdUser?.user?.id) {
+        throw createUserError || new Error("Failed to create user account");
+      }
+
+      userId = createdUser.user.id;
+      authUser = { user: createdUser.user as any };
+
+      const publicSiteUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
+      const redirectUrl = new URL("/vendor-signup", publicSiteUrl);
+      if (companyId) redirectUrl.searchParams.set("company", companyId);
+      redirectUrl.searchParams.set("confirmed", "1");
+      const redirectTo = redirectUrl.toString();
+      const { data: confirmationLinkData, error: confirmationLinkError } = await supabase.auth.admin.generateLink({
+        type: "signup",
+        email: normalizedEmail,
+        password,
+        options: {
+          redirectTo,
+        },
+      });
+      if (confirmationLinkError) throw confirmationLinkError;
+      confirmationUrl = confirmationLinkData?.properties?.action_link || null;
     }
 
-    const authEmail = safeString(authUser.user.email).toLowerCase();
+    const authEmail = safeString(authUser?.user?.email).toLowerCase();
     if (authEmail !== email) {
       return new Response(JSON.stringify({ error: "User/email mismatch" }), {
         status: 403,
@@ -272,9 +407,50 @@ serve(async (req: Request): Promise<Response> => {
 
     const homeCompanyId = String(homeCompany.id);
 
-    const externalAccessNeedsApproval =
-      requestedRole === "vendor" && Boolean(externalCompanyId) && !jobInviteToken;
+    const externalAccessNeedsApproval = false;
     const externalAccessAutoApprove = Boolean(externalCompanyId) && !externalAccessNeedsApproval;
+
+    let vendorRecordId: string | null = null;
+    if (requestedRole === "vendor") {
+      const { data: existingVendorRecord, error: existingVendorError } = await supabase
+        .from("vendors")
+        .select("id")
+        .eq("company_id", homeCompanyId)
+        .eq("email", email)
+        .maybeSingle();
+      if (existingVendorError) throw existingVendorError;
+
+      if (existingVendorRecord?.id) {
+        vendorRecordId = String(existingVendorRecord.id);
+        const { error: updateVendorError } = await supabase
+          .from("vendors")
+          .update({
+            name: businessName || `${firstName} ${lastName}`.trim() || email,
+            contact_person: `${firstName} ${lastName}`.trim(),
+            phone: phone || null,
+            email,
+            is_active: true,
+          } as any)
+          .eq("id", vendorRecordId);
+        if (updateVendorError) throw updateVendorError;
+      } else {
+        const { data: vendorRecord, error: createVendorError } = await supabase
+          .from("vendors")
+          .insert({
+            company_id: homeCompanyId,
+            name: businessName || `${firstName} ${lastName}`.trim() || email,
+            contact_person: `${firstName} ${lastName}`.trim() || null,
+            email,
+            phone: phone || null,
+            is_active: true,
+            vendor_type: "Other",
+          } as any)
+          .select("id")
+          .single();
+        if (createVendorError || !vendorRecord?.id) throw createVendorError || new Error("Failed to create vendor record");
+        vendorRecordId = String(vendorRecord.id);
+      }
+    }
 
     const { error: profileError } = await supabase
       .from("profiles")
@@ -289,6 +465,7 @@ serve(async (req: Request): Promise<Response> => {
           current_company_id: homeCompanyId,
           default_company_id: homeCompanyId,
           role: requestedRole,
+          vendor_id: vendorRecordId,
           status: "approved",
           approved_at: new Date().toISOString(),
           approved_by: userId,
@@ -408,6 +585,28 @@ serve(async (req: Request): Promise<Response> => {
         });
         if (requestError) throw requestError;
       }
+    }
+
+    if (confirmationUrl) {
+      const recipientName = `${firstName} ${lastName}`.trim() || email;
+      const companyName = externalCompany?.display_name || externalCompany?.name || homeCompany?.display_name || homeCompany?.name || null;
+      const companyLogoUrl = resolveCompanyLogoUrl((externalCompany as any)?.logo_url || (homeCompany as any)?.logo_url || null);
+      await sendTransactionalEmailWithFallback({
+        supabaseUrl,
+        serviceRoleKey: supabaseServiceKey,
+        resend,
+        companyId: externalCompanyId || homeCompanyId,
+        defaultFrom: inviteEmailFrom,
+        to: [email],
+        subject: `Confirm your BuilderLYNK vendor account`,
+        html: buildVendorConfirmationEmailHtml({
+          companyName,
+          companyLogoUrl,
+          recipientName,
+          confirmUrl: confirmationUrl,
+        }),
+        context: "create-vendor-signup-request-confirmation",
+      });
     }
 
     if (requestedRole === "design_professional" && jobInviteToken) {
@@ -562,6 +761,7 @@ serve(async (req: Request): Promise<Response> => {
         externalApprovalRequired: externalAccessNeedsApproval,
         externalAccessAutoApproved: externalAccessAutoApprove,
         requestedRole,
+        requiresEmailConfirmation: Boolean(confirmationUrl),
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
     );

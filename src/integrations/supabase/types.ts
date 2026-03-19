@@ -6822,6 +6822,7 @@ export type Database = {
           updated_at: string
           user_id: string
           vendor_id: string | null
+          vendor_portal_role: string | null
           zodiac_sign: string | null
         }
         Insert: {
@@ -6853,6 +6854,7 @@ export type Database = {
           updated_at?: string
           user_id: string
           vendor_id?: string | null
+          vendor_portal_role?: string | null
           zodiac_sign?: string | null
         }
         Update: {
@@ -6884,6 +6886,7 @@ export type Database = {
           updated_at?: string
           user_id?: string
           vendor_id?: string | null
+          vendor_portal_role?: string | null
           zodiac_sign?: string | null
         }
         Relationships: [

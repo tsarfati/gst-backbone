@@ -164,11 +164,17 @@ import VisitorCheckout from "./pages/VisitorCheckout";
 import JobVisitorLogs from "./pages/JobVisitorLogs";
 import EmployeeDashboard from "./pages/EmployeeDashboard";
 import VendorDashboard from "./pages/VendorDashboard";
+import VendorPortalDashboard from "./pages/VendorPortalDashboard";
+import VendorPortalJobs from "./pages/VendorPortalJobs";
+import VendorPortalBills from "./pages/VendorPortalBills";
+import VendorPortalCompliance from "./pages/VendorPortalCompliance";
+import VendorPortalSettings from "./pages/VendorPortalSettings";
 import DesignProfessionalDashboard from "./pages/DesignProfessionalDashboard";
 import DesignProfessionalJobs from "./pages/DesignProfessionalJobs";
 import DesignProfessionalCompanySettings from "./pages/DesignProfessionalCompanySettings";
 import DesignProfessionalRFIs from "./pages/DesignProfessionalRFIs";
 import DesignProfessionalSubmittals from "./pages/DesignProfessionalSubmittals";
+import DesignProfessionalPermitting from "./pages/DesignProfessionalPermitting";
 import VendorRegister from "./pages/VendorRegister";
 import VendorSignup from "./pages/VendorSignup";
 import DesignProfessionalSignup from "./pages/DesignProfessionalSignup";
@@ -274,7 +280,7 @@ function CompanyTypeRoute({
   allowedTypes,
   redirectTo = '/',
 }: {
-  allowedTypes: Array<'construction' | 'design_professional'>;
+  allowedTypes: Array<'construction' | 'design_professional' | 'vendor'>;
   redirectTo?: string;
 }) {
   const { currentCompany, loading } = useCompany();
@@ -288,8 +294,12 @@ function CompanyTypeRoute({
     return <Outlet />;
   }
 
-  const companyType: 'construction' | 'design_professional' =
-    currentCompany?.company_type === 'design_professional' ? 'design_professional' : 'construction';
+  const companyType: 'construction' | 'design_professional' | 'vendor' =
+    currentCompany?.company_type === 'design_professional'
+      ? 'design_professional'
+      : currentCompany?.company_type === 'vendor'
+      ? 'vendor'
+      : 'construction';
 
   if (!allowedTypes.includes(companyType)) {
     return <Navigate to={redirectTo} replace />;
@@ -390,6 +400,46 @@ function AuthenticatedRoutes() {
               <Route path="design-professional-dashboard" element={<Navigate to="/design-professional/dashboard" replace />} />
               <Route path="vendor-dashboard" element={<Navigate to="/vendor/dashboard" replace />} />
               <Route path="vendor/dashboard" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalDashboard />
+                </RoleGuard>
+              } />
+              <Route path="vendor/jobs" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalJobs />
+                </RoleGuard>
+              } />
+              <Route path="vendor/jobs/:id" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <JobDetails />
+                </RoleGuard>
+              } />
+              <Route path="vendor/bills" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalBills />
+                </RoleGuard>
+              } />
+              <Route path="vendor/compliance" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalCompliance />
+                </RoleGuard>
+              } />
+              <Route path="vendor/settings" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalSettings />
+                </RoleGuard>
+              } />
+              <Route path="vendor/profile-settings" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <ProfileSettings />
+                </RoleGuard>
+              } />
+              <Route path="vendor/legacy" element={
+                <RoleGuard allowedRoles={['vendor', 'design_professional']}>
+                  <VendorDashboard />
+                </RoleGuard>
+              } />
+              <Route path="vendor/compliance-legacy" element={
                 <RoleGuard allowedRoles={['vendor', 'design_professional']}>
                   <VendorDashboard />
                 </RoleGuard>
@@ -404,6 +454,11 @@ function AuthenticatedRoutes() {
                   <DesignProfessionalJobs />
                 </RoleGuard>
               } />
+              <Route path="design-professional/jobs/:id" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <JobDetails />
+                </RoleGuard>
+              } />
               <Route path="design-professional/jobs/rfis" element={
                 <RoleGuard allowedRoles={['design_professional']}>
                   <DesignProfessionalRFIs />
@@ -414,9 +469,24 @@ function AuthenticatedRoutes() {
                   <DesignProfessionalSubmittals />
                 </RoleGuard>
               } />
+              <Route path="design-professional/permitting" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <DesignProfessionalPermitting />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/calendar" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <CalendarPage />
+                </RoleGuard>
+              } />
               <Route path="design-professional/settings/company" element={
                 <RoleGuard allowedRoles={['design_professional']}>
                   <DesignProfessionalCompanySettings />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/profile-settings" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <ProfileSettings />
                 </RoleGuard>
               } />
               <Route path="design-professional/settings/users" element={
@@ -429,11 +499,6 @@ function AuthenticatedRoutes() {
                   <CompanyOwnerOnlyRoute>
                     <SubscriptionPortal />
                   </CompanyOwnerOnlyRoute>
-                </RoleGuard>
-              } />
-              <Route path="vendor/compliance" element={
-                <RoleGuard allowedRoles={['vendor', 'design_professional', 'admin', 'controller']}>
-                  <VendorDashboard />
                 </RoleGuard>
               } />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>

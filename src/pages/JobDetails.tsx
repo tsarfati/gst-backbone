@@ -7,6 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
+import { Checkbox } from "@/components/ui/checkbox";
 import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate, Download, FileCheck } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -28,6 +31,7 @@ import JobProjectTeam from "@/components/JobProjectTeam";
 import JobExportModal from "@/components/JobExportModal";
 import JobSubmittals from "@/components/JobSubmittals";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
 
 interface Job {
   id: string;
@@ -59,6 +63,22 @@ interface JobRfp {
   status: string;
   due_date: string | null;
   created_at: string;
+  response_status?: string | null;
+  my_bid?: {
+    id: string;
+    bid_amount: number | null;
+    status: string | null;
+    submitted_at: string | null;
+  } | null;
+}
+
+interface VendorSubcontract {
+  id: string;
+  name: string;
+  status: string | null;
+  contract_amount: number | null;
+  contract_negotiation_status: string | null;
+  signature_status: string | null;
 }
 
 export default function JobDetails() {
@@ -77,6 +97,26 @@ export default function JobDetails() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [jobRfps, setJobRfps] = useState<JobRfp[]>([]);
   const [rfpsLoading, setRfpsLoading] = useState(false);
+  const [vendorRfps, setVendorRfps] = useState<JobRfp[]>([]);
+  const [vendorRfpsLoading, setVendorRfpsLoading] = useState(false);
+  const [vendorSubcontracts, setVendorSubcontracts] = useState<VendorSubcontract[]>([]);
+  const [vendorSubcontractsLoading, setVendorSubcontractsLoading] = useState(false);
+  const [vendorBidDialogOpen, setVendorBidDialogOpen] = useState(false);
+  const [selectedVendorRfp, setSelectedVendorRfp] = useState<JobRfp | null>(null);
+  const [submittingVendorBid, setSubmittingVendorBid] = useState(false);
+  const [vendorBidForm, setVendorBidForm] = useState({
+    bid_amount: "",
+    proposed_timeline: "",
+    notes: "",
+  });
+  const [contractFeedbackDialogOpen, setContractFeedbackDialogOpen] = useState(false);
+  const [signatureUploadDialogOpen, setSignatureUploadDialogOpen] = useState(false);
+  const [selectedVendorSubcontract, setSelectedVendorSubcontract] = useState<VendorSubcontract | null>(null);
+  const [feedbackNotes, setFeedbackNotes] = useState("");
+  const [submittingContractAction, setSubmittingContractAction] = useState(false);
+  const [signatureFile, setSignatureFile] = useState<File | null>(null);
+  const [signatureSignerName, setSignatureSignerName] = useState("");
+  const [signatureConsent, setSignatureConsent] = useState(false);
   const { loading: jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged } = useWebsiteJobAccess();
   const [handoffDialogOpen, setHandoffDialogOpen] = useState(false);
   const [handoffMode, setHandoffMode] = useState<"copy" | "transfer">("copy");
@@ -84,9 +124,36 @@ export default function JobDetails() {
   const [targetCompanies, setTargetCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [loadingTargetCompanies, setLoadingTargetCompanies] = useState(false);
   const [submittingHandoff, setSubmittingHandoff] = useState(false);
+  const isVendorView = String(profile?.role || "").toLowerCase() === "vendor";
+  const isDesignProfessionalView = String(profile?.role || "").toLowerCase() === "design_professional";
+  const isExternalView = isDesignProfessionalView || isVendorView;
+  const {
+    loading: vendorAccessLoading,
+    effectiveJobAccess,
+  } = useVendorPortalAccess(id);
+  const isDesignProfessionalOwnedContext =
+    isDesignProfessionalView && String(currentCompany?.company_type || "").toLowerCase() === "design_professional";
+  const canManageDesignProfessionalJob = !isExternalView || isDesignProfessionalOwnedContext;
   const canHandoffProject =
-    String(profile?.role || "").toLowerCase() === "design_professional"
-    || String(currentCompany?.company_type || "").toLowerCase() === "design_professional";
+    canManageDesignProfessionalJob && (
+      String(profile?.role || "").toLowerCase() === "design_professional"
+      || String(currentCompany?.company_type || "").toLowerCase() === "design_professional"
+    );
+  const returnToJobsPath = isDesignProfessionalView ? "/design-professional/jobs" : isVendorView ? "/vendor/jobs" : "/jobs";
+  const visibleTabs = isDesignProfessionalView
+    ? ["details", "plans", "rfis", "submittals", "filing-cabinet", "photo-album"]
+    : isVendorView
+    ? [
+        effectiveJobAccess.canViewJobDetails && "details",
+        effectiveJobAccess.canViewPlans && "plans",
+        (effectiveJobAccess.canViewRfis || effectiveJobAccess.canSubmitRfis) && "rfis",
+        (effectiveJobAccess.canViewSubmittals || effectiveJobAccess.canSubmitSubmittals) && "submittals",
+        effectiveJobAccess.canAccessFilingCabinet && "filing-cabinet",
+        effectiveJobAccess.canViewPhotos && "photo-album",
+        (effectiveJobAccess.canViewRfps || effectiveJobAccess.canSubmitBids) && "rfps",
+        effectiveJobAccess.canViewSubcontracts && "subcontracts",
+      ].filter(Boolean) as string[]
+    : ["details", "cost-budget", "forecasting", "committed-costs", "billing", "plans", "rfis", "rfps", "submittals", "filing-cabinet", "photo-album", "visitor-logs"];
 
   useEffect(() => {
     const fetchJob = async () => {
@@ -231,6 +298,147 @@ export default function JobDetails() {
     loadTargetCompanies();
   }, [handoffDialogOpen, canHandoffProject, user?.id, currentCompany?.id, toast]);
 
+  useEffect(() => {
+    let ignore = false;
+
+    async function loadVendorModules() {
+      if (!isVendorView || !id || !profile?.vendor_id) {
+        setVendorRfps([]);
+        setVendorSubcontracts([]);
+        return;
+      }
+
+      if (effectiveJobAccess.canViewRfps || effectiveJobAccess.canSubmitBids) {
+        try {
+          setVendorRfpsLoading(true);
+          const { data: invitedRows, error: invitedError } = await supabase
+            .from("rfp_invited_vendors")
+            .select(`
+              invited_at,
+              response_status,
+              rfp:rfps!inner(
+                id,
+                rfp_number,
+                title,
+                status,
+                due_date,
+                created_at,
+                job_id
+              )
+            `)
+            .eq("vendor_id", profile.vendor_id)
+            .eq("rfp.job_id", id)
+            .order("invited_at", { ascending: false });
+
+          if (invitedError) throw invitedError;
+
+          const rfpIds = ((invitedRows || []) as any[])
+            .map((row) => row?.rfp?.id as string | undefined)
+            .filter((value): value is string => Boolean(value));
+
+          let bidByRfpId = new Map<string, JobRfp["my_bid"]>();
+          if (rfpIds.length > 0) {
+            const { data: bidRows, error: bidError } = await supabase
+              .from("bids")
+              .select("id, rfp_id, bid_amount, status, submitted_at")
+              .eq("vendor_id", profile.vendor_id)
+              .in("rfp_id", rfpIds);
+
+            if (bidError) throw bidError;
+            bidByRfpId = new Map(
+              ((bidRows || []) as any[]).map((bid) => [
+                String(bid.rfp_id),
+                {
+                  id: String(bid.id),
+                  bid_amount: bid.bid_amount ?? null,
+                  status: bid.status || null,
+                  submitted_at: bid.submitted_at || null,
+                },
+              ]),
+            );
+          }
+
+          if (!ignore) {
+            setVendorRfps(
+              ((invitedRows || []) as any[])
+                .map((row) => {
+                  if (!row?.rfp?.id) return null;
+                  return {
+                    id: String(row.rfp.id),
+                    rfp_number: String(row.rfp.rfp_number || ""),
+                    title: String(row.rfp.title || "Untitled RFP"),
+                    status: String(row.rfp.status || "draft"),
+                    due_date: row.rfp.due_date || null,
+                    created_at: String(row.rfp.created_at),
+                    response_status: row.response_status || null,
+                    my_bid: bidByRfpId.get(String(row.rfp.id)) || null,
+                  } as JobRfp;
+                })
+                .filter((value): value is JobRfp => Boolean(value)),
+            );
+          }
+        } catch (error) {
+          console.error("Error loading vendor RFPs:", error);
+          if (!ignore) {
+            setVendorRfps([]);
+          }
+        } finally {
+          if (!ignore) {
+            setVendorRfpsLoading(false);
+          }
+        }
+      } else {
+        setVendorRfps([]);
+      }
+
+      if (effectiveJobAccess.canViewSubcontracts) {
+        try {
+          setVendorSubcontractsLoading(true);
+          const { data, error } = await supabase
+            .from("subcontracts")
+            .select("id, name, status, contract_amount, contract_negotiation_status, signature_status")
+            .eq("vendor_id", profile.vendor_id)
+            .eq("job_id", id)
+            .order("created_at", { ascending: false });
+
+          if (error) throw error;
+          if (!ignore) {
+            setVendorSubcontracts(((data || []) as VendorSubcontract[]) || []);
+          }
+        } catch (error) {
+          console.error("Error loading vendor subcontracts:", error);
+          if (!ignore) {
+            setVendorSubcontracts([]);
+          }
+        } finally {
+          if (!ignore) {
+            setVendorSubcontractsLoading(false);
+          }
+        }
+      } else {
+        setVendorSubcontracts([]);
+      }
+    }
+
+    void loadVendorModules();
+    return () => {
+      ignore = true;
+    };
+  }, [
+    effectiveJobAccess.canSubmitBids,
+    effectiveJobAccess.canViewRfps,
+    effectiveJobAccess.canViewSubcontracts,
+    id,
+    isVendorView,
+    profile?.vendor_id,
+  ]);
+
+  useEffect(() => {
+    if (!visibleTabs.includes(activeTab)) {
+      setActiveTab(visibleTabs[0] || "details");
+    }
+  }, [activeTab, visibleTabs]);
+
   const handleProjectHandoff = async () => {
     if (!id || !targetCompanyId) {
       toast({
@@ -275,7 +483,189 @@ export default function JobDetails() {
     }
   };
 
-  if (loading) {
+  const openVendorBidDialog = (rfp: JobRfp) => {
+    setSelectedVendorRfp(rfp);
+    setVendorBidForm({
+      bid_amount: rfp.my_bid?.bid_amount ? String(rfp.my_bid.bid_amount) : "",
+      proposed_timeline: "",
+      notes: "",
+    });
+    setVendorBidDialogOpen(true);
+  };
+
+  const submitVendorBid = async () => {
+    if (!selectedVendorRfp || !profile?.vendor_id || !currentCompany?.id) return;
+    const amount = Number(vendorBidForm.bid_amount);
+    if (!Number.isFinite(amount) || amount <= 0) {
+      toast({
+        title: "Invalid bid amount",
+        description: "Enter a valid bid amount greater than 0.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSubmittingVendorBid(true);
+      const { error } = await supabase
+        .from("bids")
+        .upsert(
+          {
+            rfp_id: selectedVendorRfp.id,
+            company_id: currentCompany.id,
+            vendor_id: profile.vendor_id,
+            bid_amount: amount,
+            proposed_timeline: vendorBidForm.proposed_timeline.trim() || null,
+            notes: vendorBidForm.notes.trim() || null,
+            status: "submitted",
+          } as any,
+          { onConflict: "rfp_id,vendor_id" },
+        );
+      if (error) throw error;
+
+      toast({
+        title: selectedVendorRfp.my_bid ? "Bid updated" : "Bid submitted",
+        description: "Your bid has been saved.",
+      });
+      setVendorRfps((prev) =>
+        prev.map((rfp) =>
+          rfp.id === selectedVendorRfp.id
+            ? {
+                ...rfp,
+                my_bid: {
+                  id: rfp.my_bid?.id || crypto.randomUUID(),
+                  bid_amount: amount,
+                  status: "submitted",
+                  submitted_at: new Date().toISOString(),
+                },
+              }
+            : rfp,
+        ),
+      );
+      setVendorBidDialogOpen(false);
+      setSelectedVendorRfp(null);
+    } catch (error: any) {
+      console.error("Error submitting vendor bid:", error);
+      toast({
+        title: "Bid submission failed",
+        description: error?.message || "Unable to submit bid at this time.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingVendorBid(false);
+    }
+  };
+
+  const openFeedbackDialog = (subcontract: VendorSubcontract) => {
+    setSelectedVendorSubcontract(subcontract);
+    setFeedbackNotes("");
+    setContractFeedbackDialogOpen(true);
+  };
+
+  const submitContractFeedback = async () => {
+    if (!selectedVendorSubcontract?.id) return;
+    try {
+      setSubmittingContractAction(true);
+      const { error } = await (supabase as any).rpc("vendor_submit_subcontract_feedback", {
+        _subcontract_id: selectedVendorSubcontract.id,
+        _negotiation_notes: feedbackNotes || null,
+        _vendor_sov_proposal: null,
+      });
+      if (error) throw error;
+      toast({
+        title: "Feedback submitted",
+        description: "Contract feedback was sent for internal review.",
+      });
+      setVendorSubcontracts((prev) =>
+        prev.map((subcontract) =>
+          subcontract.id === selectedVendorSubcontract.id
+            ? { ...subcontract, contract_negotiation_status: "feedback_submitted" }
+            : subcontract,
+        ),
+      );
+      setContractFeedbackDialogOpen(false);
+    } catch (error: any) {
+      console.error("Failed to submit contract feedback:", error);
+      toast({
+        title: "Submit failed",
+        description: error?.message || "Could not submit contract feedback.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingContractAction(false);
+    }
+  };
+
+  const openSignatureDialog = (subcontract: VendorSubcontract) => {
+    setSelectedVendorSubcontract(subcontract);
+    setSignatureFile(null);
+    setSignatureConsent(false);
+    setSignatureSignerName(`${profile?.first_name || ""} ${profile?.last_name || ""}`.trim() || profile?.display_name || "");
+    setSignatureUploadDialogOpen(true);
+  };
+
+  const submitSignedContractUpload = async () => {
+    if (!selectedVendorSubcontract?.id || !signatureFile || !signatureSignerName.trim()) {
+      toast({
+        title: "Missing data",
+        description: "Signer name and signed contract file are required.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!signatureConsent) {
+      toast({
+        title: "Consent required",
+        description: "You must agree that your uploaded signature is binding.",
+        variant: "destructive",
+      });
+      return;
+    }
+    if (!currentCompany?.id) return;
+    try {
+      setSubmittingContractAction(true);
+      const ext = signatureFile.name.split(".").pop() || "pdf";
+      const storagePath = `${currentCompany.id}/executed-contracts/${selectedVendorSubcontract.id}/${crypto.randomUUID()}.${ext}`;
+      const { error: uploadError } = await supabase.storage
+        .from("subcontract-files")
+        .upload(storagePath, signatureFile, { upsert: false });
+      if (uploadError) throw uploadError;
+
+      const { error } = await (supabase as any).rpc("vendor_submit_subcontract_signature", {
+        _subcontract_id: selectedVendorSubcontract.id,
+        _executed_contract_file_url: storagePath,
+        _signed_by_name: signatureSignerName.trim(),
+        _signer_ip: null,
+        _signer_user_agent: typeof navigator !== "undefined" ? navigator.userAgent : null,
+        _consent_text_version: "v1",
+      });
+      if (error) throw error;
+
+      toast({
+        title: "Signed contract submitted",
+        description: "Your signed contract was uploaded for company review.",
+      });
+      setVendorSubcontracts((prev) =>
+        prev.map((subcontract) =>
+          subcontract.id === selectedVendorSubcontract.id
+            ? { ...subcontract, signature_status: "signed_uploaded" }
+            : subcontract,
+        ),
+      );
+      setSignatureUploadDialogOpen(false);
+    } catch (error: any) {
+      console.error("Failed uploading signed contract:", error);
+      toast({
+        title: "Upload failed",
+        description: error?.message || "Could not upload signed contract.",
+        variant: "destructive",
+      });
+    } finally {
+      setSubmittingContractAction(false);
+    }
+  };
+
+  if (loading || (isVendorView && vendorAccessLoading)) {
     return (
       <div className="p-6">
         <div className="text-center py-12 text-muted-foreground"><span className="loading-dots">Loading job details</span></div>
@@ -287,7 +677,7 @@ export default function JobDetails() {
     return (
       <div className="p-6">
         <div className="flex items-center gap-4 mb-6">
-          <Button variant="ghost" onClick={() => navigate("/jobs")}>
+          <Button variant="ghost" onClick={() => navigate(returnToJobsPath)}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
           <div>
@@ -303,14 +693,37 @@ export default function JobDetails() {
               This job doesn&apos;t exist or you don&apos;t have permission to view it.
             </p>
             <div className="flex gap-2 justify-center">
-              <Button onClick={() => navigate("/jobs")}>
+              <Button onClick={() => navigate(returnToJobsPath)}>
                 Return to Jobs
               </Button>
-              <Button variant="outline" onClick={() => navigate("/jobs/add")}>
+              {!isExternalView && (
+                <Button variant="outline" onClick={() => navigate("/jobs/add")}>
                 <Plus className="h-4 w-4 mr-2" />
                 Create New Job
-              </Button>
+                </Button>
+              )}
             </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
+  if (isVendorView && !vendorAccessLoading && visibleTabs.length === 0) {
+    return (
+      <div className="p-6">
+        <div className="flex items-center gap-4 mb-6">
+          <Button variant="ghost" onClick={() => navigate(returnToJobsPath)}>
+            <ArrowLeft className="h-4 w-4" />
+          </Button>
+          <div>
+            <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
+          </div>
+        </div>
+
+        <Card>
+          <CardContent className="p-8 text-center text-muted-foreground">
+            This job has been shared with your vendor account, but no viewable job modules are enabled for your current access level yet.
           </CardContent>
         </Card>
       </div>
@@ -320,13 +733,13 @@ export default function JobDetails() {
   return (
     <div className="p-6">
       <div className="flex items-center gap-4 mb-6">
-        <Button variant="ghost" onClick={() => navigate("/jobs")}>
+        <Button variant="ghost" onClick={() => navigate(returnToJobsPath)}>
           <ArrowLeft className="h-4 w-4" />
         </Button>
         <div className="flex-1">
           <h1 className="text-2xl font-bold text-foreground">{job.name}</h1>
         </div>
-        {job.status === 'completed' && (
+        {job.status === 'completed' && canManageDesignProfessionalJob && (
           <Button variant="outline" size="sm" onClick={() => setExportModalOpen(true)}>
             <Download className="h-4 w-4 mr-2" />
             Archive Job
@@ -343,70 +756,77 @@ export default function JobDetails() {
       <Card>
         <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); if (val === 'details') { setSearchParams(prev => { const sp = new URLSearchParams(prev); sp.delete('tab'); return sp; }); } else { setSearchParams(prev => { const sp = new URLSearchParams(prev); sp.set('tab', val); return sp; }); } }} className="w-full">
           <TabsList className="w-full flex-wrap h-auto justify-start rounded-none border-b bg-transparent p-0 gap-0">
-            <TabsTrigger 
+            {visibleTabs.includes("details") && <TabsTrigger 
               value="details" 
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <FileText className="h-4 w-4 mr-2" />
               Job Details
-            </TabsTrigger>
-            <TabsTrigger 
+            </TabsTrigger>}
+            {!isExternalView && <TabsTrigger 
               value="cost-budget"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <DollarSign className="h-4 w-4 mr-2" />
               Budget
-            </TabsTrigger>
-            <TabsTrigger 
+            </TabsTrigger>}
+            {!isExternalView && <TabsTrigger 
               value="forecasting"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <TrendingUp className="h-4 w-4 mr-2" />
               Forecasting
-            </TabsTrigger>
-            <TabsTrigger 
+            </TabsTrigger>}
+            {!isExternalView && <TabsTrigger 
               value="committed-costs" 
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <Calculator className="h-4 w-4 mr-2" />
               Committed Costs
-            </TabsTrigger>
-            <TabsTrigger 
+            </TabsTrigger>}
+            {!isExternalView && <TabsTrigger 
               value="billing"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <DollarSign className="h-4 w-4 mr-2" />
               Billing
-            </TabsTrigger>
-            <TabsTrigger 
+            </TabsTrigger>}
+            {visibleTabs.includes("plans") && <TabsTrigger 
               value="plans"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <LayoutTemplate className="h-4 w-4 mr-2" />
               Plans
-            </TabsTrigger>
-            <TabsTrigger 
+            </TabsTrigger>}
+            {visibleTabs.includes("rfis") && <TabsTrigger 
               value="rfis"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <ClipboardList className="h-4 w-4 mr-2" />
               RFIs
-            </TabsTrigger>
-            <TabsTrigger
+            </TabsTrigger>}
+            {visibleTabs.includes("rfps") && <TabsTrigger
               value="rfps"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <FileText className="h-4 w-4 mr-2" />
-              RFPs
-            </TabsTrigger>
-            <TabsTrigger
+              {isVendorView ? "RFPs / Bids" : "RFPs"}
+            </TabsTrigger>}
+            {visibleTabs.includes("subcontracts") && <TabsTrigger
+              value="subcontracts"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <Package className="h-4 w-4 mr-2" />
+              Subcontracts
+            </TabsTrigger>}
+            {visibleTabs.includes("submittals") && <TabsTrigger
               value="submittals"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <FileCheck className="h-4 w-4 mr-2" />
               Submittals
-            </TabsTrigger>
-            {(profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') && (
+            </TabsTrigger>}
+            {visibleTabs.includes("filing-cabinet") && ((profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') || isExternalView) && (
               <TabsTrigger 
                 value="filing-cabinet"
                 className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
@@ -415,28 +835,28 @@ export default function JobDetails() {
                 Filing Cabinet
               </TabsTrigger>
             )}
-            <TabsTrigger 
+            {visibleTabs.includes("photo-album") && <TabsTrigger 
               value="photo-album"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <Camera className="h-4 w-4 mr-2" />
               Photos
-            </TabsTrigger>
-            <TabsTrigger 
+            </TabsTrigger>}
+            {!isExternalView && <TabsTrigger 
               value="visitor-logs"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
               <Users className="h-4 w-4 mr-2" />
               Visitor Logs
-            </TabsTrigger>
+            </TabsTrigger>}
           </TabsList>
           
-          <TabsContent value="details" className="p-6">
+          {visibleTabs.includes("details") && <TabsContent value="details" className="p-6">
             <div className="mb-6">
               <Card>
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Job Information</CardTitle>
-                  {permissions.canEditJobs() && (
+                  {permissions.canEditJobs() && canManageDesignProfessionalJob && !isVendorView && (
                     <Button variant="outline" size="sm" onClick={() => navigate(`/jobs/${id}/edit`)}>
                       <Edit className="h-4 w-4 mr-2" />
                       Edit
@@ -475,10 +895,10 @@ export default function JobDetails() {
                         </Badge>
                       </div>
                     </div>
-                    <div>
+                    {!isExternalView && <div>
                       <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Budget</label>
                       <p className="text-foreground mt-1">${budgetTotal.toLocaleString()}</p>
-                    </div>
+                    </div>}
                     <div>
                       <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Start Date</label>
                       <p className="text-foreground mt-1">{job.start_date || 'Not set'}</p>
@@ -495,16 +915,25 @@ export default function JobDetails() {
                     </div>
                   </div>
 
-                  <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-4 pt-1">
-                    <div>
+                  {isExternalView ? (
+                    <div className="pt-1">
                       <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Address</label>
                       <p className="text-foreground mt-1 break-words">{job.address || 'Not set'}</p>
                     </div>
-                    <div className="min-w-0 xl:min-w-[220px]">
-                      <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Visitor QR Code</label>
-                      <p className="text-foreground mt-1 truncate">{job.visitor_qr_code || 'Not generated'}</p>
+                  ) : (
+                    <div className="grid grid-cols-1 xl:grid-cols-[1fr_auto] gap-4 pt-1">
+                      <div>
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Address</label>
+                        <p className="text-foreground mt-1 break-words">{job.address || 'Not set'}</p>
+                      </div>
+                      <div className="min-w-0 xl:min-w-[220px]">
+                        <label className="text-xs font-medium text-muted-foreground uppercase tracking-wide">Visitor QR Code</label>
+                        <p className="text-foreground mt-1 truncate">
+                          {job.visitor_qr_code || 'Not generated'}
+                        </p>
+                      </div>
                     </div>
-                  </div>
+                  )}
 
                   {job.description && (
                     <div className="pt-1">
@@ -516,18 +945,20 @@ export default function JobDetails() {
               </Card>
             </div>
 
-            {(profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
+            {!isExternalView && (profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller') && (
               <div className="mb-6">
                 <BillsNeedingCoding jobId={id!} limit={3} />
               </div>
             )}
 
-            <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6">
-              <JobProjectTeam jobId={id!} />
-              <JobLocationMap address={job.address} />
-            </div>
+            {!isExternalView && (
+              <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6">
+                <JobProjectTeam jobId={id!} />
+                <JobLocationMap address={job.address} />
+              </div>
+            )}
 
-          </TabsContent>
+          </TabsContent>}
           
           <TabsContent value="committed-costs" className="p-6">
             <CommittedCosts jobId={id!} />
@@ -541,86 +972,196 @@ export default function JobDetails() {
             <JobForecastingView />
           </TabsContent>
 
-          <TabsContent value="plans" className="p-6">
-            <JobPlans jobId={id!} />
-          </TabsContent>
+          {visibleTabs.includes("plans") && <TabsContent value="plans" className="p-6">
+            <JobPlans jobId={id!} canUpload={!isVendorView} />
+          </TabsContent>}
 
-          <TabsContent value="rfis" className="p-6">
-            <JobRFIs jobId={id!} />
-          </TabsContent>
+          {visibleTabs.includes("rfis") && <TabsContent value="rfis" className="p-6">
+            <JobRFIs jobId={id!} canCreate={!isVendorView || effectiveJobAccess.canSubmitRfis} />
+          </TabsContent>}
 
-          <TabsContent value="rfps" className="p-6">
-            <Card>
-              <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle>RFPs</CardTitle>
-                <div className="flex items-center gap-2">
-                  <Button variant="outline" onClick={() => navigate(`/construction/rfps?jobId=${id}`)}>
-                    View All
-                  </Button>
-                  <Button onClick={() => navigate(`/construction/rfps/add?jobId=${id}`)}>
-                    <Plus className="h-4 w-4 mr-2" />
-                    New RFP
-                  </Button>
-                </div>
-              </CardHeader>
-              <CardContent>
-                {rfpsLoading ? (
-                  <div className="py-6 text-sm text-muted-foreground">
-                    <span className="loading-dots">Loading RFPs</span>
-                  </div>
-                ) : jobRfps.length === 0 ? (
-                  <div className="py-10 text-center text-muted-foreground">
-                    No RFPs for this job yet.
-                  </div>
-                ) : (
-                  <div className="space-y-2">
-                    {jobRfps.map((rfp) => (
-                      <button
-                        key={rfp.id}
-                        type="button"
-                        onClick={() => navigate(`/construction/rfps/${rfp.id}`)}
-                        className="w-full rounded-md border px-3 py-2 text-left hover:bg-muted/50"
-                      >
-                        <div className="flex items-center justify-between gap-4">
-                          <div>
-                            <div className="font-medium">{rfp.title}</div>
-                            <div className="text-xs text-muted-foreground mt-1">
-                              {rfp.rfp_number} • Created {new Date(rfp.created_at).toLocaleDateString()}
-                              {rfp.due_date ? ` • Due ${new Date(rfp.due_date).toLocaleDateString()}` : ''}
+          {visibleTabs.includes("rfps") && <TabsContent value="rfps" className="p-6">
+            {isVendorView ? (
+              <Card>
+                <CardHeader>
+                  <CardTitle>RFPs / Bids</CardTitle>
+                </CardHeader>
+                <CardContent>
+                  {vendorRfpsLoading ? (
+                    <div className="py-6 text-sm text-muted-foreground">
+                      <span className="loading-dots">Loading RFPs</span>
+                    </div>
+                  ) : vendorRfps.length === 0 ? (
+                    <div className="py-10 text-center text-muted-foreground">
+                      No RFPs have been shared with this vendor account for this job yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {vendorRfps.map((rfp) => (
+                        <div key={rfp.id} className="rounded-lg border p-4">
+                          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                            <div className="space-y-1">
+                              <div className="font-medium text-foreground">{rfp.title}</div>
+                              <div className="text-sm text-muted-foreground">
+                                {rfp.rfp_number} • Created {new Date(rfp.created_at).toLocaleDateString()}
+                                {rfp.due_date ? ` • Due ${new Date(rfp.due_date).toLocaleDateString()}` : ""}
+                              </div>
+                            </div>
+                            <div className="flex flex-wrap gap-2">
+                              <Badge variant="outline" className="capitalize">{rfp.status || "draft"}</Badge>
+                              {rfp.response_status ? <Badge variant="secondary" className="capitalize">{rfp.response_status}</Badge> : null}
                             </div>
                           </div>
-                          <Badge variant="outline" className="capitalize">
-                            {rfp.status || 'draft'}
-                          </Badge>
+                          <div className="mt-3 flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
+                            <div className="text-sm text-muted-foreground">
+                              {rfp.my_bid ? (
+                                <>
+                                  Your bid: ${Number(rfp.my_bid.bid_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                                  {rfp.my_bid.status ? ` • ${rfp.my_bid.status}` : ""}
+                                  {rfp.my_bid.submitted_at ? ` • Submitted ${new Date(rfp.my_bid.submitted_at).toLocaleDateString()}` : ""}
+                                </>
+                              ) : effectiveJobAccess.canSubmitBids ? (
+                                "No bid has been submitted from this vendor account yet."
+                              ) : (
+                                "Bid submission is not enabled for this vendor assignment."
+                              )}
+                            </div>
+                            {effectiveJobAccess.canSubmitBids && (
+                              <Button size="sm" variant="outline" onClick={() => openVendorBidDialog(rfp)}>
+                                {rfp.my_bid ? "Update Bid" : "Submit Bid"}
+                              </Button>
+                            )}
+                          </div>
                         </div>
-                      </button>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            ) : (
+              <Card>
+                <CardHeader className="flex flex-row items-center justify-between">
+                  <CardTitle>RFPs</CardTitle>
+                  <div className="flex items-center gap-2">
+                    <Button variant="outline" onClick={() => navigate(`/construction/rfps?jobId=${id}`)}>
+                      View All
+                    </Button>
+                    <Button onClick={() => navigate(`/construction/rfps/add?jobId=${id}`)}>
+                      <Plus className="h-4 w-4 mr-2" />
+                      New RFP
+                    </Button>
+                  </div>
+                </CardHeader>
+                <CardContent>
+                  {rfpsLoading ? (
+                    <div className="py-6 text-sm text-muted-foreground">
+                      <span className="loading-dots">Loading RFPs</span>
+                    </div>
+                  ) : jobRfps.length === 0 ? (
+                    <div className="py-10 text-center text-muted-foreground">
+                      No RFPs for this job yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-2">
+                      {jobRfps.map((rfp) => (
+                        <button
+                          key={rfp.id}
+                          type="button"
+                          onClick={() => navigate(`/construction/rfps/${rfp.id}`)}
+                          className="w-full rounded-md border px-3 py-2 text-left hover:bg-muted/50"
+                        >
+                          <div className="flex items-center justify-between gap-4">
+                            <div>
+                              <div className="font-medium">{rfp.title}</div>
+                              <div className="text-xs text-muted-foreground mt-1">
+                                {rfp.rfp_number} • Created {new Date(rfp.created_at).toLocaleDateString()}
+                                {rfp.due_date ? ` • Due ${new Date(rfp.due_date).toLocaleDateString()}` : ''}
+                              </div>
+                            </div>
+                            <Badge variant="outline" className="capitalize">
+                              {rfp.status || 'draft'}
+                            </Badge>
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+          </TabsContent>}
+
+          {visibleTabs.includes("subcontracts") && <TabsContent value="subcontracts" className="p-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Subcontracts</CardTitle>
+              </CardHeader>
+              <CardContent>
+                {vendorSubcontractsLoading ? (
+                  <div className="py-6 text-sm text-muted-foreground">
+                    <span className="loading-dots">Loading subcontracts</span>
+                  </div>
+                ) : vendorSubcontracts.length === 0 ? (
+                  <div className="py-10 text-center text-muted-foreground">
+                    No subcontracts are available for this vendor account on this job yet.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {vendorSubcontracts.map((subcontract) => (
+                      <div key={subcontract.id} className="rounded-lg border p-4">
+                        <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                          <div className="space-y-1">
+                            <div className="font-medium text-foreground">{subcontract.name}</div>
+                            <div className="text-sm text-muted-foreground">
+                              Contract amount: ${Number(subcontract.contract_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </div>
+                          </div>
+                          <div className="flex flex-wrap gap-2">
+                            {subcontract.status ? <Badge variant="outline" className="capitalize">{subcontract.status}</Badge> : null}
+                            {subcontract.contract_negotiation_status ? <Badge variant="secondary" className="capitalize">{subcontract.contract_negotiation_status}</Badge> : null}
+                            {subcontract.signature_status ? <Badge variant="secondary" className="capitalize">{subcontract.signature_status}</Badge> : null}
+                          </div>
+                        </div>
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {effectiveJobAccess.canNegotiateContracts && (
+                            <Button size="sm" variant="outline" onClick={() => openFeedbackDialog(subcontract)}>
+                              Submit Feedback
+                            </Button>
+                          )}
+                          {effectiveJobAccess.canUploadSignedContracts && (
+                            <Button size="sm" variant="outline" onClick={() => openSignatureDialog(subcontract)}>
+                              Upload Signed Contract
+                            </Button>
+                          )}
+                        </div>
+                      </div>
                     ))}
                   </div>
                 )}
               </CardContent>
             </Card>
-          </TabsContent>
+          </TabsContent>}
 
-          <TabsContent value="submittals" className="p-6">
-            <JobSubmittals jobId={id!} />
-          </TabsContent>
+          {visibleTabs.includes("submittals") && <TabsContent value="submittals" className="p-6">
+            <JobSubmittals jobId={id!} canCreate={!isVendorView || effectiveJobAccess.canSubmitSubmittals} />
+          </TabsContent>}
 
           <TabsContent value="billing" className="p-6">
             <JobBillingSetup jobId={id!} />
           </TabsContent>
 
-          <TabsContent value="filing-cabinet" className="p-6">
+          {visibleTabs.includes("filing-cabinet") && <TabsContent value="filing-cabinet" className="p-6">
             <JobFilingCabinet jobId={id!} />
-          </TabsContent>
+          </TabsContent>}
 
 
           <TabsContent value="visitor-logs" className="p-6">
             <JobVisitorLogsView />
           </TabsContent>
 
-          <TabsContent value="photo-album" className="p-6">
+          {visibleTabs.includes("photo-album") && <TabsContent value="photo-album" className="p-6">
             <JobPhotoAlbum jobId={id!} />
-          </TabsContent>
+          </TabsContent>}
         </Tabs>
       </Card>
 
@@ -685,6 +1226,130 @@ export default function JobDetails() {
             </Button>
             <Button onClick={handleProjectHandoff} disabled={submittingHandoff || !targetCompanyId || targetCompanies.length === 0}>
               {submittingHandoff ? "Processing..." : handoffMode === "copy" ? "Copy Project" : "Transfer Ownership"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={vendorBidDialogOpen} onOpenChange={setVendorBidDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedVendorRfp?.my_bid ? "Update Bid" : "Submit Bid"}</DialogTitle>
+            <DialogDescription>
+              {selectedVendorRfp ? `${selectedVendorRfp.rfp_number} • ${selectedVendorRfp.title}` : "Enter your bid details."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Bid Amount</Label>
+              <Input
+                type="number"
+                min="0"
+                step="0.01"
+                value={vendorBidForm.bid_amount}
+                onChange={(e) => setVendorBidForm((prev) => ({ ...prev, bid_amount: e.target.value }))}
+                placeholder="0.00"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Proposed Timeline</Label>
+              <Input
+                value={vendorBidForm.proposed_timeline}
+                onChange={(e) => setVendorBidForm((prev) => ({ ...prev, proposed_timeline: e.target.value }))}
+                placeholder="6 weeks"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Notes</Label>
+              <Textarea
+                value={vendorBidForm.notes}
+                onChange={(e) => setVendorBidForm((prev) => ({ ...prev, notes: e.target.value }))}
+                rows={5}
+                placeholder="Add bid notes or inclusions/exclusions"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setVendorBidDialogOpen(false)} disabled={submittingVendorBid}>
+              Cancel
+            </Button>
+            <Button onClick={submitVendorBid} disabled={submittingVendorBid}>
+              {submittingVendorBid ? "Saving..." : selectedVendorRfp?.my_bid ? "Update Bid" : "Submit Bid"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={contractFeedbackDialogOpen} onOpenChange={setContractFeedbackDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Submit Contract Feedback</DialogTitle>
+            <DialogDescription>
+              Share negotiation notes or requested revisions for {selectedVendorSubcontract?.name || "this subcontract"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label>Feedback Notes</Label>
+            <Textarea
+              value={feedbackNotes}
+              onChange={(e) => setFeedbackNotes(e.target.value)}
+              rows={6}
+              placeholder="Describe requested revisions, clarifications, or negotiation notes"
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setContractFeedbackDialogOpen(false)} disabled={submittingContractAction}>
+              Cancel
+            </Button>
+            <Button onClick={submitContractFeedback} disabled={submittingContractAction}>
+              {submittingContractAction ? "Submitting..." : "Submit Feedback"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={signatureUploadDialogOpen} onOpenChange={setSignatureUploadDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Upload Signed Contract</DialogTitle>
+            <DialogDescription>
+              Upload the signed contract for {selectedVendorSubcontract?.name || "this subcontract"}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Signer Name</Label>
+              <Input
+                value={signatureSignerName}
+                onChange={(e) => setSignatureSignerName(e.target.value)}
+                placeholder="Full legal name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Signed Contract File</Label>
+              <Input
+                type="file"
+                accept=".pdf,.doc,.docx"
+                onChange={(e) => setSignatureFile(e.target.files?.[0] || null)}
+              />
+            </div>
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Checkbox
+                id="signature-consent"
+                checked={signatureConsent}
+                onCheckedChange={(checked) => setSignatureConsent(checked === true)}
+              />
+              <Label htmlFor="signature-consent" className="text-sm leading-5">
+                I confirm this uploaded signed contract is authorized and binding on behalf of the vendor.
+              </Label>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSignatureUploadDialogOpen(false)} disabled={submittingContractAction}>
+              Cancel
+            </Button>
+            <Button onClick={submitSignedContractUpload} disabled={submittingContractAction}>
+              {submittingContractAction ? "Uploading..." : "Submit Signed Contract"}
             </Button>
           </DialogFooter>
         </DialogContent>

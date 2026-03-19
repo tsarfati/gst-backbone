@@ -11,7 +11,6 @@ import { useToast } from "@/hooks/use-toast";
 import builderlynkLogo from "@/assets/builderlynk-icon-shield.png";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
-import { getPublicAuthOrigin } from "@/utils/publicAuthOrigin";
 
 type PublicCompany = {
   id: string;
@@ -52,6 +51,7 @@ export default function VendorSignup() {
   const { toast } = useToast();
 
   const preselectedCompanyId = searchParams.get("company");
+  const isConfirmedReturn = searchParams.get("confirmed") === "1";
 
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -60,6 +60,11 @@ export default function VendorSignup() {
   const [rateLimitedUntil, setRateLimitedUntil] = useState<number | null>(null);
   const [rateLimitCountdown, setRateLimitCountdown] = useState(0);
   const [companies, setCompanies] = useState<PublicCompany[]>([]);
+  const [signupResult, setSignupResult] = useState<{
+    requiresEmailConfirmation?: boolean;
+    linkedCompanyName?: string | null;
+    linkedCompanyId?: string | null;
+  } | null>(null);
 
   const [form, setForm] = useState({
     firstName: "",
@@ -183,29 +188,8 @@ export default function VendorSignup() {
     try {
       const normalizedEmail = form.email.trim().toLowerCase();
 
-      const { data: signUpData, error: signUpError } = await supabase.auth.signUp({
-        email: normalizedEmail,
-        password: form.password,
-        options: {
-          emailRedirectTo: `${getPublicAuthOrigin()}/auth`,
-          data: {
-            first_name: form.firstName.trim(),
-            last_name: form.lastName.trim(),
-            requested_role: "vendor",
-            requested_company_id: form.companyId || null,
-            business_name: form.businessName.trim(),
-          },
-        },
-      });
-      if (signUpError) throw signUpError;
-
-      if (!signUpData.user?.id) {
-        throw new Error("Signup completed but no user id was returned.");
-      }
-
-      const { error: requestError } = await supabase.functions.invoke("create-vendor-signup-request", {
+      const { data: requestData, error: requestError } = await supabase.functions.invoke("create-vendor-signup-request", {
         body: {
-          userId: signUpData.user.id,
           email: normalizedEmail,
           firstName: form.firstName.trim(),
           lastName: form.lastName.trim(),
@@ -213,6 +197,7 @@ export default function VendorSignup() {
           companyId: form.companyId || null,
           requestedRole: "vendor",
           businessName: form.businessName.trim(),
+          password: form.password,
         },
       });
       if (requestError) {
@@ -234,10 +219,17 @@ export default function VendorSignup() {
         throw enrichedError;
       }
 
+      setSignupResult({
+        requiresEmailConfirmation: Boolean(requestData?.requiresEmailConfirmation),
+        linkedCompanyName: requestData?.linkedCompanyName || null,
+        linkedCompanyId: requestData?.linkedCompanyId || null,
+      });
       setSubmitted(true);
       toast({
-        title: "Request submitted",
-        description: "Your account is now pending approval.",
+        title: requestData?.requiresEmailConfirmation ? "Check your email" : "Request submitted",
+        description: requestData?.requiresEmailConfirmation
+          ? "We sent you a confirmation email to finish setting up your vendor account."
+          : "Your vendor account signup was submitted successfully.",
       });
     } catch (e: any) {
       console.error("Vendor signup failed", e);
@@ -288,20 +280,49 @@ export default function VendorSignup() {
     return <PremiumLoadingScreen text="Loading signup options..." />;
   }
 
+  if (isConfirmedReturn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
+        <Card className="w-full max-w-lg border-slate-700 bg-[#071231] text-slate-100">
+          <CardContent className="pt-6 text-center">
+            <CheckCircle2 className="mx-auto h-14 w-14 text-green-500 mb-4" />
+            <h2 className="text-2xl font-semibold mb-2">Email Confirmed</h2>
+            <p className="text-slate-300 mb-6">
+              Your vendor account email has been confirmed. You can now sign in and continue setting up your BuilderLYNK vendor workspace.
+            </p>
+            <Button onClick={() => navigate("/auth")}>Go to Sign In</Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   if (submitted) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
         <Card className="w-full max-w-lg border-slate-700 bg-[#071231] text-slate-100">
           <CardContent className="pt-6 text-center">
             <CheckCircle2 className="mx-auto h-14 w-14 text-green-500 mb-4" />
-            <h2 className="text-2xl font-semibold mb-2">Request Submitted</h2>
+            <h2 className="text-2xl font-semibold mb-2">
+              {signupResult?.requiresEmailConfirmation ? "Check Your Email" : "Request Submitted"}
+            </h2>
             <p className="text-slate-300 mb-6">
-              {selectedCompany
+              {signupResult?.requiresEmailConfirmation
                 ? (
                   <>
-                    Your {roleLabel.toLowerCase()} account is created and your access request is pending approval for{" "}
+                    We sent a confirmation email to <strong>{form.email.trim().toLowerCase()}</strong>.
+                    Confirm your email to finish setting up your vendor account
+                    {signupResult?.linkedCompanyName
+                      ? <> and connect it to <strong>{signupResult.linkedCompanyName}</strong>.</>
+                      : "."}
+                  </>
+                )
+                : selectedCompany
+                ? (
+                  <>
+                    Your {roleLabel.toLowerCase()} account has been created and connected to{" "}
                     <strong>{selectedCompany.display_name || selectedCompany.name}</strong>.
-                    You will receive an email once approved.
+                    You can now sign in and finish setup.
                   </>
                 )
                 : (
@@ -311,7 +332,9 @@ export default function VendorSignup() {
                   </>
                 )}
             </p>
-            <Button onClick={() => navigate("/auth")}>Go to Sign In</Button>
+            <Button onClick={() => navigate(signupResult?.requiresEmailConfirmation ? "/vendor-signup" : "/auth")}>
+              {signupResult?.requiresEmailConfirmation ? "Back to Signup" : "Go to Sign In"}
+            </Button>
           </CardContent>
         </Card>
       </div>

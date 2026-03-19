@@ -1,21 +1,23 @@
 import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { Briefcase, Building2, Copy, Link2, Loader2, Plus, Search, Send, Shuffle } from "lucide-react";
+import { Briefcase, Building, Building2, Check, ChevronDown, Copy, LayoutGrid, Link2, List, Loader2, Plus, Search, Send, Shuffle, Star } from "lucide-react";
 import { sendDesignProfessionalJobInvite } from "@/utils/sendDesignProfessionalJobInvite";
 import { acceptDesignProfessionalJobInvite } from "@/utils/acceptDesignProfessionalJobInvite";
 import { searchDesignProfessionalAccounts, type DesignProfessionalAccountSearchResult } from "@/utils/searchDesignProfessionalAccounts";
+import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 
 type JobRow = {
   id: string;
@@ -27,6 +29,7 @@ type JobRow = {
   end_date: string | null;
   company_id: string;
   created_at: string;
+  banner_url: string | null;
 };
 
 type SharedJobRow = {
@@ -53,6 +56,14 @@ type PendingInviteRow = {
   inviteToken: string | null;
 };
 
+type DisplayJobRow = JobRow & {
+  granted_at?: string;
+  sourceCompany?: CompanyRow | null;
+  ownership: "owned" | "shared";
+};
+
+type DesignProfessionalJobsView = "icons" | "list" | "compact";
+
 const safeParseNotes = (value: unknown): Record<string, any> => {
   if (!value) return {};
   if (typeof value === "object") return value as Record<string, any>;
@@ -65,6 +76,12 @@ const safeParseNotes = (value: unknown): Record<string, any> => {
   }
 };
 
+const resolveJobBannerUrl = (bannerUrl?: string | null): string | null => {
+  if (!bannerUrl) return null;
+  if (/^https?:\/\//i.test(bannerUrl)) return bannerUrl;
+  return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/job-banners/${String(bannerUrl).replace(/^job-banners\//, "")}`;
+};
+
 const blankJobForm = {
   name: "",
   client: "",
@@ -75,7 +92,8 @@ const blankJobForm = {
 
 export default function DesignProfessionalJobs() {
   const { user } = useAuth();
-  const { currentCompany } = useCompany();
+  const navigate = useNavigate();
+  const { currentCompany, switchCompany } = useCompany();
   const { toast } = useToast();
 
   const [loading, setLoading] = useState(true);
@@ -92,6 +110,12 @@ export default function DesignProfessionalJobs() {
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [showInviteDialog, setShowInviteDialog] = useState(false);
   const [showHandoffDialog, setShowHandoffDialog] = useState(false);
+  const [jobSearch, setJobSearch] = useState("");
+  const [jobStatusFilter, setJobStatusFilter] = useState("all");
+  const [jobSort, setJobSort] = useState("newest");
+  const [jobsView, setJobsView] = useState<DesignProfessionalJobsView>("icons");
+  const [jobsViewDefault, setJobsViewDefault] = useState<DesignProfessionalJobsView | null>(null);
+  const [savingJobsViewDefault, setSavingJobsViewDefault] = useState(false);
   const [selectedJobForAction, setSelectedJobForAction] = useState<JobRow | null>(null);
   const [handoffMode, setHandoffMode] = useState<"copy" | "transfer">("copy");
   const [targetCompanyId, setTargetCompanyId] = useState("");
@@ -108,6 +132,244 @@ export default function DesignProfessionalJobs() {
     [availableCompanies, targetCompanyId],
   );
 
+  const allJobs = useMemo<DisplayJobRow[]>(
+    () => [
+      ...ownedJobs.map((job) => ({ ...job, ownership: "owned" as const })),
+      ...sharedJobs.map((job) => ({ ...job, ownership: "shared" as const })),
+    ],
+    [ownedJobs, sharedJobs],
+  );
+
+  const visibleJobs = useMemo<DisplayJobRow[]>(() => {
+    const searchValue = jobSearch.trim().toLowerCase();
+    return allJobs
+      .filter((job) => {
+        const sourceCompany = job.ownership === "shared" ? job.sourceCompany : currentCompany;
+        const companyName = String(
+        sourceCompany?.display_name
+          || sourceCompany?.name
+          || (job.ownership === "owned" ? "My Design Pro Company" : "Shared Company"),
+        );
+        const matchesSearch = !searchValue || [
+          job.name,
+          job.client,
+          job.description,
+          companyName,
+        ].some((value) => String(value || "").toLowerCase().includes(searchValue));
+        const matchesStatus = jobStatusFilter === "all" || String(job.status || "active").toLowerCase() === jobStatusFilter;
+        return matchesSearch && matchesStatus;
+      })
+      .sort((a, b) => {
+        if (jobSort === "name-asc") return a.name.localeCompare(b.name);
+        if (jobSort === "name-desc") return b.name.localeCompare(a.name);
+        if (jobSort === "oldest") return new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+        return new Date(b.created_at).getTime() - new Date(a.created_at).getTime();
+      });
+  }, [allJobs, currentCompany, jobSearch, jobStatusFilter, jobSort]);
+
+  const isJobsViewDefault = jobsViewDefault === jobsView;
+
+  const getJobCompanyLogoUrl = (job: DisplayJobRow) => {
+    const sourceCompany = job.ownership === "shared" ? job.sourceCompany : currentCompany;
+    return resolveCompanyLogoUrl(sourceCompany?.logo_url);
+  };
+
+  const getJobCompanyName = (job: DisplayJobRow) => (
+    job.ownership === "shared"
+      ? (job.sourceCompany?.display_name || job.sourceCompany?.name || "External Company")
+      : (currentCompany?.display_name || currentCompany?.name || "My Design Pro Company")
+  );
+
+  const renderJobCompanyIdentity = (job: DisplayJobRow, compact = false) => {
+    const logoUrl = getJobCompanyLogoUrl(job);
+    const companyName = getJobCompanyName(job);
+
+    if (logoUrl) {
+      return (
+        <div className="flex items-center">
+          <img
+            src={logoUrl}
+            alt={`${companyName} logo`}
+            className={`${compact ? "max-h-5 max-w-[90px]" : "max-h-6 max-w-[120px]"} w-auto object-contain`}
+          />
+        </div>
+      );
+    }
+
+    return (
+      <p className="truncate text-[11px] font-medium uppercase tracking-wide text-muted-foreground">
+        {companyName}
+      </p>
+    );
+  };
+
+  const loadJobsViewPreference = async () => {
+    if (!user?.id || !currentCompany?.id) return;
+
+    try {
+      const { data, error } = await supabase
+        .from("company_ui_settings")
+        .select("settings")
+        .eq("user_id", user.id)
+        .eq("company_id", currentCompany.id)
+        .maybeSingle();
+
+      if (error) throw error;
+
+      const settings = (data?.settings as Record<string, any> | null) || {};
+      const storedView = settings.design_pro_jobs_view as DesignProfessionalJobsView | undefined;
+      const storedDefault = settings.design_pro_jobs_view_default as DesignProfessionalJobsView | undefined;
+
+      if (storedDefault === "icons" || storedDefault === "list" || storedDefault === "compact") {
+        setJobsView(storedDefault);
+      } else if (storedView === "icons" || storedView === "list" || storedView === "compact") {
+        setJobsView(storedView);
+      }
+      if (storedDefault === "icons" || storedDefault === "list" || storedDefault === "compact") {
+        setJobsViewDefault(storedDefault);
+      } else {
+        setJobsViewDefault(null);
+      }
+    } catch (error) {
+      console.error("Error loading design pro jobs view preference:", error);
+    }
+  };
+
+  const persistJobsViewPreference = async (nextView: DesignProfessionalJobsView) => {
+    if (!user?.id || !currentCompany?.id) return;
+
+    try {
+      const { data: existing, error: existingError } = await supabase
+        .from("company_ui_settings")
+        .select("settings")
+        .eq("user_id", user.id)
+        .eq("company_id", currentCompany.id)
+        .maybeSingle();
+      if (existingError) throw existingError;
+
+      const nextSettings = {
+        ...(((existing?.settings as Record<string, any>) || {})),
+        design_pro_jobs_view: nextView,
+      };
+
+      const { error } = await supabase
+        .from("company_ui_settings")
+        .upsert({
+          user_id: user.id,
+          company_id: currentCompany.id,
+          settings: nextSettings,
+        }, {
+          onConflict: "user_id,company_id",
+        });
+      if (error) throw error;
+    } catch (error) {
+      console.error("Error saving design pro jobs view preference:", error);
+    }
+  };
+
+  const handleJobsViewChange = async (nextView: DesignProfessionalJobsView) => {
+    setJobsView(nextView);
+    await persistJobsViewPreference(nextView);
+  };
+
+  const setJobsViewAsDefault = async () => {
+    if (!user?.id || !currentCompany?.id) return;
+
+    try {
+      setSavingJobsViewDefault(true);
+      const { data: existing, error: existingError } = await supabase
+        .from("company_ui_settings")
+        .select("settings")
+        .eq("user_id", user.id)
+        .eq("company_id", currentCompany.id)
+        .maybeSingle();
+      if (existingError) throw existingError;
+
+      const nextSettings = {
+        ...(((existing?.settings as Record<string, any>) || {})),
+        design_pro_jobs_view: jobsView,
+        design_pro_jobs_view_default: jobsView,
+      };
+
+      const { error } = await supabase
+        .from("company_ui_settings")
+        .upsert({
+          user_id: user.id,
+          company_id: currentCompany.id,
+          settings: nextSettings,
+        }, {
+          onConflict: "user_id,company_id",
+        });
+      if (error) throw error;
+
+      setJobsViewDefault(jobsView);
+      toast({
+        title: "Default view saved",
+        description: "Your Design Pro jobs page will reopen in this layout.",
+      });
+    } catch (error: any) {
+      console.error("Error saving default design pro jobs view:", error);
+      toast({
+        title: "Could not save default",
+        description: error?.message || "Failed to save your default jobs view.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingJobsViewDefault(false);
+    }
+  };
+
+  const setSpecificJobsViewAsDefault = async (view: DesignProfessionalJobsView) => {
+    setJobsView(view);
+    await persistJobsViewPreference(view);
+    if (jobsViewDefault === view) return;
+
+    if (!user?.id || !currentCompany?.id) return;
+
+    try {
+      setSavingJobsViewDefault(true);
+      const { data: existing, error: existingError } = await supabase
+        .from("company_ui_settings")
+        .select("settings")
+        .eq("user_id", user.id)
+        .eq("company_id", currentCompany.id)
+        .maybeSingle();
+      if (existingError) throw existingError;
+
+      const nextSettings = {
+        ...(((existing?.settings as Record<string, any>) || {})),
+        design_pro_jobs_view: view,
+        design_pro_jobs_view_default: view,
+      };
+
+      const { error } = await supabase
+        .from("company_ui_settings")
+        .upsert({
+          user_id: user.id,
+          company_id: currentCompany.id,
+          settings: nextSettings,
+        }, {
+          onConflict: "user_id,company_id",
+        });
+      if (error) throw error;
+
+      setJobsViewDefault(view);
+      toast({
+        title: "Default view saved",
+        description: "Your Design Pro jobs page will reopen in this layout.",
+      });
+    } catch (error: any) {
+      console.error("Error saving specific default design pro jobs view:", error);
+      toast({
+        title: "Could not save default",
+        description: error?.message || "Failed to save your default jobs view.",
+        variant: "destructive",
+      });
+    } finally {
+      setSavingJobsViewDefault(false);
+    }
+  };
+
   const loadData = async () => {
     if (!user?.id || !currentCompany?.id) {
       setLoading(false);
@@ -120,12 +382,12 @@ export default function DesignProfessionalJobs() {
       const [ownedRes, sharedRes, companiesRes, targetCompaniesRes, pendingRequestRes] = await Promise.all([
         supabase
           .from("jobs")
-          .select("id,name,client,description,status,start_date,end_date,company_id,created_at")
+          .select("id,name,client,description,status,start_date,end_date,company_id,created_at,banner_url")
           .eq("company_id", currentCompany.id)
           .order("created_at", { ascending: false }),
         supabase
           .from("user_job_access")
-          .select("id,job_id,granted_at,granted_by,jobs(id,name,client,description,status,start_date,end_date,company_id,created_at)")
+          .select("id,job_id,granted_at,granted_by,jobs(id,name,client,description,status,start_date,end_date,company_id,created_at,banner_url)")
           .eq("user_id", user.id)
           .order("granted_at", { ascending: false }),
         supabase.from("companies").select("id,name,display_name,logo_url").eq("is_active", true),
@@ -150,13 +412,17 @@ export default function DesignProfessionalJobs() {
       const companies = (companiesRes.data || []) as CompanyRow[];
       const companyMap = new Map(companies.map((company) => [company.id, company]));
 
-      const normalizedOwned = (ownedRes.data || []) as JobRow[];
+      const normalizedOwned = ((ownedRes.data || []) as JobRow[]).map((job) => ({
+        ...job,
+        banner_url: resolveJobBannerUrl(job.banner_url),
+      }));
       const normalizedShared = ((sharedRes.data || []) as unknown as SharedJobRow[])
         .map((row) => {
           if (!row.jobs) return null;
           if (row.jobs.company_id === currentCompany.id) return null;
           return {
             ...row.jobs,
+            banner_url: resolveJobBannerUrl(row.jobs.banner_url),
             granted_at: row.granted_at,
             sourceCompany: companyMap.get(row.jobs.company_id) || null,
           };
@@ -266,6 +532,10 @@ export default function DesignProfessionalJobs() {
 
   useEffect(() => {
     void loadData();
+  }, [user?.id, currentCompany?.id]);
+
+  useEffect(() => {
+    void loadJobsViewPreference();
   }, [user?.id, currentCompany?.id]);
 
   useEffect(() => {
@@ -418,6 +688,22 @@ export default function DesignProfessionalJobs() {
     }
   };
 
+  const openJob = async (job: DisplayJobRow) => {
+    try {
+      if (job.ownership === "owned" && currentCompany?.id && String(currentCompany.id) !== String(job.company_id)) {
+        await switchCompany(job.company_id);
+      }
+      navigate(`/design-professional/jobs/${job.id}`);
+    } catch (error: any) {
+      console.error("Failed to open design professional job:", error);
+      toast({
+        title: "Could not open job",
+        description: error?.message || "Failed to switch into the job company context.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const handleAcceptInvite = async (invite: PendingInviteRow) => {
     try {
       setAcceptingInviteJobId(invite.jobId);
@@ -453,22 +739,58 @@ export default function DesignProfessionalJobs() {
     setDesignProfessionalSearchResults([]);
   };
 
-  const renderJobCard = (job: JobRow & { granted_at?: string; sourceCompany?: CompanyRow | null }, isShared = false) => (
-    <Card key={`${isShared ? "shared" : "owned"}-${job.id}`}>
+  const renderJobCard = (job: DisplayJobRow) => (
+    <Card
+      key={`${job.ownership}-${job.id}`}
+      className="overflow-hidden transition-colors hover:border-primary/40"
+    >
       <CardHeader className="pb-3">
+        <button type="button" onClick={() => void openJob(job)} className="w-full text-left">
         <div className="flex items-start justify-between gap-3">
-          <div>
-            <CardTitle className="text-base">{job.name}</CardTitle>
-            <CardDescription>
+          <div className="min-w-0 flex-1 space-y-1">
+            {!getJobCompanyLogoUrl(job) ? renderJobCompanyIdentity(job) : null}
+            <div className="flex min-w-0 items-center justify-between gap-3">
+              <div className="min-w-0">
+              <CardTitle className="truncate text-base leading-tight">{job.name}</CardTitle>
+              </div>
+              {getJobCompanyLogoUrl(job) ? (
+                <img
+                  src={getJobCompanyLogoUrl(job)}
+                  alt={`${getJobCompanyName(job)} logo`}
+                  className="max-h-6 w-auto max-w-[110px] shrink-0 object-contain"
+                />
+              ) : null}
+            </div>
+            <CardDescription className="truncate">
               {job.client ? `Client: ${job.client}` : "No client set"}
             </CardDescription>
           </div>
-          <Badge variant="outline">{job.status || "active"}</Badge>
         </div>
+        </button>
       </CardHeader>
       <CardContent className="space-y-3 text-sm">
-        {job.description ? <p className="text-muted-foreground">{job.description}</p> : null}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-2">
+        <button type="button" onClick={() => void openJob(job)} className="w-full text-left">
+        <div className="flex items-start gap-3">
+          {job.banner_url ? (
+            <img
+              src={job.banner_url}
+              alt={`${job.name} banner`}
+              className="h-16 w-24 rounded-md border border-border/60 object-cover shrink-0"
+            />
+          ) : (
+            <div className="flex h-16 w-24 shrink-0 items-center justify-center rounded-md border border-border/60 bg-muted/40">
+              <Building className="h-5 w-5 text-muted-foreground" />
+            </div>
+          )}
+          <div className="min-w-0 flex-1">
+            {job.description ? <p className="line-clamp-3 text-muted-foreground">{job.description}</p> : null}
+          </div>
+        </div>
+        <div className="grid grid-cols-1 gap-2 md:grid-cols-3">
+          <div>
+            <p className="text-xs text-muted-foreground">Status</p>
+            <p>{job.status || "active"}</p>
+          </div>
           <div>
             <p className="text-xs text-muted-foreground">Start</p>
             <p>{job.start_date || "-"}</p>
@@ -477,19 +799,9 @@ export default function DesignProfessionalJobs() {
             <p className="text-xs text-muted-foreground">End</p>
             <p>{job.end_date || "-"}</p>
           </div>
-          {isShared ? (
-            <div>
-              <p className="text-xs text-muted-foreground">Shared By</p>
-              <p>{job.sourceCompany?.display_name || job.sourceCompany?.name || "External Company"}</p>
-            </div>
-          ) : (
-            <div>
-              <p className="text-xs text-muted-foreground">Type</p>
-              <p>Owned Project</p>
-            </div>
-          )}
         </div>
-        {!isShared && (
+        </button>
+        {!job.ownership || job.ownership === "owned" ? (
           <div className="flex flex-wrap gap-2 pt-1">
             <Button variant="outline" size="sm" onClick={() => openShareDialog(job)}>
               <Link2 className="h-3.5 w-3.5 mr-1" />
@@ -504,22 +816,166 @@ export default function DesignProfessionalJobs() {
               Transfer Ownership
             </Button>
           </div>
-        )}
+        ) : null}
       </CardContent>
     </Card>
+  );
+
+  const renderListRow = (job: DisplayJobRow, compact = false) => (
+    <button
+      key={`${job.ownership}-${job.id}`}
+      type="button"
+      onClick={() => void openJob(job)}
+      className="w-full rounded-lg border bg-card text-left transition-colors hover:border-primary/40 hover:bg-accent/20"
+    >
+      <div className={`grid gap-3 ${compact ? "grid-cols-[auto_1fr_auto] px-3 py-2.5" : "grid-cols-[auto_minmax(0,1.4fr)_minmax(110px,.7fr)_auto_auto] px-4 py-3"} items-center`}>
+        {job.banner_url ? (
+          <img
+            src={job.banner_url}
+            alt={`${job.name} banner`}
+            className={`${compact ? "h-10 w-14" : "h-16 w-24"} rounded-md border border-border/60 object-cover shrink-0`}
+          />
+        ) : (
+          <div className={`flex ${compact ? "h-10 w-14" : "h-16 w-24"} items-center justify-center rounded-md border border-border/60 bg-muted/40 shrink-0`}>
+            <Building className="h-4 w-4 text-muted-foreground" />
+          </div>
+        )}
+        <div className="min-w-0 space-y-1">
+          {renderJobCompanyIdentity(job, compact)}
+          <div className="flex min-w-0 items-center gap-2">
+            <p className={`${compact ? "text-sm" : "text-base"} truncate font-medium leading-tight`}>{job.name}</p>
+          </div>
+          {!compact && job.description ? (
+            <p className="truncate text-sm text-muted-foreground">{job.description}</p>
+          ) : null}
+        </div>
+        {!compact && (
+          <div className="min-w-0 text-sm">
+            <p className="text-xs text-muted-foreground">Client</p>
+            <p className="truncate">{job.client || "-"}</p>
+          </div>
+        )}
+        {!compact && (
+          <div className="min-w-[88px] text-sm">
+            <p className="text-xs text-muted-foreground">Status</p>
+            <p>{job.status || "active"}</p>
+          </div>
+        )}
+        <div className="min-w-[88px] text-sm">
+          <p className="text-xs text-muted-foreground">{compact ? "Status" : "Start"}</p>
+          <p>{compact ? (job.status || "active") : (job.start_date || "-")}</p>
+        </div>
+        {!compact && (
+          <div className="min-w-[88px] text-sm">
+            <p className="text-xs text-muted-foreground">End</p>
+            <p>{job.end_date || "-"}</p>
+          </div>
+        )}
+      </div>
+    </button>
   );
 
   return (
     <div className="p-6 space-y-6">
       <div className="flex flex-wrap items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold">Design Pro Jobs</h1>
+          <h1 className="text-2xl font-bold">All Jobs</h1>
         </div>
         <div className="flex items-center gap-2">
           <Button onClick={() => setShowCreateDialog(true)}>
             <Plus className="h-4 w-4 mr-2" />
             New Project
           </Button>
+        </div>
+      </div>
+
+      <div className="rounded-lg border bg-card p-4">
+        <div className="flex flex-col gap-3 xl:flex-row xl:items-center">
+          <div className="relative flex-1">
+            <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={jobSearch}
+              onChange={(event) => setJobSearch(event.target.value)}
+              placeholder="Search jobs, clients, descriptions, or companies"
+              className="pl-9"
+            />
+          </div>
+          <div className="flex flex-col gap-3 sm:flex-row xl:items-center">
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" className="justify-between sm:w-[190px]">
+                  <span className="flex items-center gap-2">
+                    {jobsView === "icons" ? <LayoutGrid className="h-4 w-4" /> : <List className="h-4 w-4" />}
+                    {jobsView === "icons" ? "View By: Icons" : jobsView === "list" ? "View By: List" : "View By: Compact"}
+                  </span>
+                  <ChevronDown className="ml-2 h-4 w-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="start" className="w-[230px]">
+                {([
+                  { value: "icons", label: "Icons", icon: LayoutGrid },
+                  { value: "list", label: "List", icon: List },
+                  { value: "compact", label: "Compact List", icon: List },
+                ] as const).map((option) => {
+                  const Icon = option.icon;
+                  const isDefault = jobsViewDefault === option.value;
+                  const isActive = jobsView === option.value;
+                  return (
+                    <DropdownMenuItem
+                      key={option.value}
+                      onClick={() => void handleJobsViewChange(option.value)}
+                      className="flex items-center justify-between gap-3"
+                    >
+                      <span className="flex items-center gap-2">
+                        <Icon className="h-4 w-4" />
+                        <span>{option.label}</span>
+                        {isActive ? <Check className="h-4 w-4 text-primary" /> : null}
+                      </span>
+                      <button
+                        type="button"
+                        onClick={(event) => {
+                          event.preventDefault();
+                          event.stopPropagation();
+                          void setSpecificJobsViewAsDefault(option.value);
+                        }}
+                        className="rounded p-1 hover:bg-accent"
+                        aria-label={`Set ${option.label} as default`}
+                      >
+                        {savingJobsViewDefault && isDefault ? (
+                          <Loader2 className="h-4 w-4 animate-spin text-yellow-400" />
+                        ) : (
+                          <Star className={`h-4 w-4 ${isDefault ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"}`} />
+                        )}
+                      </button>
+                    </DropdownMenuItem>
+                  );
+                })}
+              </DropdownMenuContent>
+            </DropdownMenu>
+            <Select value={jobStatusFilter} onValueChange={setJobStatusFilter}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Status" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Statuses</SelectItem>
+                <SelectItem value="active">Active</SelectItem>
+                <SelectItem value="planning">Planning</SelectItem>
+                <SelectItem value="completed">Completed</SelectItem>
+                <SelectItem value="on_hold">On Hold</SelectItem>
+              </SelectContent>
+            </Select>
+            <Select value={jobSort} onValueChange={setJobSort}>
+              <SelectTrigger className="w-full sm:w-[180px]">
+                <SelectValue placeholder="Sort" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="newest">Newest First</SelectItem>
+                <SelectItem value="oldest">Oldest First</SelectItem>
+                <SelectItem value="name-asc">Name A-Z</SelectItem>
+                <SelectItem value="name-desc">Name Z-A</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
         </div>
       </div>
 
@@ -560,60 +1016,47 @@ export default function DesignProfessionalJobs() {
         </Card>
       )}
 
-      <Tabs defaultValue="owned" className="space-y-4">
-        <TabsList>
-          <TabsTrigger value="owned">My Projects ({ownedJobs.length})</TabsTrigger>
-          <TabsTrigger value="shared">Shared With Me ({sharedJobs.length + pendingInvites.length})</TabsTrigger>
-        </TabsList>
-
-        <TabsContent value="owned" className="space-y-3">
-          {loading ? (
-            <Card>
-              <CardContent className="py-8 flex items-center justify-center text-muted-foreground">
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Loading projects...
-              </CardContent>
-            </Card>
-          ) : ownedJobs.length === 0 ? (
-            <Card>
-              <CardContent className="py-10 text-center space-y-2">
-                <Briefcase className="h-8 w-8 mx-auto text-muted-foreground" />
-                <p className="font-medium">No projects yet</p>
-                <p className="text-sm text-muted-foreground">
-                  Create your first design project to start managing plans and collaboration.
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            ownedJobs.map((job) => renderJobCard(job))
-          )}
-        </TabsContent>
-
-        <TabsContent value="shared" className="space-y-3">
-          {loading ? (
-            <Card>
-              <CardContent className="py-8 flex items-center justify-center text-muted-foreground">
-                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                Loading shared jobs...
-              </CardContent>
-            </Card>
-          ) : sharedJobs.length === 0 ? (
-            <Card>
-              <CardContent className="py-10 text-center space-y-2">
-                <Building2 className="h-8 w-8 mx-auto text-muted-foreground" />
-                <p className="font-medium">{pendingInvites.length > 0 ? "Invitation pending" : "No shared jobs yet"}</p>
-                <p className="text-sm text-muted-foreground">
-                  {pendingInvites.length > 0
-                    ? "Accept your invitation above to add this job to your workspace."
-                    : "Jobs shared by builder companies will appear here."}
-                </p>
-              </CardContent>
-            </Card>
-          ) : (
-            sharedJobs.map((job) => renderJobCard(job, true))
-          )}
-        </TabsContent>
-      </Tabs>
+      <div className="space-y-6">
+        {loading ? (
+          <Card>
+            <CardContent className="py-8 flex items-center justify-center text-muted-foreground">
+              <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              Loading jobs...
+            </CardContent>
+          </Card>
+        ) : visibleJobs.length === 0 ? (
+          <Card>
+            <CardContent className="py-10 text-center space-y-2">
+              <Briefcase className="h-8 w-8 mx-auto text-muted-foreground" />
+              <p className="font-medium">No jobs yet</p>
+              <p className="text-sm text-muted-foreground">
+                {pendingInvites.length > 0
+                  ? "Accept your pending invitations above to add shared jobs to your workspace."
+                  : "Create your first design project or accept a shared builder job to get started."}
+              </p>
+            </CardContent>
+          </Card>
+        ) : (
+          <>
+            <div className="text-sm text-muted-foreground">
+              {visibleJobs.length} job{visibleJobs.length === 1 ? "" : "s"}
+            </div>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {jobsView === "icons" ? visibleJobs.map((job) => renderJobCard(job)) : null}
+            </div>
+            {jobsView === "list" ? (
+              <div className="space-y-2">
+                {visibleJobs.map((job) => renderListRow(job))}
+              </div>
+            ) : null}
+            {jobsView === "compact" ? (
+              <div className="space-y-2">
+                {visibleJobs.map((job) => renderListRow(job, true))}
+              </div>
+            ) : null}
+          </>
+        )}
+      </div>
 
       <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
         <DialogContent>

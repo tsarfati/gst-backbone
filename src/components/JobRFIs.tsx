@@ -22,6 +22,7 @@ import type { Json } from "@/integrations/supabase/types";
 
 interface JobRFIsProps {
   jobId: string;
+  canCreate?: boolean;
 }
 
 interface RFI {
@@ -65,7 +66,7 @@ interface RFIAttachment {
   uploaded_at: string;
 }
 
-export default function JobRFIs({ jobId }: JobRFIsProps) {
+export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const [rfis, setRfis] = useState<RFI[]>([]);
@@ -598,13 +599,21 @@ export default function JobRFIs({ jobId }: JobRFIsProps) {
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h2 className="text-2xl font-bold">RFIs (Request for Information)</h2>
-        <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-          <DialogTrigger asChild>
-            <Button>
-              <Plus className="h-4 w-4 mr-2" />
-              Create RFI
-            </Button>
-          </DialogTrigger>
+        <Dialog
+          open={dialogOpen}
+          onOpenChange={(open) => {
+            if (!canCreate && open) return;
+            setDialogOpen(open);
+          }}
+        >
+          {canCreate && (
+            <DialogTrigger asChild>
+              <Button>
+                <Plus className="h-4 w-4 mr-2" />
+                Create RFI
+              </Button>
+            </DialogTrigger>
+          )}
           <DialogContent className="max-w-5xl max-h-[90vh] overflow-y-auto">
             <DialogHeader>
               <DialogTitle>Create New RFI</DialogTitle>

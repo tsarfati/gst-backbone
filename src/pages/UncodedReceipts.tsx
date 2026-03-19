@@ -13,7 +13,7 @@ import { Calendar, DollarSign, Building, Code, Receipt, User, Clock, FileImage, 
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import UserAssignmentPanel from "@/components/UserAssignmentPanel";
 import ReceiptMessagingPanel from "@/components/ReceiptMessagingPanel";
-import FullPagePdfViewer from "@/components/FullPagePdfViewer";
+import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import ViewSelector, { ViewType } from "@/components/ViewSelector";
 import { useViewPreference } from "@/hooks/useViewPreference";
 import { supabase } from "@/integrations/supabase/client";
@@ -38,6 +38,9 @@ interface CostDistribution {
   job_name?: string;
   cost_code_display?: string;
 }
+
+type SortField = 'filename' | 'type' | 'amount' | 'date' | 'vendor' | 'assigned';
+type SortDirection = 'asc' | 'desc';
 
 export default function UncodedReceipts() {
   const { uncodedReceipts, codeReceipt, assignReceipt, unassignReceipt, addMessage, messages, deleteReceipt, refreshReceipts } = useReceipts();
@@ -106,10 +109,11 @@ export default function UncodedReceipts() {
   const { 
     currentView, 
     defaultView, 
-    isDefault, 
     setCurrentView, 
     setDefaultView 
   } = useViewPreference('uncoded-receipts-view', 'grid');
+  const [sortField, setSortField] = useState<SortField>('date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
 
   // Fetch receipts that are linked to bills via audit trail
   useEffect(() => {
@@ -153,6 +157,66 @@ export default function UncodedReceipts() {
     ],
     [availableUncodedReceipts, uncodedBills]
   );
+
+  const toggleSort = useCallback((field: SortField) => {
+    setSortField((prevField) => {
+      if (prevField === field) {
+        setSortDirection((prevDirection) => (prevDirection === 'asc' ? 'desc' : 'asc'));
+        return prevField;
+      }
+      setSortDirection(field === 'date' ? 'desc' : 'asc');
+      return field;
+    });
+  }, []);
+
+  const sortedSelectableItems = useMemo(() => {
+    const items = [...selectableItems];
+    const getComparableValue = (receipt: any) => {
+      switch (sortField) {
+        case 'filename':
+          return String(receipt.filename || '').toLowerCase();
+        case 'type':
+          return receipt.type === 'bill' ? 'bill' : 'receipt';
+        case 'amount':
+          return Number(String(receipt.amount || '0').replace(/[^0-9.-]/g, '')) || 0;
+        case 'date':
+          return receipt.date ? new Date(receipt.date).getTime() : 0;
+        case 'vendor':
+          return String(receipt.vendor || '').toLowerCase();
+        case 'assigned':
+          return String(receipt.assignedUser?.name || '').toLowerCase();
+        default:
+          return '';
+      }
+    };
+
+    items.sort((a, b) => {
+      const aValue = getComparableValue(a);
+      const bValue = getComparableValue(b);
+      if (aValue < bValue) return sortDirection === 'asc' ? -1 : 1;
+      if (aValue > bValue) return sortDirection === 'asc' ? 1 : -1;
+      return 0;
+    });
+    return items;
+  }, [selectableItems, sortDirection, sortField]);
+
+  const renderSortLabel = (label: string, field: SortField) => {
+    const isActive = sortField === field;
+    const arrow = isActive ? (sortDirection === 'asc' ? '↑' : '↓') : '↕';
+    return (
+      <button
+        type="button"
+        className={cn(
+          'flex items-center gap-1 text-left text-xs font-semibold uppercase tracking-wide text-muted-foreground transition-colors hover:text-foreground',
+          isActive && 'text-foreground'
+        )}
+        onClick={() => toggleSort(field)}
+      >
+        <span>{label}</span>
+        <span className="text-[10px]">{arrow}</span>
+      </button>
+    );
+  };
 
   const setReceiptQueryParam = useCallback((receiptId: string | null) => {
     const next = new URLSearchParams(searchParams);
@@ -645,11 +709,11 @@ export default function UncodedReceipts() {
     });
   };
 
-  const handleSetDefaultView = () => {
-    setDefaultView();
+  const handleSetSpecificDefaultView = (view: ViewType) => {
+    setDefaultView(view);
     toast({
       title: 'Default View Set',
-      description: `${currentView.charAt(0).toUpperCase() + currentView.slice(1)} view is now your default.`,
+      description: `${view.charAt(0).toUpperCase() + view.slice(1)} view is now your default.`,
     });
   };
 
@@ -664,8 +728,8 @@ export default function UncodedReceipts() {
               <ViewSelector
                 currentView={currentView}
                 onViewChange={setCurrentView}
-                onSetDefault={handleSetDefaultView}
-                isDefault={isDefault}
+                onSetDefault={handleSetSpecificDefaultView}
+                defaultView={defaultView}
               />
             </div>
             <p className="text-muted-foreground">
@@ -687,7 +751,26 @@ export default function UncodedReceipts() {
                 ? "space-y-4"
                 : "space-y-2"
             }>
-              {selectableItems.map((receipt) => (
+              {(currentView === 'list' || currentView === 'compact') && (
+                <div
+                  className={cn(
+                    'grid items-center gap-3 rounded-lg border bg-muted/30 px-4 py-2',
+                    currentView === 'list'
+                      ? 'grid-cols-[88px_minmax(220px,1.8fr)_100px_120px_minmax(160px,1.2fr)_130px_88px]'
+                      : 'grid-cols-[minmax(220px,1.8fr)_90px_110px_110px_minmax(140px,1.1fr)_110px_72px]'
+                  )}
+                >
+                  {currentView === 'list' && <div className="text-xs font-semibold uppercase tracking-wide text-muted-foreground">Preview</div>}
+                  <div>{renderSortLabel('Name', 'filename')}</div>
+                  <div>{renderSortLabel('Type', 'type')}</div>
+                  <div>{renderSortLabel('Amount', 'amount')}</div>
+                  <div>{renderSortLabel('Date', 'date')}</div>
+                  <div>{renderSortLabel('Vendor', 'vendor')}</div>
+                  <div>{renderSortLabel('Assigned', 'assigned')}</div>
+                  <div className="text-right text-xs font-semibold uppercase tracking-wide text-muted-foreground">Actions</div>
+                </div>
+              )}
+              {sortedSelectableItems.map((receipt) => (
                 currentView === 'grid' ? (
                   // Tile View
                   <Card
@@ -806,131 +889,110 @@ export default function UncodedReceipts() {
                 </Card>
                 ) : currentView === 'list' ? (
                   // List View
-                  <Card
+                  <div
                     key={receipt.id}
-                    className="cursor-pointer transition-all hover:shadow-md"
+                    className="grid cursor-pointer items-center gap-3 rounded-lg border px-4 py-3 transition-all hover:bg-primary/5 hover:border-primary"
                     onClick={() => openReceipt(receipt)}
                   >
-                    <CardContent className="p-4">
-                      <div className="flex items-center space-x-4">
-                        <div className="flex-shrink-0">
-                          {receipt.type === 'pdf' ? (
-                            <div className="w-16 h-16 bg-red-100 rounded-lg flex items-center justify-center">
-                              <FileText className="h-8 w-8 text-red-500" />
-                            </div>
-                          ) : receipt.previewUrl ? (
-                            <img
-                              src={receipt.previewUrl}
-                              alt={`Receipt ${receipt.filename}`}
-                              className="w-16 h-16 object-cover rounded-lg"
-                              onError={(e) => {
-                                e.currentTarget.style.display = 'none';
-                              }}
-                            />
-                          ) : (
-                            <div className="w-16 h-16 bg-blue-100 rounded-lg flex items-center justify-center">
-                              <FileImage className="h-8 w-8 text-blue-500" />
-                            </div>
-                          )}
+                    <div className="flex-shrink-0">
+                      {receipt.type === 'pdf' ? (
+                        <div className="flex h-16 w-[72px] items-center justify-center rounded-lg bg-red-100">
+                          <FileText className="h-7 w-7 text-red-500" />
                         </div>
-                        
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-start justify-between">
-                            <div className="min-w-0 flex-1">
-                              <h3 className="font-medium text-foreground truncate">{receipt.filename}</h3>
-                              <div className="flex items-center gap-4 mt-1 text-sm text-muted-foreground">
-                                <div className="flex items-center">
-                                  <DollarSign className="h-4 w-4 mr-1" />
-                                  {receipt.amount}
-                                </div>
-                                <div className="flex items-center">
-                                  <Calendar className="h-4 w-4 mr-1" />
-                                  {receipt.date}
-                                </div>
-                                {receipt.vendor && (
-                                  <div className="flex items-center">
-                                    <Building className="h-4 w-4 mr-1" />
-                                    {receipt.vendor}
-                                  </div>
-                                )}
-                              </div>
-                              {receipt.assignedUser && (
-                                <div className="flex items-center mt-2 text-xs text-muted-foreground">
-                                  <User className="h-3 w-3 mr-1" />
-                                  Assigned to {receipt.assignedUser.name}
-                                </div>
-                              )}
-                            </div>
-                            
-                            <div className="flex items-center gap-2 ml-4">
-                              {receipt.assignedUser && (
-                                <Badge variant="secondary" className="text-xs">
-                                  <UserCheck className="h-3 w-3 mr-1" />
-                                  Assigned
-                                </Badge>
-                              )}
-                              <AlertDialog>
-                                <AlertDialogTrigger asChild>
-                                  <Button 
-                                    size="sm" 
-                                    variant="ghost" 
-                                    className="h-8 w-8 p-0 text-destructive hover:text-destructive"
-                                    onClick={(e) => e.stopPropagation()}
-                                  >
-                                    <Trash2 className="h-4 w-4" />
-                                  </Button>
-                                </AlertDialogTrigger>
-                                <AlertDialogContent>
-                                  <AlertDialogHeader>
-                                    <AlertDialogTitle>Delete Receipt</AlertDialogTitle>
-                                    <AlertDialogDescription>
-                                      Are you sure you want to delete "{receipt.filename}"? This action cannot be undone.
-                                    </AlertDialogDescription>
-                                  </AlertDialogHeader>
-                                  <AlertDialogFooter>
-                                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                                    <AlertDialogAction 
-                                      onClick={() => handleDeleteReceipt(receipt.id)}
-                                      className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
-                                    >
-                                      Delete
-                                    </AlertDialogAction>
-                                  </AlertDialogFooter>
-                                </AlertDialogContent>
-                              </AlertDialog>
-                            </div>
-                          </div>
+                      ) : receipt.previewUrl ? (
+                        <img
+                          src={receipt.previewUrl}
+                          alt={`Receipt ${receipt.filename}`}
+                          className="h-16 w-[72px] rounded-lg object-cover"
+                          onError={(e) => {
+                            e.currentTarget.style.display = 'none';
+                          }}
+                        />
+                      ) : (
+                        <div className="flex h-16 w-[72px] items-center justify-center rounded-lg bg-blue-100">
+                          <FileImage className="h-7 w-7 text-blue-500" />
                         </div>
+                      )}
+                    </div>
+
+                    <div className="min-w-0">
+                      <div className="flex items-center gap-2">
+                        <h3 className="truncate font-medium text-foreground">{receipt.filename}</h3>
+                        {receipt.status === 'partially_coded' && (
+                          <Badge variant="secondary" className="text-[10px]">In Progress</Badge>
+                        )}
                       </div>
-                    </CardContent>
-                  </Card>
+                    </div>
+
+                    <div className="text-sm text-muted-foreground">{receipt.type === 'bill' ? 'Bill' : 'Receipt'}</div>
+                    <div className="text-sm text-foreground">{receipt.amount}</div>
+                    <div className="text-sm text-muted-foreground">{receipt.date}</div>
+                    <div className="truncate text-sm text-muted-foreground">{receipt.vendor || '—'}</div>
+                    <div className="text-sm text-muted-foreground">{receipt.assignedUser?.name || '—'}</div>
+
+                    <div className="flex items-center justify-end gap-2">
+                      {receipt.assignedUser && (
+                        <Badge variant="secondary" className="text-xs">
+                          <UserCheck className="mr-1 h-3 w-3" />
+                          Assigned
+                        </Badge>
+                      )}
+                      <AlertDialog>
+                        <AlertDialogTrigger asChild>
+                          <Button 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-8 w-8 p-0 text-destructive hover:text-destructive"
+                            onClick={(e) => e.stopPropagation()}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </AlertDialogTrigger>
+                        <AlertDialogContent>
+                          <AlertDialogHeader>
+                            <AlertDialogTitle>Delete Receipt</AlertDialogTitle>
+                            <AlertDialogDescription>
+                              Are you sure you want to delete "{receipt.filename}"? This action cannot be undone.
+                            </AlertDialogDescription>
+                          </AlertDialogHeader>
+                          <AlertDialogFooter>
+                            <AlertDialogCancel>Cancel</AlertDialogCancel>
+                            <AlertDialogAction 
+                              onClick={() => handleDeleteReceipt(receipt.id)}
+                              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+                            >
+                              Delete
+                            </AlertDialogAction>
+                          </AlertDialogFooter>
+                        </AlertDialogContent>
+                      </AlertDialog>
+                    </div>
+                  </div>
                 ) : (
                   // Compact View
                   <div
                     key={receipt.id}
-                    className="flex items-center p-3 border rounded-lg cursor-pointer transition-all hover:bg-primary/10 hover:border-primary"
+                    className="grid cursor-pointer items-center gap-3 rounded-lg border px-4 py-2 transition-all hover:bg-primary/10 hover:border-primary grid-cols-[minmax(220px,1.8fr)_90px_110px_110px_minmax(140px,1.1fr)_110px_72px]"
                     onClick={() => openReceipt(receipt)}
                   >
-                    <div className="flex-shrink-0 mr-3">
+                    <div className="min-w-0 flex items-center gap-2">
                       {receipt.type === 'pdf' ? (
-                        <FileText className="h-5 w-5 text-red-500" />
+                        <FileText className="h-4 w-4 text-red-500" />
                       ) : (
-                        <FileImage className="h-5 w-5 text-blue-500" />
+                        <FileImage className="h-4 w-4 text-blue-500" />
+                      )}
+                      <span className="truncate font-medium text-sm">{receipt.filename}</span>
+                      {receipt.status === 'partially_coded' && (
+                        <Badge variant="secondary" className="text-[10px]">In Progress</Badge>
                       )}
                     </div>
-                    
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between">
-                        <span className="font-medium text-sm truncate mr-2">{receipt.filename}</span>
-                        <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                          <span>{receipt.amount}</span>
-                          <span>•</span>
-                          <span>{receipt.date}</span>
-                        </div>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 ml-4">
+                    <div className="text-sm text-muted-foreground">{receipt.type === 'bill' ? 'Bill' : 'Receipt'}</div>
+                    <div className="text-sm text-foreground">{receipt.amount}</div>
+                    <div className="text-sm text-muted-foreground">{receipt.date}</div>
+                    <div className="truncate text-sm text-muted-foreground">{receipt.vendor || '—'}</div>
+                    <div className="text-sm text-muted-foreground">{receipt.assignedUser?.name || '—'}</div>
+
+                    <div className="flex items-center justify-end gap-2">
                       {receipt.assignedUser && (
                         <Badge variant="secondary" className="text-xs">Assigned</Badge>
                       )}
@@ -1080,14 +1142,14 @@ export default function UncodedReceipts() {
               <div className="flex-1 overflow-auto bg-accent/20">
                 {selectedReceipt.type === 'pdf' ? (
                   selectedReceipt.previewUrl ? (
-                    <FullPagePdfViewer 
-                      file={{ 
-                        name: selectedReceipt.filename,
-                        url: selectedReceipt.previewUrl 
-                      } as any}
-                      onBack={() => {}}
-                      hideBackButton={true}
-                    />
+                    <div className="h-full overflow-auto p-4">
+                      <div className="mx-auto max-w-5xl rounded-lg bg-white shadow-lg">
+                        <UrlPdfInlinePreview
+                          url={selectedReceipt.previewUrl}
+                          className="w-full"
+                        />
+                      </div>
+                    </div>
                   ) : (
                     <div className="flex items-center justify-center h-full">
                       <div className="text-center">

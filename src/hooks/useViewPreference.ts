@@ -32,10 +32,10 @@ export function useViewPreference(storageKey: string, initialView: ViewType = 'g
     setViewPreference(prev => ({ ...prev, currentView: view }));
   };
 
-  const setDefaultView = () => {
+  const setDefaultView = (view?: ViewType) => {
     setViewPreference(prev => ({ 
       ...prev, 
-      defaultView: prev.currentView 
+      defaultView: view || prev.currentView 
     }));
   };
 

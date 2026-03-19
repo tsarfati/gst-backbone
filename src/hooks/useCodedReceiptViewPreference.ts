@@ -32,10 +32,10 @@ export function useCodedReceiptViewPreference(storageKey: string, initialView: C
     setViewPreference(prev => ({ ...prev, currentView: view }));
   };
 
-  const setDefaultView = () => {
+  const setDefaultView = (view?: CodedReceiptViewType) => {
     setViewPreference(prev => ({ 
       ...prev, 
-      defaultView: prev.currentView 
+      defaultView: view || prev.currentView 
     }));
   };
 

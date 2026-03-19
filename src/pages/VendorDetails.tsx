@@ -24,6 +24,126 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 
+type VendorAccessPresetKey =
+  | "billing_only"
+  | "subcontractor_standard"
+  | "bidder"
+  | "full_collaboration";
+
+const VENDOR_ACCESS_PRESETS: Record<
+  VendorAccessPresetKey,
+  {
+    label: string;
+    description: string;
+    values: Record<string, any>;
+  }
+> = {
+  billing_only: {
+    label: "Billing Only",
+    description: "Invoice submission, directory, messages, and compliance.",
+    values: {
+      can_view_job_details: true,
+      can_submit_bills: true,
+      can_view_plans: false,
+      can_view_rfis: false,
+      can_submit_rfis: false,
+      can_view_submittals: false,
+      can_submit_submittals: false,
+      can_view_team_directory: true,
+      can_upload_compliance_docs: true,
+      can_view_photos: false,
+      can_view_rfps: false,
+      can_submit_bids: false,
+      can_view_subcontracts: false,
+      can_access_messages: true,
+      can_negotiate_contracts: false,
+      can_submit_sov_proposals: false,
+      can_upload_signed_contracts: false,
+      can_access_filing_cabinet: false,
+      filing_cabinet_access_level: "view_only",
+      can_download_filing_cabinet_files: true,
+    },
+  },
+  subcontractor_standard: {
+    label: "Subcontractor Standard",
+    description: "Plans, RFIs, submittals, messages, subcontracts, billing.",
+    values: {
+      can_view_job_details: true,
+      can_submit_bills: true,
+      can_view_plans: true,
+      can_view_rfis: true,
+      can_submit_rfis: true,
+      can_view_submittals: true,
+      can_submit_submittals: true,
+      can_view_team_directory: true,
+      can_upload_compliance_docs: true,
+      can_view_photos: true,
+      can_view_rfps: false,
+      can_submit_bids: false,
+      can_view_subcontracts: true,
+      can_access_messages: true,
+      can_negotiate_contracts: true,
+      can_submit_sov_proposals: true,
+      can_upload_signed_contracts: true,
+      can_access_filing_cabinet: true,
+      filing_cabinet_access_level: "view_only",
+      can_download_filing_cabinet_files: true,
+    },
+  },
+  bidder: {
+    label: "Bidder",
+    description: "RFP/bid access with plans, messages, and optional file downloads.",
+    values: {
+      can_view_job_details: true,
+      can_submit_bills: false,
+      can_view_plans: true,
+      can_view_rfis: false,
+      can_submit_rfis: false,
+      can_view_submittals: false,
+      can_submit_submittals: false,
+      can_view_team_directory: true,
+      can_upload_compliance_docs: true,
+      can_view_photos: false,
+      can_view_rfps: true,
+      can_submit_bids: true,
+      can_view_subcontracts: false,
+      can_access_messages: true,
+      can_negotiate_contracts: false,
+      can_submit_sov_proposals: false,
+      can_upload_signed_contracts: false,
+      can_access_filing_cabinet: true,
+      filing_cabinet_access_level: "view_only",
+      can_download_filing_cabinet_files: true,
+    },
+  },
+  full_collaboration: {
+    label: "Full Collaboration",
+    description: "All collaborative job modules enabled except builder-only financials.",
+    values: {
+      can_view_job_details: true,
+      can_submit_bills: true,
+      can_view_plans: true,
+      can_view_rfis: true,
+      can_submit_rfis: true,
+      can_view_submittals: true,
+      can_submit_submittals: true,
+      can_view_team_directory: true,
+      can_upload_compliance_docs: true,
+      can_view_photos: true,
+      can_view_rfps: true,
+      can_submit_bids: true,
+      can_view_subcontracts: true,
+      can_access_messages: true,
+      can_negotiate_contracts: true,
+      can_submit_sov_proposals: true,
+      can_upload_signed_contracts: true,
+      can_access_filing_cabinet: true,
+      filing_cabinet_access_level: "read_write",
+      can_download_filing_cabinet_files: true,
+    },
+  },
+};
+
 export default function VendorDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -36,6 +156,7 @@ export default function VendorDetails() {
   const [allJobs, setAllJobs] = useState<any[]>([]);
   const [vendorJobAccess, setVendorJobAccess] = useState<any[]>([]);
   const [selectedAssignJobId, setSelectedAssignJobId] = useState<string>("");
+  const [selectedAssignPreset, setSelectedAssignPreset] = useState<VendorAccessPresetKey>("subcontractor_standard");
   const [assigningJob, setAssigningJob] = useState(false);
   const [paymentMethods, setPaymentMethods] = useState<any[]>([]);
   const [complianceDocuments, setComplianceDocuments] = useState<any[]>([]);
@@ -46,6 +167,7 @@ export default function VendorDetails() {
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [sendingInvite, setSendingInvite] = useState(false);
   const [pendingInvite, setPendingInvite] = useState<any>(null);
+  const [vendorPortalLinked, setVendorPortalLinked] = useState(false);
   const [scopeEditorOpen, setScopeEditorOpen] = useState(false);
   const [scopeEditorLoading, setScopeEditorLoading] = useState(false);
   const [scopeEditorAssignment, setScopeEditorAssignment] = useState<any>(null);
@@ -95,6 +217,7 @@ export default function VendorDetails() {
             fetchComplianceDocuments(data.id);
             fetchSubcontracts(data.id);
             fetchPendingInvite(data.id);
+            fetchVendorPortalLinkStatus(data.id);
           }
         }
       } catch (err) {
@@ -263,11 +386,20 @@ export default function VendorDetails() {
             id,
             vendor_id,
             job_id,
+            can_view_job_details,
             can_submit_bills,
             can_view_plans,
+            can_view_rfis,
             can_submit_rfis,
+            can_view_submittals,
+            can_submit_submittals,
             can_view_team_directory,
             can_upload_compliance_docs,
+            can_view_photos,
+            can_view_rfps,
+            can_submit_bids,
+            can_view_subcontracts,
+            can_access_messages,
             can_negotiate_contracts,
             can_submit_sov_proposals,
             can_upload_signed_contracts,
@@ -308,6 +440,24 @@ export default function VendorDetails() {
       }
     };
 
+    const fetchVendorPortalLinkStatus = async (vendorId: string) => {
+      try {
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("user_id")
+          .eq("vendor_id", vendorId)
+          .eq("role", "vendor")
+          .limit(1)
+          .maybeSingle();
+
+        if (!error) {
+          setVendorPortalLinked(!!data?.user_id);
+        }
+      } catch (error) {
+        console.error("Error loading vendor portal link status:", error);
+      }
+    };
+
     fetchVendor();
   }, [id, toast, currentCompany?.id, navigate]);
 
@@ -315,22 +465,13 @@ export default function VendorDetails() {
     if (!vendor?.id || !selectedAssignJobId || !user?.id) return;
     try {
       setAssigningJob(true);
+      const presetValues = VENDOR_ACCESS_PRESETS[selectedAssignPreset].values;
       const { error } = await supabase
         .from('vendor_job_access' as any)
         .upsert({
           vendor_id: vendor.id,
           job_id: selectedAssignJobId,
-          can_submit_bills: true,
-          can_view_plans: false,
-          can_submit_rfis: false,
-          can_view_team_directory: true,
-          can_upload_compliance_docs: true,
-          can_negotiate_contracts: true,
-          can_submit_sov_proposals: true,
-          can_upload_signed_contracts: true,
-          can_access_filing_cabinet: false,
-          filing_cabinet_access_level: 'view_only',
-          can_download_filing_cabinet_files: true,
+          ...presetValues,
           created_by: user.id,
         }, {
           onConflict: 'vendor_id,job_id',
@@ -344,11 +485,20 @@ export default function VendorDetails() {
           id,
           vendor_id,
           job_id,
+          can_view_job_details,
           can_submit_bills,
           can_view_plans,
+          can_view_rfis,
           can_submit_rfis,
+          can_view_submittals,
+          can_submit_submittals,
           can_view_team_directory,
           can_upload_compliance_docs,
+          can_view_photos,
+          can_view_rfps,
+          can_submit_bids,
+          can_view_subcontracts,
+          can_access_messages,
           can_negotiate_contracts,
           can_submit_sov_proposals,
           can_upload_signed_contracts,
@@ -649,6 +799,16 @@ export default function VendorDetails() {
             />
             <div>
               <h1 className="text-2xl font-bold text-foreground">{vendor.name}</h1>
+              <div className="mt-1 flex flex-wrap items-center gap-2">
+                {vendorPortalLinked ? (
+                  <Badge variant="default">Vendor Portal Linked</Badge>
+                ) : pendingInvite ? (
+                  <Badge variant="secondary">Vendor Portal Invite Pending</Badge>
+                ) : (
+                  <Badge variant="outline">No Vendor Portal Linked</Badge>
+                )}
+                <Badge variant="outline">Builder-Side Vendor Record</Badge>
+              </div>
             </div>
           </div>
         </div>
@@ -709,11 +869,35 @@ export default function VendorDetails() {
 
       {/* Single Scrollable Content */}
       <div className="space-y-8">
+        <Card className="border-dashed">
+          <CardContent className="flex flex-col gap-3 pt-6 md:flex-row md:items-center md:justify-between">
+            <div>
+              <p className="font-medium text-foreground">Vendor portal sync status</p>
+              <p className="text-sm text-muted-foreground">
+                Company info, payment settings, W-9, insurance, and logo sync from the vendor&apos;s portal into this builder-side vendor record.
+              </p>
+            </div>
+            <div className="flex flex-wrap gap-2">
+              <Badge variant="default">Synced From Vendor Portal</Badge>
+              <Badge variant="secondary">Builder Managed: Job Access</Badge>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Overview Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Info */}
           <div className="lg:col-span-2 space-y-6">
             <Card>
+              <CardHeader className="pb-2">
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle className="text-lg">Vendor Overview</CardTitle>
+                  <Badge variant="default">Synced From Vendor Portal</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  These company details are maintained by the vendor inside their own BuilderLYNK vendor portal.
+                </p>
+              </CardHeader>
               <CardContent className="space-y-4">
                 {vendor.contact_person && (
                   <div>
@@ -818,7 +1002,10 @@ export default function VendorDetails() {
             {/* Quick Actions */}
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Quick Actions</CardTitle>
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <CardTitle className="text-lg">Quick Actions</CardTitle>
+                  <Badge variant="outline">Builder Managed</Badge>
+                </div>
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button 
@@ -855,11 +1042,19 @@ export default function VendorDetails() {
           <div id="payment-methods">
             <Card>
               <CardHeader className="flex flex-row items-center justify-between">
-                <CardTitle className="flex items-center gap-2">
-                  <CreditCard className="h-5 w-5" />
-                  Payment Methods
-                </CardTitle>
-                <Badge variant="outline" className="text-xs">View Only</Badge>
+                <div className="space-y-1">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <CardTitle className="flex items-center gap-2">
+                      <CreditCard className="h-5 w-5" />
+                      Payment Methods
+                    </CardTitle>
+                    <Badge variant="default" className="text-xs">Synced From Vendor Portal</Badge>
+                    <Badge variant="outline" className="text-xs">View Only</Badge>
+                  </div>
+                  <p className="text-sm text-muted-foreground">
+                    Payment details are controlled by the vendor in their portal and mirrored here for builder review.
+                  </p>
+                </div>
               </CardHeader>
               <CardContent>
                 <div className="space-y-6">
@@ -992,21 +1187,42 @@ export default function VendorDetails() {
 
         {/* Compliance Documents Section */}
         <div id="compliance-documents">
-          <ComplianceDocumentManager
-            vendorId={vendor.id}
-            documents={complianceDocuments}
-            onDocumentsChange={setComplianceDocuments}
-            isEditMode={false}
-          />
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle>Compliance Documents</CardTitle>
+                <Badge variant="default">Synced From Vendor Portal</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                W-9 and insurance certificates sync from the vendor portal. Job-specific and company-specific insurance documents appear here too.
+              </p>
+            </CardHeader>
+            <CardContent>
+              <ComplianceDocumentManager
+                vendorId={vendor.id}
+                documents={complianceDocuments}
+                onDocumentsChange={setComplianceDocuments}
+                isEditMode={false}
+              />
+            </CardContent>
+          </Card>
         </div>
 
         {/* Jobs Section */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Briefcase className="h-5 w-5" />
-              Vendor Job Assignments & Access
-            </CardTitle>
+            <div className="space-y-1">
+              <div className="flex flex-wrap items-center gap-2">
+                <CardTitle className="flex items-center gap-2">
+                  <Briefcase className="h-5 w-5" />
+                  Vendor Job Assignments & Access
+                </CardTitle>
+                <Badge variant="secondary">Builder Managed</Badge>
+              </div>
+              <p className="text-sm text-muted-foreground">
+                Job visibility and collaboration permissions are controlled here by your BuilderLYNK team.
+              </p>
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="flex flex-col md:flex-row gap-2">
@@ -1024,10 +1240,25 @@ export default function VendorDetails() {
                     </option>
                   ))}
               </select>
+              <select
+                className="h-10 rounded-md border border-input bg-background px-3 text-sm"
+                value={selectedAssignPreset}
+                onChange={(e) => setSelectedAssignPreset(e.target.value as VendorAccessPresetKey)}
+              >
+                {Object.entries(VENDOR_ACCESS_PRESETS).map(([key, preset]) => (
+                  <option key={key} value={key}>
+                    {preset.label}
+                  </option>
+                ))}
+              </select>
               <Button onClick={handleAssignJob} disabled={!selectedAssignJobId || assigningJob}>
                 {assigningJob ? 'Assigning...' : 'Assign Job'}
               </Button>
             </div>
+            <p className="text-xs text-muted-foreground">
+              Default access preset: <span className="font-medium text-foreground">{VENDOR_ACCESS_PRESETS[selectedAssignPreset].label}</span>
+              {" "} - {VENDOR_ACCESS_PRESETS[selectedAssignPreset].description}
+            </p>
 
             {vendorJobAccess.length === 0 ? (
               <div className="text-center py-8">
@@ -1048,6 +1279,9 @@ export default function VendorDetails() {
                           <p className="text-xs text-muted-foreground">Job-level vendor portal access</p>
                         </div>
                         <div className="flex items-center gap-2">
+                          {assignment.can_submit_bills && <Badge variant="secondary">Billing</Badge>}
+                          {assignment.can_view_subcontracts && <Badge variant="secondary">Subcontractor</Badge>}
+                          {assignment.can_view_rfps && <Badge variant="secondary">Bidder</Badge>}
                           {assignment.jobs?.status && (
                             <Badge variant="outline">{assignment.jobs.status}</Badge>
                           )}
@@ -1060,107 +1294,187 @@ export default function VendorDetails() {
                           </Button>
                         </div>
                       </div>
-                      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 border-t pt-3">
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>Submit Bills</Label>
-                          <Switch
-                            checked={!!assignment.can_submit_bills}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_bills', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>View Plans</Label>
-                          <Switch
-                            checked={!!assignment.can_view_plans}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_plans', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>Submit RFIs</Label>
-                          <Switch
-                            checked={!!assignment.can_submit_rfis}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_rfis', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>Team Directory</Label>
-                          <Switch
-                            checked={!!assignment.can_view_team_directory}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_team_directory', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>Upload Compliance Docs</Label>
-                          <Switch
-                            checked={!!assignment.can_upload_compliance_docs}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_upload_compliance_docs', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>Contract Negotiation</Label>
-                          <Switch
-                            checked={!!assignment.can_negotiate_contracts}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_negotiate_contracts', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>SOV Proposals</Label>
-                          <Switch
-                            checked={!!assignment.can_submit_sov_proposals}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_sov_proposals', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>Upload Signed Contracts</Label>
-                          <Switch
-                            checked={!!assignment.can_upload_signed_contracts}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_upload_signed_contracts', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>Filing Cabinet Access</Label>
-                          <Switch
-                            checked={!!assignment.can_access_filing_cabinet}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_access_filing_cabinet', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>Filing Access Level</Label>
-                          <select
-                            className="h-8 rounded-md border border-input bg-background px-2 text-xs"
-                            value={assignment.filing_cabinet_access_level || 'view_only'}
-                            disabled={!assignment.can_access_filing_cabinet}
-                            onChange={(e) => handleUpdateVendorJobAccess(assignment.id, 'filing_cabinet_access_level', e.target.value)}
-                          >
-                            <option value="view_only">View Only</option>
-                            <option value="read_write">Read + Write</option>
-                          </select>
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2">
-                          <Label>Allow File Downloads</Label>
-                          <Switch
-                            checked={!!assignment.can_download_filing_cabinet_files}
-                            disabled={!assignment.can_access_filing_cabinet}
-                            onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_download_filing_cabinet_files', checked)}
-                          />
-                        </div>
-                        <div className="flex items-center justify-between rounded border p-2 md:col-span-2">
-                          <div className="space-y-1">
-                            <Label>Scope Restrictions</Label>
-                            <p className="text-xs text-muted-foreground">
-                              {assignment.allowed_filing_cabinet_folder_ids?.length || assignment.allowed_filing_cabinet_file_ids?.length
-                                ? `Restricted (${assignment.allowed_filing_cabinet_folder_ids?.length || 0} folders, ${assignment.allowed_filing_cabinet_file_ids?.length || 0} files)`
-                                : 'All folders and files in this job'}
-                            </p>
+                      <div className="space-y-3 border-t pt-3">
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Core Access</p>
+                          <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Job Details</Label>
+                              <Switch
+                                checked={!!assignment.can_view_job_details}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_job_details', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Submit Bills</Label>
+                              <Switch
+                                checked={!!assignment.can_submit_bills}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_bills', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Team Directory</Label>
+                              <Switch
+                                checked={!!assignment.can_view_team_directory}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_team_directory', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Messages</Label>
+                              <Switch
+                                checked={!!assignment.can_access_messages}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_access_messages', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Upload Compliance Docs</Label>
+                              <Switch
+                                checked={!!assignment.can_upload_compliance_docs}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_upload_compliance_docs', checked)}
+                              />
+                            </div>
                           </div>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            disabled={!assignment.can_access_filing_cabinet}
-                            onClick={() => openScopeEditor(assignment)}
-                          >
-                            Configure Scope
-                          </Button>
+                        </div>
+
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Collaboration Modules</p>
+                          <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>View Plans</Label>
+                              <Switch
+                                checked={!!assignment.can_view_plans}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_plans', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>View RFIs</Label>
+                              <Switch
+                                checked={!!assignment.can_view_rfis}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_rfis', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Submit RFIs</Label>
+                              <Switch
+                                checked={!!assignment.can_submit_rfis}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_rfis', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>View Submittals</Label>
+                              <Switch
+                                checked={!!assignment.can_view_submittals}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_submittals', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Submit Submittals</Label>
+                              <Switch
+                                checked={!!assignment.can_submit_submittals}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_submittals', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Photos</Label>
+                              <Switch
+                                checked={!!assignment.can_view_photos}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_photos', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>View RFPs</Label>
+                              <Switch
+                                checked={!!assignment.can_view_rfps}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_rfps', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Submit Bids</Label>
+                              <Switch
+                                checked={!!assignment.can_submit_bids}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_bids', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>View Subcontracts</Label>
+                              <Switch
+                                checked={!!assignment.can_view_subcontracts}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_subcontracts', checked)}
+                              />
+                            </div>
+                          </div>
+                        </div>
+
+                        <div>
+                          <p className="text-sm font-medium text-foreground">Contracts & Filing Cabinet</p>
+                          <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Contract Negotiation</Label>
+                              <Switch
+                                checked={!!assignment.can_negotiate_contracts}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_negotiate_contracts', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>SOV Proposals</Label>
+                              <Switch
+                                checked={!!assignment.can_submit_sov_proposals}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_sov_proposals', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Upload Signed Contracts</Label>
+                              <Switch
+                                checked={!!assignment.can_upload_signed_contracts}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_upload_signed_contracts', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Filing Cabinet Access</Label>
+                              <Switch
+                                checked={!!assignment.can_access_filing_cabinet}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_access_filing_cabinet', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Filing Access Level</Label>
+                              <select
+                                className="h-8 rounded-md border border-input bg-background px-2 text-xs"
+                                value={assignment.filing_cabinet_access_level || 'view_only'}
+                                disabled={!assignment.can_access_filing_cabinet}
+                                onChange={(e) => handleUpdateVendorJobAccess(assignment.id, 'filing_cabinet_access_level', e.target.value)}
+                              >
+                                <option value="view_only">View Only</option>
+                                <option value="read_write">Read + Write</option>
+                              </select>
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>Allow File Downloads</Label>
+                              <Switch
+                                checked={!!assignment.can_download_filing_cabinet_files}
+                                disabled={!assignment.can_access_filing_cabinet}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_download_filing_cabinet_files', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2 md:col-span-2">
+                              <div className="space-y-1">
+                                <Label>Scope Restrictions</Label>
+                                <p className="text-xs text-muted-foreground">
+                                  {assignment.allowed_filing_cabinet_folder_ids?.length || assignment.allowed_filing_cabinet_file_ids?.length
+                                    ? `Restricted (${assignment.allowed_filing_cabinet_folder_ids?.length || 0} folders, ${assignment.allowed_filing_cabinet_file_ids?.length || 0} files)`
+                                    : 'All folders and files in this job'}
+                                </p>
+                              </div>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                disabled={!assignment.can_access_filing_cabinet}
+                                onClick={() => openScopeEditor(assignment)}
+                              >
+                                Configure Scope
+                              </Button>
+                            </div>
+                          </div>
                         </div>
                       </div>
                     </CardContent>

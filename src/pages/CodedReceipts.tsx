@@ -36,7 +36,7 @@ export default function CodedReceipts() {
   const [filterJob, setFilterJob] = useState("all");
   const [filterCostCode, setFilterCostCode] = useState("all");
   const [sortBy, setSortBy] = useState("date");
-  const { currentView, setCurrentView, setDefaultView, isDefault } = useCodedReceiptViewPreference('coded-receipts', 'list');
+  const { currentView, defaultView, setCurrentView, setDefaultView } = useCodedReceiptViewPreference('coded-receipts', 'list');
   const [selectedReceipt, setSelectedReceipt] = useState<CodedReceipt | null>(null);
   const [linkedReceiptIds, setLinkedReceiptIds] = useState<Set<string>>(new Set());
   const [receiptDetails, setReceiptDetails] = useState<any>(null);
@@ -682,7 +682,7 @@ export default function CodedReceipts() {
                 currentView={currentView}
                 onViewChange={setCurrentView}
                 onSetDefault={setDefaultView}
-                isDefault={isDefault}
+                defaultView={defaultView}
               />
             </div>
           </div>

@@ -7,7 +7,7 @@ import { useToast } from '@/hooks/use-toast';
 interface Company {
   id: string;
   name: string;
-  company_type?: 'construction' | 'design_professional';
+  company_type?: 'construction' | 'design_professional' | 'vendor';
   display_name?: string;
   logo_url?: string;
   address?: string;

@@ -23,7 +23,7 @@ import MentionTextarea from "@/components/MentionTextarea";
 import { createMentionNotifications } from "@/utils/mentions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { resolveStorageUrl } from "@/utils/storageUtils";
-import { persistNonDirectMessageReadStored } from "@/utils/nonDirectMessageRead";
+import { persistNonDirectMessageReadEverywhere } from "@/utils/nonDirectMessageRead";
 
 interface BidRecord {
   id: string;
@@ -394,20 +394,23 @@ export default function BidDetails() {
 
   useEffect(() => {
     if (!user?.id || !bid?.company_id || communications.length === 0) return;
-    communications.forEach((message) => {
-      if (message.user_id === user.id) return;
-      if (message.message_type !== "intercompany") return;
-      persistNonDirectMessageReadStored(
-        {
-          id: message.id,
-          message_source: "bid_intercompany_communication",
-          source_record_id: message.id,
-        },
-        user.id,
-        bid.company_id,
-      );
-    });
-  }, [communications, user?.id, bid?.company_id]);
+    if (highlightedMessageSource !== "bid_intercompany_communication" || !highlightedMessageId) return;
+
+    const highlightedMessage = communications.find((message) => message.id === highlightedMessageId);
+    if (!highlightedMessage) return;
+    if (highlightedMessage.user_id === user.id) return;
+    if (highlightedMessage.message_type !== "intercompany") return;
+
+    void persistNonDirectMessageReadEverywhere(
+      {
+        id: highlightedMessage.id,
+        message_source: "bid_intercompany_communication",
+        source_record_id: highlightedMessage.id,
+      },
+      user.id,
+      bid.company_id,
+    );
+  }, [communications, user?.id, bid?.company_id, highlightedMessageId, highlightedMessageSource]);
 
   useEffect(() => {
     if (!highlightedMessageId) return;

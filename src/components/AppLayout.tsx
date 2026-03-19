@@ -15,8 +15,10 @@ import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 import { CompanySwitcher } from '@/components/CompanySwitcher';
 import { useToast } from '@/hooks/use-toast';
 import { useTierNavigationSettings } from '@/hooks/useTierNavigationSettings';
+import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
+import { useVendorPortalAccess } from '@/hooks/useVendorPortalAccess';
 
-type CompanyType = 'construction' | 'design_professional';
+type CompanyType = 'construction' | 'design_professional' | 'vendor';
 
 const navigationCategories = [
   {
@@ -180,26 +182,49 @@ const designProfessionalNavigationCategories = [
     collapsible: false,
   },
   {
-    title: "Jobs",
+    title: "All Jobs",
     icon: Briefcase,
     companyTypes: ['design_professional'] as CompanyType[],
     items: [
       { name: "All Jobs", href: "/design-professional/jobs", menuKey: "jobs" },
-      { name: "RFIs", href: "/design-professional/jobs/rfis", menuKey: "jobs" },
-      { name: "Submittals", href: "/design-professional/jobs/submittals", menuKey: "jobs" },
     ],
-    collapsible: true,
+    collapsible: false,
   },
   {
-    title: "Company Files",
-    icon: FolderArchive,
+    title: "RFIs",
+    icon: FileText,
     companyTypes: ['design_professional'] as CompanyType[],
     items: [
-      { name: "All Documents", href: "/design-professional/company-files", menuKey: "company-files" },
-      { name: "Jobs", href: "/design-professional/company-files/jobs", menuKey: "company-files" },
-      { name: "User Dropbox", href: "/design-professional/company-files/dropbox", menuKey: "company-files" },
+      { name: "RFIs", href: "/design-professional/jobs/rfis", menuKey: "jobs" },
     ],
-    collapsible: true,
+    collapsible: false,
+  },
+  {
+    title: "Submittals",
+    icon: FileCheck,
+    companyTypes: ['design_professional'] as CompanyType[],
+    items: [
+      { name: "Submittals", href: "/design-professional/jobs/submittals", menuKey: "jobs" },
+    ],
+    collapsible: false,
+  },
+  {
+    title: "Permitting",
+    icon: Shield,
+    companyTypes: ['design_professional'] as CompanyType[],
+    items: [
+      { name: "Permitting", href: "/design-professional/permitting", menuKey: "jobs" },
+    ],
+    collapsible: false,
+  },
+  {
+    title: "Calendar",
+    icon: Calendar,
+    companyTypes: ['design_professional'] as CompanyType[],
+    items: [
+      { name: "Calendar", href: "/design-professional/calendar", menuKey: "dashboard" },
+    ],
+    collapsible: false,
   },
   {
     title: "Settings",
@@ -214,6 +239,54 @@ const designProfessionalNavigationCategories = [
   },
 ];
 
+const vendorNavigationCategories = [
+  {
+    title: "Dashboard",
+    icon: LayoutDashboard,
+    companyTypes: ['vendor'] as CompanyType[],
+    items: [
+      { name: "Dashboard", href: "/vendor/dashboard", menuKey: "dashboard" },
+    ],
+    collapsible: false,
+  },
+  {
+    title: "All Jobs",
+    icon: Briefcase,
+    companyTypes: ['vendor'] as CompanyType[],
+    items: [
+      { name: "All Jobs", href: "/vendor/jobs", menuKey: "jobs" },
+    ],
+    collapsible: false,
+  },
+  {
+    title: "Bills",
+    icon: DollarSign,
+    companyTypes: ['vendor'] as CompanyType[],
+    items: [
+      { name: "Bills", href: "/vendor/bills", menuKey: "bills" },
+    ],
+    collapsible: false,
+  },
+  {
+    title: "Compliance",
+    icon: Shield,
+    companyTypes: ['vendor'] as CompanyType[],
+    items: [
+      { name: "Compliance", href: "/vendor/compliance", menuKey: "company-settings" },
+    ],
+    collapsible: false,
+  },
+  {
+    title: "Settings",
+    icon: Settings,
+    companyTypes: ['vendor'] as CompanyType[],
+    items: [
+      { name: "Settings", href: "/vendor/settings", menuKey: "company-settings" },
+    ],
+    collapsible: false,
+  },
+];
+
 export function AppSidebar() {
   const location = useLocation();
   const { state } = useSidebar();
@@ -224,27 +297,47 @@ export function AppSidebar() {
   const { hasAccess, loading } = useMenuPermissions();
   const { toast } = useToast();
   const { showLockedMenuItems, lockedMenuUpgradeMessage } = useTierNavigationSettings();
+  const { roleCaps: vendorRoleCaps } = useVendorPortalAccess();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
   const [uploadingSidebarLogo, setUploadingSidebarLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const profileRole = String(profile?.role || '').trim().toLowerCase();
   const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
   const isExternalUser = profileRole === 'vendor' || profileRole === 'design_professional';
-  const companyType: CompanyType = currentCompany?.company_type === 'design_professional' ? 'design_professional' : 'construction';
+  const companyType: CompanyType =
+    currentCompany?.company_type === 'design_professional'
+      ? 'design_professional'
+      : currentCompany?.company_type === 'vendor'
+      ? 'vendor'
+      : 'construction';
   const isDesignProfessionalRoute = location.pathname.startsWith('/design-professional');
+  const isVendorRoute = location.pathname.startsWith('/vendor');
   const isDesignProfessionalWorkspace =
     isDesignProfessionalRoute ||
     companyType === 'design_professional' ||
     profileRole === 'design_professional';
+  const isVendorWorkspace = isVendorRoute || profileRole === 'vendor';
   const sidebarCategories = isDesignProfessionalWorkspace
     ? designProfessionalNavigationCategories
+    : isVendorWorkspace
+    ? vendorNavigationCategories
     : navigationCategories;
-  const canUploadDesignProLogo = isDesignProfessionalWorkspace
+  const vendorVisibleCategoryTitles = new Set(
+    [
+      vendorRoleCaps.canAccessDashboard && "Dashboard",
+      vendorRoleCaps.canAccessJobs && "All Jobs",
+      vendorRoleCaps.canAccessBills && "Bills",
+      vendorRoleCaps.canAccessCompliance && "Compliance",
+      vendorRoleCaps.canAccessSettings && "Settings",
+    ].filter(Boolean) as string[],
+  );
+  const canUploadWorkspaceLogo =
+    (isDesignProfessionalWorkspace || isVendorWorkspace)
     && !currentCompany?.logo_url
     && ['owner', 'admin', 'company_admin'].includes(effectiveRole);
 
   const handleSidebarLogoUpload = async (file?: File | null) => {
-    if (!file || !currentCompany?.id || !canUploadDesignProLogo) return;
+    if (!file || !currentCompany?.id || !canUploadWorkspaceLogo) return;
     if (!file.type.startsWith('image/')) {
       toast({
         title: 'Invalid file type',
@@ -273,10 +366,10 @@ export function AppSidebar() {
       await refreshCompanies();
       toast({
         title: 'Logo updated',
-        description: 'Your Design Pro logo has been saved.',
+        description: isVendorWorkspace ? 'Your vendor logo has been saved.' : 'Your Design Pro logo has been saved.',
       });
     } catch (error: any) {
-      console.error('Failed to upload Design Pro sidebar logo:', error);
+        console.error('Failed to upload workspace sidebar logo:', error);
       toast({
         title: 'Upload failed',
         description: error?.message || 'Could not upload your logo.',
@@ -286,6 +379,7 @@ export function AppSidebar() {
       setUploadingSidebarLogo(false);
     }
   };
+  const workspaceLogoPrompt = isVendorWorkspace ? 'Upload Your Logo' : 'Upload Your Logo';
 
   const isItemRouteActive = (item: { href: string }, categoryTitle?: string) => {
     const pathnameMatch =
@@ -357,12 +451,9 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader>
         <div className="relative flex items-center justify-center p-2 min-h-[60px] w-full">
-          {currentCompany?.logo_url ? (
+          {resolveCompanyLogoUrl(currentCompany?.logo_url) ? (
             <img 
-              src={currentCompany.logo_url.includes('http') 
-                ? currentCompany.logo_url 
-                : `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${currentCompany.logo_url.replace('company-logos/', '')}`
-              } 
+              src={resolveCompanyLogoUrl(currentCompany?.logo_url)}
               alt="Company Logo" 
               className="h-full w-full object-contain max-h-12" 
               onError={(e) => {
@@ -372,17 +463,17 @@ export function AppSidebar() {
               }}
             />
           ) : null}
-          {!currentCompany?.logo_url && !canUploadDesignProLogo && (
+          {!resolveCompanyLogoUrl(currentCompany?.logo_url) && !canUploadWorkspaceLogo && (
             <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center">
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           )}
-          {currentCompany?.logo_url && (
+          {resolveCompanyLogoUrl(currentCompany?.logo_url) && (
             <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center hidden">
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           )}
-          {canUploadDesignProLogo && (
+          {canUploadWorkspaceLogo && (
             <>
               <input
                 ref={logoInputRef}
@@ -413,7 +504,7 @@ export function AppSidebar() {
                         Click Here To
                       </span>
                       <span className="block text-[11px] font-medium leading-tight text-primary">
-                        Upload Your Logo
+                        {workspaceLogoPrompt}
                       </span>
                     </div>
                   </div>
@@ -426,22 +517,22 @@ export function AppSidebar() {
       
       <SidebarContent className="gap-0 sidebar-scroll-area">
         {!loading && sidebarCategories.filter((category) => {
-          if (isDesignProfessionalWorkspace) return true;
+          if (isDesignProfessionalWorkspace || isVendorWorkspace) return true;
           if (!isExternalUser) return true;
-          if (profileRole === 'vendor') {
-            return category.title === 'Dashboard';
-          }
           return false;
         }).filter((category: any) => {
-          const allowedTypes = (category.companyTypes as CompanyType[] | undefined) || ['construction', 'design_professional'];
+          const allowedTypes = (category.companyTypes as CompanyType[] | undefined) || ['construction', 'design_professional', 'vendor'];
           return allowedTypes.includes(companyType);
+        }).filter((category) => {
+          if (!isVendorWorkspace) return true;
+          return vendorVisibleCategoryTitles.has(category.title);
         }).map((category) => {
           const isDashboard = category.title === "Dashboard";
           const isDirectLink = !category.collapsible;
           
            // Filter items based on permissions and role
            const visibleItems = category.items.flatMap((item) => {
-             const itemAllowedTypes = ((item as any).companyTypes as CompanyType[] | undefined) || ['construction', 'design_professional'];
+             const itemAllowedTypes = ((item as any).companyTypes as CompanyType[] | undefined) || ['construction', 'design_professional', 'vendor'];
              if (!itemAllowedTypes.includes(companyType)) return [];
              const superAdminOnly = 'superAdminOnly' in item && !!(item as any).superAdminOnly;
              if (superAdminOnly && !isSuperAdmin) return [];
@@ -452,8 +543,7 @@ export function AppSidebar() {
              const employeeHidden = 'employeeHidden' in item && !!(item as any).employeeHidden;
              if (employeeHidden && effectiveRole === 'employee') return [];
 
-             if (isDesignProfessionalWorkspace) {
-               // Design Professional workspace uses its own dedicated nav model.
+             if (isDesignProfessionalWorkspace || isVendorWorkspace) {
                return [{ ...(item as any), _locked: false }];
              }
 
@@ -629,6 +719,12 @@ export default function Layout() {
   const { profile, signOut } = useAuth();
   const effectiveRole = String(profile?.role || '').trim().toLowerCase();
   const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
+  const profileSettingsHref =
+    effectiveRole === 'vendor'
+      ? '/vendor/profile-settings'
+      : effectiveRole === 'design_professional'
+      ? '/design-professional/profile-settings'
+      : '/profile-settings';
   const isPunchClockPage = location.pathname === '/time-tracking';
   const [impersonationMode, setImpersonationMode] = useState(false);
 
@@ -673,7 +769,7 @@ export default function Layout() {
                 {!isExternalUser && <CompanySwitcher />}
                 <DateTimeDisplay />
                 <Button asChild variant="ghost" className="flex items-center gap-2 h-8 px-2">
-                  <Link to="/profile-settings">
+                  <Link to={profileSettingsHref}>
                     <div className="h-7 w-7 rounded-full bg-primary/10 flex items-center justify-center overflow-hidden">
                       {profile?.avatar_url ? (
                         <img

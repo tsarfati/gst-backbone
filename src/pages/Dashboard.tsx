@@ -17,14 +17,15 @@ import { useActionPermissions } from '@/hooks/useActionPermissions';
 import { useDashboardPermissions } from '@/hooks/useDashboardPermissions';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
-import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
+import { canAccessAssignedJobOnly, canAccessJobIds } from '@/utils/jobAccess';
 import BillsNeedingCoding from '@/components/BillsNeedingCoding';
 import CreditCardCodingRequests from '@/components/CreditCardCodingRequests';
 import UserAvatar from '@/components/UserAvatar';
 import MessageThreadView from '@/components/MessageThreadView';
 import {
+  hydrateNonDirectMessageReadsFromServer,
   isNonDirectMessageReadStored,
-  persistNonDirectMessageReadStored,
+  persistNonDirectMessageReadEverywhere,
 } from '@/utils/nonDirectMessageRead';
 
 interface Notification {
@@ -237,7 +238,7 @@ export default function Dashboard() {
 
   const persistNonDirectMessageRead = (message: Pick<Message, "message_source" | "source_record_id" | "id">) => {
     if (!message.message_source || message.message_source === "direct") return;
-    persistNonDirectMessageReadStored(message, user?.id, currentCompany?.id);
+    void persistNonDirectMessageReadEverywhere(message, user?.id, currentCompany?.id);
   };
 
   const wasMentionedInMessage = (content: string) => {
@@ -262,10 +263,13 @@ export default function Dashboard() {
 
   useEffect(() => {
     if (user && currentCompany && !websiteJobAccessLoading) {
-      fetchNotifications();
-      fetchMessages();
-      fetchDashboardSettings();
-      fetchDashboardStats();
+      void (async () => {
+        await hydrateNonDirectMessageReadsFromServer(user.id, currentCompany.id);
+        fetchNotifications();
+        fetchMessages();
+        fetchDashboardSettings();
+        fetchDashboardStats();
+      })();
     }
   }, [user, currentCompany, activeCompanyRole, profile?.role, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
@@ -282,7 +286,7 @@ export default function Dashboard() {
       
       if (!uncodedError) {
         const visibleUncoded = (uncodedData || []).filter((row: any) =>
-          canAccessAssignedJobOnly([row.job_id], isPrivileged, allowedJobIds),
+          canAccessJobIds([row.job_id], isPrivileged, allowedJobIds),
         );
         setUncodedReceiptsCount(visibleUncoded.length);
       }

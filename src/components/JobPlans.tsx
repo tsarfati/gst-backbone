@@ -21,6 +21,7 @@ import { useUnifiedViewPreference, type UnifiedViewType } from "@/hooks/useUnifi
 
 interface JobPlansProps {
   jobId: string;
+  canUpload?: boolean;
 }
 
 interface JobPlan {
@@ -162,7 +163,7 @@ function PlanDisciplineIcon({ plan, className = "h-8 w-8" }: { plan: Pick<JobPla
   }
 }
 
-export default function JobPlans({ jobId }: JobPlansProps) {
+export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const navigate = useNavigate();
@@ -760,10 +761,12 @@ export default function JobPlans({ jobId }: JobPlansProps) {
             }}
             isDefault={isDefault}
           />
-          <Button onClick={() => openUploadDialogWithFile(null)}>
+          {canUpload && (
+            <Button onClick={() => openUploadDialogWithFile(null)}>
             <Upload className="h-4 w-4 mr-2" />
             Upload Plan Set
-          </Button>
+            </Button>
+          )}
         </div>
       </div>
 
@@ -772,18 +775,22 @@ export default function JobPlans({ jobId }: JobPlansProps) {
           <CardContent className="flex flex-col items-center justify-center py-10">
             <FileText className="h-12 w-12 text-muted-foreground mb-4" />
             <p className="text-muted-foreground text-center">
-              No plan sets uploaded yet. Click "Upload Plan Set" to get started, or drop a plan set here.
+              {canUpload
+                ? 'No plan sets uploaded yet. Click "Upload Plan Set" to get started, or drop a plan set here.'
+                : "No plan sets uploaded yet."}
             </p>
-            <div className="mt-5 w-full max-w-xl">
-              <DragDropUpload
-                onFileSelect={(file) => openUploadDialogWithFile(file)}
-                accept=".pdf,.dwg,.dxf"
-                maxSize={PLAN_UPLOAD_MAX_SIZE_MB}
-                title="Drag plan set file here"
-                dropTitle="Drop plan set file here"
-                helperText={`PDF, DWG, or DXF up to ${PLAN_UPLOAD_MAX_SIZE_MB}MB`}
-              />
-            </div>
+            {canUpload && (
+              <div className="mt-5 w-full max-w-xl">
+                <DragDropUpload
+                  onFileSelect={(file) => openUploadDialogWithFile(file)}
+                  accept=".pdf,.dwg,.dxf"
+                  maxSize={PLAN_UPLOAD_MAX_SIZE_MB}
+                  title="Drag plan set file here"
+                  dropTitle="Drop plan set file here"
+                  helperText={`PDF, DWG, or DXF up to ${PLAN_UPLOAD_MAX_SIZE_MB}MB`}
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
       ) : currentView === "list" ? (

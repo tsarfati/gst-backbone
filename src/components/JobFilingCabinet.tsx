@@ -151,6 +151,8 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const vendorCanAccessCabinet = (!isVendorPortalUser || vendorCabinetAccess.allowed) && roleCanViewCabinet;
   const vendorCanWriteCabinet = (!isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.accessLevel === "read_write")) && roleCanUploadCabinet;
   const vendorCanDownloadCabinet = (!isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.canDownload)) && roleCanDownloadCabinet;
+  const vendorCanDeleteCabinet = vendorCanWriteCabinet && roleCanDeleteCabinet;
+  const vendorCanShareCabinet = vendorCanWriteCabinet && roleCanShareCabinet;
 
   useEffect(() => {
     const key = `job-filing-columns:${companyId || "default"}:${user?.id || "anon"}`;
@@ -630,7 +632,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   };
 
   const handleDelete = async () => {
-    if (!roleCanDeleteCabinet) {
+    if (!vendorCanDeleteCabinet) {
       toast({ title: "No access", description: "You do not have permission to delete files/folders in this filing cabinet.", variant: "destructive" });
       return;
     }
@@ -955,7 +957,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
               <Badge variant="secondary" className="text-xs">
                 {selectedFileIds.size} selected
               </Badge>
-              {roleCanShareCabinet && (
+              {vendorCanShareCabinet && (
                 <Button
                   size="sm"
                   variant="outline"
@@ -1189,7 +1191,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                       </DropdownMenuItem>
                       {!node.is_system_folder && (
                         <DropdownMenuItem
-                          disabled={!roleCanDeleteCabinet}
+                          disabled={!vendorCanDeleteCabinet}
                           className="text-destructive"
                           onClick={() => setDeleteItem({ type: 'folder', id: node.id, name: node.name })}
                         >
@@ -1305,7 +1307,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                             <Button variant="ghost" size="icon" className="h-7 w-7" disabled={!vendorCanDownloadCabinet} onClick={() => downloadFile(file)}>
                               <Download className="h-3.5 w-3.5" />
                             </Button>
-                            {roleCanShareCabinet && (
+                            {vendorCanShareCabinet && (
                               <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => setShareFiles([file])}>
                                 <Share2 className="h-3.5 w-3.5" />
                               </Button>
@@ -1321,7 +1323,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
                                   <Pencil className="h-4 w-4 mr-2" /> Rename
                                 </DropdownMenuItem>
                                 <DropdownMenuItem
-                                  disabled={!roleCanDeleteCabinet}
+                                  disabled={!vendorCanDeleteCabinet}
                                   className="text-destructive"
                                   onClick={() => setDeleteItem({ type: 'file', id: file.id, name: file.file_name })}
                                 >
