@@ -8,6 +8,9 @@ import { supabase } from "@/integrations/supabase/client";
 
 const SETTINGS_KEY = "dashboard_non_direct_read_tokens";
 const MAX_STORED_TOKENS = 500;
+const TABLE_NAME = "non_direct_message_reads";
+const readTokenCache = new Map<string, Set<string>>();
+const pendingWrites = new Set<Promise<void>>();
 
 const buildStorageKeys = (userId?: string | null, companyId?: string | null) => {
   const keys: string[] = [];
@@ -20,10 +23,23 @@ const buildStorageKeys = (userId?: string | null, companyId?: string | null) => 
   return keys;
 };
 
+const buildCacheKey = (userId?: string | null, companyId?: string | null) =>
+  `${companyId || "global"}:${userId || "anonymous"}`;
+
 export const buildNonDirectReadToken = (message: MessageReadTokenInput) => {
   const source = String(message.message_source || "unknown");
   const sourceId = String(message.source_record_id || message.id || "");
   return `${source}:${sourceId}`;
+};
+
+const parseNonDirectReadToken = (token: string) => {
+  const separatorIndex = token.indexOf(":");
+  if (separatorIndex <= 0) return null;
+
+  return {
+    message_source: token.slice(0, separatorIndex),
+    source_record_id: token.slice(separatorIndex + 1),
+  };
 };
 
 const readStoredTokenSet = (key: string) => {
@@ -46,12 +62,24 @@ const writeStoredTokenSet = (key: string, values: Set<string>) => {
   }
 };
 
+const getCachedTokenSet = (userId?: string | null, companyId?: string | null) =>
+  readTokenCache.get(buildCacheKey(userId, companyId)) || new Set<string>();
+
+const cacheTokenSet = (
+  tokens: Iterable<string>,
+  userId?: string | null,
+  companyId?: string | null,
+) => {
+  readTokenCache.set(buildCacheKey(userId, companyId), new Set(tokens));
+};
+
 export const isNonDirectMessageReadStored = (
   message: MessageReadTokenInput,
   userId?: string | null,
   companyId?: string | null,
 ) => {
   const token = buildNonDirectReadToken(message);
+  if (getCachedTokenSet(userId, companyId).has(token)) return true;
   const keys = buildStorageKeys(userId, companyId);
   return keys.some((key) => readStoredTokenSet(key).has(token));
 };
@@ -62,6 +90,9 @@ export const persistNonDirectMessageReadStored = (
   companyId?: string | null,
 ) => {
   const token = buildNonDirectReadToken(message);
+  const merged = new Set<string>(getCachedTokenSet(userId, companyId));
+  merged.add(token);
+  cacheTokenSet(merged, userId, companyId);
   const keys = buildStorageKeys(userId, companyId);
   keys.forEach((key) => {
     try {
@@ -81,6 +112,15 @@ export const hydrateNonDirectMessageReadsFromServer = async (
   if (!userId || !companyId) return new Set<string>();
 
   try {
+    const { data: readRows, error: readRowsError } = await supabase
+      .from(TABLE_NAME as any)
+      .select("message_source, source_record_id")
+      .eq("user_id", userId)
+      .eq("company_id", companyId);
+    if (readRowsError && readRowsError.code !== "PGRST205" && readRowsError.code !== "42P01") {
+      throw readRowsError;
+    }
+
     const { data, error } = await supabase
       .from("company_ui_settings")
       .select("settings")
@@ -94,12 +134,47 @@ export const hydrateNonDirectMessageReadsFromServer = async (
       ? settings[SETTINGS_KEY].filter((value: unknown) => typeof value === "string")
       : [];
 
-    const merged = new Set<string>(serverTokens);
+    const tableTokens = (readRows || []).map((row: any) =>
+      buildNonDirectReadToken({
+        message_source: row.message_source,
+        source_record_id: row.source_record_id,
+      }),
+    );
+
+    const merged = new Set<string>([...serverTokens, ...tableTokens]);
     buildStorageKeys(userId, companyId).forEach((key) => {
       readStoredTokenSet(key).forEach((token) => merged.add(token));
     });
 
+    cacheTokenSet(merged, userId, companyId);
     buildStorageKeys(userId, companyId).forEach((key) => writeStoredTokenSet(key, merged));
+
+    const legacyOnlyTokens = serverTokens.filter((token) => !tableTokens.includes(token));
+    if (legacyOnlyTokens.length > 0) {
+      const rows = legacyOnlyTokens
+        .map(parseNonDirectReadToken)
+        .filter((row): row is { message_source: string; source_record_id: string } => !!row)
+        .map((row) => ({
+          user_id: userId,
+          company_id: companyId,
+          message_source: row.message_source,
+          source_record_id: row.source_record_id,
+        }));
+
+      if (rows.length > 0) {
+        const { error: backfillError } = await supabase
+          .from(TABLE_NAME as any)
+          .upsert(rows, {
+            onConflict: "user_id,company_id,message_source,source_record_id",
+            ignoreDuplicates: true,
+          });
+
+        if (backfillError && backfillError.code !== "PGRST205" && backfillError.code !== "42P01") {
+          console.error("Failed to backfill legacy non-direct read markers:", backfillError);
+        }
+      }
+    }
+
     return merged;
   } catch (error) {
     console.error("Failed to hydrate non-direct read markers:", error);
@@ -119,37 +194,70 @@ export const persistNonDirectMessageReadEverywhere = async (
 
   persistNonDirectMessageReadStored(message, userId, companyId);
 
-  try {
+  const writePromise = (async () => {
     const token = buildNonDirectReadToken(message);
-    const { data: existing, error: existingError } = await supabase
-      .from("company_ui_settings")
-      .select("settings")
-      .eq("user_id", userId)
-      .eq("company_id", companyId)
-      .maybeSingle();
-    if (existingError) throw existingError;
+    try {
+      const parsedToken = parseNonDirectReadToken(token);
+      if (parsedToken) {
+        const { error: tableError } = await supabase
+          .from(TABLE_NAME as any)
+          .upsert({
+            user_id: userId,
+            company_id: companyId,
+            message_source: parsedToken.message_source,
+            source_record_id: parsedToken.source_record_id,
+          }, {
+            onConflict: "user_id,company_id,message_source,source_record_id",
+          });
 
-    const settings = (existing?.settings as Record<string, any> | null) || {};
-    const currentTokens = Array.isArray(settings[SETTINGS_KEY])
-      ? settings[SETTINGS_KEY].filter((value: unknown) => typeof value === "string")
-      : [];
-    const merged = new Set<string>(currentTokens);
-    merged.add(token);
+        if (tableError && tableError.code !== "PGRST205" && tableError.code !== "42P01") {
+          throw tableError;
+        }
+      }
 
-    const { error } = await supabase
-      .from("company_ui_settings")
-      .upsert({
-        user_id: userId,
-        company_id: companyId,
-        settings: {
-          ...settings,
-          [SETTINGS_KEY]: Array.from(merged).slice(-MAX_STORED_TOKENS),
-        },
-      }, {
-        onConflict: "user_id,company_id",
-      });
-    if (error) throw error;
-  } catch (error) {
-    console.error("Failed to persist non-direct read marker:", error);
+      const { data: existing, error: existingError } = await supabase
+        .from("company_ui_settings")
+        .select("settings")
+        .eq("user_id", userId)
+        .eq("company_id", companyId)
+        .maybeSingle();
+      if (existingError) throw existingError;
+
+      const settings = (existing?.settings as Record<string, any> | null) || {};
+      const currentTokens = Array.isArray(settings[SETTINGS_KEY])
+        ? settings[SETTINGS_KEY].filter((value: unknown) => typeof value === "string")
+        : [];
+      const merged = new Set<string>(currentTokens);
+      merged.add(token);
+
+      const { error } = await supabase
+        .from("company_ui_settings")
+        .upsert({
+          user_id: userId,
+          company_id: companyId,
+          settings: {
+            ...settings,
+            [SETTINGS_KEY]: Array.from(merged).slice(-MAX_STORED_TOKENS),
+          },
+        }, {
+          onConflict: "user_id,company_id",
+        });
+      if (error) throw error;
+    } catch (error) {
+      console.error("Failed to persist non-direct read marker:", error);
+      throw error;
+    }
+  })();
+
+  pendingWrites.add(writePromise);
+  try {
+    await writePromise;
+  } finally {
+    pendingWrites.delete(writePromise);
   }
+};
+
+export const flushPendingNonDirectMessageReadWrites = async () => {
+  if (pendingWrites.size === 0) return;
+  await Promise.allSettled(Array.from(pendingWrites));
 };

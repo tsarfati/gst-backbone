@@ -3,6 +3,7 @@ import { User, Session } from '@supabase/supabase-js';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
+import { flushPendingNonDirectMessageReadWrites } from '@/utils/nonDirectMessageRead';
 
 interface AuthContextType {
   user: User | null;
@@ -250,6 +251,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const signOut = async () => {
     // Clear local state first to prevent race conditions with LandingPage redirect
+    await flushPendingNonDirectMessageReadWrites();
     setUser(null);
     setSession(null);
     setProfile(null);

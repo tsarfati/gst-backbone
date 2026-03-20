@@ -238,7 +238,7 @@ export default function Dashboard() {
 
   const persistNonDirectMessageRead = (message: Pick<Message, "message_source" | "source_record_id" | "id">) => {
     if (!message.message_source || message.message_source === "direct") return;
-    void persistNonDirectMessageReadEverywhere(message, user?.id, currentCompany?.id);
+    return persistNonDirectMessageReadEverywhere(message, user?.id, currentCompany?.id);
   };
 
   const wasMentionedInMessage = (content: string) => {
@@ -772,11 +772,11 @@ export default function Dashboard() {
     setShowThreadView(true);
   };
 
-  const markLocalMessageRead = (message: Message) => {
-    persistNonDirectMessageRead(message);
+  const markLocalMessageRead = async (message: Message) => {
     setMessages((prev) =>
       prev.map((m) => (m.id === message.id ? { ...m, read: true } : m)),
     );
+    await persistNonDirectMessageRead(message);
   };
 
   const closeMessageThread = () => {
@@ -933,7 +933,7 @@ export default function Dashboard() {
   const markMessageAsRead = async (messageId: string) => {
     const message = messages.find((m) => m.id === messageId);
     if (message?.message_source && message.message_source !== 'direct') {
-      markLocalMessageRead(message);
+      await markLocalMessageRead(message);
       return;
     }
 
@@ -956,7 +956,7 @@ export default function Dashboard() {
   const markConversationAsRead = async (message: Message) => {
     if (!user) return;
     if (message.message_source && message.message_source !== 'direct') {
-      markLocalMessageRead(message);
+      await markLocalMessageRead(message);
       return;
     }
 
@@ -1259,9 +1259,9 @@ export default function Dashboard() {
                               size="sm"
                               variant="ghost"
                               className="h-7 w-7 p-0 shrink-0"
-                              onClick={(e) => {
+                              onClick={async (e) => {
                                 e.stopPropagation();
-                                markMessageAsRead(message.id);
+                                await markMessageAsRead(message.id);
                               }}
                             >
                               <X className="h-3.5 w-3.5" />
