@@ -210,6 +210,7 @@ export default function UserDetails() {
   const [userFiles, setUserFiles] = useState<UserProfileFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [uploadingUserFile, setUploadingUserFile] = useState(false);
+  const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
   const [fileLabel, setFileLabel] = useState('');
   const [fileDescription, setFileDescription] = useState('');
@@ -644,6 +645,75 @@ export default function UserDetails() {
     setEditing(false);
   };
 
+  const persistAvatarUrl = async (avatarUrl: string | null) => {
+    if (!user?.user_id) return;
+
+    const { error } = await supabase
+      .from('profiles')
+      .update({ avatar_url: avatarUrl })
+      .eq('user_id', user.user_id);
+
+    if (error) throw error;
+
+    setUser((prev) => (prev ? { ...prev, avatar_url: avatarUrl || undefined } : null));
+  };
+
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    if (!file || !user?.user_id) return;
+
+    setUploadingAvatar(true);
+    try {
+      const fileExt = file.name.split('.').pop() || 'jpg';
+      const filePath = `${user.user_id}/avatar-${Date.now()}.${fileExt}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('avatars')
+        .upload(filePath, file, { upsert: true });
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage.from('avatars').getPublicUrl(filePath);
+      await persistAvatarUrl(data.publicUrl);
+
+      toast({
+        title: 'Avatar updated',
+        description: 'The user avatar was updated successfully.',
+      });
+    } catch (error) {
+      console.error('Error uploading avatar:', error);
+      toast({
+        title: 'Upload failed',
+        description: 'Failed to update the user avatar.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const handleRemoveAvatar = async () => {
+    if (!user?.user_id) return;
+
+    setUploadingAvatar(true);
+    try {
+      await persistAvatarUrl(null);
+      toast({
+        title: 'Avatar removed',
+        description: 'The user avatar was removed successfully.',
+      });
+    } catch (error) {
+      console.error('Error removing avatar:', error);
+      toast({
+        title: 'Remove failed',
+        description: 'Failed to remove the user avatar.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const triggerJobAccessSave = () => {
     if (isVendorUser) return;
     const jobAccessEl = document.getElementById('job-access-section');
@@ -940,10 +1010,44 @@ export default function UserDetails() {
         </CardHeader>
         <CardContent>
           <div className="flex items-start gap-6">
-            <Avatar className="h-24 w-24">
-              <AvatarImage src={user.avatar_url} />
-              <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
-            </Avatar>
+            <div className="flex w-32 shrink-0 flex-col items-center gap-3">
+              <Avatar className="h-24 w-24">
+                <AvatarImage src={user.avatar_url} />
+                <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
+              </Avatar>
+              {editing && canManage && (
+                <div className="flex w-full flex-col gap-2">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    disabled={uploadingAvatar}
+                    onClick={() => document.getElementById('user-details-avatar-upload')?.click()}
+                  >
+                    <Upload className="mr-2 h-4 w-4" />
+                    {uploadingAvatar ? 'Uploading...' : 'Change Avatar'}
+                  </Button>
+                  {user.avatar_url && (
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      size="sm"
+                      disabled={uploadingAvatar}
+                      onClick={() => void handleRemoveAvatar()}
+                    >
+                      Remove Avatar
+                    </Button>
+                  )}
+                  <input
+                    id="user-details-avatar-upload"
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    onChange={handleAvatarUpload}
+                  />
+                </div>
+              )}
+            </div>
             <div className="flex-1 space-y-4">
               {editing ? (
                 <div className="space-y-4">
