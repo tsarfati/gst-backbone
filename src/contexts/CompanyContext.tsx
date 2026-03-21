@@ -239,7 +239,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
       if (companyError) throw companyError;
 
       await preloadCompanyLogo(companyData.logo_url);
-      setCurrentCompany(companyData);
+      setCurrentCompany(companyData as Company);
 
       toast({
         title: "Switched companies",
