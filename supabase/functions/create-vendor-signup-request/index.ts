@@ -552,35 +552,40 @@ serve(async (req: Request): Promise<Response> => {
         if (insertExternalAccessError) throw insertExternalAccessError;
       }
 
-      const { data: existingPendingRequest, error: existingPendingRequestError } = await supabase
+      const approvedOrPendingStatus = externalAccessNeedsApproval ? "pending" : "approved";
+      const reviewedAt = externalAccessNeedsApproval ? null : new Date().toISOString();
+      const reviewedBy = externalAccessNeedsApproval ? null : userId;
+
+      const { data: existingExternalRequest, error: existingExternalRequestError } = await supabase
         .from("company_access_requests")
-        .select("id")
+        .select("id, status")
         .eq("user_id", userId)
         .eq("company_id", externalCompanyId)
-        .eq("status", "pending")
         .order("created_at", { ascending: false })
         .limit(1)
         .maybeSingle();
-      if (existingPendingRequestError) throw existingPendingRequestError;
+      if (existingExternalRequestError) throw existingExternalRequestError;
 
-      if (existingPendingRequest?.id) {
+      if (existingExternalRequest?.id) {
         const { error: updateRequestError } = await supabase
           .from("company_access_requests")
           .update({
-            status: externalAccessNeedsApproval ? "pending" : "approved",
+            status: approvedOrPendingStatus,
             notes: JSON.stringify(notesPayload),
-            reviewed_at: externalAccessNeedsApproval ? null : new Date().toISOString(),
-            reviewed_by: externalAccessNeedsApproval ? null : userId,
+            reviewed_at: reviewedAt,
+            reviewed_by: reviewedBy,
             requested_at: new Date().toISOString(),
           })
-          .eq("id", existingPendingRequest.id);
+          .eq("id", existingExternalRequest.id);
         if (updateRequestError) throw updateRequestError;
-      } else if (externalAccessNeedsApproval) {
+      } else {
         const { error: requestError } = await supabase.from("company_access_requests").insert({
           user_id: userId,
           company_id: externalCompanyId,
-          status: "pending",
+          status: approvedOrPendingStatus,
           requested_at: new Date().toISOString(),
+          reviewed_at: reviewedAt,
+          reviewed_by: reviewedBy,
           notes: JSON.stringify(notesPayload),
         });
         if (requestError) throw requestError;

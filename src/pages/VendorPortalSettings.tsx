@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useVendorPortalData } from "@/hooks/useVendorPortalData";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
 import { useVendorPortalAccess, type VendorPortalRole } from "@/hooks/useVendorPortalAccess";
 import { supabase } from "@/integrations/supabase/client";
 
@@ -35,6 +36,7 @@ const VENDOR_ROLE_OPTIONS: Array<{ value: VendorPortalRole; label: string }> = [
 export default function VendorPortalSettings() {
   const { toast } = useToast();
   const { profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { roleCaps } = useVendorPortalAccess();
   const {
     loading,
@@ -59,8 +61,33 @@ export default function VendorPortalSettings() {
   const [vendorUsers, setVendorUsers] = useState<VendorUserProfile[]>([]);
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
+  const [workspaceLogoOverride, setWorkspaceLogoOverride] = useState<string | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const voidedCheckInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (!currentCompany?.id) {
+      setWorkspaceLogoOverride(null);
+      return;
+    }
+    setWorkspaceLogoOverride(window.localStorage.getItem(`workspace-logo:${currentCompany.id}`));
+
+    const handleWorkspaceLogoUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ companyId: string; storagePath: string }>).detail;
+      if (!detail?.companyId || detail.companyId !== currentCompany.id) return;
+      setWorkspaceLogoOverride(detail.storagePath);
+    };
+
+    window.addEventListener("workspace-logo-updated", handleWorkspaceLogoUpdated as EventListener);
+    return () => {
+      window.removeEventListener("workspace-logo-updated", handleWorkspaceLogoUpdated as EventListener);
+    };
+  }, [currentCompany?.id]);
+
+  const resolvedCompanyLogo = useMemo(
+    () => resolveCompanyLogoUrl(workspaceLogoOverride || currentCompany?.logo_url || settingsForm.logo_url),
+    [workspaceLogoOverride, currentCompany?.logo_url, settingsForm.logo_url],
+  );
 
   useEffect(() => {
     setPaymentType(paymentMethod?.type || "check");
@@ -228,8 +255,8 @@ export default function VendorPortalSettings() {
               <div className="space-y-2">
                 <Label>Company Logo</Label>
                 <div className="flex items-center gap-4 rounded-lg border p-4">
-                  {resolveCompanyLogoUrl(settingsForm.logo_url) ? (
-                    <img src={resolveCompanyLogoUrl(settingsForm.logo_url)!} alt="Vendor logo" className="h-16 w-auto max-w-[180px] object-contain" />
+                  {resolvedCompanyLogo ? (
+                    <img src={resolvedCompanyLogo} alt="Vendor logo" className="h-16 w-auto max-w-[180px] object-contain" />
                   ) : (
                     <div className="flex h-16 w-16 items-center justify-center rounded border text-xs text-muted-foreground">No logo</div>
                   )}

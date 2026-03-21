@@ -17,8 +17,13 @@ import { useToast } from '@/hooks/use-toast';
 import { useTierNavigationSettings } from '@/hooks/useTierNavigationSettings';
 import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 import { useVendorPortalAccess } from '@/hooks/useVendorPortalAccess';
+import { supabase } from '@/integrations/supabase/client';
 
 type CompanyType = 'construction' | 'design_professional' | 'vendor';
+type WorkspaceLogoUpdatedDetail = {
+  companyId: string;
+  storagePath: string;
+};
 
 const navigationCategories = [
   {
@@ -300,7 +305,12 @@ export function AppSidebar() {
   const { roleCaps: vendorRoleCaps } = useVendorPortalAccess();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
   const [uploadingSidebarLogo, setUploadingSidebarLogo] = useState(false);
+  const [workspaceLogoPath, setWorkspaceLogoPath] = useState<string | null>(null);
+  const [workspaceLogoPreviewUrl, setWorkspaceLogoPreviewUrl] = useState<string | null>(null);
+  const [workspaceLogoOverridePath, setWorkspaceLogoOverridePath] = useState<string | null>(null);
+  const [isDraggingWorkspaceLogo, setIsDraggingWorkspaceLogo] = useState(false);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
+  const lastWorkspaceCompanyIdRef = useRef<string | null>(null);
   const profileRole = String(profile?.role || '').trim().toLowerCase();
   const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
   const isExternalUser = profileRole === 'vendor' || profileRole === 'design_professional';
@@ -331,10 +341,69 @@ export function AppSidebar() {
       vendorRoleCaps.canAccessSettings && "Settings",
     ].filter(Boolean) as string[],
   );
+  const resolvedWorkspaceLogoUrl =
+    workspaceLogoPreviewUrl ||
+    resolveCompanyLogoUrl(workspaceLogoPath || workspaceLogoOverridePath || currentCompany?.logo_url);
   const canUploadWorkspaceLogo =
     (isDesignProfessionalWorkspace || isVendorWorkspace)
-    && !currentCompany?.logo_url
+    && !resolvedWorkspaceLogoUrl
     && ['owner', 'admin', 'company_admin'].includes(effectiveRole);
+
+  useEffect(() => {
+    const currentCompanyId = currentCompany?.id || null;
+    const companyChanged = lastWorkspaceCompanyIdRef.current !== currentCompanyId;
+    lastWorkspaceCompanyIdRef.current = currentCompanyId;
+    const storageKey = currentCompanyId ? `workspace-logo:${currentCompanyId}` : null;
+    const storedOverride = storageKey ? window.localStorage.getItem(storageKey) : null;
+
+    if (companyChanged) {
+      setWorkspaceLogoPath(currentCompany?.logo_url || null);
+      setWorkspaceLogoOverridePath(storedOverride || null);
+      if (workspaceLogoPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(workspaceLogoPreviewUrl);
+      }
+      setWorkspaceLogoPreviewUrl(null);
+      return;
+    }
+
+    if (currentCompany?.logo_url) {
+      setWorkspaceLogoPath(currentCompany.logo_url);
+      setWorkspaceLogoOverridePath(currentCompany.logo_url);
+      if (storageKey) {
+        window.localStorage.setItem(storageKey, currentCompany.logo_url);
+      }
+      if (workspaceLogoPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(workspaceLogoPreviewUrl);
+      }
+      setWorkspaceLogoPreviewUrl(null);
+    }
+  }, [currentCompany?.id, currentCompany?.logo_url]);
+
+  useEffect(() => {
+    return () => {
+      if (workspaceLogoPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(workspaceLogoPreviewUrl);
+      }
+    };
+  }, [workspaceLogoPreviewUrl]);
+
+  useEffect(() => {
+    const handleWorkspaceLogoUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<WorkspaceLogoUpdatedDetail>).detail;
+      if (!detail?.companyId || detail.companyId !== currentCompany?.id) return;
+      setWorkspaceLogoPath(detail.storagePath);
+      setWorkspaceLogoOverridePath(detail.storagePath);
+      if (workspaceLogoPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(workspaceLogoPreviewUrl);
+      }
+      setWorkspaceLogoPreviewUrl(null);
+    };
+
+    window.addEventListener('workspace-logo-updated', handleWorkspaceLogoUpdated as EventListener);
+    return () => {
+      window.removeEventListener('workspace-logo-updated', handleWorkspaceLogoUpdated as EventListener);
+    };
+  }, [currentCompany?.id, workspaceLogoPreviewUrl]);
 
   const handleSidebarLogoUpload = async (file?: File | null) => {
     if (!file || !currentCompany?.id || !canUploadWorkspaceLogo) return;
@@ -349,6 +418,12 @@ export function AppSidebar() {
 
     try {
       setUploadingSidebarLogo(true);
+      const localPreviewUrl = URL.createObjectURL(file);
+      if (workspaceLogoPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(workspaceLogoPreviewUrl);
+      }
+      setWorkspaceLogoPreviewUrl(localPreviewUrl);
+
       const ext = file.name.split('.').pop() || 'png';
       const objectPath = `${currentCompany.id}/design-pro-logo-${Date.now()}.${ext}`;
       const { error: uploadError } = await supabase.storage
@@ -357,19 +432,36 @@ export function AppSidebar() {
       if (uploadError) throw uploadError;
 
       const storagePath = `company-logos/${objectPath}`;
-      const { error: updateError } = await supabase
+      window.localStorage.setItem(`workspace-logo:${currentCompany.id}`, storagePath);
+      window.dispatchEvent(new CustomEvent<WorkspaceLogoUpdatedDetail>('workspace-logo-updated', {
+        detail: {
+          companyId: currentCompany.id,
+          storagePath,
+        },
+      }));
+      const { data: updatedCompany, error: updateError } = await supabase
         .from('companies')
         .update({ logo_url: storagePath })
-        .eq('id', currentCompany.id);
+        .eq('id', currentCompany.id)
+        .select('id, logo_url');
       if (updateError) throw updateError;
+      if (!updatedCompany || (Array.isArray(updatedCompany) && updatedCompany.length === 0)) {
+        throw new Error('Company logo update did not persist.');
+      }
 
+      setWorkspaceLogoPath(storagePath);
+      setWorkspaceLogoOverridePath(storagePath);
       await refreshCompanies();
       toast({
         title: 'Logo updated',
         description: isVendorWorkspace ? 'Your vendor logo has been saved.' : 'Your Design Pro logo has been saved.',
       });
     } catch (error: any) {
-        console.error('Failed to upload workspace sidebar logo:', error);
+      if (workspaceLogoPreviewUrl?.startsWith('blob:')) {
+        URL.revokeObjectURL(workspaceLogoPreviewUrl);
+      }
+      setWorkspaceLogoPreviewUrl(null);
+      console.error('Failed to upload workspace sidebar logo:', error);
       toast({
         title: 'Upload failed',
         description: error?.message || 'Could not upload your logo.',
@@ -380,6 +472,14 @@ export function AppSidebar() {
     }
   };
   const workspaceLogoPrompt = isVendorWorkspace ? 'Upload Your Logo' : 'Upload Your Logo';
+  const workspaceLogoInstruction = 'Click here to upload or drag and drop';
+
+  const handleWorkspaceLogoDrop = (event: React.DragEvent<HTMLButtonElement>) => {
+    event.preventDefault();
+    setIsDraggingWorkspaceLogo(false);
+    if (uploadingSidebarLogo) return;
+    void handleSidebarLogoUpload(event.dataTransfer.files?.[0]);
+  };
 
   const isItemRouteActive = (item: { href: string }, categoryTitle?: string) => {
     const pathnameMatch =
@@ -451,24 +551,24 @@ export function AppSidebar() {
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader>
         <div className="relative flex items-center justify-center p-2 min-h-[60px] w-full">
-          {resolveCompanyLogoUrl(currentCompany?.logo_url) ? (
+          {resolvedWorkspaceLogoUrl ? (
             <img 
-              src={resolveCompanyLogoUrl(currentCompany?.logo_url)}
+              src={resolvedWorkspaceLogoUrl}
               alt="Company Logo" 
               className="h-full w-full object-contain max-h-12" 
               onError={(e) => {
-                console.error('Logo failed to load:', currentCompany.logo_url);
+                console.error('Logo failed to load:', workspaceLogoPath || currentCompany?.logo_url);
                 e.currentTarget.style.display = 'none';
                 (e.currentTarget.nextElementSibling as HTMLElement | null)?.classList.remove('hidden');
               }}
             />
           ) : null}
-          {!resolveCompanyLogoUrl(currentCompany?.logo_url) && !canUploadWorkspaceLogo && (
+          {!resolvedWorkspaceLogoUrl && !canUploadWorkspaceLogo && (
             <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center">
               <Building2 className="h-8 w-8 text-primary" />
             </div>
           )}
-          {resolveCompanyLogoUrl(currentCompany?.logo_url) && (
+          {resolvedWorkspaceLogoUrl && (
             <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center hidden">
               <Building2 className="h-8 w-8 text-primary" />
             </div>
@@ -488,22 +588,38 @@ export function AppSidebar() {
               <button
                 type="button"
                 onClick={() => logoInputRef.current?.click()}
-                className="absolute inset-2 rounded-md border border-dashed border-primary/40 bg-primary/5 px-3 transition-colors hover:bg-primary/10"
+                onDragOver={(event) => {
+                  event.preventDefault();
+                  setIsDraggingWorkspaceLogo(true);
+                }}
+                onDragEnter={(event) => {
+                  event.preventDefault();
+                  setIsDraggingWorkspaceLogo(true);
+                }}
+                onDragLeave={(event) => {
+                  event.preventDefault();
+                  if (event.currentTarget.contains(event.relatedTarget as Node | null)) return;
+                  setIsDraggingWorkspaceLogo(false);
+                }}
+                onDrop={handleWorkspaceLogoDrop}
+                className={`absolute inset-2 rounded-md border border-dashed px-3 transition-colors ${
+                  isDraggingWorkspaceLogo
+                    ? 'border-primary bg-primary/12'
+                    : 'border-primary/40 bg-primary/5 hover:bg-primary/10'
+                }`}
               >
                 {uploadingSidebarLogo ? (
                   <div className="flex h-full items-center justify-center">
                     <span className="text-xs font-medium text-primary">Uploading...</span>
                   </div>
                 ) : (
-                  <div className="relative flex h-full items-center justify-center">
-                    <div className="absolute left-1 top-1/2 -translate-y-1/2">
-                      <Building2 className="h-6 w-6 text-primary" />
-                    </div>
-                    <div className="-mt-1 text-center">
+                  <div className="flex h-full flex-col items-center justify-center gap-1 text-center">
+                    <Building2 className="h-6 w-6 text-primary" />
+                    <div>
                       <span className="block text-[11px] font-medium leading-tight text-primary">
-                        Click Here To
+                        {workspaceLogoInstruction}
                       </span>
-                      <span className="block text-[11px] font-medium leading-tight text-primary">
+                      <span className="block text-[10px] leading-tight text-primary/80">
                         {workspaceLogoPrompt}
                       </span>
                     </div>

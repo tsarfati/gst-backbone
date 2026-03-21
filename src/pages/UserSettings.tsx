@@ -107,6 +107,17 @@ const roleGroupDefs: RoleGroupDef[] = [
 
 const EXTERNAL_ACCESS_ROLES = ['vendor', 'design_professional'] as const;
 
+const parseRequestedRoleFromNotes = (notes?: string | null): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const requestedRole = String(parsed?.requestedRole || '').trim().toLowerCase();
+    return requestedRole || null;
+  } catch {
+    return null;
+  }
+};
+
 export default function UserSettings() {
   const [users, setUsers] = useState<UserProfile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -345,8 +356,27 @@ export default function UserSettings() {
 
       if (companyError) throw companyError;
 
-      const userIds = companyUsers?.map(u => u.user_id) || [];
       const roleMap = new Map(companyUsers?.map(u => [u.user_id, u.role]) || []);
+
+      // Fallback for vendor/design professional portal signups: if a durable company
+      // access request exists but the access row is missing, still surface the user
+      // in the external access lists so admins can manage them.
+      const { data: approvedExternalRequests, error: approvedExternalRequestsError } = await supabase
+        .from('company_access_requests')
+        .select('user_id, status, notes')
+        .eq('company_id', currentCompany.id)
+        .eq('status', 'approved');
+
+      if (approvedExternalRequestsError) throw approvedExternalRequestsError;
+
+      for (const request of approvedExternalRequests || []) {
+        const requestedRole = parseRequestedRoleFromNotes(request.notes);
+        if (requestedRole && EXTERNAL_ACCESS_ROLES.includes(requestedRole as typeof EXTERNAL_ACCESS_ROLES[number])) {
+          roleMap.set(request.user_id, requestedRole as UserProfile['role']);
+        }
+      }
+
+      const userIds = Array.from(roleMap.keys());
 
       // Fetch regular users
       const { data: regularUsers, error: profilesError } = await supabase

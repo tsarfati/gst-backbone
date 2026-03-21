@@ -52,11 +52,31 @@ export default function DesignProfessionalCompanySettings() {
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [form, setForm] = useState<CompanyForm>(blankForm);
+  const [workspaceLogoOverride, setWorkspaceLogoOverride] = useState<string | null>(null);
 
   const companyLogoUrl = useMemo(
-    () => resolveCompanyLogoUrl(currentCompany?.logo_url),
-    [currentCompany?.logo_url],
+    () => resolveCompanyLogoUrl(workspaceLogoOverride || currentCompany?.logo_url),
+    [workspaceLogoOverride, currentCompany?.logo_url],
   );
+
+  useEffect(() => {
+    if (!currentCompany?.id) {
+      setWorkspaceLogoOverride(null);
+      return;
+    }
+    setWorkspaceLogoOverride(window.localStorage.getItem(`workspace-logo:${currentCompany.id}`));
+
+    const handleWorkspaceLogoUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ companyId: string; storagePath: string }>).detail;
+      if (!detail?.companyId || detail.companyId !== currentCompany.id) return;
+      setWorkspaceLogoOverride(detail.storagePath);
+    };
+
+    window.addEventListener("workspace-logo-updated", handleWorkspaceLogoUpdated as EventListener);
+    return () => {
+      window.removeEventListener("workspace-logo-updated", handleWorkspaceLogoUpdated as EventListener);
+    };
+  }, [currentCompany?.id]);
 
   useEffect(() => {
     setForm({
@@ -150,11 +170,22 @@ export default function DesignProfessionalCompanySettings() {
       if (uploadError) throw uploadError;
 
       const storagePath = `company-logos/${objectPath}`;
-      const { error: updateError } = await supabase
+      window.localStorage.setItem(`workspace-logo:${currentCompany.id}`, storagePath);
+      window.dispatchEvent(new CustomEvent("workspace-logo-updated", {
+        detail: {
+          companyId: currentCompany.id,
+          storagePath,
+        },
+      }));
+      const { data: updatedCompanyRows, error: updateError } = await supabase
         .from("companies")
         .update({ logo_url: storagePath })
-        .eq("id", currentCompany.id);
+        .eq("id", currentCompany.id)
+        .select("id, logo_url");
       if (updateError) throw updateError;
+      if (!updatedCompanyRows || (Array.isArray(updatedCompanyRows) && updatedCompanyRows.length === 0)) {
+        throw new Error("Design professional logo update did not persist.");
+      }
 
       await refreshCompanies();
       toast({

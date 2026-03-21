@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,12 +7,34 @@ import { Briefcase, FileText, ShieldCheck, AlertTriangle, DollarSign, Building2,
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import { useVendorPortalData } from "@/hooks/useVendorPortalData";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
+import { useCompany } from "@/contexts/CompanyContext";
 
 export default function VendorPortalDashboard() {
   const navigate = useNavigate();
+  const { currentCompany } = useCompany();
   const { loading, vendorInfo, jobs, invoices, complianceDocs } = useVendorPortalData();
+  const [workspaceLogoOverride, setWorkspaceLogoOverride] = useState<string | null>(null);
 
-  const vendorLogoUrl = resolveCompanyLogoUrl(vendorInfo?.logo_url);
+  useEffect(() => {
+    if (!currentCompany?.id) {
+      setWorkspaceLogoOverride(null);
+      return;
+    }
+    setWorkspaceLogoOverride(window.localStorage.getItem(`workspace-logo:${currentCompany.id}`));
+
+    const handleWorkspaceLogoUpdated = (event: Event) => {
+      const detail = (event as CustomEvent<{ companyId: string; storagePath: string }>).detail;
+      if (!detail?.companyId || detail.companyId !== currentCompany.id) return;
+      setWorkspaceLogoOverride(detail.storagePath);
+    };
+
+    window.addEventListener("workspace-logo-updated", handleWorkspaceLogoUpdated as EventListener);
+    return () => {
+      window.removeEventListener("workspace-logo-updated", handleWorkspaceLogoUpdated as EventListener);
+    };
+  }, [currentCompany?.id]);
+
+  const vendorLogoUrl = resolveCompanyLogoUrl(workspaceLogoOverride || currentCompany?.logo_url || vendorInfo?.logo_url);
   const openInvoices = useMemo(() => invoices.filter((invoice) => String(invoice.status || "").toLowerCase() !== "paid"), [invoices]);
   const missingDocs = useMemo(() => complianceDocs.filter((doc) => doc.is_required && !doc.is_uploaded), [complianceDocs]);
   const expiringDocs = useMemo(() => complianceDocs.filter((doc) => {

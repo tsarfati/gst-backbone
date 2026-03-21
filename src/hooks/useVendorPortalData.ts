@@ -149,7 +149,7 @@ export function useVendorPortalData() {
         city: vendor?.city || "",
         state: vendor?.state || "",
         zip_code: vendor?.zip_code || "",
-        logo_url: vendor?.logo_url || "",
+        logo_url: vendor?.logo_url || currentCompany?.logo_url || "",
         tax_id: vendor?.tax_id || "",
       });
 
@@ -271,7 +271,7 @@ export function useVendorPortalData() {
     } finally {
       setLoading(false);
     }
-  }, [profile?.vendor_id]);
+  }, [profile?.vendor_id, currentCompany?.logo_url]);
 
   useEffect(() => {
     void reload();
@@ -357,19 +357,35 @@ export function useVendorPortalData() {
     const { error: uploadError } = await supabase.storage.from("company-logos").upload(path, file, { upsert: true });
     if (uploadError) throw uploadError;
     const storagePath = `company-logos/${path}`;
-    const { error: updateError } = await supabase
+    setSettingsForm((prev) => ({ ...prev, logo_url: storagePath }));
+    setVendorInfo((prev: any) => (prev ? { ...prev, logo_url: storagePath } : prev));
+    window.localStorage.setItem(`workspace-logo:${currentCompany.id}`, storagePath);
+    window.dispatchEvent(new CustomEvent("workspace-logo-updated", {
+      detail: {
+        companyId: currentCompany.id,
+        storagePath,
+      },
+    }));
+    const { data: updatedVendorRows, error: updateError } = await supabase
       .from("vendors")
       .update({ logo_url: storagePath })
-      .eq("id", profile.vendor_id);
+      .eq("id", profile.vendor_id)
+      .select("id, logo_url");
     if (updateError) throw updateError;
+    if (!updatedVendorRows || updatedVendorRows.length === 0) {
+      throw new Error("Vendor logo update did not persist.");
+    }
     if (currentCompany?.id) {
-      const { error: companyLogoError } = await supabase
+      const { data: updatedCompanyRows, error: companyLogoError } = await supabase
         .from("companies")
         .update({ logo_url: storagePath })
         .eq("id", currentCompany.id)
-        .eq("company_type", "vendor");
+        .eq("company_type", "vendor")
+        .select("id, logo_url");
       if (companyLogoError) {
         console.warn("Unable to mirror vendor logo to vendor home company:", companyLogoError.message);
+      } else if (!updatedCompanyRows || updatedCompanyRows.length === 0) {
+        console.warn("Vendor home company logo mirror did not update any rows.");
       }
       await refreshCompanies();
     }

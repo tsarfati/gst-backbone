@@ -149,14 +149,19 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
 
       setUserCompanies(companies);
 
-      // Set current company based on profile preference or first available
+      // Preserve the currently selected workspace when possible so refreshes
+      // do not unexpectedly jump to a different company for external users.
       if (companies.length > 0) {
+        const activeCompanyId = currentCompany?.id;
         const preferredCompanyId = profile?.current_company_id;
+        const activeCompany = activeCompanyId
+          ? companies.find(c => c.company_id === activeCompanyId)
+          : undefined;
         const preferredCompany = preferredCompanyId
           ? companies.find(c => c.company_id === preferredCompanyId)
           : undefined;
 
-        const companyToSet = preferredCompany || companies[0];
+        const companyToSet = activeCompany || preferredCompany || companies[0];
 
         // Fetch full company details
         const { data: companyData, error: companyError } = await supabase
@@ -166,8 +171,12 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
           .single();
 
         if (!companyError && companyData) {
-          await preloadCompanyLogo(companyData.logo_url);
-          setCurrentCompany(companyData);
+          const mergedCompanyData =
+            currentCompany?.id === companyData.id && currentCompany?.logo_url && !companyData.logo_url
+              ? { ...companyData, logo_url: currentCompany.logo_url }
+              : companyData;
+          await preloadCompanyLogo(mergedCompanyData.logo_url);
+          setCurrentCompany(mergedCompanyData);
         } else {
           console.error('Error fetching company details:', companyError);
           // Use basic company info from get_user_companies if detailed fetch fails
