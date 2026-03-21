@@ -7,6 +7,11 @@ interface MultiFileUploadDropzoneProps {
   multiple?: boolean;
   maxFiles?: number;
   label?: string;
+  buttonLabel?: string;
+  dragLabel?: string;
+  subtitle?: string;
+  compact?: boolean;
+  className?: string;
   disabled?: boolean;
 }
 
@@ -15,7 +20,12 @@ export default function MultiFileUploadDropzone({
   accept = 'image/*',
   multiple = true,
   maxFiles,
-  label = 'Drop files here or click to browse',
+  label,
+  buttonLabel = 'Browse files',
+  dragLabel = 'Drop files here or click to browse',
+  subtitle,
+  compact = false,
+  className = '',
   disabled = false,
 }: MultiFileUploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement>(null);
@@ -44,11 +54,13 @@ export default function MultiFileUploadDropzone({
       onDragOver={(e) => e.preventDefault()}
       onDrop={handleDrop}
       onClick={() => !disabled && inputRef.current?.click()}
-      className={`border-2 border-dashed rounded-lg p-6 text-center cursor-pointer transition-colors ${
+      className={`border-2 border-dashed rounded-lg text-center cursor-pointer transition-colors ${
+        compact ? 'p-3' : 'p-6'
+      } ${
         disabled
           ? 'border-muted bg-muted/30 cursor-not-allowed opacity-50'
           : 'border-muted-foreground/25 hover:border-primary/50 hover:bg-accent/30'
-      }`}
+      } ${className}`}
     >
       <input
         ref={inputRef}
@@ -59,8 +71,9 @@ export default function MultiFileUploadDropzone({
         onChange={(e) => handleFiles(e.target.files)}
         disabled={disabled}
       />
-      <ImagePlus className="h-8 w-8 mx-auto mb-2 text-muted-foreground" />
-      <p className="text-sm text-muted-foreground">{label}</p>
+      <ImagePlus className={`mx-auto mb-2 text-muted-foreground ${compact ? 'h-5 w-5' : 'h-8 w-8'}`} />
+      <p className="text-sm text-muted-foreground">{label || dragLabel}</p>
+      {subtitle && <p className="text-xs text-muted-foreground/70 mt-1">{subtitle}</p>}
     </div>
   );
 }
