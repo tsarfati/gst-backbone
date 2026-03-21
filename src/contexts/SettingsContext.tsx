@@ -414,7 +414,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             // Update existing row
             const { error: companyDefaultsUpdateError } = await supabase
               .from('company_ui_settings')
-              .update({ settings: companySettingsForStorage })
+              .update({ settings: companySettingsForStorage as any })
               .eq('id', existingCompanyRow.id);
             if (companyDefaultsUpdateError) {
               console.warn('Failed to update company default theme settings:', companyDefaultsUpdateError);
@@ -425,9 +425,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               .from('company_ui_settings')
               .insert({
                 company_id: currentCompany.id,
-                user_id: null,
-                settings: companySettingsForStorage
-              });
+                user_id: null as any,
+                settings: companySettingsForStorage as any
+              } as any);
             if (companyDefaultsInsertError) {
               console.warn('Failed to insert company default theme settings:', companyDefaultsInsertError);
             }

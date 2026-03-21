@@ -107,6 +107,7 @@ export default function ProfileSettings() {
 
   const requestedTab = searchParams.get('tab') || 'profile';
   const effectiveRole = String(profile?.role || '').toLowerCase();
+  const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
   const initialTab = requestedTab;
 
   useEffect(() => {

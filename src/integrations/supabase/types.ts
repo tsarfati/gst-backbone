@@ -1042,6 +1042,8 @@ export type Database = {
           company_id: string
           created_at: string
           criterion_name: string
+          criterion_options: Json | null
+          criterion_type: string
           description: string | null
           id: string
           max_score: number
@@ -1053,6 +1055,8 @@ export type Database = {
           company_id: string
           created_at?: string
           criterion_name: string
+          criterion_options?: Json | null
+          criterion_type?: string
           description?: string | null
           id?: string
           max_score?: number
@@ -1064,6 +1068,8 @@ export type Database = {
           company_id?: string
           created_at?: string
           criterion_name?: string
+          criterion_options?: Json | null
+          criterion_type?: string
           description?: string | null
           id?: string
           max_score?: number
@@ -1227,6 +1233,252 @@ export type Database = {
           },
         ]
       }
+      calendar_event_attendees: {
+        Row: {
+          attendee_role: Database["public"]["Enums"]["calendar_attendee_role"]
+          created_at: string
+          display_name: string | null
+          email: string | null
+          event_id: string
+          id: string
+          invited_by: string | null
+          response_status: Database["public"]["Enums"]["calendar_attendee_response_status"]
+          updated_at: string
+          user_id: string | null
+        }
+        Insert: {
+          attendee_role?: Database["public"]["Enums"]["calendar_attendee_role"]
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          event_id: string
+          id?: string
+          invited_by?: string | null
+          response_status?: Database["public"]["Enums"]["calendar_attendee_response_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Update: {
+          attendee_role?: Database["public"]["Enums"]["calendar_attendee_role"]
+          created_at?: string
+          display_name?: string | null
+          email?: string | null
+          event_id?: string
+          id?: string
+          invited_by?: string | null
+          response_status?: Database["public"]["Enums"]["calendar_attendee_response_status"]
+          updated_at?: string
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_event_attendees_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_events: {
+        Row: {
+          all_day: boolean
+          company_id: string
+          create_google_meet: boolean
+          created_at: string
+          created_by: string
+          customer_id: string | null
+          description: string | null
+          end_at: string
+          event_type: Database["public"]["Enums"]["calendar_event_type"]
+          external_etag: string | null
+          google_calendar_id: string | null
+          google_event_id: string | null
+          google_meet_url: string | null
+          id: string
+          is_deleted: boolean
+          job_id: string | null
+          last_synced_at: string | null
+          location: string | null
+          owner_user_id: string
+          start_at: string
+          status: Database["public"]["Enums"]["calendar_event_status"]
+          sync_source: Database["public"]["Enums"]["calendar_sync_source"]
+          sync_state: Database["public"]["Enums"]["calendar_sync_state"]
+          timezone: string
+          title: string
+          updated_at: string
+          updated_by: string | null
+          vendor_id: string | null
+          visibility: Database["public"]["Enums"]["calendar_event_visibility"]
+        }
+        Insert: {
+          all_day?: boolean
+          company_id: string
+          create_google_meet?: boolean
+          created_at?: string
+          created_by: string
+          customer_id?: string | null
+          description?: string | null
+          end_at: string
+          event_type?: Database["public"]["Enums"]["calendar_event_type"]
+          external_etag?: string | null
+          google_calendar_id?: string | null
+          google_event_id?: string | null
+          google_meet_url?: string | null
+          id?: string
+          is_deleted?: boolean
+          job_id?: string | null
+          last_synced_at?: string | null
+          location?: string | null
+          owner_user_id: string
+          start_at: string
+          status?: Database["public"]["Enums"]["calendar_event_status"]
+          sync_source?: Database["public"]["Enums"]["calendar_sync_source"]
+          sync_state?: Database["public"]["Enums"]["calendar_sync_state"]
+          timezone?: string
+          title: string
+          updated_at?: string
+          updated_by?: string | null
+          vendor_id?: string | null
+          visibility?: Database["public"]["Enums"]["calendar_event_visibility"]
+        }
+        Update: {
+          all_day?: boolean
+          company_id?: string
+          create_google_meet?: boolean
+          created_at?: string
+          created_by?: string
+          customer_id?: string | null
+          description?: string | null
+          end_at?: string
+          event_type?: Database["public"]["Enums"]["calendar_event_type"]
+          external_etag?: string | null
+          google_calendar_id?: string | null
+          google_event_id?: string | null
+          google_meet_url?: string | null
+          id?: string
+          is_deleted?: boolean
+          job_id?: string | null
+          last_synced_at?: string | null
+          location?: string | null
+          owner_user_id?: string
+          start_at?: string
+          status?: Database["public"]["Enums"]["calendar_event_status"]
+          sync_source?: Database["public"]["Enums"]["calendar_sync_source"]
+          sync_state?: Database["public"]["Enums"]["calendar_sync_state"]
+          timezone?: string
+          title?: string
+          updated_at?: string
+          updated_by?: string | null
+          vendor_id?: string | null
+          visibility?: Database["public"]["Enums"]["calendar_event_visibility"]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_events_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_customer_id_fkey"
+            columns: ["customer_id"]
+            isOneToOne: false
+            referencedRelation: "customers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "calendar_events_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_events_vendor_id_fkey"
+            columns: ["vendor_id"]
+            isOneToOne: false
+            referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_sync_queue: {
+        Row: {
+          action: Database["public"]["Enums"]["calendar_sync_action"]
+          attempt_count: number
+          connection_id: string
+          created_at: string
+          event_id: string | null
+          id: string
+          last_error: string | null
+          locked_at: string | null
+          processed_at: string | null
+          run_after: string
+          status: Database["public"]["Enums"]["calendar_sync_job_status"]
+          updated_at: string
+        }
+        Insert: {
+          action: Database["public"]["Enums"]["calendar_sync_action"]
+          attempt_count?: number
+          connection_id: string
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          processed_at?: string | null
+          run_after?: string
+          status?: Database["public"]["Enums"]["calendar_sync_job_status"]
+          updated_at?: string
+        }
+        Update: {
+          action?: Database["public"]["Enums"]["calendar_sync_action"]
+          attempt_count?: number
+          connection_id?: string
+          created_at?: string
+          event_id?: string | null
+          id?: string
+          last_error?: string | null
+          locked_at?: string | null
+          processed_at?: string | null
+          run_after?: string
+          status?: Database["public"]["Enums"]["calendar_sync_job_status"]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_sync_queue_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "user_calendar_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_sync_queue_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calls: {
         Row: {
           answered_at: string | null
@@ -1351,6 +1603,7 @@ export type Database = {
           address: string | null
           allow_journal_entry_deletion: boolean
           city: string | null
+          company_type: string
           created_at: string
           created_by: string
           display_name: string | null
@@ -1374,6 +1627,7 @@ export type Database = {
           address?: string | null
           allow_journal_entry_deletion?: boolean
           city?: string | null
+          company_type?: string
           created_at?: string
           created_by: string
           display_name?: string | null
@@ -1397,6 +1651,7 @@ export type Database = {
           address?: string | null
           allow_journal_entry_deletion?: boolean
           city?: string | null
+          company_type?: string
           created_at?: string
           created_by?: string
           display_name?: string | null
@@ -3093,6 +3348,82 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      design_professional_job_invites: {
+        Row: {
+          accepted_at: string | null
+          accepted_by_user_id: string | null
+          company_id: string
+          created_at: string
+          email: string
+          expires_at: string
+          first_name: string | null
+          id: string
+          invite_token: string
+          invited_by: string
+          job_id: string
+          last_name: string | null
+          notes: Json
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          accepted_at?: string | null
+          accepted_by_user_id?: string | null
+          company_id: string
+          created_at?: string
+          email: string
+          expires_at: string
+          first_name?: string | null
+          id?: string
+          invite_token: string
+          invited_by: string
+          job_id: string
+          last_name?: string | null
+          notes?: Json
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          accepted_at?: string | null
+          accepted_by_user_id?: string | null
+          company_id?: string
+          created_at?: string
+          email?: string
+          expires_at?: string
+          first_name?: string | null
+          id?: string
+          invite_token?: string
+          invited_by?: string
+          job_id?: string
+          last_name?: string | null
+          notes?: Json
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "design_professional_job_invites_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "design_professional_job_invites_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "design_professional_job_invites_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       device_tokens: {
         Row: {
@@ -5484,6 +5815,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      non_direct_message_reads: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          message_source: string
+          source_record_id: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          message_source: string
+          source_record_id: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          message_source?: string
+          source_record_id?: string
+          user_id?: string
+        }
+        Relationships: []
       }
       notification_preferences: {
         Row: {
@@ -7878,6 +8236,48 @@ export type Database = {
           },
         ]
       }
+      rfp_bid_comparison_messages: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          message: string
+          rfp_id: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          message: string
+          rfp_id: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          rfp_id?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfp_bid_comparison_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_bid_comparison_messages_rfp_id_fkey"
+            columns: ["rfp_id"]
+            isOneToOne: false
+            referencedRelation: "rfps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rfp_invited_vendors: {
         Row: {
           company_id: string
@@ -8377,6 +8777,113 @@ export type Database = {
           updated_at?: string
         }
         Relationships: []
+      }
+      super_admin_avatar_libraries: {
+        Row: {
+          cover_image_url: string | null
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          is_global: boolean
+          name: string
+          updated_at: string
+        }
+        Insert: {
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_global?: boolean
+          name: string
+          updated_at?: string
+        }
+        Update: {
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_global?: boolean
+          name?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      super_admin_avatar_library_companies: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          library_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          library_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          library_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_admin_avatar_library_companies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "super_admin_avatar_library_companies_library_id_fkey"
+            columns: ["library_id"]
+            isOneToOne: false
+            referencedRelation: "super_admin_avatar_libraries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      super_admin_avatar_library_items: {
+        Row: {
+          created_at: string
+          id: string
+          image_url: string
+          library_id: string
+          name: string
+          sort_order: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          image_url: string
+          library_id: string
+          name: string
+          sort_order?: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          image_url?: string
+          library_id?: string
+          name?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "super_admin_avatar_library_items_library_id_fkey"
+            columns: ["library_id"]
+            isOneToOne: false
+            referencedRelation: "super_admin_avatar_libraries"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       super_admins: {
         Row: {
@@ -9050,6 +9557,63 @@ export type Database = {
           },
         ]
       }
+      user_calendar_connections: {
+        Row: {
+          access_token_encrypted: string | null
+          created_at: string
+          default_calendar_id: string | null
+          default_calendar_name: string | null
+          id: string
+          last_sync_at: string | null
+          last_sync_cursor: string | null
+          meet_enabled: boolean
+          provider: Database["public"]["Enums"]["calendar_connection_provider"]
+          provider_account_email: string | null
+          refresh_token_encrypted: string | null
+          sync_enabled: boolean
+          sync_error: string | null
+          token_expires_at: string | null
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          access_token_encrypted?: string | null
+          created_at?: string
+          default_calendar_id?: string | null
+          default_calendar_name?: string | null
+          id?: string
+          last_sync_at?: string | null
+          last_sync_cursor?: string | null
+          meet_enabled?: boolean
+          provider?: Database["public"]["Enums"]["calendar_connection_provider"]
+          provider_account_email?: string | null
+          refresh_token_encrypted?: string | null
+          sync_enabled?: boolean
+          sync_error?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          access_token_encrypted?: string | null
+          created_at?: string
+          default_calendar_id?: string | null
+          default_calendar_name?: string | null
+          id?: string
+          last_sync_at?: string | null
+          last_sync_cursor?: string | null
+          meet_enabled?: boolean
+          provider?: Database["public"]["Enums"]["calendar_connection_provider"]
+          provider_account_email?: string | null
+          refresh_token_encrypted?: string | null
+          sync_enabled?: boolean
+          sync_error?: string | null
+          token_expires_at?: string | null
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       user_company_access: {
         Row: {
           company_id: string
@@ -9456,6 +10020,8 @@ export type Database = {
           id: string
           is_required: boolean
           is_uploaded: boolean
+          target_company_id: string | null
+          target_job_id: string | null
           type: string
           updated_at: string
           uploaded_at: string | null
@@ -9469,6 +10035,8 @@ export type Database = {
           id?: string
           is_required?: boolean
           is_uploaded?: boolean
+          target_company_id?: string | null
+          target_job_id?: string | null
           type: string
           updated_at?: string
           uploaded_at?: string | null
@@ -9482,12 +10050,35 @@ export type Database = {
           id?: string
           is_required?: boolean
           is_uploaded?: boolean
+          target_company_id?: string | null
+          target_job_id?: string | null
           type?: string
           updated_at?: string
           uploaded_at?: string | null
           vendor_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "vendor_compliance_documents_target_company_id_fkey"
+            columns: ["target_company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "vendor_compliance_documents_target_job_id_fkey"
+            columns: ["target_job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "vendor_compliance_documents_target_job_id_fkey"
+            columns: ["target_job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "vendor_compliance_documents_vendor_id_fkey"
             columns: ["vendor_id"]
@@ -9579,11 +10170,20 @@ export type Database = {
           allowed_filing_cabinet_file_ids: string[] | null
           allowed_filing_cabinet_folder_ids: string[] | null
           can_access_filing_cabinet: boolean
+          can_access_messages: boolean
           can_download_filing_cabinet_files: boolean
+          can_submit_bids: boolean
           can_submit_bills: boolean
           can_submit_rfis: boolean
+          can_submit_submittals: boolean
           can_upload_compliance_docs: boolean
+          can_view_job_details: boolean
+          can_view_photos: boolean
           can_view_plans: boolean
+          can_view_rfis: boolean
+          can_view_rfps: boolean
+          can_view_subcontracts: boolean
+          can_view_submittals: boolean
           can_view_team_directory: boolean
           created_at: string
           created_by: string | null
@@ -9597,11 +10197,20 @@ export type Database = {
           allowed_filing_cabinet_file_ids?: string[] | null
           allowed_filing_cabinet_folder_ids?: string[] | null
           can_access_filing_cabinet?: boolean
+          can_access_messages?: boolean
           can_download_filing_cabinet_files?: boolean
+          can_submit_bids?: boolean
           can_submit_bills?: boolean
           can_submit_rfis?: boolean
+          can_submit_submittals?: boolean
           can_upload_compliance_docs?: boolean
+          can_view_job_details?: boolean
+          can_view_photos?: boolean
           can_view_plans?: boolean
+          can_view_rfis?: boolean
+          can_view_rfps?: boolean
+          can_view_subcontracts?: boolean
+          can_view_submittals?: boolean
           can_view_team_directory?: boolean
           created_at?: string
           created_by?: string | null
@@ -9615,11 +10224,20 @@ export type Database = {
           allowed_filing_cabinet_file_ids?: string[] | null
           allowed_filing_cabinet_folder_ids?: string[] | null
           can_access_filing_cabinet?: boolean
+          can_access_messages?: boolean
           can_download_filing_cabinet_files?: boolean
+          can_submit_bids?: boolean
           can_submit_bills?: boolean
           can_submit_rfis?: boolean
+          can_submit_submittals?: boolean
           can_upload_compliance_docs?: boolean
+          can_view_job_details?: boolean
+          can_view_photos?: boolean
           can_view_plans?: boolean
+          can_view_rfis?: boolean
+          can_view_rfps?: boolean
+          can_view_subcontracts?: boolean
+          can_view_submittals?: boolean
           can_view_team_directory?: boolean
           created_at?: string
           created_by?: string | null
@@ -10245,6 +10863,15 @@ export type Database = {
         Args: { p_company_id: string; p_created_by: string; p_job_id: string }
         Returns: undefined
       }
+      design_pro_handoff_project_deep: {
+        Args: {
+          p_actor_user_id: string
+          p_job_id: string
+          p_mode: string
+          p_target_company_id: string
+        }
+        Returns: Json
+      }
       generate_qr_code: { Args: never; Returns: string }
       generate_visitor_qr_code: { Args: never; Returns: string }
       get_album_photos: {
@@ -10646,6 +11273,18 @@ export type Database = {
         Args: { _job: string; _user: string }
         Returns: boolean
       }
+      user_can_manage_calendar_company: {
+        Args: { _company: string; _user: string }
+        Returns: boolean
+      }
+      user_can_manage_calendar_event: {
+        Args: { _event: string; _user: string }
+        Returns: boolean
+      }
+      user_can_view_calendar_event: {
+        Args: { _event: string; _user: string }
+        Returns: boolean
+      }
       user_has_privileged_company_job_access: {
         Args: { _company: string; _user: string }
         Returns: boolean
@@ -10704,6 +11343,27 @@ export type Database = {
       }
     }
     Enums: {
+      calendar_attendee_response_status:
+        | "needs_action"
+        | "accepted"
+        | "declined"
+        | "tentative"
+      calendar_attendee_role: "organizer" | "required" | "optional"
+      calendar_connection_provider: "google"
+      calendar_event_status: "confirmed" | "tentative" | "cancelled"
+      calendar_event_type:
+        | "meeting"
+        | "site_visit"
+        | "inspection"
+        | "deadline"
+        | "reminder"
+        | "task"
+        | "other"
+      calendar_event_visibility: "private" | "attendees" | "company" | "job"
+      calendar_sync_action: "create" | "update" | "delete" | "pull"
+      calendar_sync_job_status: "queued" | "processing" | "done" | "failed"
+      calendar_sync_source: "builderlink" | "google"
+      calendar_sync_state: "pending" | "synced" | "conflict" | "error"
       cost_code_type:
         | "material"
         | "labor"
@@ -10741,6 +11401,7 @@ export type Database = {
         | "view_only"
         | "company_admin"
         | "vendor"
+        | "design_professional"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -10868,6 +11529,29 @@ export type CompositeTypes<
 export const Constants = {
   public: {
     Enums: {
+      calendar_attendee_response_status: [
+        "needs_action",
+        "accepted",
+        "declined",
+        "tentative",
+      ],
+      calendar_attendee_role: ["organizer", "required", "optional"],
+      calendar_connection_provider: ["google"],
+      calendar_event_status: ["confirmed", "tentative", "cancelled"],
+      calendar_event_type: [
+        "meeting",
+        "site_visit",
+        "inspection",
+        "deadline",
+        "reminder",
+        "task",
+        "other",
+      ],
+      calendar_event_visibility: ["private", "attendees", "company", "job"],
+      calendar_sync_action: ["create", "update", "delete", "pull"],
+      calendar_sync_job_status: ["queued", "processing", "done", "failed"],
+      calendar_sync_source: ["builderlink", "google"],
+      calendar_sync_state: ["pending", "synced", "conflict", "error"],
       cost_code_type: [
         "material",
         "labor",
@@ -10908,6 +11592,7 @@ export const Constants = {
         "view_only",
         "company_admin",
         "vendor",
+        "design_professional",
       ],
     },
   },

@@ -327,7 +327,7 @@ export default function BidComparison() {
         .order('created_at', { ascending: true });
       if (error) throw error;
 
-      const rows = (data || []) as Array<{ id: string; message: string; user_id: string; created_at: string }>;
+      const rows = (data || []) as unknown as Array<{ id: string; message: string; user_id: string; created_at: string }>;
       const userIds = Array.from(new Set(rows.map((row) => row.user_id).filter(Boolean)));
       let profileMap = new Map<string, { name: string; avatarUrl: string | null }>();
 

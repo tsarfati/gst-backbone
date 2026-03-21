@@ -20,6 +20,9 @@ interface Company {
   enable_shared_vendor_database?: boolean;
   allow_journal_entry_deletion?: boolean;
   created_by?: string;
+  tax_id?: string;
+  license_number?: string;
+  [key: string]: unknown;
 }
 
 interface UserCompanyAccess {
@@ -176,7 +179,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
               ? { ...companyData, logo_url: currentCompany.logo_url }
               : companyData;
           await preloadCompanyLogo(mergedCompanyData.logo_url);
-          setCurrentCompany(mergedCompanyData);
+          setCurrentCompany(mergedCompanyData as Company);
         } else {
           console.error('Error fetching company details:', companyError);
           // Use basic company info from get_user_companies if detailed fetch fails
@@ -239,7 +242,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
       if (companyError) throw companyError;
 
       await preloadCompanyLogo(companyData.logo_url);
-      setCurrentCompany(companyData);
+      setCurrentCompany(companyData as Company);
 
       toast({
         title: "Switched companies",

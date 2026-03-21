@@ -14,6 +14,7 @@ interface DragDropUploadProps {
   dropTitle?: string;
   subtitle?: string;
   helperText?: string;
+  buttonLabel?: string;
   size?: 'default' | 'compact';
   icon?: ReactNode;
 }

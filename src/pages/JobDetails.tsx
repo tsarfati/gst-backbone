@@ -403,7 +403,7 @@ export default function JobDetails() {
 
           if (error) throw error;
           if (!ignore) {
-            setVendorSubcontracts(((data || []) as VendorSubcontract[]) || []);
+            setVendorSubcontracts(((data || []) as unknown as VendorSubcontract[]) || []);
           }
         } catch (error) {
           console.error("Error loading vendor subcontracts:", error);
