@@ -20,6 +20,9 @@ interface Company {
   enable_shared_vendor_database?: boolean;
   allow_journal_entry_deletion?: boolean;
   created_by?: string;
+  tax_id?: string;
+  license_number?: string;
+  [key: string]: unknown;
 }
 
 interface UserCompanyAccess {

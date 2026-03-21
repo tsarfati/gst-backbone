@@ -561,7 +561,7 @@ export default function RFPDetails() {
         .order('sort_order');
 
       if (error) throw error;
-      setCriteria(data || []);
+      setCriteria((data || []) as any);
     } catch (error) {
       console.error('Error loading criteria:', error);
     }

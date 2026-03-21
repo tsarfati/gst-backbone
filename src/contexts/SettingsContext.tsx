@@ -425,9 +425,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
               .from('company_ui_settings')
               .insert({
                 company_id: currentCompany.id,
-                user_id: null,
-                settings: companySettingsForStorage
-              });
+                user_id: null as any,
+                settings: companySettingsForStorage as any
+              } as any);
             if (companyDefaultsInsertError) {
               console.warn('Failed to insert company default theme settings:', companyDefaultsInsertError);
             }
