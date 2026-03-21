@@ -176,7 +176,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
               ? { ...companyData, logo_url: currentCompany.logo_url }
               : companyData;
           await preloadCompanyLogo(mergedCompanyData.logo_url);
-          setCurrentCompany(mergedCompanyData);
+          setCurrentCompany(mergedCompanyData as Company);
         } else {
           console.error('Error fetching company details:', companyError);
           // Use basic company info from get_user_companies if detailed fetch fails
