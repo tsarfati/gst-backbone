@@ -12,6 +12,7 @@ import { Badge } from '@/components/ui/badge';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { ArrowLeft, Save, User, Shield, Eye, Camera, Briefcase, Calendar, Code, Key, Store } from 'lucide-react';
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useToast } from '@/hooks/use-toast';
@@ -19,6 +20,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { UserPinSettings } from '@/components/UserPinSettings';
 import DragDropUpload from '@/components/DragDropUpload';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
+import AvatarLibraryDialog from '@/components/AvatarLibraryDialog';
+import { type AvatarLibraryAlbumId } from '@/components/avatarLibrary';
+import { useSettings } from '@/contexts/SettingsContext';
+import { useSystemAvatarLibraries } from '@/hooks/useSystemAvatarLibraries';
 
 interface UserProfile {
   id: string;
@@ -84,6 +89,7 @@ export default function UserEdit() {
   const { userId } = useParams<{ userId: string }>();
   const navigate = useNavigate();
   const { profile } = useAuth();
+  const { currentCompany } = useCompany();
   const { toast } = useToast();
   
   const [user, setUser] = useState<UserProfile | null>(null);
@@ -91,6 +97,8 @@ export default function UserEdit() {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [showAvatarLibrary, setShowAvatarLibrary] = useState(false);
+  const [avatarLibraryCategory, setAvatarLibraryCategory] = useState<AvatarLibraryAlbumId>('nintendo');
   const [jobs, setJobs] = useState<any[]>([]);
   const [userJobAccess, setUserJobAccess] = useState<string[]>([]);
   const [costCodes, setCostCodes] = useState<any[]>([]);
@@ -105,10 +113,11 @@ export default function UserEdit() {
   const [groups, setGroups] = useState<EmployeeGroup[]>([]);
   const [selectedGroupId, setSelectedGroupId] = useState<string | null>(null);
   const activeCompanyRole = useActiveCompanyRole();
+  const { settings } = useSettings();
+  const { libraries: systemAvatarLibraries } = useSystemAvatarLibraries(currentCompany?.id);
 
   const normalizedActiveRole = String(activeCompanyRole || profile?.role || '').toLowerCase();
   const canManageUsers = ['admin', 'controller', 'company_admin', 'owner'].includes(normalizedActiveRole);
-  const { currentCompany } = useCompany();
 
   useEffect(() => {
     if (userId && currentCompany) {
@@ -529,6 +538,37 @@ export default function UserEdit() {
     }
   };
 
+  const handleLibraryAvatarSelect = async (avatarUrl: string) => {
+    if (!user) return;
+
+    setUploadingAvatar(true);
+    try {
+      const { error } = await supabase
+        .from('profiles')
+        .update({ avatar_url: avatarUrl })
+        .eq('user_id', user.user_id);
+
+      if (error) throw error;
+
+      setUser(prev => prev ? { ...prev, avatar_url: avatarUrl } : null);
+      setShowAvatarLibrary(false);
+
+      toast({
+        title: 'Success',
+        description: 'Avatar updated from library',
+      });
+    } catch (error) {
+      console.error('Error setting library avatar:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to apply avatar',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
   const toggleJobAccess = async (jobId: string, hasAccess: boolean) => {
     if (!userId || !profile) return;
 
@@ -621,29 +661,73 @@ export default function UserEdit() {
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div className="flex items-center gap-6 mb-6">
-                <div className="flex flex-col items-center gap-2">
+              <div className="mb-6 flex items-start gap-6">
+                <div className="min-w-[260px] rounded-xl border bg-muted/20 p-4">
+                  <div className="mb-4">
+                    <div className="text-sm font-semibold text-foreground">User Avatar</div>
+                    <div className="text-xs text-muted-foreground">
+                      Upload a new image or assign one from the avatar library.
+                    </div>
+                  </div>
+                  <div className="flex flex-col items-center gap-2">
                   <Avatar className="h-20 w-20">
                     <AvatarImage src={user.avatar_url} alt={user.display_name} />
                     <AvatarFallback className="text-lg">
                       {(user.display_name || user.first_name || 'U').substring(0, 2).toUpperCase()}
                     </AvatarFallback>
                   </Avatar>
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    disabled={uploadingAvatar}
-                    onClick={() => document.getElementById('avatar-upload')?.click()}
-                  >
-                    {uploadingAvatar ? (
-                      <>Uploading...</>
-                    ) : (
-                      <>
-                        <Camera className="h-4 w-4 mr-2" />
-                        Upload Avatar
-                      </>
+                  <div className="flex flex-wrap justify-center gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      disabled={uploadingAvatar}
+                      onClick={() => document.getElementById('avatar-upload')?.click()}
+                    >
+                      {uploadingAvatar ? (
+                        <>Uploading...</>
+                      ) : (
+                        <>
+                          <Camera className="h-4 w-4 mr-2" />
+                          Upload Avatar
+                        </>
+                      )}
+                    </Button>
+                    <Button
+                      variant="default"
+                      size="sm"
+                      disabled={uploadingAvatar}
+                      onClick={() => setShowAvatarLibrary(true)}
+                    >
+                      Choose Avatar
+                    </Button>
+                    {user.avatar_url && (
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        disabled={uploadingAvatar}
+                        onClick={async () => {
+                          try {
+                            const { error } = await supabase
+                              .from('profiles')
+                              .update({ avatar_url: null })
+                              .eq('user_id', user.user_id);
+                            if (error) throw error;
+                            setUser(prev => prev ? { ...prev, avatar_url: undefined } : null);
+                            toast({ title: 'Success', description: 'Avatar removed successfully' });
+                          } catch (error) {
+                            console.error('Error removing avatar:', error);
+                            toast({
+                              title: 'Error',
+                              description: 'Failed to remove avatar',
+                              variant: 'destructive',
+                            });
+                          }
+                        }}
+                      >
+                        Remove Avatar
+                      </Button>
                     )}
-                  </Button>
+                  </div>
                   <input
                     id="avatar-upload"
                     type="file"
@@ -657,12 +741,17 @@ export default function UserEdit() {
                       accept=".jpg,.jpeg,.png,.webp"
                       maxSize={2}
                       size="compact"
-                      title="Drop avatar image"
-                      subtitle="or click to choose image"
-                      helperText="Profile avatar (max 2MB)"
+                      title="Drag Avatar Here"
+                      subtitle="or"
+                      buttonLabel="Choose Image"
                       disabled={uploadingAvatar}
                     />
                   </div>
+                  <p className="max-w-[260px] text-center text-xs text-muted-foreground">
+                    Admins can assign an avatar from the library or upload a new one. This updates the
+                    user&apos;s active avatar without deleting their previous uploaded image.
+                  </p>
+                </div>
                 </div>
                 <div className="flex-1 space-y-4">
                   <div className="grid grid-cols-2 gap-4">
@@ -693,6 +782,20 @@ export default function UserEdit() {
                   </div>
                 </div>
               </div>
+              <AvatarLibraryDialog
+                open={showAvatarLibrary}
+                onOpenChange={setShowAvatarLibrary}
+                category={avatarLibraryCategory}
+                onCategoryChange={setAvatarLibraryCategory}
+                availableCategories={settings.avatarLibrary?.enabledCategories}
+                systemLibraries={systemAvatarLibraries}
+                enabledSystemLibraryIds={settings.avatarLibrary?.enabledSystemLibraryIds}
+                customAvatars={settings.avatarLibrary?.customAvatars}
+                selectedAvatarUrl={user.avatar_url}
+                onSelect={(avatarUrl) => { void handleLibraryAvatarSelect(avatarUrl); }}
+                disabled={uploadingAvatar}
+                title="Choose an Avatar for This User"
+              />
             </CardContent>
           </Card>
 

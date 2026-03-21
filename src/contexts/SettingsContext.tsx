@@ -3,11 +3,13 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from 'next-themes';
+import type { AvatarLibraryCategory, CustomAvatarEntry } from '@/components/avatarLibrary';
 export interface AppSettings {
   navigationMode: 'single' | 'multiple';
   theme: 'light' | 'dark' | 'system';
   themeVariant: 'builderlynk' | 'slate' | 'forest' | 'sunset' | 'mono' | 'macos' | 'android';
   dateFormat: 'MM/DD/YYYY' | 'DD/MM/YYYY' | 'YYYY-MM-DD';
+  timeZone: string;
   currencyFormat: 'USD' | 'EUR' | 'GBP';
   distanceUnit: 'meters' | 'feet';
   defaultView: 'tiles' | 'list' | 'compact';
@@ -45,6 +47,11 @@ export interface AppSettings {
       phone?: string;
     }>;
   };
+  avatarLibrary?: {
+    enabledCategories: AvatarLibraryCategory[];
+    enabledSystemLibraryIds?: string[];
+    customAvatars: CustomAvatarEntry[];
+  };
 }
 
 const defaultSettings: AppSettings = {
@@ -52,6 +59,7 @@ const defaultSettings: AppSettings = {
   theme: 'system',
   themeVariant: 'builderlynk',
   dateFormat: 'MM/DD/YYYY',
+  timeZone: 'America/New_York',
   currencyFormat: 'USD',
   distanceUnit: 'meters',
   defaultView: 'tiles',
@@ -75,6 +83,11 @@ const defaultSettings: AppSettings = {
     destructive: '0 84% 60%',
     buttonHover: '210 100% 40%',
     sidebarBackground: '210 52% 20%',
+  },
+  avatarLibrary: {
+    enabledCategories: ['nintendo', 'generic', 'sports', 'construction'],
+    enabledSystemLibraryIds: [],
+    customAvatars: [],
   },
 };
 
@@ -371,6 +384,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             theme: settings.theme,
             themeVariant: settings.themeVariant,
             dateFormat: settings.dateFormat,
+            timeZone: settings.timeZone,
             currencyFormat: settings.currencyFormat,
             distanceUnit: settings.distanceUnit,
             defaultView: settings.defaultView,
@@ -385,6 +399,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             companyLogo: settings.companyLogo,
             headerLogo: settings.headerLogo,
             companySettings: settings.companySettings,
+            avatarLibrary: settings.avatarLibrary,
           };
           
           // Check if company-wide row exists
@@ -460,7 +475,16 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           };
         }
         return prev.customColors;
-      })()
+      })(),
+      avatarLibrary: updates.avatarLibrary
+        ? {
+            ...prev.avatarLibrary,
+            ...updates.avatarLibrary,
+            enabledCategories: updates.avatarLibrary.enabledCategories ?? prev.avatarLibrary?.enabledCategories ?? defaultSettings.avatarLibrary!.enabledCategories,
+            enabledSystemLibraryIds: updates.avatarLibrary.enabledSystemLibraryIds ?? prev.avatarLibrary?.enabledSystemLibraryIds ?? defaultSettings.avatarLibrary!.enabledSystemLibraryIds,
+            customAvatars: updates.avatarLibrary.customAvatars ?? prev.avatarLibrary?.customAvatars ?? defaultSettings.avatarLibrary!.customAvatars,
+          }
+        : prev.avatarLibrary,
     }));
   };
 

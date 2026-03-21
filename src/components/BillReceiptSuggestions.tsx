@@ -18,6 +18,8 @@ interface BillReceiptSuggestionsProps {
   attachedReceiptIds?: string[];
 }
 
+const EMPTY_ATTACHED_RECEIPTS: string[] = [];
+
 export default function BillReceiptSuggestions({ 
   billVendorId, 
   billVendorName, 
@@ -25,7 +27,7 @@ export default function BillReceiptSuggestions({
   billJobId,
   billDate,
   onReceiptAttached,
-  attachedReceiptIds = []
+  attachedReceiptIds = EMPTY_ATTACHED_RECEIPTS
 }: BillReceiptSuggestionsProps) {
   const { codedReceipts, uncodedReceipts } = useReceipts();
   const { toast } = useToast();
@@ -34,10 +36,21 @@ export default function BillReceiptSuggestions({
   const [localAttachedIds, setLocalAttachedIds] = useState<Set<string>>(new Set(attachedReceiptIds));
   const [isOpen, setIsOpen] = useState(true);
 
+  const attachedReceiptIdsKey = useMemo(
+    () => [...attachedReceiptIds].sort().join("|"),
+    [attachedReceiptIds]
+  );
+
   // Sync with external attachedReceiptIds
   useEffect(() => {
-    setLocalAttachedIds(new Set(attachedReceiptIds));
-  }, [attachedReceiptIds]);
+    setLocalAttachedIds((prev) => {
+      const next = new Set(attachedReceiptIds);
+      if (prev.size === next.size && Array.from(prev).every((id) => next.has(id))) {
+        return prev;
+      }
+      return next;
+    });
+  }, [attachedReceiptIds, attachedReceiptIdsKey]);
 
   const suggestedReceipts = useMemo(() => {
     // Convert uncoded receipts to coded format for compatibility
@@ -55,17 +68,6 @@ export default function BillReceiptSuggestions({
     
     if (!allReceipts.length) return [];
     
-    console.log('BillReceiptSuggestions - Checking receipts:', {
-      totalReceipts: allReceipts.length,
-      codedCount: codedReceipts?.length || 0,
-      uncodedCount: uncodedReceipts?.length || 0,
-      billAmount,
-      billVendorId,
-      billJobId,
-      billDate,
-      sampleReceipt: allReceipts[0]
-    });
-
     const suggestions = allReceipts
       .filter(receipt => {
         // Exclude receipts marked as credit card charges
@@ -78,15 +80,6 @@ export default function BillReceiptSuggestions({
           ? parseFloat(receipt.amount.replace(/[^0-9.\-]/g, '')) 
           : Number(receipt.amount || 0);
         const amountMatch = billAmount && Math.abs(receiptAmount - billAmount) <= 10;
-        
-        console.log('Receipt amount check:', {
-          filename: receipt.filename,
-          receiptAmount,
-          billAmount,
-          diff: Math.abs(receiptAmount - billAmount),
-          matches: amountMatch,
-          isCreditCard: (receipt as any).is_credit_card_charge
-        });
         
         return amountMatch;
       })

@@ -26,6 +26,7 @@ import {
 } from 'lucide-react';
 import SubscriptionTierManager from '@/components/SubscriptionTierManager';
 import CompanySubscriptionManager from '@/components/CompanySubscriptionManager';
+import SuperAdminAvatarLibraryManager from '@/components/SuperAdminAvatarLibraryManager';
 
 interface TenantAccessRequest {
   id: string;
@@ -397,6 +398,7 @@ export default function SuperAdminDashboard() {
               <CreditCard className="h-4 w-4 mr-1" />
               Subscriptions
             </TabsTrigger>
+            <TabsTrigger value="avatars">Avatar Libraries</TabsTrigger>
             <TabsTrigger value="tenants">Organizations</TabsTrigger>
             <TabsTrigger value="users">All Users</TabsTrigger>
             <TabsTrigger value="history">Request History</TabsTrigger>
@@ -480,6 +482,10 @@ export default function SuperAdminDashboard() {
 
           <TabsContent value="subscriptions" className="space-y-4">
             <CompanySubscriptionManager />
+          </TabsContent>
+
+          <TabsContent value="avatars" className="space-y-4">
+            <SuperAdminAvatarLibraryManager />
           </TabsContent>
 
           <TabsContent value="tenants" className="space-y-4">

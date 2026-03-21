@@ -15,6 +15,10 @@ import { supabase } from '@/integrations/supabase/client';
 import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, User, Bell, Save, Camera, Upload, X, Mail, SendHorizonal, Loader2, FileSignature } from 'lucide-react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import AvatarLibraryDialog from '@/components/AvatarLibraryDialog';
+import { type AvatarLibraryAlbumId } from '@/components/avatarLibrary';
+import { useSettings } from '@/contexts/SettingsContext';
+import { useSystemAvatarLibraries } from '@/hooks/useSystemAvatarLibraries';
 
 interface ProfileData {
   first_name: string;
@@ -49,71 +53,14 @@ interface NotificationSettings {
   new_bid_notifications?: boolean;
 }
 
-type AvatarLibraryCategory = 'nintendo' | 'generic' | 'sports';
-
-interface AvatarLibraryPreset {
-  id: string;
-  name: string;
-  category: AvatarLibraryCategory;
-  monogram: string;
-  topColor: string;
-  bottomColor: string;
-  accentColor: string;
-  ringColor: string;
-}
-
-const AVATAR_LIBRARY_PRESETS: AvatarLibraryPreset[] = [
-  { id: 'nintendo-plumber', name: 'Plumber Hero', category: 'nintendo', monogram: 'PH', topColor: '#ef4444', bottomColor: '#f59e0b', accentColor: '#fde047', ringColor: '#b91c1c' },
-  { id: 'nintendo-galaxy', name: 'Galaxy Hunter', category: 'nintendo', monogram: 'GH', topColor: '#2563eb', bottomColor: '#7c3aed', accentColor: '#93c5fd', ringColor: '#1d4ed8' },
-  { id: 'nintendo-forest', name: 'Forest Knight', category: 'nintendo', monogram: 'FK', topColor: '#16a34a', bottomColor: '#065f46', accentColor: '#86efac', ringColor: '#166534' },
-  { id: 'nintendo-racer', name: 'Turbo Racer', category: 'nintendo', monogram: 'TR', topColor: '#f97316', bottomColor: '#dc2626', accentColor: '#fed7aa', ringColor: '#9a3412' },
-  { id: 'nintendo-princess', name: 'Castle Star', category: 'nintendo', monogram: 'CS', topColor: '#ec4899', bottomColor: '#a855f7', accentColor: '#fbcfe8', ringColor: '#be185d' },
-  { id: 'nintendo-electric', name: 'Electric Buddy', category: 'nintendo', monogram: 'EB', topColor: '#facc15', bottomColor: '#eab308', accentColor: '#fef08a', ringColor: '#ca8a04' },
-
-  { id: 'generic-slate', name: 'Slate Pro', category: 'generic', monogram: 'SP', topColor: '#475569', bottomColor: '#1e293b', accentColor: '#cbd5e1', ringColor: '#334155' },
-  { id: 'generic-ocean', name: 'Ocean Calm', category: 'generic', monogram: 'OC', topColor: '#0ea5e9', bottomColor: '#1d4ed8', accentColor: '#bae6fd', ringColor: '#0369a1' },
-  { id: 'generic-mint', name: 'Mint Clean', category: 'generic', monogram: 'MC', topColor: '#34d399', bottomColor: '#0f766e', accentColor: '#bbf7d0', ringColor: '#0f766e' },
-  { id: 'generic-charcoal', name: 'Charcoal', category: 'generic', monogram: 'CH', topColor: '#111827', bottomColor: '#374151', accentColor: '#d1d5db', ringColor: '#1f2937' },
-  { id: 'generic-sand', name: 'Sandstone', category: 'generic', monogram: 'SA', topColor: '#f59e0b', bottomColor: '#b45309', accentColor: '#fde68a', ringColor: '#92400e' },
-  { id: 'generic-lavender', name: 'Lavender', category: 'generic', monogram: 'LV', topColor: '#a78bfa', bottomColor: '#7c3aed', accentColor: '#ddd6fe', ringColor: '#6d28d9' },
-
-  { id: 'sports-redhawks', name: 'Red Hawks', category: 'sports', monogram: 'RH', topColor: '#dc2626', bottomColor: '#1f2937', accentColor: '#fee2e2', ringColor: '#991b1b' },
-  { id: 'sports-bluetide', name: 'Blue Tide', category: 'sports', monogram: 'BT', topColor: '#1d4ed8', bottomColor: '#0f172a', accentColor: '#dbeafe', ringColor: '#1e40af' },
-  { id: 'sports-goldlions', name: 'Gold Lions', category: 'sports', monogram: 'GL', topColor: '#ca8a04', bottomColor: '#78350f', accentColor: '#fef3c7', ringColor: '#a16207' },
-  { id: 'sports-greensquad', name: 'Green Squad', category: 'sports', monogram: 'GS', topColor: '#15803d', bottomColor: '#14532d', accentColor: '#dcfce7', ringColor: '#166534' },
-  { id: 'sports-purplestorm', name: 'Purple Storm', category: 'sports', monogram: 'PS', topColor: '#7c3aed', bottomColor: '#312e81', accentColor: '#ede9fe', ringColor: '#5b21b6' },
-  { id: 'sports-blackice', name: 'Black Ice', category: 'sports', monogram: 'BI', topColor: '#0f172a', bottomColor: '#111827', accentColor: '#e5e7eb', ringColor: '#1f2937' },
-];
-
-const createAvatarLibraryDataUrl = (preset: AvatarLibraryPreset) => {
-  const gradientId = `g-${preset.id}`;
-  const escapedMonogram = preset.monogram.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 96 96">
-    <defs>
-      <linearGradient id="${gradientId}" x1="0%" y1="0%" x2="100%" y2="100%">
-        <stop offset="0%" stop-color="${preset.topColor}" />
-        <stop offset="100%" stop-color="${preset.bottomColor}" />
-      </linearGradient>
-    </defs>
-    <rect width="96" height="96" rx="48" fill="url(#${gradientId})" />
-    <circle cx="48" cy="48" r="43" fill="none" stroke="${preset.ringColor}" stroke-width="4" />
-    <circle cx="48" cy="30" r="8" fill="${preset.accentColor}" opacity="0.85" />
-    <text x="48" y="62" font-family="Arial, sans-serif" font-weight="700" font-size="27" text-anchor="middle" fill="white">${escapedMonogram}</text>
-  </svg>`;
-  return `data:image/svg+xml;charset=utf-8,${encodeURIComponent(svg)}`;
-};
-
-const AVATAR_LIBRARY = AVATAR_LIBRARY_PRESETS.map((preset) => ({
-  ...preset,
-  avatarUrl: createAvatarLibraryDataUrl(preset),
-}));
-
 export default function ProfileSettings() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { user, profile, refreshProfile } = useAuth();
   const { currentCompany } = useCompany();
+  const { settings } = useSettings();
   const { toast } = useToast();
+  const { libraries: systemAvatarLibraries } = useSystemAvatarLibraries(currentCompany?.id);
 
   const [loading, setLoading] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -123,7 +70,7 @@ export default function ProfileSettings() {
   const [showCamera, setShowCamera] = useState(false);
   const [showAvatarOptions, setShowAvatarOptions] = useState(false);
   const [showAvatarLibrary, setShowAvatarLibrary] = useState(false);
-  const [avatarLibraryCategory, setAvatarLibraryCategory] = useState<AvatarLibraryCategory>('nintendo');
+  const [avatarLibraryCategory, setAvatarLibraryCategory] = useState<AvatarLibraryAlbumId>('nintendo');
   const [stream, setStream] = useState<MediaStream | null>(null);
   
   const [profileData, setProfileData] = useState<ProfileData>({
@@ -623,67 +570,19 @@ export default function ProfileSettings() {
                 </DialogContent>
               </Dialog>
 
-              <Dialog open={showAvatarLibrary} onOpenChange={setShowAvatarLibrary}>
-                <DialogContent className="max-w-3xl">
-                  <DialogHeader>
-                    <DialogTitle>Choose an Avatar</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4">
-                    <div className="flex flex-wrap gap-2">
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={avatarLibraryCategory === 'nintendo' ? 'default' : 'outline'}
-                        onClick={() => setAvatarLibraryCategory('nintendo')}
-                      >
-                        Nintendo-Style
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={avatarLibraryCategory === 'generic' ? 'default' : 'outline'}
-                        onClick={() => setAvatarLibraryCategory('generic')}
-                      >
-                        Generic
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant={avatarLibraryCategory === 'sports' ? 'default' : 'outline'}
-                        onClick={() => setAvatarLibraryCategory('sports')}
-                      >
-                        Sports Team Style
-                      </Button>
-                    </div>
-
-                    <div className="max-h-[420px] overflow-y-auto pr-1">
-                      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 gap-3">
-                        {AVATAR_LIBRARY
-                          .filter((avatar) => avatar.category === avatarLibraryCategory)
-                          .map((avatar) => {
-                            const selected = profileData.avatar_url === avatar.avatarUrl;
-                            return (
-                              <button
-                                key={avatar.id}
-                                type="button"
-                                className={`rounded-lg border p-2 text-left transition-colors ${selected ? 'border-primary bg-primary/5' : 'border-border hover:border-primary/60'}`}
-                                onClick={() => { void handleLibraryAvatarSelect(avatar.avatarUrl); }}
-                                disabled={uploadingAvatar}
-                              >
-                                <img
-                                  src={avatar.avatarUrl}
-                                  alt={avatar.name}
-                                  className="h-20 w-20 rounded-full object-cover mx-auto"
-                                />
-                                <div className="mt-2 text-xs text-center font-medium">{avatar.name}</div>
-                              </button>
-                            );
-                          })}
-                      </div>
-                    </div>
-                  </div>
-                </DialogContent>
-              </Dialog>
+              <AvatarLibraryDialog
+                open={showAvatarLibrary}
+                onOpenChange={setShowAvatarLibrary}
+                category={avatarLibraryCategory}
+                onCategoryChange={setAvatarLibraryCategory}
+                availableCategories={settings.avatarLibrary?.enabledCategories}
+                systemLibraries={systemAvatarLibraries}
+                enabledSystemLibraryIds={settings.avatarLibrary?.enabledSystemLibraryIds}
+                customAvatars={settings.avatarLibrary?.customAvatars}
+                selectedAvatarUrl={profileData.avatar_url}
+                onSelect={(avatarUrl) => { void handleLibraryAvatarSelect(avatarUrl); }}
+                disabled={uploadingAvatar}
+              />
 
               {/* Camera Modal */}
               {showCamera && (

@@ -632,33 +632,55 @@ export default function MakePayment() {
     setSaving(true);
     try {
       const user = await supabase.auth.getUser();
-      
-      // Generate fresh payment number right before save to avoid conflicts
-      const freshPaymentNumber = await generatePaymentNumber();
-      
-      // Create payment - payments start as 'pending' and progress to 'sent'/'cleared' via workflow
-      const paymentToInsert = {
-        payment_number: freshPaymentNumber,
-        vendor_id: payment.vendor_id,
-        payment_method: payment.payment_method,
-        payment_date: payment.payment_date,
-        amount: payment.amount,
-        memo: payment.memo,
-        status: 'pending',
-        check_number: payment.payment_method === 'check' ? (payment.check_number || null) : null,
-        bank_account_id: payment.payment_method === 'credit_card' ? null : payment.bank_account_id,
-        is_partial_payment: isPartialPayment,
-        bank_fee: payment.bank_fee || 0,
-        created_by: user.data.user?.id
-      };
+      let paymentData: any = null;
+      let lastPaymentError: any = null;
 
-      const { data: paymentData, error: paymentError } = await supabase
-        .from('payments')
-        .insert(paymentToInsert)
-        .select()
-        .single();
+      for (let attempt = 0; attempt < 3; attempt += 1) {
+        const freshPaymentNumber = attempt === 0
+          ? await generatePaymentNumber()
+          : `PAY-${Date.now()}-${attempt}`;
 
-      if (paymentError) throw paymentError;
+        const paymentToInsert = {
+          payment_number: freshPaymentNumber,
+          vendor_id: payment.vendor_id,
+          payment_method: payment.payment_method,
+          payment_date: payment.payment_date,
+          amount: payment.amount,
+          memo: payment.memo,
+          status: 'pending',
+          check_number: payment.payment_method === 'check' ? (payment.check_number || null) : null,
+          bank_account_id: payment.payment_method === 'credit_card' ? null : payment.bank_account_id,
+          is_partial_payment: isPartialPayment,
+          bank_fee: payment.bank_fee || 0,
+          created_by: user.data.user?.id
+        };
+
+        const { data, error } = await supabase
+          .from('payments')
+          .insert(paymentToInsert)
+          .select()
+          .single();
+
+        if (!error) {
+          paymentData = data;
+          break;
+        }
+
+        lastPaymentError = error;
+        const isPaymentNumberConflict =
+          error.code === '23505' ||
+          error.code === '409' ||
+          String(error.message || '').toLowerCase().includes('payment_number') ||
+          String((error as any).details || '').toLowerCase().includes('payment_number');
+
+        if (!isPaymentNumberConflict) {
+          throw error;
+        }
+      }
+
+      if (!paymentData) {
+        throw lastPaymentError || new Error('Failed to create payment');
+      }
 
       // Upload document if provided
       let documentUrl = null;

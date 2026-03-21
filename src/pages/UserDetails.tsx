@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useRef } from "react";
 import { resolveStorageUrl } from '@/utils/storageUtils';
 import { useParams, useNavigate, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -32,6 +32,7 @@ import {
   X,
   Trash2,
   Key,
+  Camera,
   Upload,
   Eye,
   FileText
@@ -41,8 +42,12 @@ import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { useAuth } from "@/contexts/AuthContext";
+import { useSettings } from "@/contexts/SettingsContext";
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
+import { useSystemAvatarLibraries } from "@/hooks/useSystemAvatarLibraries";
+import { useIsMobile } from "@/hooks/use-mobile";
+import AvatarLibraryDialog from "@/components/AvatarLibraryDialog";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
@@ -67,6 +72,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import { type AvatarLibraryAlbumId } from "@/components/avatarLibrary";
 
 interface UserProfile {
   user_id: string;
@@ -170,9 +176,12 @@ export default function UserDetails() {
   const { currentCompany } = useCompany();
   const { isSuperAdmin, tenantMember } = useTenant();
   const { profile } = useAuth();
+  const { settings } = useSettings();
   const activeCompanyRole = useActiveCompanyRole();
   const { hasAccess } = useMenuPermissions();
   const { toast } = useToast();
+  const isMobile = useIsMobile();
+  const { libraries: systemAvatarLibraries } = useSystemAvatarLibraries(currentCompany?.id);
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [lastSignInAt, setLastSignInAt] = useState<string | null>(null);
@@ -211,11 +220,19 @@ export default function UserDetails() {
   const [filesLoading, setFilesLoading] = useState(false);
   const [uploadingUserFile, setUploadingUserFile] = useState(false);
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
+  const [showAvatarLibrary, setShowAvatarLibrary] = useState(false);
+  const [showCamera, setShowCamera] = useState(false);
+  const [avatarLibraryCategory, setAvatarLibraryCategory] = useState<AvatarLibraryAlbumId>('nintendo');
   const [selectedUploadFile, setSelectedUploadFile] = useState<File | null>(null);
   const [fileLabel, setFileLabel] = useState('');
   const [fileDescription, setFileDescription] = useState('');
   const [previewOpen, setPreviewOpen] = useState(false);
   const [previewDoc, setPreviewDoc] = useState<{ fileName: string; url: string; type: string } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const cameraInputRef = useRef<HTMLInputElement>(null);
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const canvasRef = useRef<HTMLCanvasElement>(null);
+  const [stream, setStream] = useState<MediaStream | null>(null);
   
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
   const fromEmployees = location.state?.fromEmployees || false;
@@ -262,6 +279,30 @@ export default function UserDetails() {
       setVendorJobs([]);
     }
   }, [selectedVendorId, currentCompany?.id]);
+
+  useEffect(() => {
+    return () => {
+      if (stream) {
+        stream.getTracks().forEach((track) => track.stop());
+      }
+    };
+  }, [stream]);
+
+  useEffect(() => {
+    if (!showAvatarLibrary) return;
+
+    const hasCustomAvatars = (settings.avatarLibrary?.customAvatars?.length || 0) > 0;
+    const systemAlbumId = systemAvatarLibraries[0] ? (`system:${systemAvatarLibraries[0].id}` as AvatarLibraryAlbumId) : null;
+
+    if (systemAlbumId) {
+      setAvatarLibraryCategory(systemAlbumId);
+      return;
+    }
+
+    if (hasCustomAvatars) {
+      setAvatarLibraryCategory('custom');
+    }
+  }, [showAvatarLibrary, systemAvatarLibraries, settings.avatarLibrary?.customAvatars]);
 
   const fetchCustomRoles = async () => {
     if (!currentCompany) return;
@@ -658,9 +699,7 @@ export default function UserDetails() {
     setUser((prev) => (prev ? { ...prev, avatar_url: avatarUrl || undefined } : null));
   };
 
-  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    event.target.value = '';
+  const uploadAvatarFile = async (file?: File | null) => {
     if (!file || !user?.user_id) return;
 
     setUploadingAvatar(true);
@@ -692,12 +731,100 @@ export default function UserDetails() {
     }
   };
 
+  const handleAvatarUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = '';
+    await uploadAvatarFile(file);
+  };
+
+  const handleLibraryAvatarSelect = async (avatarUrl: string) => {
+    if (!user?.user_id) return;
+
+    setUploadingAvatar(true);
+    try {
+      await persistAvatarUrl(avatarUrl);
+      setShowAvatarLibrary(false);
+      toast({
+        title: 'Avatar updated',
+        description: 'The user avatar was updated from the library.',
+      });
+    } catch (error) {
+      console.error('Error applying avatar library image:', error);
+      toast({
+        title: 'Update failed',
+        description: 'Failed to apply the selected avatar.',
+        variant: 'destructive',
+      });
+    } finally {
+      setUploadingAvatar(false);
+    }
+  };
+
+  const startCamera = async () => {
+    try {
+      let mediaStream: MediaStream;
+      try {
+        mediaStream = await navigator.mediaDevices.getUserMedia({
+          video: { facingMode: { ideal: 'user' } },
+        });
+      } catch {
+        mediaStream = await navigator.mediaDevices.getUserMedia({ video: true });
+      }
+
+      setStream(mediaStream);
+      setShowCamera(true);
+
+      window.setTimeout(() => {
+        if (videoRef.current) {
+          videoRef.current.srcObject = mediaStream;
+        }
+      }, 0);
+    } catch (error) {
+      console.error('Error accessing camera:', error);
+      toast({
+        title: 'Camera unavailable',
+        description: 'Unable to access the camera on this device.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const stopCamera = () => {
+    if (stream) {
+      stream.getTracks().forEach((track) => track.stop());
+      setStream(null);
+    }
+    setShowCamera(false);
+  };
+
+  const capturePhoto = () => {
+    if (!videoRef.current || !canvasRef.current) return;
+
+    const video = videoRef.current;
+    const canvas = canvasRef.current;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    ctx.drawImage(video, 0, 0);
+
+    canvas.toBlob(async (blob) => {
+      if (!blob) return;
+      const file = new File([blob], 'avatar.jpg', { type: 'image/jpeg' });
+      stopCamera();
+      await uploadAvatarFile(file);
+      setShowAvatarLibrary(false);
+    }, 'image/jpeg', 0.85);
+  };
+
   const handleRemoveAvatar = async () => {
     if (!user?.user_id) return;
 
     setUploadingAvatar(true);
     try {
       await persistAvatarUrl(null);
+      setShowAvatarLibrary(false);
       toast({
         title: 'Avatar removed',
         description: 'The user avatar was removed successfully.',
@@ -976,6 +1103,106 @@ export default function UserDetails() {
         </div>
       </div>
 
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarUpload}
+      />
+      <input
+        ref={cameraInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={handleAvatarUpload}
+        capture={isMobile ? ('environment' as any) : (undefined as any)}
+      />
+      <AvatarLibraryDialog
+        open={showAvatarLibrary}
+        onOpenChange={setShowAvatarLibrary}
+        category={avatarLibraryCategory}
+        onCategoryChange={setAvatarLibraryCategory}
+        availableCategories={[]}
+        systemLibraries={systemAvatarLibraries}
+        customAvatars={settings.avatarLibrary?.customAvatars}
+        selectedAvatarUrl={user.avatar_url}
+        onSelect={(avatarUrl) => { void handleLibraryAvatarSelect(avatarUrl); }}
+        disabled={uploadingAvatar}
+        title={`Change Avatar for ${displayName}`}
+        description="Choose from this company’s assigned avatar libraries, shared system albums, or custom company avatars."
+        actions={
+          <>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={uploadingAvatar}
+              onClick={() => fileInputRef.current?.click()}
+            >
+              <Upload className="mr-2 h-4 w-4" />
+              Upload Photo
+            </Button>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              disabled={uploadingAvatar}
+              onClick={() => {
+                if (isMobile) {
+                  cameraInputRef.current?.click();
+                  return;
+                }
+                void startCamera();
+              }}
+            >
+              <Camera className="mr-2 h-4 w-4" />
+              Take Photo
+            </Button>
+            {user.avatar_url ? (
+              <Button
+                type="button"
+                variant="secondary"
+                size="sm"
+                disabled={uploadingAvatar}
+                onClick={() => void handleRemoveAvatar()}
+              >
+                Remove Avatar
+              </Button>
+            ) : null}
+          </>
+        }
+      />
+      <Dialog open={showCamera} onOpenChange={(open) => {
+        if (!open) stopCamera();
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Take a Photo</DialogTitle>
+            <DialogDescription>Capture a new avatar photo for this user.</DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <video
+              ref={videoRef}
+              autoPlay
+              playsInline
+              className="w-full rounded-lg border bg-black"
+              style={{ maxHeight: '320px' }}
+            />
+            <canvas ref={canvasRef} className="hidden" />
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={stopCamera}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={capturePhoto} disabled={uploadingAvatar}>
+                <Camera className="mr-2 h-4 w-4" />
+                Capture
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'profile' | 'files')} className="space-y-4">
         <TabsList>
           <TabsTrigger value="profile">User Profile</TabsTrigger>
@@ -1022,7 +1249,7 @@ export default function UserDetails() {
                     variant="outline"
                     size="sm"
                     disabled={uploadingAvatar}
-                    onClick={() => document.getElementById('user-details-avatar-upload')?.click()}
+                    onClick={() => setShowAvatarLibrary(true)}
                   >
                     <Upload className="mr-2 h-4 w-4" />
                     {uploadingAvatar ? 'Uploading...' : 'Change Avatar'}
@@ -1038,13 +1265,6 @@ export default function UserDetails() {
                       Remove Avatar
                     </Button>
                   )}
-                  <input
-                    id="user-details-avatar-upload"
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={handleAvatarUpload}
-                  />
                 </div>
               )}
             </div>

@@ -5,16 +5,20 @@ import { useSettings } from '@/contexts/SettingsContext';
 import { useToast } from '@/hooks/use-toast';
 import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useTheme } from 'next-themes';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
+import { useCompany } from '@/contexts/CompanyContext';
 import ColorPicker from '@/components/ColorPicker';
-import { Palette, SlidersHorizontal } from 'lucide-react';
+import { FolderOpen, ImagePlus, Palette, SlidersHorizontal } from 'lucide-react';
+import MultiFileUploadDropzone from '@/components/MultiFileUploadDropzone';
+import { AVATAR_LIBRARY, AVATAR_LIBRARY_CATEGORY_LABELS, type AvatarLibraryAlbumId, type AvatarLibraryCategory, type CustomAvatarEntry } from '@/components/avatarLibrary';
+import { useSystemAvatarLibraries } from '@/hooks/useSystemAvatarLibraries';
 
 
 interface ThemeSettingsProps {
@@ -32,7 +36,11 @@ export default function ThemeSettings({
   const { toast } = useToast();
   const { setTheme } = useTheme();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
+  const { libraries: systemAvatarLibraries } = useSystemAvatarLibraries(currentCompany?.id);
   const [uploading, setUploading] = useState(false);
+  const [avatarUploading, setAvatarUploading] = useState(false);
+  const [selectedAvatarAlbum, setSelectedAvatarAlbum] = useState<AvatarLibraryAlbumId>('nintendo');
 
   const handleSaveSettings = () => {
     setTheme(settings.theme);
@@ -84,10 +92,148 @@ export default function ThemeSettings({
     }
   };
 
-  const handleBannerUpload = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    await uploadThemeBannerFile(event.target.files?.[0]);
-    event.target.value = '';
+  const handleBannerFilesSelected = async (files: File[]) => {
+    await uploadThemeBannerFile(files[0]);
   };
+
+  const enabledAvatarCategories = settings.avatarLibrary?.enabledCategories ?? ['nintendo', 'generic', 'sports', 'construction'];
+  const enabledSystemLibraryIds = settings.avatarLibrary?.enabledSystemLibraryIds ?? [];
+  const customAvatarLibrary = settings.avatarLibrary?.customAvatars ?? [];
+  const avatarAlbums: AvatarLibraryCategory[] = ['nintendo', 'generic', 'sports', 'construction', 'custom'];
+  const avatarAlbumDescriptions: Record<AvatarLibraryCategory, string> = {
+    nintendo: 'Playful game-inspired avatars for colorful profile options.',
+    generic: 'Clean neutral avatars for general company-wide use.',
+    sports: 'Team-style avatars with bold color palettes and energy.',
+    construction: 'Field and office construction-themed avatar options.',
+    custom: 'Your company-managed avatar uploads and internal avatar sets.',
+  };
+  const selectedAvatarAlbumPreview = selectedAvatarAlbum === 'custom'
+    ? customAvatarLibrary
+    : typeof selectedAvatarAlbum === 'string' && selectedAvatarAlbum.startsWith('system:')
+      ? (systemAvatarLibraries.find((library) => library.id === selectedAvatarAlbum.replace('system:', ''))?.items || []).map((item) => ({
+          id: item.id,
+          name: item.name,
+          avatarUrl: item.image_url,
+        }))
+      : AVATAR_LIBRARY.filter((avatar) => avatar.category === selectedAvatarAlbum);
+  const selectedSystemLibrary = selectedAvatarAlbum.startsWith('system:')
+    ? systemAvatarLibraries.find((library) => library.id === selectedAvatarAlbum.replace('system:', ''))
+    : null;
+  const selectedAvatarAlbumLabel = selectedSystemLibrary?.name || AVATAR_LIBRARY_CATEGORY_LABELS[selectedAvatarAlbum as AvatarLibraryCategory];
+  const selectedAvatarAlbumDescription = selectedSystemLibrary?.description || avatarAlbumDescriptions[selectedAvatarAlbum as AvatarLibraryCategory] || 'Shared system avatar album from super admin.';
+
+  const toggleAvatarCategory = (category: AvatarLibraryCategory, enabled: boolean) => {
+    const next = enabled
+      ? Array.from(new Set([...enabledAvatarCategories, category]))
+      : enabledAvatarCategories.filter((entry) => entry !== category);
+
+    updateSettings({
+      avatarLibrary: {
+        enabledCategories: next,
+        enabledSystemLibraryIds,
+        customAvatars: customAvatarLibrary,
+      },
+    });
+  };
+
+  const toggleSystemLibrary = (libraryId: string, enabled: boolean) => {
+    const next = enabled
+      ? Array.from(new Set([...enabledSystemLibraryIds, libraryId]))
+      : enabledSystemLibraryIds.filter((entry) => entry !== libraryId);
+
+    updateSettings({
+      avatarLibrary: {
+        enabledCategories: enabledAvatarCategories,
+        enabledSystemLibraryIds: next,
+        customAvatars: customAvatarLibrary,
+      },
+    });
+  };
+
+  const uploadCustomAvatarFile = async (file?: File | null) => {
+    if (!file || !user || !currentCompany?.id) return;
+
+    setAvatarUploading(true);
+    try {
+      const fileExt = file.name.split('.').pop();
+      const fileName = `custom-avatar-${Date.now()}.${fileExt}`;
+      const filePath = `${currentCompany.id}/avatar-library/${fileName}`;
+
+      const { error: uploadError } = await supabase.storage
+        .from('company-logos')
+        .upload(filePath, file, { upsert: true });
+
+      if (uploadError) throw uploadError;
+
+      const { data } = supabase.storage
+        .from('company-logos')
+        .getPublicUrl(filePath);
+
+      const nextEntry: CustomAvatarEntry = {
+        id: fileName,
+        name: file.name.replace(/\.[^.]+$/, ''),
+        avatarUrl: data.publicUrl,
+        category: 'custom',
+      };
+
+      updateSettings({
+        avatarLibrary: {
+          enabledCategories: enabledAvatarCategories,
+          enabledSystemLibraryIds,
+          customAvatars: [...customAvatarLibrary, nextEntry],
+        },
+      });
+
+      toast({
+        title: "Avatar added",
+        description: "Custom avatar added to your company library.",
+      });
+
+      if (selectedAvatarAlbum !== 'custom') {
+        setSelectedAvatarAlbum('custom');
+      }
+    } catch (error) {
+      console.error('Error uploading custom avatar:', error);
+      toast({
+        title: "Upload failed",
+        description: "Could not upload custom avatar.",
+        variant: "destructive",
+      });
+    } finally {
+      setAvatarUploading(false);
+    }
+  };
+
+  const handleCustomAvatarFilesSelected = async (files: File[]) => {
+    await uploadCustomAvatarFile(files[0]);
+  };
+
+  const removeCustomAvatar = (avatarId: string) => {
+    updateSettings({
+      avatarLibrary: {
+        enabledCategories: enabledAvatarCategories,
+        enabledSystemLibraryIds,
+        customAvatars: customAvatarLibrary.filter((avatar) => avatar.id !== avatarId),
+      },
+    });
+  };
+
+  useEffect(() => {
+    if (selectedAvatarAlbum === 'custom') return;
+    if (selectedAvatarAlbum.startsWith('system:')) {
+      const libraryId = selectedAvatarAlbum.replace('system:', '');
+      const libraryStillAvailable = systemAvatarLibraries.some((library) => library.id === libraryId);
+      const libraryStillEnabled = enabledSystemLibraryIds.includes(libraryId);
+      if (!libraryStillAvailable || !libraryStillEnabled) {
+        setSelectedAvatarAlbum(enabledAvatarCategories[0] ?? 'nintendo');
+      }
+      return;
+    }
+
+    if (!enabledAvatarCategories.includes(selectedAvatarAlbum as AvatarLibraryCategory)) {
+      setSelectedAvatarAlbum(enabledAvatarCategories[0] ?? 'nintendo');
+    }
+  }, [enabledAvatarCategories, enabledSystemLibraryIds, selectedAvatarAlbum, systemAvatarLibraries]);
 
   return (
     <div className={embedded ? '' : 'p-4 md:p-6'}>
@@ -99,7 +245,7 @@ export default function ThemeSettings({
         )}
         
         <Tabs defaultValue="general" className="space-y-6">
-          <TabsList className="grid w-full grid-cols-2">
+          <TabsList className="grid w-full grid-cols-3">
             <TabsTrigger value="general" className="flex items-center gap-2">
               <Palette className="h-4 w-4" />
               General Theme
@@ -108,6 +254,7 @@ export default function ThemeSettings({
               <SlidersHorizontal className="h-4 w-4" />
               Display & Operation
             </TabsTrigger>
+            <TabsTrigger value="avatars">Avatars</TabsTrigger>
           </TabsList>
 
           <TabsContent value="general" className="space-y-6">
@@ -216,7 +363,7 @@ export default function ThemeSettings({
 
                 <div className="space-y-4">
                   <Label>Dashboard Banner</Label>
-                  <div className="flex items-center gap-4">
+                  <div className="space-y-4">
                     {settings.dashboardBanner && (
                       <div className="flex items-center gap-2">
                         <img 
@@ -233,16 +380,16 @@ export default function ThemeSettings({
                         </Button>
                       </div>
                     )}
-                    <Input
-                      type="file"
+                    <MultiFileUploadDropzone
+                      onFilesSelected={handleBannerFilesSelected}
                       accept="image/*"
-                      onChange={handleBannerUpload}
                       disabled={uploading}
-                      className="max-w-sm"
+                      buttonLabel={uploading ? "Uploading..." : "Choose Banner to Upload"}
+                      dragLabel="Drag Banner Image Here"
+                      subtitle="Upload a banner image to display at the top of your dashboard. Recommended size: 1600 x 320 pixels."
+                      compact
+                      className="max-w-3xl"
                     />
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    Upload a banner image to display at the top of your dashboard
                   </div>
                 </div>
               </CardContent>
@@ -440,20 +587,24 @@ export default function ThemeSettings({
                   </div>
 
                   <div className="space-y-2">
-                    <Label htmlFor="theme-currency-format">Currency Format</Label>
+                    <Label htmlFor="theme-time-zone">Time Zone</Label>
                     <Select
-                      value={settings.currencyFormat}
-                      onValueChange={(value: 'USD' | 'EUR' | 'GBP') =>
-                        updateSettings({ currencyFormat: value })
+                      value={settings.timeZone}
+                      onValueChange={(value: string) =>
+                        updateSettings({ timeZone: value })
                       }
                     >
-                      <SelectTrigger id="theme-currency-format">
-                        <SelectValue placeholder="Select currency" />
+                      <SelectTrigger id="theme-time-zone">
+                        <SelectValue placeholder="Select time zone" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="USD">USD ($)</SelectItem>
-                        <SelectItem value="EUR">EUR (€)</SelectItem>
-                        <SelectItem value="GBP">GBP (£)</SelectItem>
+                        <SelectItem value="America/New_York">Eastern Time</SelectItem>
+                        <SelectItem value="America/Chicago">Central Time</SelectItem>
+                        <SelectItem value="America/Denver">Mountain Time</SelectItem>
+                        <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
+                        <SelectItem value="America/Phoenix">Arizona Time</SelectItem>
+                        <SelectItem value="America/Anchorage">Alaska Time</SelectItem>
+                        <SelectItem value="Pacific/Honolulu">Hawaii Time</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>
@@ -474,6 +625,242 @@ export default function ThemeSettings({
                         <SelectItem value="feet">Feet (ft)</SelectItem>
                       </SelectContent>
                     </Select>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="theme-currency-format">Currency Format</Label>
+                    <Select
+                      value={settings.currencyFormat}
+                      onValueChange={(value: 'USD' | 'EUR' | 'GBP') =>
+                        updateSettings({ currencyFormat: value })
+                      }
+                    >
+                      <SelectTrigger id="theme-currency-format">
+                        <SelectValue placeholder="Select currency" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="USD">USD ($)</SelectItem>
+                        <SelectItem value="EUR">EUR (€)</SelectItem>
+                        <SelectItem value="GBP">GBP (£)</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+
+          <TabsContent value="avatars" className="space-y-6">
+            <Card>
+              <CardHeader>
+                <CardTitle>Avatar Library</CardTitle>
+                <CardDescription>
+                  Organize avatar albums, control which sets users can choose from, and manage your company avatar library.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <div className="grid gap-6 lg:grid-cols-[320px_minmax(0,1fr)]">
+                  <div className="space-y-3">
+                    <div className="flex items-center justify-between">
+                      <Label>Avatar Albums</Label>
+                      <span className="text-xs text-muted-foreground">
+                        Choose what users can browse
+                      </span>
+                    </div>
+
+                    <div className="space-y-3">
+                      {avatarAlbums.map((category) => {
+                        const itemCount = category === 'custom'
+                          ? customAvatarLibrary.length
+                          : AVATAR_LIBRARY.filter((avatar) => avatar.category === category).length;
+                        const isEnabled = category === 'custom'
+                          ? customAvatarLibrary.length > 0
+                          : enabledAvatarCategories.includes(category);
+                        const isSelected = selectedAvatarAlbum === category;
+
+                        return (
+                          <button
+                            key={category}
+                            type="button"
+                            onClick={() => setSelectedAvatarAlbum(category)}
+                            className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                              isSelected
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border bg-card hover:border-primary/40 hover:bg-muted/40'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-11 w-11 items-center justify-center rounded-lg border bg-muted/40">
+                                <FolderOpen className="h-5 w-5 text-muted-foreground" />
+                              </div>
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="font-medium">
+                                      {AVATAR_LIBRARY_CATEGORY_LABELS[category]}
+                                    </div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {itemCount} avatar{itemCount === 1 ? '' : 's'}
+                                    </div>
+                                  </div>
+                                  {category === 'custom' ? (
+                                    <div className="rounded-full border px-2 py-0.5 text-[11px] text-muted-foreground">
+                                      {itemCount > 0 ? 'Available' : 'Empty'}
+                                    </div>
+                                  ) : (
+                                    <div
+                                      className="flex items-center gap-2"
+                                      onClick={(event) => event.stopPropagation()}
+                                    >
+                                      <Checkbox
+                                        checked={isEnabled}
+                                        onCheckedChange={(checked) => toggleAvatarCategory(category, checked === true)}
+                                        aria-label={`Enable ${AVATAR_LIBRARY_CATEGORY_LABELS[category]} album`}
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                                <p className="text-xs leading-5 text-muted-foreground">
+                                  {avatarAlbumDescriptions[category]}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                      {systemAvatarLibraries.map((library) => {
+                        const isEnabled = enabledSystemLibraryIds.includes(library.id);
+                        const isSelected = selectedAvatarAlbum === `system:${library.id}`;
+
+                        return (
+                          <button
+                            key={library.id}
+                            type="button"
+                            onClick={() => setSelectedAvatarAlbum(`system:${library.id}`)}
+                            className={`w-full rounded-xl border p-4 text-left transition-colors ${
+                              isSelected
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border bg-card hover:border-primary/40 hover:bg-muted/40'
+                            }`}
+                          >
+                            <div className="flex items-start gap-3">
+                              <div className="flex h-11 w-11 items-center justify-center overflow-hidden rounded-lg border bg-muted/40">
+                                {library.cover_image_url ? (
+                                  <img src={library.cover_image_url} alt={library.name} className="h-full w-full object-cover" />
+                                ) : (
+                                  <FolderOpen className="h-5 w-5 text-muted-foreground" />
+                                )}
+                              </div>
+                              <div className="min-w-0 flex-1 space-y-1">
+                                <div className="flex items-start justify-between gap-3">
+                                  <div>
+                                    <div className="font-medium">{library.name}</div>
+                                    <div className="text-xs text-muted-foreground">
+                                      {library.items.length} avatar{library.items.length === 1 ? '' : 's'}
+                                    </div>
+                                  </div>
+                                  <div
+                                    className="flex items-center gap-2"
+                                    onClick={(event) => event.stopPropagation()}
+                                  >
+                                    <Checkbox
+                                      checked={isEnabled}
+                                      onCheckedChange={(checked) => toggleSystemLibrary(library.id, checked === true)}
+                                      aria-label={`Enable ${library.name} album`}
+                                    />
+                                  </div>
+                                </div>
+                                <p className="text-xs leading-5 text-muted-foreground">
+                                  {library.description || 'Shared system avatar album from super admin.'}
+                                </p>
+                              </div>
+                            </div>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="space-y-4 rounded-2xl border bg-card p-4 md:p-5">
+                    <div className="flex flex-wrap items-start justify-between gap-3">
+                      <div>
+                        <div className="text-lg font-semibold">
+                          {selectedAvatarAlbumLabel}
+                        </div>
+                        <p className="mt-1 text-sm text-muted-foreground">
+                          {selectedAvatarAlbumDescription}
+                        </p>
+                      </div>
+                      <div className="rounded-full border px-3 py-1 text-xs text-muted-foreground">
+                        {selectedAvatarAlbumPreview.length} preview item{selectedAvatarAlbumPreview.length === 1 ? '' : 's'}
+                      </div>
+                    </div>
+
+                    <Separator />
+
+                    {selectedAvatarAlbum === 'custom' && (
+                      <div className="space-y-4">
+                        <div className="flex items-center gap-2 text-sm font-medium">
+                          <ImagePlus className="h-4 w-4" />
+                          Add to Custom Library
+                        </div>
+                        <MultiFileUploadDropzone
+                          onFilesSelected={handleCustomAvatarFilesSelected}
+                          accept="image/*"
+                          disabled={avatarUploading}
+                          buttonLabel={avatarUploading ? "Uploading..." : "Choose Avatar to Add"}
+                          dragLabel="Drag Avatar Here"
+                          compact
+                          className="max-w-3xl"
+                        />
+                      </div>
+                    )}
+
+                    {selectedAvatarAlbumPreview.length > 0 ? (
+                      <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+                        {selectedAvatarAlbumPreview.map((avatar) => {
+                          const avatarUrl = 'avatarUrl' in avatar ? avatar.avatarUrl : '';
+                          const avatarName = avatar.name;
+                          const isCustom = selectedAvatarAlbum === 'custom';
+                          const isSystemLibrary = selectedAvatarAlbum.startsWith('system:');
+
+                          return (
+                            <div key={avatar.id} className="rounded-xl border bg-background/40 p-4">
+                              <div className="flex items-center gap-3">
+                                <img
+                                  src={avatarUrl}
+                                  alt={avatarName}
+                                  className="h-16 w-16 rounded-full object-cover ring-1 ring-border"
+                                />
+                                <div className="min-w-0 flex-1">
+                                  <div className="truncate font-medium">{avatarName}</div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {isCustom ? 'Custom company avatar' : isSystemLibrary ? 'Shared system avatar' : 'Built-in album avatar'}
+                                  </div>
+                                </div>
+                              </div>
+                              {isCustom && (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  className="mt-4 w-full"
+                                  onClick={() => removeCustomAvatar(avatar.id)}
+                                >
+                                  Remove
+                                </Button>
+                              )}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    ) : (
+                      <div className="rounded-xl border border-dashed p-8 text-center text-sm text-muted-foreground">
+                        {selectedAvatarAlbum === 'custom'
+                          ? 'No custom company avatars yet. Upload a few here to build your own company avatar album.'
+                          : 'This album preview is currently empty.'}
+                      </div>
+                    )}
                   </div>
                 </div>
               </CardContent>
