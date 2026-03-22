@@ -10,25 +10,26 @@ import {
   Download,
   FolderKanban,
   Mail,
+  Pencil,
   Paperclip,
   Plus,
   Send,
   Settings,
   Target,
   Trash2,
-  Upload,
   UserPlus,
   Users,
 } from 'lucide-react';
 
 import DragDropUpload from '@/components/DragDropUpload';
+import FileShareModal from '@/components/FileShareModal';
 import MentionTextarea from '@/components/MentionTextarea';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -92,10 +93,12 @@ type TaskAttachment = {
   id: string;
   file_name: string;
   file_url: string;
+  storage_path: string;
   file_size: number | null;
   file_type: string | null;
   uploaded_by: string;
   uploaded_at: string;
+  folder_name?: string | null;
   user_name?: string;
   avatar_url?: string | null;
 };
@@ -210,12 +213,29 @@ export default function TaskDetails() {
   const [settingsOpen, setSettingsOpen] = useState(false);
   const [teamModalOpen, setTeamModalOpen] = useState(false);
   const [pendingLeaderSelection, setPendingLeaderSelection] = useState(false);
+  const [selectedAttachmentIds, setSelectedAttachmentIds] = useState<string[]>([]);
+  const [attachmentShareOpen, setAttachmentShareOpen] = useState(false);
+  const [renameAttachment, setRenameAttachment] = useState<TaskAttachment | null>(null);
+  const [renamingFileName, setRenamingFileName] = useState('');
+  const [creatingFolder, setCreatingFolder] = useState(false);
+  const [newFolderName, setNewFolderName] = useState('');
+  const [activeAttachmentFolder, setActiveAttachmentFolder] = useState('all');
+  const [selectedMoveFolder, setSelectedMoveFolder] = useState('');
+  const [deleteTaskConfirmOpen, setDeleteTaskConfirmOpen] = useState(false);
+  const [deleteTaskConfirmText, setDeleteTaskConfirmText] = useState('');
+  const [deletingTask, setDeletingTask] = useState(false);
 
   const actorName =
     (user as any)?.user_metadata?.full_name ||
     (user as any)?.user_metadata?.name ||
     (user as any)?.email ||
     'A teammate';
+
+  const getTaskAttachmentStoragePath = (fileUrl: string) => {
+    const marker = '/task-attachments/';
+    const [, storagePath] = String(fileUrl || '').split(marker);
+    return storagePath || '';
+  };
 
   useEffect(() => {
     if (id && currentCompany?.id && !websiteJobAccessLoading) {
@@ -345,7 +365,7 @@ export default function TaskDetails() {
           .eq('task_id', id),
         supabase
           .from('task_attachments')
-          .select('id, file_name, file_url, file_size, file_type, uploaded_by, uploaded_at')
+          .select('id, file_name, file_url, file_size, file_type, uploaded_by, uploaded_at, folder_name')
           .eq('task_id', id)
           .order('uploaded_at', { ascending: false }),
         supabase
@@ -493,14 +513,17 @@ export default function TaskDetails() {
           id: String(row.id),
           file_name: String(row.file_name || ''),
           file_url: String(row.file_url || ''),
+          storage_path: getTaskAttachmentStoragePath(String(row.file_url || '')),
           file_size: row.file_size,
           file_type: row.file_type,
           uploaded_by: String(row.uploaded_by),
           uploaded_at: row.uploaded_at,
+          folder_name: row.folder_name || null,
           user_name: profileMap.get(String(row.uploaded_by))?.name || 'Unknown User',
           avatar_url: profileMap.get(String(row.uploaded_by))?.avatar_url || null,
         })),
       );
+      setSelectedAttachmentIds([]);
 
       setChecklistItems(
         ((checklistResult.data || []) as any[]).map((row) => ({
@@ -716,6 +739,7 @@ export default function TaskDetails() {
           task_id: id,
           file_name: file.name,
           file_url: urlData.publicUrl,
+          folder_name: activeAttachmentFolder === 'all' || activeAttachmentFolder === 'ungrouped' ? null : activeAttachmentFolder,
           file_size: file.size,
           file_type: file.type,
           uploaded_by: user.id,
@@ -760,6 +784,147 @@ export default function TaskDetails() {
     } catch (error) {
       console.error('Error deleting attachment:', error);
       toast.error('Failed to delete attachment');
+    }
+  };
+
+  const handleRenameAttachment = async () => {
+    if (!renameAttachment) return;
+    const trimmedName = renamingFileName.trim();
+    if (!trimmedName) {
+      toast.error('File name is required');
+      return;
+    }
+
+    try {
+      const { error } = await supabase
+        .from('task_attachments')
+        .update({ file_name: trimmedName })
+        .eq('id', renameAttachment.id);
+      if (error) throw error;
+
+      await logTaskActivity('task_updated', `Renamed ${renameAttachment.file_name} to ${trimmedName}`, {
+        previous_name: renameAttachment.file_name,
+        file_name: trimmedName,
+      });
+      await loadTaskWorkspace();
+      setRenameAttachment(null);
+      setRenamingFileName('');
+      toast.success('Attachment renamed');
+    } catch (error) {
+      console.error('Error renaming attachment:', error);
+      toast.error('Failed to rename attachment');
+    }
+  };
+
+  const handleCreateAttachmentFolder = async () => {
+    const trimmedFolder = newFolderName.trim();
+    if (!trimmedFolder) {
+      toast.error('Folder name is required');
+      return;
+    }
+
+    try {
+      const seedAttachmentId = selectedAttachmentIds[0] || attachments[0]?.id;
+      if (seedAttachmentId) {
+        const { error } = await supabase
+          .from('task_attachments')
+          .update({ folder_name: trimmedFolder })
+          .eq('id', seedAttachmentId);
+        if (error) throw error;
+      }
+
+      await logTaskActivity('task_updated', `Created attachment folder "${trimmedFolder}"`);
+      setActiveAttachmentFolder(trimmedFolder);
+      setCreatingFolder(false);
+      setNewFolderName('');
+      await loadTaskWorkspace();
+      toast.success('Folder created');
+    } catch (error) {
+      console.error('Error creating attachment folder:', error);
+      toast.error('Failed to create folder');
+    }
+  };
+
+  const handleMoveSelectedAttachments = async (folderName: string | null) => {
+    if (selectedAttachmentIds.length === 0) return;
+    try {
+      const { error } = await supabase
+        .from('task_attachments')
+        .update({ folder_name: folderName })
+        .in('id', selectedAttachmentIds);
+      if (error) throw error;
+
+      await logTaskActivity(
+        'task_updated',
+        folderName ? `Moved ${selectedAttachmentIds.length} attachment(s) to "${folderName}"` : `Removed ${selectedAttachmentIds.length} attachment(s) from folders`,
+        { folder_name: folderName, attachment_count: selectedAttachmentIds.length },
+      );
+      setSelectedAttachmentIds([]);
+      setSelectedMoveFolder('');
+      if (!folderName && activeAttachmentFolder !== 'all' && activeAttachmentFolder !== 'ungrouped') {
+        setActiveAttachmentFolder('all');
+      }
+      await loadTaskWorkspace();
+      toast.success(folderName ? 'Files moved' : 'Files moved to root');
+    } catch (error) {
+      console.error('Error organizing attachments:', error);
+      toast.error('Failed to organize attachments');
+    }
+  };
+
+  const handleDownloadSelectedAttachments = async () => {
+    const selectedAttachments = attachments.filter((attachment) => selectedAttachmentIds.includes(attachment.id));
+    for (const attachment of selectedAttachments) {
+      const link = document.createElement('a');
+      link.href = attachment.file_url;
+      link.download = attachment.file_name;
+      link.target = '_blank';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+    }
+  };
+
+  const handlePrintSelectedAttachments = () => {
+    const selectedAttachments = attachments.filter((attachment) => selectedAttachmentIds.includes(attachment.id));
+    selectedAttachments.forEach((attachment) => {
+      const printWindow = window.open(attachment.file_url, '_blank');
+      if (printWindow) {
+        printWindow.addEventListener('load', () => {
+          printWindow.print();
+        });
+      }
+    });
+  };
+
+  const handleDeleteTask = async () => {
+    if (!task || !id) return;
+    if (deleteTaskConfirmText.trim() !== task.title.trim()) {
+      toast.error('Type the task title exactly to confirm deletion');
+      return;
+    }
+
+    setDeletingTask(true);
+    try {
+      const attachmentPaths = attachments
+        .map((attachment) => attachment.storage_path)
+        .filter(Boolean);
+      if (attachmentPaths.length > 0) {
+        const { error: storageDeleteError } = await supabase.storage.from('task-attachments').remove(attachmentPaths);
+        if (storageDeleteError) throw storageDeleteError;
+      }
+
+      const { error } = await supabase.from('tasks').delete().eq('id', id);
+      if (error) throw error;
+
+      toast.success('Task deleted');
+      setDeleteTaskConfirmOpen(false);
+      navigate('/tasks');
+    } catch (error) {
+      console.error('Error deleting task:', error);
+      toast.error('Failed to delete task');
+    } finally {
+      setDeletingTask(false);
     }
   };
 
@@ -1003,6 +1168,21 @@ export default function TaskDetails() {
     : taskDraft.due_date
       ? `Due ${format(new Date(taskDraft.due_date), 'MMM d, yyyy')}`
       : 'No due date set';
+  const attachmentFolders = Array.from(
+    new Set(attachments.map((attachment) => String(attachment.folder_name || '').trim()).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b));
+  const visibleAttachments = attachments.filter((attachment) => {
+    if (activeAttachmentFolder === 'all') return true;
+    if (activeAttachmentFolder === 'ungrouped') return !attachment.folder_name;
+    return attachment.folder_name === activeAttachmentFolder;
+  });
+  const selectedAttachments = attachments.filter((attachment) => selectedAttachmentIds.includes(attachment.id));
+  const shareableTaskAttachments = selectedAttachments.map((attachment) => ({
+    id: attachment.id,
+    file_name: attachment.file_name,
+    file_url: attachment.storage_path,
+    file_size: attachment.file_size,
+  }));
 
   const formatFileSize = (bytes: number | null) => {
     if (!bytes) return 'Unknown size';
@@ -1269,10 +1449,19 @@ export default function TaskDetails() {
             <TabsContent value="attachments">
               <Card>
                 <CardHeader>
-                  <CardTitle className="flex items-center gap-2">
-                    <Paperclip className="h-5 w-5" />
-                    Attachments
-                  </CardTitle>
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <CardTitle className="flex items-center gap-2">
+                      <Paperclip className="h-5 w-5" />
+                      Attachments
+                    </CardTitle>
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">{attachments.length} files</Badge>
+                      <Button type="button" variant="outline" size="sm" onClick={() => setCreatingFolder(true)}>
+                        <FolderKanban className="mr-2 h-4 w-4" />
+                        New Folder
+                      </Button>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <input
@@ -1290,32 +1479,133 @@ export default function TaskDetails() {
                     disabled={uploadingFile}
                   />
 
-                  {attachments.length === 0 ? (
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={activeAttachmentFolder === 'all' ? 'default' : 'outline'}
+                      onClick={() => setActiveAttachmentFolder('all')}
+                    >
+                      All Files
+                    </Button>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant={activeAttachmentFolder === 'ungrouped' ? 'default' : 'outline'}
+                      onClick={() => setActiveAttachmentFolder('ungrouped')}
+                    >
+                      Root
+                    </Button>
+                    {attachmentFolders.map((folderName) => (
+                      <Button
+                        key={folderName}
+                        type="button"
+                        size="sm"
+                        variant={activeAttachmentFolder === folderName ? 'default' : 'outline'}
+                        onClick={() => setActiveAttachmentFolder(folderName)}
+                      >
+                        {folderName}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {selectedAttachmentIds.length > 0 ? (
+                    <div className="flex flex-wrap items-center gap-2 rounded-lg border bg-muted/20 p-3">
+                      <Badge variant="secondary">{selectedAttachmentIds.length} selected</Badge>
+                      <Button type="button" size="sm" variant="outline" onClick={() => void handleDownloadSelectedAttachments()}>
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => setAttachmentShareOpen(true)}>
+                        <Mail className="mr-2 h-4 w-4" />
+                        Email
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={handlePrintSelectedAttachments}>
+                        Print
+                      </Button>
+                      <Select value={selectedMoveFolder || '__none__'} onValueChange={(value) => setSelectedMoveFolder(value === '__none__' ? '' : value)}>
+                        <SelectTrigger className="w-[220px]">
+                          <SelectValue placeholder="Move to folder" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">Choose folder</SelectItem>
+                          {attachmentFolders.map((folderName) => (
+                            <SelectItem key={folderName} value={folderName}>
+                              {folderName}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        disabled={!selectedMoveFolder}
+                        onClick={() => void handleMoveSelectedAttachments(selectedMoveFolder)}
+                      >
+                        Move
+                      </Button>
+                      <Button type="button" size="sm" variant="outline" onClick={() => void handleMoveSelectedAttachments(null)}>
+                        Move To Root
+                      </Button>
+                    </div>
+                  ) : null}
+
+                  {visibleAttachments.length === 0 ? (
                     <p className="text-sm text-muted-foreground">No attachments yet.</p>
                   ) : (
                     <div className="space-y-2">
-                      {attachments.map((attachment) => (
-                        <div key={attachment.id} className="rounded-lg border p-3">
-                          <div className="flex items-start justify-between gap-3">
-                            <div className="min-w-0">
-                              <p className="truncate font-medium">{attachment.file_name}</p>
-                              <p className="mt-1 text-xs text-muted-foreground">
-                                {formatFileSize(attachment.file_size)} • Uploaded by {attachment.user_name || 'Unknown User'}
-                              </p>
-                            </div>
-                            <div className="flex gap-1">
-                              <Button type="button" size="sm" variant="ghost" asChild>
-                                <a href={attachment.file_url} target="_blank" rel="noopener noreferrer">
-                                  <Download className="h-4 w-4" />
-                                </a>
-                              </Button>
-                              <Button type="button" size="sm" variant="ghost" onClick={() => void handleDeleteAttachment(attachment)}>
-                                <Trash2 className="h-4 w-4 text-destructive" />
-                              </Button>
+                      {visibleAttachments.map((attachment) => {
+                        const isSelected = selectedAttachmentIds.includes(attachment.id);
+                        return (
+                          <div key={attachment.id} className={`rounded-lg border p-3 transition-colors ${isSelected ? 'border-primary bg-primary/5' : ''}`}>
+                            <div className="flex items-start gap-3">
+                              <Checkbox
+                                checked={isSelected}
+                                onCheckedChange={(checked) =>
+                                  setSelectedAttachmentIds((current) =>
+                                    checked
+                                      ? current.includes(attachment.id)
+                                        ? current
+                                        : [...current, attachment.id]
+                                      : current.filter((value) => value !== attachment.id),
+                                  )
+                                }
+                              />
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-2">
+                                  <p className="truncate font-medium">{attachment.file_name}</p>
+                                  {attachment.folder_name ? <Badge variant="outline">{attachment.folder_name}</Badge> : null}
+                                </div>
+                                <p className="mt-1 text-xs text-muted-foreground">
+                                  {formatFileSize(attachment.file_size)} • Uploaded by {attachment.user_name || 'Unknown User'} • {format(new Date(attachment.uploaded_at), 'MMM d, yyyy h:mm a')}
+                                </p>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-1">
+                                <Button type="button" size="sm" variant="ghost" asChild>
+                                  <a href={attachment.file_url} target="_blank" rel="noopener noreferrer">
+                                    <Download className="h-4 w-4" />
+                                  </a>
+                                </Button>
+                                <Button
+                                  type="button"
+                                  size="sm"
+                                  variant="ghost"
+                                  onClick={() => {
+                                    setRenameAttachment(attachment);
+                                    setRenamingFileName(attachment.file_name);
+                                  }}
+                                >
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button type="button" size="sm" variant="ghost" onClick={() => void handleDeleteAttachment(attachment)}>
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                     </div>
                   )}
                 </CardContent>
@@ -1711,6 +2001,19 @@ export default function TaskDetails() {
                 </div>
               )}
             </div>
+
+            <div className="rounded-md border border-destructive/30 bg-destructive/5 p-4">
+              <div className="font-medium text-destructive">Delete Task</div>
+              <p className="mt-1 text-sm text-muted-foreground">
+                This permanently deletes the task, task team, comments, checklist items, timeline activity, and attachments.
+              </p>
+              <div className="mt-4 flex justify-end">
+                <Button type="button" variant="destructive" onClick={() => setDeleteTaskConfirmOpen(true)}>
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Delete Task
+                </Button>
+              </div>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -1774,6 +2077,115 @@ export default function TaskDetails() {
           </div>
         </DialogContent>
       </Dialog>
+
+      <Dialog open={creatingFolder} onOpenChange={setCreatingFolder}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Create Attachment Folder</DialogTitle>
+            <DialogDescription>
+              Task attachments support a single folder level only. Nested folders are not available here.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="task-attachment-folder-name">Folder Name</Label>
+              <Input
+                id="task-attachment-folder-name"
+                value={newFolderName}
+                onChange={(event) => setNewFolderName(event.target.value)}
+                placeholder="Enter folder name"
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setCreatingFolder(false)}>
+                Cancel
+              </Button>
+              <Button type="button" onClick={() => void handleCreateAttachmentFolder()}>
+                Create Folder
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!renameAttachment}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRenameAttachment(null);
+            setRenamingFileName('');
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Rename Attachment</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="task-attachment-rename">File Name</Label>
+              <Input
+                id="task-attachment-rename"
+                value={renamingFileName}
+                onChange={(event) => setRenamingFileName(event.target.value)}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button
+                type="button"
+                variant="outline"
+                onClick={() => {
+                  setRenameAttachment(null);
+                  setRenamingFileName('');
+                }}
+              >
+                Cancel
+              </Button>
+              <Button type="button" onClick={() => void handleRenameAttachment()}>
+                Save Name
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={deleteTaskConfirmOpen} onOpenChange={setDeleteTaskConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Task</DialogTitle>
+            <DialogDescription>
+              Type <span className="font-medium text-foreground">{task?.title || 'the task title'}</span> to permanently delete this task.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="task-delete-confirmation">Task Title Confirmation</Label>
+              <Input
+                id="task-delete-confirmation"
+                value={deleteTaskConfirmText}
+                onChange={(event) => setDeleteTaskConfirmText(event.target.value)}
+                placeholder={task?.title || 'Type the task title'}
+              />
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button type="button" variant="outline" onClick={() => setDeleteTaskConfirmOpen(false)}>
+                Cancel
+              </Button>
+              <Button type="button" variant="destructive" disabled={deletingTask} onClick={() => void handleDeleteTask()}>
+                {deletingTask ? 'Deleting...' : 'Delete Task'}
+              </Button>
+            </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <FileShareModal
+        open={attachmentShareOpen}
+        onOpenChange={setAttachmentShareOpen}
+        files={shareableTaskAttachments}
+        jobId={task?.job_id || task?.id || ''}
+        storageBucket="task-attachments"
+      />
 
       <Dialog open={!!activeEmailPreview} onOpenChange={(open) => !open && setActiveEmailPreview(null)}>
         <DialogContent className="max-w-4xl w-[95vw]">
