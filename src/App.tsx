@@ -64,8 +64,6 @@ import PlanViewer from "./pages/PlanViewer";
 import TeamChat from "./pages/TeamChat";
 import Announcements from "./pages/Announcements";
 import AllTasks from "./pages/AllTasks";
-import ProjectTasks from "./pages/ProjectTasks";
-import TaskDeadlines from "./pages/TaskDeadlines";
 import CalendarPage from "./pages/CalendarPage";
 import BillDetails from "./pages/BillDetails";
 import BillEdit from "./pages/BillEdit";
@@ -635,8 +633,8 @@ function AuthenticatedRoutes() {
               <Route path="messaging" element={<AllMessages />} />
               <Route path="calendar" element={<CalendarPage />} />
               <Route path="tasks" element={<AllTasks />} />
-              <Route path="tasks/projects" element={<ProjectTasks />} />
-              <Route path="tasks/deadlines" element={<TaskDeadlines />} />
+              <Route path="tasks/projects" element={<Navigate to="/tasks" replace />} />
+              <Route path="tasks/deadlines" element={<Navigate to="/tasks" replace />} />
               <Route path="tasks/:id" element={<TaskDetails />} />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
                 <Route path="bills" element={<Navigate to="/invoices" replace />} />

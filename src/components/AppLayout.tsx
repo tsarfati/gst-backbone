@@ -115,24 +115,14 @@ const navigationCategories = [
     collapsible: true,
   },
   {
-    title: "Tasks",
+    title: "Workspace",
     icon: CheckSquare,
     companyTypes: ['construction', 'design_professional'] as CompanyType[],
     items: [
-      { name: "All Tasks", href: "/tasks", menuKey: "jobs" },
-      { name: "Project Tasks", href: "/tasks/projects", menuKey: "jobs" },
-      { name: "Deadlines", href: "/tasks/deadlines", menuKey: "jobs" },
-    ],
-    collapsible: true,
-  },
-  {
-    title: "Calendar",
-    icon: Calendar,
-    companyTypes: ['construction', 'design_professional'] as CompanyType[],
-    items: [
+      { name: "Tasks", href: "/tasks", menuKey: "jobs" },
       { name: "Calendar", href: "/calendar", menuKey: "dashboard" },
     ],
-    collapsible: false,
+    collapsible: true,
   },
   {
     title: "Banking",
@@ -223,13 +213,14 @@ const designProfessionalNavigationCategories = [
     collapsible: false,
   },
   {
-    title: "Calendar",
-    icon: Calendar,
+    title: "Workspace",
+    icon: CheckSquare,
     companyTypes: ['design_professional'] as CompanyType[],
     items: [
+      { name: "Tasks", href: "/tasks", menuKey: "jobs" },
       { name: "Calendar", href: "/design-professional/calendar", menuKey: "dashboard" },
     ],
-    collapsible: false,
+    collapsible: true,
   },
   {
     title: "Settings",

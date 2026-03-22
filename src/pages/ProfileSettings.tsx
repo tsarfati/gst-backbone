@@ -109,7 +109,6 @@ export default function ProfileSettings() {
 
   const requestedTab = searchParams.get('tab') || 'profile';
   const effectiveRole = String(profile?.role || '').toLowerCase();
-  const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
   const initialTab = requestedTab;
 
   useEffect(() => {
@@ -984,7 +983,7 @@ export default function ProfileSettings() {
                     <div className="flex items-center justify-between">
                       <div>
                         <Label htmlFor="task-updates">Task Updates</Label>
-                        <p className="text-sm text-muted-foreground">Get dashboard notifications for comments, attachments, checklist changes, and other activity on tasks you’re involved with</p>
+                        <p className="text-sm text-muted-foreground">Get task update notifications in your dashboard and by email when email notifications are enabled</p>
                       </div>
                       <Switch
                         id="task-updates"

@@ -357,13 +357,16 @@ export default function TaskDetails() {
           .order('created_at', { ascending: false }),
       ]);
 
-      const companyUserIds = (companyAccessResult.data || [])
-        .filter((row: any) => row?.is_active !== false && String(row?.role || '') !== 'employee')
-        .map((row: any) => String(row.user_id));
+      const companyAccessRows = ((companyAccessResult.data || []) as any[]).filter(
+        (row: any) => row?.is_active !== false,
+      );
+      const companyAccessMap = new Map(
+        companyAccessRows.map((row: any) => [String(row.user_id), String(row.role || '').trim().toLowerCase()]),
+      );
       const userIds = Array.from(
         new Set(
           [
-            ...companyUserIds,
+            ...companyAccessRows.map((row: any) => String(row.user_id)),
             taskRecord.created_by,
             taskRecord.leader_user_id || '',
             ...(assigneesResult.data || []).map((row: any) => row.user_id),
@@ -378,7 +381,7 @@ export default function TaskDetails() {
       const { data: profileRows } = userIds.length > 0
         ? await supabase
             .from('profiles')
-            .select('user_id, display_name, first_name, last_name, avatar_url')
+            .select('user_id, display_name, first_name, last_name, avatar_url, custom_role_id')
             .in('user_id', userIds)
         : { data: [] as any[] };
 
@@ -420,8 +423,18 @@ export default function TaskDetails() {
         completion_percentage: Number(taskRecord.completion_percentage || 0),
       });
 
+      const eligibleCompanyUserIds = companyAccessRows
+        .filter((row: any) => {
+          const userId = String(row.user_id);
+          const companyRole = companyAccessMap.get(userId) || '';
+          const profile = (profileRows || []).find((entry: any) => String(entry.user_id) === userId);
+          const hasCustomRole = Boolean((profile as any)?.custom_role_id);
+          return companyRole !== 'employee' || hasCustomRole;
+        })
+        .map((row: any) => String(row.user_id));
+
       setCompanyUsers(
-        companyUserIds.map((userId) => ({
+        eligibleCompanyUserIds.map((userId) => ({
           user_id: userId,
           name: profileMap.get(userId)?.name || 'Unknown User',
           avatar_url: profileMap.get(userId)?.avatar_url || null,
@@ -1071,25 +1084,19 @@ export default function TaskDetails() {
                   <Badge variant={taskDraft.priority === 'urgent' ? 'destructive' : taskDraft.priority === 'high' ? 'secondary' : 'outline'}>
                     {taskDraft.priority.replace('_', ' ')}
                   </Badge>
-                  <Badge variant="outline">{taskDraft.completion_percentage}% complete</Badge>
+                  <Badge variant="outline" className="capitalize">
+                    {taskDraft.status.replace('_', ' ')}
+                  </Badge>
                   {task.jobs?.name ? <Badge variant="outline">{task.jobs.name}</Badge> : null}
+                  <Badge variant="outline">
+                    Start {taskDraft.start_date ? format(new Date(taskDraft.start_date), 'MMM d, yyyy') : 'Not set'}
+                  </Badge>
+                  <Badge variant="outline">{taskDraft.completion_percentage}% complete</Badge>
                 </div>
               </div>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="flex flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-muted-foreground">
-                <div className="flex items-center gap-2">
-                  <span className="font-medium uppercase tracking-wide">Status</span>
-                  <Badge variant="outline" className="h-6 px-2 text-[10px]">
-                    {taskDraft.status.replace('_', ' ')}
-                  </Badge>
-                </div>
-                <div className="flex items-center gap-2">
-                  <span className="font-medium uppercase tracking-wide">Start</span>
-                  <span className="text-foreground">
-                    {taskDraft.start_date ? format(new Date(taskDraft.start_date), 'MMM d, yyyy') : 'Not set'}
-                  </span>
-                </div>
                 <div className="flex items-center gap-2">
                   <span className="font-medium uppercase tracking-wide">Due</span>
                   <span className="text-foreground">{dueDateLabel}</span>
@@ -1133,7 +1140,7 @@ export default function TaskDetails() {
 
           <Tabs defaultValue="timeline" className="space-y-4">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="timeline">Project Timeline</TabsTrigger>
+              <TabsTrigger value="timeline">Task Timeline</TabsTrigger>
               <TabsTrigger value="attachments">Attachments</TabsTrigger>
               <TabsTrigger value="checklist">Task Checklist</TabsTrigger>
             </TabsList>
@@ -1144,14 +1151,15 @@ export default function TaskDetails() {
                   <div className="flex justify-end">
                     <Badge variant="outline">{timeline.length} entries</Badge>
                   </div>
-                  <div className="flex gap-2">
+                  <div className="space-y-2">
                     <MentionTextarea
                       value={newComment}
                       onValueChange={setNewComment}
                       companyId={currentCompany?.id}
                       currentUserId={user?.id}
-                      placeholder="Write an update, use @ to tag teammates, or add #tags for search..."
-                      className="min-h-[110px]"
+                      placeholder="Enter a comment. Use @ to tag teammates or #tags for search..."
+                      rows={1}
+                      className="min-h-0 h-11 resize-none overflow-hidden"
                       onKeyDown={(event) => {
                         if (event.key === 'Enter' && !event.shiftKey) {
                           event.preventDefault();
@@ -1159,9 +1167,12 @@ export default function TaskDetails() {
                         }
                       }}
                     />
-                    <Button onClick={handleSendComment} disabled={sendingComment || !newComment.trim()}>
-                      <Send className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end">
+                      <Button onClick={handleSendComment} disabled={sendingComment || !newComment.trim()}>
+                        <Send className="mr-2 h-4 w-4" />
+                        Comment
+                      </Button>
+                    </div>
                   </div>
 
                   {timeline.length === 0 ? (

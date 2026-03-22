@@ -1,6 +1,6 @@
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { Badge } from "@/components/ui/badge";
-import { Calendar, ChevronRight, FolderKanban, Users } from "lucide-react";
+import { Calendar, ChevronRight, FolderKanban } from "lucide-react";
 import { format } from "date-fns";
 
 export interface TaskCardPerson {
@@ -25,6 +25,7 @@ export interface TaskCardData {
 interface TaskCardProps {
   task: TaskCardData;
   onClick: () => void;
+  view?: "list" | "compact" | "super-compact";
 }
 
 const getPriorityVariant = (priority: string) => {
@@ -58,15 +59,20 @@ const getProgressBarClass = (percentage: number) => {
   return "bg-slate-300";
 };
 
-export default function TaskCard({ task, onClick }: TaskCardProps) {
+export default function TaskCard({ task, onClick, view = "list" }: TaskCardProps) {
+  const isCompact = view === "compact";
+  const isSuperCompact = view === "super-compact";
+
   return (
     <button
       type="button"
       onClick={onClick}
-      className="w-full rounded-xl border bg-card p-4 text-left transition-colors hover:border-primary hover:bg-primary/5"
+      className={`w-full rounded-xl border bg-card text-left transition-colors hover:border-primary hover:bg-primary/5 ${
+        isSuperCompact ? "p-3" : "p-4"
+      }`}
     >
       <div className="flex items-start justify-between gap-4">
-        <div className="min-w-0 flex-1 space-y-3">
+        <div className={`min-w-0 flex-1 ${isSuperCompact ? "space-y-2" : isCompact ? "space-y-2.5" : "space-y-3"}`}>
           <div className="flex flex-wrap items-center gap-2">
             <h3 className="text-base font-semibold text-foreground">{task.title}</h3>
             <Badge variant={getPriorityVariant(task.priority)} className="text-[11px] uppercase">
@@ -80,11 +86,11 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
             </Badge>
           </div>
 
-          {task.description ? (
+          {!isSuperCompact && task.description ? (
             <p className="line-clamp-2 text-sm text-muted-foreground">{task.description}</p>
           ) : null}
 
-          <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-2">
+          <div className={`grid text-sm text-muted-foreground md:grid-cols-2 ${isSuperCompact ? "gap-2" : "gap-3"}`}>
             <div className="flex items-center gap-2">
               <FolderKanban className="h-4 w-4" />
               <span>{task.project_name || "No project"}</span>
@@ -95,7 +101,7 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
             </div>
           </div>
 
-          <div className="space-y-3">
+          <div className={isSuperCompact ? "space-y-2" : "space-y-3"}>
             <div className="space-y-1">
               <div className="flex items-center justify-between text-xs font-medium text-muted-foreground">
                 <span>Progress</span>
@@ -109,29 +115,21 @@ export default function TaskCard({ task, onClick }: TaskCardProps) {
               </div>
             </div>
 
-            <div className="flex flex-wrap items-start gap-4">
-              <div className="min-w-[220px] space-y-2">
-                <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  <Users className="h-3.5 w-3.5" />
-                  People
-                </div>
-                {task.assignees.length > 0 ? (
-                  <div className="flex flex-wrap gap-2">
-                    {task.assignees.map((person) => (
-                      <div key={person.id} className="flex items-center gap-2 rounded-full border px-2 py-1">
-                        <Avatar className="h-6 w-6">
-                          <AvatarImage src={person.avatar_url || undefined} alt={person.name} />
-                          <AvatarFallback>{person.name.charAt(0).toUpperCase()}</AvatarFallback>
-                        </Avatar>
-                        <span className="text-xs font-medium text-foreground">{person.name}</span>
-                      </div>
-                    ))}
+            {task.assignees.length > 0 ? (
+              <div className={`flex flex-wrap ${isSuperCompact ? "gap-1.5" : "gap-2"}`}>
+                {task.assignees.map((person) => (
+                  <div key={person.id} className={`flex items-center rounded-full border ${isSuperCompact ? "gap-1.5 px-2 py-1" : "gap-2 px-2 py-1"}`}>
+                    <Avatar className={isSuperCompact ? "h-5 w-5" : "h-6 w-6"}>
+                      <AvatarImage src={person.avatar_url || undefined} alt={person.name} />
+                      <AvatarFallback>{person.name.charAt(0).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <span className={`${isSuperCompact ? "text-[11px]" : "text-xs"} font-medium text-foreground`}>{person.name}</span>
                   </div>
-                ) : (
-                  <p className="text-xs text-muted-foreground">No one assigned yet</p>
-                )}
+                ))}
               </div>
-            </div>
+            ) : (
+              <p className="text-xs text-muted-foreground">No one assigned yet</p>
+            )}
           </div>
         </div>
 

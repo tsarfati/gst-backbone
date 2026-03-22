@@ -102,12 +102,37 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
 
       const createdTaskId = String((insertedTask as any)?.id || '');
       if (createdTaskId) {
+        const { error: assigneeError } = await supabase
+          .from('task_assignees')
+          .insert({
+            task_id: createdTaskId,
+            user_id: user.id,
+            assigned_by: user.id,
+          });
+
+        if (assigneeError) throw assigneeError;
+
         await supabase.from('task_activity' as any).insert({
           task_id: createdTaskId,
           actor_user_id: user.id,
           activity_type: 'task_created',
           content: 'Created the task',
         });
+
+        await supabase.from('task_activity' as any).insert([
+          {
+            task_id: createdTaskId,
+            actor_user_id: user.id,
+            activity_type: 'assignee_added',
+            content: 'Added the creator to the task team',
+          },
+          {
+            task_id: createdTaskId,
+            actor_user_id: user.id,
+            activity_type: 'lead_assigned',
+            content: 'Assigned the creator as task lead',
+          },
+        ]);
 
         await createTaskNotifications({
           taskId: createdTaskId,

@@ -38,7 +38,7 @@ export async function createTaskNotifications(params: CreateTaskNotificationsPar
 
   const { data: settingsRows, error: settingsError } = await supabase
     .from('notification_settings')
-    .select('user_id, in_app_enabled')
+    .select('user_id, in_app_enabled, email_enabled, task_update_notifications')
     .eq('company_id', companyId)
     .in('user_id', recipientUserIds);
   if (settingsError) throw settingsError;
@@ -48,22 +48,41 @@ export async function createTaskNotifications(params: CreateTaskNotificationsPar
   );
 
   const allowedRecipients = recipientUserIds.filter((userId) => {
-    const row = settingsMap.get(userId);
+    const row = settingsMap.get(userId) as any;
+    if (row?.task_update_notifications === false) return false;
     return row?.in_app_enabled !== false;
   });
 
-  if (allowedRecipients.length === 0) return 0;
+  let createdCount = 0;
 
-  const notificationRows = allowedRecipients.map((userId) => ({
-    user_id: userId,
-    title,
-    message,
-    type: `/tasks/${taskId}`,
-    read: false,
-  }));
+  if (allowedRecipients.length > 0) {
+    const notificationRows = allowedRecipients.map((userId) => ({
+      user_id: userId,
+      title,
+      message,
+      type: `/tasks/${taskId}`,
+      read: false,
+    }));
 
-  const { error: insertError } = await supabase.from('notifications').insert(notificationRows as any);
-  if (insertError) throw insertError;
+    const { error: insertError } = await supabase.from('notifications').insert(notificationRows as any);
+    if (insertError) throw insertError;
+    createdCount = notificationRows.length;
+  }
 
-  return notificationRows.length;
+  try {
+    await supabase.functions.invoke('send-task-update-email', {
+      body: {
+        taskId,
+        companyId,
+        actorUserId,
+        title,
+        message,
+        additionalRecipientUserIds,
+      },
+    });
+  } catch (emailError) {
+    console.warn('Failed to send task update email notifications', emailError);
+  }
+
+  return createdCount;
 }
