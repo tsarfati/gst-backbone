@@ -46,6 +46,7 @@ interface NotificationSettings {
   mention_email_notifications?: boolean;
   chat_channel_notifications?: boolean;
   chat_direct_message_notifications?: boolean;
+  task_update_notifications?: boolean;
   bill_submission_notifications?: boolean;
   payment_approval_notifications?: boolean;
   payment_confirmation_notifications?: boolean;
@@ -98,6 +99,7 @@ export default function ProfileSettings() {
     mention_email_notifications: true,
     chat_channel_notifications: true,
     chat_direct_message_notifications: true,
+    task_update_notifications: true,
     bill_submission_notifications: true,
     payment_approval_notifications: true,
     payment_confirmation_notifications: true,
@@ -153,6 +155,7 @@ export default function ProfileSettings() {
           mention_email_notifications: typedData.mention_email_notifications ?? true,
           chat_channel_notifications: typedData.chat_channel_notifications ?? true,
           chat_direct_message_notifications: typedData.chat_direct_message_notifications ?? true,
+          task_update_notifications: typedData.task_update_notifications ?? true,
           bill_submission_notifications: typedData.bill_submission_notifications ?? true,
           payment_approval_notifications: typedData.payment_approval_notifications ?? true,
           payment_confirmation_notifications: typedData.payment_confirmation_notifications ?? true,
@@ -405,6 +408,7 @@ export default function ProfileSettings() {
         mention_email_notifications: notificationSettings.mention_email_notifications ?? true,
         chat_channel_notifications: notificationSettings.chat_channel_notifications ?? true,
         chat_direct_message_notifications: notificationSettings.chat_direct_message_notifications ?? true,
+        task_update_notifications: notificationSettings.task_update_notifications ?? true,
         bill_submission_notifications: notificationSettings.bill_submission_notifications ?? true,
         payment_approval_notifications: notificationSettings.payment_approval_notifications ?? true,
         payment_confirmation_notifications: notificationSettings.payment_confirmation_notifications ?? true,
@@ -975,6 +979,17 @@ export default function ProfileSettings() {
                         id="chat-channels"
                         checked={notificationSettings.chat_channel_notifications !== false}
                         onCheckedChange={(checked) => updateNotificationSetting('chat_channel_notifications', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="task-updates">Task Updates</Label>
+                        <p className="text-sm text-muted-foreground">Get dashboard notifications for comments, attachments, checklist changes, and other activity on tasks you’re involved with</p>
+                      </div>
+                      <Switch
+                        id="task-updates"
+                        checked={notificationSettings.task_update_notifications !== false}
+                        onCheckedChange={(checked) => updateNotificationSetting('task_update_notifications', checked)}
                       />
                     </div>
                     <div className="flex items-center justify-between">

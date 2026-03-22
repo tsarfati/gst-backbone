@@ -4,11 +4,13 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
+import { Checkbox } from '@/components/ui/checkbox';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Plus } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
+import { createTaskNotifications } from '@/utils/taskNotifications';
 import { toast } from 'sonner';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 
@@ -37,6 +39,7 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
     status: 'not_started',
     start_date: '',
     due_date: '',
+    is_due_asap: false,
     job_id: ''
   });
 
@@ -77,7 +80,7 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
 
     setLoading(true);
     try {
-      const { error } = await supabase
+      const { data: insertedTask, error } = await supabase
         .from('tasks')
         .insert({
           company_id: currentCompany.id,
@@ -86,12 +89,35 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
           priority: formData.priority,
           status: formData.status,
           start_date: formData.start_date || null,
-          due_date: formData.due_date || null,
+          due_date: formData.is_due_asap ? null : formData.due_date || null,
+          is_due_asap: formData.is_due_asap,
           job_id: formData.job_id || null,
-          created_by: user.id
-        });
+          created_by: user.id,
+          leader_user_id: user.id,
+        })
+        .select('id, title')
+        .single();
 
       if (error) throw error;
+
+      const createdTaskId = String((insertedTask as any)?.id || '');
+      if (createdTaskId) {
+        await supabase.from('task_activity' as any).insert({
+          task_id: createdTaskId,
+          actor_user_id: user.id,
+          activity_type: 'task_created',
+          content: 'Created the task',
+        });
+
+        await createTaskNotifications({
+          taskId: createdTaskId,
+          companyId: currentCompany.id,
+          actorUserId: user.id,
+          title: 'New task',
+          message: `${formData.title.trim()} was created and you’re on the task team.`,
+          additionalRecipientUserIds: [user.id],
+        });
+      }
 
       toast.success('Task created successfully');
       setOpen(false);
@@ -102,6 +128,7 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
         status: 'not_started',
         start_date: '',
         due_date: '',
+        is_due_asap: false,
         job_id: ''
       });
       onTaskCreated?.();
@@ -225,7 +252,30 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
                 type="date"
                 value={formData.due_date}
                 onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
+                disabled={formData.is_due_asap}
               />
+            </div>
+          </div>
+
+          <div className="flex items-center gap-3 rounded-lg border px-3 py-2">
+            <Checkbox
+              id="task-due-asap"
+              checked={formData.is_due_asap}
+              onCheckedChange={(checked) =>
+                setFormData((prev) => ({
+                  ...prev,
+                  is_due_asap: Boolean(checked),
+                  due_date: checked ? '' : prev.due_date,
+                }))
+              }
+            />
+            <div className="space-y-0.5">
+              <Label htmlFor="task-due-asap" className="cursor-pointer">
+                Mark due date as ASAP
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                Use this when the task should be handled as soon as possible instead of on a fixed date.
+              </p>
             </div>
           </div>
 

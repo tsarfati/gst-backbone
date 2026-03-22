@@ -11,7 +11,7 @@ export interface SearchIndexItem {
   id: string;
   title: string;
   description: string;
-  type: 'receipt' | 'job' | 'vendor' | 'employee' | 'announcement' | 'page' | 'action' | 'report';
+  type: 'receipt' | 'job' | 'vendor' | 'employee' | 'announcement' | 'page' | 'action' | 'report' | 'task';
   path: string;
   content?: string;
   tags?: string[];
@@ -163,6 +163,58 @@ export function useSearchIndex() {
                 updatedAt: job.updated_at
               });
             });
+        }
+      }
+
+      if (hasAccess('jobs')) {
+        const { data: taskRows, error: taskError } = await supabase
+          .from('tasks')
+          .select('id, title, description, updated_at, job_id')
+          .eq('company_id', currentCompany.id)
+          .order('updated_at', { ascending: false });
+
+        if (taskError) {
+          console.error('Error fetching tasks for search:', taskError);
+        } else {
+          const visibleTasks = ((taskRows || []) as any[]).filter((task) =>
+            !hasScopedJobAccess || allowedJobIds.has(String(task.job_id || '')),
+          );
+
+          const taskIds = visibleTasks.map((task) => String(task.id));
+          const { data: taskTagRows, error: taskTagError } = taskIds.length > 0
+            ? await supabase
+                .from('task_comment_tags' as any)
+                .select('task_id, tag')
+                .in('task_id', taskIds)
+            : { data: [] as any[], error: null };
+
+          if (taskTagError) {
+            console.error('Error fetching task tags for search:', taskTagError);
+          }
+
+          const taskTagMap = new Map<string, string[]>();
+          ((taskTagRows || []) as any[]).forEach((row) => {
+            const taskId = String(row.task_id || '');
+            const tag = String(row.tag || '').trim().toLowerCase();
+            if (!taskId || !tag) return;
+            const existing = taskTagMap.get(taskId) || [];
+            if (!existing.includes(tag)) existing.push(tag);
+            taskTagMap.set(taskId, existing);
+          });
+
+          visibleTasks.forEach((task: any) => {
+            const tags = taskTagMap.get(String(task.id)) || [];
+            newIndex.push({
+              id: `task-${task.id}`,
+              title: task.title,
+              description: task.description || 'Task',
+              type: 'task',
+              path: `/tasks/${task.id}`,
+              content: [task.title, task.description, ...tags.map((tag) => `#${tag}`)].filter(Boolean).join(' '),
+              tags: ['task', ...tags],
+              updatedAt: task.updated_at || new Date().toISOString(),
+            });
+          });
         }
       }
 

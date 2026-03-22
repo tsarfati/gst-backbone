@@ -1,142 +1,166 @@
-import { useState, useEffect } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Badge } from '@/components/ui/badge';
-import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import { CheckSquare, Plus, Search, Calendar, Clock, User, Target } from 'lucide-react';
-import { useAuth } from '@/contexts/AuthContext';
+import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Badge } from "@/components/ui/badge";
+import { CheckSquare, Plus, Search } from "lucide-react";
+import { useCompany } from "@/contexts/CompanyContext";
+import { supabase } from "@/integrations/supabase/client";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import { AddTaskDialog } from "@/components/AddTaskDialog";
+import TaskCard, { type TaskCardData } from "@/components/TaskCard";
 
-interface Task {
+type TaskRow = {
   id: string;
   title: string;
-  description: string;
-  priority: 'low' | 'normal' | 'high' | 'urgent';
-  status: 'todo' | 'in_progress' | 'completed';
-  assignee: string;
-  due_date: string;
-  project: string;
-}
-
-// Mock data - in a real app, this would come from your database
-const mockTasks: Task[] = [
-  {
-    id: '1',
-    title: 'Review safety protocols',
-    description: 'Complete quarterly safety protocol review for all active job sites',
-    priority: 'high',
-    status: 'todo',
-    assignee: 'John Smith',
-    due_date: '2024-01-15',
-    project: 'Downtown Office Building'
-  },
-  {
-    id: '2',
-    title: 'Update project timeline',
-    description: 'Revise project timeline based on recent material delays',
-    priority: 'normal',
-    status: 'in_progress',
-    assignee: 'Sarah Johnson',
-    due_date: '2024-01-20',
-    project: 'Residential Complex'
-  },
-  {
-    id: '3',
-    title: 'Equipment maintenance',
-    description: 'Schedule and coordinate monthly equipment maintenance',
-    priority: 'normal',
-    status: 'completed',
-    assignee: 'Mike Brown',
-    due_date: '2024-01-10',
-    project: 'Bridge Construction'
-  }
-];
+  description: string | null;
+  status: string;
+  priority: string;
+  due_date: string | null;
+  is_due_asap: boolean | null;
+  completion_percentage: number;
+  job_id: string | null;
+  jobs?: { name: string } | null;
+};
 
 export default function AllTasks() {
-  const [tasks, setTasks] = useState<Task[]>(mockTasks);
-  const [loading, setLoading] = useState(false);
-  const [searchTerm, setSearchTerm] = useState('');
-  const [filter, setFilter] = useState<'all' | 'todo' | 'in_progress' | 'completed'>('all');
-  const { user } = useAuth();
+  const navigate = useNavigate();
+  const { currentCompany } = useCompany();
+  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
+  const [tasks, setTasks] = useState<TaskCardData[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [searchTerm, setSearchTerm] = useState("");
+  const [filter, setFilter] = useState<"all" | "not_started" | "in_progress" | "completed" | "on_hold">("all");
 
-  const filteredTasks = tasks.filter(task => {
-    const matchesSearch = task.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.description.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                         task.project.toLowerCase().includes(searchTerm.toLowerCase());
-    const matchesFilter = filter === 'all' || task.status === filter;
+  useEffect(() => {
+    if (currentCompany && !websiteJobAccessLoading) {
+      void loadTasks();
+    }
+  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+
+  const loadTasks = async () => {
+    if (!currentCompany) return;
+    setLoading(true);
+    try {
+      const { data: taskRows, error: taskError } = await supabase
+        .from("tasks")
+        .select("id, title, description, status, priority, due_date, is_due_asap, completion_percentage, job_id, jobs(name)")
+        .eq("company_id", currentCompany.id)
+        .order("created_at", { ascending: false });
+      if (taskError) throw taskError;
+
+      const visibleTasks = ((taskRows || []) as TaskRow[]).filter((task) =>
+        canAccessAssignedJobOnly([task.job_id], isPrivileged, allowedJobIds),
+      );
+      const taskIds = visibleTasks.map((task) => task.id);
+
+      const { data: assigneeRows } = taskIds.length > 0
+        ? await supabase
+            .from("task_assignees")
+            .select("task_id, user_id")
+            .in("task_id", taskIds)
+        : { data: [] as any[], error: null };
+
+      const userIds = Array.from(
+        new Set(((assigneeRows || []) as any[]).map((row) => String(row.user_id || "")).filter(Boolean)),
+      );
+      const { data: profileRows } = userIds.length > 0
+        ? await supabase
+            .from("profiles")
+            .select("user_id, display_name, first_name, last_name, avatar_url")
+            .in("user_id", userIds)
+        : { data: [] as any[] };
+
+      const profileMap = new Map(
+        (profileRows || []).map((profile: any) => [
+          String(profile.user_id),
+          {
+            id: String(profile.user_id),
+            name: String(profile.display_name || `${profile.first_name || ""} ${profile.last_name || ""}`.trim() || "Unknown User"),
+            avatar_url: profile.avatar_url || null,
+          },
+        ]),
+      );
+
+      const assigneeMap = new Map<string, TaskCardData["assignees"]>();
+      ((assigneeRows || []) as any[]).forEach((row) => {
+        const list = assigneeMap.get(String(row.task_id)) || [];
+        const profile = profileMap.get(String(row.user_id));
+        if (profile) list.push(profile);
+        assigneeMap.set(String(row.task_id), list);
+      });
+
+      setTasks(
+        visibleTasks.map((task) => ({
+          id: task.id,
+          title: task.title,
+          description: task.description,
+          priority: task.priority,
+          status: task.status,
+          completion_percentage: Number(task.completion_percentage || 0),
+          due_date: task.due_date,
+          is_due_asap: Boolean(task.is_due_asap),
+          project_name: task.jobs?.name || null,
+          assignees: assigneeMap.get(task.id) || [],
+        })),
+      );
+    } catch (error) {
+      console.error("Error loading tasks:", error);
+      setTasks([]);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const filteredTasks = tasks.filter((task) => {
+    const haystack = `${task.title} ${task.description || ""} ${task.project_name || ""}`.toLowerCase();
+    const matchesSearch = haystack.includes(searchTerm.toLowerCase());
+    const matchesFilter = filter === "all" || task.status === filter;
     return matchesSearch && matchesFilter;
   });
-
-  const getPriorityColor = (priority: string) => {
-    switch (priority) {
-      case 'urgent': return 'destructive';
-      case 'high': return 'secondary';
-      case 'normal': return 'outline';
-      case 'low': return 'outline';
-      default: return 'outline';
-    }
-  };
-
-  const getStatusColor = (status: string) => {
-    switch (status) {
-      case 'completed': return 'bg-green-100 text-green-800 border-green-200';
-      case 'in_progress': return 'bg-blue-100 text-blue-800 border-blue-200';
-      case 'todo': return 'bg-gray-100 text-gray-800 border-gray-200';
-      default: return 'bg-gray-100 text-gray-800 border-gray-200';
-    }
-  };
 
   return (
     <div className="p-6">
       <div className="mb-6 flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-foreground flex items-center gap-2">
+          <h1 className="flex items-center gap-2 text-2xl font-bold text-foreground">
             <CheckSquare className="h-7 w-7" />
             All Tasks
           </h1>
         </div>
-        <Button>
-          <Plus className="h-4 w-4 mr-2" />
-          Add Task
-        </Button>
+        <AddTaskDialog onTaskCreated={loadTasks}>
+          <Button>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Task
+          </Button>
+        </AddTaskDialog>
       </div>
 
-      {/* Filters and Search */}
       <Card className="mb-6">
         <CardContent className="p-4">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex gap-2">
-              <Button 
-                variant={filter === 'all' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter('all')}
-              >
-                All Tasks
-              </Button>
-              <Button 
-                variant={filter === 'todo' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter('todo')}
-              >
-                To Do ({tasks.filter(t => t.status === 'todo').length})
-              </Button>
-              <Button 
-                variant={filter === 'in_progress' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter('in_progress')}
-              >
-                In Progress ({tasks.filter(t => t.status === 'in_progress').length})
-              </Button>
-              <Button 
-                variant={filter === 'completed' ? 'default' : 'outline'}
-                size="sm"
-                onClick={() => setFilter('completed')}
-              >
-                Completed ({tasks.filter(t => t.status === 'completed').length})
-              </Button>
+          <div className="flex flex-col gap-4 md:flex-row">
+            <div className="flex gap-2 flex-wrap">
+              {[
+                { value: "all", label: "All Tasks" },
+                { value: "not_started", label: `To Do (${tasks.filter((t) => t.status === "not_started").length})` },
+                { value: "in_progress", label: `In Progress (${tasks.filter((t) => t.status === "in_progress").length})` },
+                { value: "completed", label: `Completed (${tasks.filter((t) => t.status === "completed").length})` },
+                { value: "on_hold", label: `On Hold (${tasks.filter((t) => t.status === "on_hold").length})` },
+              ].map((option) => (
+                <Button
+                  key={option.value}
+                  variant={filter === option.value ? "default" : "outline"}
+                  size="sm"
+                  onClick={() => setFilter(option.value as typeof filter)}
+                >
+                  {option.label}
+                </Button>
+              ))}
             </div>
             <div className="relative flex-1">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+              <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Input
                 placeholder="Search tasks..."
                 value={searchTerm}
@@ -148,75 +172,30 @@ export default function AllTasks() {
         </CardContent>
       </Card>
 
-      {/* Tasks List */}
       <Card>
         <CardHeader>
           <CardTitle>
-            {filter === 'all' ? 'All Tasks' : 
-             filter === 'todo' ? 'To Do Tasks' : 
-             filter === 'in_progress' ? 'In Progress Tasks' : 'Completed Tasks'}
+            {filter === "all" ? "All Tasks" : filter.replace("_", " ")}
             <Badge variant="outline" className="ml-2">
               {filteredTasks.length}
             </Badge>
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {loading ? (
-            <div className="text-center py-8"><span className="loading-dots">Loading tasks</span></div>
+          {loading || websiteJobAccessLoading ? (
+            <div className="py-8 text-center"><span className="loading-dots">Loading tasks</span></div>
           ) : filteredTasks.length === 0 ? (
-            <div className="text-center py-8">
-              <CheckSquare className="h-12 w-12 text-muted-foreground mx-auto mb-4" />
-              <h3 className="text-lg font-semibold mb-2">No tasks found</h3>
+            <div className="py-8 text-center">
+              <CheckSquare className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+              <h3 className="mb-2 text-lg font-semibold">No tasks found</h3>
               <p className="text-muted-foreground">
-                {searchTerm ? 'Try adjusting your search criteria' : 'No tasks to display'}
+                {searchTerm ? "Try adjusting your search criteria" : "No tasks to display"}
               </p>
             </div>
           ) : (
-            <div className="space-y-3">
+            <div className="space-y-4">
               {filteredTasks.map((task) => (
-                <div
-                  key={task.id}
-                  className="p-4 border rounded-lg hover:bg-primary/10 hover:border-primary transition-colors"
-                >
-                  <div className="flex items-start justify-between">
-                    <div className="flex-1">
-                      <div className="flex items-center gap-2 mb-2">
-                        <h3 className="font-medium">{task.title}</h3>
-                        <Badge variant={getPriorityColor(task.priority)} className="text-xs">
-                          {task.priority.toUpperCase()}
-                        </Badge>
-                        <div className={`px-2 py-1 rounded-md text-xs border ${getStatusColor(task.status)}`}>
-                          {task.status.replace('_', ' ').toUpperCase()}
-                        </div>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-3">
-                        {task.description}
-                      </p>
-                      <div className="flex items-center gap-4 text-sm text-muted-foreground">
-                        <div className="flex items-center gap-1">
-                          <Target className="h-4 w-4" />
-                          <span>{task.project}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <User className="h-4 w-4" />
-                          <span>{task.assignee}</span>
-                        </div>
-                        <div className="flex items-center gap-1">
-                          <Calendar className="h-4 w-4" />
-                          <span>{new Date(task.due_date).toLocaleDateString()}</span>
-                        </div>
-                      </div>
-                    </div>
-                    <div className="flex gap-1 ml-2">
-                      <Button size="sm" variant="outline">
-                        Edit
-                      </Button>
-                      <Button size="sm" variant="outline">
-                        View
-                      </Button>
-                    </div>
-                  </div>
-                </div>
+                <TaskCard key={task.id} task={task} onClick={() => navigate(`/tasks/${task.id}`)} />
               ))}
             </div>
           )}
