@@ -6,6 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { CheckSquare, Plus, Search, Star } from "lucide-react";
+import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
@@ -34,6 +35,7 @@ type TaskRow = {
 
 export default function AllTasks() {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [tasks, setTasks] = useState<TaskCardData[]>([]);
