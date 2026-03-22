@@ -27,6 +27,8 @@ type TaskRow = {
   is_due_asap: boolean | null;
   completion_percentage: number;
   job_id: string | null;
+  created_by: string | null;
+  leader_user_id: string | null;
   jobs?: { name: string } | null;
 };
 
@@ -58,27 +60,39 @@ export default function AllTasks() {
   }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadTasks = async () => {
-    if (!currentCompany) return;
+    if (!currentCompany || !user?.id) return;
     setLoading(true);
     try {
       const { data: taskRows, error: taskError } = await supabase
         .from("tasks")
-        .select("id, title, description, status, priority, due_date, is_due_asap, completion_percentage, job_id, jobs(name)")
+        .select("id, title, description, status, priority, due_date, is_due_asap, completion_percentage, job_id, created_by, leader_user_id, jobs(name)")
         .eq("company_id", currentCompany.id)
         .order("created_at", { ascending: false });
       if (taskError) throw taskError;
 
-      const visibleTasks = ((taskRows || []) as TaskRow[]).filter((task) =>
+      const companyVisibleTasks = ((taskRows || []) as TaskRow[]).filter((task) =>
         canAccessAssignedJobOnly([task.job_id], isPrivileged, allowedJobIds),
       );
-      const taskIds = visibleTasks.map((task) => task.id);
+      const companyVisibleTaskIds = companyVisibleTasks.map((task) => task.id);
 
-      const { data: assigneeRows } = taskIds.length > 0
+      const { data: assigneeRows } = companyVisibleTaskIds.length > 0
         ? await supabase
             .from("task_assignees")
             .select("task_id, user_id")
-            .in("task_id", taskIds)
+            .in("task_id", companyVisibleTaskIds)
         : { data: [] as any[], error: null };
+
+      const involvedTaskIds = new Set(
+        ((assigneeRows || []) as any[])
+          .filter((row) => String(row.user_id || "") === user.id)
+          .map((row) => String(row.task_id || "")),
+      );
+
+      const visibleTasks = companyVisibleTasks.filter((task) =>
+        task.created_by === user.id ||
+        task.leader_user_id === user.id ||
+        involvedTaskIds.has(task.id),
+      );
 
       const userIds = Array.from(
         new Set(((assigneeRows || []) as any[]).map((row) => String(row.user_id || "")).filter(Boolean)),

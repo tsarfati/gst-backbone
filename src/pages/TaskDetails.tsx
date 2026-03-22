@@ -295,6 +295,30 @@ export default function TaskDetails() {
 
       const taskRecord = taskData as TaskRecord;
 
+      const { data: currentUserAssignment, error: currentUserAssignmentError } = await supabase
+        .from('task_assignees')
+        .select('id')
+        .eq('task_id', id)
+        .eq('user_id', user?.id || '')
+        .maybeSingle();
+
+      if (currentUserAssignmentError) throw currentUserAssignmentError;
+
+      const isInvolvedWithTask = Boolean(
+        user?.id &&
+        (
+          taskRecord.created_by === user.id ||
+          taskRecord.leader_user_id === user.id ||
+          currentUserAssignment?.id
+        ),
+      );
+
+      if (!isInvolvedWithTask) {
+        toast.error('You are not assigned to this task.');
+        navigate('/tasks');
+        return;
+      }
+
       const [
         assigneesResult,
         commentsResult,
@@ -589,12 +613,16 @@ export default function TaskDetails() {
       if ((task.job_id || '') !== (updates.job_id || '')) changedFields.push('project');
       if (Number(task.completion_percentage || 0) !== updates.completion_percentage) changedFields.push('progress');
 
-      await logTaskActivity(
-        'task_updated',
-        changedFields.length > 0 ? `Updated ${changedFields.join(', ')}` : 'Updated task details',
-        { changedFields },
-      );
-      await notifyTaskTeam('Task updated', `${actorName} updated ${taskDraft.title || 'this task'}.`);
+      const progressOnlyChange = changedFields.length === 1 && changedFields[0] === 'progress';
+
+      if (!progressOnlyChange) {
+        await logTaskActivity(
+          'task_updated',
+          changedFields.length > 0 ? `Updated ${changedFields.join(', ')}` : 'Updated task details',
+          { changedFields },
+        );
+        await notifyTaskTeam('Task updated', `${actorName} updated ${taskDraft.title || 'this task'}.`);
+      }
 
       toast.success('Task updated');
       await loadTaskWorkspace();
