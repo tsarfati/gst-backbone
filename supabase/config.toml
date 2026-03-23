@@ -50,3 +50,9 @@ verify_jwt = false
 
 [functions.receive-bid-email-webhook]
 verify_jwt = false
+
+[functions.receive-task-email-webhook]
+verify_jwt = false
+
+[functions.email-asset-proxy]
+verify_jwt = false

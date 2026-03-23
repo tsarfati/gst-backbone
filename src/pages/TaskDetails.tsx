@@ -161,7 +161,7 @@ type TaskDraft = {
 type TimelineEntry =
   | { id: string; kind: 'comment'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; tags?: string[] }
   | { id: string; kind: 'attachment'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; fileName: string; fileUrl: string }
-  | { id: string; kind: 'email'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; subject: string; fromEmail: string; toEmails: string[] }
+  | { id: string; kind: 'email'; created_at: string; actorName: string; actorAvatar?: string | null; subject: string; fromEmail: string; toEmails: string[] }
   | { id: string; kind: 'activity'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; metadata?: Record<string, any> | null };
 
 const EMPTY_TASK_DRAFT: TaskDraft = {
@@ -1349,21 +1349,22 @@ export default function TaskDetails() {
       created_at: email.created_at,
       actorName: email.direction === 'inbound' ? (email.from_email || 'External Email') : 'Task Email',
       actorAvatar: null,
-      body: email.body_text || `Email ${email.direction}`,
       subject: email.subject || '(No subject)',
       fromEmail: email.from_email || '-',
       toEmails: email.to_emails || [],
     }));
 
-    const activityEntries: TimelineEntry[] = activities.map((activity) => ({
-      id: `activity-${activity.id}`,
-      kind: 'activity',
-      created_at: activity.created_at,
-      actorName: activity.actor_name || 'System',
-      actorAvatar: activity.actor_avatar || null,
-      body: activity.content,
-      metadata: activity.metadata,
-    }));
+    const activityEntries: TimelineEntry[] = activities
+      .filter((activity) => !String(activity.content || '').startsWith('Inbound email received from '))
+      .map((activity) => ({
+        id: `activity-${activity.id}`,
+        kind: 'activity',
+        created_at: activity.created_at,
+        actorName: activity.actor_name || 'System',
+        actorAvatar: activity.actor_avatar || null,
+        body: activity.content,
+        metadata: activity.metadata,
+      }));
 
     return [...commentEntries, ...attachmentEntries, ...emailEntries, ...activityEntries].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
@@ -1656,7 +1657,20 @@ export default function TaskDetails() {
                                 {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
                               </span>
                             </div>
-                            <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{entry.body}</p>
+                            {entry.kind === 'email' ? (
+                              <div className="mt-3">
+                                <Button
+                                  type="button"
+                                  variant="link"
+                                  className="h-auto p-0 text-sm"
+                                  onClick={() => setActiveEmailPreview(emailMessages.find((email) => `email-${email.id}` === entry.id) || null)}
+                                >
+                                  Open email
+                                </Button>
+                              </div>
+                            ) : (
+                              <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{entry.body}</p>
+                            )}
                             {entry.kind === 'activity' && entry.metadata?.batched && Array.isArray(entry.metadata?.changes) ? (
                               <div className="mt-3 space-y-2 rounded-lg border bg-muted/20 p-3">
                                 {entry.metadata.changes.map((change: any, index: number) => (
@@ -1697,15 +1711,6 @@ export default function TaskDetails() {
                                   {entry.fileName}
                                 </a>
                               </div>
-                            ) : null}
-                            {entry.kind === 'email' ? (
-                              <button
-                                type="button"
-                                onClick={() => setActiveEmailPreview(emailMessages.find((email) => `email-${email.id}` === entry.id) || null)}
-                                className="mt-3 rounded-lg border bg-muted/30 px-3 py-2 text-left text-sm font-medium text-primary hover:bg-muted/50"
-                              >
-                                Open email
-                              </button>
                             ) : null}
                           </div>
                         </div>

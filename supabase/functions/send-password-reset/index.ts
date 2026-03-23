@@ -4,6 +4,7 @@ import { Resend } from "npm:resend@4.0.0";
 import { renderAsync } from "npm:@react-email/components@0.0.22";
 import React from "npm:react@18.3.1";
 import { PasswordResetEmail } from "./_templates/password-reset.tsx";
+import { BUILDERLYNK_EMAIL_LOGO_URL } from "../_shared/emailAssets.ts";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
@@ -165,6 +166,7 @@ serve(async (req) => {
       React.createElement(PasswordResetEmail, {
         resetUrl: linkData.properties.action_link,
         userEmail: email,
+        builderLogoUrl: BUILDERLYNK_EMAIL_LOGO_URL,
       })
     );
 

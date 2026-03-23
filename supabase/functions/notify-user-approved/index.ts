@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { BUILDERLYNK_EMAIL_LOGO_URL, resolveCompanyLogoEmailUrl } from "../_shared/emailAssets.ts";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
 
@@ -12,16 +13,6 @@ const corsHeaders = {
 };
 
 const ADMIN_ROLES = new Set(["admin", "company_admin", "controller", "owner", "super_admin"]);
-const BUILDERLYNK_EMAIL_LOGO =
-  "https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png";
-
-const resolveCompanyLogoUrl = (logoUrl?: string | null): string | null => {
-  if (!logoUrl) return null;
-  if (/^https?:\/\//i.test(logoUrl)) return logoUrl;
-  const cleaned = String(logoUrl).replace(/^company-logos\//, "").replace(/^\/+/, "");
-  return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${cleaned}`;
-};
-
 const buildBrandedEmailHtml = ({
   title,
   greeting,
@@ -49,7 +40,7 @@ const buildBrandedEmailHtml = ({
       <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
         <tr>
           <td style="background-color:${brandNavy};padding:16px 20px;text-align:center;">
-            <img src="${BUILDERLYNK_EMAIL_LOGO}" alt="BuilderLYNK" style="display:block;margin:0 auto;height:150px;width:auto;max-width:420px;" />
+            <img src="${BUILDERLYNK_EMAIL_LOGO_URL}" alt="BuilderLYNK" style="display:block;margin:0 auto;height:150px;width:auto;max-width:420px;" />
           </td>
         </tr>
         <tr>
@@ -161,7 +152,7 @@ serve(async (req: Request): Promise<Response> => {
     }
 
     const companyDisplayName = String(companyRow?.display_name || companyRow?.name || "your company").trim();
-    const companyLogoUrl = resolveCompanyLogoUrl((companyRow as any)?.logo_url);
+    const companyLogoUrl = resolveCompanyLogoEmailUrl((companyRow as any)?.logo_url);
     const userDisplayName =
       String(profileRow.display_name || `${profileRow.first_name || ""} ${profileRow.last_name || ""}`.trim() || userEmail);
     const appUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";

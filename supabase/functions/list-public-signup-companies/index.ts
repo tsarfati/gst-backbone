@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { resolveCompanyLogoEmailUrl } from "../_shared/emailAssets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -12,9 +13,8 @@ serve(async (req: Request): Promise<Response> => {
   }
 
   try {
-    const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const supabase = createClient(supabaseUrl, supabaseServiceKey);
+    const supabase = createClient(Deno.env.get("SUPABASE_URL")!, supabaseServiceKey);
 
     const body = await req.json().catch(() => ({} as { limit?: number; query?: string; companyId?: string }));
     const limit = Math.max(1, Math.min(Number(body.limit || 100), 200));
@@ -26,7 +26,7 @@ serve(async (req: Request): Promise<Response> => {
       if (!trimmed) return null;
       if (/^(https?:\/\/)/i.test(trimmed) || trimmed.startsWith("data:")) return trimmed;
       const objectPath = trimmed.replace(/^company-logos\//, "");
-      return `${supabaseUrl}/storage/v1/object/public/company-logos/${objectPath}`;
+      return resolveCompanyLogoEmailUrl(`company-logos/${objectPath}`);
     };
 
     let companiesQuery = supabase

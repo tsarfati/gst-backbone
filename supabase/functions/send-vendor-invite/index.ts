@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { BUILDERLYNK_EMAIL_LOGO_URL } from "../_shared/emailAssets.ts";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
@@ -26,7 +27,7 @@ interface VendorInviteRequest {
   baseUrl: string;
 }
 
-const BUILDERLYNK_EMAIL_LOGO = "https://builderlynk.lovable.app/email-assets/builderlynk-logo.png?v=2";
+const BUILDERLYNK_EMAIL_LOGO = BUILDERLYNK_EMAIL_LOGO_URL;
 
 const escapeHtml = (value: string): string =>
   String(value || "")

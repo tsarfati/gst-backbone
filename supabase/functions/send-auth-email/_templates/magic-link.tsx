@@ -12,15 +12,17 @@
  } from 'npm:@react-email/components@0.0.22'
  import * as React from 'npm:react@18.3.1'
  
- interface MagicLinkEmailProps {
-   magicLinkUrl: string
-   token: string
- }
+interface MagicLinkEmailProps {
+  magicLinkUrl: string
+  token: string
+  builderLogoUrl?: string
+}
  
- export const MagicLinkEmail = ({
-   magicLinkUrl,
-   token,
- }: MagicLinkEmailProps) => (
+export const MagicLinkEmail = ({
+  magicLinkUrl,
+  token,
+  builderLogoUrl,
+}: MagicLinkEmailProps) => (
    <Html>
      <Head />
      <Preview>Your BuilderLYNK login link</Preview>
@@ -29,7 +31,7 @@
          {/* Header */}
          <Section style={header}>
            <Img
-             src="https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png"
+             src={builderLogoUrl || "https://builderlynk.com"}
              alt="BuilderLYNK"
              height="150"
              style={{ display: 'block', margin: '0 auto', width: 'auto', maxWidth: '420px' }}

@@ -15,11 +15,13 @@ import * as React from 'npm:react@18.3.1'
 interface PasswordResetEmailProps {
   resetUrl: string;
   userEmail: string;
+  builderLogoUrl?: string;
 }
 
 export const PasswordResetEmail = ({
   resetUrl,
   userEmail,
+  builderLogoUrl,
 }: PasswordResetEmailProps) => (
   <Html>
     <Head />
@@ -29,7 +31,7 @@ export const PasswordResetEmail = ({
         {/* Header with Logo */}
         <Section style={header}>
           <Img
-            src="https://builderlynk.lovable.app/email-assets/builderlynk-logo.png?v=1"
+            src={builderLogoUrl || "https://builderlynk.com"}
             alt="BuilderLynk"
             width="200"
             height="auto"

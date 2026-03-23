@@ -1,18 +1,12 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { resolveCompanyLogoEmailUrl } from "../_shared/emailAssets.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-const resolveCompanyLogoUrl = (logoUrl?: string | null): string | null => {
-  if (!logoUrl) return null;
-  if (/^https?:\/\//i.test(logoUrl)) return logoUrl;
-  const cleaned = String(logoUrl).replace(/^company-logos\//, "").replace(/^\/+/, "");
-  return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${cleaned}`;
 };
 
 serve(async (req: Request): Promise<Response> => {
@@ -66,7 +60,7 @@ serve(async (req: Request): Promise<Response> => {
 
     return jsonResponse(200, {
       companyName: companyRow.display_name || companyRow.name,
-      companyLogoUrl: resolveCompanyLogoUrl(companyRow.logo_url),
+      companyLogoUrl: resolveCompanyLogoEmailUrl(companyRow.logo_url),
     });
   } catch (error: any) {
     console.error("[get-invite-preview] error", error);

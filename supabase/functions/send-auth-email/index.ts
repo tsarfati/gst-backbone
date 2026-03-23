@@ -5,6 +5,7 @@
  import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.57.4'
  import { ConfirmationEmail } from './_templates/confirmation.tsx'
  import { MagicLinkEmail } from './_templates/magic-link.tsx'
+ import { BUILDERLYNK_EMAIL_LOGO_URL, resolveCompanyLogoEmailUrl } from '../_shared/emailAssets.ts'
  import { EMAIL_FROM, resolveBuilderlynkFrom } from '../_shared/emailFrom.ts'
  
 const resend = new Resend(Deno.env.get('RESEND_API_KEY') as string)
@@ -37,13 +38,6 @@ interface AuthEmailPayload {
      token_new?: string
      token_hash_new?: string
    }
-}
-
-const resolveCompanyLogoUrl = (logoUrl?: string | null): string | null => {
-  if (!logoUrl) return null
-  if (/^https?:\/\//i.test(logoUrl)) return logoUrl
-  const cleaned = String(logoUrl).replace(/^company-logos\//, "").replace(/^\/+/, "")
-  return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${cleaned}`
 }
 
 const extractInviteToken = (redirectTo?: string): string | null => {
@@ -80,7 +74,7 @@ const getInviteBranding = async (supabaseUrl: string, serviceRoleKey: string, re
 
   return {
     companyName: companyRow.display_name || companyRow.name || null,
-    companyLogoUrl: resolveCompanyLogoUrl(companyRow.logo_url),
+    companyLogoUrl: resolveCompanyLogoEmailUrl(companyRow.logo_url),
   }
 }
 
@@ -268,6 +262,7 @@ Deno.serve(async (req) => {
              userEmail: user.email,
              companyName: inviteBranding?.companyName || undefined,
              companyLogoUrl: inviteBranding?.companyLogoUrl || undefined,
+             builderLogoUrl: BUILDERLYNK_EMAIL_LOGO_URL,
            })
          )
          subject = email_action_type === 'email_change' 
@@ -277,11 +272,12 @@ Deno.serve(async (req) => {
  
        case 'magiclink':
          html = await renderAsync(
-           React.createElement(MagicLinkEmail, {
-             magicLinkUrl: verifyUrl,
-             token: token,
-           })
-         )
+            React.createElement(MagicLinkEmail, {
+              magicLinkUrl: verifyUrl,
+              token: token,
+              builderLogoUrl: BUILDERLYNK_EMAIL_LOGO_URL,
+            })
+          )
          subject = 'Your BuilderLYNK Login Link'
          break
  
@@ -301,7 +297,7 @@ Deno.serve(async (req) => {
                    <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="max-width: 600px; background-color: #ffffff; border-radius: 12px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
                      <tr>
                        <td style="background-color: #1e3a5f; padding: 30px; text-align: center;">
-                         <img src="https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png" alt="BuilderLYNK" style="display:block; margin:0 auto; height: 150px; width: auto; max-width: 420px;" />
+                         <img src="${BUILDERLYNK_EMAIL_LOGO_URL}" alt="BuilderLYNK" style="display:block; margin:0 auto; height: 150px; width: auto; max-width: 420px;" />
                        </td>
                      </tr>
                      <tr>
@@ -345,11 +341,12 @@ Deno.serve(async (req) => {
  
        case 'invite':
          html = await renderAsync(
-           React.createElement(ConfirmationEmail, {
-             confirmUrl: verifyUrl,
-             userEmail: user.email,
-           })
-         )
+          React.createElement(ConfirmationEmail, {
+            confirmUrl: verifyUrl,
+            userEmail: user.email,
+            builderLogoUrl: BUILDERLYNK_EMAIL_LOGO_URL,
+          })
+        )
          subject = 'You\'ve Been Invited to BuilderLYNK'
          break
  

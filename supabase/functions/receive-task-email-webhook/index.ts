@@ -48,34 +48,47 @@ interface ResendEmailContent {
   text: string | null;
 }
 
+const EMAIL_ADDRESS_REGEX = /[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi;
+
+const extractEmailAddresses = (value: string): string[] => {
+  const matches = value.match(EMAIL_ADDRESS_REGEX);
+  if (!matches) return [];
+  return Array.from(
+    new Set(
+      matches
+        .map((match) => match.trim().toLowerCase())
+        .filter(Boolean),
+    ),
+  );
+};
+
 const parseEmails = (value: unknown): string[] => {
   if (!value) return [];
   if (Array.isArray(value)) {
-    return value
-      .map((v) => {
-        if (typeof v === "string") return v.trim().toLowerCase();
-        if (v && typeof v === "object") {
-          const obj = v as Record<string, unknown>;
-          const email = obj.email ?? obj.address ?? obj.value;
-          return email ? String(email).trim().toLowerCase() : "";
-        }
-        return "";
-      })
-      .filter(Boolean);
+    return Array.from(
+      new Set(
+        value.flatMap((v) => {
+          if (typeof v === "string") return extractEmailAddresses(v);
+          if (v && typeof v === "object") {
+            const obj = v as Record<string, unknown>;
+            const email = obj.email ?? obj.address ?? obj.value;
+            return email ? extractEmailAddresses(String(email)) : [];
+          }
+          return [];
+        }),
+      ),
+    );
   }
-  return String(value)
-    .split(",")
-    .map((v) => v.trim().toLowerCase())
-    .filter(Boolean);
+  return extractEmailAddresses(String(value));
 };
 
 const parseSingleEmail = (value: unknown): string => {
   if (!value) return "";
-  if (typeof value === "string") return value.trim().toLowerCase();
+  if (typeof value === "string") return extractEmailAddresses(value)[0] || "";
   if (typeof value === "object") {
     const obj = value as Record<string, unknown>;
     const email = obj.email ?? obj.address ?? obj.value;
-    return email ? String(email).trim().toLowerCase() : "";
+    return email ? extractEmailAddresses(String(email))[0] || "" : "";
   }
   return "";
 };
@@ -420,18 +433,6 @@ serve(async (req) => {
         }
       }
     }
-
-    await supabase.from("task_activity").insert({
-      task_id: channel.task_id,
-      actor_user_id: null,
-      activity_type: "task_updated",
-      content: `Inbound email received from ${fromEmail}`,
-      metadata: {
-        subject: subject || null,
-        provider_message_id: providerMessageId,
-        attachments_imported: attachmentCount,
-      },
-    } as any);
 
     return new Response(JSON.stringify({ ok: true, taskId: channel.task_id, attachmentsImported: attachmentCount }), {
       headers: { "Content-Type": "application/json", ...corsHeaders },

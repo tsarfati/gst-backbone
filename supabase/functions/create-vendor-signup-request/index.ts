@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { BUILDERLYNK_EMAIL_LOGO_URL, resolveCompanyLogoEmailUrl } from "../_shared/emailAssets.ts";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
 
@@ -31,15 +32,8 @@ const toSlug = (value: string) =>
     .replace(/[^a-z0-9]+/g, "-")
     .replace(/^-+|-+$/g, "")
     .slice(0, 40);
-const builderLynkLogo = "https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png";
+const builderLynkLogo = BUILDERLYNK_EMAIL_LOGO_URL;
 const ADMIN_ROLES = new Set(["admin", "company_admin", "controller", "owner"]);
-
-const resolveCompanyLogoUrl = (logoUrl?: string | null): string | null => {
-  if (!logoUrl) return null;
-  if (/^https?:\/\//i.test(logoUrl)) return logoUrl;
-  const cleaned = String(logoUrl).replace(/^company-logos\//, "").replace(/^\/+/, "");
-  return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${cleaned}`;
-};
 
 const buildAdminIntakeEmailHtml = ({
   companyName,
@@ -595,7 +589,7 @@ serve(async (req: Request): Promise<Response> => {
     if (confirmationUrl) {
       const recipientName = `${firstName} ${lastName}`.trim() || email;
       const companyName = externalCompany?.display_name || externalCompany?.name || homeCompany?.display_name || homeCompany?.name || null;
-      const companyLogoUrl = resolveCompanyLogoUrl((externalCompany as any)?.logo_url || (homeCompany as any)?.logo_url || null);
+      const companyLogoUrl = resolveCompanyLogoEmailUrl((externalCompany as any)?.logo_url || (homeCompany as any)?.logo_url || null);
       await sendTransactionalEmailWithFallback({
         supabaseUrl,
         serviceRoleKey: supabaseServiceKey,
@@ -726,7 +720,7 @@ serve(async (req: Request): Promise<Response> => {
       const finalRecipients = Array.from(notificationRecipients);
       if (finalRecipients.length > 0) {
         const companyName = String(externalCompany.display_name || externalCompany.name || "Company").trim();
-        const companyLogoUrl = resolveCompanyLogoUrl((externalCompany as any)?.logo_url);
+        const companyLogoUrl = resolveCompanyLogoEmailUrl((externalCompany as any)?.logo_url);
         const applicantName = `${firstName} ${lastName}`.trim();
         const reviewUrl = `${Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com"}/settings/users`;
 

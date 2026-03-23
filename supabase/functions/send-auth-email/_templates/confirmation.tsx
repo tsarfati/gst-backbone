@@ -17,11 +17,13 @@ interface ConfirmationEmailProps {
   userEmail: string
   companyName?: string
   companyLogoUrl?: string
+  builderLogoUrl?: string
 }
 
 export const ConfirmationEmail = ({
   confirmUrl,
   userEmail,
+  builderLogoUrl,
 }: ConfirmationEmailProps) => (
    <Html>
      <Head />
@@ -29,8 +31,8 @@ export const ConfirmationEmail = ({
      <Body style={main}>
        <Container style={container}>
          <Section style={header}>
-           <Img
-             src="https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png"
+          <Img
+             src={builderLogoUrl || "https://builderlynk.com"}
              alt="BuilderLYNK"
              height="150"
              style={{ display: 'block', margin: '0 auto', width: 'auto', maxWidth: '420px' }}

@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
+import { BUILDERLYNK_EMAIL_LOGO_URL } from "../_shared/emailAssets.ts";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
  
@@ -169,7 +170,7 @@ function hslToHex(hsl: string): string {
      const brandNavy = "#1e3a5f";
  
     // BuilderLYNK logo URL (new brand mark)
-    const builderLynkLogo = "https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png";
+    const builderLynkLogo = BUILDERLYNK_EMAIL_LOGO_URL;
 
      // Build branded email HTML
      const emailHtml = `

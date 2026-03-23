@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -127,37 +127,12 @@ export default function UserManagement() {
   const [vendorApprovalMode, setVendorApprovalMode] = useState<'link' | 'create'>('create');
   const [selectedVendorId, setSelectedVendorId] = useState('');
   const [newVendorName, setNewVendorName] = useState('');
+  const lastRefreshAtRef = useRef(0);
 
   const activeCompanyRole = useActiveCompanyRole();
   const isAdmin = activeCompanyRole === 'admin' || activeCompanyRole === 'company_admin' || activeCompanyRole === 'owner';
 
-  useEffect(() => {
-    if (currentCompany) {
-      fetchUsers();
-      fetchCustomRoles();
-      fetchVendors();
-    }
-  }, [currentCompany, location.key]);
-
-  useEffect(() => {
-    if (!currentCompany) return;
-
-    const refreshOnFocus = () => {
-      fetchUsers();
-      fetchCustomRoles();
-      fetchVendors();
-    };
-
-    window.addEventListener('focus', refreshOnFocus);
-    document.addEventListener('visibilitychange', refreshOnFocus);
-
-    return () => {
-      window.removeEventListener('focus', refreshOnFocus);
-      document.removeEventListener('visibilitychange', refreshOnFocus);
-    };
-  }, [currentCompany]);
-
-  const fetchCustomRoles = async () => {
+  const fetchCustomRoles = useCallback(async () => {
     if (!currentCompany) return;
     try {
       const { data, error } = await supabase
@@ -172,9 +147,9 @@ export default function UserManagement() {
       console.error('Error fetching custom roles:', error);
       setCustomRoles([]);
     }
-  };
+  }, [currentCompany]);
 
-  const fetchVendors = async () => {
+  const fetchVendors = useCallback(async () => {
     if (!currentCompany) return;
     try {
       const { data, error } = await supabase
@@ -188,9 +163,9 @@ export default function UserManagement() {
       console.error('Error fetching vendors:', error);
       setAvailableVendors([]);
     }
-  };
+  }, [currentCompany]);
 
-  const fetchUsers = async () => {
+  const fetchUsers = useCallback(async () => {
     if (!currentCompany) {
       setLoading(false);
       return;
@@ -206,35 +181,40 @@ export default function UserManagement() {
       if (accessError) throw accessError;
 
       let allUsers: UserProfile[] = [];
+      const userIds = (userAccessData || []).map(access => access.user_id);
 
-      if (userAccessData && userAccessData.length > 0) {
-        const userIds = userAccessData.map(access => access.user_id);
-        
-        const { data: profilesData, error: profilesError } = await supabase
-          .from('profiles')
-          .select('*')
-          .in('user_id', userIds)
-          .order('last_name', { ascending: true });
+      const [profilesResult, pendingRequestsResult] = await Promise.all([
+        userIds.length > 0
+          ? supabase
+              .from('profiles')
+              .select('*')
+              .in('user_id', userIds)
+              .order('last_name', { ascending: true })
+          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from('company_access_requests')
+          .select('id, user_id, notes, status')
+          .eq('company_id', currentCompany.id)
+          .eq('status', 'pending'),
+      ]);
 
-        if (profilesError) throw profilesError;
+      if (profilesResult.error) throw profilesResult.error;
 
-        allUsers = (profilesData || []).map(profile => {
-          const access = userAccessData.find(a => a.user_id === profile.user_id);
-          console.log('[UserMgmt] profile avatar_url for', profile.display_name, ':', profile.avatar_url);
-          return {
-            ...profile,
-            role: access?.role || profile.role,
-          };
-        });
-      }
+      const accessByUserId = new Map(
+        (userAccessData || []).map((access) => [String(access.user_id), access]),
+      );
+
+      allUsers = ((profilesResult.data || []) as any[]).map((profile) => {
+        const access = accessByUserId.get(String(profile.user_id));
+        return {
+          ...profile,
+          role: access?.role || profile.role,
+        };
+      });
 
       setUsers(allUsers);
 
-      const { data: pendingRequests } = await supabase
-        .from('company_access_requests')
-        .select('id, user_id, notes, status')
-        .eq('company_id', currentCompany.id)
-        .eq('status', 'pending');
+      const pendingRequests = pendingRequestsResult.data || [];
 
       const pendingMap: Record<string, PendingSignupMeta> = {};
       (pendingRequests || []).forEach((request: any) => {
@@ -276,7 +256,48 @@ export default function UserManagement() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [currentCompany, toast]);
+
+  useEffect(() => {
+    if (!currentCompany) return;
+
+    setLoading(true);
+    void Promise.all([
+      fetchUsers(),
+      fetchCustomRoles(),
+      fetchVendors(),
+    ]);
+  }, [currentCompany, location.key, fetchUsers, fetchCustomRoles, fetchVendors]);
+
+  useEffect(() => {
+    if (!currentCompany) return;
+
+    const refreshData = () => {
+      const now = Date.now();
+      if (document.visibilityState !== 'visible') return;
+      if (now - lastRefreshAtRef.current < 15_000) return;
+      lastRefreshAtRef.current = now;
+      void Promise.all([
+        fetchUsers(),
+        fetchCustomRoles(),
+        fetchVendors(),
+      ]);
+    };
+
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        refreshData();
+      }
+    };
+
+    window.addEventListener('focus', refreshData);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+
+    return () => {
+      window.removeEventListener('focus', refreshData);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+    };
+  }, [currentCompany, fetchUsers, fetchCustomRoles, fetchVendors]);
 
   const approveUser = async (
     userId: string,

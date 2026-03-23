@@ -1,6 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
+import { BUILDERLYNK_EMAIL_LOGO_URL, resolveCompanyLogoEmailUrl } from "../_shared/emailAssets.ts";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
 
@@ -9,15 +10,6 @@ const corsHeaders = {
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
   "Access-Control-Allow-Methods": "POST, OPTIONS",
-};
-
-const BUILDERLYNK_EMAIL_LOGO = "https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/builder%20lynk.png";
-
-const resolveCompanyLogoUrl = (logoUrl?: string | null): string | null => {
-  if (!logoUrl) return null;
-  if (/^https?:\/\//i.test(logoUrl)) return logoUrl;
-  const cleaned = String(logoUrl).replace(/^company-logos\//, "").replace(/^\/+/, "");
-  return `https://watxvzoolmfjfijrgcvq.supabase.co/storage/v1/object/public/company-logos/${cleaned}`;
 };
 
 const escapeHtml = (value: string): string =>
@@ -184,7 +176,7 @@ const handler = async (req: Request): Promise<Response> => {
     const companyName = escapeHtml(String(companyRow.display_name || companyRow.name || "BuilderLYNK"));
     const jobName = escapeHtml(String(jobRow.name || "Project"));
     const jobNumber = escapeHtml(String(jobRow.project_number || ""));
-    const companyLogoUrl = resolveCompanyLogoUrl((companyRow as any).logo_url);
+    const companyLogoUrl = resolveCompanyLogoEmailUrl((companyRow as any).logo_url);
 
     if (!existingProfile?.user_id && !inviteTableAvailable) {
       throw new Error(
@@ -291,7 +283,7 @@ const handler = async (req: Request): Promise<Response> => {
     <tr><td align="center">
       <table width="100%" max-width="600" cellpadding="0" cellspacing="0" style="max-width:600px;background-color:#ffffff;border-radius:12px;overflow:hidden;box-shadow:0 4px 6px rgba(0,0,0,0.1);">
         <tr><td style="background-color:#1e3a5f;padding:16px 20px;text-align:center;">
-          <img src="${BUILDERLYNK_EMAIL_LOGO}" alt="BuilderLYNK" style="display:block;margin:0 auto;height:150px;width:auto;max-width:420px;" />
+          <img src="${BUILDERLYNK_EMAIL_LOGO_URL}" alt="BuilderLYNK" style="display:block;margin:0 auto;height:150px;width:auto;max-width:420px;" />
         </td></tr>
         <tr><td style="padding:32px 28px;">
           ${companyLogoUrl ? `<div style="text-align:center;margin-bottom:24px;"><img src="${companyLogoUrl}" alt="Company logo" style="max-height:72px;max-width:240px;object-fit:contain;" /></div>` : ""}
