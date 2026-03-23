@@ -14,6 +14,7 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useTenant } from "@/contexts/TenantContext";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
 import { getRequiredFeaturesForPermission } from "@/utils/subscriptionFeatureGate";
@@ -961,16 +962,25 @@ export function getAllPermissionKeys(): string[] {
   return keys;
 }
 
-export default function RolePermissionsManager() {
+type RolePermissionsManagerMode = 'company' | 'super_admin_system';
+
+interface RolePermissionsManagerProps {
+  mode?: RolePermissionsManagerMode;
+}
+
+export default function RolePermissionsManager({ mode = 'company' }: RolePermissionsManagerProps) {
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
+  const { isSuperAdmin } = useTenant();
   const activeCompanyRole = useActiveCompanyRole();
   const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess();
   const { toast } = useToast();
   
   // Use company-specific role for admin check
   const effectiveRole = activeCompanyRole || profile?.role;
-  const isAdmin = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner';
+  const canManageCompanyRoles = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner';
+  const canEditSystemRoles = mode === 'super_admin_system' ? isSuperAdmin : false;
+  const canViewRoleManager = mode === 'super_admin_system' ? isSuperAdmin : canManageCompanyRoles;
   const [permissions, setPermissions] = useState<RolePermission[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [customPermissions, setCustomPermissions] = useState<CustomRolePermission[]>([]);
@@ -1008,10 +1018,10 @@ export default function RolePermissionsManager() {
 
   useEffect(() => {
     fetchPermissions();
-    if (currentCompany) {
+    if (mode === 'company' && currentCompany) {
       fetchCustomRoles();
     }
-  }, [currentCompany]);
+  }, [currentCompany, mode]);
 
   const fetchPermissions = async () => {
     try {
@@ -1063,11 +1073,16 @@ export default function RolePermissionsManager() {
     }
   };
 
-  const updatePermission = async (role: string, menuItem: string, canAccess: boolean) => {
-    if (!isAdmin) {
+  const updatePermission = async (
+    role: string,
+    menuItem: string,
+    canAccess: boolean,
+    cascadeChildren: boolean = false,
+  ) => {
+    if (!canEditSystemRoles) {
       toast({
         title: "Access Denied",
-        description: "Only administrators can modify role permissions.",
+        description: "System roles are managed from the Super Admin dashboard.",
         variant: "destructive",
       });
       return;
@@ -1092,31 +1107,65 @@ export default function RolePermissionsManager() {
     }
 
     try {
-      const { error } = await supabase
-        .rpc('set_role_permission', {
+      const updates = new Map<string, boolean>();
+      const targetKeys = cascadeChildren
+        ? (permissionHierarchy.descendantsByKey[menuItem] || [menuItem])
+        : [menuItem];
+
+      targetKeys.forEach((key) => updates.set(key, canAccess));
+
+      const ancestors = permissionHierarchy.ancestorsByKey[menuItem] || [];
+      const resolveState = (key: string) => {
+        if (updates.has(key)) return updates.get(key) || false;
+        return getPermission(role, key);
+      };
+
+      if (canAccess) {
+        ancestors.forEach((ancestorKey) => updates.set(ancestorKey, true));
+      } else {
+        for (let index = ancestors.length - 1; index >= 0; index -= 1) {
+          const ancestorKey = ancestors[index];
+          const descendantKeys = (permissionHierarchy.descendantsByKey[ancestorKey] || [ancestorKey]).filter((key) => key !== ancestorKey);
+          const shouldEnableAncestor = descendantKeys.some(resolveState);
+          updates.set(ancestorKey, shouldEnableAncestor);
+        }
+      }
+
+      for (const [permissionKey, allowed] of updates.entries()) {
+        const { error } = await supabase.rpc('set_role_permission', {
           p_role: role as any,
-          p_menu_item: menuItem,
-          p_can_access: canAccess,
+          p_menu_item: permissionKey,
+          p_can_access: allowed,
         });
 
-      if (error) throw error;
+        if (error) throw error;
+      }
 
       setPermissions(prev => {
-        const existing = prev.find(p => p.role === role && p.menu_item === menuItem);
-        if (existing) {
-          return prev.map(p => 
-            p.role === role && p.menu_item === menuItem 
-              ? { ...p, can_access: canAccess }
-              : p
-          );
-        } else {
-          return [...prev, { role, menu_item: menuItem, can_access: canAccess }];
-        }
+        const merged = new Map(prev.map((permission) => [`${permission.role}:${permission.menu_item}`, permission] as const));
+
+        updates.forEach((allowed, permissionKey) => {
+          const compositeKey = `${role}:${permissionKey}`;
+          const existing = merged.get(compositeKey);
+          if (existing) {
+            merged.set(compositeKey, { ...existing, can_access: allowed });
+          } else {
+            merged.set(compositeKey, {
+              role,
+              menu_item: permissionKey,
+              can_access: allowed,
+            });
+          }
+        });
+
+        return Array.from(merged.values());
       });
 
       toast({
         title: "Permission Updated",
-        description: `Permission has been ${canAccess ? 'granted' : 'revoked'}.`,
+        description: cascadeChildren
+          ? `Parent and child permissions have been ${canAccess ? 'enabled' : 'disabled'}.`
+          : `Permission has been ${canAccess ? 'granted' : 'revoked'}.`,
       });
 
     } catch (error) {
@@ -1229,7 +1278,7 @@ export default function RolePermissionsManager() {
   };
 
   const createCustomRole = async () => {
-    if (!currentCompany || !user) return;
+    if (mode !== 'company' || !currentCompany || !user) return;
 
     if (!newRole.role_key || !newRole.role_name) {
       toast({
@@ -1368,7 +1417,7 @@ export default function RolePermissionsManager() {
   };
 
   const duplicateCustomRole = async (sourceRole: CustomRole) => {
-    if (!currentCompany || !user) return;
+    if (mode !== 'company' || !currentCompany || !user) return;
     try {
       setDuplicatingRoleId(sourceRole.id);
       const copiedName = `${sourceRole.role_name} Copy`;
@@ -1441,6 +1490,7 @@ export default function RolePermissionsManager() {
   };
 
   const enableAllCustomRolePermissions = async (role: CustomRole) => {
+    if (mode !== 'company') return;
     try {
       setBulkUpdatingRoleId(role.id);
       const permissionKeys = getAllPermissionKeysForBulkUpdate();
@@ -1480,6 +1530,7 @@ export default function RolePermissionsManager() {
   };
 
   const clearAllCustomRolePermissions = async (role: CustomRole) => {
+    if (mode !== 'company') return;
     if (!confirm(`Clear all permissions for "${role.role_name}"?`)) return;
 
     try {
@@ -1509,6 +1560,7 @@ export default function RolePermissionsManager() {
   };
 
   const updateCustomRoleDetails = async () => {
+    if (mode !== 'company') return;
     if (!editTargetRoleId) return;
 
     try {
@@ -1548,6 +1600,7 @@ export default function RolePermissionsManager() {
   };
 
   const deleteCustomRole = async (roleId: string, roleName: string) => {
+    if (mode !== 'company') return;
     if (!confirm(`Are you sure you want to delete the role "${roleName}"?`)) {
       return;
     }
@@ -1602,13 +1655,17 @@ export default function RolePermissionsManager() {
     );
   }
 
-  if (!isAdmin) {
+  if (!canViewRoleManager) {
     return (
       <Card>
         <CardContent className="p-8 text-center">
           <Shield className="h-12 w-12 mx-auto mb-4 text-muted-foreground" />
           <h3 className="text-lg font-medium mb-2">Access Denied</h3>
-          <p className="text-muted-foreground">Only administrators can manage role permissions.</p>
+          <p className="text-muted-foreground">
+            {mode === 'super_admin_system'
+              ? 'Only Super Admin can manage global system roles.'
+              : 'Only administrators can manage role permissions.'}
+          </p>
         </CardContent>
       </Card>
     );
@@ -1624,8 +1681,9 @@ export default function RolePermissionsManager() {
     cascadeChildrenOnToggle: boolean = false,
     showPartialState: boolean = false
   ) => {
-    const isAdmin = roleKey === 'admin';
+    const isAdminRole = roleKey === 'admin';
     const upgradeRequired = isUpgradeRequiredForPermission(permissionKey);
+    const isSystemRoleLocked = !isCustomRole && !canEditSystemRoles;
     const readPermission = (key: string) => (
       isCustomRole && customRoleId
         ? getCustomRolePermission(customRoleId, key)
@@ -1676,10 +1734,10 @@ export default function RolePermissionsManager() {
             if (isCustomRole && customRoleId) {
               updateCustomRolePermission(customRoleId, permissionKey, checked, cascadeChildrenOnToggle);
             } else {
-              updatePermission(roleKey, permissionKey, checked);
+              updatePermission(roleKey, permissionKey, checked, cascadeChildrenOnToggle);
             }
           }}
-          disabled={isAdmin || upgradeRequired}
+          disabled={isAdminRole || upgradeRequired || isSystemRoleLocked}
         />
       </div>
     );
@@ -1688,6 +1746,7 @@ export default function RolePermissionsManager() {
   const renderRoleSection = (role: typeof roles[0], isCustomRole: boolean = false, customRoleData?: CustomRole) => {
     const roleKey = isCustomRole && customRoleData ? customRoleData.id : role.key;
     const isOpen = openRoles[roleKey] || false;
+    const showSystemRoleCopyAction = !isCustomRole && mode === 'company';
     
     return (
       <Card key={roleKey} className="mb-4">
@@ -1703,8 +1762,29 @@ export default function RolePermissionsManager() {
                   <span className="text-sm text-muted-foreground">
                     {isCustomRole && customRoleData ? customRoleData.description : role.description}
                   </span>
+                  {!isCustomRole && mode === 'company' && (
+                    <Badge variant="outline" className="text-[10px]">
+                      Managed in Super Admin
+                    </Badge>
+                  )}
                 </div>
-                {isCustomRole && customRoleData && (
+                {showSystemRoleCopyAction && (
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      title="Copy to custom role"
+                      disabled={duplicatingRoleId === role.key}
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        copySystemRoleToCustomRole(role);
+                      }}
+                    >
+                      <Copy className="h-4 w-4" />
+                    </Button>
+                  </div>
+                )}
+                {isCustomRole && customRoleData && mode === 'company' && (
                   <div className="flex items-center gap-1">
                     <Button
                       variant="ghost"
@@ -1893,7 +1973,7 @@ export default function RolePermissionsManager() {
                                           if (isCustomRole && customRoleData) {
                                             updateCustomRolePermission(customRoleData.id, item.key, checked, hasActions || hasChildren);
                                           } else {
-                                            updatePermission(role.key, item.key, checked);
+                                            updatePermission(role.key, item.key, checked, hasActions || hasChildren);
                                           }
                                         }}
                                         disabled={role.key === 'admin' || itemUpgradeRequired}
@@ -1978,10 +2058,13 @@ export default function RolePermissionsManager() {
                   Role Permissions Manager
                 </CardTitle>
                 <p className="text-sm text-muted-foreground mt-1">
-                  Configure what each role can access in the application. Permissions are organized by menu section.
+                  {mode === 'super_admin_system'
+                    ? 'Configure global system-role permissions. These changes apply across every company and organization.'
+                    : 'System roles are managed in Super Admin. Company admins can create custom roles or copy a system role into a company-specific custom role.'}
                 </p>
               </div>
               
+              {mode === 'company' && (
               <Dialog open={createDialogOpen} onOpenChange={setCreateDialogOpen}>
                 <DialogTrigger asChild>
                   <Button>
@@ -2036,7 +2119,9 @@ export default function RolePermissionsManager() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              )}
 
+              {mode === 'company' && (
               <Dialog
                 open={renameDialogOpen}
                 onOpenChange={(open) => {
@@ -2086,7 +2171,9 @@ export default function RolePermissionsManager() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              )}
 
+              {mode === 'company' && (
               <Dialog
                 open={editDialogOpen}
                 onOpenChange={(open) => {
@@ -2136,6 +2223,7 @@ export default function RolePermissionsManager() {
                   </DialogFooter>
                 </DialogContent>
               </Dialog>
+              )}
             </div>
           </CardHeader>
           
@@ -2148,7 +2236,7 @@ export default function RolePermissionsManager() {
               </div>
               
               {/* Custom Roles */}
-              {customRoles.length > 0 && (
+              {mode === 'company' && customRoles.length > 0 && (
                 <div>
                   <h3 className="text-lg font-semibold mb-3">Custom Roles</h3>
                   {customRoles.map(customRole => 
@@ -2160,14 +2248,75 @@ export default function RolePermissionsManager() {
                   )}
                 </div>
               )}
+
+              {mode === 'company' && customRoles.length === 0 && (
+                <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
+                  No custom roles yet. Create one from scratch, or use the copy action on a system role to start from a global template.
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
       </TabsContent>
 
       <TabsContent value="default-pages">
-        <RoleDefaultPageSettings />
+        <RoleDefaultPageSettings mode={mode} />
       </TabsContent>
     </Tabs>
   );
 }
+  const copySystemRoleToCustomRole = async (sourceRole: typeof roles[0]) => {
+    if (mode !== 'company' || !currentCompany || !user) return;
+
+    try {
+      setDuplicatingRoleId(sourceRole.key);
+      const copiedName = `${sourceRole.label} Copy`;
+      const copiedKey = getUniqueRoleKey(`${sourceRole.key}_copy`);
+
+      const { data: newRoleData, error: createError } = await supabase
+        .from('custom_roles')
+        .insert({
+          company_id: currentCompany.id,
+          role_key: copiedKey,
+          role_name: copiedName,
+          description: `Copied from system role: ${sourceRole.label}`,
+          color: sourceRole.color,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      const permissionKeys = getAllPermissionKeysForBulkUpdate();
+      const copiedPermissions = permissionKeys.map((menuItem) => ({
+        custom_role_id: newRoleData.id,
+        menu_item: menuItem,
+        can_access: getPermission(sourceRole.key, menuItem),
+      }));
+
+      const { data: insertedPerms, error: permsError } = await supabase
+        .from('custom_role_permissions')
+        .upsert(copiedPermissions, { onConflict: 'custom_role_id,menu_item' })
+        .select();
+
+      if (permsError) throw permsError;
+
+      setCustomRoles((prev) => [...prev, newRoleData]);
+      setCustomPermissions((prev) => [...prev, ...(insertedPerms || [])]);
+
+      toast({
+        title: "Custom Role Created",
+        description: `"${copiedName}" starts with the current ${sourceRole.label} system-role permissions.`,
+      });
+    } catch (error: any) {
+      console.error('Error copying system role:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to copy system role",
+        variant: "destructive",
+      });
+    } finally {
+      setDuplicatingRoleId(null);
+    }
+  };

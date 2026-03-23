@@ -27,6 +27,7 @@ import {
 import SubscriptionTierManager from '@/components/SubscriptionTierManager';
 import CompanySubscriptionManager from '@/components/CompanySubscriptionManager';
 import SuperAdminAvatarLibraryManager from '@/components/SuperAdminAvatarLibraryManager';
+import RolePermissionsManager from '@/components/RolePermissionsManager';
 
 interface TenantAccessRequest {
   id: string;
@@ -399,6 +400,7 @@ export default function SuperAdminDashboard() {
               Subscriptions
             </TabsTrigger>
             <TabsTrigger value="avatars">Avatar Libraries</TabsTrigger>
+            <TabsTrigger value="system-roles">System Role Settings</TabsTrigger>
             <TabsTrigger value="tenants">Organizations</TabsTrigger>
             <TabsTrigger value="users">All Users</TabsTrigger>
             <TabsTrigger value="history">Request History</TabsTrigger>
@@ -486,6 +488,10 @@ export default function SuperAdminDashboard() {
 
           <TabsContent value="avatars" className="space-y-4">
             <SuperAdminAvatarLibraryManager />
+          </TabsContent>
+
+          <TabsContent value="system-roles" className="space-y-4">
+            <RolePermissionsManager mode="super_admin_system" />
           </TabsContent>
 
           <TabsContent value="tenants" className="space-y-4">

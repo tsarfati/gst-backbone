@@ -6,6 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { Save, Settings } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 
@@ -79,14 +80,21 @@ const ROLE_LABELS = {
   vendor: 'Vendor'
 };
 
-export default function RoleDefaultPageSettings() {
+type RoleDefaultPageSettingsMode = 'company' | 'super_admin_system';
+
+interface RoleDefaultPageSettingsProps {
+  mode?: RoleDefaultPageSettingsMode;
+}
+
+export default function RoleDefaultPageSettings({ mode = 'company' }: RoleDefaultPageSettingsProps) {
   const { profile } = useAuth();
+  const { isSuperAdmin } = useTenant();
   const { toast } = useToast();
   const [rolePages, setRolePages] = useState<RoleDefaultPage[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
-  const isAdmin = profile?.role === 'admin';
+  const canEditSystemRolePages = mode === 'super_admin_system' ? isSuperAdmin : false;
 
   useEffect(() => {
     loadRoleDefaultPages();
@@ -124,7 +132,7 @@ export default function RoleDefaultPageSettings() {
   };
 
   const saveRoleDefaultPages = async () => {
-    if (!isAdmin) return;
+    if (!canEditSystemRolePages) return;
 
     try {
       setSaving(true);
@@ -184,12 +192,14 @@ export default function RoleDefaultPageSettings() {
     );
   }
 
-  if (!isAdmin) {
+  if (!canEditSystemRolePages) {
     return (
       <Card>
         <CardContent className="p-6 text-center">
-          <h3 className="text-lg font-semibold mb-2">Access Denied</h3>
-          <p className="text-muted-foreground">Only administrators can manage role default pages.</p>
+          <h3 className="text-lg font-semibold mb-2">System Role Landing Pages</h3>
+          <p className="text-muted-foreground">
+            System role landing pages are managed from the Super Admin dashboard.
+          </p>
         </CardContent>
       </Card>
     );
@@ -201,12 +211,14 @@ export default function RoleDefaultPageSettings() {
         <CardHeader>
           <CardTitle className="flex items-center gap-2">
             <Settings className="h-5 w-5" />
-            Role Default Landing Pages
+            {mode === 'super_admin_system' ? 'System Role Default Landing Pages' : 'Role Default Landing Pages'}
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-6">
           <p className="text-sm text-muted-foreground">
-            Configure which page each role sees by default when they log in or navigate to the app.
+            {mode === 'super_admin_system'
+              ? 'Configure the global default landing page for each system role. These defaults apply across companies and organizations.'
+              : 'Configure which page each role sees by default when they log in or navigate to the app.'}
           </p>
 
           <div className="space-y-4">
@@ -225,6 +237,7 @@ export default function RoleDefaultPageSettings() {
                   <Select 
                     value={rolePage.default_page} 
                     onValueChange={(value) => updateRolePage(rolePage.role, value)}
+                    disabled={!canEditSystemRolePages}
                   >
                     <SelectTrigger>
                       <SelectValue placeholder="Select default page" />
@@ -247,7 +260,7 @@ export default function RoleDefaultPageSettings() {
               <div className="text-sm text-muted-foreground">
                 Changes will apply to users when they next log in or refresh the page.
               </div>
-              <Button onClick={saveRoleDefaultPages} disabled={saving}>
+              <Button onClick={saveRoleDefaultPages} disabled={saving || !canEditSystemRolePages}>
                 <Save className="h-4 w-4 mr-2" />
                 {saving ? 'Saving...' : 'Save Changes'}
               </Button>
