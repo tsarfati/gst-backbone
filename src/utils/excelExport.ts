@@ -1,5 +1,6 @@
 import { format } from "date-fns";
 import { exportAoAToXlsx, type ExcelCell } from "@/utils/exceljsExport";
+import { formatCompanyDateTime } from "@/utils/companyTimeZone";
 
 export interface ExcelReportData {
   title: string;
@@ -14,13 +15,17 @@ export interface ExcelReportData {
   };
 }
 
-export const exportTimecardToExcel = async (reportData: ExcelReportData, companyName: string) => {
+export const exportTimecardToExcel = async (
+  reportData: ExcelReportData,
+  companyName: string,
+  timeZone?: string,
+) => {
   // Prepare header rows
   const headerRows: ExcelCell[][] = [
     [companyName],
     [reportData.title],
     [`Period: ${reportData.dateRange}`],
-    [`Generated: ${format(new Date(), "MM/dd/yyyy hh:mm a")}`],
+    [`Generated: ${formatCompanyDateTime(new Date(), timeZone)}`],
     [],
   ];
 
@@ -35,8 +40,8 @@ export const exportTimecardToExcel = async (reportData: ExcelReportData, company
     Employee: record.employee_name || "-",
     Job: record.job_name || "-",
     "Cost Code": record.cost_code || "-",
-    "Punch In": record.punch_in_time ? format(new Date(record.punch_in_time), "MM/dd/yyyy hh:mm a") : "-",
-    "Punch Out": record.punch_out_time ? format(new Date(record.punch_out_time), "MM/dd/yyyy hh:mm a") : "-",
+    "Punch In": record.punch_in_time ? formatCompanyDateTime(record.punch_in_time, timeZone) : "-",
+    "Punch Out": record.punch_out_time ? formatCompanyDateTime(record.punch_out_time, timeZone) : "-",
     Hours: record.total_hours?.toFixed(2) || "0.00",
   }));
 
@@ -66,18 +71,22 @@ export const exportTimecardToExcel = async (reportData: ExcelReportData, company
   });
 };
 
-export const exportPunchTrackingToExcel = async (records: any[], companyName: string) => {
+export const exportPunchTrackingToExcel = async (
+  records: any[],
+  companyName: string,
+  timeZone?: string,
+) => {
   const headerRows: ExcelCell[][] = [
     [companyName],
     ["Punch Tracking Report"],
-    [`Generated: ${format(new Date(), "PPpp")}`],
+    [`Generated: ${formatCompanyDateTime(new Date(), timeZone)}`],
     [`Total Punches: ${records.length}`],
     [],
   ];
 
   const dataRows = records.map((record) => ({
     Employee: record.employee_name,
-    Time: format(new Date(record.punch_time), "MM/dd/yyyy hh:mm a"),
+    Time: formatCompanyDateTime(record.punch_time, timeZone),
     Type: record.punch_type === "punched_in" ? "In" : "Out",
     Job: record.job_name || "-",
     "Cost Code": record.cost_code || "-",
@@ -99,4 +108,3 @@ export const exportPunchTrackingToExcel = async (records: any[], companyName: st
     fileName: `punch-tracking-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
   });
 };
-

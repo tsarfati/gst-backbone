@@ -9,8 +9,6 @@ import { CheckSquare, Plus, Search, Star } from "lucide-react";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { supabase } from "@/integrations/supabase/client";
-import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
-import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import { AddTaskDialog } from "@/components/AddTaskDialog";
 import TaskCard, { type TaskCardData } from "@/components/TaskCard";
 
@@ -37,7 +35,6 @@ export default function AllTasks() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
-  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [tasks, setTasks] = useState<TaskCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -55,14 +52,17 @@ export default function AllTasks() {
   const isDefaultView = defaultView === viewMode;
 
   useEffect(() => {
-    if (currentCompany && !websiteJobAccessLoading) {
+    if (currentCompany) {
       void loadTasks();
       void loadProjects();
     }
-  }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+  }, [currentCompany?.id, user?.id]);
 
   const loadTasks = async () => {
-    if (!currentCompany || !user?.id) return;
+    if (!currentCompany || !user?.id) {
+      setLoading(false);
+      return;
+    }
     setLoading(true);
     try {
       const { data: taskRows, error: taskError } = await supabase
@@ -72,9 +72,7 @@ export default function AllTasks() {
         .order("created_at", { ascending: false });
       if (taskError) throw taskError;
 
-      const companyVisibleTasks = ((taskRows || []) as TaskRow[]).filter((task) =>
-        canAccessAssignedJobOnly([task.job_id], isPrivileged, allowedJobIds),
-      );
+      const companyVisibleTasks = (taskRows || []) as TaskRow[];
       const companyVisibleTaskIds = companyVisibleTasks.map((task) => task.id);
 
       const { data: assigneeRows } = companyVisibleTaskIds.length > 0
@@ -156,11 +154,7 @@ export default function AllTasks() {
       .eq("is_active", true)
       .order("name");
 
-    const visibleProjects = isPrivileged
-      ? (data || [])
-      : (data || []).filter((project: any) => allowedJobIds.includes(project.id));
-
-    setProjects(visibleProjects);
+    setProjects(data || []);
   };
 
   const filteredTasks = tasks.filter((task) => {
@@ -185,7 +179,13 @@ export default function AllTasks() {
             All Tasks
           </h1>
         </div>
-        <AddTaskDialog onTaskCreated={loadTasks}>
+        <AddTaskDialog
+          onTaskCreated={async () => {
+            setSearchTerm("");
+            setSelectedProject("all");
+            await loadTasks();
+          }}
+        >
           <Button>
             <Plus className="mr-2 h-4 w-4" />
             Add Task
@@ -253,7 +253,7 @@ export default function AllTasks() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          {loading || websiteJobAccessLoading ? (
+          {loading ? (
             <div className="py-8 text-center"><span className="loading-dots">Loading tasks</span></div>
           ) : filteredTasks.length === 0 ? (
             <div className="py-8 text-center">

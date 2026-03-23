@@ -600,12 +600,9 @@ export default function VendorEdit() {
                       isLogoDragOver ? "opacity-100" : "opacity-0 group-hover:opacity-100"
                     }`}
                   >
-                    {isLogoDragOver ? "Drop vendor logo" : "Drop vendor logo or click to choose file"}
+                    {isLogoDragOver ? "Drop Logo Here" : "Drag Logo Here or Choose Image"}
                   </div>
                 </label>
-                <p className="text-xs text-muted-foreground">
-                  Square image recommended, max 2MB
-                </p>
               </div>
             </div>
 

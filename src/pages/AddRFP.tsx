@@ -373,7 +373,7 @@ export default function AddRFP() {
                 className="hidden"
               />
               <div
-                className={`rounded-md border-2 border-dashed px-4 py-6 text-center text-sm transition-colors ${
+                className={`rounded-md border-2 border-dashed px-4 py-3 text-center text-sm transition-colors ${
                   isDrawingsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
                 }`}
                 onDragOver={(e) => {
@@ -392,7 +392,16 @@ export default function AddRFP() {
                 }}
                 onClick={() => drawingsInputRef.current?.click()}
               >
-                Drag and drop drawings/specs here, or click to choose files
+                <div className="flex items-center justify-center gap-3">
+                  <span>{isDrawingsDragOver ? 'Drop Files Here' : 'Drag Files Here'}</span>
+                  <span className="text-muted-foreground">or</span>
+                  <Button type="button" variant="outline" size="sm" onClick={(e) => {
+                    e.stopPropagation();
+                    drawingsInputRef.current?.click();
+                  }}>
+                    Choose Files to Add
+                  </Button>
+                </div>
               </div>
               {selectedDrawings.length > 0 && (
                 <p className="text-sm text-muted-foreground">

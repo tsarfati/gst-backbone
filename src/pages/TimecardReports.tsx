@@ -16,6 +16,7 @@ import { exportTimecardToExcel, ExcelReportData } from '@/utils/excelExport';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import { useSettings } from "@/contexts/SettingsContext";
 
 interface Employee {
   id: string;
@@ -83,6 +84,7 @@ export default function TimecardReports() {
   const [searchParams] = useSearchParams();
   const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
+  const { settings } = useSettings();
   const { toast } = useToast();
   const [records, setRecords] = useState<TimeCardRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
@@ -928,7 +930,13 @@ export default function TimecardReports() {
         filters: filterDetails
       };
 
-      await exportTimecardToPDF(reportData, company, currentCompany?.id, reportType as 'detailed' | 'employee' | 'job' | 'date' | 'costcode');
+      await exportTimecardToPDF(
+        reportData,
+        company,
+        currentCompany?.id,
+        reportType as 'detailed' | 'employee' | 'job' | 'date' | 'costcode',
+        settings.timeZone,
+      );
       
       toast({
         title: "Export Complete",
@@ -972,7 +980,7 @@ export default function TimecardReports() {
         }
       };
 
-      exportTimecardToExcel(reportData, company.name);
+      exportTimecardToExcel(reportData, company.name, settings.timeZone);
       
       toast({
         title: "Export Complete",

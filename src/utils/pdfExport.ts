@@ -2,6 +2,7 @@ import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { format } from 'date-fns';
 import { supabase } from "@/integrations/supabase/client";
+import { formatCompanyDate, formatCompanyDateTime } from "@/utils/companyTimeZone";
 
 export interface CompanyBranding {
   logo_url?: string;
@@ -61,10 +62,12 @@ interface PdfTemplate {
 export class PDFExporter {
   private company: CompanyBranding;
   private template?: PdfTemplate;
+  private timeZone?: string;
 
-  constructor(company: CompanyBranding, template?: PdfTemplate) {
+  constructor(company: CompanyBranding, template?: PdfTemplate, timeZone?: string) {
     this.company = company;
     this.template = template;
+    this.timeZone = timeZone;
   }
 
   async exportTimecardReport(reportData: ReportData): Promise<void> {
@@ -203,7 +206,7 @@ export class PDFExporter {
     doc.setTextColor(71, 85, 105);
     const rangeText = `Period: ${reportData.dateRange}`;
     doc.text(rangeText, pageWidth - 36 - doc.getTextWidth(rangeText), logoY + 30);
-      const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy hh:mm a')}`;
+      const genText = `Generated: ${formatCompanyDateTime(new Date(), this.timeZone)}`;
       doc.text(genText, pageWidth - 36 - doc.getTextWidth(genText), logoY + 44);
 
       yPos = 120;
@@ -274,8 +277,8 @@ export class PDFExporter {
         record.employee_name || '-',
         record.job_name || '-',
         record.cost_code || '-',
-        record.punch_in_time ? format(new Date(record.punch_in_time), 'MM/dd/yyyy hh:mm a') : '-',
-        record.punch_out_time ? format(new Date(record.punch_out_time), 'MM/dd/yyyy hh:mm a') : '-',
+        record.punch_in_time ? formatCompanyDateTime(record.punch_in_time, this.timeZone) : '-',
+        record.punch_out_time ? formatCompanyDateTime(record.punch_out_time, this.timeZone) : '-',
         (record.break_minutes ?? 0).toString(),
         record.total_hours?.toFixed(2) || '0.00'
       ];
@@ -502,7 +505,7 @@ export class PDFExporter {
         doc.setTextColor(71, 85, 105);
         const rangeText = `Period: ${reportData.dateRange}`;
         doc.text(rangeText, pageWidth - 36 - doc.getTextWidth(rangeText), logoY + 30);
-        const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy hh:mm a')}`;
+        const genText = `Generated: ${formatCompanyDateTime(new Date(), this.timeZone)}`;
         doc.text(genText, pageWidth - 36 - doc.getTextWidth(genText), logoY + 44);
         yPos = 120;
       }
@@ -565,8 +568,8 @@ export class PDFExporter {
           record.employee_name || '-',
           record.job_name || '-',
           record.cost_code || '-',
-          record.punch_in_time ? format(new Date(record.punch_in_time), 'MM/dd/yyyy hh:mm a') : '-',
-          record.punch_out_time ? format(new Date(record.punch_out_time), 'MM/dd/yyyy hh:mm a') : '-',
+          record.punch_in_time ? formatCompanyDateTime(record.punch_in_time, this.timeZone) : '-',
+          record.punch_out_time ? formatCompanyDateTime(record.punch_out_time, this.timeZone) : '-',
           (record.break_minutes ?? 0).toString(),
           record.total_hours?.toFixed(2) || '0.00'
         ];
@@ -813,7 +816,7 @@ export class PDFExporter {
     doc.setTextColor(71, 85, 105);
     const rangeText = `Period: ${reportData.dateRange}`;
     doc.text(rangeText, pageWidth - 36 - doc.getTextWidth(rangeText), logoY + 30);
-    const genText = `Generated: ${format(new Date(), 'MM/dd/yyyy hh:mm a')}`;
+    const genText = `Generated: ${formatCompanyDateTime(new Date(), this.timeZone)}`;
     doc.text(genText, pageWidth - 36 - doc.getTextWidth(genText), logoY + 44);
 
     yPos = 120;
@@ -888,7 +891,12 @@ export class PDFExporter {
     } else {
       headRow = ['Date', 'Records', 'Total Hours', 'Overtime Hours', 'Avg Hours/Record'];
       tableData = (reportData.data || []).map((row: any) => [
-        row.date ? format(new Date(row.date), 'EEEE, MMMM d, yyyy') : '-',
+        row.date ? formatCompanyDate(row.date, this.timeZone, {
+          weekday: 'long',
+          month: 'long',
+          day: 'numeric',
+          year: 'numeric',
+        }) : '-',
         (row.total_records || 0).toString(),
         (row.total_hours || 0).toFixed(2),
         (row.overtime_hours || 0).toFixed(2),
@@ -1387,7 +1395,8 @@ export const exportTimecardToPDF = async (
   reportData: ReportData, 
   company: CompanyBranding, 
   companyId?: string,
-  reportType: 'detailed' | 'employee' | 'job' | 'date' | 'costcode' = 'detailed'
+  reportType: 'detailed' | 'employee' | 'job' | 'date' | 'costcode' = 'detailed',
+  timeZone?: string,
 ) => {
   // Load template from database if company ID is provided
   let template: PdfTemplate | undefined;
@@ -1412,7 +1421,7 @@ export const exportTimecardToPDF = async (
     }
   }
   
-  const exporter = new PDFExporter(company, template);
+  const exporter = new PDFExporter(company, template, timeZone);
 
   // Handle cost code view
   if (reportType === 'costcode') {

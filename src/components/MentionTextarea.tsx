@@ -14,6 +14,7 @@ interface MentionTextareaProps {
   onValueChange: (value: string) => void;
   companyId?: string | null;
   jobId?: string | null;
+  allowedUserIds?: string[];
   currentUserId?: string | null;
   placeholder?: string;
   rows?: number;
@@ -35,6 +36,7 @@ export default function MentionTextarea({
   onValueChange,
   companyId,
   jobId,
+  allowedUserIds,
   currentUserId,
   placeholder,
   rows,
@@ -82,6 +84,11 @@ export default function MentionTextarea({
           scopedUserIds = userIds.filter((id) => jobUserIds.has(id));
         }
 
+        if (allowedUserIds && allowedUserIds.length > 0) {
+          const allowedSet = new Set(allowedUserIds);
+          scopedUserIds = scopedUserIds.filter((id) => allowedSet.has(id));
+        }
+
         if (!scopedUserIds.length) {
           setUsers([]);
           return;
@@ -118,7 +125,7 @@ export default function MentionTextarea({
     };
 
     loadUsers();
-  }, [companyId, currentUserId, jobId]);
+  }, [companyId, currentUserId, jobId, Array.isArray(allowedUserIds) ? allowedUserIds.join(",") : ""]);
 
   const filteredUsers = useMemo(() => {
     if (mentionQuery === null) return [];

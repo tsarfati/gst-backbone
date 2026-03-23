@@ -2451,19 +2451,12 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                   <p className="font-medium">{billFiles.length} file{billFiles.length > 1 ? 's' : ''} selected</p>
                 </div>
               ) : (
-                <div className="space-y-4">
-                  <div className="flex items-center justify-center w-16 h-16 mx-auto bg-muted rounded-full">
-                    <Upload className="h-8 w-8 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="text-lg font-medium">Upload Bill Document</p>
-                    <p className="text-sm text-muted-foreground">
-                      Drag and drop your bill file here, or click to browse
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-2">
-                      Supported formats: PDF, JPG, PNG, WEBP (Max 10MB)
-                    </p>
-                  </div>
+                <div className="flex items-center justify-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/25 px-4 py-3">
+                  <Upload className="h-4 w-4 text-muted-foreground" />
+                  <p className="text-sm font-medium">
+                    {isDragOver ? "Drop Files Here" : "Drag Files Here"}
+                  </p>
+                  <p className="text-sm text-muted-foreground">or</p>
                   <div>
                     <input
                       type="file"
@@ -2473,10 +2466,9 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                       className="hidden"
                       id="bill-file-upload"
                     />
-                    <Button type="button" asChild>
+                    <Button type="button" asChild size="sm">
                       <label htmlFor="bill-file-upload" className="cursor-pointer">
-                        <Upload className="h-4 w-4 mr-2" />
-                        Choose Files
+                        Choose Files to Add
                       </label>
                     </Button>
                   </div>
@@ -2604,20 +2596,19 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                 
                 {/* Additional document upload section - below preview */}
                 <div
-                  className={`border-2 border-dashed rounded-lg p-6 text-center transition-colors ${
+                  className={`border-2 border-dashed rounded-lg px-4 py-3 text-center transition-colors ${
                     isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
                   }`}
                   onDragOver={handleDragOver}
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                 >
-                  <div className="space-y-3">
-                    <div>
-                      <p className="text-sm font-medium">Add More Documents</p>
-                      <p className="text-xs text-muted-foreground mt-1">
-                        Drag and drop additional files or click to browse
-                      </p>
-                    </div>
+                  <div className="flex items-center justify-center gap-3">
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">
+                      {isDragOver ? "Drop Files Here" : "Drag Files Here"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">or</p>
                     <div>
                       <input
                         type="file"
@@ -2629,8 +2620,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                       />
                       <Button type="button" asChild size="sm" variant="outline">
                         <label htmlFor="bill-file-upload-additional" className="cursor-pointer">
-                          <Upload className="h-4 w-4 mr-2" />
-                          Choose More Files
+                          Choose Files to Add
                         </label>
                       </Button>
                     </div>

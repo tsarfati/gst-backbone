@@ -6,7 +6,8 @@ import { Separator } from '@/components/ui/separator';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { History, User, Edit, CheckCircle, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
-import { format } from 'date-fns';
+import { useSettings } from '@/contexts/SettingsContext';
+import { formatCompanyDateTime } from '@/utils/companyTimeZone';
 
 interface AuditTrailEntry {
   id: string;
@@ -30,6 +31,8 @@ interface AuditTrailViewProps {
 }
 
 export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
+  const { settings } = useSettings();
+  const companyTimeZone = settings.timeZone;
   const [auditEntries, setAuditEntries] = useState<AuditTrailEntry[]>([]);
   const [loading, setLoading] = useState(false);
 
@@ -137,7 +140,29 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
   };
 
   const formatDateTime = (dateTime: string) => {
-    return format(new Date(dateTime), 'MMM d, yyyy h:mm a');
+    return formatCompanyDateTime(dateTime, companyTimeZone);
+  };
+
+  const formatAuditValue = (fieldName: string | undefined, value: string | undefined) => {
+    if (!value) return value;
+
+    const normalizedField = String(fieldName || "").toLowerCase();
+    const isTimeField = normalizedField === "punch_in_time" || normalizedField === "punch_out_time";
+    const looksLikeIsoTimestamp =
+      /\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}/i.test(value) ||
+      /\+\d{2}$/.test(value) ||
+      value.endsWith("Z");
+
+    if (!isTimeField && !looksLikeIsoTimestamp) {
+      return value;
+    }
+
+    const parsed = new Date(value.replace(" ", "T"));
+    if (Number.isNaN(parsed.getTime())) {
+      return value;
+    }
+
+    return formatCompanyDateTime(parsed, companyTimeZone);
   };
 
   if (loading) {
@@ -222,13 +247,13 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                                 <div>
                                   <span className="text-muted-foreground">From:</span>
                                   <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2 mt-1">
-                                    {entry.old_value || <span className="text-muted-foreground italic">None</span>}
+                                    {entry.old_value ? formatAuditValue(entry.field_name, entry.old_value) : <span className="text-muted-foreground italic">None</span>}
                                   </div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">To:</span>
                                   <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2 mt-1">
-                                    {entry.new_value || <span className="text-muted-foreground italic">None</span>}
+                                    {entry.new_value ? formatAuditValue(entry.field_name, entry.new_value) : <span className="text-muted-foreground italic">None</span>}
                                   </div>
                                 </div>
                               </div>
@@ -253,13 +278,13 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                                 <div>
                                   <span className="text-muted-foreground">From:</span>
                                   <div className="bg-muted border rounded p-2 mt-1">
-                                    {entry.old_value || <span className="text-muted-foreground italic">None</span>}
+                                    {entry.old_value ? formatAuditValue(entry.field_name, entry.old_value) : <span className="text-muted-foreground italic">None</span>}
                                   </div>
                                 </div>
                                 <div>
                                   <span className="text-muted-foreground">To (Rejected):</span>
                                   <div className="bg-muted border rounded p-2 mt-1 opacity-60">
-                                    {entry.new_value || <span className="text-muted-foreground italic">None</span>}
+                                    {entry.new_value ? formatAuditValue(entry.field_name, entry.new_value) : <span className="text-muted-foreground italic">None</span>}
                                   </div>
                                 </div>
                               </div>
@@ -277,13 +302,13 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                               <div>
                                 <span className="text-muted-foreground">From:</span>
                                 <div className="bg-red-50 dark:bg-red-950/20 border border-red-200 dark:border-red-800 rounded p-2 mt-1">
-                                  {entry.old_value || <span className="text-muted-foreground italic">None</span>}
+                                  {entry.old_value ? formatAuditValue(entry.field_name, entry.old_value) : <span className="text-muted-foreground italic">None</span>}
                                 </div>
                               </div>
                               <div>
                                 <span className="text-muted-foreground">To:</span>
                                 <div className="bg-green-50 dark:bg-green-950/20 border border-green-200 dark:border-green-800 rounded p-2 mt-1">
-                                  {entry.new_value || <span className="text-muted-foreground italic">None</span>}
+                                  {entry.new_value ? formatAuditValue(entry.field_name, entry.new_value) : <span className="text-muted-foreground italic">None</span>}
                                 </div>
                               </div>
                             </div>

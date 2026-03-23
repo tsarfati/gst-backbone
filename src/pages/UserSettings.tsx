@@ -369,19 +369,23 @@ export default function UserSettings() {
 
       if (approvedExternalRequestsError) throw approvedExternalRequestsError;
 
+      const requestedUserIds = new Set<string>();
       for (const request of approvedExternalRequests || []) {
+        if (request.user_id) {
+          requestedUserIds.add(request.user_id);
+        }
         const requestedRole = parseRequestedRoleFromNotes(request.notes);
         if (requestedRole && EXTERNAL_ACCESS_ROLES.includes(requestedRole as typeof EXTERNAL_ACCESS_ROLES[number])) {
           roleMap.set(request.user_id, requestedRole as UserProfile['role']);
         }
       }
 
-      const userIds = Array.from(roleMap.keys());
+      const userIds = Array.from(new Set([...Array.from(roleMap.keys()), ...Array.from(requestedUserIds)]));
 
       // Fetch regular users
       const { data: regularUsers, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id')
+        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role')
         .in('user_id', userIds)
         .order('created_at', { ascending: false });
 
@@ -390,7 +394,9 @@ export default function UserSettings() {
       // Fetch jobs for regular users and determine PIN status
       // Also fetch latest punch selfie as avatar fallback for users without avatars
       const usersWithJobs = await Promise.all((regularUsers || []).map(async (user) => {
-        const userRole = roleMap.get(user.user_id) || 'employee';
+        const profileRole = String((user as any).role || '').trim().toLowerCase();
+        const userRole = roleMap.get(user.user_id)
+          || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : 'employee');
         const hasPin = !!user.pin_code;
 
         // If no avatar, fetch latest punch selfie as fallback
@@ -553,6 +559,13 @@ export default function UserSettings() {
             <Shield className="h-4 w-4 mr-2" />
             User Roles
           </TabsTrigger>
+          <TabsTrigger 
+            value="roles" 
+            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+          >
+            <UserCheck className="h-4 w-4 mr-2" />
+            Role Definitions
+          </TabsTrigger>
           <TabsTrigger
             value="vendor-access"
             className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
@@ -573,13 +586,6 @@ export default function UserSettings() {
           >
             <MailOpen className="h-4 w-4 mr-2" />
             Intake Queue
-          </TabsTrigger>
-          <TabsTrigger 
-            value="roles" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <UserCheck className="h-4 w-4 mr-2" />
-            Role Definitions
           </TabsTrigger>
           <TabsTrigger 
             value="groups" 

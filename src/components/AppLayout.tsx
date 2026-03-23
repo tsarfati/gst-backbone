@@ -91,6 +91,19 @@ const navigationCategories = [
     collapsible: true,
   },
   {
+    title: "Banking",
+    icon: Building,
+    companyTypes: ['construction'] as CompanyType[],
+    items: [
+      { name: "Bank Accounts", href: "/banking/accounts", menuKey: "banking-accounts" },
+      { name: "Reporting", href: "/banking/reports", menuKey: "banking-reports" },
+      { name: "Journal Entries", href: "/banking/journal-entries", menuKey: "journal-entries" },
+      { name: "Deposits", href: "/banking/deposits", menuKey: "deposits" },
+      { name: "Print Checks", href: "/banking/print-checks", menuKey: "print-checks" },
+    ],
+    collapsible: true,
+  },
+  {
     title: "Employees",
     icon: Users,
     companyTypes: ['construction'] as CompanyType[],
@@ -115,27 +128,22 @@ const navigationCategories = [
     collapsible: true,
   },
   {
-    title: "Workspace",
+    title: "Tasks",
     icon: CheckSquare,
     companyTypes: ['construction', 'design_professional'] as CompanyType[],
     items: [
       { name: "Tasks", href: "/tasks", menuKey: "jobs" },
-      { name: "Calendar", href: "/calendar", menuKey: "dashboard" },
     ],
-    collapsible: true,
+    collapsible: false,
   },
   {
-    title: "Banking",
-    icon: Building,
-    companyTypes: ['construction'] as CompanyType[],
+    title: "Calendar",
+    icon: Calendar,
+    companyTypes: ['construction', 'design_professional'] as CompanyType[],
     items: [
-      { name: "Bank Accounts", href: "/banking/accounts", menuKey: "banking-accounts" },
-      { name: "Reporting", href: "/banking/reports", menuKey: "banking-reports" },
-      { name: "Journal Entries", href: "/banking/journal-entries", menuKey: "journal-entries" },
-      { name: "Deposits", href: "/banking/deposits", menuKey: "deposits" },
-      { name: "Print Checks", href: "/banking/print-checks", menuKey: "print-checks" },
+      { name: "Calendar", href: "/calendar", menuKey: "dashboard" },
     ],
-    collapsible: true,
+    collapsible: false,
   },
   {
     title: "Company Files",
@@ -213,14 +221,22 @@ const designProfessionalNavigationCategories = [
     collapsible: false,
   },
   {
-    title: "Workspace",
+    title: "Tasks",
     icon: CheckSquare,
     companyTypes: ['design_professional'] as CompanyType[],
     items: [
       { name: "Tasks", href: "/tasks", menuKey: "jobs" },
+    ],
+    collapsible: false,
+  },
+  {
+    title: "Calendar",
+    icon: Calendar,
+    companyTypes: ['design_professional'] as CompanyType[],
+    items: [
       { name: "Calendar", href: "/design-professional/calendar", menuKey: "dashboard" },
     ],
-    collapsible: true,
+    collapsible: false,
   },
   {
     title: "Settings",

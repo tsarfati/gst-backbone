@@ -180,7 +180,7 @@ export default function UploadReceipts() {
             </div>
 
             <div 
-              className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${
+              className={`border-2 border-dashed rounded-lg px-4 py-3 text-center cursor-pointer transition-colors ${
                 isDragActive 
                   ? "border-primary bg-primary/5 border-solid" 
                   : "border-border hover:border-primary/50 hover:bg-primary/10"
@@ -190,15 +190,18 @@ export default function UploadReceipts() {
               onDrop={handleDrop}
               onClick={handleDropZoneClick}
             >
-              <Upload className={`h-10 w-10 mx-auto mb-4 ${
-                isDragActive ? "text-primary" : "text-muted-foreground"
-              }`} />
-              <p className="text-lg font-medium mb-2">
-                {isDragActive ? "Drop files here" : "Drop files here"}
-              </p>
-              <p className="text-sm text-muted-foreground">
-                or click to browse files
-              </p>
+              <div className="flex items-center justify-center gap-3">
+                <Upload className={`h-4 w-4 ${
+                  isDragActive ? "text-primary" : "text-muted-foreground"
+                }`} />
+                <p className="text-sm font-medium">
+                  {isDragActive ? "Drop Files Here" : "Drag Files Here"}
+                </p>
+                <p className="text-sm text-muted-foreground">or</p>
+                <Button type="button" variant="outline" size="sm">
+                  Choose Files to Add
+                </Button>
+              </div>
             </div>
 
             <Button onClick={handleUpload} className="w-full" disabled={files.length === 0}>

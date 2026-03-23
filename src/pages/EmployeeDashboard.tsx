@@ -12,12 +12,21 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Clock, User, Mail, Phone, MessageSquare, FileText, ArrowLeft, Send, Edit2, CalendarClock, ChevronLeft, ChevronRight, Loader2 } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useSettings } from '@/contexts/SettingsContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import AvatarUploader from '@/components/AvatarUploader';
 import { createMentionNotifications } from '@/utils/mentions';
 import MentionTextarea from '@/components/MentionTextarea';
+import {
+  companyDateKeyToDate,
+  formatCompanyDateTime,
+  formatCompanyMonthDay,
+  formatCompanyWeekdayMonthDay,
+  formatCompanyTime,
+  getCompanyWeekStartKey,
+} from '@/utils/companyTimeZone';
 
 
 // Edge function headers for PIN users (same project as app)
@@ -298,9 +307,11 @@ function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess 
 
 export default function EmployeeDashboard() {
   const { user, profile, signOut } = useAuth();
+  const { settings } = useSettings();
   const isPinAuthenticated = !!localStorage.getItem('punch_clock_user');
   const { toast } = useToast();
   const navigate = useNavigate();
+  const companyTimeZone = settings.timeZone;
   
   const [timeCards, setTimeCards] = useState<TimeCard[]>([]);
   const [changeRequests, setChangeRequests] = useState<ChangeRequest[]>([]);
@@ -1098,12 +1109,8 @@ export default function EmployeeDashboard() {
                         const grouped = timeCards
                           .filter(card => card.status !== 'deleted')
                           .reduce((acc, card) => {
-                            const date = new Date(card.punch_in_time);
-                            const dayOfWeek = date.getDay();
-                            const weekStart = new Date(date);
-                            weekStart.setDate(date.getDate() - dayOfWeek);
-                            weekStart.setHours(0, 0, 0, 0);
-                            const weekKey = weekStart.toISOString();
+                            const weekKey = getCompanyWeekStartKey(card.punch_in_time, companyTimeZone);
+                            const weekStart = companyDateKeyToDate(weekKey);
                             if (!acc[weekKey]) {
                               acc[weekKey] = { start: weekStart, cards: [] };
                             }
@@ -1133,7 +1140,7 @@ export default function EmployeeDashboard() {
                               <ChevronLeft className="h-4 w-4" />
                             </Button>
                             <span className="text-sm font-medium whitespace-nowrap">
-                              {format(currentWeek, 'MMM dd')} - {format(weekEnd, 'MMM dd, yyyy')}
+                              {formatCompanyMonthDay(currentWeek, companyTimeZone)} - {formatCompanyMonthDay(weekEnd, companyTimeZone)}, {weekEnd.getUTCFullYear()}
                             </span>
                             <Button
                               variant="outline"
@@ -1156,12 +1163,8 @@ export default function EmployeeDashboard() {
                         const grouped = timeCards
                           .filter(card => card.status !== 'deleted')
                           .reduce((acc, card) => {
-                            const date = new Date(card.punch_in_time);
-                            const dayOfWeek = date.getDay();
-                            const weekStart = new Date(date);
-                            weekStart.setDate(date.getDate() - dayOfWeek);
-                            weekStart.setHours(0, 0, 0, 0);
-                            const weekKey = weekStart.toISOString();
+                            const weekKey = getCompanyWeekStartKey(card.punch_in_time, companyTimeZone);
+                            const weekStart = companyDateKeyToDate(weekKey);
                             if (!acc[weekKey]) {
                               acc[weekKey] = { start: weekStart, cards: [] };
                             }
@@ -1178,11 +1181,12 @@ export default function EmployeeDashboard() {
                         if (!selectedWeekEntry) return null;
                         
                         const [weekKey, { start, cards }] = selectedWeekEntry;
+                        const weekEnd = new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000);
                         return (
                           <div key={weekKey} className="space-y-3">
                             <div className="flex items-center justify-between border-b pb-2">
                             <h3 className="font-semibold text-sm sm:text-base">
-                              Week of {format(start, 'MMM dd')} - {format(new Date(start.getTime() + 6 * 24 * 60 * 60 * 1000), 'MMM dd, yyyy')}
+                              Week of {formatCompanyMonthDay(start, companyTimeZone)} - {formatCompanyMonthDay(weekEnd, companyTimeZone)}, {weekEnd.getUTCFullYear()}
                             </h3>
                             <Badge variant="outline" className="text-xs">
                               {cards.reduce((sum, card) => sum + card.total_hours, 0).toFixed(2)} hrs
@@ -1200,7 +1204,7 @@ export default function EmployeeDashboard() {
                                   <div className="flex items-center gap-2 flex-wrap">
                                     <Clock className="h-3 w-3 sm:h-4 sm:w-4 flex-shrink-0" />
                                     <span className="font-medium text-sm sm:text-base">
-                                      {format(new Date(card.punch_in_time), 'EEE, MMM dd')}
+                                      {formatCompanyWeekdayMonthDay(card.punch_in_time, companyTimeZone)}
                                     </span>
                                     <Badge variant={card.status === 'approved' ? 'default' : 'secondary'} className="text-xs">
                                       {card.status}
@@ -1217,8 +1221,8 @@ export default function EmployeeDashboard() {
                                     )}
                                   </div>
                                   <div className="text-xs sm:text-sm text-muted-foreground">
-                                    {format(new Date(card.punch_in_time), 'h:mm a')} - 
-                                    {format(new Date(card.punch_out_time), 'h:mm a')} 
+                                    {formatCompanyTime(card.punch_in_time, companyTimeZone)} - 
+                                    {formatCompanyTime(card.punch_out_time, companyTimeZone)} 
                                     <span className={`font-medium ml-1 ${shouldPulse ? 'text-red-600 dark:text-red-400' : ''}`}>
                                       ({card.total_hours.toFixed(2)} hrs)
                                     </span>
@@ -1278,18 +1282,18 @@ export default function EmployeeDashboard() {
                               Pending Review
                             </Badge>
                             <span className="text-xs sm:text-sm text-muted-foreground">
-                              {format(new Date(request.requested_at), 'MMM dd, yyyy h:mm a')}
+                              {formatCompanyDateTime(request.requested_at, companyTimeZone)}
                             </span>
                           </div>
                           <p className="text-xs sm:text-sm"><strong>Reason:</strong> {request.reason}</p>
                           {request.proposed_punch_in_time && (
                             <p className="text-xs sm:text-sm">
-                              <strong>Proposed In:</strong> {format(new Date(request.proposed_punch_in_time), 'MMM dd, yyyy h:mm a')}
+                              <strong>Proposed In:</strong> {formatCompanyDateTime(request.proposed_punch_in_time, companyTimeZone)}
                             </p>
                           )}
                           {request.proposed_punch_out_time && (
                             <p className="text-xs sm:text-sm">
-                              <strong>Proposed Out:</strong> {format(new Date(request.proposed_punch_out_time), 'MMM dd, yyyy h:mm a')}
+                              <strong>Proposed Out:</strong> {formatCompanyDateTime(request.proposed_punch_out_time, companyTimeZone)}
                             </p>
                           )}
                         </div>
@@ -1312,7 +1316,7 @@ export default function EmployeeDashboard() {
                                 {request.status}
                               </Badge>
                               <span className="text-xs sm:text-sm text-muted-foreground">
-                                {format(new Date(request.requested_at), 'MMM dd, yyyy')}
+                                {formatCompanyDateTime(request.requested_at, companyTimeZone)}
                               </span>
                             </div>
                             <p className="text-xs sm:text-sm"><strong>Reason:</strong> {request.reason}</p>
@@ -1564,8 +1568,8 @@ export default function EmployeeDashboard() {
               <div className="p-3 bg-muted rounded-lg space-y-2">
                 <h4 className="font-medium text-sm">Current Time Card</h4>
                 <div className="text-sm text-muted-foreground">
-                  {format(new Date(selectedTimeCard.punch_in_time), 'MMM dd, yyyy • h:mm a')} - 
-                  {selectedTimeCard.punch_out_time ? format(new Date(selectedTimeCard.punch_out_time), 'h:mm a') : 'Still punched in'} 
+                  {formatCompanyDateTime(selectedTimeCard.punch_in_time, companyTimeZone)} - 
+                  {selectedTimeCard.punch_out_time ? formatCompanyTime(selectedTimeCard.punch_out_time, companyTimeZone) : 'Still punched in'} 
                   {selectedTimeCard.punch_out_time && (
                     <span className="ml-1">({selectedTimeCard.total_hours.toFixed(2)} hrs)</span>
                   )}

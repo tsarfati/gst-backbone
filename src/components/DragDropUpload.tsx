@@ -1,4 +1,4 @@
-import { useCallback, useMemo, useState, type ReactNode } from 'react';
+import { useCallback, useState, type ReactNode } from 'react';
 import { Upload, FileText, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
@@ -17,6 +17,7 @@ interface DragDropUploadProps {
   buttonLabel?: string;
   size?: 'default' | 'compact';
   icon?: ReactNode;
+  buttonLabel?: string;
 }
 
 export default function DragDropUpload({
@@ -25,21 +26,17 @@ export default function DragDropUpload({
   maxSize = 10,
   disabled = false,
   className,
-  title = "Drag and drop a file here",
-  dropTitle = "Drop file here",
-  subtitle = "or click to browse files",
+  title = "Drag Files Here",
+  dropTitle = "Drop File Here",
+  subtitle = "or",
   helperText,
   size = 'default',
   icon,
+  buttonLabel = "Choose File",
 }: DragDropUploadProps) {
   const [isDragOver, setIsDragOver] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const compact = size === 'compact';
-
-  const formattedAccept = useMemo(() => accept
-    .split(',')
-    .map((type) => type.trim().replace(/^\./, '').toUpperCase())
-    .join(', '), [accept]);
 
   const validateFile = (file: File): string | null => {
     if (maxSize && file.size > maxSize * 1024 * 1024) {
@@ -48,7 +45,7 @@ export default function DragDropUpload({
 
     const acceptedTypes = accept.split(',').map(type => type.trim());
     const fileExtension = '.' + file.name.split('.').pop()?.toLowerCase();
-    
+
     if (!acceptedTypes.includes(fileExtension)) {
       return `File type not supported. Accepted types: ${accept}`;
     }
@@ -99,72 +96,56 @@ export default function DragDropUpload({
     if (files && files.length > 0) {
       handleFile(files[0]);
     }
-    // Reset input value so same file can be selected again
     e.target.value = '';
   }, [handleFile]);
 
   return (
     <div className={cn("w-full", className)}>
-      <Card 
+      <Card
         className={cn(
-          "relative border-2 border-dashed transition-colors cursor-pointer rounded-xl",
+          "relative rounded-xl border-2 border-dashed transition-colors cursor-pointer",
           isDragOver && !disabled ? "border-primary bg-primary/5" : "border-muted-foreground/25",
-          disabled ? "opacity-50 cursor-not-allowed" : "hover:border-primary/50"
+          disabled ? "cursor-not-allowed opacity-50" : "hover:border-primary/50"
         )}
         onDrop={handleDrop}
         onDragOver={handleDragOver}
         onDragLeave={handleDragLeave}
       >
-        <CardContent className={cn(compact ? "p-4" : "p-6")}>
-          <div className={cn("flex flex-col items-center justify-center text-center", compact ? "space-y-2" : "space-y-3")}>
-            <div className={cn(
-              compact ? "p-2 rounded-full" : "p-3 rounded-full",
-              isDragOver && !disabled ? "bg-primary text-primary-foreground" : "bg-muted"
-            )}>
-              {icon ?? <Upload className={cn(compact ? "h-5 w-5" : "h-6 w-6")} />}
-            </div>
-            
-            <div className="space-y-1">
-              <p className={cn("font-medium", compact ? "text-xs" : "text-sm")}>
-                {isDragOver && !disabled 
-                  ? dropTitle
-                  : title
-                }
-              </p>
-              <p className="text-xs text-muted-foreground">
-                {subtitle}
+        <CardContent className={cn(compact ? "px-4 py-3" : "px-4 py-4")}>
+          <div className="flex items-center justify-center gap-3 text-center">
+            <div className="flex items-center gap-2">
+              <span className="text-muted-foreground">
+                {icon ?? <Upload className={cn(compact ? "h-4 w-4" : "h-5 w-5")} />}
+              </span>
+              <p className="text-sm font-medium">
+                {isDragOver && !disabled ? dropTitle : title}
               </p>
             </div>
-
-            {(helperText || accept || maxSize) && (
-              <div className="space-y-1 text-xs text-muted-foreground">
-                {helperText ? (
-                  <p>{helperText}</p>
-                ) : (
-                  <>
-                    <p>Supported formats: {formattedAccept}</p>
-                    <p>Maximum size: {maxSize}MB</p>
-                  </>
-                )}
-              </div>
-            )}
-
-            <input
-              type="file"
-              accept={accept}
-              onChange={handleFileInput}
-              onDrop={handleDrop}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              disabled={disabled}
-              className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed"
-            />
+            <p className="text-sm text-muted-foreground">{subtitle}</p>
+            <Button type="button" variant="outline" size="sm" disabled={disabled}>
+              {buttonLabel}
+            </Button>
           </div>
+
+          {helperText ? (
+            <p className="mt-2 text-center text-xs text-muted-foreground">{helperText}</p>
+          ) : null}
+
+          <input
+            type="file"
+            accept={accept}
+            onChange={handleFileInput}
+            onDrop={handleDrop}
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            disabled={disabled}
+            className="absolute inset-0 h-full w-full cursor-pointer opacity-0 disabled:cursor-not-allowed"
+          />
         </CardContent>
       </Card>
 
       {error && (
-        <div className="mt-2 p-2 bg-destructive/10 border border-destructive/20 rounded-md flex items-center justify-between">
+        <div className="mt-2 flex items-center justify-between rounded-md border border-destructive/20 bg-destructive/10 p-2">
           <div className="flex items-center gap-2">
             <FileText className="h-4 w-4 text-destructive" />
             <span className="text-sm text-destructive">{error}</span>

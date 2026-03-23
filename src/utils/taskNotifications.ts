@@ -7,6 +7,8 @@ type CreateTaskNotificationsParams = {
   title: string;
   message: string;
   additionalRecipientUserIds?: string[];
+  recipientUserIds?: string[];
+  preferenceKey?: 'task_update_notifications' | 'task_team_assignment_notifications' | 'task_timeline_activity_notifications';
 };
 
 const uniq = (values: Array<string | null | undefined>) =>
@@ -28,9 +30,16 @@ export async function createTaskNotifications(params: CreateTaskNotificationsPar
     .eq('task_id', taskId);
   if (assigneeError) throw assigneeError;
 
-  const recipientUserIds = uniq([
+  const preferenceKey = params.preferenceKey || 'task_timeline_activity_notifications';
+  const teamRecipientUserIds = uniq([
     (taskRow as any)?.leader_user_id,
     ...((assigneeRows || []) as any[]).map((row) => row.user_id),
+  ]);
+  const requestedRecipientUserIds = params.recipientUserIds?.length
+    ? uniq(params.recipientUserIds)
+    : teamRecipientUserIds;
+  const recipientUserIds = uniq([
+    ...requestedRecipientUserIds,
     ...additionalRecipientUserIds,
   ]).filter((userId) => userId !== actorUserId);
 
@@ -38,7 +47,7 @@ export async function createTaskNotifications(params: CreateTaskNotificationsPar
 
   const { data: settingsRows, error: settingsError } = await supabase
     .from('notification_settings')
-    .select('user_id, in_app_enabled, email_enabled, task_update_notifications')
+    .select('user_id, in_app_enabled, email_enabled, task_update_notifications, task_team_assignment_notifications, task_timeline_activity_notifications')
     .eq('company_id', companyId)
     .in('user_id', recipientUserIds);
   if (settingsError) throw settingsError;
@@ -49,7 +58,10 @@ export async function createTaskNotifications(params: CreateTaskNotificationsPar
 
   const allowedRecipients = recipientUserIds.filter((userId) => {
     const row = settingsMap.get(userId) as any;
-    if (row?.task_update_notifications === false) return false;
+    const preferenceValue =
+      row?.[preferenceKey] ??
+      (preferenceKey === 'task_timeline_activity_notifications' ? row?.task_update_notifications : undefined);
+    if (preferenceValue === false) return false;
     return row?.in_app_enabled !== false;
   });
 
@@ -78,6 +90,8 @@ export async function createTaskNotifications(params: CreateTaskNotificationsPar
         title,
         message,
         additionalRecipientUserIds,
+        recipientUserIds: requestedRecipientUserIds,
+        preferenceKey,
       },
     });
   } catch (emailError) {

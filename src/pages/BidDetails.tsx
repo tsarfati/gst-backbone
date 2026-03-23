@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { useNavigate, useParams, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Save, MessageSquare, Send, Users, Building2, Calendar, Copy } from "lucide-react";
+import { ArrowLeft, Save, MessageSquare, Send, Users, Building2, Calendar, Copy, Paperclip } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -24,6 +24,7 @@ import { createMentionNotifications } from "@/utils/mentions";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { resolveStorageUrl } from "@/utils/storageUtils";
 import { persistNonDirectMessageReadEverywhere } from "@/utils/nonDirectMessageRead";
+import MultiFileUploadDropzone from "@/components/MultiFileUploadDropzone";
 
 interface BidRecord {
   id: string;
@@ -192,7 +193,6 @@ export default function BidDetails() {
   const [customTypeDraft, setCustomTypeDraft] = useState("");
   const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
   const [editingDescriptionText, setEditingDescriptionText] = useState("");
-  const attachmentInputRef = useRef<HTMLInputElement | null>(null);
   const [form, setForm] = useState({
     status: "submitted",
     bid_amount: "",
@@ -539,14 +539,6 @@ export default function BidDetails() {
     }
   };
 
-  const handleUploadAttachmentInput = async (event: React.ChangeEvent<HTMLInputElement>) => {
-    const files = event.target.files;
-    if (files?.length) {
-      await uploadBidAttachments(files);
-    }
-    event.target.value = "";
-  };
-
   const startRenameAttachment = (attachment: BidAttachment) => {
     setEditingAttachmentId(attachment.id);
     setEditingAttachmentName(attachment.file_name);
@@ -850,6 +842,12 @@ export default function BidDetails() {
       <div className="grid grid-cols-1 xl:grid-cols-10 gap-4">
         <div className="xl:col-span-7 space-y-4">
           <Card>
+            <CardHeader className="pb-3">
+              <div className="flex items-center gap-2">
+                <Paperclip className="h-5 w-5" />
+                <CardTitle>Attachments</CardTitle>
+              </div>
+            </CardHeader>
             <div
               className="h-[660px]"
               onDragOver={(e) => {
@@ -873,43 +871,14 @@ export default function BidDetails() {
               />
             </div>
             <CardContent className="space-y-3">
-              <input ref={attachmentInputRef} type="file" multiple className="hidden" onChange={handleUploadAttachmentInput} />
-
               {loadingAttachments ? (
                 <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading</span></p>
               ) : attachments.length === 0 ? (
-                <div
-                  className="rounded-md border-2 border-dashed p-4 text-center text-sm text-muted-foreground cursor-pointer"
-                  onClick={() => attachmentInputRef.current?.click()}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (e.dataTransfer.files?.length) {
-                      uploadBidAttachments(e.dataTransfer.files);
-                    }
-                  }}
-                >
-                  {uploadingAttachment ? "Uploading..." : "Drag and drop multiple quote files here"}
+                <div className="rounded-md border border-dashed p-4 text-center text-sm text-muted-foreground">
+                  No attachments yet.
                 </div>
               ) : (
-                <div
-                  className="space-y-1 rounded-md border border-dashed border-border/60 p-2"
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (e.dataTransfer.files?.length) {
-                      uploadBidAttachments(e.dataTransfer.files);
-                    }
-                  }}
-                >
+                <div className="space-y-1 rounded-md border border-dashed border-border/60 p-2">
                   <div className="grid grid-cols-12 gap-2 px-2 text-[11px] uppercase tracking-wide text-muted-foreground">
                     <div className="col-span-4">File</div>
                     <div className="col-span-3">Description</div>
@@ -1052,6 +1021,16 @@ export default function BidDetails() {
                   ))}
                 </div>
               )}
+
+              <MultiFileUploadDropzone
+                onFilesSelected={(files) => {
+                  void uploadBidAttachments(files);
+                }}
+                disabled={uploadingAttachment}
+                dragLabel={uploadingAttachment ? "Uploading Files..." : "Drag Files Here"}
+                buttonLabel={uploadingAttachment ? "Uploading..." : "Choose Files to Add"}
+                compact
+              />
             </CardContent>
           </Card>
 

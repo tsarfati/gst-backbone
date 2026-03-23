@@ -21,6 +21,7 @@ import { formatDistanceLabel } from '@/lib/distanceUnits';
 import { useToast } from '@/hooks/use-toast';
 import AuditTrailView from './AuditTrailView';
 import EditTimeCardDialog from './EditTimeCardDialog';
+import { formatCompanyDate, formatCompanyDateTime, formatCompanyTime } from '@/utils/companyTimeZone';
 
 interface TimeCardDetailViewProps {
   open: boolean;
@@ -81,6 +82,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const mapContainer = useRef<HTMLDivElement>(null);
   const map = useRef<mapboxgl.Map | null>(null);
   const distanceUnit = appSettings.distanceUnit ?? 'meters';
+  const companyTimeZone = appSettings.timeZone;
 
   // Get user's role for the current company
   const currentUserRole = userCompanies.find(uc => uc.company_id === currentCompany?.id)?.role;
@@ -493,24 +495,15 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   };
 
   const formatTime = (dateString: string) => {
-    return new Date(dateString).toLocaleTimeString('en-US', {
-      hour: 'numeric',
-      minute: '2-digit',
-      hour12: true
-    });
+    return formatCompanyTime(dateString, companyTimeZone);
   };
 
   const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString('en-US', {
-      weekday: 'long',
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
+    return formatCompanyDate(dateString, companyTimeZone);
   };
 
   // Compare by displayed value to avoid false positives from timezone/seconds differences
-  const formatDisplay = (dateString: string) => format(new Date(dateString), 'MMM dd, yyyy h:mm a');
+  const formatDisplay = (dateString: string) => formatCompanyDateTime(dateString, companyTimeZone);
   const isSameDisplayedTime = (a?: string | null, b?: string | null) => {
     if (!a || !b) return false;
     try {
@@ -571,8 +564,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           changed_by: user?.id,
           change_type: 'change_request_approved',
           field_name: 'punch_in_time',
-          old_value: format(new Date(timeCard.punch_in_time), 'MMM d, yyyy h:mm a'),
-          new_value: format(new Date(pendingChangeRequest.proposed_punch_in_time), 'MMM d, yyyy h:mm a'),
+          old_value: formatCompanyDateTime(timeCard.punch_in_time, companyTimeZone),
+          new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_in_time, companyTimeZone),
           reason: comments || 'Change request approved',
           created_at: new Date().toISOString()
         });
@@ -584,8 +577,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           changed_by: user?.id,
           change_type: 'change_request_approved',
           field_name: 'punch_out_time',
-          old_value: format(new Date(timeCard.punch_out_time), 'MMM d, yyyy h:mm a'),
-          new_value: format(new Date(pendingChangeRequest.proposed_punch_out_time), 'MMM d, yyyy h:mm a'),
+          old_value: formatCompanyDateTime(timeCard.punch_out_time, companyTimeZone),
+          new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_out_time, companyTimeZone),
           reason: comments || 'Change request approved',
           created_at: new Date().toISOString()
         });
@@ -681,8 +674,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           changed_by: user?.id,
           change_type: 'change_request_rejected',
           field_name: 'punch_in_time',
-          old_value: format(new Date(timeCard.punch_in_time), 'MMM d, yyyy h:mm a'),
-          new_value: format(new Date(pendingChangeRequest.proposed_punch_in_time), 'MMM d, yyyy h:mm a'),
+          old_value: formatCompanyDateTime(timeCard.punch_in_time, companyTimeZone),
+          new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_in_time, companyTimeZone),
           reason: comments || 'Change request denied',
           created_at: new Date().toISOString()
         });
@@ -694,8 +687,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           changed_by: user?.id,
           change_type: 'change_request_rejected',
           field_name: 'punch_out_time',
-          old_value: format(new Date(timeCard.punch_out_time), 'MMM d, yyyy h:mm a'),
-          new_value: format(new Date(pendingChangeRequest.proposed_punch_out_time), 'MMM d, yyyy h:mm a'),
+          old_value: formatCompanyDateTime(timeCard.punch_out_time, companyTimeZone),
+          new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_out_time, companyTimeZone),
           reason: comments || 'Change request denied',
           created_at: new Date().toISOString()
         });
@@ -1134,13 +1127,13 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                             if (hasChange) {
                               return (
                                 <span>
-                                  <span className="line-through text-red-600">{format(new Date(original), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="line-through text-red-600">{formatDisplay(original)}</span>
                                   <span className="px-1">→</span>
-                                  <span className="text-green-600">{format(new Date(proposed), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="text-green-600">{formatDisplay(proposed)}</span>
                                 </span>
                               );
                             }
-                            return format(new Date(original), 'MMM dd, yyyy h:mm a');
+                            return formatDisplay(original);
                           })()}
                         </span>
                       </div>
@@ -1152,7 +1145,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                             const original = timeCard.punch_out_time as string | null;
                             if (!proposed) {
                               return original 
-                                ? format(new Date(original), 'MMM dd, yyyy h:mm a')
+                                ? formatDisplay(original)
                                 : 'Still clocked in';
                             }
                             // If original missing and proposed present, show change
@@ -1161,7 +1154,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                                 <span>
                                   <span className="line-through text-red-600">None</span>
                                   <span className="px-1">→</span>
-                                  <span className="text-green-600">{format(new Date(proposed), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="text-green-600">{formatDisplay(proposed)}</span>
                                 </span>
                               );
                             }
@@ -1169,13 +1162,13 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                             if (hasChange) {
                               return (
                                 <span>
-                                  <span className="line-through text-red-600">{format(new Date(original), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="line-through text-red-600">{formatDisplay(original)}</span>
                                   <span className="px-1">→</span>
-                                  <span className="text-green-600">{format(new Date(proposed), 'MMM dd, yyyy h:mm a')}</span>
+                                  <span className="text-green-600">{formatDisplay(proposed)}</span>
                                 </span>
                               );
                             }
-                            return format(new Date(original), 'MMM dd, yyyy h:mm a');
+                            return formatDisplay(original);
                           })()}
                         </span>
                       </div>

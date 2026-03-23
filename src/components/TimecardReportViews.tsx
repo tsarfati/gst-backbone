@@ -5,8 +5,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Download, BarChart3, Clock, MapPin, Eye } from "lucide-react";
-import { format } from "date-fns";
 import TimeCardDetailView from "@/components/TimeCardDetailView";
+import { useSettings } from "@/contexts/SettingsContext";
+import {
+  formatCompanyDate,
+  formatCompanyDateTime,
+  formatCompanyShortDate,
+  getCompanyDateKey,
+} from "@/utils/companyTimeZone";
 
 interface TimeCardRecord {
   id: string;
@@ -56,6 +62,8 @@ export default function TimecardReportViews({
   onExportExcel,
   showNotes = false
 }: TimecardReportViewsProps) {
+  const { settings } = useSettings();
+  const companyTimeZone = settings.timeZone;
   const [selectedView, setSelectedView] = useState('detailed');
   const [selectedTimeCardId, setSelectedTimeCardId] = useState<string | null>(null);
   const [showTimeCardDetail, setShowTimeCardDetail] = useState(false);
@@ -117,7 +125,7 @@ export default function TimecardReportViews({
   }, {} as Record<string, any>);
 
   const dateRangeSummary = records.reduce((acc, record) => {
-    const date = format(new Date(record.punch_in_time), 'yyyy-MM-dd');
+    const date = getCompanyDateKey(record.punch_in_time, companyTimeZone);
     if (!acc[date]) {
       acc[date] = {
         date: date,
@@ -298,14 +306,14 @@ export default function TimecardReportViews({
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Clock className="h-4 w-4 text-muted-foreground" />
-                            {format(new Date(record.punch_in_time), "MM/dd hh:mm a")}
+                            {formatCompanyShortDate(record.punch_in_time, companyTimeZone)}
                           </div>
                         </TableCell>
                         <TableCell>
                           {record.punch_out_time ? (
                             <div className="flex items-center gap-2">
                               <Clock className="h-4 w-4 text-muted-foreground" />
-                              {format(new Date(record.punch_out_time), "MM/dd hh:mm a")}
+                              {formatCompanyShortDate(record.punch_out_time, companyTimeZone)}
                             </div>
                           ) : (
                             <span className="text-muted-foreground">-</span>
@@ -469,7 +477,7 @@ export default function TimecardReportViews({
                       .map((day: any) => (
                         <TableRow key={day.date}>
                           <TableCell className="font-medium">
-                            {format(new Date(day.date), "EEEE, MMMM d, yyyy")}
+                            {formatCompanyDate(day.date, companyTimeZone)}
                           </TableCell>
                           <TableCell>{day.total_records}</TableCell>
                           <TableCell className="font-medium">{formatDuration(day.total_hours)}</TableCell>

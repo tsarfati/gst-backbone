@@ -47,6 +47,9 @@ interface NotificationSettings {
   chat_channel_notifications?: boolean;
   chat_direct_message_notifications?: boolean;
   task_update_notifications?: boolean;
+  task_team_assignment_notifications?: boolean;
+  task_timeline_mention_notifications?: boolean;
+  task_timeline_activity_notifications?: boolean;
   bill_submission_notifications?: boolean;
   payment_approval_notifications?: boolean;
   payment_confirmation_notifications?: boolean;
@@ -100,6 +103,9 @@ export default function ProfileSettings() {
     chat_channel_notifications: true,
     chat_direct_message_notifications: true,
     task_update_notifications: true,
+    task_team_assignment_notifications: true,
+    task_timeline_mention_notifications: true,
+    task_timeline_activity_notifications: true,
     bill_submission_notifications: true,
     payment_approval_notifications: true,
     payment_confirmation_notifications: true,
@@ -156,6 +162,9 @@ export default function ProfileSettings() {
           chat_channel_notifications: typedData.chat_channel_notifications ?? true,
           chat_direct_message_notifications: typedData.chat_direct_message_notifications ?? true,
           task_update_notifications: typedData.task_update_notifications ?? true,
+          task_team_assignment_notifications: typedData.task_team_assignment_notifications ?? true,
+          task_timeline_mention_notifications: typedData.task_timeline_mention_notifications ?? true,
+          task_timeline_activity_notifications: typedData.task_timeline_activity_notifications ?? typedData.task_update_notifications ?? true,
           bill_submission_notifications: typedData.bill_submission_notifications ?? true,
           payment_approval_notifications: typedData.payment_approval_notifications ?? true,
           payment_confirmation_notifications: typedData.payment_confirmation_notifications ?? true,
@@ -408,7 +417,10 @@ export default function ProfileSettings() {
         mention_email_notifications: notificationSettings.mention_email_notifications ?? true,
         chat_channel_notifications: notificationSettings.chat_channel_notifications ?? true,
         chat_direct_message_notifications: notificationSettings.chat_direct_message_notifications ?? true,
-        task_update_notifications: notificationSettings.task_update_notifications ?? true,
+        task_update_notifications: notificationSettings.task_timeline_activity_notifications ?? notificationSettings.task_update_notifications ?? true,
+        task_team_assignment_notifications: notificationSettings.task_team_assignment_notifications ?? true,
+        task_timeline_mention_notifications: notificationSettings.task_timeline_mention_notifications ?? true,
+        task_timeline_activity_notifications: notificationSettings.task_timeline_activity_notifications ?? notificationSettings.task_update_notifications ?? true,
         bill_submission_notifications: notificationSettings.bill_submission_notifications ?? true,
         payment_approval_notifications: notificationSettings.payment_approval_notifications ?? true,
         payment_confirmation_notifications: notificationSettings.payment_confirmation_notifications ?? true,
@@ -983,13 +995,38 @@ export default function ProfileSettings() {
                     </div>
                     <div className="flex items-center justify-between">
                       <div>
-                        <Label htmlFor="task-updates">Task Updates</Label>
-                        <p className="text-sm text-muted-foreground">Get task update notifications in your dashboard and by email when email notifications are enabled</p>
+                        <Label htmlFor="task-team-assignments">Task Team Assignments</Label>
+                        <p className="text-sm text-muted-foreground">Get notified when you are added to a task team. Email is also sent when email notifications are enabled.</p>
                       </div>
                       <Switch
-                        id="task-updates"
-                        checked={notificationSettings.task_update_notifications !== false}
-                        onCheckedChange={(checked) => updateNotificationSetting('task_update_notifications', checked)}
+                        id="task-team-assignments"
+                        checked={notificationSettings.task_team_assignment_notifications !== false}
+                        onCheckedChange={(checked) => updateNotificationSetting('task_team_assignment_notifications', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="task-timeline-mentions">Task Timeline Mentions</Label>
+                        <p className="text-sm text-muted-foreground">Get notified when someone @mentions you in a task timeline comment. Email is also sent when email notifications are enabled.</p>
+                      </div>
+                      <Switch
+                        id="task-timeline-mentions"
+                        checked={notificationSettings.task_timeline_mention_notifications !== false}
+                        onCheckedChange={(checked) => updateNotificationSetting('task_timeline_mention_notifications', checked)}
+                      />
+                    </div>
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <Label htmlFor="task-timeline-activity">Task Timeline Activity</Label>
+                        <p className="text-sm text-muted-foreground">Get task timeline activity notifications in your dashboard and by email when email notifications are enabled.</p>
+                      </div>
+                      <Switch
+                        id="task-timeline-activity"
+                        checked={notificationSettings.task_timeline_activity_notifications !== false}
+                        onCheckedChange={(checked) => {
+                          updateNotificationSetting('task_timeline_activity_notifications', checked);
+                          updateNotificationSetting('task_update_notifications', checked);
+                        }}
                       />
                     </div>
                     <div className="flex items-center justify-between">

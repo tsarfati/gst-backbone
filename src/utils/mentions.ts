@@ -14,6 +14,8 @@ interface NotifyMentionParams {
   contextLabel: string;
   targetPath: string;
   jobId?: string | null;
+  inAppPreferenceKey?: "chat_mention_notifications" | "task_timeline_mention_notifications";
+  emailPreferenceKey?: "mention_email_notifications" | "task_timeline_mention_notifications";
 }
 
 const MENTION_REGEX = /@([a-zA-Z0-9._-]+)/g;
@@ -132,7 +134,17 @@ const truncate = (text: string, max = 140): string => {
 };
 
 export async function createMentionNotifications(params: NotifyMentionParams): Promise<number> {
-  const { companyId, actorUserId, actorName, content, contextLabel, targetPath, jobId } = params;
+  const {
+    companyId,
+    actorUserId,
+    actorName,
+    content,
+    contextLabel,
+    targetPath,
+    jobId,
+    inAppPreferenceKey,
+    emailPreferenceKey,
+  } = params;
   const mentionTokens = extractMentionTokens(content);
   if (mentionTokens.length === 0) return 0;
 
@@ -140,7 +152,25 @@ export async function createMentionNotifications(params: NotifyMentionParams): P
   const mentionedUserIds = resolveMentionedUserIds(mentionTokens, candidates, actorUserId);
   if (mentionedUserIds.length === 0) return 0;
 
-  const notificationRows = mentionedUserIds.map((userId) => ({
+  const { data: settingsRows } = await supabase
+    .from("notification_settings")
+    .select("user_id, in_app_enabled, chat_mention_notifications, task_timeline_mention_notifications")
+    .eq("company_id", companyId)
+    .in("user_id", mentionedUserIds);
+
+  const settingsMap = new Map<string, any>(
+    ((settingsRows || []) as any[]).map((row) => [String(row.user_id), row]),
+  );
+
+  const inAppRecipientIds = mentionedUserIds.filter((userId) => {
+    const setting = settingsMap.get(userId);
+    if (!setting) return true;
+    if (setting.in_app_enabled === false) return false;
+    if (inAppPreferenceKey && setting[inAppPreferenceKey] === false) return false;
+    return true;
+  });
+
+  const notificationRows = inAppRecipientIds.map((userId) => ({
     user_id: userId,
     title: `You were mentioned in ${contextLabel}`,
     message: `${actorName} mentioned you: "${truncate(content)}"`,
@@ -148,8 +178,10 @@ export async function createMentionNotifications(params: NotifyMentionParams): P
     read: false,
   }));
 
-  const { error } = await supabase.from("notifications").insert(notificationRows as any);
-  if (error) throw error;
+  if (notificationRows.length > 0) {
+    const { error } = await supabase.from("notifications").insert(notificationRows as any);
+    if (error) throw error;
+  }
 
   try {
     await supabase.functions.invoke("send-mention-email", {
@@ -161,6 +193,7 @@ export async function createMentionNotifications(params: NotifyMentionParams): P
         targetPath,
         content,
         mentionedUserIds,
+        emailPreferenceKey,
       },
     });
   } catch (emailError) {

@@ -691,13 +691,15 @@ export default function SubcontractEdit() {
                   htmlFor="contract-file-upload"
                   className="cursor-pointer"
                 >
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Drag and drop contract file here, or click to browse
+                  <div className="flex items-center justify-center gap-3">
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">
+                      {isDragOver ? "Drop File Here" : "Drag File Here"}
                     </p>
-                    <p className="text-xs text-muted-foreground">
-                      Supported formats: PDF, Word, JPG, PNG (Max 10MB)
-                    </p>
+                    <p className="text-sm text-muted-foreground">or</p>
+                    <Button type="button" variant="outline" size="sm" asChild>
+                      <span>Choose File to Add</span>
+                    </Button>
                   </div>
                 </label>
               </div>

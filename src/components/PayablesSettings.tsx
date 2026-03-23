@@ -514,8 +514,8 @@ export default function PayablesSettings() {
                 className={cn('h-full w-full', imageClassName)}
               />
             ) : (
-              <div className="flex h-full w-full flex-col items-center justify-center gap-2 px-3 text-center text-xs text-muted-foreground">
-                <ImageIcon className="h-5 w-5" />
+              <div className="flex h-full w-full items-center justify-center gap-2 px-3 text-center text-xs text-muted-foreground">
+                <ImageIcon className="h-4 w-4" />
                 <span>No image uploaded</span>
               </div>
             )}
@@ -524,7 +524,7 @@ export default function PayablesSettings() {
             "absolute inset-0 flex items-center justify-center bg-black/45 px-4 text-center text-xs font-medium text-white transition-opacity",
             isDragging ? "opacity-100" : "opacity-0 group-hover:opacity-100",
           )}>
-            Click to upload or drag and drop to replace
+            Drag Image Here or Choose Image
           </div>
         </label>
         <input
@@ -534,9 +534,6 @@ export default function PayablesSettings() {
           className="hidden"
           onChange={(event) => onFileSelected(event.target.files?.[0])}
         />
-        <p className="text-xs text-muted-foreground">
-          {value ? 'Preview updates instantly and saves with Payables settings.' : 'Upload a PNG/JPG/WebP/SVG image.'}
-        </p>
       </div>
     );
   };

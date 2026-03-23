@@ -404,19 +404,12 @@ export default function AddChangeOrder() {
                   onDragLeave={handleDragLeave}
                   onDrop={handleDrop}
                 >
-                  <div className="space-y-4">
-                    <div className="flex items-center justify-center w-16 h-16 mx-auto bg-muted rounded-full">
-                      <Upload className="h-8 w-8 text-muted-foreground" />
-                    </div>
-                    <div>
-                      <p className="text-lg font-medium">Upload Supporting Documents</p>
-                      <p className="text-sm text-muted-foreground">
-                        Drag and drop files here, or click to browse
-                      </p>
-                      <p className="text-xs text-muted-foreground mt-2">
-                        Supported: PDF, Word, JPG, PNG • Max 10MB per file
-                      </p>
-                    </div>
+                  <div className="flex items-center justify-center gap-3">
+                    <Upload className="h-4 w-4 text-muted-foreground" />
+                    <p className="text-sm font-medium">
+                      {isDragOver ? "Drop Files Here" : "Drag Files Here"}
+                    </p>
+                    <p className="text-sm text-muted-foreground">or</p>
                     <div>
                       <input
                         type="file"
@@ -426,10 +419,9 @@ export default function AddChangeOrder() {
                         id="attachment-upload"
                         multiple
                       />
-                      <Button type="button" asChild variant="outline">
+                      <Button type="button" asChild variant="outline" size="sm">
                         <label htmlFor="attachment-upload" className="cursor-pointer">
-                          <Upload className="h-4 w-4 mr-2" />
-                          Choose Files
+                          Choose Files to Add
                         </label>
                       </Button>
                     </div>

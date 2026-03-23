@@ -7,13 +7,14 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Save, Upload, X, FileText, Paperclip } from 'lucide-react';
+import { ArrowLeft, Save, X, FileText, Paperclip } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
 import QuickAddVendor from '@/components/QuickAddVendor';
+import MultiFileUploadDropzone from '@/components/MultiFileUploadDropzone';
 import { cn } from '@/lib/utils';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
@@ -182,13 +183,6 @@ export default function AddBid() {
 
   };
 
-  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    addPendingFiles(files);
-    e.target.value = '';
-  };
-
   const removeFile = (index: number) => {
     setPendingFiles(prev => {
       const removed = prev[index];
@@ -311,12 +305,87 @@ export default function AddBid() {
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-4">
-        <Card>
-          <CardHeader className="pb-3">
-            <CardTitle>Bid Details</CardTitle>
-            <CardDescription>Enter the vendor's bid information</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
+        <div className="grid grid-cols-1 xl:grid-cols-10 gap-4">
+          <div className="xl:col-span-7 space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle className="flex items-center gap-2">
+                  <Paperclip className="h-5 w-5" />
+                  Bid Documents
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="rounded-lg border overflow-hidden">
+                  <ZoomableDocumentPreview
+                    url={selectedPreviewUrl}
+                    fileName={selectedFileIndex !== null ? pendingFiles[selectedFileIndex]?.file.name : undefined}
+                    className="h-[620px]"
+                    emptyMessage="No bid document selected yet"
+                    emptySubMessage="Add files below to start reviewing attachments while you enter the bid."
+                  />
+                </div>
+
+                {pendingFiles.length > 0 ? (
+                  <div className="space-y-2">
+                    <div className="flex items-center justify-between">
+                      <p className="text-sm font-medium">Selected Files</p>
+                      <p className="text-xs text-muted-foreground">
+                        {pendingFiles.length} attachment{pendingFiles.length === 1 ? "" : "s"} ready to upload
+                      </p>
+                    </div>
+                    <div className="space-y-2 rounded-lg border border-dashed border-border/70 p-2">
+                      {pendingFiles.map((pf, index) => (
+                        <div
+                          key={`${pf.file.name}-${index}`}
+                          className={cn(
+                            "flex items-center gap-2 rounded-lg border px-3 py-2 transition-colors cursor-pointer",
+                            selectedFileIndex === index ? "border-primary bg-primary/5" : "hover:bg-muted/40",
+                          )}
+                          onClick={() => setSelectedFileIndex(index)}
+                        >
+                          <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-medium">{pf.file.name}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {(pf.file.size / 1024).toFixed(0)} KB
+                              {pf.previewUrl ? " · Preview available" : " · Preview not available"}
+                            </p>
+                          </div>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 shrink-0"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              removeFile(index);
+                            }}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                ) : null}
+
+                <MultiFileUploadDropzone
+                  onFilesSelected={addPendingFiles}
+                  dragLabel="Drag Files Here"
+                  buttonLabel="Choose Files to Add"
+                  compact
+                />
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="xl:col-span-3 space-y-4">
+            <Card>
+              <CardHeader className="pb-3">
+                <CardTitle>Bid Details</CardTitle>
+                <CardDescription>Enter the vendor's bid information</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
             <div className="space-y-2">
               <div className="flex items-center justify-between">
                 <Label htmlFor="vendor_id">Vendor *</Label>
@@ -522,129 +591,10 @@ export default function AddBid() {
                 </div>
               </div>
             </div>
-          </CardContent>
-        </Card>
-
-        {/* Attachments Section */}
-        <Card>
-          <CardHeader className="pb-3">
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="flex items-center gap-2">
-                  <Paperclip className="h-5 w-5" />
-                  Attachments
-                </CardTitle>
-                <CardDescription>Upload bid documents, proposals, or supporting files</CardDescription>
-              </div>
-              <label>
-                <input
-                  type="file"
-                  multiple
-                  accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx"
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                <Button type="button" variant="outline" asChild>
-                  <span>
-                    <Upload className="h-4 w-4 mr-2" />
-                    Upload Files
-                  </span>
-                </Button>
-              </label>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {pendingFiles.length === 0 ? (
-              <label className="cursor-pointer">
-                <input
-                  type="file"
-                  multiple
-                  accept=".pdf,.png,.jpg,.jpeg,.doc,.docx,.xls,.xlsx"
-                  className="hidden"
-                  onChange={handleFileSelect}
-                />
-                <div
-                  className={cn("border-2 border-dashed rounded-lg p-12 text-center hover:border-primary/50 transition-colors")}
-                  onDragOver={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                  }}
-                  onDrop={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    if (e.dataTransfer.files?.length) addPendingFiles(e.dataTransfer.files);
-                  }}
-                >
-                  <Upload className="h-10 w-10 mx-auto mb-3 text-muted-foreground" />
-                  <p className="text-sm text-muted-foreground">
-                    Drag & drop or click to upload bid documents
-                  </p>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    PDF, images, Word, and Excel files supported
-                  </p>
-                </div>
-              </label>
-            ) : (
-              <div className="space-y-4">
-                {/* File list */}
-                <div className="flex flex-wrap gap-2">
-                  {pendingFiles.map((pf, index) => (
-                    <div
-                      key={index}
-                      className={`flex items-center gap-2 px-3 py-2 rounded-lg border cursor-pointer transition-colors ${
-                        selectedFileIndex === index
-                          ? 'border-primary bg-primary/5'
-                          : 'hover:bg-muted/50'
-                      }`}
-                      onClick={() => setSelectedFileIndex(index)}
-                    >
-                      <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
-                      <span className="text-sm truncate max-w-[200px]">{pf.file.name}</span>
-                      <span className="text-xs text-muted-foreground">
-                        ({(pf.file.size / 1024).toFixed(0)} KB)
-                      </span>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="icon"
-                        className="h-5 w-5 shrink-0"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeFile(index);
-                        }}
-                      >
-                        <X className="h-3 w-3" />
-                      </Button>
-                    </div>
-                  ))}
-                </div>
-
-                {/* Embedded Document Preview - full width */}
-                {selectedPreviewUrl && (
-                  <div className="border rounded-lg overflow-hidden" style={{ minHeight: '500px' }}>
-                    <ZoomableDocumentPreview
-                      url={selectedPreviewUrl}
-                      fileName={pendingFiles[selectedFileIndex!]?.file.name}
-                      className="h-[500px]"
-                    />
-                  </div>
-                )}
-
-                {selectedFileIndex !== null && !selectedPreviewUrl && (
-                  <div className="border rounded-lg p-12 text-center">
-                    <FileText className="h-12 w-12 mx-auto mb-3 text-muted-foreground" />
-                    <p className="text-sm text-muted-foreground">
-                      Preview not available for this file type
-                    </p>
-                    <p className="text-xs text-muted-foreground mt-1">
-                      {pendingFiles[selectedFileIndex]?.file.name}
-                    </p>
-                  </div>
-                )}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+              </CardContent>
+            </Card>
+          </div>
+        </div>
 
         <div className="flex justify-end gap-2">
           <Button type="button" variant="outline" onClick={() => navigate(-1)}>

@@ -5,13 +5,12 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Download, Clock, MapPin, Camera, Link as LinkIcon, FileSpreadsheet } from "lucide-react";
-import { format } from "date-fns";
-import jsPDF from "jspdf";
-import autoTable from "jspdf-autotable";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import PunchDetailView from "@/components/PunchDetailView";
 import { exportPunchTrackingToExcel } from "@/utils/excelExport";
+import { useSettings } from "@/contexts/SettingsContext";
+import { formatCompanyDateTime } from "@/utils/companyTimeZone";
 
 interface PunchRecord {
   id: string;
@@ -40,6 +39,7 @@ interface PunchTrackingReportProps {
 
 export function PunchTrackingReport({ records, loading, onTimecardCreated, companyName }: PunchTrackingReportProps) {
   const { toast } = useToast();
+  const { settings } = useSettings();
   const [selectedPunches, setSelectedPunches] = useState<string[]>([]);
   const [creating, setCreating] = useState(false);
   const [selectedPunch, setSelectedPunch] = useState<any>(null);
@@ -77,7 +77,7 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
     // Convert punch records to report format
     const reportData = {
       title: 'Punch Tracking Report',
-      dateRange: `Generated: ${format(new Date(), 'PPpp')}`,
+      dateRange: `Generated: ${formatCompanyDateTime(new Date(), settings.timeZone)}`,
       data: records.map(record => ({
         employee_name: record.employee_name,
         punch_in_time: record.punch_type === 'punched_in' ? record.punch_time : null,
@@ -108,7 +108,7 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
     };
 
     try {
-      await exportTimecardToPDF(reportData, companyBranding, company.id);
+      await exportTimecardToPDF(reportData, companyBranding, company.id, 'detailed', settings.timeZone);
       toast({
         title: "Export Complete",
         description: "PDF report downloaded successfully"
@@ -289,7 +289,7 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
               Export PDF
             </Button>
             <Button 
-              onClick={() => exportPunchTrackingToExcel(records, companyName || 'Company')} 
+              onClick={() => exportPunchTrackingToExcel(records, companyName || 'Company', settings.timeZone)} 
               variant="outline" 
               size="sm"
             >
@@ -352,7 +352,7 @@ export function PunchTrackingReport({ records, loading, onTimecardCreated, compa
                   <TableCell>
                     <div className="flex items-center gap-2">
                       <Clock className="h-4 w-4 text-muted-foreground" />
-                      {format(new Date(record.punch_time), "MM/dd/yyyy hh:mm a")}
+                      {formatCompanyDateTime(record.punch_time, settings.timeZone)}
                     </div>
                   </TableCell>
                   <TableCell>
