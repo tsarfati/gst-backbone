@@ -177,6 +177,7 @@ export default function Bills() {
           invoice_number,
           amount,
           status,
+          job_id,
           issue_date,
           due_date,
           description,
@@ -198,7 +199,7 @@ export default function Bills() {
         .from('invoice_cost_distributions')
         .select(`
           invoice_id,
-          cost_codes(job_id, jobs(name))
+          cost_codes(job_id, jobs(id, name))
         `)
         .in('invoice_id', invoiceIds);
 
