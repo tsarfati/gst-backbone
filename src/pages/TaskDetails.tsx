@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { format } from 'date-fns';
 import {
@@ -40,8 +40,6 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { supabase } from '@/integrations/supabase/client';
-import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
-import { canAccessAssignedJobOnly } from '@/utils/jobAccess';
 import { createMentionNotifications } from '@/utils/mentions';
 import { createTaskNotifications } from '@/utils/taskNotifications';
 import { extractHashTags } from '@/utils/tags';
@@ -128,6 +126,10 @@ type ActivityItem = {
   actor_avatar?: string | null;
 };
 
+type BatchedTaskChange =
+  | { kind: 'field'; key: string; label: string; from: string; to: string }
+  | { kind: 'action'; key: string; label: string };
+
 type TaskEmailMessage = {
   id: string;
   direction: 'inbound' | 'outbound';
@@ -160,7 +162,7 @@ type TimelineEntry =
   | { id: string; kind: 'comment'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; tags?: string[] }
   | { id: string; kind: 'attachment'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; fileName: string; fileUrl: string }
   | { id: string; kind: 'email'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; subject: string; fromEmail: string; toEmails: string[] }
-  | { id: string; kind: 'activity'; created_at: string; actorName: string; actorAvatar?: string | null; body: string };
+  | { id: string; kind: 'activity'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; metadata?: Record<string, any> | null };
 
 const EMPTY_TASK_DRAFT: TaskDraft = {
   title: '',
@@ -178,15 +180,45 @@ const NO_JOB_VALUE = '__no_job__';
 const NO_ASSIGNEE_VALUE = '__no_assignee__';
 const DEFAULT_TASK_EMAIL_INBOUND_DOMAIN = 'send.builderlynk.com';
 
+const formatTaskFieldValue = (
+  key: string,
+  value: string | number | boolean | null | undefined,
+  jobs: JobOption[],
+) => {
+  switch (key) {
+    case 'title':
+    case 'description':
+      return String(value || '').trim() || 'None';
+    case 'status':
+    case 'priority':
+      return String(value || '')
+        .replace(/_/g, ' ')
+        .replace(/\b\w/g, (char) => char.toUpperCase()) || 'None';
+    case 'start_date':
+    case 'due_date':
+      return value ? format(new Date(String(value)), 'MMM d, yyyy') : 'Not set';
+    case 'is_due_asap':
+      return value ? 'ASAP' : 'Specific date';
+    case 'job_id':
+      return value ? jobs.find((job) => job.id === String(value))?.name || 'Unknown project' : 'No project';
+    case 'completion_percentage':
+      return `${Number(value || 0)}%`;
+    default:
+      return String(value ?? '').trim() || 'None';
+  }
+};
+
 export default function TaskDetails() {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { settings } = useSettings();
-  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoSaveReadyRef = useRef(false);
+  const pendingTaskSessionChangesRef = useRef<Map<string, BatchedTaskChange>>(new Map());
+  const pendingTaskSessionTitleRef = useRef<string>('');
+  const flushingTaskSessionRef = useRef(false);
 
   const [task, setTask] = useState<TaskRecord | null>(null);
   const [taskDraft, setTaskDraft] = useState<TaskDraft>(EMPTY_TASK_DRAFT);
@@ -238,10 +270,10 @@ export default function TaskDetails() {
   };
 
   useEffect(() => {
-    if (id && currentCompany?.id && !websiteJobAccessLoading) {
+    if (id && currentCompany?.id) {
       void loadTaskWorkspace();
     }
-  }, [id, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
+  }, [id, currentCompany?.id]);
 
   const ensureTrackingEmail = async (taskId: string, companyId: string) => {
     const invokeResult = await supabase.functions.invoke('get-task-email-channel', {
@@ -304,15 +336,6 @@ export default function TaskDetails() {
 
       if (taskError) throw taskError;
 
-      if (
-        taskData?.job_id &&
-        !canAccessAssignedJobOnly([taskData.job_id], isPrivileged, allowedJobIds)
-      ) {
-        toast.error('You do not have access to this task.');
-        navigate('/tasks');
-        return;
-      }
-
       const taskRecord = taskData as TaskRecord;
 
       const { data: currentUserAssignment, error: currentUserAssignmentError } = await supabase
@@ -372,18 +395,12 @@ export default function TaskDetails() {
           .from('user_company_access')
           .select('user_id, role, is_active')
           .eq('company_id', currentCompany.id),
-        (() => {
-          let query = supabase
-            .from('jobs')
-            .select('id, name')
-            .eq('company_id', currentCompany.id)
-            .eq('is_active', true)
-            .order('name');
-          if (!isPrivileged) {
-            query = query.in('id', allowedJobIds);
-          }
-          return query;
-        })(),
+        supabase
+          .from('jobs')
+          .select('id, name')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true)
+          .order('name'),
         supabase
           .from('task_checklist_items' as any)
           .select('id, task_id, title, is_completed, due_date, assigned_user_id, sort_order, completed_at')
@@ -581,7 +598,15 @@ export default function TaskDetails() {
     }
   };
 
-  const notifyTaskTeam = async (title: string, message: string, additionalRecipientUserIds?: string[]) => {
+  const notifyTaskTeam = async (
+    title: string,
+    message: string,
+    options?: {
+      additionalRecipientUserIds?: string[];
+      recipientUserIds?: string[];
+      preferenceKey?: 'task_update_notifications' | 'task_team_assignment_notifications' | 'task_timeline_activity_notifications';
+    },
+  ) => {
     if (!id || !currentCompany?.id) return;
     try {
       await createTaskNotifications({
@@ -590,12 +615,94 @@ export default function TaskDetails() {
         actorUserId: user?.id,
         title,
         message,
-        additionalRecipientUserIds,
+        additionalRecipientUserIds: options?.additionalRecipientUserIds,
+        recipientUserIds: options?.recipientUserIds,
+        preferenceKey: options?.preferenceKey,
       });
     } catch (error) {
       console.error('Error creating task notifications:', error);
     }
   };
+
+  const queuePendingTaskSessionFieldChange = (key: string, label: string, from: string, to: string) => {
+    if (from === to) return;
+    const existing = pendingTaskSessionChangesRef.current.get(`field:${key}`) as BatchedTaskChange | undefined;
+    if (existing && existing.kind === 'field') {
+      pendingTaskSessionChangesRef.current.set(`field:${key}`, {
+        ...existing,
+        to,
+      });
+      return;
+    }
+    pendingTaskSessionChangesRef.current.set(`field:${key}`, {
+      kind: 'field',
+      key,
+      label,
+      from,
+      to,
+    });
+  };
+
+  const queuePendingTaskSessionAction = (key: string, label: string) => {
+    pendingTaskSessionChangesRef.current.set(`action:${key}`, {
+      kind: 'action',
+      key,
+      label,
+    });
+  };
+
+  const queuePendingTaskSessionChanges = (changes: BatchedTaskChange[], nextTitle?: string | null) => {
+    if (changes.length === 0) return;
+    changes.forEach((change) => {
+      if (change.kind === 'field') {
+        queuePendingTaskSessionFieldChange(change.key, change.label, change.from, change.to);
+      } else {
+        queuePendingTaskSessionAction(change.key, change.label);
+      }
+    });
+    const trimmedTitle = String(nextTitle || '').trim();
+    if (trimmedTitle) {
+      pendingTaskSessionTitleRef.current = trimmedTitle;
+    }
+  };
+
+  const flushPendingTaskSessionSummary = useCallback(async () => {
+    if (flushingTaskSessionRef.current) return;
+
+    const changes = Array.from(pendingTaskSessionChangesRef.current.values());
+    if (changes.length === 0) return;
+
+    flushingTaskSessionRef.current = true;
+    pendingTaskSessionChangesRef.current = new Map();
+    const queuedTitle = pendingTaskSessionTitleRef.current;
+    pendingTaskSessionTitleRef.current = '';
+
+    try {
+      await logTaskActivity(
+        'task_updated',
+        `Updated task settings`,
+        { batched: true, changes },
+      );
+      await notifyTaskTeam(
+        'Task updated',
+        `${actorName} updated ${queuedTitle || taskDraft.title || task?.title || 'this task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
+      );
+    } catch (error) {
+      console.error('Error flushing pending task session summary:', error);
+      changes.forEach((change) => {
+        pendingTaskSessionChangesRef.current.set(
+          `${change.kind}:${change.key}`,
+          change,
+        );
+      });
+      if (queuedTitle) {
+        pendingTaskSessionTitleRef.current = queuedTitle;
+      }
+    } finally {
+      flushingTaskSessionRef.current = false;
+    }
+  }, [actorName, task?.title, taskDraft.title]);
 
   const handleSaveTask = async () => {
     if (!id || !task) return;
@@ -625,30 +732,108 @@ export default function TaskDetails() {
 
       if (error) throw error;
 
-      const changedFields: string[] = [];
-      if (task.title !== updates.title) changedFields.push('title');
-      if ((task.description || '') !== (updates.description || '')) changedFields.push('description');
-      if (task.status !== updates.status) changedFields.push('status');
-      if (task.priority !== updates.priority) changedFields.push('priority');
-      if ((task.start_date || '') !== (updates.start_date || '')) changedFields.push('start date');
-      if ((task.due_date || '') !== (updates.due_date || '')) changedFields.push('due date');
-      if (Boolean(task.is_due_asap) !== updates.is_due_asap) changedFields.push('due date mode');
-      if ((task.job_id || '') !== (updates.job_id || '')) changedFields.push('project');
-      if (Number(task.completion_percentage || 0) !== updates.completion_percentage) changedFields.push('progress');
-
-      const progressOnlyChange = changedFields.length === 1 && changedFields[0] === 'progress';
-
-      if (!progressOnlyChange) {
-        await logTaskActivity(
-          'task_updated',
-          changedFields.length > 0 ? `Updated ${changedFields.join(', ')}` : 'Updated task details',
-          { changedFields },
-        );
-        await notifyTaskTeam('Task updated', `${actorName} updated ${taskDraft.title || 'this task'}.`);
+      const changedFields: BatchedTaskChange[] = [];
+      if (task.title !== updates.title) {
+        changedFields.push({
+          kind: 'field',
+          key: 'title',
+          label: 'Title',
+          from: formatTaskFieldValue('title', task.title, jobs),
+          to: formatTaskFieldValue('title', updates.title, jobs),
+        });
+      }
+      if ((task.description || '') !== (updates.description || '')) {
+        changedFields.push({
+          kind: 'field',
+          key: 'description',
+          label: 'Description',
+          from: formatTaskFieldValue('description', task.description, jobs),
+          to: formatTaskFieldValue('description', updates.description, jobs),
+        });
+      }
+      if (task.status !== updates.status) {
+        changedFields.push({
+          kind: 'field',
+          key: 'status',
+          label: 'Status',
+          from: formatTaskFieldValue('status', task.status, jobs),
+          to: formatTaskFieldValue('status', updates.status, jobs),
+        });
+      }
+      if (task.priority !== updates.priority) {
+        changedFields.push({
+          kind: 'field',
+          key: 'priority',
+          label: 'Priority',
+          from: formatTaskFieldValue('priority', task.priority, jobs),
+          to: formatTaskFieldValue('priority', updates.priority, jobs),
+        });
+      }
+      if ((task.start_date || '') !== (updates.start_date || '')) {
+        changedFields.push({
+          kind: 'field',
+          key: 'start_date',
+          label: 'Start Date',
+          from: formatTaskFieldValue('start_date', task.start_date, jobs),
+          to: formatTaskFieldValue('start_date', updates.start_date, jobs),
+        });
+      }
+      if ((task.due_date || '') !== (updates.due_date || '')) {
+        changedFields.push({
+          kind: 'field',
+          key: 'due_date',
+          label: 'Due Date',
+          from: formatTaskFieldValue('due_date', task.due_date, jobs),
+          to: formatTaskFieldValue('due_date', updates.due_date, jobs),
+        });
+      }
+      if (Boolean(task.is_due_asap) !== updates.is_due_asap) {
+        changedFields.push({
+          kind: 'field',
+          key: 'is_due_asap',
+          label: 'Due Date Mode',
+          from: formatTaskFieldValue('is_due_asap', task.is_due_asap, jobs),
+          to: formatTaskFieldValue('is_due_asap', updates.is_due_asap, jobs),
+        });
+      }
+      if ((task.job_id || '') !== (updates.job_id || '')) {
+        changedFields.push({
+          kind: 'field',
+          key: 'job_id',
+          label: 'Project',
+          from: formatTaskFieldValue('job_id', task.job_id, jobs),
+          to: formatTaskFieldValue('job_id', updates.job_id, jobs),
+        });
+      }
+      if (Number(task.completion_percentage || 0) !== updates.completion_percentage) {
+        changedFields.push({
+          kind: 'field',
+          key: 'completion_percentage',
+          label: 'Progress',
+          from: formatTaskFieldValue('completion_percentage', task.completion_percentage, jobs),
+          to: formatTaskFieldValue('completion_percentage', updates.completion_percentage, jobs),
+        });
       }
 
-      toast.success('Task updated');
-      await loadTaskWorkspace();
+      queuePendingTaskSessionChanges(changedFields, updates.title);
+
+      const nextJobName = updates.job_id
+        ? jobs.find((job) => job.id === updates.job_id)?.name || null
+        : null;
+
+      setTask((current) =>
+        current
+          ? {
+              ...current,
+              ...updates,
+              jobs: nextJobName ? { name: nextJobName } : null,
+            }
+          : current,
+      );
+
+      if (!settings.autoSave) {
+        toast.success('Task updated');
+      }
     } catch (error) {
       console.error('Error saving task:', error);
       toast.error('Failed to update task');
@@ -697,13 +882,19 @@ export default function TaskDetails() {
           actorUserId: user.id,
           actorName,
           content,
-          contextLabel: 'Task Comments',
+          contextLabel: 'Task Timeline',
           targetPath: `/tasks/${id}`,
+          inAppPreferenceKey: 'task_timeline_mention_notifications',
+          emailPreferenceKey: 'task_timeline_mention_notifications',
         });
       }
 
       await logTaskActivity('comment_added', 'Added a comment');
-      await notifyTaskTeam('New task comment', `${actorName} commented on ${taskDraft.title || 'a task'}.`);
+      await notifyTaskTeam(
+        'New task comment',
+        `${actorName} commented on ${taskDraft.title || 'a task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
+      );
       setNewComment('');
       await loadTaskWorkspace();
       toast.success('Comment added');
@@ -750,7 +941,11 @@ export default function TaskDetails() {
         file_name: file.name,
         file_url: urlData.publicUrl,
       });
-      await notifyTaskTeam('Task attachment added', `${actorName} added ${file.name} to ${taskDraft.title || 'a task'}.`);
+      await notifyTaskTeam(
+        'Task attachment added',
+        `${actorName} added ${file.name} to ${taskDraft.title || 'a task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
+      );
       await loadTaskWorkspace();
       toast.success('Attachment uploaded');
     } catch (error) {
@@ -778,7 +973,11 @@ export default function TaskDetails() {
       await logTaskActivity('attachment_deleted', `Removed ${attachment.file_name}`, {
         file_name: attachment.file_name,
       });
-      await notifyTaskTeam('Task attachment removed', `${actorName} removed ${attachment.file_name} from ${taskDraft.title || 'a task'}.`);
+      await notifyTaskTeam(
+        'Task attachment removed',
+        `${actorName} removed ${attachment.file_name} from ${taskDraft.title || 'a task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
+      );
       await loadTaskWorkspace();
       toast.success('Attachment deleted');
     } catch (error) {
@@ -958,16 +1157,30 @@ export default function TaskDetails() {
         if (leadError) throw leadError;
       }
 
-      await logTaskActivity('assignee_added', `Added ${userRecord?.name || 'an assignee'} to the task`);
-      if (makeLead) {
-        await logTaskActivity('lead_assigned', `Assigned ${userRecord?.name || 'a teammate'} as task lead`);
-      }
+      queuePendingTaskSessionChanges([
+        {
+          kind: 'action',
+          key: `team-add:${userId}`,
+          label: `Added ${userRecord?.name || 'a teammate'} as a task member`,
+        },
+        ...(makeLead
+          ? [{
+              kind: 'action' as const,
+              key: `lead:${userId}`,
+              label: `Assigned ${userRecord?.name || 'a teammate'} as task lead`,
+            }]
+          : []),
+      ], taskDraft.title);
       await notifyTaskTeam(
         makeLead ? 'Task team updated' : 'Added to task team',
         makeLead
           ? `${actorName} added ${userRecord?.name || 'a teammate'} to ${taskDraft.title || 'a task'} and made them the task lead.`
           : `${actorName} added ${userRecord?.name || 'a teammate'} to ${taskDraft.title || 'a task'}.`,
-        [userId],
+        {
+          recipientUserIds: [userId],
+          additionalRecipientUserIds: [userId],
+          preferenceKey: 'task_team_assignment_notifications',
+        },
       );
       setSelectedAssignee('');
       setPendingLeaderSelection(false);
@@ -993,8 +1206,18 @@ export default function TaskDetails() {
         if (leaderError) throw leaderError;
       }
 
-      await logTaskActivity('assignee_removed', `Removed ${assignee.user_name} from the task`);
-      await notifyTaskTeam('Task team updated', `${actorName} removed ${assignee.user_name} from ${taskDraft.title || 'a task'}.`);
+      queuePendingTaskSessionChanges([
+        {
+          kind: 'action',
+          key: `team-remove:${assignee.user_id}`,
+          label: `Removed ${assignee.user_name} from the task team`,
+        },
+      ], taskDraft.title);
+      await notifyTaskTeam(
+        'Task team updated',
+        `${actorName} removed ${assignee.user_name} from ${taskDraft.title || 'a task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
+      );
       await loadTaskWorkspace();
       toast.success('Person removed');
     } catch (error) {
@@ -1031,7 +1254,11 @@ export default function TaskDetails() {
           due_date: newChecklistDueDate || null,
         },
       );
-      await notifyTaskTeam('Task checklist updated', `${actorName} added a checklist item to ${taskDraft.title || 'a task'}.`);
+      await notifyTaskTeam(
+        'Task checklist updated',
+        `${actorName} added a checklist item to ${taskDraft.title || 'a task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
+      );
 
       setNewChecklistTitle('');
       setNewChecklistDueDate('');
@@ -1063,6 +1290,7 @@ export default function TaskDetails() {
       await notifyTaskTeam(
         checked ? 'Checklist item completed' : 'Checklist item reopened',
         `${actorName} ${checked ? 'completed' : 'reopened'} "${item.title}" on ${taskDraft.title || 'a task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
       );
       await loadTaskWorkspace();
     } catch (error) {
@@ -1080,7 +1308,11 @@ export default function TaskDetails() {
       if (error) throw error;
 
       await logTaskActivity('checklist_item_deleted', `Removed checklist item "${item.title}"`);
-      await notifyTaskTeam('Task checklist updated', `${actorName} removed a checklist item from ${taskDraft.title || 'a task'}.`);
+      await notifyTaskTeam(
+        'Task checklist updated',
+        `${actorName} removed a checklist item from ${taskDraft.title || 'a task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
+      );
       await loadTaskWorkspace();
       toast.success('Checklist item removed');
     } catch (error) {
@@ -1130,6 +1362,7 @@ export default function TaskDetails() {
       actorName: activity.actor_name || 'System',
       actorAvatar: activity.actor_avatar || null,
       body: activity.content,
+      metadata: activity.metadata,
     }));
 
     return [...commentEntries, ...attachmentEntries, ...emailEntries, ...activityEntries].sort(
@@ -1158,31 +1391,6 @@ export default function TaskDetails() {
       Number(task.completion_percentage || 0) !== taskDraft.completion_percentage
     )
   );
-  const dueDateLabel = taskDraft.is_due_asap
-    ? 'ASAP'
-    : taskDraft.due_date
-      ? format(new Date(taskDraft.due_date), 'MMM d, yyyy')
-      : 'Not set';
-  const dueDateSentence = taskDraft.is_due_asap
-    ? 'Due ASAP'
-    : taskDraft.due_date
-      ? `Due ${format(new Date(taskDraft.due_date), 'MMM d, yyyy')}`
-      : 'No due date set';
-  const attachmentFolders = Array.from(
-    new Set(attachments.map((attachment) => String(attachment.folder_name || '').trim()).filter(Boolean)),
-  ).sort((a, b) => a.localeCompare(b));
-  const visibleAttachments = attachments.filter((attachment) => {
-    if (activeAttachmentFolder === 'all') return true;
-    if (activeAttachmentFolder === 'ungrouped') return !attachment.folder_name;
-    return attachment.folder_name === activeAttachmentFolder;
-  });
-  const selectedAttachments = attachments.filter((attachment) => selectedAttachmentIds.includes(attachment.id));
-  const shareableTaskAttachments = selectedAttachments.map((attachment) => ({
-    id: attachment.id,
-    file_name: attachment.file_name,
-    file_url: attachment.storage_path,
-    file_size: attachment.file_size,
-  }));
 
   const formatFileSize = (bytes: number | null) => {
     if (!bytes) return 'Unknown size';
@@ -1224,6 +1432,18 @@ export default function TaskDetails() {
     taskDraft.completion_percentage,
   ]);
 
+  useEffect(() => {
+    const handlePageHide = () => {
+      void flushPendingTaskSessionSummary();
+    };
+
+    window.addEventListener('pagehide', handlePageHide);
+    return () => {
+      window.removeEventListener('pagehide', handlePageHide);
+      void flushPendingTaskSessionSummary();
+    };
+  }, [flushPendingTaskSessionSummary]);
+
   if (loading) {
     return (
       <div className="flex items-center justify-center p-6">
@@ -1248,10 +1468,40 @@ export default function TaskDetails() {
     );
   }
 
+  const dueDateLabel = taskDraft.is_due_asap
+    ? 'ASAP'
+    : taskDraft.due_date
+      ? format(new Date(taskDraft.due_date), 'MMM d, yyyy')
+      : 'Not set';
+  const dueDateSentence = taskDraft.is_due_asap
+    ? 'Due ASAP'
+    : taskDraft.due_date
+      ? `Due ${format(new Date(taskDraft.due_date), 'MMM d, yyyy')}`
+      : 'No due date set';
+  const attachmentFolders = Array.from(
+    new Set(attachments.map((attachment) => String(attachment.folder_name || '').trim()).filter(Boolean)),
+  ).sort((a, b) => a.localeCompare(b));
+  const visibleAttachments = attachments.filter((attachment) => {
+    if (activeAttachmentFolder === 'all') return true;
+    if (activeAttachmentFolder === 'ungrouped') return !attachment.folder_name;
+    return attachment.folder_name === activeAttachmentFolder;
+  });
+  const selectedAttachments = attachments.filter((attachment) => selectedAttachmentIds.includes(attachment.id));
+  const shareableTaskAttachments = selectedAttachments.map((attachment) => ({
+    id: attachment.id,
+    file_name: attachment.file_name,
+    file_url: attachment.storage_path,
+    file_size: attachment.file_size,
+  }));
+  const isDeleteTaskConfirmed = deleteTaskConfirmText.trim() === task.title.trim();
+
   return (
     <div className="p-6">
       <div className="mb-4 flex items-center justify-between gap-3">
-        <Button variant="ghost" onClick={() => navigate(-1)}>
+        <Button variant="ghost" onClick={async () => {
+          await flushPendingTaskSessionSummary();
+          navigate(-1);
+        }}>
           <ArrowLeft className="mr-2 h-4 w-4" />
           Back to Tasks
         </Button>
@@ -1365,6 +1615,7 @@ export default function TaskDetails() {
                       onValueChange={setNewComment}
                       companyId={currentCompany?.id}
                       currentUserId={user?.id}
+                      allowedUserIds={assignees.map((assignee) => assignee.user_id)}
                       placeholder="Enter a comment. Use @ to tag teammates or #tags for search..."
                       rows={1}
                       className="min-h-0 h-11 resize-none overflow-hidden"
@@ -1406,6 +1657,25 @@ export default function TaskDetails() {
                               </span>
                             </div>
                             <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{entry.body}</p>
+                            {entry.kind === 'activity' && entry.metadata?.batched && Array.isArray(entry.metadata?.changes) ? (
+                              <div className="mt-3 space-y-2 rounded-lg border bg-muted/20 p-3">
+                                {entry.metadata.changes.map((change: any, index: number) => (
+                                  <div key={`${entry.id}-change-${index}`} className="text-sm text-foreground">
+                                    {change.kind === 'field' ? (
+                                      <span>
+                                        <span className="font-medium">{change.label}</span>
+                                        {' '}updated from{' '}
+                                        <span className="font-medium">{change.from}</span>
+                                        {' '}to{' '}
+                                        <span className="font-medium">{change.to}</span>
+                                      </span>
+                                    ) : (
+                                      <span>{change.label}</span>
+                                    )}
+                                  </div>
+                                ))}
+                              </div>
+                            ) : null}
                             {entry.kind === 'comment' && entry.tags && entry.tags.length > 0 ? (
                               <div className="mt-3 flex flex-wrap gap-2">
                                 {entry.tags.map((tag) => (
@@ -2171,7 +2441,13 @@ export default function TaskDetails() {
               <Button type="button" variant="outline" onClick={() => setDeleteTaskConfirmOpen(false)}>
                 Cancel
               </Button>
-              <Button type="button" variant="destructive" disabled={deletingTask} onClick={() => void handleDeleteTask()}>
+              <Button
+                type="button"
+                variant={isDeleteTaskConfirmed ? "destructive" : "outline"}
+                disabled={deletingTask || !isDeleteTaskConfirmed}
+                onClick={() => void handleDeleteTask()}
+                className={!isDeleteTaskConfirmed ? 'pointer-events-none opacity-50 text-muted-foreground' : undefined}
+              >
                 {deletingTask ? 'Deleting...' : 'Delete Task'}
               </Button>
             </div>

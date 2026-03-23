@@ -12,7 +12,6 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { createTaskNotifications } from '@/utils/taskNotifications';
 import { toast } from 'sonner';
-import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 
 interface Job {
   id: string;
@@ -20,7 +19,7 @@ interface Job {
 }
 
 interface AddTaskDialogProps {
-  onTaskCreated?: () => void;
+  onTaskCreated?: (taskId?: string) => void | Promise<void>;
   children?: React.ReactNode;
 }
 
@@ -30,7 +29,6 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
   const [open, setOpen] = useState(false);
   const [loading, setLoading] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
-  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   const [formData, setFormData] = useState({
     title: '',
@@ -44,27 +42,19 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
   });
 
   useEffect(() => {
-    if (open && currentCompany && !websiteJobAccessLoading) {
+    if (open && currentCompany) {
       loadJobs();
     }
-  }, [open, currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
+  }, [open, currentCompany]);
 
   const loadJobs = async () => {
     if (!currentCompany) return;
-    if (!isPrivileged && allowedJobIds.length === 0) {
-      setJobs([]);
-      return;
-    }
-
-    let query = supabase
+    const query = supabase
       .from('jobs')
       .select('id, name')
       .eq('company_id', currentCompany.id)
       .eq('is_active', true)
       .order('name');
-    if (!isPrivileged) {
-      query = query.in('id', allowedJobIds);
-    }
     const { data } = await query;
     setJobs(data || []);
   };
@@ -112,27 +102,33 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
 
         if (assigneeError) throw assigneeError;
 
+        const creatorName =
+          (user as any)?.user_metadata?.full_name ||
+          (user as any)?.user_metadata?.name ||
+          (user as any)?.email ||
+          'the creator';
+
         await supabase.from('task_activity' as any).insert({
           task_id: createdTaskId,
           actor_user_id: user.id,
           activity_type: 'task_created',
           content: 'Created the task',
+          metadata: {
+            batched: true,
+            changes: [
+              {
+                kind: 'action',
+                key: `team-add:${user.id}`,
+                label: `Added ${creatorName} as a task member`,
+              },
+              {
+                kind: 'action',
+                key: `lead:${user.id}`,
+                label: `Assigned ${creatorName} as task lead`,
+              },
+            ],
+          },
         });
-
-        await supabase.from('task_activity' as any).insert([
-          {
-            task_id: createdTaskId,
-            actor_user_id: user.id,
-            activity_type: 'assignee_added',
-            content: 'Added the creator to the task team',
-          },
-          {
-            task_id: createdTaskId,
-            actor_user_id: user.id,
-            activity_type: 'lead_assigned',
-            content: 'Assigned the creator as task lead',
-          },
-        ]);
 
         await createTaskNotifications({
           taskId: createdTaskId,
@@ -156,7 +152,7 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
         is_due_asap: false,
         job_id: ''
       });
-      onTaskCreated?.();
+      await onTaskCreated?.(createdTaskId);
     } catch (error) {
       console.error('Error creating task:', error);
       toast.error('Failed to create task');
@@ -248,7 +244,7 @@ export function AddTaskDialog({ onTaskCreated, children }: AddTaskDialogProps) {
               }
             >
               <SelectTrigger>
-                <SelectValue placeholder={websiteJobAccessLoading ? "Loading projects..." : "Select a project"} />
+                <SelectValue placeholder="Select a project" />
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value={NO_PROJECT_VALUE}>No Project</SelectItem>
