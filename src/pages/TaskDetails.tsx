@@ -1349,6 +1349,7 @@ export default function TaskDetails() {
       created_at: email.created_at,
       actorName: email.direction === 'inbound' ? (email.from_email || 'External Email') : 'Task Email',
       actorAvatar: null,
+      body: '',
       subject: email.subject || '(No subject)',
       fromEmail: email.from_email || '-',
       toEmails: email.to_emails || [],
@@ -1658,14 +1659,17 @@ export default function TaskDetails() {
                               </span>
                             </div>
                             {entry.kind === 'email' ? (
-                              <div className="mt-3">
+                              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2">
+                                <Badge variant="secondary" className="text-[10px] uppercase">
+                                  Email
+                                </Badge>
                                 <Button
                                   type="button"
-                                  variant="link"
-                                  className="h-auto p-0 text-sm"
+                                  variant="outline"
+                                  size="sm"
                                   onClick={() => setActiveEmailPreview(emailMessages.find((email) => `email-${email.id}` === entry.id) || null)}
                                 >
-                                  Open email
+                                  View Email
                                 </Button>
                               </div>
                             ) : (
