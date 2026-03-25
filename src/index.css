@@ -370,6 +370,16 @@ All colors MUST be HSL.
     background-color: hsl(var(--primary) / var(--sidebar-highlight-opacity, 0.14));
   }
 
+  .sidebar-primary-hover:hover {
+    background-color: hsl(var(--primary) / var(--sidebar-highlight-opacity, 0.14)) !important;
+    color: hsl(var(--sidebar-foreground)) !important;
+  }
+
+  .sidebar-primary-open {
+    background-color: hsl(var(--primary) / var(--sidebar-highlight-opacity, 0.14)) !important;
+    color: hsl(var(--sidebar-foreground)) !important;
+  }
+
   .sidebar-scroll-area {
     scrollbar-width: thin; /* Firefox */
     scrollbar-color: hsl(var(--primary) / 0.35) transparent;

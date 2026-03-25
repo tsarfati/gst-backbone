@@ -1,8 +1,8 @@
 import { useState, useEffect, useRef } from "react";
-import { Outlet, Link, useLocation } from "react-router-dom";
+import { Outlet, Link, useLocation, useNavigate } from "react-router-dom";
 import { Receipt, ChevronDown } from "lucide-react";
 import { useSettings } from "@/contexts/SettingsContext";
-import { Sidebar, SidebarContent, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, useSidebar } from "@/components/ui/sidebar";
+import { Sidebar, SidebarContent, SidebarFooter, SidebarGroup, SidebarGroupContent, SidebarGroupLabel, SidebarHeader, SidebarMenu, SidebarMenuButton, SidebarMenuItem, SidebarProvider, SidebarTrigger, SidebarInset, useSidebar } from "@/components/ui/sidebar";
 import { LayoutDashboard, Upload, Clock, Eye, BarChart3, Building2, Plus, FileBarChart, HardHat, Building, FileText, FileCheck, CreditCard, DollarSign, FolderArchive, FileKey, Users, UserPlus, Briefcase, Award, Timer, Calendar, TrendingUp, MessageSquare, Megaphone, MessageCircle, CheckSquare, Target, AlarmClock, Settings, UserCog, LogOut, Bell, User, Package, Search, HandCoins, Shield, CircleHelp, AlertTriangle, Ban } from "lucide-react";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { Button } from "@/components/ui/button";
@@ -19,6 +19,7 @@ import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 import { useVendorPortalAccess } from '@/hooks/useVendorPortalAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
+import builderLynkIcon from '@/assets/builderlynk-icon-shield.png';
 
 type CompanyType = 'construction' | 'design_professional' | 'vendor';
 type WorkspaceLogoUpdatedDetail = {
@@ -302,6 +303,7 @@ const vendorNavigationCategories = [
 
 export function AppSidebar() {
   const location = useLocation();
+  const navigate = useNavigate();
   const { state } = useSidebar();
   const { settings } = useSettings();
   const { profile } = useAuth();
@@ -705,7 +707,11 @@ export function AppSidebar() {
                                 ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' }
                                 : {}
                             }
-                            className={isActive ? "hover:opacity-95" : "sidebar-highlight-hover transition-colors duration-150"}
+                            className={
+                              isActive
+                                ? "hover:opacity-95"
+                                : "sidebar-primary-hover transition-colors duration-150"
+                            }
                           >
                             {isLocked ? (
                               <button
@@ -725,10 +731,14 @@ export function AppSidebar() {
                                 </span>
                               </button>
                             ) : (
-                              <Link to={item.href}>
+                              <button
+                                type="button"
+                                className="flex w-full items-center"
+                                onClick={() => navigate(item.href)}
+                              >
                                 <category.icon className="h-4 w-4" />
                                 <span>{category.title}</span>
-                              </Link>
+                              </button>
                             )}
                           </SidebarMenuButton>
                         </SidebarMenuItem>
@@ -746,7 +756,11 @@ export function AppSidebar() {
                     <CollapsibleTrigger asChild>
                        <Button 
                          variant="ghost" 
-                         className="w-full justify-between p-2 h-8 text-xs font-medium text-sidebar-foreground/70 sidebar-highlight-hover hover:text-sidebar-foreground transition-colors duration-150 group-data-[collapsible=icon]:justify-center"
+                         className={`w-full justify-between p-2 h-8 text-xs font-medium transition-colors duration-150 group-data-[collapsible=icon]:justify-center ${
+                           allOpenGroups.includes(category.title)
+                             ? "sidebar-primary-open"
+                             : "sidebar-primary-hover text-sidebar-foreground/70 hover:text-sidebar-foreground"
+                         }`}
                        >
                         <div className="flex items-center gap-2 group-data-[collapsible=icon]:justify-center">
                           <category.icon className={`h-4 w-4 transition-colors ${allOpenGroups.includes(category.title) ? 'text-primary' : ''}`} />
@@ -785,7 +799,11 @@ export function AppSidebar() {
                                           ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' }
                                           : {}
                                       }
-                                      className={isActive ? "hover:opacity-95" : "sidebar-highlight-hover transition-colors duration-150"}
+                                      className={
+                                        isActive
+                                          ? "hover:opacity-95"
+                                          : "sidebar-primary-hover transition-colors duration-150"
+                                      }
                                     >
                                       {isLocked ? (
                                         <button
@@ -809,7 +827,11 @@ export function AppSidebar() {
                                           </span>
                                         </button>
                                       ) : (
-                                        <Link to={item.href}>
+                                        <button
+                                          type="button"
+                                          className="w-full text-left"
+                                          onClick={() => navigate(item.href)}
+                                        >
                                           <span className="ml-2 flex items-center gap-2">
                                             <span>{item.name}</span>
                                             {('mobileAppBadge' in item && (item as any).mobileAppBadge) && (
@@ -818,7 +840,7 @@ export function AppSidebar() {
                                               </span>
                                             )}
                                           </span>
-                                        </Link>
+                                        </button>
                                       )}
                                     </SidebarMenuButton>
                                   </SidebarMenuItem>
@@ -834,6 +856,23 @@ export function AppSidebar() {
           );
         }).filter(Boolean)}
       </SidebarContent>
+      <SidebarFooter className="border-t border-sidebar-border/60 p-2">
+        <button
+          type="button"
+          onClick={() => window.open("https://builderlynk.com", "_blank", "noopener,noreferrer")}
+          className="group flex items-center gap-2 rounded-md px-2 py-2 text-sidebar-foreground/75 transition-colors hover:bg-primary/15 hover:text-sidebar-foreground group-data-[collapsible=icon]:justify-center"
+          title="Powered by BuilderLynk"
+        >
+          <img
+            src={builderLynkIcon}
+            alt="BuilderLynk"
+            className="h-4 w-4 shrink-0 rounded-sm object-contain"
+          />
+          <span className="text-[11px] font-medium tracking-wide group-data-[collapsible=icon]:hidden">
+            Powered by BuilderLYNK
+          </span>
+        </button>
+      </SidebarFooter>
     </Sidebar>
   );
 }

@@ -14,6 +14,7 @@ interface MultiFileUploadDropzoneProps {
   subtitle?: string;
   helperText?: string;
   compact?: boolean;
+  previewImageUrl?: string | null;
 }
 
 export default function MultiFileUploadDropzone({
@@ -26,6 +27,7 @@ export default function MultiFileUploadDropzone({
   subtitle,
   helperText,
   compact = false,
+  previewImageUrl,
 }: MultiFileUploadDropzoneProps) {
   const inputRef = useRef<HTMLInputElement | null>(null);
   const [isDragging, setIsDragging] = useState(false);
@@ -51,7 +53,7 @@ export default function MultiFileUploadDropzone({
   return (
     <div
       className={cn(
-        "rounded-2xl border-2 border-dashed border-muted-foreground/35 bg-muted/10 transition-colors",
+        "relative overflow-hidden rounded-2xl border-2 border-dashed border-muted-foreground/35 bg-muted/10 transition-colors",
         compact ? "px-4 py-3" : "p-6",
         isDragging && !disabled && "border-primary bg-primary/5",
         disabled && "cursor-not-allowed opacity-60",
@@ -69,6 +71,17 @@ export default function MultiFileUploadDropzone({
       }}
       onDrop={handleDrop}
     >
+      {previewImageUrl ? (
+        <>
+          <img
+            src={previewImageUrl}
+            alt="Upload preview"
+            className="absolute inset-0 h-full w-full object-cover"
+          />
+          <div className="absolute inset-0 bg-background/50 backdrop-blur-[1px]" />
+        </>
+      ) : null}
+
       <input
         ref={inputRef}
         type="file"
@@ -80,17 +93,19 @@ export default function MultiFileUploadDropzone({
       />
 
       <div className={cn(
+        "relative z-10",
         "flex items-center justify-center text-center",
         compact ? "gap-3" : "flex-col gap-4 md:flex-row"
       )}>
         <div className={cn(
           "flex items-center font-medium tracking-tight",
-          compact ? "gap-2 text-sm" : "gap-3 text-2xl"
+          compact ? "gap-2 text-sm" : "gap-3 text-2xl",
+          previewImageUrl && "text-white drop-shadow-sm"
         )}>
-          <Upload className={cn("text-muted-foreground", compact ? "h-4 w-4" : "h-6 w-6")} />
+          <Upload className={cn(previewImageUrl ? "text-white" : "text-muted-foreground", compact ? "h-4 w-4" : "h-6 w-6")} />
           <span>{isDragging ? "Drop Files Here" : dragLabel}</span>
         </div>
-        <span className={cn("text-muted-foreground", compact ? "text-sm" : "text-xl")}>or</span>
+        <span className={cn(previewImageUrl ? "text-white/90" : "text-muted-foreground", compact ? "text-sm" : "text-xl")}>or</span>
         <Button
           type="button"
           variant="outline"
@@ -103,7 +118,7 @@ export default function MultiFileUploadDropzone({
       </div>
 
       {(subtitle || helperText) && (
-        <div className="mt-4 space-y-1 text-center text-sm text-muted-foreground">
+        <div className={cn("relative z-10 mt-4 space-y-1 text-center text-sm", previewImageUrl ? "text-white/90" : "text-muted-foreground")}>
           {subtitle ? <p>{subtitle}</p> : null}
           {helperText ? <p>{helperText}</p> : null}
         </div>

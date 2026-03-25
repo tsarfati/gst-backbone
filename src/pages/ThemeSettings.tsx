@@ -363,34 +363,17 @@ export default function ThemeSettings({
 
                 <div className="space-y-4">
                   <Label>Dashboard Banner</Label>
-                  <div className="space-y-4">
-                    {settings.dashboardBanner && (
-                      <div className="flex items-center gap-2">
-                        <img 
-                          src={settings.dashboardBanner} 
-                          alt="Dashboard Banner" 
-                          className="h-16 w-32 object-cover border rounded"
-                        />
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => updateSettings({ dashboardBanner: undefined })}
-                        >
-                          Remove
-                        </Button>
-                      </div>
-                    )}
-                    <MultiFileUploadDropzone
-                      onFilesSelected={handleBannerFilesSelected}
-                      accept="image/*"
-                      disabled={uploading}
-                      buttonLabel={uploading ? "Uploading..." : "Choose Banner to Upload"}
-                      dragLabel="Drag Banner Image Here"
-                      subtitle="Upload a banner image to display at the top of your dashboard. Recommended size: 1600 x 320 pixels."
-                      compact
-                      className="max-w-3xl"
-                    />
-                  </div>
+                  <MultiFileUploadDropzone
+                    onFilesSelected={handleBannerFilesSelected}
+                    accept="image/*"
+                    disabled={uploading}
+                    buttonLabel={uploading ? "Choose Banner to Upload" : "Choose Banner to Upload"}
+                    dragLabel="Drag Banner Image Here"
+                    subtitle="Upload a banner image to display at the top of your dashboard. Recommended size: 1600 x 320 pixels."
+                    compact
+                    className="max-w-3xl min-h-[120px]"
+                    previewImageUrl={settings.dashboardBanner || null}
+                  />
                 </div>
               </CardContent>
             </Card>
