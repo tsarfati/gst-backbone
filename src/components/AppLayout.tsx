@@ -18,6 +18,7 @@ import { useTierNavigationSettings } from '@/hooks/useTierNavigationSettings';
 import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 import { useVendorPortalAccess } from '@/hooks/useVendorPortalAccess';
 import { supabase } from '@/integrations/supabase/client';
+import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 
 type CompanyType = 'construction' | 'design_professional' | 'vendor';
 type WorkspaceLogoUpdatedDetail = {
@@ -840,6 +841,8 @@ export function AppSidebar() {
 export default function Layout() {
   const location = useLocation();
   const { profile, signOut } = useAuth();
+  const { currentCompany } = useCompany();
+  const { loading: settingsLoading } = useSettings();
   const effectiveRole = String(profile?.role || '').trim().toLowerCase();
   const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
   const profileSettingsHref =
@@ -868,6 +871,10 @@ export default function Layout() {
     window.sessionStorage.removeItem('builderlynk_impersonation_mode');
     await signOut();
   };
+
+  if (currentCompany?.id && settingsLoading) {
+    return <PremiumLoadingScreen />;
+  }
 
   return (
     <SidebarProvider>
