@@ -1,6 +1,7 @@
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useMenuPermissions } from './useMenuPermissions';
+import { useActiveCompanyRole } from './useActiveCompanyRole';
 
 /**
  * Hook for checking granular action permissions throughout the app.
@@ -10,9 +11,10 @@ export function useActionPermissions() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
   const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
+  const activeCompanyRole = useActiveCompanyRole();
 
   // Normalize role and derive flags
-  const normalizedRole = (profile?.role || '').toLowerCase().replace(/-/g, '_').trim();
+  const normalizedRole = String(activeCompanyRole || profile?.role || '').toLowerCase().replace(/-/g, '_').trim();
   const isViewOnly = ['view_only', 'viewer', 'read_only', 'readonly', 'viewonly'].includes(normalizedRole);
 
   // Super admins behave like admins for app-level permissions

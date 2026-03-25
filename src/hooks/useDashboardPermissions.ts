@@ -14,6 +14,7 @@ export function useDashboardPermissions() {
   const activeCompanyRole = useActiveCompanyRole();
   const [permissions, setPermissions] = useState<DashboardPermissions>({});
   const [loading, setLoading] = useState(true);
+  const effectiveCustomRoleId = activeCompanyRole === 'employee' ? profile?.custom_role_id ?? null : null;
 
   useEffect(() => {
     const fetchDashboardPermissions = async () => {
@@ -43,13 +44,13 @@ export function useDashboardPermissions() {
 
       const baseRole = activeCompanyRole || profile?.role;
 
-      if (!baseRole && !profile?.custom_role_id) {
+      if (!baseRole && !effectiveCustomRoleId) {
         setLoading(false);
         return;
       }
 
       // Admin has access to everything (unless a custom role is explicitly assigned)
-      if (!profile?.custom_role_id && baseRole === 'admin') {
+      if (!effectiveCustomRoleId && baseRole === 'admin') {
         setPermissions({
           'dashboard.stats': true,
           'dashboard.notifications': true,
@@ -73,11 +74,11 @@ export function useDashboardPermissions() {
       }
 
       try {
-        const query = profile?.custom_role_id
+        const query = effectiveCustomRoleId
           ? supabase
               .from('custom_role_permissions')
               .select('menu_item, can_access')
-              .eq('custom_role_id', profile.custom_role_id)
+              .eq('custom_role_id', effectiveCustomRoleId)
               .like('menu_item', 'dashboard.%')
           : supabase
               .from('role_permissions')
@@ -103,11 +104,11 @@ export function useDashboardPermissions() {
     };
 
     fetchDashboardPermissions();
-  }, [profile?.role, profile?.custom_role_id, activeCompanyRole, isSuperAdmin]);
+  }, [profile?.role, effectiveCustomRoleId, activeCompanyRole, isSuperAdmin]);
 
   const canViewSection = (section: string): boolean => {
     if (isSuperAdmin) return true;
-    if (!profile?.custom_role_id && (activeCompanyRole === 'admin' || profile?.role === 'admin')) return true;
+    if (!effectiveCustomRoleId && (activeCompanyRole === 'admin' || profile?.role === 'admin')) return true;
     return permissions[`dashboard.${section}`] || false;
   };
 

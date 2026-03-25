@@ -103,6 +103,12 @@ interface CodedReceipt {
   suggested_payment_amount: number;
 }
 
+interface PaymentLineInsert {
+  payment_id: string;
+  invoice_id: string;
+  amount_paid: number;
+}
+
 export default function MakePayment() {
   const navigate = useNavigate();
   const location = useLocation();
@@ -149,6 +155,41 @@ export default function MakePayment() {
   const [attachmentsModalOpen, setAttachmentsModalOpen] = useState(false);
   const [attachmentsInvoiceId, setAttachmentsInvoiceId] = useState<string | null>(null);
   const [invoiceDocuments, setInvoiceDocuments] = useState<Record<string, string>>({});
+
+  const buildPaymentLines = (paymentId: string): PaymentLineInsert[] => {
+    const selectedInvoiceRecords = selectedInvoices
+      .map((invoiceId) => invoices.find((inv) => inv.id === invoiceId))
+      .filter((invoice): invoice is Invoice => !!invoice);
+
+    if (!isPartialPayment) {
+      return selectedInvoiceRecords.map((invoice) => ({
+        payment_id: paymentId,
+        invoice_id: invoice.id,
+        amount_paid: Number(invoice.balance_due ?? invoice.amount ?? 0),
+      }));
+    }
+
+    let remainingAmount = Number(payment.amount || 0);
+    const lines: PaymentLineInsert[] = [];
+
+    for (const invoice of selectedInvoiceRecords) {
+      if (remainingAmount <= 0) break;
+      const openBalance = Number(invoice.balance_due ?? invoice.amount ?? 0);
+      if (openBalance <= 0) continue;
+
+      const allocatedAmount = Math.min(openBalance, remainingAmount);
+      if (allocatedAmount > 0) {
+        lines.push({
+          payment_id: paymentId,
+          invoice_id: invoice.id,
+          amount_paid: Number(allocatedAmount.toFixed(2)),
+        });
+        remainingAmount = Number((remainingAmount - allocatedAmount).toFixed(2));
+      }
+    }
+
+    return lines;
+  };
 
   useEffect(() => {
     if (currentCompany && !websiteJobAccessLoading) {
@@ -608,6 +649,23 @@ export default function MakePayment() {
       return;
     }
 
+    const selectedInvoiceRecords = selectedInvoices
+      .map((invoiceId) => invoices.find((inv) => inv.id === invoiceId))
+      .filter((invoice): invoice is Invoice => !!invoice);
+    const totalSelectedBalance = selectedInvoiceRecords.reduce(
+      (sum, invoice) => sum + Number(invoice.balance_due ?? invoice.amount ?? 0),
+      0
+    );
+
+    if (payment.amount - totalSelectedBalance > 0.01) {
+      toast({
+        title: "Invalid Amount",
+        description: `Payment amount exceeds the selected bill balance of $${totalSelectedBalance.toFixed(2)}`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // Validate bank fee account when bank fee is entered
     if (payment.bank_fee && payment.bank_fee > 0) {
       if (!bankFeeJobOrAccount) {
@@ -694,15 +752,12 @@ export default function MakePayment() {
         }
       }
 
-      // Create payment invoice lines for all selected invoices
-      const paymentLines = selectedInvoices.map(invoiceId => {
-        const invoice = invoices.find(inv => inv.id === invoiceId);
-        return {
-          payment_id: paymentData.id,
-          invoice_id: invoiceId,
-          amount_paid: invoice?.amount || 0
-        };
-      });
+      // Create payment invoice lines using actual open balances / partial allocation.
+      const paymentLines = buildPaymentLines(paymentData.id);
+
+      if (paymentLines.length === 0) {
+        throw new Error('No payment allocation could be created for the selected bills');
+      }
 
       const { error: linesError } = await supabase
         .from('payment_invoice_lines')

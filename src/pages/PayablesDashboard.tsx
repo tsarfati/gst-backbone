@@ -27,6 +27,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import { loadUserUiPreferences, saveUserUiPreferences } from "@/utils/userUiPreferences";
 
 interface PayableMetrics {
   totalOutstanding: number;
@@ -83,14 +84,7 @@ export default function PayablesDashboard() {
     if (!user || !currentCompany?.id || websiteJobAccessLoading) return;
     
     try {
-      const { data } = await supabase
-        .from('company_ui_settings')
-        .select('settings')
-        .eq('user_id', user.id)
-        .eq('company_id', currentCompany.id)
-        .maybeSingle();
-      
-      const settings = data?.settings as Record<string, any> | null;
+      const settings = await loadUserUiPreferences(user.id, currentCompany.id);
       if (settings?.payables_dashboard_default_job) {
         const defaultJob = settings.payables_dashboard_default_job as string;
         if (defaultJob === "all" || isPrivileged || allowedJobIds.includes(defaultJob)) {
@@ -117,28 +111,9 @@ export default function PayablesDashboard() {
     
     if (setAsDefault) {
       try {
-        const { data: existing } = await supabase
-          .from('company_ui_settings')
-          .select('settings')
-          .eq('user_id', user.id)
-          .eq('company_id', currentCompany.id)
-          .maybeSingle();
-        
-        const existingSettings = (existing?.settings as Record<string, any>) || {};
-        const newSettings = {
-          ...existingSettings,
-          payables_dashboard_default_job: jobId
-        };
-        
-        await supabase
-          .from('company_ui_settings')
-          .upsert({
-            user_id: user.id,
-            company_id: currentCompany.id,
-            settings: newSettings
-          }, {
-            onConflict: 'user_id,company_id'
-          });
+        await saveUserUiPreferences(user.id, currentCompany.id, {
+          payables_dashboard_default_job: jobId,
+        });
         
         setUserDefaultJob(jobId);
         

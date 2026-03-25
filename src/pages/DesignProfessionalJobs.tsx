@@ -18,6 +18,7 @@ import { sendDesignProfessionalJobInvite } from "@/utils/sendDesignProfessionalJ
 import { acceptDesignProfessionalJobInvite } from "@/utils/acceptDesignProfessionalJobInvite";
 import { searchDesignProfessionalAccounts, type DesignProfessionalAccountSearchResult } from "@/utils/searchDesignProfessionalAccounts";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
+import { loadUserUiPreferences, saveUserUiPreferences } from "@/utils/userUiPreferences";
 
 type JobRow = {
   id: string;
@@ -207,16 +208,7 @@ export default function DesignProfessionalJobs() {
     if (!user?.id || !currentCompany?.id) return;
 
     try {
-      const { data, error } = await supabase
-        .from("company_ui_settings")
-        .select("settings")
-        .eq("user_id", user.id)
-        .eq("company_id", currentCompany.id)
-        .maybeSingle();
-
-      if (error) throw error;
-
-      const settings = (data?.settings as Record<string, any> | null) || {};
+      const settings = await loadUserUiPreferences(user.id, currentCompany.id);
       const storedView = settings.design_pro_jobs_view as DesignProfessionalJobsView | undefined;
       const storedDefault = settings.design_pro_jobs_view_default as DesignProfessionalJobsView | undefined;
 
@@ -239,29 +231,9 @@ export default function DesignProfessionalJobs() {
     if (!user?.id || !currentCompany?.id) return;
 
     try {
-      const { data: existing, error: existingError } = await supabase
-        .from("company_ui_settings")
-        .select("settings")
-        .eq("user_id", user.id)
-        .eq("company_id", currentCompany.id)
-        .maybeSingle();
-      if (existingError) throw existingError;
-
-      const nextSettings = {
-        ...(((existing?.settings as Record<string, any>) || {})),
+      await saveUserUiPreferences(user.id, currentCompany.id, {
         design_pro_jobs_view: nextView,
-      };
-
-      const { error } = await supabase
-        .from("company_ui_settings")
-        .upsert({
-          user_id: user.id,
-          company_id: currentCompany.id,
-          settings: nextSettings,
-        }, {
-          onConflict: "user_id,company_id",
-        });
-      if (error) throw error;
+      });
     } catch (error) {
       console.error("Error saving design pro jobs view preference:", error);
     }
@@ -277,30 +249,10 @@ export default function DesignProfessionalJobs() {
 
     try {
       setSavingJobsViewDefault(true);
-      const { data: existing, error: existingError } = await supabase
-        .from("company_ui_settings")
-        .select("settings")
-        .eq("user_id", user.id)
-        .eq("company_id", currentCompany.id)
-        .maybeSingle();
-      if (existingError) throw existingError;
-
-      const nextSettings = {
-        ...(((existing?.settings as Record<string, any>) || {})),
+      await saveUserUiPreferences(user.id, currentCompany.id, {
         design_pro_jobs_view: jobsView,
         design_pro_jobs_view_default: jobsView,
-      };
-
-      const { error } = await supabase
-        .from("company_ui_settings")
-        .upsert({
-          user_id: user.id,
-          company_id: currentCompany.id,
-          settings: nextSettings,
-        }, {
-          onConflict: "user_id,company_id",
-        });
-      if (error) throw error;
+      });
 
       setJobsViewDefault(jobsView);
       toast({
@@ -328,30 +280,10 @@ export default function DesignProfessionalJobs() {
 
     try {
       setSavingJobsViewDefault(true);
-      const { data: existing, error: existingError } = await supabase
-        .from("company_ui_settings")
-        .select("settings")
-        .eq("user_id", user.id)
-        .eq("company_id", currentCompany.id)
-        .maybeSingle();
-      if (existingError) throw existingError;
-
-      const nextSettings = {
-        ...(((existing?.settings as Record<string, any>) || {})),
+      await saveUserUiPreferences(user.id, currentCompany.id, {
         design_pro_jobs_view: view,
         design_pro_jobs_view_default: view,
-      };
-
-      const { error } = await supabase
-        .from("company_ui_settings")
-        .upsert({
-          user_id: user.id,
-          company_id: currentCompany.id,
-          settings: nextSettings,
-        }, {
-          onConflict: "user_id,company_id",
-        });
-      if (error) throw error;
+      });
 
       setJobsViewDefault(view);
       toast({

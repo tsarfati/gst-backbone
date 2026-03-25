@@ -48,6 +48,11 @@ export function useMenuPermissions() {
     return role && isAppRole(role) ? role : null;
   }, [activeCompanyRole, profile?.role]);
 
+  const effectiveCustomRoleId = useMemo(
+    () => (effectiveRole === "employee" ? profile?.custom_role_id ?? null : null),
+    [effectiveRole, profile?.custom_role_id],
+  );
+
   const [permissions, setPermissions] = useState<MenuPermissions>({});
   const [loading, setLoading] = useState(true);
 
@@ -65,15 +70,15 @@ export function useMenuPermissions() {
       return;
     }
 
-    if (profile?.custom_role_id) {
-      fetchCustomMenuPermissions(profile.custom_role_id);
+    if (effectiveCustomRoleId) {
+      fetchCustomMenuPermissions(effectiveCustomRoleId);
     } else if (effectiveRole) {
       fetchMenuPermissions(effectiveRole);
     } else {
       setLoading(false);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [effectiveRole, profile?.custom_role_id, isSuperAdmin, companyLoading]);
+  }, [effectiveRole, effectiveCustomRoleId, isSuperAdmin, companyLoading]);
 
   const fetchMenuPermissions = async (role: AppRole) => {
     try {
@@ -157,13 +162,19 @@ export function useMenuPermissions() {
       }
     }
 
+    const isSystemRoleWithoutCustomRole = !!effectiveRole && !effectiveCustomRoleId;
     const isPrivilegedSystemRole =
-      !profile?.custom_role_id &&
+      isSystemRoleWithoutCustomRole &&
       (effectiveRole === "admin" || effectiveRole === "company_admin" || effectiveRole === "controller");
 
-    const requiredFeatures = getRequiredFeaturesForPermission(menuItem);
-    if (requiredFeatures.length > 0 && !requiredFeatures.some((feature) => hasFeature(feature))) {
-      return false;
+    // System roles are defined centrally and should behave consistently across companies.
+    // Restrict feature gating to custom roles only so a controller/admin with the same
+    // system role sees the same modules in each company.
+    if (!isSystemRoleWithoutCustomRole) {
+      const requiredFeatures = getRequiredFeaturesForPermission(menuItem);
+      if (requiredFeatures.length > 0 && !requiredFeatures.some((feature) => hasFeature(feature))) {
+        return false;
+      }
     }
 
     // Safety fallback: if system-role permissions are empty (e.g. missing seed rows),
@@ -174,12 +185,12 @@ export function useMenuPermissions() {
     }
 
     // Admin users without a custom role have access to everything
-    if (!profile?.custom_role_id && effectiveRole === 'admin') {
+    if (!effectiveCustomRoleId && effectiveRole === 'admin') {
       return true;
     }
 
     // Always allow managers access to punch clock features
-    const isManager = !profile?.custom_role_id && (effectiveRole === 'controller' || effectiveRole === 'project_manager');
+    const isManager = !effectiveCustomRoleId && (effectiveRole === 'controller' || effectiveRole === 'project_manager');
     const punchClockItems = ['punch-clock-dashboard', 'timecard-reports', 'punch-clock-settings'];
     if (isManager && punchClockItems.includes(menuItem)) {
       return true;
@@ -221,7 +232,7 @@ export function useMenuPermissions() {
     if (profile?.has_global_job_access) return true;
 
     // Admin always has access
-    if (!profile?.custom_role_id && effectiveRole === 'admin') return true;
+    if (!effectiveCustomRoleId && effectiveRole === 'admin') return true;
 
     // If no specific jobs provided, check if user has any job access
     if (!jobIds) return true; // Let the component handle the specific checks

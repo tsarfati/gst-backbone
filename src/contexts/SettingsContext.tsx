@@ -1,8 +1,9 @@
-import { createContext, useContext, useState, useEffect, useMemo, useRef, type ReactNode } from 'react';
+import { createContext, useContext, useState, useEffect, useMemo, useRef, useCallback, type ReactNode } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTheme } from 'next-themes';
+import { toast } from '@/hooks/use-toast';
 import type { AvatarLibraryCategory, CustomAvatarEntry } from '@/components/avatarLibrary';
 export interface AppSettings {
   navigationMode: 'single' | 'multiple';
@@ -117,6 +118,20 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     if (!currentCompany?.id || !user?.id) return null;
     return `${currentCompany.id}:${user.id}`;
   }, [currentCompany?.id, user?.id]);
+  const latestSettingsRef = useRef<AppSettings>(defaultSettings);
+  const latestCompanyIdRef = useRef<string | null>(null);
+  const latestUserIdRef = useRef<string | null>(null);
+  const latestLoadedScopeKeyRef = useRef<string | null>(null);
+  const latestCurrentScopeKeyRef = useRef<string | null>(null);
+  const latestIsLoadedRef = useRef(false);
+  const latestIsCompanyAdminRoleRef = useRef(false);
+  const isLogoutInProgress = () => {
+    try {
+      return window.localStorage.getItem('builderlynk_logout_in_progress') === '1';
+    } catch {
+      return false;
+    }
+  };
 
   // Get the user's role for the CURRENT company from user_company_access
   const activeCompanyRole = useMemo(() => {
@@ -130,10 +145,12 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const scopedRole = (activeCompanyRole || '').toLowerCase();
     const profileRole = String(profile?.role || '').toLowerCase();
     return (
+      scopedRole === 'super_admin' ||
       scopedRole === 'admin' ||
       scopedRole === 'company_admin' ||
       scopedRole === 'controller' ||
       scopedRole === 'owner' ||
+      profileRole === 'super_admin' ||
       profileRole === 'design_professional'
     );
   }, [activeCompanyRole, profile?.role]);
@@ -159,6 +176,35 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
   };
 
   const toHslToken = (val: string) => (val?.trim().startsWith('#') ? hexToHsl(val.trim()) : val?.trim());
+  const mergeMissingSettings = (
+    base: Partial<AppSettings> | null | undefined,
+    fallback: Partial<AppSettings> | null | undefined,
+  ): Partial<AppSettings> | null => {
+    if (!base && !fallback) return null;
+    if (!base) return fallback || null;
+    if (!fallback) return base;
+
+    return {
+      ...fallback,
+      ...base,
+      customColors: {
+        ...((fallback.customColors as Partial<AppSettings['customColors']>) || {}),
+        ...((base.customColors as Partial<AppSettings['customColors']>) || {}),
+      },
+      notifications: {
+        ...((fallback.notifications as Partial<AppSettings['notifications']>) || {}),
+        ...((base.notifications as Partial<AppSettings['notifications']>) || {}),
+      },
+      companySettings: {
+        ...((fallback.companySettings as AppSettings['companySettings']) || {}),
+        ...((base.companySettings as AppSettings['companySettings']) || {}),
+      },
+      avatarLibrary: {
+        ...((fallback.avatarLibrary as AppSettings['avatarLibrary']) || {}),
+        ...((base.avatarLibrary as AppSettings['avatarLibrary']) || {}),
+      },
+    };
+  };
   const applyColorVarsToRoot = (colors: AppSettings['customColors']) => {
     const root = document.documentElement;
     Object.entries(colors).forEach(([key, value]) => {
@@ -196,7 +242,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         return;
       }
 
-      const cacheKey = `ui_settings_cache_${currentCompany.id}_${user.id}`;
+      const cacheKey = `ui_settings_cache_company_${currentCompany.id}`;
 
       // Hydrate from cache immediately to minimize flash - but ONLY for the correct company
       const cachedRaw = localStorage.getItem(cacheKey);
@@ -224,76 +270,38 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       }
 
       try {
-        // Fetch company defaults and user-specific settings in parallel
-        const [companyResp, userResp] = await Promise.all([
-          supabase
+        // Always resolve company theme/settings through the server-side resolver so all
+        // users in the company receive the same merged result, including legacy admin rows.
+        let companySettings: Partial<AppSettings> | null = null;
+
+        const { data: rpcTheme } = await supabase.rpc('get_company_theme_defaults', {
+          _company_id: currentCompany.id
+        });
+        if (rpcTheme) {
+          companySettings = rpcTheme as Partial<AppSettings>;
+        }
+
+        // Safety fallback if the RPC is unavailable in a local/dev environment.
+        if (!companySettings) {
+          const companyResp = await supabase
             .from('company_ui_settings')
             .select('settings')
             .eq('company_id', currentCompany.id)
             .is('user_id', null)
             .order('updated_at', { ascending: false })
-            .limit(1),
-          supabase
-            .from('company_ui_settings')
-            .select('settings')
-            .eq('company_id', currentCompany.id)
-            .eq('user_id', user.id)
-            .order('updated_at', { ascending: false })
-            .limit(1)
-        ]);
+            .limit(1);
 
-        let companySettings = ((companyResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
-        const userSettings = ((userResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
-
-        // Backward-compatible fallback:
-        // Some companies only have user-level theme settings saved (legacy),
-        // but no shared company default (user_id IS NULL). In that case, inherit colors
-        // from the most recent row with customColors.
-        if (!companySettings?.customColors) {
-          const { data: allCompanyUiRows } = await supabase
-            .from('company_ui_settings')
-            .select('user_id, settings, updated_at')
-            .eq('company_id', currentCompany.id)
-            .not('user_id', 'is', null)
-            .order('updated_at', { ascending: false })
-            .limit(30);
-
-          const fallbackThemeSettings = (allCompanyUiRows || [])
-            .find((row: any) => (row?.settings as any)?.customColors)?.settings as any || null;
-
-          if ((fallbackThemeSettings as any)?.customColors) {
-            companySettings = {
-              ...(companySettings || {}),
-              customColors: (fallbackThemeSettings as any).customColors,
-            };
-          }
-        }
-
-        // Final fallback: server-side resolver (SECURITY DEFINER) so non-settings users
-        // still receive company branding even when direct table reads are restricted.
-        if (!companySettings?.customColors) {
-          const { data: rpcTheme } = await supabase.rpc('get_company_theme_defaults', {
-            _company_id: currentCompany.id
-          });
-          if ((rpcTheme as any)?.customColors) {
-            companySettings = {
-              ...(companySettings || {}),
-              customColors: (rpcTheme as any).customColors,
-            };
-          }
+          companySettings = ((companyResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
         }
 
         setCompanyDefaults(companySettings);
 
-        const effectiveUserSettings = isCompanyAdminRole ? (userSettings || {}) : {};
         const merged = {
           ...defaultSettings,
           ...(companySettings || {}),
-          ...effectiveUserSettings,
           customColors: {
             ...defaultSettings.customColors,
             ...((companySettings as any)?.customColors || {}),
-            ...((effectiveUserSettings as any)?.customColors || {}),
           },
         } as AppSettings;
         setSettings(merged);
@@ -330,6 +338,94 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   const settingsLoadingForScope = !isLoaded || (currentScopeKey !== null && loadedScopeKey !== currentScopeKey);
 
+  useEffect(() => {
+    latestSettingsRef.current = settings;
+    latestCompanyIdRef.current = currentCompany?.id ?? null;
+    latestUserIdRef.current = user?.id ?? null;
+    latestLoadedScopeKeyRef.current = loadedScopeKeyRef.current;
+    latestCurrentScopeKeyRef.current = currentScopeKey;
+    latestIsLoadedRef.current = isLoaded;
+    latestIsCompanyAdminRoleRef.current = isCompanyAdminRole;
+  }, [settings, currentCompany?.id, user?.id, currentScopeKey, isLoaded, isCompanyAdminRole]);
+
+  const persistCompanySettings = useCallback(async (settingsToPersist: AppSettings) => {
+    const companyId = latestCompanyIdRef.current;
+    const userId = latestUserIdRef.current;
+
+    if (!companyId || !userId || !latestIsLoadedRef.current) return;
+    if (!latestCurrentScopeKeyRef.current || latestLoadedScopeKeyRef.current !== latestCurrentScopeKeyRef.current) return;
+    if (!latestIsCompanyAdminRoleRef.current) return;
+    if (isLogoutInProgress()) return;
+
+    const companySettingsForStorage: Partial<AppSettings> = {
+      navigationMode: settingsToPersist.navigationMode,
+      theme: settingsToPersist.theme,
+      themeVariant: settingsToPersist.themeVariant,
+      dateFormat: settingsToPersist.dateFormat,
+      timeZone: settingsToPersist.timeZone,
+      currencyFormat: settingsToPersist.currencyFormat,
+      distanceUnit: settingsToPersist.distanceUnit,
+      defaultView: settingsToPersist.defaultView,
+      itemsPerPage: settingsToPersist.itemsPerPage,
+      notifications: settingsToPersist.notifications,
+      autoSave: settingsToPersist.autoSave,
+      compactMode: settingsToPersist.compactMode,
+      sidebarHighlightOpacity: settingsToPersist.sidebarHighlightOpacity,
+      customLogo: settingsToPersist.customLogo,
+      dashboardBanner: settingsToPersist.dashboardBanner,
+      customColors: settingsToPersist.customColors,
+      companyLogo: settingsToPersist.companyLogo,
+      headerLogo: settingsToPersist.headerLogo,
+      companySettings: settingsToPersist.companySettings,
+      avatarLibrary: settingsToPersist.avatarLibrary,
+    };
+
+    const { data: existingCompanyRow } = await supabase
+      .from('company_ui_settings')
+      .select('id')
+      .eq('company_id', companyId)
+      .is('user_id', null)
+      .maybeSingle();
+
+    if (existingCompanyRow?.id) {
+      const { error } = await supabase
+        .from('company_ui_settings')
+        .update({ settings: companySettingsForStorage as any })
+        .eq('id', existingCompanyRow.id);
+      if (error) {
+        console.warn('Failed to update company default theme settings:', error);
+        toast({
+          title: 'Settings not saved',
+          description: error.message || 'The company settings could not be saved.',
+          variant: 'destructive',
+        });
+      }
+    } else {
+      const { error } = await supabase
+        .from('company_ui_settings')
+        .insert({
+          company_id: companyId,
+          user_id: null as any,
+          settings: companySettingsForStorage as any,
+        } as any);
+      if (error) {
+        console.warn('Failed to insert company default theme settings:', error);
+        toast({
+          title: 'Settings not saved',
+          description: error.message || 'The company settings could not be saved.',
+          variant: 'destructive',
+        });
+      }
+    }
+
+    const cacheKey = `ui_settings_cache_company_${companyId}`;
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify(companySettingsForStorage));
+    } catch (_) {
+      // ignore cache failures
+    }
+  }, []);
+
   // Save settings to database
   useEffect(() => {
     const saveSettings = async () => {
@@ -352,98 +448,13 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           delete settingsForStorage.headerLogo;
         }
 
-        const role = (activeCompanyRole || '').toLowerCase();
-        const profileRole = String(profile?.role || '').toLowerCase();
-        const isCompanyAdmin =
-          role === 'admin' ||
-          role === 'company_admin' ||
-          role === 'controller' ||
-          role === 'owner' ||
-          profileRole === 'design_professional';
-
-        // Enforce company-wide colors: non-admins cannot persist custom color overrides
-        if (!isCompanyAdmin) {
-          delete settingsForStorage.customColors;
+        // Theme & appearance should only persist at the company level.
+        // Non-admins should not write company appearance settings.
+        if (!isCompanyAdminRole) {
+          return;
         }
 
-        const { error } = await supabase
-          .from('company_ui_settings')
-          .upsert({
-            company_id: currentCompany.id,
-            user_id: user.id,
-            settings: settingsForStorage
-          }, {
-            onConflict: 'company_id,user_id'
-          });
-
-        // If admin/company_admin, also persist company-wide defaults (user_id = null)
-        // Use explicit check + insert/update since PostgreSQL UNIQUE treats NULL as distinct
-        if (isCompanyAdmin) {
-          const companySettingsForStorage: Partial<AppSettings> = {
-            navigationMode: settings.navigationMode,
-            theme: settings.theme,
-            themeVariant: settings.themeVariant,
-            dateFormat: settings.dateFormat,
-            timeZone: settings.timeZone,
-            currencyFormat: settings.currencyFormat,
-            distanceUnit: settings.distanceUnit,
-            defaultView: settings.defaultView,
-            itemsPerPage: settings.itemsPerPage,
-            notifications: settings.notifications,
-            autoSave: settings.autoSave,
-            compactMode: settings.compactMode,
-            sidebarHighlightOpacity: settings.sidebarHighlightOpacity,
-            customLogo: settings.customLogo,
-            dashboardBanner: settings.dashboardBanner,
-            customColors: settings.customColors,
-            companyLogo: settings.companyLogo,
-            headerLogo: settings.headerLogo,
-            companySettings: settings.companySettings,
-            avatarLibrary: settings.avatarLibrary,
-          };
-          
-          // Check if company-wide row exists
-          const { data: existingCompanyRow } = await supabase
-            .from('company_ui_settings')
-            .select('id')
-            .eq('company_id', currentCompany.id)
-            .is('user_id', null)
-            .maybeSingle();
-          
-          if (existingCompanyRow?.id) {
-            // Update existing row
-            const { error: companyDefaultsUpdateError } = await supabase
-              .from('company_ui_settings')
-              .update({ settings: companySettingsForStorage as any })
-              .eq('id', existingCompanyRow.id);
-            if (companyDefaultsUpdateError) {
-              console.warn('Failed to update company default theme settings:', companyDefaultsUpdateError);
-            }
-          } else {
-            // Insert new company-wide row
-            const { error: companyDefaultsInsertError } = await supabase
-              .from('company_ui_settings')
-              .insert({
-                company_id: currentCompany.id,
-                user_id: null as any,
-                settings: companySettingsForStorage as any
-              } as any);
-            if (companyDefaultsInsertError) {
-              console.warn('Failed to insert company default theme settings:', companyDefaultsInsertError);
-            }
-          }
-        }
-
-        if (error) {
-          console.warn('Failed to save settings:', error);
-        }
-        // Update local cache optimistically
-        const cacheKey = currentCompany ? `ui_settings_cache_${currentCompany.id}_${user.id}` : '';
-        if (cacheKey) {
-          try {
-            localStorage.setItem(cacheKey, JSON.stringify(settingsForStorage));
-          } catch (_) {}
-        }
+        await persistCompanySettings(settings);
       } catch (error) {
         console.warn('Error saving settings:', error);
       }
@@ -451,8 +462,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
     // Debounce saving to avoid too many requests - increase to 1 second
     const timeoutId = setTimeout(saveSettings, 1000);
-    return () => clearTimeout(timeoutId);
-  }, [settings, currentCompany?.id, user?.id, isLoaded, activeCompanyRole, currentScopeKey]);
+    return () => {
+      clearTimeout(timeoutId);
+      // Flush the last pending company-level save on scope change/unmount so switching companies
+      // does not silently drop a just-made settings change.
+      if (!isLogoutInProgress()) {
+        void persistCompanySettings(settings);
+      }
+    };
+  }, [settings, currentCompany?.id, user?.id, isLoaded, activeCompanyRole, currentScopeKey, persistCompanySettings]);
 
 
   const updateSettings = (updates: Partial<AppSettings>) => {
@@ -508,6 +526,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             ...settings.customColors,
           } as AppSettings['customColors']);
 
+    const effectiveSidebarHighlightOpacity = isCompanyAdminRole
+      ? (settings.sidebarHighlightOpacity ?? defaultSettings.sidebarHighlightOpacity)
+      : (companyDefaults?.sidebarHighlightOpacity ?? settings.sidebarHighlightOpacity ?? defaultSettings.sidebarHighlightOpacity);
+
     Object.entries(effectiveColors).forEach(([key, value]) => {
       const hsl = toHslToken(value as string);
       root.style.setProperty(`--${key}`, hsl);
@@ -515,21 +537,32 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     // Ensure hover var is set explicitly as well
     root.style.setProperty('--buttonHover', toHslToken(effectiveColors.buttonHover));
     root.style.setProperty('--sidebar-background', toHslToken(effectiveColors.sidebarBackground || defaultSettings.customColors.sidebarBackground));
-    root.style.setProperty('--sidebar-highlight-opacity', `${settings.sidebarHighlightOpacity ?? defaultSettings.sidebarHighlightOpacity}`);
+    root.style.setProperty('--sidebar-highlight-opacity', `${effectiveSidebarHighlightOpacity}`);
   };
 
   const resetSettings = async () => {
     if (!currentCompany?.id || !user?.id) return;
     
-    setSettings(defaultSettings);
+    const resetTarget = !isCompanyAdminRole && companyDefaults
+      ? {
+          ...defaultSettings,
+          ...companyDefaults,
+          customColors: {
+            ...defaultSettings.customColors,
+            ...((companyDefaults as any)?.customColors || {}),
+          },
+        } as AppSettings
+      : defaultSettings;
+
+    setSettings(resetTarget);
     applyCustomColors();
     
     try {
-      await supabase
-        .from('company_ui_settings')
-        .delete()
-        .eq('company_id', currentCompany.id)
-        .eq('user_id', user.id);
+      if (isCompanyAdminRole) {
+        await persistCompanySettings(resetTarget);
+        setCompanyDefaults(resetTarget);
+        return;
+      }
     } catch (error) {
       console.warn('Error resetting settings:', error);
     }
@@ -562,9 +595,9 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       'theme-variant-android',
     ];
     root.classList.remove(...variantClasses);
-    root.classList.add('theme-variant-builderlynk');
+    root.classList.add(`theme-variant-${settings.themeVariant || 'builderlynk'}`);
     root.classList.toggle('compact-mode', !!settings.compactMode);
-  }, [settings.compactMode, isLoaded]);
+  }, [settings.compactMode, settings.themeVariant, isLoaded]);
 
   return (
     <SettingsContext.Provider value={{ settings, loading: settingsLoadingForScope, updateSettings, resetSettings, applyCustomColors }}>

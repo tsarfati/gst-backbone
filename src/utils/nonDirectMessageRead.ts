@@ -5,6 +5,7 @@ type MessageReadTokenInput = {
 };
 
 import { supabase } from "@/integrations/supabase/client";
+import { loadUserUiPreferences, saveUserUiPreferences } from "@/utils/userUiPreferences";
 
 const SETTINGS_KEY = "dashboard_non_direct_read_tokens";
 const MAX_STORED_TOKENS = 500;
@@ -121,15 +122,7 @@ export const hydrateNonDirectMessageReadsFromServer = async (
       throw readRowsError;
     }
 
-    const { data, error } = await supabase
-      .from("company_ui_settings")
-      .select("settings")
-      .eq("user_id", userId)
-      .eq("company_id", companyId)
-      .maybeSingle();
-    if (error) throw error;
-
-    const settings = (data?.settings as Record<string, any> | null) || {};
+    const settings = await loadUserUiPreferences(userId, companyId);
     const serverTokens = Array.isArray(settings[SETTINGS_KEY])
       ? settings[SETTINGS_KEY].filter((value: unknown) => typeof value === "string")
       : [];
@@ -215,34 +208,16 @@ export const persistNonDirectMessageReadEverywhere = async (
         }
       }
 
-      const { data: existing, error: existingError } = await supabase
-        .from("company_ui_settings")
-        .select("settings")
-        .eq("user_id", userId)
-        .eq("company_id", companyId)
-        .maybeSingle();
-      if (existingError) throw existingError;
-
-      const settings = (existing?.settings as Record<string, any> | null) || {};
+      const settings = await loadUserUiPreferences(userId, companyId);
       const currentTokens = Array.isArray(settings[SETTINGS_KEY])
         ? settings[SETTINGS_KEY].filter((value: unknown) => typeof value === "string")
         : [];
       const merged = new Set<string>(currentTokens);
       merged.add(token);
 
-      const { error } = await supabase
-        .from("company_ui_settings")
-        .upsert({
-          user_id: userId,
-          company_id: companyId,
-          settings: {
-            ...settings,
-            [SETTINGS_KEY]: Array.from(merged).slice(-MAX_STORED_TOKENS),
-          },
-        }, {
-          onConflict: "user_id,company_id",
-        });
-      if (error) throw error;
+      await saveUserUiPreferences(userId, companyId, {
+        [SETTINGS_KEY]: Array.from(merged).slice(-MAX_STORED_TOKENS),
+      });
     } catch (error) {
       console.error("Failed to persist non-direct read marker:", error);
       throw error;

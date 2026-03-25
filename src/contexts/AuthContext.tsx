@@ -15,6 +15,7 @@ interface AuthContextType {
   signInWithGoogle: () => Promise<{ error: any }>;
   signOut: () => Promise<void>;
   refreshProfile: () => Promise<void>;
+  setProfile: React.Dispatch<React.SetStateAction<any | null>>;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -53,6 +54,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       }
     },
   };
+
+  const LOGOUT_IN_PROGRESS_KEY = 'builderlynk_logout_in_progress';
 
   const logLoginAttempt = async (userId: string, success: boolean, method: string) => {
     try {
@@ -116,6 +119,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     // Set up auth state listener FIRST
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       (event, session) => {
+        if (session?.user) {
+          safeLocalStorage.remove(LOGOUT_IN_PROGRESS_KEY);
+        }
         // Only synchronous state updates here
         setSession(session);
         setUser(session?.user ?? null);
@@ -150,6 +156,9 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     );
     // THEN check for existing session
     supabase.auth.getSession().then(({ data: { session } }) => {
+      if (session?.user) {
+        safeLocalStorage.remove(LOGOUT_IN_PROGRESS_KEY);
+      }
       setSession(session);
       setUser(session?.user ?? null);
       
@@ -252,6 +261,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const signOut = async () => {
     // Clear local state first to prevent race conditions with LandingPage redirect
     await flushPendingNonDirectMessageReadWrites();
+    safeLocalStorage.set(LOGOUT_IN_PROGRESS_KEY, '1');
     setUser(null);
     setSession(null);
     setProfile(null);
@@ -284,6 +294,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     signInWithGoogle,
     signOut,
     refreshProfile,
+    setProfile,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

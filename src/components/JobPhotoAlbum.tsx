@@ -791,31 +791,38 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
         if (albumError) throw albumError;
 
-        // Add photos to album
-        const { error: updateError } = await supabase
+        // Move photos into the new album and verify rows were actually updated.
+        const selectedPhotoIds = Array.from(selectedPhotos);
+        const { data: movedRows, error: updateError } = await supabase
           .from('job_photos')
           .update({ album_id: newAlbum.id })
-          .in('id', Array.from(selectedPhotos));
+          .in('id', selectedPhotoIds)
+          .select('id');
 
         if (updateError) throw updateError;
+        if (!movedRows || movedRows.length !== selectedPhotoIds.length) {
+          throw new Error(`Moved ${movedRows?.length || 0} of ${selectedPhotoIds.length} selected photos`);
+        }
 
         toast({
           title: 'Success',
-          description: `Created album and added ${selectedPhotos.size} photo(s)`,
+          description: `Created album and moved ${selectedPhotos.size} photo(s)`,
         });
 
         setShowAddToAlbumDialog(false);
         setNewAlbumName('');
         setNewAlbumDescription('');
         setCreateNewAlbumFromSelection(false);
+        setTargetAlbumId('');
         setSelectedPhotos(new Set());
         setSelectionMode(false);
         loadAlbums();
+        loadPhotos();
       } catch (error) {
         console.error('Error creating album and adding photos:', error);
         toast({
           title: 'Error',
-          description: 'Failed to create album',
+          description: 'Failed to create album and move photos',
           variant: 'destructive',
         });
       }
@@ -823,27 +830,39 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       if (!targetAlbumId) return;
 
       try {
-        const { error } = await supabase
+        const selectedPhotoIds = Array.from(selectedPhotos);
+        const { data: movedRows, error } = await supabase
           .from('job_photos')
           .update({ album_id: targetAlbumId })
-          .in('id', Array.from(selectedPhotos));
+          .in('id', selectedPhotoIds)
+          .select('id');
 
         if (error) throw error;
+        if (!movedRows || movedRows.length !== selectedPhotoIds.length) {
+          throw new Error(`Moved ${movedRows?.length || 0} of ${selectedPhotoIds.length} selected photos`);
+        }
 
         toast({
           title: 'Success',
-          description: `${selectedPhotos.size} photo(s) added to album`,
+          description: `${selectedPhotos.size} photo(s) moved to album`,
         });
 
         setShowAddToAlbumDialog(false);
         setTargetAlbumId('');
+        setNewAlbumName('');
+        setNewAlbumDescription('');
+        setCreateNewAlbumFromSelection(false);
         setSelectedPhotos(new Set());
         setSelectionMode(false);
+        loadAlbums();
+        loadPhotos();
       } catch (error) {
         console.error('Error adding photos to album:', error);
         toast({
           title: 'Error',
-          description: 'Failed to add photos to album',
+          description: error instanceof Error && error.message.includes('Moved ')
+            ? 'Some or all selected photos could not be moved. Permissions may be blocking the update.'
+            : 'Failed to move photos to album',
           variant: 'destructive',
         });
       }
@@ -1225,17 +1244,29 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
           {selectedAlbumId ? (
             // Inside an album - show Edit Album button and selection controls
             !selectionMode ? (
-              <Button variant="outline" onClick={() => {
-                const album = albums.find(a => a.id === selectedAlbumId);
-                if (album) {
-                  setEditAlbumName(album.name);
-                  setEditAlbumDescription(album.description || '');
-                  setShowEditAlbumDialog(true);
-                }
-              }}>
-                <Pencil className="h-4 w-4 mr-2" />
-                Edit Album
-              </Button>
+              <>
+                <Button
+                  variant="outline"
+                  onClick={() => {
+                    setSelectionMode(true);
+                    setSelectedPhotos(new Set());
+                  }}
+                >
+                  <CheckSquare className="h-4 w-4 mr-2" />
+                  Select Photos
+                </Button>
+                <Button variant="outline" onClick={() => {
+                  const album = albums.find(a => a.id === selectedAlbumId);
+                  if (album) {
+                    setEditAlbumName(album.name);
+                    setEditAlbumDescription(album.description || '');
+                    setShowEditAlbumDialog(true);
+                  }
+                }}>
+                  <Pencil className="h-4 w-4 mr-2" />
+                  Edit Album
+                </Button>
+              </>
             ) : (
               <>
                 <Button variant="outline" onClick={selectAll}>
@@ -1325,6 +1356,19 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               {selectedPhotos.size} photo(s) selected
             </span>
             <div className="flex gap-2">
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setTargetAlbumId('');
+                  setNewAlbumName('');
+                  setNewAlbumDescription('');
+                  setCreateNewAlbumFromSelection(false);
+                  setShowAddToAlbumDialog(true);
+                }}
+              >
+                <FolderPlus className="h-4 w-4 mr-2" />
+                Move Selected
+              </Button>
               <Button variant="destructive" onClick={handleBulkDelete}>
                 <Trash2 className="h-4 w-4 mr-2" />
                 Delete Selected
@@ -1933,7 +1977,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       <Dialog open={showAddToAlbumDialog} onOpenChange={setShowAddToAlbumDialog}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Add {selectedPhotos.size} Photo(s) to Album</DialogTitle>
+            <DialogTitle>Move {selectedPhotos.size} Photo(s) to Album</DialogTitle>
           </DialogHeader>
           <div className="space-y-4">
             <div className="flex gap-2">
@@ -1999,7 +2043,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
               } 
               className="w-full"
             >
-              {createNewAlbumFromSelection ? 'Create & Add Photos' : 'Add to Album'}
+              {createNewAlbumFromSelection ? 'Create Album & Move Photos' : 'Move to Album'}
             </Button>
           </div>
         </DialogContent>
@@ -2036,11 +2080,12 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                 className="w-full"
                 onClick={() => {
                   setSelectionMode(true);
+                  setSelectedPhotos(new Set());
                   setShowEditAlbumDialog(false);
                 }}
               >
-                <Trash2 className="h-4 w-4 mr-2" />
-                Select Photos to Delete
+                <CheckSquare className="h-4 w-4 mr-2" />
+                Select Photos for Bulk Actions
               </Button>
             </div>
             <Button onClick={handleUpdateAlbum} disabled={!editAlbumName.trim()} className="w-full">

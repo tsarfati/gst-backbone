@@ -54,7 +54,7 @@ interface CompanyProviderProps {
 }
 
 export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) => {
-  const { user, profile, loading: authLoading } = useAuth();
+  const { user, profile, setProfile, loading: authLoading } = useAuth();
   const { currentTenant, isSuperAdmin, loading: tenantLoading } = useTenant();
   const { toast } = useToast();
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
@@ -231,6 +231,12 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
         .eq('user_id', user.id);
 
       if (profileError) throw profileError;
+
+      setProfile((prev: any) => (
+        prev
+          ? { ...prev, current_company_id: companyId }
+          : prev
+      ));
 
       // Fetch the new company details
       const { data: companyData, error: companyError } = await supabase

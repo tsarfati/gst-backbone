@@ -65,48 +65,38 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const { data: accessRows, error: accessError } = await supabase
-        .from('user_company_access')
-        .select('user_id, role')
-        .eq('company_id', companyId)
-        .eq('is_active', true)
-        .neq('user_id', userId);
+      const { data, error } = await supabase
+        .rpc('get_company_directory', { p_company_id: companyId });
 
-      if (accessError) throw accessError;
+      if (error) throw error;
 
-      const userIds = Array.from(new Set((accessRows || []).map((r) => r.user_id).filter(Boolean)));
-      if (userIds.length === 0) {
+      const companyUsers = ((data || []) as Array<{
+        user_id: string;
+        display_name: string;
+        first_name: string;
+        last_name: string;
+        role: string;
+        avatar_url: string;
+      }>)
+        .filter((row) => row.user_id && row.user_id !== userId)
+        .map((row) => ({
+          id: row.user_id,
+          user_id: row.user_id,
+          name:
+            row.display_name ||
+            [row.first_name, row.last_name].filter(Boolean).join(' ') ||
+            'Unknown User',
+          role: String(row.role || 'employee'),
+          avatar_url: row.avatar_url || null,
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+
+      if (companyUsers.length === 0) {
         setAvailableUsers([]);
         return;
       }
 
-      const roleMap = new Map((accessRows || []).map((r) => [r.user_id, String(r.role || 'employee')]));
-
-      const { data: profileData, error: profileError } = await supabase
-        .from('profiles')
-        .select('id, user_id, display_name, first_name, last_name, avatar_url, status')
-        .in('user_id', userIds);
-
-      if (profileError) throw profileError;
-
-      const authUsers: UserOption[] = (profileData || [])
-        .filter((profile: any) => {
-          const status = String(profile.status || '').toLowerCase();
-          return !['deleted', 'disabled', 'inactive'].includes(status);
-        })
-        .map((profile: any) => ({
-          id: profile.id,
-          user_id: profile.user_id,
-          name:
-            profile.display_name ||
-            [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
-            'Unknown User',
-          role: roleMap.get(profile.user_id) || 'employee',
-          avatar_url: profile.avatar_url || null,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name));
-
-      setAvailableUsers(authUsers);
+      setAvailableUsers(companyUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({

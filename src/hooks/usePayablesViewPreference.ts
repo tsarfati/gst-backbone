@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react';
-import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { PayablesViewType } from '@/components/PayablesViewSelector';
+import { loadUserUiPreferences, saveUserUiPreferences } from '@/utils/userUiPreferences';
 
 export function usePayablesViewPreference(pageKey: 'bills' | 'subcontracts' | 'purchase_orders') {
   const { user } = useAuth();
@@ -18,26 +18,16 @@ export function usePayablesViewPreference(pageKey: 'bills' | 'subcontracts' | 'p
     if (!user || !currentCompany) return;
 
     try {
-      const { data, error } = await supabase
-        .from('company_ui_settings')
-        .select('settings')
-        .eq('user_id', user.id)
-        .eq('company_id', currentCompany.id)
-        .maybeSingle();
+      const settings = await loadUserUiPreferences(user.id, currentCompany.id);
+      const viewKey = `${pageKey}_view`;
+      const defaultKey = `${pageKey}_view_default`;
 
-      if (error) throw error;
+      if (settings[viewKey]) {
+        setCurrentView(settings[viewKey] as PayablesViewType);
+      }
 
-      if (data?.settings) {
-        const viewKey = `${pageKey}_view`;
-        const defaultKey = `${pageKey}_view_default`;
-        
-        if (data.settings[viewKey]) {
-          setCurrentView(data.settings[viewKey] as PayablesViewType);
-        }
-        
-        if (data.settings[defaultKey]) {
-          setIsDefault(data.settings[defaultKey] === data.settings[viewKey]);
-        }
+      if (settings[defaultKey]) {
+        setIsDefault(settings[defaultKey] === settings[viewKey]);
       }
     } catch (error) {
       console.error('Error loading view preference:', error);
@@ -49,30 +39,7 @@ export function usePayablesViewPreference(pageKey: 'bills' | 'subcontracts' | 'p
 
     try {
       const viewKey = `${pageKey}_view`;
-      
-      const { data: existing } = await supabase
-        .from('company_ui_settings')
-        .select('settings')
-        .eq('user_id', user.id)
-        .eq('company_id', currentCompany.id)
-        .maybeSingle();
-
-      const newSettings = {
-        ...((existing?.settings as Record<string, any>) || {}),
-        [viewKey]: view
-      };
-
-      const { error } = await supabase
-        .from('company_ui_settings')
-        .upsert({
-          user_id: user.id,
-          company_id: currentCompany.id,
-          settings: newSettings
-        }, {
-          onConflict: 'user_id,company_id'
-        });
-
-      if (error) throw error;
+      await saveUserUiPreferences(user.id, currentCompany.id, { [viewKey]: view });
 
       setCurrentView(view);
     } catch (error) {
@@ -86,30 +53,10 @@ export function usePayablesViewPreference(pageKey: 'bills' | 'subcontracts' | 'p
     try {
       const viewKey = `${pageKey}_view`;
       const defaultKey = `${pageKey}_view_default`;
-
-      const { data: existing } = await supabase
-        .from('company_ui_settings')
-        .select('settings')
-        .eq('user_id', user.id)
-        .eq('company_id', currentCompany.id)
-        .maybeSingle();
-
-      const newSettings = {
-        ...((existing?.settings as Record<string, any>) || {}),
-        [defaultKey]: currentView
-      };
-
-      const { error } = await supabase
-        .from('company_ui_settings')
-        .upsert({
-          user_id: user.id,
-          company_id: currentCompany.id,
-          settings: newSettings
-        }, {
-          onConflict: 'user_id,company_id'
-        });
-
-      if (error) throw error;
+      await saveUserUiPreferences(user.id, currentCompany.id, {
+        [viewKey]: currentView,
+        [defaultKey]: currentView,
+      });
 
       setIsDefault(true);
     } catch (error) {

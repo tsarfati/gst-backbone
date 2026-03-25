@@ -33,6 +33,7 @@ interface User {
   first_name?: string;
   last_name?: string;
   role?: string;
+  avatar_url?: string | null;
 }
 
 interface MobileComposeDialogProps {
@@ -75,19 +76,16 @@ export function MobileComposeDialog({ isOpen, onClose, onMessageSent, replyToMes
     
     setLoading(true);
     try {
-      // Fetch users who have access to the current company
       const { data, error } = await supabase
-        .from('profiles')
-        .select(`
-          user_id, display_name, first_name, last_name, role,
-          user_company_access!inner(company_id)
-        `)
-        .eq('user_company_access.company_id', currentCompany.id)
-        .neq('user_id', user.id);
+        .rpc('get_company_directory', { p_company_id: currentCompany.id });
 
       if (error) throw error;
 
-      setAvailableUsers(data || []);
+      const companyUsers = ((data || []) as User[])
+        .filter((row) => row.user_id && row.user_id !== user.id)
+        .sort((a, b) => getDisplayName(a).localeCompare(getDisplayName(b)));
+
+      setAvailableUsers(companyUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -168,7 +166,7 @@ export function MobileComposeDialog({ isOpen, onClose, onMessageSent, replyToMes
   };
 
   const getDisplayName = (user: User) => {
-    return user.display_name || user.first_name || 'Unknown User';
+    return user.display_name || [user.first_name, user.last_name].filter(Boolean).join(' ') || user.first_name || 'Unknown User';
   };
 
   return (

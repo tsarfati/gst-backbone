@@ -37,6 +37,12 @@ interface Notification {
   created_at: string;
 }
 
+interface NotificationEntityContext {
+  bids: Set<string>;
+  rfps: Set<string>;
+  jobs: Set<string>;
+}
+
 interface Message {
   id: string;
   from_user_id: string;
@@ -202,6 +208,7 @@ export default function Dashboard() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [selectedMessage, setSelectedMessage] = useState<Message | null>(null);
   const [showThreadView, setShowThreadView] = useState(false);
+  const [jobTeamJobIds, setJobTeamJobIds] = useState<string[]>([]);
   const [dashboardSettings, setDashboardSettings] = useState<DashboardSettings>({
     show_stats: true,
     show_recent_activity: true,
@@ -261,12 +268,103 @@ export default function Dashboard() {
     return Array.from(nameTokens).some((token) => text.includes(`@${token}`));
   };
 
+  const extractNotificationEntityContext = (notification: Notification): NotificationEntityContext => {
+    const rawType = String(notification.type || '').trim();
+    const targetPath = rawType.startsWith('mention:')
+      ? rawType.replace('mention:', '')
+      : rawType.startsWith('/')
+        ? rawType
+        : '';
+
+    const context: NotificationEntityContext = {
+      bids: new Set<string>(),
+      rfps: new Set<string>(),
+      jobs: new Set<string>(),
+    };
+
+    if (rawType.startsWith('bid:new:')) {
+      const bidId = rawType.split(':')[2];
+      if (bidId) context.bids.add(bidId);
+    }
+
+    const cleanedPath = targetPath.split('?')[0];
+    const bidMatch = cleanedPath.match(/^\/construction\/bids\/([^/]+)/);
+    if (bidMatch?.[1]) context.bids.add(bidMatch[1]);
+
+    const rfpMatch = cleanedPath.match(/^\/construction\/rfps\/([^/]+)/);
+    if (rfpMatch?.[1]) context.rfps.add(rfpMatch[1]);
+
+    const jobMatch = cleanedPath.match(/^\/jobs\/([^/]+)/);
+    if (jobMatch?.[1]) context.jobs.add(jobMatch[1]);
+
+    return context;
+  };
+
+  const loadJobTeamJobIds = async (): Promise<string[]> => {
+    if (!user || !currentCompany) return [];
+
+    try {
+      const [directoryRes, projectManagerRes, assistantPmRes, employeeSettingsRes] = await Promise.all([
+        supabase
+          .from('job_project_directory')
+          .select('job_id')
+          .eq('company_id', currentCompany.id)
+          .eq('linked_user_id', user.id)
+          .eq('is_active', true)
+          .eq('is_project_team_member', true),
+        supabase
+          .from('jobs')
+          .select('id')
+          .eq('company_id', currentCompany.id)
+          .eq('project_manager_user_id', user.id),
+        supabase
+          .from('job_assistant_managers')
+          .select('job_id, jobs!inner(company_id)')
+          .eq('user_id', user.id)
+          .eq('jobs.company_id', currentCompany.id),
+        supabase
+          .from('employee_timecard_settings')
+          .select('assigned_jobs')
+          .eq('company_id', currentCompany.id)
+          .eq('user_id', user.id)
+          .maybeSingle(),
+      ]);
+
+      const teamJobIds = new Set<string>();
+
+      (directoryRes.data || []).forEach((row: any) => {
+        if (row?.job_id) teamJobIds.add(String(row.job_id));
+      });
+
+      (projectManagerRes.data || []).forEach((row: any) => {
+        if (row?.id) teamJobIds.add(String(row.id));
+      });
+
+      (assistantPmRes.data || []).forEach((row: any) => {
+        if (row?.job_id) teamJobIds.add(String(row.job_id));
+      });
+
+      (((employeeSettingsRes.data as any)?.assigned_jobs) || []).forEach((jobId: string) => {
+        if (jobId) teamJobIds.add(String(jobId));
+      });
+
+      const nextJobIds = Array.from(teamJobIds);
+      setJobTeamJobIds(nextJobIds);
+      return nextJobIds;
+    } catch (error) {
+      console.error('Error loading job team membership:', error);
+      setJobTeamJobIds([]);
+      return [];
+    }
+  };
+
   useEffect(() => {
     if (user && currentCompany && !websiteJobAccessLoading) {
       void (async () => {
         await hydrateNonDirectMessageReadsFromServer(user.id, currentCompany.id);
-        fetchNotifications();
-        fetchMessages();
+        const freshJobTeamJobIds = await loadJobTeamJobIds();
+        fetchNotifications(freshJobTeamJobIds);
+        fetchMessages(freshJobTeamJobIds);
         fetchDashboardSettings();
         fetchDashboardStats();
       })();
@@ -337,8 +435,8 @@ export default function Dashboard() {
     }
   };
 
-  const fetchNotifications = async () => {
-    if (!user) return;
+  const fetchNotifications = async (teamJobIdsOverride?: string[]) => {
+    if (!user || !currentCompany) return;
     
     try {
       const { data, error } = await supabase
@@ -346,15 +444,115 @@ export default function Dashboard() {
         .select('*')
         .eq('user_id', user.id)
         .order('created_at', { ascending: false })
-        .limit(5);
+        .limit(30);
 
       if (error) throw error;
 
       const rawNotifications = (data || []) as Notification[];
+      const notificationContexts = rawNotifications.map((notification) => ({
+        notification,
+        context: extractNotificationEntityContext(notification),
+      }));
+
+      const bidIds = Array.from(new Set(
+        notificationContexts.flatMap(({ context }) => Array.from(context.bids))
+      ));
+      const rfpIds = Array.from(new Set(
+        notificationContexts.flatMap(({ context }) => Array.from(context.rfps))
+      ));
+      const jobIds = Array.from(new Set(
+        notificationContexts.flatMap(({ context }) => Array.from(context.jobs))
+      ));
+
+      const [bidsRes, rfpsRes, jobsRes] = await Promise.all([
+        bidIds.length > 0
+          ? supabase
+              .from('bids')
+              .select('id, company_id, rfp:rfps!inner(job_id)')
+              .in('id', bidIds)
+          : Promise.resolve({ data: [], error: null }),
+        rfpIds.length > 0
+          ? supabase
+              .from('rfps')
+              .select('id, company_id, job_id')
+              .in('id', rfpIds)
+          : Promise.resolve({ data: [], error: null }),
+        jobIds.length > 0
+          ? supabase
+              .from('jobs')
+              .select('id, company_id')
+              .in('id', jobIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if ((bidsRes as any).error) throw (bidsRes as any).error;
+      if ((rfpsRes as any).error) throw (rfpsRes as any).error;
+      if ((jobsRes as any).error) throw (jobsRes as any).error;
+
+      const bidMap = new Map<string, { company_id: string; job_id: string | null }>(
+        (((bidsRes as any).data) || []).map((row: any) => [
+          String(row.id),
+          {
+            company_id: String(row.company_id),
+            job_id: row?.rfp?.job_id ? String(row.rfp.job_id) : null,
+          },
+        ]),
+      );
+      const rfpMap = new Map<string, { company_id: string; job_id: string | null }>(
+        (((rfpsRes as any).data) || []).map((row: any) => [
+          String(row.id),
+          {
+            company_id: String(row.company_id),
+            job_id: row?.job_id ? String(row.job_id) : null,
+          },
+        ]),
+      );
+      const jobMap = new Map<string, { company_id: string }>(
+        (((jobsRes as any).data) || []).map((row: any) => [
+          String(row.id),
+          { company_id: String(row.company_id) },
+        ]),
+      );
+
+      const jobTeamJobIdSet = new Set(teamJobIdsOverride ?? jobTeamJobIds);
+      const companyScopedNotifications = notificationContexts.filter(({ notification, context }) => {
+        const hasScopedEntity =
+          context.bids.size > 0 || context.rfps.size > 0 || context.jobs.size > 0;
+
+        if (!hasScopedEntity) {
+          return true;
+        }
+
+        const bidEntries = Array.from(context.bids).map((bidId) => bidMap.get(bidId)).filter(Boolean);
+        const rfpEntries = Array.from(context.rfps).map((rfpId) => rfpMap.get(rfpId)).filter(Boolean);
+        const jobEntries = Array.from(context.jobs).map((jobId) => ({
+          company_id: jobMap.get(jobId)?.company_id,
+          job_id: jobId,
+        })).filter((entry) => Boolean(entry.company_id));
+
+        const scopedEntries = [...bidEntries, ...rfpEntries, ...jobEntries] as Array<{ company_id: string; job_id: string | null | undefined }>;
+
+        if (scopedEntries.length === 0) {
+          return false;
+        }
+
+        const inCurrentCompany = scopedEntries.some((entry) => entry.company_id === currentCompany.id);
+        if (!inCurrentCompany) {
+          return false;
+        }
+
+        const requiresJobTeam = scopedEntries.some((entry) => entry.job_id);
+        if (!requiresJobTeam) {
+          return true;
+        }
+
+        return scopedEntries.some((entry) => entry.job_id && jobTeamJobIdSet.has(String(entry.job_id)));
+      }).map(({ notification }) => notification);
+
       const approverRole = String(activeCompanyRole || profile?.role || '').toLowerCase();
       const canApproveIntake = ['admin', 'company_admin', 'owner', 'controller', 'super_admin'].includes(approverRole);
       // Legacy intake notifications are noisy/stale; rely on live intake summary instead.
-      let baseNotifications = rawNotifications.filter((notification) => {
+      let baseNotifications = companyScopedNotifications.filter((notification) => {
         const rawType = String(notification.type || '').trim().toLowerCase();
         return rawType !== 'intake_queue' && rawType !== 'intake_queue_summary';
       });
@@ -403,7 +601,7 @@ export default function Dashboard() {
       }
 
       if (!currentCompany || !canApproveIntake) {
-        setNotifications(baseNotifications);
+        setNotifications(baseNotifications.slice(0, 5));
         return;
       }
 
@@ -418,7 +616,7 @@ export default function Dashboard() {
       const intakeEnabled = (settingsRow as any)?.intake_queue_requests !== false;
 
       if (!inAppEnabled || !intakeEnabled) {
-        setNotifications(baseNotifications);
+        setNotifications(baseNotifications.slice(0, 5));
         return;
       }
 
@@ -447,7 +645,7 @@ export default function Dashboard() {
 
       const hasPendingIntake = pendingCount > 0;
       if (!hasPendingIntake) {
-        setNotifications(baseNotifications);
+        setNotifications(baseNotifications.slice(0, 5));
         return;
       }
 
@@ -460,13 +658,13 @@ export default function Dashboard() {
         created_at: new Date().toISOString(),
       };
 
-      setNotifications([summaryNotification, ...baseNotifications]);
+      setNotifications([summaryNotification, ...baseNotifications].slice(0, 5));
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
   };
 
-  const fetchMessages = async () => {
+  const fetchMessages = async (teamJobIdsOverride?: string[]) => {
     if (!user || !currentCompany) return;
     
     try {
@@ -475,6 +673,7 @@ export default function Dashboard() {
         .from('messages')
         .select('*')
         .eq('to_user_id', user.id)
+        .eq('company_id', currentCompany.id)
         .order('created_at', { ascending: false })
         .limit(5);
 
@@ -487,7 +686,7 @@ export default function Dashboard() {
         .eq('company_id', currentCompany.id)
         .maybeSingle();
 
-      const showIntercompanyByDefault =
+      const showMentionedNonDirectMessages =
         (notificationSettings as NotificationSettingsRow | null)?.in_app_enabled !== false &&
         (notificationSettings as NotificationSettingsRow | null)?.chat_channel_notifications !== false;
       
@@ -633,7 +832,7 @@ export default function Dashboard() {
 
       // Format bill communications
       const formattedBillComms = (billCommsWithProfiles || [])
-        .filter((comm: any) => showIntercompanyByDefault || wasMentionedInMessage(comm.message || ""))
+        .filter((comm: any) => showMentionedNonDirectMessages && wasMentionedInMessage(comm.message || ""))
         .map((comm: any) => ({
         id: comm.id,
         from_user_id: comm.user_id,
@@ -660,7 +859,7 @@ export default function Dashboard() {
 
       // Format receipt messages
       const formattedReceiptComms = (receiptCommsWithProfiles || [])
-        .filter((comm: any) => showIntercompanyByDefault || wasMentionedInMessage(comm.message || ""))
+        .filter((comm: any) => showMentionedNonDirectMessages && wasMentionedInMessage(comm.message || ""))
         .map((comm: any) => ({
         id: comm.id,
         from_user_id: comm.from_user_id,
@@ -687,7 +886,7 @@ export default function Dashboard() {
 
       // Format credit card transaction communications
       const formattedCreditCardComms = (creditCardCommsWithProfiles || [])
-        .filter((comm: any) => showIntercompanyByDefault || wasMentionedInMessage(comm.message || ""))
+        .filter((comm: any) => showMentionedNonDirectMessages && wasMentionedInMessage(comm.message || ""))
         .map((comm: any) => {
         const creditCardId = Array.isArray(comm.credit_card_transactions)
           ? comm.credit_card_transactions[0]?.credit_card_id
@@ -720,12 +919,13 @@ export default function Dashboard() {
       });
 
       // Format bid team communications (only users connected to the bid's job)
+      const jobTeamJobIdSet = new Set(teamJobIdsOverride ?? jobTeamJobIds);
       const formattedBidTeamComms = (bidTeamCommsWithProfiles || [])
         .filter((comm: any) => {
           const jobId = comm?.bids?.rfp?.job_id || null;
-          return canAccessAssignedJobOnly([jobId], isPrivileged, allowedJobIds);
+          return !!jobId && jobTeamJobIdSet.has(String(jobId));
         })
-        .filter((comm: any) => showIntercompanyByDefault || wasMentionedInMessage(comm.message || ""))
+        .filter((comm: any) => showMentionedNonDirectMessages && wasMentionedInMessage(comm.message || ""))
         .map((comm: any) => ({
           id: comm.id,
           from_user_id: comm.user_id,

@@ -319,6 +319,39 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
   }
 ];
 
+const ALL_PERMISSION_KEYS = PERMISSION_CATEGORIES.flatMap((category) =>
+  category.permissions.map((permission) => permission.key),
+);
+
+const getDescendantPermissionKeys = (permissionKey: string) =>
+  ALL_PERMISSION_KEYS.filter((key) => key.startsWith(`${permissionKey}.`));
+
+const getAncestorPermissionKeys = (permissionKey: string) => {
+  const segments = permissionKey.split('.');
+  const ancestors: string[] = [];
+
+  for (let index = segments.length - 1; index > 0; index -= 1) {
+    const candidate = segments.slice(0, index).join('.');
+    if (ALL_PERMISSION_KEYS.includes(candidate)) {
+      ancestors.push(candidate);
+    }
+  }
+
+  return ancestors;
+};
+
+const reconcileParentPermissions = (permissions: RolePermissions) => {
+  const nextPermissions = { ...permissions };
+
+  ALL_PERMISSION_KEYS.forEach((permissionKey) => {
+    const descendants = getDescendantPermissionKeys(permissionKey);
+    if (descendants.length === 0) return;
+    nextPermissions[permissionKey] = descendants.some((descendantKey) => Boolean(nextPermissions[descendantKey]));
+  });
+
+  return nextPermissions;
+};
+
 const defaultRoleDefinitions: RoleDefinition[] = [
   {
     role: 'admin',
@@ -821,7 +854,28 @@ export default function RoleDefinitions() {
     setRoleDefinitions(prev =>
       prev.map(r =>
         r.role === role
-          ? { ...r, permissions: { ...r.permissions, [permissionKey]: checked } }
+          ? (() => {
+              const nextPermissions = { ...r.permissions, [permissionKey]: checked };
+              const descendantKeys = getDescendantPermissionKeys(permissionKey);
+              const ancestorKeys = getAncestorPermissionKeys(permissionKey);
+
+              if (descendantKeys.length > 0) {
+                descendantKeys.forEach((descendantKey) => {
+                  nextPermissions[descendantKey] = checked;
+                });
+              }
+
+              if (checked) {
+                ancestorKeys.forEach((ancestorKey) => {
+                  nextPermissions[ancestorKey] = true;
+                });
+              }
+
+              return {
+                ...r,
+                permissions: reconcileParentPermissions(nextPermissions),
+              };
+            })()
           : r
       )
     );
