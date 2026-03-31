@@ -1,4 +1,7 @@
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
+
+const STORAGE_SUPABASE_URL = "https://watxvzoolmfjfijrgcvq.supabase.co";
+const STORAGE_SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q";
 
 /**
  * Private buckets that require signed URLs for access.
@@ -144,7 +147,7 @@ export async function uploadFileWithProgress({
     throw new Error("Missing authenticated session for file upload");
   }
 
-  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${bucketName}/${filePath
+  const uploadUrl = `${STORAGE_SUPABASE_URL}/storage/v1/object/${bucketName}/${filePath
     .split("/")
     .map((segment) => encodeURIComponent(segment))
     .join("/")}`;
@@ -152,7 +155,7 @@ export async function uploadFileWithProgress({
   await new Promise<void>((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     xhr.open("POST", uploadUrl, true);
-    xhr.setRequestHeader("apikey", SUPABASE_PUBLISHABLE_KEY);
+    xhr.setRequestHeader("apikey", STORAGE_SUPABASE_PUBLISHABLE_KEY);
     xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
     xhr.setRequestHeader("x-upsert", upsert ? "true" : "false");
     xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
