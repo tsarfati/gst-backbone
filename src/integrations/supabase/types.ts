@@ -2146,7 +2146,7 @@ export type Database = {
           id: string
           settings: Json
           updated_at: string
-          user_id: string
+          user_id: string | null
         }
         Insert: {
           company_id: string
@@ -2154,7 +2154,7 @@ export type Database = {
           id?: string
           settings?: Json
           updated_at?: string
-          user_id: string
+          user_id?: string | null
         }
         Update: {
           company_id?: string
@@ -2162,7 +2162,7 @@ export type Database = {
           id?: string
           settings?: Json
           updated_at?: string
-          user_id?: string
+          user_id?: string | null
         }
         Relationships: []
       }
@@ -5908,6 +5908,10 @@ export type Database = {
           overdue_bills_interval: string | null
           overdue_invoices: boolean
           receipt_uploaded: boolean
+          task_team_assignment_notifications: boolean
+          task_timeline_activity_notifications: boolean
+          task_timeline_mention_notifications: boolean
+          task_update_notifications: boolean
           updated_at: string
           user_id: string
           vendor_invitations: boolean
@@ -5929,6 +5933,10 @@ export type Database = {
           overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean
+          task_team_assignment_notifications?: boolean
+          task_timeline_activity_notifications?: boolean
+          task_timeline_mention_notifications?: boolean
+          task_update_notifications?: boolean
           updated_at?: string
           user_id: string
           vendor_invitations?: boolean
@@ -5950,6 +5958,10 @@ export type Database = {
           overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean
+          task_team_assignment_notifications?: boolean
+          task_timeline_activity_notifications?: boolean
+          task_timeline_mention_notifications?: boolean
+          task_update_notifications?: boolean
           updated_at?: string
           user_id?: string
           vendor_invitations?: boolean
@@ -8912,6 +8924,44 @@ export type Database = {
         }
         Relationships: []
       }
+      task_activity: {
+        Row: {
+          activity_type: string
+          actor_user_id: string | null
+          content: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          task_id: string
+        }
+        Insert: {
+          activity_type: string
+          actor_user_id?: string | null
+          content?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          task_id: string
+        }
+        Update: {
+          activity_type?: string
+          actor_user_id?: string | null
+          content?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_activity_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       task_assignees: {
         Row: {
           assigned_at: string
@@ -8950,6 +9000,7 @@ export type Database = {
           file_size: number | null
           file_type: string | null
           file_url: string
+          folder_name: string | null
           id: string
           task_id: string
           uploaded_at: string
@@ -8960,6 +9011,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           file_url: string
+          folder_name?: string | null
           id?: string
           task_id: string
           uploaded_at?: string
@@ -8970,6 +9022,7 @@ export type Database = {
           file_size?: number | null
           file_type?: string | null
           file_url?: string
+          folder_name?: string | null
           id?: string
           task_id?: string
           uploaded_at?: string
@@ -8978,6 +9031,108 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "task_attachments_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_checklist_items: {
+        Row: {
+          assigned_user_id: string | null
+          completed_at: string | null
+          completed_by: string | null
+          created_at: string
+          created_by: string | null
+          due_date: string | null
+          id: string
+          sort_order: number
+          task_id: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_user_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          sort_order?: number
+          task_id: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_user_id?: string | null
+          completed_at?: string | null
+          completed_by?: string | null
+          created_at?: string
+          created_by?: string | null
+          due_date?: string | null
+          id?: string
+          sort_order?: number
+          task_id?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_checklist_items_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_comment_tags: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          tag: string
+          task_comment_id: string
+          task_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tag: string
+          task_comment_id: string
+          task_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          tag?: string
+          task_comment_id?: string
+          task_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_comment_tags_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_tags_task_comment_id_fkey"
+            columns: ["task_comment_id"]
+            isOneToOne: false
+            referencedRelation: "task_comments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_comment_tags_task_id_fkey"
             columns: ["task_id"]
             isOneToOne: false
             referencedRelation: "tasks"
@@ -9020,6 +9175,129 @@ export type Database = {
           },
         ]
       }
+      task_email_channels: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_active: boolean
+          task_id: string
+          tracking_email: string
+          tracking_local_part: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          task_id: string
+          tracking_email: string
+          tracking_local_part: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_active?: boolean
+          task_id?: string
+          tracking_email?: string
+          tracking_local_part?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_email_channels_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_email_channels_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: true
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      task_email_messages: {
+        Row: {
+          bcc_emails: string[]
+          body_html: string | null
+          body_text: string | null
+          cc_emails: string[]
+          company_id: string
+          created_at: string
+          direction: string
+          from_email: string | null
+          id: string
+          message_source: string
+          provider_message_id: string | null
+          provider_thread_id: string | null
+          sent_by_user_id: string | null
+          subject: string | null
+          task_id: string
+          to_emails: string[]
+        }
+        Insert: {
+          bcc_emails?: string[]
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[]
+          company_id: string
+          created_at?: string
+          direction: string
+          from_email?: string | null
+          id?: string
+          message_source?: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          sent_by_user_id?: string | null
+          subject?: string | null
+          task_id: string
+          to_emails?: string[]
+        }
+        Update: {
+          bcc_emails?: string[]
+          body_html?: string | null
+          body_text?: string | null
+          cc_emails?: string[]
+          company_id?: string
+          created_at?: string
+          direction?: string
+          from_email?: string | null
+          id?: string
+          message_source?: string
+          provider_message_id?: string | null
+          provider_thread_id?: string | null
+          sent_by_user_id?: string | null
+          subject?: string | null
+          task_id?: string
+          to_emails?: string[]
+        }
+        Relationships: [
+          {
+            foreignKeyName: "task_email_messages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "task_email_messages_task_id_fkey"
+            columns: ["task_id"]
+            isOneToOne: false
+            referencedRelation: "tasks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       tasks: {
         Row: {
           company_id: string
@@ -9029,7 +9307,9 @@ export type Database = {
           description: string | null
           due_date: string | null
           id: string
+          is_due_asap: boolean
           job_id: string | null
+          leader_user_id: string | null
           priority: string
           start_date: string | null
           status: string
@@ -9044,7 +9324,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_due_asap?: boolean
           job_id?: string | null
+          leader_user_id?: string | null
           priority?: string
           start_date?: string | null
           status?: string
@@ -9059,7 +9341,9 @@ export type Database = {
           description?: string | null
           due_date?: string | null
           id?: string
+          is_due_asap?: boolean
           job_id?: string | null
+          leader_user_id?: string | null
           priority?: string
           start_date?: string | null
           status?: string
@@ -9956,6 +10240,48 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      user_ui_preferences: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          settings: Json
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          settings?: Json
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_ui_preferences_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_ui_preferences_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
       }
       vault_entries: {
         Row: {
@@ -11251,6 +11577,10 @@ export type Database = {
       switch_user_company: {
         Args: { p_company_id: string; p_user_id: string }
         Returns: undefined
+      }
+      task_user_is_assignable: {
+        Args: { p_company_id: string; p_user_id: string }
+        Returns: boolean
       }
       update_pin_user_profile: {
         Args: {
