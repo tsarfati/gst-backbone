@@ -1,4 +1,7 @@
-import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, supabase } from "@/integrations/supabase/client";
+import { supabase } from "@/integrations/supabase/client";
+
+const DESIGN_PRO_SUPABASE_URL = "https://watxvzoolmfjfijrgcvq.supabase.co";
+const DESIGN_PRO_SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q";
 
 type AcceptDesignProfessionalJobInviteInput = {
   companyId: string;
@@ -21,11 +24,11 @@ export async function acceptDesignProfessionalJobInvite(
     throw new Error("You must be signed in to accept invitations.");
   }
 
-  const response = await fetch(`${SUPABASE_URL}/functions/v1/accept-design-professional-job-invite`, {
+  const response = await fetch(`${DESIGN_PRO_SUPABASE_URL}/functions/v1/accept-design-professional-job-invite`, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      apikey: SUPABASE_PUBLISHABLE_KEY,
+      apikey: DESIGN_PRO_SUPABASE_PUBLISHABLE_KEY,
       Authorization: `Bearer ${accessToken}`,
     },
     body: JSON.stringify(input),
