@@ -137,11 +137,23 @@ export default function CompanySettingsPage() {
   const canViewCompanySettings = hasAccess('company-settings-view') || hasAccess('company-settings');
   const canEditCompanySettings = hasAccess('company-settings-edit');
 
-  const canAccessCompanyTab = (tabPermissionKey: string) => {
-    if (typeof permissions[tabPermissionKey] === 'boolean') {
-      return hasAccess(tabPermissionKey);
+  const canAccessCompanyTab = (tabPermissionBase: string) => {
+    const viewKey = `${tabPermissionBase}-view`;
+    if (typeof permissions[viewKey] === 'boolean') {
+      return hasAccess(viewKey);
+    }
+    if (typeof permissions[tabPermissionBase] === 'boolean') {
+      return hasAccess(tabPermissionBase);
     }
     return canViewCompanySettings;
+  };
+
+  const canEditCompanyTab = (tabPermissionBase: string) => {
+    const editKey = `${tabPermissionBase}-edit`;
+    if (typeof permissions[editKey] === 'boolean') {
+      return hasAccess(editKey);
+    }
+    return canEditCompanySettings;
   };
 
   const visibleCompanyTabs = [
@@ -157,11 +169,24 @@ export default function CompanySettingsPage() {
   ].filter((tab) => canAccessCompanyTab(tab.permissionKey));
 
   const canAccessJobsSubtab = (permissionKey: string) => {
+    if (typeof permissions[`${permissionKey}-view`] === 'boolean') {
+      return hasAccess(`${permissionKey}-view`);
+    }
     if (typeof permissions[permissionKey] === 'boolean') {
       return hasAccess(permissionKey);
     }
     return canAccessCompanyTab('company-settings-tab-jobs');
   };
+
+  const canEditJobsSubtab = (permissionKey: string) => {
+    if (typeof permissions[`${permissionKey}-edit`] === 'boolean') {
+      return hasAccess(`${permissionKey}-edit`);
+    }
+    return canEditCompanyTab('company-settings-tab-jobs');
+  };
+
+  const activeCompanyTabConfig = visibleCompanyTabs.find((tab) => tab.value === activeTab);
+  const activeCompanyTabCanEdit = activeCompanyTabConfig ? canEditCompanyTab(activeCompanyTabConfig.permissionKey) : canEditCompanySettings;
 
   const jobsSubtabs = [
     { value: 'cost-code-setup', label: 'Cost Code Setup', permissionKey: 'company-settings-tab-jobs-cost-code-setup' },
@@ -649,7 +674,7 @@ export default function CompanySettingsPage() {
           <div>
             <h1 className="text-3xl font-bold">Company Settings</h1>
           </div>
-          {canEditCompanySettings && <CompanySettingsSaveButton />}
+          {activeCompanyTabCanEdit && <CompanySettingsSaveButton />}
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
@@ -669,13 +694,15 @@ export default function CompanySettingsPage() {
             <Card>
               <CardContent className="space-y-6 pt-6">
                 <div className="flex">
-                  <label className="group relative block h-24 w-52 overflow-hidden rounded-md border bg-muted/30 cursor-pointer">
+                  <label
+                    className={`group relative block h-24 w-52 overflow-hidden rounded-md border bg-muted/30 ${canEditCompanyTab('company-settings-tab-overview') ? 'cursor-pointer' : 'cursor-default opacity-75'}`}
+                  >
                     <input
                       type="file"
                       className="hidden"
                       accept="image/*"
                       onChange={(e) => void uploadCompanyLogoFile(e.target.files?.[0])}
-                      disabled={uploadingLogo}
+                      disabled={uploadingLogo || !canEditCompanyTab('company-settings-tab-overview')}
                     />
                     {resolveCompanyLogoUrl(currentCompany?.logo_url) ? (
                       <>
@@ -745,7 +772,10 @@ export default function CompanySettingsPage() {
                     Configure a company-level mail server for system emails (used when user email is not configured).
                   </CardDescription>
                 </div>
-                <Button onClick={() => void openCompanyEmailSetup()}>
+                <Button
+                  onClick={() => void openCompanyEmailSetup()}
+                  disabled={!canEditCompanyTab('company-settings-tab-overview')}
+                >
                   <Mail className="h-4 w-4 mr-2" />
                   Email Setup
                 </Button>
@@ -762,7 +792,7 @@ export default function CompanySettingsPage() {
                 </div>
                 <Button
                   onClick={() => setShowAddExistingUserDialog(true)}
-                  disabled={!canManageCompanyUsers}
+                  disabled={!canManageCompanyUsers || !canEditCompanyTab('company-settings-tab-overview')}
                 >
                   <UserPlus className="h-4 w-4 mr-2" />
                   Add Existing User
@@ -804,7 +834,7 @@ export default function CompanySettingsPage() {
                             size="sm"
                             variant="outline"
                             onClick={() => void handleRemoveCompanyUser(companyUser.user_id)}
-                            disabled={!canManageCompanyUsers}
+                            disabled={!canManageCompanyUsers || !canEditCompanyTab('company-settings-tab-overview')}
                           >
                             <Trash2 className="h-4 w-4 mr-1" />
                             Remove from company
@@ -828,16 +858,18 @@ export default function CompanySettingsPage() {
                   </CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <PayablesSettings />
+                  <PayablesSettings canEdit={canEditCompanyTab('company-settings-tab-payables')} />
                 </CardContent>
               </Card>
 
-              <CompanySettings
-                showBranding={false}
-                showCheckPickupLocations={false}
-                showBillApprovalSettings={false}
-                showJournalEntrySettings={false}
-              />
+              <div className={canEditCompanyTab('company-settings-tab-payables') ? '' : 'pointer-events-none opacity-75'}>
+                <CompanySettings
+                  showBranding={false}
+                  showCheckPickupLocations={false}
+                  showBillApprovalSettings={false}
+                  showJournalEntrySettings={false}
+                />
+              </div>
             </div>
           </TabsContent>
 
@@ -849,10 +881,14 @@ export default function CompanySettingsPage() {
                 ))}
               </TabsList>
               <TabsContent value="cost-code-setup">
-                <JobCostSetup />
+                <div className={canEditJobsSubtab('company-settings-tab-jobs-cost-code-setup') ? '' : 'pointer-events-none opacity-75'}>
+                  <JobCostSetup />
+                </div>
               </TabsContent>
               <TabsContent value="design-professional-portal">
-                <DesignProfessionalPortalSettings />
+                <div className={canEditJobsSubtab('company-settings-tab-jobs-design-professional-portal') ? '' : 'pointer-events-none opacity-75'}>
+                  <DesignProfessionalPortalSettings />
+                </div>
               </TabsContent>
             </Tabs>
           </TabsContent>
@@ -869,40 +905,50 @@ export default function CompanySettingsPage() {
           </TabsContent>
 
           <TabsContent value="theme">
-            <ThemeSettings embedded />
+            <ThemeSettings embedded canEdit={canEditCompanyTab('company-settings-tab-theme')} />
           </TabsContent>
 
           <TabsContent value="pdf-templates">
-            <PdfTemplateSettings />
+            <div className={canEditCompanyTab('company-settings-tab-pdf-templates') ? '' : 'pointer-events-none opacity-75'}>
+              <PdfTemplateSettings />
+            </div>
           </TabsContent>
 
           <TabsContent value="email-templates">
-            <EmailTemplatesSettings />
+            <div className={canEditCompanyTab('company-settings-tab-email-templates') ? '' : 'pointer-events-none opacity-75'}>
+              <EmailTemplatesSettings />
+            </div>
           </TabsContent>
 
           <TabsContent value="credit-cards">
             <Card>
               <CardHeader>
                 <CardTitle>Credit Card Settings</CardTitle>
-                <CardDescription>
+              <CardDescription>
                   Manage credit cards, configure approval workflows, and set spending controls
                 </CardDescription>
               </CardHeader>
               <CardContent>
-                <CreditCardSettings />
+                <div className={canEditCompanyTab('company-settings-tab-credit-cards') ? '' : 'pointer-events-none opacity-75'}>
+                  <CreditCardSettings />
+                </div>
               </CardContent>
             </Card>
           </TabsContent>
 
           <TabsContent value="banking">
             <div className="space-y-6">
-              <CompanySettings
-                showBranding={false}
-                showCheckPickupLocations={false}
-                showBillApprovalSettings={false}
-              />
+              <div className={canEditCompanyTab('company-settings-tab-banking') ? '' : 'pointer-events-none opacity-75'}>
+                <CompanySettings
+                  showBranding={false}
+                  showCheckPickupLocations={false}
+                  showBillApprovalSettings={false}
+                />
+              </div>
 
-              <AccrualAccountingSettings />
+              <div className={canEditCompanyTab('company-settings-tab-banking') ? '' : 'pointer-events-none opacity-75'}>
+                <AccrualAccountingSettings />
+              </div>
 
               <Card>
                 <CardHeader>

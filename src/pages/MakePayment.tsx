@@ -398,7 +398,7 @@ export default function MakePayment() {
     }
 
     if (selectedJob && selectedJob !== "all") {
-      filtered = filtered.filter(inv => inv.job_id === selectedJob);
+      filtered = filtered.filter(inv => (inv.job_id || inv.jobs?.id) === selectedJob);
     }
 
     setInvoices(filtered);
@@ -460,65 +460,68 @@ export default function MakePayment() {
   };
   
   const handleInvoiceSelection = async (invoiceId: string, checked: boolean) => {
-    const invoice = invoices.find(inv => inv.id === invoiceId);
+    const invoice = allInvoices.find(inv => inv.id === invoiceId);
     if (!invoice) return;
-    
-    let newSelectedInvoices: string[];
-    
-    if (checked) {
-      // Check if we already have invoices from a different vendor
-      if (selectedInvoices.length > 0) {
-        const firstSelectedInvoice = invoices.find(inv => inv.id === selectedInvoices[0]);
-        if (firstSelectedInvoice && firstSelectedInvoice.vendor_id !== invoice.vendor_id) {
-          toast({
-            title: "Different Vendor",
-            description: "You can only pay bills from the same vendor in one payment",
-            variant: "destructive",
-          });
-          return;
-        }
+
+    const currentSelectedInvoices = [...selectedInvoices];
+
+    if (checked && currentSelectedInvoices.length > 0) {
+      const firstSelectedInvoice = allInvoices.find(inv => inv.id === currentSelectedInvoices[0]);
+      if (firstSelectedInvoice && firstSelectedInvoice.vendor_id !== invoice.vendor_id) {
+        toast({
+          title: "Different Vendor",
+          description: "You can only pay bills from the same vendor in one payment",
+          variant: "destructive",
+        });
+        return;
       }
-      newSelectedInvoices = [...selectedInvoices, invoiceId];
-      
-      // Fetch document for newly selected invoice
-      const { data: doc } = await supabase
-        .from('invoice_documents')
-        .select('file_url')
-        .eq('invoice_id', invoiceId)
-        .order('uploaded_at', { ascending: false })
-        .maybeSingle();
-      
-      if (doc?.file_url) {
-        setInvoiceDocuments(prev => ({ ...prev, [invoiceId]: doc.file_url }));
-      }
-    } else {
-      newSelectedInvoices = selectedInvoices.filter(id => id !== invoiceId);
-      // Remove document from state
+    }
+
+    const newSelectedInvoices = checked
+      ? Array.from(new Set([...currentSelectedInvoices, invoiceId]))
+      : currentSelectedInvoices.filter(id => id !== invoiceId);
+
+    setSelectedInvoices(newSelectedInvoices);
+
+    if (!checked) {
       setInvoiceDocuments(prev => {
         const updated = { ...prev };
         delete updated[invoiceId];
         return updated;
       });
     }
-    
-    setSelectedInvoices(newSelectedInvoices);
-    
-    // Calculate total amount from selected invoices (use balance_due if available)
+
     if (newSelectedInvoices.length > 0) {
-      const totalAmount = newSelectedInvoices.reduce((sum, id) => {
-        const inv = invoices.find(i => i.id === id);
-        return sum + (inv?.balance_due ?? inv?.amount ?? 0);
+      const selectedInvoiceRecords = newSelectedInvoices
+        .map((id) => allInvoices.find((inv) => inv.id === id))
+        .filter((inv): inv is Invoice => !!inv);
+
+      const totalAmount = selectedInvoiceRecords.reduce((sum, inv) => {
+        return sum + Number(inv.balance_due ?? inv.amount ?? 0);
       }, 0);
-      
-      setPayment(prev => ({ 
-        ...prev, 
-        vendor_id: invoice.vendor_id,
+
+      const nextVendorId = selectedInvoiceRecords[0]?.vendor_id || invoice.vendor_id;
+      setPayment(prev => ({
+        ...prev,
+        vendor_id: nextVendorId,
         amount: isPartialPayment ? prev.amount : totalAmount
       }));
-      setSelectedVendor(invoice.vendor_id);
     } else {
       setPayment(prev => ({ ...prev, vendor_id: '', amount: 0 }));
       setIsPartialPayment(false);
+    }
+
+    if (checked) {
+      const { data: doc } = await supabase
+        .from('invoice_documents')
+        .select('file_url')
+        .eq('invoice_id', invoiceId)
+        .order('uploaded_at', { ascending: false })
+        .maybeSingle();
+
+      if (doc?.file_url) {
+        setInvoiceDocuments(prev => ({ ...prev, [invoiceId]: doc.file_url }));
+      }
     }
   };
 
@@ -1486,7 +1489,7 @@ export default function MakePayment() {
                       const isSelected = selectedInvoices.includes(invoice.id);
                       const isFromDifferentVendor = selectedInvoices.length > 0 && 
                         selectedInvoices[0] !== invoice.id &&
-                        invoices.find(inv => inv.id === selectedInvoices[0])?.vendor_id !== invoice.vendor_id;
+                        allInvoices.find(inv => inv.id === selectedInvoices[0])?.vendor_id !== invoice.vendor_id;
                       
                       return (
                         <TableRow 
@@ -1529,51 +1532,6 @@ export default function MakePayment() {
               )}
             </CardContent>
           </Card>
-
-          {/* Inline Document Previews */}
-          {selectedInvoices.length > 0 && Object.keys(invoiceDocuments).length > 0 && (
-            <Card className="mt-6">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Bill Documents
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-6">
-                {selectedInvoices.map((invoiceId) => {
-                  const invoice = invoices.find(inv => inv.id === invoiceId);
-                  const documentUrl = invoiceDocuments[invoiceId];
-                  
-                  if (!documentUrl || !invoice) return null;
-                  
-                  return (
-                    <div key={invoiceId} className="border rounded-lg p-4 space-y-3">
-                      <div className="flex items-center justify-between">
-                        <div>
-                          <h4 className="font-medium">Invoice #{invoice.invoice_number}</h4>
-                          <p className="text-sm text-muted-foreground">{invoice.vendor?.name}</p>
-                        </div>
-                        <div className="text-right">
-                          {invoice.amount_paid && invoice.amount_paid > 0 ? (
-                            <>
-                              <p className="text-sm text-muted-foreground line-through">${invoice.amount.toFixed(2)}</p>
-                              <Badge variant="outline" className="text-orange-600">Balance: ${(invoice.balance_due ?? invoice.amount).toFixed(2)}</Badge>
-                            </>
-                          ) : (
-                            <Badge variant="outline">${invoice.amount.toFixed(2)}</Badge>
-                          )}
-                        </div>
-                      </div>
-                      <UrlPdfInlinePreview 
-                        url={documentUrl} 
-                        className="max-h-[600px] overflow-auto"
-                      />
-                    </div>
-                  );
-                })}
-              </CardContent>
-            </Card>
-          )}
 
         </div>
       </div>

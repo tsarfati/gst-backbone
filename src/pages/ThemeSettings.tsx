@@ -19,28 +19,38 @@ import { FolderOpen, ImagePlus, Palette, SlidersHorizontal } from 'lucide-react'
 import MultiFileUploadDropzone from '@/components/MultiFileUploadDropzone';
 import { AVATAR_LIBRARY, AVATAR_LIBRARY_CATEGORY_LABELS, type AvatarLibraryAlbumId, type AvatarLibraryCategory, type CustomAvatarEntry } from '@/components/avatarLibrary';
 import { useSystemAvatarLibraries } from '@/hooks/useSystemAvatarLibraries';
+import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 
 
 interface ThemeSettingsProps {
   embedded?: boolean;
   hideSaveButtons?: boolean;
   onRegisterSaveHandler?: (handler: () => void) => void;
+  canEdit?: boolean;
 }
 
 export default function ThemeSettings({
   embedded = false,
   hideSaveButtons = false,
   onRegisterSaveHandler,
+  canEdit = true,
 }: ThemeSettingsProps) {
   const { settings, updateSettings } = useSettings();
   const { toast } = useToast();
   const { setTheme } = useTheme();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { hasAccess } = useMenuPermissions();
   const { libraries: systemAvatarLibraries } = useSystemAvatarLibraries(currentCompany?.id);
   const [uploading, setUploading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [selectedAvatarAlbum, setSelectedAvatarAlbum] = useState<AvatarLibraryAlbumId>('nintendo');
+  const [activeTab, setActiveTab] = useState('general');
+  const themeTabs = [
+    { value: 'general', permissionKey: 'company-settings-tab-theme-general' },
+    { value: 'display-operation', permissionKey: 'company-settings-tab-theme-display-operation' },
+    { value: 'avatars', permissionKey: 'company-settings-tab-theme-avatars' },
+  ].filter((tab) => hasAccess(tab.permissionKey));
 
   const handleSaveSettings = () => {
     setTheme(settings.theme);
@@ -54,6 +64,13 @@ export default function ThemeSettings({
     if (!onRegisterSaveHandler) return;
     onRegisterSaveHandler(handleSaveSettings);
   }, [onRegisterSaveHandler, settings.theme]);
+
+  useEffect(() => {
+    if (themeTabs.length === 0) return;
+    if (!themeTabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(themeTabs[0].value);
+    }
+  }, [activeTab, themeTabs]);
 
   const uploadThemeBannerFile = async (file?: File | null) => {
     if (!file || !user) return;
@@ -244,27 +261,34 @@ export default function ThemeSettings({
           </div>
         )}
         
-        <Tabs defaultValue="general" className="space-y-6">
+        <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
+            {hasAccess('company-settings-tab-theme-general') && (
             <TabsTrigger value="general" className="flex items-center gap-2">
               <Palette className="h-4 w-4" />
               General Theme
             </TabsTrigger>
+            )}
+            {hasAccess('company-settings-tab-theme-display-operation') && (
             <TabsTrigger value="display-operation" className="flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4" />
               Display & Operation
             </TabsTrigger>
+            )}
+            {hasAccess('company-settings-tab-theme-avatars') && (
             <TabsTrigger value="avatars">Avatars</TabsTrigger>
+            )}
           </TabsList>
 
+          {hasAccess('company-settings-tab-theme-general') && (
           <TabsContent value="general" className="space-y-6">
-            {!hideSaveButtons && !settings.autoSave && (
+            {!hideSaveButtons && canEdit && !settings.autoSave && (
               <div className="flex items-center justify-end">
                 <Button onClick={handleSaveSettings}>Save Changes</Button>
               </div>
             )}
 
-            <Card>
+            <Card className={!canEdit ? 'pointer-events-none opacity-75' : undefined}>
               <CardHeader>
                 <CardTitle>Theme Settings</CardTitle>
                 <CardDescription>
@@ -378,7 +402,7 @@ export default function ThemeSettings({
               </CardContent>
             </Card>
 
-            <Card>
+            <Card className={!canEdit ? 'pointer-events-none opacity-75' : undefined}>
               <CardHeader>
                 <CardTitle>Color Customization</CardTitle>
                 <CardDescription>
@@ -447,8 +471,10 @@ export default function ThemeSettings({
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
-          <TabsContent value="display-operation" className="space-y-6">
+          {hasAccess('company-settings-tab-theme-display-operation') && (
+          <TabsContent value="display-operation" className={canEdit ? "space-y-6" : "space-y-6 pointer-events-none opacity-75"}>
             <Card>
               <CardHeader>
                 <CardTitle>Navigation Behavior</CardTitle>
@@ -632,8 +658,10 @@ export default function ThemeSettings({
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
-          <TabsContent value="avatars" className="space-y-6">
+          {hasAccess('company-settings-tab-theme-avatars') && (
+          <TabsContent value="avatars" className={canEdit ? "space-y-6" : "space-y-6 pointer-events-none opacity-75"}>
             <Card>
               <CardHeader>
                 <CardTitle>Avatar Library</CardTitle>
@@ -849,6 +877,7 @@ export default function ThemeSettings({
               </CardContent>
             </Card>
           </TabsContent>
+          )}
 
         </Tabs>
       </div>
