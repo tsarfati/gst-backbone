@@ -3,9 +3,10 @@ import {
   Dialog, DialogContent
 } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { Download, Printer, Share2, X, Loader2, FileText, ImageIcon } from "lucide-react";
+import { Download, Printer, Share2, X, Loader2, FileText } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/components/ui/use-toast";
+import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 
 interface FilingFile {
   id: string;
@@ -114,31 +115,28 @@ export default function FileCabinetPreviewModal({ open, onOpenChange, file, onSh
         </div>
 
         {/* Preview Area */}
-        <div className="flex-1 overflow-auto bg-muted/10 flex items-center justify-center">
+        <div className="flex-1 min-h-0 overflow-hidden bg-muted/10">
           {loading ? (
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-muted-foreground">
               <Loader2 className="h-8 w-8 animate-spin" />
               <span className="text-sm"><span className="loading-dots">Loading preview</span></span>
             </div>
           ) : !signedUrl ? (
-            <div className="flex flex-col items-center gap-3 text-muted-foreground">
+            <div className="h-full flex flex-col items-center justify-center gap-3 text-muted-foreground">
               <FileText className="h-12 w-12 opacity-40" />
               <span className="text-sm">Failed to load file</span>
             </div>
-          ) : isPdf ? (
-            <iframe
-              src={`${signedUrl}#toolbar=0`}
-              className="w-full h-full border-0"
-              title={file.file_name}
-            />
-          ) : isImage ? (
-            <img
-              src={signedUrl}
-              alt={file.file_name}
-              className="max-w-full max-h-full object-contain"
+          ) : canPreview ? (
+            <ZoomableDocumentPreview
+              url={signedUrl}
+              fileName={file.file_name}
+              className="h-full"
+              showControls
+              emptyMessage="Preview unavailable"
+              emptySubMessage="Use download to open this file instead."
             />
           ) : (
-            <div className="flex flex-col items-center gap-4 text-muted-foreground p-8">
+            <div className="h-full flex flex-col items-center justify-center gap-4 text-muted-foreground p-8">
               <FileText className="h-16 w-16 opacity-40" />
               <p className="text-sm font-medium">{file.file_name}</p>
               <p className="text-xs">Preview not available for this file type.</p>

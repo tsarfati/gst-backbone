@@ -16,6 +16,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import CommittedCosts from "@/components/CommittedCosts";
 import JobLocationMap from "@/components/JobLocationMap";
 import JobCostBudgetView from "@/components/JobCostBudgetView";
@@ -88,6 +89,7 @@ export default function JobDetails() {
   const { user, profile } = useAuth();
   const { currentCompany, switchCompany } = useCompany();
   const permissions = useActionPermissions();
+  const { hasAccess } = useMenuPermissions();
   const [job, setJob] = useState<Job | null>(null);
   const [loading, setLoading] = useState(true);
   const [budgetTotal, setBudgetTotal] = useState<number>(0);
@@ -826,7 +828,7 @@ export default function JobDetails() {
               <FileCheck className="h-4 w-4 mr-2" />
               Submittals
             </TabsTrigger>}
-            {visibleTabs.includes("filing-cabinet") && ((profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager') || isExternalView) && (
+            {visibleTabs.includes("filing-cabinet") && (hasAccess("jobs-view-filing-cabinet") || isExternalView) && (
               <TabsTrigger 
                 value="filing-cabinet"
                 className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
