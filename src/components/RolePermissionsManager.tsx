@@ -17,6 +17,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useTenant } from "@/contexts/TenantContext";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
 import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { getRequiredFeaturesForPermission } from "@/utils/subscriptionFeatureGate";
 import RoleDefaultPageSettings from './RoleDefaultPageSettings';
 
@@ -826,9 +827,175 @@ const menuCategories: MenuCategory[] = [
         key: 'company-settings', 
         label: 'Company Settings', 
         description: 'Company configuration',
-        actions: [
-          { key: 'company-settings-view', label: 'View Settings', description: 'Access company settings' },
-          { key: 'company-settings-edit', label: 'Edit Settings', description: 'Modify company settings' },
+        children: [
+          {
+            key: 'company-settings-tab-overview',
+            label: 'Overview Tab',
+            description: 'Company profile, email setup, and assigned users',
+            actions: [
+              { key: 'company-settings-tab-overview-view', label: 'View', description: 'Open the Overview tab' },
+              { key: 'company-settings-tab-overview-edit', label: 'Edit', description: 'Edit overview tab settings and company details' },
+            ]
+          },
+          {
+            key: 'company-settings-tab-payables',
+            label: 'Payables Tab',
+            description: 'Payables and payment settings tab',
+            actions: [
+              { key: 'company-settings-tab-payables-view', label: 'View', description: 'Open the Payables tab' },
+              { key: 'company-settings-tab-payables-edit', label: 'Edit', description: 'Edit payables settings' },
+            ],
+            children: [
+              {
+                key: 'company-settings-tab-payables-approvals',
+                label: 'Approvals',
+                description: 'Payables approvals sub-tab',
+                actions: [
+                  { key: 'company-settings-tab-payables-approvals-view', label: 'View', description: 'Open the approvals sub-tab' },
+                  { key: 'company-settings-tab-payables-approvals-edit', label: 'Edit', description: 'Edit approvals settings' },
+                ]
+              },
+              {
+                key: 'company-settings-tab-payables-defaults',
+                label: 'Defaults & Rules',
+                description: 'Payables defaults and rules sub-tab',
+                actions: [
+                  { key: 'company-settings-tab-payables-defaults-view', label: 'View', description: 'Open the defaults and rules sub-tab' },
+                  { key: 'company-settings-tab-payables-defaults-edit', label: 'Edit', description: 'Edit defaults and rules settings' },
+                ]
+              },
+              {
+                key: 'company-settings-tab-payables-vendor-portal',
+                label: 'Vendor Portal',
+                description: 'Vendor portal payables settings sub-tab',
+                actions: [
+                  { key: 'company-settings-tab-payables-vendor-portal-view', label: 'View', description: 'Open the vendor portal sub-tab' },
+                  { key: 'company-settings-tab-payables-vendor-portal-edit', label: 'Edit', description: 'Edit vendor portal payables settings' },
+                ]
+              },
+              {
+                key: 'company-settings-tab-payables-job-approval',
+                label: 'Job Bill Approval',
+                description: 'Job bill approval sub-tab',
+                actions: [
+                  { key: 'company-settings-tab-payables-job-approval-view', label: 'View', description: 'Open the job bill approval sub-tab' },
+                  { key: 'company-settings-tab-payables-job-approval-edit', label: 'Edit', description: 'Edit job bill approval settings' },
+                ]
+              },
+            ]
+          },
+          {
+            key: 'company-settings-tab-jobs',
+            label: 'Jobs Tab',
+            description: 'Jobs settings tab',
+            actions: [
+              { key: 'company-settings-tab-jobs-view', label: 'View', description: 'Open the Jobs tab' },
+              { key: 'company-settings-tab-jobs-edit', label: 'Edit', description: 'Edit jobs settings' },
+            ],
+            children: [
+              {
+                key: 'company-settings-tab-jobs-cost-code-setup',
+                label: 'Cost Code Setup',
+                description: 'Cost code setup sub-tab',
+                actions: [
+                  { key: 'company-settings-tab-jobs-cost-code-setup-view', label: 'View', description: 'Open the cost code setup sub-tab' },
+                  { key: 'company-settings-tab-jobs-cost-code-setup-edit', label: 'Edit', description: 'Edit cost code setup' },
+                ]
+              },
+              {
+                key: 'company-settings-tab-jobs-design-professional-portal',
+                label: 'Design Professional Portal',
+                description: 'Design professional portal sub-tab',
+                actions: [
+                  { key: 'company-settings-tab-jobs-design-professional-portal-view', label: 'View', description: 'Open the design professional portal sub-tab' },
+                  { key: 'company-settings-tab-jobs-design-professional-portal-edit', label: 'Edit', description: 'Edit design professional portal settings' },
+                ]
+              },
+            ]
+          },
+          {
+            key: 'company-settings-tab-receivables',
+            label: 'Receivables Tab',
+            description: 'Receivables settings tab',
+            actions: [
+              { key: 'company-settings-tab-receivables-view', label: 'View', description: 'Open the Receivables tab' },
+              { key: 'company-settings-tab-receivables-edit', label: 'Edit', description: 'Edit receivables settings' },
+            ]
+          },
+          {
+            key: 'company-settings-tab-banking',
+            label: 'Banking Tab',
+            description: 'Banking settings tab',
+            actions: [
+              { key: 'company-settings-tab-banking-view', label: 'View', description: 'Open the Banking tab' },
+              { key: 'company-settings-tab-banking-edit', label: 'Edit', description: 'Edit banking settings' },
+            ]
+          },
+          {
+            key: 'company-settings-tab-credit-cards',
+            label: 'Credit Cards Tab',
+            description: 'Credit card settings tab',
+            actions: [
+              { key: 'company-settings-tab-credit-cards-view', label: 'View', description: 'Open the Credit Cards tab' },
+              { key: 'company-settings-tab-credit-cards-edit', label: 'Edit', description: 'Edit credit card settings' },
+            ]
+          },
+          {
+            key: 'company-settings-tab-theme',
+            label: 'Themes & Appearance Tab',
+            description: 'Branding and appearance tab',
+            actions: [
+              { key: 'company-settings-tab-theme-view', label: 'View', description: 'Open the Themes & Appearance tab' },
+              { key: 'company-settings-tab-theme-edit', label: 'Edit', description: 'Edit theme and appearance settings' },
+            ],
+            children: [
+              {
+                key: 'company-settings-tab-theme-general',
+                label: 'General Theme',
+                description: 'General theme sub-tab',
+                actions: [
+                  { key: 'company-settings-tab-theme-general-view', label: 'View', description: 'Open the general theme sub-tab' },
+                  { key: 'company-settings-tab-theme-general-edit', label: 'Edit', description: 'Edit general theme settings' },
+                ]
+              },
+              {
+                key: 'company-settings-tab-theme-display-operation',
+                label: 'Display & Operation',
+                description: 'Display and operation sub-tab',
+                actions: [
+                  { key: 'company-settings-tab-theme-display-operation-view', label: 'View', description: 'Open the display and operation sub-tab' },
+                  { key: 'company-settings-tab-theme-display-operation-edit', label: 'Edit', description: 'Edit display and operation settings' },
+                ]
+              },
+              {
+                key: 'company-settings-tab-theme-avatars',
+                label: 'Avatars',
+                description: 'Avatar libraries and avatar settings sub-tab',
+                actions: [
+                  { key: 'company-settings-tab-theme-avatars-view', label: 'View', description: 'Open the avatars sub-tab' },
+                  { key: 'company-settings-tab-theme-avatars-edit', label: 'Edit', description: 'Edit avatar libraries and settings' },
+                ]
+              },
+            ]
+          },
+          {
+            key: 'company-settings-tab-pdf-templates',
+            label: 'PDF Templates Tab',
+            description: 'PDF templates tab',
+            actions: [
+              { key: 'company-settings-tab-pdf-templates-view', label: 'View', description: 'Open the PDF Templates tab' },
+              { key: 'company-settings-tab-pdf-templates-edit', label: 'Edit', description: 'Edit PDF template settings' },
+            ]
+          },
+          {
+            key: 'company-settings-tab-email-templates',
+            label: 'Email Templates Tab',
+            description: 'Email templates tab',
+            actions: [
+              { key: 'company-settings-tab-email-templates-view', label: 'View', description: 'Open the Email Templates tab' },
+              { key: 'company-settings-tab-email-templates-edit', label: 'Edit', description: 'Edit email template settings' },
+            ]
+          },
         ]
       },
       { 
@@ -849,6 +1016,15 @@ const menuCategories: MenuCategory[] = [
           { key: 'user-settings-edit-email', label: 'Edit User Email', description: 'Update another user account email' },
           { key: 'user-settings-change-password', label: 'Change User Password', description: 'Send password reset/change links for users' },
           { key: 'user-settings-permissions', label: 'Manage Permissions', description: 'Configure role permissions' },
+        ],
+        children: [
+          { key: 'user-settings-tab-users', label: 'System Users Tab', description: 'System users tab' },
+          { key: 'user-settings-tab-user-roles', label: 'User Roles Tab', description: 'User role assignments tab' },
+          { key: 'user-settings-tab-roles', label: 'Role Definitions Tab', description: 'Role definitions and permissions tab' },
+          { key: 'user-settings-tab-vendor-access', label: 'Vendor Access Tab', description: 'Vendor access tab' },
+          { key: 'user-settings-tab-design-professional-access', label: 'Design Professional Access Tab', description: 'Design professional access tab' },
+          { key: 'user-settings-tab-intake-queue', label: 'Intake Queue Tab', description: 'Signup intake queue tab' },
+          { key: 'user-settings-tab-groups', label: 'Groups Tab', description: 'Groups tab' },
         ]
       },
       { 
@@ -950,14 +1126,16 @@ const roles = [
 // Get all permission keys for migration/seeding
 export function getAllPermissionKeys(): string[] {
   const keys: string[] = [];
+  const collectItemKeys = (item: MenuItem) => {
+    keys.push(item.key);
+    item.actions?.forEach((action) => {
+      keys.push(action.key);
+    });
+    item.children?.forEach(collectItemKeys);
+  };
   menuCategories.forEach(category => {
     keys.push(category.key);
-    category.items.forEach(item => {
-      keys.push(item.key);
-      item.actions?.forEach(action => {
-        keys.push(action.key);
-      });
-    });
+    category.items.forEach(collectItemKeys);
   });
   return keys;
 }
@@ -973,6 +1151,7 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
   const { currentCompany } = useCompany();
   const { isSuperAdmin } = useTenant();
   const activeCompanyRole = useActiveCompanyRole();
+  const { hasAccess } = useMenuPermissions();
   const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess();
   const { toast } = useToast();
   
@@ -980,7 +1159,9 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
   const effectiveRole = activeCompanyRole || profile?.role;
   const canManageCompanyRoles = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner';
   const canEditSystemRoles = mode === 'super_admin_system' ? isSuperAdmin : false;
-  const canViewRoleManager = mode === 'super_admin_system' ? isSuperAdmin : canManageCompanyRoles;
+  const canViewRoleManager = mode === 'super_admin_system'
+    ? isSuperAdmin
+    : canManageCompanyRoles || hasAccess('user-settings-permissions') || hasAccess('user-settings-tab-roles');
   const [permissions, setPermissions] = useState<RolePermission[]>([]);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [customPermissions, setCustomPermissions] = useState<CustomRolePermission[]>([]);
@@ -1664,7 +1845,7 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
           <p className="text-muted-foreground">
             {mode === 'super_admin_system'
               ? 'Only Super Admin can manage global system roles.'
-              : 'Only administrators can manage role permissions.'}
+              : 'You do not have permission to manage role definitions.'}
           </p>
         </CardContent>
       </Card>

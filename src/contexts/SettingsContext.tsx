@@ -294,6 +294,46 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
           companySettings = ((companyResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
         }
 
+        // Legacy fallback: use the most recent user-scoped admin/controller/owner/company-admin
+        // settings row if neither the RPC nor the company default row returned a value.
+        if (!companySettings) {
+          const { data: legacyAccessRows } = await supabase
+            .from('user_company_access')
+            .select('user_id, role, granted_at')
+            .eq('company_id', currentCompany.id)
+            .eq('is_active', true)
+            .in('role', ['admin', 'company_admin', 'controller', 'owner'])
+            .order('granted_at', { ascending: false });
+
+          const legacyUserIds = (legacyAccessRows || []).map((row) => row.user_id).filter(Boolean);
+
+          if (legacyUserIds.length > 0) {
+            const legacyResp = await supabase
+              .from('company_ui_settings')
+              .select('settings, user_id, updated_at, created_at')
+              .eq('company_id', currentCompany.id)
+              .not('user_id', 'is', null)
+              .in('user_id', legacyUserIds)
+              .order('updated_at', { ascending: false })
+              .limit(20);
+
+            const legacyRow = (legacyResp.data || []).find((row: any) => {
+              const settings = row?.settings || {};
+              return Boolean(
+                settings?.customColors ||
+                settings?.dashboardBanner ||
+                settings?.customLogo ||
+                settings?.companyLogo ||
+                settings?.headerLogo ||
+                settings?.themeVariant ||
+                settings?.avatarLibrary
+              );
+            });
+
+            companySettings = (legacyRow?.settings || null) as Partial<AppSettings> | null;
+          }
+        }
+
         setCompanyDefaults(companySettings);
 
         const merged = {
@@ -316,10 +356,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
         applyColorVarsToRoot(effectiveColors);
 
-        // Refresh cache
-        localStorage.setItem(cacheKey, JSON.stringify(merged));
-
-        didLoadFromDb = true;
+        if (companySettings) {
+          // Refresh cache only when we found real company settings.
+          localStorage.setItem(cacheKey, JSON.stringify(merged));
+          didLoadFromDb = true;
+        }
       } catch (error) {
         console.warn('Error loading settings:', error);
       } finally {

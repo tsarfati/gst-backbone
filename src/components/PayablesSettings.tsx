@@ -17,6 +17,7 @@ import { z } from 'zod';
 import JobBillApprovalSettings from './JobBillApprovalSettings';
 import { useSettings } from '@/contexts/SettingsContext';
 import { cn } from '@/lib/utils';
+import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 
 const payablesSettingsSchema = z.object({
   bills_require_approval: z.boolean(),
@@ -196,21 +197,41 @@ const vendorTypes = [
   { value: 'Other', label: 'Other' },
 ];
 
-export default function PayablesSettings() {
+interface PayablesSettingsProps {
+  canEdit?: boolean;
+}
+
+export default function PayablesSettings({ canEdit = true }: PayablesSettingsProps) {
   const { profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { settings: appSettings } = useSettings();
+  const { hasAccess } = useMenuPermissions();
   const [settings, setSettings] = useState<PayablesSettingsData>(defaultSettings);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [activeTab, setActiveTab] = useState('approvals');
   const autoSaveReadyRef = useRef(false);
+
+  const payablesTabs = [
+    { value: 'approvals', label: 'Approvals', permissionKey: 'company-settings-tab-payables-approvals' },
+    { value: 'defaults', label: 'Defaults & Rules', permissionKey: 'company-settings-tab-payables-defaults' },
+    { value: 'vendor-portal', label: 'Vendor Portal', permissionKey: 'company-settings-tab-payables-vendor-portal' },
+    { value: 'job-approval', label: 'Job Bill Approval', permissionKey: 'company-settings-tab-payables-job-approval' },
+  ].filter((tab) => hasAccess(tab.permissionKey));
 
   useEffect(() => {
     if (currentCompany?.id) {
       loadSettings();
     }
   }, [currentCompany?.id]);
+
+  useEffect(() => {
+    if (payablesTabs.length === 0) return;
+    if (!payablesTabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(payablesTabs[0].value);
+    }
+  }, [activeTab, payablesTabs]);
 
   const loadSettings = async () => {
     try {
@@ -609,16 +630,16 @@ export default function PayablesSettings() {
   }
 
   return (
-    <div className="space-y-6">
-      <Tabs defaultValue="approvals" className="space-y-6">
+    <div className={cn("space-y-6", !canEdit && "opacity-75")}>
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList>
-          <TabsTrigger value="approvals">Approvals</TabsTrigger>
-          <TabsTrigger value="defaults">Defaults & Rules</TabsTrigger>
-          <TabsTrigger value="vendor-portal">Vendor Portal</TabsTrigger>
-          <TabsTrigger value="job-approval">Job Bill Approval</TabsTrigger>
+          {payablesTabs.map((tab) => (
+            <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+          ))}
         </TabsList>
 
-        <TabsContent value="approvals" className="space-y-8">
+        {hasAccess('company-settings-tab-payables-approvals') && (
+        <TabsContent value="approvals" className={cn("space-y-8", !canEdit && "pointer-events-none")}>
           {/* Bills Approval Section */}
           <div className="space-y-6">
         <div className="flex items-center gap-2">
@@ -753,8 +774,10 @@ export default function PayablesSettings() {
         </div>
       </div>
         </TabsContent>
+        )}
 
-        <TabsContent value="defaults" className="space-y-8">
+        {hasAccess('company-settings-tab-payables-defaults') && (
+        <TabsContent value="defaults" className={cn("space-y-8", !canEdit && "pointer-events-none")}>
           {/* Default Settings */}
           <div className="space-y-6">
         <div className="flex items-center gap-2">
@@ -916,8 +939,10 @@ export default function PayablesSettings() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
-        <TabsContent value="vendor-portal" className="space-y-6">
+        {hasAccess('company-settings-tab-payables-vendor-portal') && (
+        <TabsContent value="vendor-portal" className={cn("space-y-6", !canEdit && "pointer-events-none")}>
           <Card>
             <CardHeader>
               <CardTitle>Vendor Portal Customization</CardTitle>
@@ -1247,13 +1272,16 @@ export default function PayablesSettings() {
             </CardContent>
           </Card>
         </TabsContent>
+        )}
 
-        <TabsContent value="job-approval" className="space-y-6">
+        {hasAccess('company-settings-tab-payables-job-approval') && (
+        <TabsContent value="job-approval" className={cn("space-y-6", !canEdit && "pointer-events-none")}>
           <JobBillApprovalSettings />
         </TabsContent>
+        )}
       </Tabs>
 
-      {!appSettings.autoSave && (
+      {canEdit && !appSettings.autoSave && (
         <div className="flex justify-end pt-6">
           <Button onClick={() => void saveSettings()} disabled={saving}>
             {saving ? 'Saving...' : 'Save Payables Settings'}
