@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
+import { uploadFileWithProgress } from "@/utils/storageUtils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
@@ -350,12 +351,17 @@ export function useVendorPortalData() {
     await reload();
   }, [profile?.vendor_id, currentCompany?.id, syncLinkedBuilderVendorRecords, reload]);
 
-  const uploadVendorLogo = useCallback(async (file: File) => {
+  const uploadVendorLogo = useCallback(async (file: File, options?: { onProgress?: (percent: number) => void }) => {
     if (!profile?.vendor_id || !currentCompany?.id) return;
     const ext = file.name.split('.').pop() || 'png';
     const path = `${currentCompany.id}/vendor-logos/${profile.vendor_id}/${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("company-logos").upload(path, file, { upsert: true });
-    if (uploadError) throw uploadError;
+    await uploadFileWithProgress({
+      bucketName: "company-logos",
+      filePath: path,
+      file,
+      upsert: true,
+      onProgress: options?.onProgress,
+    });
     const storagePath = `company-logos/${path}`;
     setSettingsForm((prev) => ({ ...prev, logo_url: storagePath }));
     setVendorInfo((prev: any) => (prev ? { ...prev, logo_url: storagePath } : prev));
@@ -400,13 +406,19 @@ export function useVendorPortalData() {
       expirationDate?: string | null;
       targetCompanyId?: string | null;
       targetJobId?: string | null;
+      onProgress?: (percent: number) => void;
     },
   ) => {
     if (!profile?.vendor_id || !currentCompany?.id) return;
     const ext = file.name.split('.').pop() || 'pdf';
     const path = `${currentCompany.id}/vendor-compliance/${profile.vendor_id}/${docType}/${Date.now()}.${ext}`;
-    const { error: uploadError } = await supabase.storage.from("company-files").upload(path, file, { upsert: true });
-    if (uploadError) throw uploadError;
+    await uploadFileWithProgress({
+      bucketName: "company-files",
+      filePath: path,
+      file,
+      upsert: true,
+      onProgress: options?.onProgress,
+    });
 
     const payload = {
       vendor_id: profile.vendor_id,

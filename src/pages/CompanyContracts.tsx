@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { 
   FileKey, Upload, Search, Filter, Eye, Download, Edit,
   Plus, Calendar, DollarSign, Building, ExternalLink
@@ -19,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import DragDropUpload from "@/components/DragDropUpload";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { uploadFileWithProgress } from "@/utils/storageUtils";
 
 const getStatusVariant = (status: string) => {
   switch (status) {
@@ -41,6 +43,7 @@ export default function CompanyContracts() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   const [newContract, setNewContract] = useState({
@@ -88,10 +91,15 @@ export default function CompanyContracts() {
       return;
     }
     setUploading(true);
+    setUploadProgress(0);
     try {
       const filePath = `${currentCompany.id}/contracts/${Date.now()}_${selectedFile.name}`;
-      const { error: uploadError } = await supabase.storage.from('job-filing-cabinet').upload(filePath, selectedFile);
-      if (uploadError) throw uploadError;
+      await uploadFileWithProgress({
+        bucketName: 'job-filing-cabinet',
+        filePath,
+        file: selectedFile,
+        onProgress: (percent) => setUploadProgress(percent),
+      });
       const { data: urlData } = supabase.storage.from('job-filing-cabinet').getPublicUrl(filePath);
 
       let filingDocId: string | null = null;
@@ -122,7 +130,7 @@ export default function CompanyContracts() {
       fetchContracts();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } finally { setUploading(false); }
+    } finally { setUploading(false); setTimeout(() => setUploadProgress(0), 250); }
   };
 
   const filtered = contracts.filter(c => {
@@ -217,8 +225,17 @@ export default function CompanyContracts() {
                 helperText="PDF, image, or document up to 20MB"
               />
             </div>
+            {uploading ? (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Uploading contract file</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="h-2" />
+              </div>
+            ) : null}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button><Button onClick={handleAdd} disabled={uploading || !newContract.name || !selectedFile}>{uploading ? 'Uploading...' : 'Upload Contract'}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button><Button onClick={handleAdd} disabled={uploading || !newContract.name || !selectedFile}>{uploading ? `Uploading ${uploadProgress}%` : 'Upload Contract'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

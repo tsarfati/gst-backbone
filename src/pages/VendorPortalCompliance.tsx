@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import { useToast } from "@/hooks/use-toast";
@@ -13,6 +14,7 @@ export default function VendorPortalCompliance() {
   const { toast } = useToast();
   const { loading, complianceDocs, jobs, uploadComplianceDocument } = useVendorPortalData();
   const [savingType, setSavingType] = useState<string | null>(null);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [insuranceExpirationDate, setInsuranceExpirationDate] = useState("");
   const [targetCompanyId, setTargetCompanyId] = useState<string>("all");
   const [targetJobId, setTargetJobId] = useState<string>("all");
@@ -53,6 +55,7 @@ export default function VendorPortalCompliance() {
         expirationDate: docType === "insurance" ? (insuranceExpirationDate || null) : null,
         targetCompanyId: docType === "insurance" && targetCompanyId !== "all" ? targetCompanyId : null,
         targetJobId: docType === "insurance" && targetJobId !== "all" ? targetJobId : null,
+        onProgress: (percent) => setUploadProgress(percent),
       });
       if (docType === "insurance") {
         setInsuranceExpirationDate("");
@@ -71,6 +74,7 @@ export default function VendorPortalCompliance() {
       });
     } finally {
       setSavingType(null);
+      setTimeout(() => setUploadProgress(0), 250);
     }
   };
 
@@ -109,6 +113,7 @@ export default function VendorPortalCompliance() {
                 event.target.value = "";
               }}
             />
+            {savingType === "w9" ? <Progress value={uploadProgress} className="h-2" /> : null}
           </div>
         </CardContent>
       </Card>
@@ -162,6 +167,7 @@ export default function VendorPortalCompliance() {
                   event.target.value = "";
                 }}
               />
+              {savingType === "insurance" ? <Progress value={uploadProgress} className="h-2" /> : null}
             </div>
           </div>
 
@@ -191,7 +197,7 @@ export default function VendorPortalCompliance() {
                       </p>
                     </div>
                     <Button variant="outline" disabled={savingType === "insurance"}>
-                      {savingType === "insurance" ? "Uploading..." : "Tracked"}
+                      {savingType === "insurance" ? `Uploading ${uploadProgress}%` : "Tracked"}
                     </Button>
                   </div>
                 );

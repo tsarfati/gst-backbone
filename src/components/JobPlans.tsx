@@ -1,23 +1,25 @@
-import { useState, useEffect } from "react";
+import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { FileText, Upload, Pencil, Stamp, ArrowUp, ArrowDown, ArrowUpDown, Zap, Droplets, Wind, Flame, Building2, HardHat, Wrench, Info, Trash2 } from "lucide-react";
+import { FileText, Pencil, Stamp, ArrowUp, ArrowDown, ArrowUpDown, Zap, Droplets, Wind, Flame, Building2, HardHat, Wrench, Info, Trash2 } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import DragDropUpload from "@/components/DragDropUpload";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
 import { useUnifiedViewPreference, type UnifiedViewType } from "@/hooks/useUnifiedViewPreference";
+import { uploadFileWithProgress } from "@/utils/storageUtils";
 
 interface JobPlansProps {
   jobId: string;
@@ -59,6 +61,14 @@ const INITIAL_PLAN_FORM = {
   is_permit_set: false,
   revision_date: "",
 };
+
+function generatePlanFileId() {
+  if (typeof globalThis !== "undefined" && globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
 
 function parsePlanMetadataFromFileName(fileName: string) {
   const baseName = fileName.replace(/\.[^.]+$/, "");
@@ -171,6 +181,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [editingPlan, setEditingPlan] = useState<JobPlan | null>(null);
   const [infoPlan, setInfoPlan] = useState<JobPlan | null>(null);
@@ -242,18 +253,21 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
     file: File;
     fileName: string;
     previousCabinetPath?: string | null;
+    onProgress?: (percent: number) => void;
   }) => {
     if (!currentCompany?.id || !user?.id) return;
 
     const folderId = await ensurePlansFolderId();
     const extension = params.file.name.split(".").pop() || "pdf";
-    const newPath = `${currentCompany.id}/${jobId}/${folderId}/plan-${params.planId}-${crypto.randomUUID()}.${extension}`;
+    const newPath = `${currentCompany.id}/${jobId}/${folderId}/plan-${params.planId}-${generatePlanFileId()}.${extension}`;
 
-    const { error: uploadCabinetError } = await supabase.storage
-      .from("job-filing-cabinet")
-      .upload(newPath, params.file, { upsert: false });
-
-    if (uploadCabinetError) throw uploadCabinetError;
+    await uploadFileWithProgress({
+      bucketName: "job-filing-cabinet",
+      filePath: newPath,
+      file: params.file,
+      upsert: false,
+      onProgress: (percent) => params.onProgress?.(percent),
+    });
 
     const { data: existingCabinetFile, error: existingCabinetFileError } = await supabase
       .from("job_files")
@@ -372,7 +386,10 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
     }
 
     setUploading(true);
+    setUploadProgress(0);
+
     try {
+      let filingCabinetSyncFailed = false;
       let fileUrl = editingPlan?.file_url || "";
       let fileName = editingPlan?.file_name || "";
       let fileSize = editingPlan?.file_size || null;
@@ -391,14 +408,17 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
 
         // Upload new file
         const fileExt = selectedFile.name.split(".").pop();
-        const newFileName = `${crypto.randomUUID()}.${fileExt}`;
+        const newFileName = `${generatePlanFileId()}.${fileExt}`;
         const filePath = `${currentCompany?.id}/plans/${jobId}/${newFileName}`;
 
-        const { error: uploadError } = await supabase.storage
-          .from("company-files")
-          .upload(filePath, selectedFile);
-
-        if (uploadError) throw uploadError;
+        await uploadFileWithProgress({
+          bucketName: "company-files",
+          filePath,
+          file: selectedFile,
+          onProgress: (percent) => {
+            setUploadProgress(Math.max(2, Math.round(percent * 0.82)));
+          },
+        });
 
         const { data: { publicUrl } } = supabase.storage
           .from("company-files")
@@ -433,14 +453,21 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
             .select("file_url")
             .eq("source_plan_id", editingPlan.id)
             .maybeSingle();
-          await syncPlanToFilingCabinet({
-            planId: editingPlan.id,
-            file: selectedFile,
-            fileName,
-            previousCabinetPath: existingCabinet?.file_url || null,
-          });
+          try {
+            await syncPlanToFilingCabinet({
+              planId: editingPlan.id,
+              file: selectedFile,
+              fileName,
+              previousCabinetPath: existingCabinet?.file_url || null,
+              onProgress: (percent) => {
+                setUploadProgress(Math.max(84, Math.round(82 + percent * 0.18)));
+              },
+            });
+          } catch (syncError) {
+            filingCabinetSyncFailed = true;
+            console.error("Error syncing plan to filing cabinet:", syncError);
+          }
         }
-        toast.success("Plan updated successfully");
       } else {
         // Create new plan
         const { data: createdPlan, error: insertError } = await supabase
@@ -465,25 +492,39 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
 
         if (insertError) throw insertError;
         if (selectedFile && createdPlan?.id) {
-          await syncPlanToFilingCabinet({
-            planId: createdPlan.id,
-            file: selectedFile,
-            fileName,
-          });
+          try {
+            await syncPlanToFilingCabinet({
+              planId: createdPlan.id,
+              file: selectedFile,
+              fileName,
+              onProgress: (percent) => {
+                setUploadProgress(Math.max(84, Math.round(82 + percent * 0.18)));
+              },
+            });
+          } catch (syncError) {
+            filingCabinetSyncFailed = true;
+            console.error("Error syncing plan to filing cabinet:", syncError);
+          }
         }
-        toast.success("Plan uploaded successfully");
       }
 
       setDialogOpen(false);
       setFormData(INITIAL_PLAN_FORM);
       setSelectedFile(null);
       setEditingPlan(null);
-      fetchPlans();
+      setUploadProgress(100);
+      await fetchPlans();
+      if (filingCabinetSyncFailed) {
+        toast.warning(editingPlan ? "Plan updated, but filing cabinet sync failed" : "Plan uploaded, but filing cabinet sync failed");
+      } else {
+        toast.success(editingPlan ? "Plan updated successfully" : "Plan uploaded successfully");
+      }
     } catch (error: any) {
       console.error("Error uploading plan:", error);
       toast.error(error.message || "Failed to upload plan");
     } finally {
       setUploading(false);
+      window.setTimeout(() => setUploadProgress(0), 250);
     }
   };
 
@@ -761,38 +802,33 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
             }}
             isDefault={isDefault}
           />
-          {canUpload && (
-            <Button onClick={() => openUploadDialogWithFile(null)}>
-            <Upload className="h-4 w-4 mr-2" />
-            Upload Plan Set
-            </Button>
-          )}
         </div>
       </div>
 
+      {canUpload ? (
+        <div className="space-y-2">
+          <DragDropUpload
+            onFileSelect={(file) => openUploadDialogWithFile(file)}
+            accept=".pdf,.dwg,.dxf"
+            maxSize={PLAN_UPLOAD_MAX_SIZE_MB}
+            title="Drag plan set files here"
+            dropTitle="Drop plan set files here"
+            helperText={`PDF, DWG, or DXF up to ${PLAN_UPLOAD_MAX_SIZE_MB}MB`}
+            buttonLabel="Choose File to Upload"
+          />
+          {plans.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No plan sets uploaded yet.</p>
+          ) : null}
+        </div>
+      ) : null}
+
       {plans.length === 0 ? (
-        <Card>
-          <CardContent className="flex flex-col items-center justify-center py-10">
-            <FileText className="h-12 w-12 text-muted-foreground mb-4" />
-            <p className="text-muted-foreground text-center">
-              {canUpload
-                ? 'No plan sets uploaded yet. Click "Upload Plan Set" to get started, or drop a plan set here.'
-                : "No plan sets uploaded yet."}
-            </p>
-            {canUpload && (
-              <div className="mt-5 w-full max-w-xl">
-                <DragDropUpload
-                  onFileSelect={(file) => openUploadDialogWithFile(file)}
-                  accept=".pdf,.dwg,.dxf"
-                  maxSize={PLAN_UPLOAD_MAX_SIZE_MB}
-                  title="Drag plan set file here"
-                  dropTitle="Drop plan set file here"
-                  helperText={`PDF, DWG, or DXF up to ${PLAN_UPLOAD_MAX_SIZE_MB}MB`}
-                />
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        <div className="rounded-lg border border-dashed border-muted-foreground/25 bg-muted/10 px-6 py-10 text-center">
+          <FileText className="mx-auto mb-4 h-12 w-12 text-muted-foreground" />
+          <p className="text-muted-foreground">
+            {canUpload ? "Upload a plan set to get started." : "No plan sets uploaded yet."}
+          </p>
+        </div>
       ) : currentView === "list" ? (
         renderListRows(false)
       ) : currentView === "compact" || currentView === "super-compact" ? (
@@ -865,6 +901,9 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingPlan ? "Edit Plan Set" : "Upload New Plan Set"}</DialogTitle>
+            <DialogDescription>
+              Add the plan set details and upload the file for this job.
+            </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
             <div>
@@ -942,21 +981,17 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
                   accept=".pdf,.dwg,.dxf"
                   maxSize={PLAN_UPLOAD_MAX_SIZE_MB}
                   disabled={uploading}
-                  title={editingPlan ? "Drag replacement plan file here" : "Drag plan file here"}
-                  dropTitle="Drop plan file here"
+                  title={editingPlan ? "Drag replacement plan set file here" : "Drag plan set file here"}
+                  dropTitle="Drop plan set file here"
                   helperText={`PDF, DWG, or DXF up to ${PLAN_UPLOAD_MAX_SIZE_MB}MB`}
-                />
-                <Input
-                  id="file"
-                  type="file"
-                  accept=".pdf,.dwg,.dxf"
-                  onChange={(e) => {
-                    applyFileAutoFill(e.target.files?.[0] || null);
-                    e.target.value = "";
-                  }}
-                  className="sr-only"
+                  buttonLabel={editingPlan ? "Choose Replacement File" : "Choose File to Upload"}
                 />
               </div>
+              {selectedFile ? (
+                <p className="text-xs text-muted-foreground">
+                  Selected file: <span className="font-medium text-foreground">{selectedFile.name}</span>
+                </p>
+              ) : null}
               {!editingPlan && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Accepted formats: PDF, DWG, DXF
@@ -968,6 +1003,15 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
                 </p>
               )}
             </div>
+            {uploading ? (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Uploading plan set</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="h-2" />
+              </div>
+            ) : null}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
@@ -994,6 +1038,9 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
         <DialogContent className="max-w-lg">
           <DialogHeader>
             <DialogTitle>Plan Set Information</DialogTitle>
+            <DialogDescription>
+              Review and update the saved information for this plan set.
+            </DialogDescription>
           </DialogHeader>
           {infoPlan && (
             <div className="space-y-4">

@@ -7,6 +7,7 @@ import { Badge } from "@/components/ui/badge";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { 
   Shield, Upload, Search, Filter, Eye, Download, Edit,
   Calendar, AlertTriangle, Plus, DollarSign, Building, Phone, ExternalLink
@@ -19,6 +20,7 @@ import { useNavigate } from "react-router-dom";
 import { format } from "date-fns";
 import DragDropUpload from "@/components/DragDropUpload";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { uploadFileWithProgress } from "@/utils/storageUtils";
 
 const INSURANCE_TYPES = [
   "General Liability", "Workers' Compensation", "Commercial Auto",
@@ -48,6 +50,7 @@ export default function CompanyInsurance() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [showAddDialog, setShowAddDialog] = useState(false);
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
 
   const [newPolicy, setNewPolicy] = useState({
@@ -96,10 +99,15 @@ export default function CompanyInsurance() {
       return;
     }
     setUploading(true);
+    setUploadProgress(0);
     try {
       const filePath = `${currentCompany.id}/insurance/${Date.now()}_${selectedFile.name}`;
-      const { error: uploadError } = await supabase.storage.from('job-filing-cabinet').upload(filePath, selectedFile);
-      if (uploadError) throw uploadError;
+      await uploadFileWithProgress({
+        bucketName: 'job-filing-cabinet',
+        filePath,
+        file: selectedFile,
+        onProgress: (percent) => setUploadProgress(percent),
+      });
       const { data: urlData } = supabase.storage.from('job-filing-cabinet').getPublicUrl(filePath);
 
       let filingDocId: string | null = null;
@@ -130,7 +138,7 @@ export default function CompanyInsurance() {
       fetchPolicies();
     } catch (error: any) {
       toast({ title: 'Error', description: error.message, variant: 'destructive' });
-    } finally { setUploading(false); }
+    } finally { setUploading(false); setTimeout(() => setUploadProgress(0), 250); }
   };
 
   const filtered = policies.filter(p => {
@@ -231,8 +239,17 @@ export default function CompanyInsurance() {
                 helperText="PDF, image, or document up to 20MB"
               />
             </div>
+            {uploading ? (
+              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="font-medium">Uploading policy file</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="h-2" />
+              </div>
+            ) : null}
           </div>
-          <DialogFooter><Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button><Button onClick={handleAdd} disabled={uploading || !newPolicy.name || !selectedFile}>{uploading ? 'Uploading...' : 'Add Policy'}</Button></DialogFooter>
+          <DialogFooter><Button variant="outline" onClick={() => setShowAddDialog(false)}>Cancel</Button><Button onClick={handleAdd} disabled={uploading || !newPolicy.name || !selectedFile}>{uploading ? `Uploading ${uploadProgress}%` : 'Add Policy'}</Button></DialogFooter>
         </DialogContent>
       </Dialog>
     </div>

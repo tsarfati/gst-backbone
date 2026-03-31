@@ -13,6 +13,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { ArrowRight, Briefcase, Building2, Loader2, Mail, Save, Upload, UserCircle2, Users } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
+import { uploadFileWithProgress } from "@/utils/storageUtils";
 import ThemeSettings from "@/pages/ThemeSettings";
 
 type CompanyForm = {
@@ -51,6 +52,7 @@ export default function DesignProfessionalCompanySettings() {
 
   const [saving, setSaving] = useState(false);
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadLogoProgress, setUploadLogoProgress] = useState(0);
   const [form, setForm] = useState<CompanyForm>(blankForm);
   const [workspaceLogoOverride, setWorkspaceLogoOverride] = useState<string | null>(null);
 
@@ -162,12 +164,16 @@ export default function DesignProfessionalCompanySettings() {
 
     try {
       setUploadingLogo(true);
+      setUploadLogoProgress(0);
       const ext = file.name.split(".").pop() || "png";
       const objectPath = `${currentCompany.id}/design-pro-logo-${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from("company-logos")
-        .upload(objectPath, file, { upsert: true });
-      if (uploadError) throw uploadError;
+      await uploadFileWithProgress({
+        bucketName: "company-logos",
+        filePath: objectPath,
+        file,
+        upsert: true,
+        onProgress: (percent) => setUploadLogoProgress(percent),
+      });
 
       const storagePath = `company-logos/${objectPath}`;
       window.localStorage.setItem(`workspace-logo:${currentCompany.id}`, storagePath);
@@ -201,6 +207,7 @@ export default function DesignProfessionalCompanySettings() {
       });
     } finally {
       setUploadingLogo(false);
+      setTimeout(() => setUploadLogoProgress(0), 250);
     }
   };
 
@@ -252,7 +259,7 @@ export default function DesignProfessionalCompanySettings() {
                   {uploadingLogo && (
                     <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-white text-sm font-medium">
                       <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                      Uploading...
+                      Uploading {uploadLogoProgress}%
                     </div>
                   )}
                 </label>

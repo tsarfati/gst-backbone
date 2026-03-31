@@ -8,7 +8,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Loader2, Mail, Share2, ChevronDown, ChevronRight, Lock, ArrowUpDown, GripVertical } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
-import { resolveStorageUrl } from "@/utils/storageUtils";
+import { resolveStorageUrl, uploadFileWithProgress } from "@/utils/storageUtils";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
@@ -179,6 +179,7 @@ export default function CompanyFiles() {
   const [files, setFiles] = useState<CompanyFile[]>([]);
   const [expandedFolderIds, setExpandedFolderIds] = useState<Set<string>>(new Set());
   const [uploadingFolderId, setUploadingFolderId] = useState<string | null>(null);
+  const [uploadProgressPercent, setUploadProgressPercent] = useState(0);
   const [dragOverFolderId, setDragOverFolderId] = useState<string | null>(null);
   const [dragOverRoot, setDragOverRoot] = useState(false);
   const [creatingFolder, setCreatingFolder] = useState(false);
@@ -789,6 +790,7 @@ export default function CompanyFiles() {
     }
     if (!companyId || !userId || selectedFiles.length === 0) return;
     setUploadingFolderId(targetFolderId);
+    setUploadProgressPercent(0);
     const targetFolder = folders.find((folder) => folder.id === targetFolderId);
     const category = categoryForFolderName(targetFolder?.name || "General");
     const currentCount = (filesByFolderId[targetFolderId] || []).length;
@@ -797,8 +799,15 @@ export default function CompanyFiles() {
       for (let idx = 0; idx < selectedFiles.length; idx += 1) {
         const file = selectedFiles[idx];
         const path = `${companyId}/company-files/${targetFolderId}/${Date.now()}_${file.name}`;
-        const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
-        if (uploadError) throw uploadError;
+        await uploadFileWithProgress({
+          bucketName: STORAGE_BUCKET,
+          filePath: path,
+          file,
+          onProgress: (percent) => {
+            const overall = ((idx + percent / 100) / selectedFiles.length) * 100;
+            setUploadProgressPercent(Math.round(overall));
+          },
+        });
         const { data: urlData } = supabase.storage.from(STORAGE_BUCKET).getPublicUrl(path);
         const { error: insertError } = await supabase.from("company_files" as never).insert({
           company_id: companyId,
@@ -821,6 +830,7 @@ export default function CompanyFiles() {
       toast({ title: "Upload failed", description: getErrorMessage(error, "Failed to upload files"), variant: "destructive" });
     } finally {
       setUploadingFolderId(null);
+      setTimeout(() => setUploadProgressPercent(0), 250);
     }
   };
 
@@ -913,15 +923,24 @@ export default function CompanyFiles() {
     }
     if (!companyId || !userId || selectedFiles.length === 0) return;
     setJobUploadTargetId(jobId);
+    setUploadProgressPercent(0);
     try {
       const folderId = await ensureJobRootFolderId(jobId);
       if (!folderId) throw new Error("Could not resolve job folder.");
 
-      for (const file of selectedFiles) {
+      for (let idx = 0; idx < selectedFiles.length; idx += 1) {
+        const file = selectedFiles[idx];
         const ext = file.name.split(".").pop();
-        const path = `${companyId}/${jobId}/${folderId}/${crypto.randomUUID()}.${ext || "file"}`;
-        const { error: uploadError } = await supabase.storage.from(STORAGE_BUCKET).upload(path, file);
-        if (uploadError) throw uploadError;
+        const path = `${companyId}/${jobId}/${folderId}/${Date.now()}-${Math.random().toString(36).slice(2, 10)}.${ext || "file"}`;
+        await uploadFileWithProgress({
+          bucketName: STORAGE_BUCKET,
+          filePath: path,
+          file,
+          onProgress: (percent) => {
+            const overall = ((idx + percent / 100) / selectedFiles.length) * 100;
+            setUploadProgressPercent(Math.round(overall));
+          },
+        });
         const { error: insertError } = await supabase.from("job_files").insert({
           job_id: jobId,
           company_id: companyId,
@@ -945,6 +964,7 @@ export default function CompanyFiles() {
       toast({ title: "Upload failed", description: getErrorMessage(error, "Failed to upload files to job"), variant: "destructive" });
     } finally {
       setJobUploadTargetId(null);
+      setTimeout(() => setUploadProgressPercent(0), 250);
     }
   };
 
@@ -1937,7 +1957,10 @@ export default function CompanyFiles() {
                       actions: (
                         <div className="opacity-0 group-hover:opacity-100 flex items-center">
                           {uploadingFolderId === folder.id ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-muted-foreground mr-1" />
+                            <div className="mr-1 flex items-center gap-1 text-xs text-muted-foreground">
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                              <span>{uploadProgressPercent}%</span>
+                            </div>
                           ) : null}
                           {canShareCompanyFiles && (
                             <Button
@@ -2012,7 +2035,10 @@ export default function CompanyFiles() {
                                   sizeText: formatFileSize(jobFileStatsByJobId[job.id]?.totalSize || 0),
                                   count: jobFileStatsByJobId[job.id]?.count || 0,
                                   actions: jobUploadTargetId === job.id ? (
-                                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                                    <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                                      <span>{uploadProgressPercent}%</span>
+                                    </div>
                                   ) : null,
                                 })}
                                 <span className="w-24 shrink-0" />

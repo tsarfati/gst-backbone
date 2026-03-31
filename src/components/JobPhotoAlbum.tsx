@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
-import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
+import { getStoragePathForDb, resolveStorageUrl, uploadFileWithProgress } from '@/utils/storageUtils';
 import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 import { useCompany } from '@/contexts/CompanyContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +15,7 @@ import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
 import { Checkbox } from '@/components/ui/checkbox';
+import { Progress } from '@/components/ui/progress';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { format } from 'date-fns';
 import PhotoLocationMap from './PhotoLocationMap';
@@ -102,6 +103,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
   const [photoBlob, setPhotoBlob] = useState<Blob | null>(null);
   const [note, setNote] = useState('');
   const [uploading, setUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
   const [selectedPhoto, setSelectedPhoto] = useState<JobPhoto | null>(null);
   const [comments, setComments] = useState<PhotoComment[]>([]);
   const [newComment, setNewComment] = useState('');
@@ -538,6 +540,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
     if (!photoBlob || !user) return;
 
     setUploading(true);
+    setUploadProgress(0);
     try {
       // Get or create employee uploads album
       const { data: albumId, error: albumError } = await supabase
@@ -564,11 +567,13 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
 
       // Upload photo to storage
       const fileName = `job-${jobId}/${Date.now()}.jpg`;
-      const { data: uploadData, error: uploadError } = await supabase.storage
-        .from('punch-photos')
-        .upload(fileName, photoBlob);
-
-      if (uploadError) throw uploadError;
+      const uploadFile = new File([photoBlob], `job-${jobId}-${Date.now()}.jpg`, { type: photoBlob.type || 'image/jpeg' });
+      await uploadFileWithProgress({
+        bucketName: 'punch-photos',
+        filePath: fileName,
+        file: uploadFile,
+        onProgress: (percent) => setUploadProgress(percent),
+      });
 
       const photoPath = getStoragePathForDb('punch-photos', fileName);
 
@@ -604,6 +609,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       });
     } finally {
       setUploading(false);
+      setTimeout(() => setUploadProgress(0), 250);
     }
   };
 
@@ -913,6 +919,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
     }
 
     setUploading(true);
+    setUploadProgress(0);
     let successCount = 0;
 
     // Get location once for all photos
@@ -928,8 +935,16 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       try {
         const ext = file.name.split('.').pop() || 'jpg';
         const fileName = `job-${jobId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
-        const { error: uploadError } = await supabase.storage.from('punch-photos').upload(fileName, file);
-        if (uploadError) throw uploadError;
+        await uploadFileWithProgress({
+          bucketName: 'punch-photos',
+          filePath: fileName,
+          file,
+          onProgress: (percent) => {
+            const completedPercent = (successCount / imageFiles.length) * 100;
+            const currentPercent = (percent / imageFiles.length);
+            setUploadProgress(Math.round(completedPercent + currentPercent));
+          },
+        });
 
         const photoPath = getStoragePathForDb('punch-photos', fileName);
         const { error: insertError } = await supabase.from('job_photos').insert({
@@ -960,6 +975,7 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
     }
 
     setUploading(false);
+    setTimeout(() => setUploadProgress(0), 250);
     if (successCount > 0) {
       toast({ title: 'Photos uploaded', description: `${successCount} photo(s) added successfully.` });
       loadPhotos();
@@ -1553,10 +1569,11 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
             />
             <Button variant="outline" onClick={() => fileInputRef.current?.click()} disabled={uploading}>
               <Upload className="h-4 w-4 mr-2" />
-              {uploading ? 'Uploading...' : 'Upload Photos'}
+              {uploading ? `Uploading ${uploadProgress}%` : 'Upload Photos'}
             </Button>
             <span className="text-sm text-muted-foreground">or drag & drop images here</span>
           </div>
+          {uploading ? <Progress value={uploadProgress} className="mb-4 h-2" /> : null}
 
       {filteredPhotos.length === 0 ? (
         <Card>
@@ -1754,8 +1771,9 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
                   />
                 </div>
                 <Button onClick={handleUpload} disabled={uploading} className="w-full">
-                  {uploading ? 'Uploading...' : 'Upload Photo'}
+                  {uploading ? `Uploading ${uploadProgress}%` : 'Upload Photo'}
                 </Button>
+                {uploading ? <Progress value={uploadProgress} className="h-2" /> : null}
               </div>
             )}
           </div>

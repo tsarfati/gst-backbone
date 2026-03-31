@@ -8,6 +8,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { 
   FileText, 
@@ -34,7 +35,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/components/ui/use-toast';
 import { format, differenceInDays, isPast } from 'date-fns';
-import { resolveStorageUrl } from '@/utils/storageUtils';
+import { resolveStorageUrl, uploadFileWithProgress } from '@/utils/storageUtils';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 
 interface ComplianceDocument {
@@ -232,6 +233,8 @@ export default function VendorDashboard() {
   const [savingCompanyInfo, setSavingCompanyInfo] = useState(false);
   const [savingCompliance, setSavingCompliance] = useState(false);
   const [savingTaxes, setSavingTaxes] = useState(false);
+  const [uploadingVendorLogo, setUploadingVendorLogo] = useState(false);
+  const [uploadVendorLogoProgress, setUploadVendorLogoProgress] = useState(0);
   const [insuranceExpiryDate, setInsuranceExpiryDate] = useState('');
   const [vendorCompanyForm, setVendorCompanyForm] = useState({
     name: '',
@@ -1194,12 +1197,17 @@ export default function VendorDashboard() {
   const uploadVendorLogo = async (file: File) => {
     if (!profile?.vendor_id || !currentCompany?.id) return;
     try {
+      setUploadingVendorLogo(true);
+      setUploadVendorLogoProgress(0);
       const ext = file.name.split('.').pop() || 'png';
       const path = `${currentCompany.id}/vendor-logos/${profile.vendor_id}/${Date.now()}.${ext}`;
-      const { error: uploadError } = await supabase.storage
-        .from('company-files')
-        .upload(path, file, { upsert: true });
-      if (uploadError) throw uploadError;
+      await uploadFileWithProgress({
+        bucketName: 'company-files',
+        filePath: path,
+        file,
+        upsert: true,
+        onProgress: (percent) => setUploadVendorLogoProgress(percent),
+      });
 
       const { data } = supabase.storage.from('company-files').getPublicUrl(path);
       setVendorCompanyForm((prev) => ({ ...prev, logo_url: data.publicUrl }));
@@ -1213,6 +1221,9 @@ export default function VendorDashboard() {
         description: error?.message || 'Could not upload logo.',
         variant: 'destructive',
       });
+    } finally {
+      setUploadingVendorLogo(false);
+      setTimeout(() => setUploadVendorLogoProgress(0), 250);
     }
   };
 
@@ -2433,8 +2444,8 @@ export default function VendorDashboard() {
                           <div className="h-16 w-16 rounded border flex items-center justify-center text-xs text-muted-foreground">No logo</div>
                         )}
                         <div>
-                          <Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()}>
-                            Upload Logo
+                          <Button type="button" variant="outline" onClick={() => logoInputRef.current?.click()} disabled={uploadingVendorLogo}>
+                            {uploadingVendorLogo ? `Uploading ${uploadVendorLogoProgress}%` : 'Upload Logo'}
                           </Button>
                           <Input
                             ref={logoInputRef}
@@ -2448,6 +2459,7 @@ export default function VendorDashboard() {
                           />
                         </div>
                       </div>
+                      {uploadingVendorLogo ? <Progress value={uploadVendorLogoProgress} className="h-2" /> : null}
                     </div>
                     <div className="space-y-2">
                       <Label>Company Name</Label>

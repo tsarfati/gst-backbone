@@ -28,6 +28,8 @@ import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/contexts/TenantContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
+import { uploadFileWithProgress } from '@/utils/storageUtils';
+import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 
 interface OrganizationUserProfile {
   user_id: string;
@@ -91,6 +93,7 @@ export default function CompanySettingsPage() {
   const { currentTenant } = useTenant();
   const { user } = useAuth();
   const { toast } = useToast();
+  const { hasAccess, permissions, loading: permissionsLoading } = useMenuPermissions();
 
   const urlParams = new URLSearchParams(window.location.search);
   const initialTab = urlParams.get('tab') || 'overview';
@@ -98,6 +101,7 @@ export default function CompanySettingsPage() {
   const [activeTab, setActiveTab] = useState(initialTab);
 
   const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadLogoProgress, setUploadLogoProgress] = useState(0);
 
   const [companyUsers, setCompanyUsers] = useState<CompanyUserAccessRow[]>([]);
   const [loadingCompanyUsers, setLoadingCompanyUsers] = useState(false);
@@ -130,6 +134,40 @@ export default function CompanySettingsPage() {
 
   const currentUserCompany = userCompanies.find((uc) => uc.company_id === currentCompany?.id);
   const canManageCompanyUsers = ['admin', 'company_admin', 'controller'].includes(String(currentUserCompany?.role || '').toLowerCase());
+  const canViewCompanySettings = hasAccess('company-settings-view') || hasAccess('company-settings');
+  const canEditCompanySettings = hasAccess('company-settings-edit');
+
+  const canAccessCompanyTab = (tabPermissionKey: string) => {
+    if (typeof permissions[tabPermissionKey] === 'boolean') {
+      return hasAccess(tabPermissionKey);
+    }
+    return canViewCompanySettings;
+  };
+
+  const visibleCompanyTabs = [
+    { value: 'overview', label: 'Overview', permissionKey: 'company-settings-tab-overview', icon: Building2 },
+    { value: 'payables', label: 'Payables', permissionKey: 'company-settings-tab-payables', icon: CreditCard },
+    { value: 'jobs', label: 'Jobs', permissionKey: 'company-settings-tab-jobs', icon: Briefcase },
+    { value: 'receivable-settings', label: 'Receivables', permissionKey: 'company-settings-tab-receivables', icon: FileText },
+    { value: 'banking', label: 'Banking', permissionKey: 'company-settings-tab-banking', icon: DollarSign },
+    { value: 'credit-cards', label: 'Credit Cards', permissionKey: 'company-settings-tab-credit-cards', icon: Banknote },
+    { value: 'theme', label: 'Themes & Appearance', permissionKey: 'company-settings-tab-theme', icon: Palette },
+    { value: 'pdf-templates', label: 'PDF Templates', permissionKey: 'company-settings-tab-pdf-templates', icon: FileText },
+    { value: 'email-templates', label: 'Email Templates', permissionKey: 'company-settings-tab-email-templates', icon: FileText },
+  ].filter((tab) => canAccessCompanyTab(tab.permissionKey));
+
+  const canAccessJobsSubtab = (permissionKey: string) => {
+    if (typeof permissions[permissionKey] === 'boolean') {
+      return hasAccess(permissionKey);
+    }
+    return canAccessCompanyTab('company-settings-tab-jobs');
+  };
+
+  const jobsSubtabs = [
+    { value: 'cost-code-setup', label: 'Cost Code Setup', permissionKey: 'company-settings-tab-jobs-cost-code-setup' },
+    { value: 'design-professional-portal', label: 'Design Professional Portal', permissionKey: 'company-settings-tab-jobs-design-professional-portal' },
+  ].filter((tab) => canAccessJobsSubtab(tab.permissionKey));
+  const [activeJobsTab, setActiveJobsTab] = useState(jobsSubtabs[0]?.value || 'cost-code-setup');
 
   const getProfileDisplayName = (profile?: {
     display_name?: string | null;
@@ -387,8 +425,12 @@ export default function CompanySettingsPage() {
     try {
       const fileExt = file.name.split('.').pop();
       const fileName = `${currentCompany.id}/company-logo-${Date.now()}.${fileExt}`;
-      const { error: uploadError } = await supabase.storage.from('company-logos').upload(fileName, file);
-      if (uploadError) throw uploadError;
+      await uploadFileWithProgress({
+        bucketName: 'company-logos',
+        filePath: fileName,
+        file,
+        onProgress: (percent) => setUploadLogoProgress(percent),
+      });
 
       const logoPath = `company-logos/${fileName}`;
       const { error: updateError } = await supabase
@@ -411,6 +453,7 @@ export default function CompanySettingsPage() {
       });
     } finally {
       setUploadingLogo(false);
+      setTimeout(() => setUploadLogoProgress(0), 250);
     }
   };
 
@@ -574,6 +617,31 @@ export default function CompanySettingsPage() {
     }
   }, [activeTab, currentCompany?.id, currentTenant?.id]);
 
+  useEffect(() => {
+    if (permissionsLoading) return;
+    if (!visibleCompanyTabs.length) return;
+    if (!visibleCompanyTabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(visibleCompanyTabs[0].value);
+    }
+  }, [activeTab, permissionsLoading, visibleCompanyTabs]);
+
+  useEffect(() => {
+    if (!jobsSubtabs.length) return;
+    if (!jobsSubtabs.some((tab) => tab.value === activeJobsTab)) {
+      setActiveJobsTab(jobsSubtabs[0].value);
+    }
+  }, [activeJobsTab, jobsSubtabs]);
+
+  if (!permissionsLoading && !visibleCompanyTabs.length) {
+    return (
+      <div className="p-4 md:p-6">
+        <div className="text-center">
+          <h1 className="text-2xl font-bold text-foreground mb-4">Access Denied</h1>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="p-4 md:p-6">
       <div className="space-y-6">
@@ -581,47 +649,20 @@ export default function CompanySettingsPage() {
           <div>
             <h1 className="text-3xl font-bold">Company Settings</h1>
           </div>
-          <CompanySettingsSaveButton />
+          {canEditCompanySettings && <CompanySettingsSaveButton />}
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-            <TabsTrigger value="overview" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
-              <Building2 className="h-4 w-4" />
-              Overview
-            </TabsTrigger>
-            <TabsTrigger value="payables" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
-              <CreditCard className="h-4 w-4" />
-              Payables
-            </TabsTrigger>
-            <TabsTrigger value="jobs" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
-              <Briefcase className="h-4 w-4" />
-              Jobs
-            </TabsTrigger>
-            <TabsTrigger value="receivable-settings" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Receivables
-            </TabsTrigger>
-            <TabsTrigger value="banking" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
-              <DollarSign className="h-4 w-4" />
-              Banking
-            </TabsTrigger>
-            <TabsTrigger value="credit-cards" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
-              <Banknote className="h-4 w-4" />
-              Credit Cards
-            </TabsTrigger>
-            <TabsTrigger value="theme" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
-              <Palette className="h-4 w-4" />
-              Themes & Appearance
-            </TabsTrigger>
-            <TabsTrigger value="pdf-templates" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              PDF Templates
-            </TabsTrigger>
-            <TabsTrigger value="email-templates" className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
-              <FileText className="h-4 w-4" />
-              Email Templates
-            </TabsTrigger>
+            {visibleCompanyTabs.map((tab) => {
+              const Icon = tab.icon;
+              return (
+                <TabsTrigger key={tab.value} value={tab.value} className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors flex items-center gap-2">
+                  <Icon className="h-4 w-4" />
+                  {tab.label}
+                </TabsTrigger>
+              );
+            })}
           </TabsList>
 
           <TabsContent value="overview" className="space-y-6">
@@ -655,7 +696,7 @@ export default function CompanySettingsPage() {
                     {uploadingLogo && (
                       <div className="absolute inset-0 flex items-center justify-center bg-black/55 text-white text-sm font-medium">
                         <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                        Uploading...
+                        Uploading {uploadLogoProgress}%
                       </div>
                     )}
                   </label>
@@ -801,10 +842,11 @@ export default function CompanySettingsPage() {
           </TabsContent>
 
           <TabsContent value="jobs">
-            <Tabs defaultValue="cost-code-setup" className="space-y-4">
+            <Tabs value={activeJobsTab} onValueChange={setActiveJobsTab} className="space-y-4">
               <TabsList>
-                <TabsTrigger value="cost-code-setup">Cost Code Setup</TabsTrigger>
-                <TabsTrigger value="design-professional-portal">Design Professional Portal</TabsTrigger>
+                {jobsSubtabs.map((tab) => (
+                  <TabsTrigger key={tab.value} value={tab.value}>{tab.label}</TabsTrigger>
+                ))}
               </TabsList>
               <TabsContent value="cost-code-setup">
                 <JobCostSetup />

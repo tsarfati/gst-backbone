@@ -1,10 +1,18 @@
-import { supabase } from "@/integrations/supabase/client";
+import { SUPABASE_PUBLISHABLE_KEY, SUPABASE_URL, supabase } from "@/integrations/supabase/client";
 
 /**
  * Private buckets that require signed URLs for access.
  * These buckets contain sensitive data and are not publicly accessible.
  */
 const PRIVATE_BUCKETS = ['receipts', 'punch-photos', 'credit-card-attachments'];
+
+interface UploadFileWithProgressParams {
+  bucketName: string;
+  filePath: string;
+  file: File;
+  upsert?: boolean;
+  onProgress?: (percent: number, loaded: number, total: number) => void;
+}
 
 /**
  * Extracts the storage path from a full Supabase storage URL.
@@ -112,4 +120,71 @@ export async function resolveStorageUrl(
   if (urlOrPath.startsWith('http')) return urlOrPath;
   const { data } = supabase.storage.from(bucketName).getPublicUrl(urlOrPath);
   return data.publicUrl;
+}
+
+/**
+ * Uploads a file to Supabase Storage with real browser upload progress callbacks.
+ * Use this when the UI needs byte-based progress updates.
+ */
+export async function uploadFileWithProgress({
+  bucketName,
+  filePath,
+  file,
+  upsert = false,
+  onProgress,
+}: UploadFileWithProgressParams): Promise<void> {
+  const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+
+  if (sessionError) {
+    throw sessionError;
+  }
+
+  const accessToken = sessionData.session?.access_token;
+  if (!accessToken) {
+    throw new Error("Missing authenticated session for file upload");
+  }
+
+  const uploadUrl = `${SUPABASE_URL}/storage/v1/object/${bucketName}/${filePath
+    .split("/")
+    .map((segment) => encodeURIComponent(segment))
+    .join("/")}`;
+
+  await new Promise<void>((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", uploadUrl, true);
+    xhr.setRequestHeader("apikey", SUPABASE_PUBLISHABLE_KEY);
+    xhr.setRequestHeader("Authorization", `Bearer ${accessToken}`);
+    xhr.setRequestHeader("x-upsert", upsert ? "true" : "false");
+    xhr.setRequestHeader("Content-Type", file.type || "application/octet-stream");
+
+    xhr.upload.onprogress = (event) => {
+      if (!event.lengthComputable || !onProgress) return;
+
+      const percent = Math.max(0, Math.min(100, Math.round((event.loaded / event.total) * 100)));
+      onProgress(percent, event.loaded, event.total);
+    };
+
+    xhr.onerror = () => {
+      reject(new Error("Upload failed"));
+    };
+
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (onProgress) {
+          onProgress(100, file.size, file.size);
+        }
+        resolve();
+        return;
+      }
+
+      try {
+        const parsed = JSON.parse(xhr.responseText || "{}");
+        reject(new Error(parsed.message || parsed.error || "Upload failed"));
+      } catch {
+        reject(new Error(xhr.responseText || "Upload failed"));
+      }
+    };
+
+    xhr.send(file);
+  });
 }

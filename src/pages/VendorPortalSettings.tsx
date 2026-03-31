@@ -3,6 +3,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
@@ -62,6 +63,8 @@ export default function VendorPortalSettings() {
   const [loadingUsers, setLoadingUsers] = useState(false);
   const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [workspaceLogoOverride, setWorkspaceLogoOverride] = useState<string | null>(null);
+  const [uploadingLogo, setUploadingLogo] = useState(false);
+  const [uploadLogoProgress, setUploadLogoProgress] = useState(0);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const voidedCheckInputRef = useRef<HTMLInputElement | null>(null);
 
@@ -271,17 +274,22 @@ export default function VendorPortalSettings() {
                         const file = event.target.files?.[0];
                         if (!file) return;
                         try {
-                          await uploadVendorLogo(file);
+                          setUploadingLogo(true);
+                          setUploadLogoProgress(0);
+                          await uploadVendorLogo(file, { onProgress: (percent) => setUploadLogoProgress(percent) });
                           toast({ title: "Logo updated", description: "Your vendor logo has been saved." });
                         } catch (error: any) {
                           toast({ title: "Upload failed", description: error?.message || "Could not upload vendor logo.", variant: "destructive" });
                         } finally {
+                          setUploadingLogo(false);
+                          setTimeout(() => setUploadLogoProgress(0), 250);
                           event.target.value = "";
                         }
                       }}
                     />
                   </div>
                 </div>
+                {uploadingLogo ? <Progress value={uploadLogoProgress} className="h-2" /> : null}
               </div>
 
               <div className="grid gap-4 md:grid-cols-2">
