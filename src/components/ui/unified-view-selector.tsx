@@ -1,15 +1,14 @@
 import { Button } from "@/components/ui/button";
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { Badge } from "@/components/ui/badge";
-import { List, AlignJustify, Grid3X3, LayoutGrid, Settings } from "lucide-react";
+import { List, AlignJustify, Grid3X3, LayoutGrid, ChevronDown, Star } from "lucide-react";
 
 export type UnifiedViewType = "list" | "compact" | "super-compact" | "icons";
 
 interface UnifiedViewSelectorProps {
   currentView: UnifiedViewType;
   onViewChange: (view: UnifiedViewType) => void;
-  onSetDefault: () => void;
-  isDefault?: boolean;
+  onSetDefault: (view: UnifiedViewType) => void;
+  defaultView?: UnifiedViewType;
   className?: string;
 }
 
@@ -24,7 +23,7 @@ export default function UnifiedViewSelector({
   currentView, 
   onViewChange, 
   onSetDefault, 
-  isDefault = false,
+  defaultView,
   className = "" 
 }: UnifiedViewSelectorProps) {
   const currentViewConfig = views.find(view => view.type === currentView);
@@ -36,6 +35,7 @@ export default function UnifiedViewSelector({
           <Button variant="outline" size="sm" className="h-8 gap-2">
             {currentViewConfig && <currentViewConfig.icon className="h-4 w-4" />}
             {currentViewConfig ? currentViewConfig.label : 'Select View'}
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
@@ -47,15 +47,20 @@ export default function UnifiedViewSelector({
             >
               <view.icon className="h-4 w-4 mr-2" />
               {view.label}
-              {currentView === view.type && <Badge variant="secondary" className="ml-auto text-xs">Active</Badge>}
+              <button
+                type="button"
+                className="ml-auto inline-flex items-center"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  onSetDefault(view.type);
+                }}
+                title={defaultView === view.type ? "Default view" : "Set as default view"}
+              >
+                <Star className={`h-4 w-4 ${defaultView === view.type ? "fill-yellow-400 text-yellow-400" : "text-muted-foreground"}`} />
+              </button>
             </DropdownMenuItem>
           ))}
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onSetDefault}>
-            <Settings className="h-4 w-4 mr-2" />
-            Set as Default
-            {isDefault && <Badge variant="secondary" className="ml-auto text-xs">Default</Badge>}
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </div>
