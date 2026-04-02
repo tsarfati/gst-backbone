@@ -2035,6 +2035,103 @@ export type Database = {
         }
         Relationships: []
       }
+      company_jobsitelynk_integrations: {
+        Row: {
+          company_id: string
+          connected_account_email: string | null
+          connected_account_name: string | null
+          connected_at: string | null
+          connection_status: string
+          created_at: string
+          external_company_id: string
+          id: string
+          jobsitelynk_base_url: string
+          last_connection_error: string | null
+          shared_secret: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          connected_account_email?: string | null
+          connected_account_name?: string | null
+          connected_at?: string | null
+          connection_status?: string
+          created_at?: string
+          external_company_id: string
+          id?: string
+          jobsitelynk_base_url: string
+          last_connection_error?: string | null
+          shared_secret?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          connected_account_email?: string | null
+          connected_account_name?: string | null
+          connected_at?: string | null
+          connection_status?: string
+          created_at?: string
+          external_company_id?: string
+          id?: string
+          jobsitelynk_base_url?: string
+          last_connection_error?: string | null
+          shared_secret?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_jobsitelynk_integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      company_jobsitelynk_projects: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          jobsitelynk_project_id: string
+          last_synced_at: string
+          project_name: string
+          project_number: string | null
+          project_status: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          jobsitelynk_project_id: string
+          last_synced_at?: string
+          project_name: string
+          project_number?: string | null
+          project_status?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          jobsitelynk_project_id?: string
+          last_synced_at?: string
+          project_name?: string
+          project_number?: string | null
+          project_status?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_jobsitelynk_projects_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_sms_settings: {
         Row: {
           account_sid: string | null
@@ -5448,6 +5545,7 @@ export type Database = {
           id: string
           is_active: boolean
           job_type: Database["public"]["Enums"]["job_type"] | null
+          jobsitelynk_project_id: string | null
           late_punch_out_grace_minutes: number | null
           latitude: number | null
           longitude: number | null
@@ -5481,6 +5579,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_type?: Database["public"]["Enums"]["job_type"] | null
+          jobsitelynk_project_id?: string | null
           late_punch_out_grace_minutes?: number | null
           latitude?: number | null
           longitude?: number | null
@@ -5514,6 +5613,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_type?: Database["public"]["Enums"]["job_type"] | null
+          jobsitelynk_project_id?: string | null
           late_punch_out_grace_minutes?: number | null
           latitude?: number | null
           longitude?: number | null

@@ -914,6 +914,15 @@ const menuCategories: MenuCategory[] = [
             ]
           },
           {
+            key: 'company-settings-tab-integrations',
+            label: 'Integrations Tab',
+            description: 'Company integrations tab',
+            actions: [
+              { key: 'company-settings-tab-integrations-view', label: 'View', description: 'Open the Integrations tab' },
+              { key: 'company-settings-tab-integrations-edit', label: 'Edit', description: 'Manage integration connections and settings' },
+            ]
+          },
+          {
             key: 'company-settings-tab-receivables',
             label: 'Receivables Tab',
             description: 'Receivables settings tab',

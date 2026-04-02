@@ -9,6 +9,7 @@ const corsHeaders = {
 
 const elevatedRoles = new Set(["super_admin", "owner", "admin", "company_admin", "controller"]);
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/g, "");
+const DEFAULT_JOBSITELYNK_BASE_URL = "https://jobsitelynk.com";
 
 type MembershipRow = {
   role: string | null;
@@ -24,6 +25,7 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const connectorSharedSecret = String(Deno.env.get("JOBSITELYNK_SHARED_SECRET") || "").trim();
     const authHeader = req.headers.get("Authorization");
 
     if (!authHeader) {
@@ -90,22 +92,25 @@ serve(async (req: Request) => {
       .maybeSingle();
     if (integrationError) throw integrationError;
 
-    if (!integration?.jobsitelynk_base_url || !integration.shared_secret) {
-      return new Response(JSON.stringify({ error: "Configure JobSiteLynk base URL and shared secret first." }), {
+    const baseUrl = trimTrailingSlashes(String(integration?.jobsitelynk_base_url || DEFAULT_JOBSITELYNK_BASE_URL));
+    const requestSecret = String(integration?.shared_secret || connectorSharedSecret).trim();
+
+    if (!requestSecret) {
+      return new Response(JSON.stringify({ error: "Missing JOBSITELYNK_SHARED_SECRET in BuilderLynk backend configuration." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const endpoint = `${trimTrailingSlashes(String(integration.jobsitelynk_base_url))}/functions/v1/builderlink-connect-account`;
+    const endpoint = `${baseUrl}/functions/v1/builderlink-connect-account`;
     const externalUserName = String(profile?.display_name || "").trim() || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || authData.user.email || jobsitelynkEmail;
 
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        Authorization: `Bearer ${integration.shared_secret}`,
-        "x-builderlink-secret": integration.shared_secret,
+        Authorization: `Bearer ${requestSecret}`,
+        "x-builderlink-secret": requestSecret,
       },
       body: JSON.stringify({
         provider: "builderlink",

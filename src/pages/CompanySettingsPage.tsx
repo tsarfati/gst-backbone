@@ -16,7 +16,7 @@ import DesignProfessionalPortalSettings from '@/components/DesignProfessionalPor
 import CreditCardSettings from '@/components/CreditCardSettings';
 import CompanySettingsSaveButton from '@/components/CompanySettingsSaveButton';
 import JobCostSetup from '@/pages/JobCostSetup';
-import { CreditCard, DollarSign, Banknote, FileText, Building2, Palette, Mail, Upload, Users, UserPlus, Trash2, Loader2, Briefcase } from 'lucide-react';
+import { CreditCard, DollarSign, Banknote, FileText, Building2, Palette, Mail, Upload, Users, UserPlus, Trash2, Loader2, Briefcase, Link2 } from 'lucide-react';
 import AccrualAccountingSettings from '@/components/AccrualAccountingSettings';
 import AIAInvoiceTemplateSettings from '@/components/AIAInvoiceTemplateSettings';
 import PdfTemplateSettings from '@/components/PdfTemplateSettings';
@@ -164,6 +164,7 @@ export default function CompanySettingsPage() {
     { value: 'overview', label: 'Overview', permissionKey: 'company-settings-tab-overview', icon: Building2 },
     { value: 'payables', label: 'Payables', permissionKey: 'company-settings-tab-payables', icon: CreditCard },
     { value: 'jobs', label: 'Jobs', permissionKey: 'company-settings-tab-jobs', icon: Briefcase },
+    { value: 'integrations', label: 'Integrations', permissionKey: 'company-settings-tab-integrations', icon: Link2 },
     { value: 'receivable-settings', label: 'Receivables', permissionKey: 'company-settings-tab-receivables', icon: FileText },
     { value: 'banking', label: 'Banking', permissionKey: 'company-settings-tab-banking', icon: DollarSign },
     { value: 'credit-cards', label: 'Credit Cards', permissionKey: 'company-settings-tab-credit-cards', icon: Banknote },
@@ -197,7 +198,6 @@ export default function CompanySettingsPage() {
   const jobsSubtabs = [
     { value: 'cost-code-setup', label: 'Cost Code Setup', permissionKey: 'company-settings-tab-jobs-cost-code-setup' },
     { value: 'design-professional-portal', label: 'Design Professional Portal', permissionKey: 'company-settings-tab-jobs-design-professional-portal' },
-    { value: 'jobsitelynk-connector', label: 'JobSiteLynk Connector', permissionKey: 'company-settings-tab-jobs' },
   ].filter((tab) => canAccessJobsSubtab(tab.permissionKey));
   const [activeJobsTab, setActiveJobsTab] = useState(jobsSubtabs[0]?.value || 'cost-code-setup');
 
@@ -897,12 +897,13 @@ export default function CompanySettingsPage() {
                   <DesignProfessionalPortalSettings />
                 </div>
               </TabsContent>
-              <TabsContent value="jobsitelynk-connector">
-                <div className={canEditJobsSubtab('company-settings-tab-jobs') ? '' : 'pointer-events-none opacity-75'}>
-                  <JobSiteLynkIntegrationSettings />
-                </div>
-              </TabsContent>
             </Tabs>
+          </TabsContent>
+
+          <TabsContent value="integrations">
+            <div className={canEditCompanyTab('company-settings-tab-integrations') ? '' : 'pointer-events-none opacity-75'}>
+              <JobSiteLynkIntegrationSettings />
+            </div>
           </TabsContent>
 
           <TabsContent value="receivable-settings">
