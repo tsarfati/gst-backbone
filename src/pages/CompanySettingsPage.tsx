@@ -87,6 +87,8 @@ interface CompanyEmailSettingsForm {
   is_configured: boolean;
 }
 
+type JobSiteLynkIntegrationComponent = React.ComponentType<Record<string, never>>;
+
 export default function CompanySettingsPage() {
   const navigate = useNavigate();
   const { currentCompany, userCompanies, refreshCompanies } = useCompany();
@@ -131,6 +133,8 @@ export default function CompanySettingsPage() {
     use_ssl: true,
     is_configured: false,
   });
+  const [jobSiteLynkSettingsComponent, setJobSiteLynkSettingsComponent] = useState<JobSiteLynkIntegrationComponent | null>(null);
+  const [jobSiteLynkSettingsError, setJobSiteLynkSettingsError] = useState<string | null>(null);
 
   const currentUserCompany = userCompanies.find((uc) => uc.company_id === currentCompany?.id);
   const canManageCompanyUsers = ['admin', 'company_admin', 'controller'].includes(String(currentUserCompany?.role || '').toLowerCase());
@@ -658,6 +662,26 @@ export default function CompanySettingsPage() {
     }
   }, [activeJobsTab, jobsSubtabs]);
 
+  useEffect(() => {
+    if (jobSiteLynkSettingsComponent || jobSiteLynkSettingsError) return;
+
+    let cancelled = false;
+    void import('@/components/JobSiteLynkIntegrationSettings')
+      .then((module) => {
+        if (cancelled) return;
+        setJobSiteLynkSettingsComponent(() => module.default);
+      })
+      .catch((error) => {
+        console.error('Failed to load JobSiteLynk integration settings component:', error);
+        if (cancelled) return;
+        setJobSiteLynkSettingsError('Could not load the JobSiteLynk connector right now.');
+      });
+
+    return () => {
+      cancelled = true;
+    };
+  }, [jobSiteLynkSettingsComponent, jobSiteLynkSettingsError]);
+
   if (!permissionsLoading && !visibleCompanyTabs.length) {
     return (
       <div className="p-4 md:p-6">
@@ -896,7 +920,26 @@ export default function CompanySettingsPage() {
 
           <TabsContent value="integrations">
             <div className={canEditCompanyTab('company-settings-tab-integrations') ? '' : 'pointer-events-none opacity-75'}>
-              <JobSiteLynkIntegrationSettings />
+              {jobSiteLynkSettingsError ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>JobSiteLynk</CardTitle>
+                    <CardDescription>{jobSiteLynkSettingsError}</CardDescription>
+                  </CardHeader>
+                </Card>
+              ) : jobSiteLynkSettingsComponent ? (
+                React.createElement(jobSiteLynkSettingsComponent)
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>JobSiteLynk</CardTitle>
+                    <CardDescription className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="loading-dots">Loading connector</span>
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
