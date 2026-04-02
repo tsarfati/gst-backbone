@@ -14,6 +14,7 @@ import { useTheme } from 'next-themes';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useTenant } from '@/contexts/TenantContext';
 import ColorPicker from '@/components/ColorPicker';
 import { FolderOpen, ImagePlus, Palette, SlidersHorizontal } from 'lucide-react';
 import MultiFileUploadDropzone from '@/components/MultiFileUploadDropzone';
@@ -40,17 +41,30 @@ export default function ThemeSettings({
   const { setTheme } = useTheme();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
-  const { hasAccess } = useMenuPermissions();
+  const { isSuperAdmin } = useTenant();
+  const { hasAccess, permissions } = useMenuPermissions();
   const { libraries: systemAvatarLibraries } = useSystemAvatarLibraries(currentCompany?.id);
   const [uploading, setUploading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [selectedAvatarAlbum, setSelectedAvatarAlbum] = useState<AvatarLibraryAlbumId>('nintendo');
   const [activeTab, setActiveTab] = useState('general');
+  const canAccessThemeTab = (tabPermissionBase: string) => {
+    if (isSuperAdmin) return true;
+    const viewKey = `${tabPermissionBase}-view`;
+    if (typeof permissions[viewKey] === 'boolean') {
+      return hasAccess(viewKey);
+    }
+    if (typeof permissions[tabPermissionBase] === 'boolean') {
+      return hasAccess(tabPermissionBase);
+    }
+    return false;
+  };
+
   const themeTabs = [
     { value: 'general', permissionKey: 'company-settings-tab-theme-general' },
     { value: 'display-operation', permissionKey: 'company-settings-tab-theme-display-operation' },
     { value: 'avatars', permissionKey: 'company-settings-tab-theme-avatars' },
-  ].filter((tab) => hasAccess(tab.permissionKey));
+  ].filter((tab) => canAccessThemeTab(tab.permissionKey));
 
   const handleSaveSettings = () => {
     setTheme(settings.theme);
@@ -263,24 +277,24 @@ export default function ThemeSettings({
         
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
           <TabsList className="grid w-full grid-cols-3">
-            {hasAccess('company-settings-tab-theme-general') && (
+            {canAccessThemeTab('company-settings-tab-theme-general') && (
             <TabsTrigger value="general" className="flex items-center gap-2">
               <Palette className="h-4 w-4" />
               General Theme
             </TabsTrigger>
             )}
-            {hasAccess('company-settings-tab-theme-display-operation') && (
+            {canAccessThemeTab('company-settings-tab-theme-display-operation') && (
             <TabsTrigger value="display-operation" className="flex items-center gap-2">
               <SlidersHorizontal className="h-4 w-4" />
               Display & Operation
             </TabsTrigger>
             )}
-            {hasAccess('company-settings-tab-theme-avatars') && (
+            {canAccessThemeTab('company-settings-tab-theme-avatars') && (
             <TabsTrigger value="avatars">Avatars</TabsTrigger>
             )}
           </TabsList>
 
-          {hasAccess('company-settings-tab-theme-general') && (
+          {canAccessThemeTab('company-settings-tab-theme-general') && (
           <TabsContent value="general" className="space-y-6">
             {!hideSaveButtons && canEdit && !settings.autoSave && (
               <div className="flex items-center justify-end">
@@ -473,7 +487,7 @@ export default function ThemeSettings({
           </TabsContent>
           )}
 
-          {hasAccess('company-settings-tab-theme-display-operation') && (
+          {canAccessThemeTab('company-settings-tab-theme-display-operation') && (
           <TabsContent value="display-operation" className={canEdit ? "space-y-6" : "space-y-6 pointer-events-none opacity-75"}>
             <Card>
               <CardHeader>
@@ -660,7 +674,7 @@ export default function ThemeSettings({
           </TabsContent>
           )}
 
-          {hasAccess('company-settings-tab-theme-avatars') && (
+          {canAccessThemeTab('company-settings-tab-theme-avatars') && (
           <TabsContent value="avatars" className={canEdit ? "space-y-6" : "space-y-6 pointer-events-none opacity-75"}>
             <Card>
               <CardHeader>

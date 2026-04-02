@@ -49,11 +49,10 @@ serve(async (req: Request) => {
 
     const body = await req.json().catch(() => ({}));
     const companyId = String(body.companyId || "").trim();
-    const jobsitelynkEmail = String(body.jobsitelynk_email || "").trim();
-    const jobsitelynkPassword = String(body.jobsitelynk_password || "");
+    const query = String(body.query || "").trim();
 
-    if (!companyId || !jobsitelynkEmail || !jobsitelynkPassword) {
-      return new Response(JSON.stringify({ error: "companyId, jobsitelynk_email, and jobsitelynk_password are required" }), {
+    if (!companyId) {
+      return new Response(JSON.stringify({ error: "companyId is required" }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -68,7 +67,7 @@ serve(async (req: Request) => {
 
     const { data: profile, error: profileError } = await admin
       .from("profiles")
-      .select("role, email, first_name, last_name, display_name")
+      .select("role")
       .eq("user_id", authData.user.id)
       .maybeSingle();
     if (profileError) throw profileError;
@@ -85,21 +84,26 @@ serve(async (req: Request) => {
 
     const { data: integration, error: integrationError } = await admin
       .from("company_jobsitelynk_integrations")
-      .select("company_id, jobsitelynk_base_url, external_company_id, shared_secret")
+      .select("jobsitelynk_base_url, external_company_id, shared_secret, connection_status")
       .eq("company_id", companyId)
       .maybeSingle();
     if (integrationError) throw integrationError;
 
     if (!integration?.jobsitelynk_base_url || !integration.shared_secret) {
-      return new Response(JSON.stringify({ error: "Configure JobSiteLynk base URL and shared secret first." }), {
+      return new Response(JSON.stringify({ error: "JobSiteLynk is not configured for this company." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
-    const endpoint = `${trimTrailingSlashes(String(integration.jobsitelynk_base_url))}/functions/v1/builderlink-connect-account`;
-    const externalUserName = String(profile?.display_name || "").trim() || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || authData.user.email || jobsitelynkEmail;
+    if (String(integration.connection_status || "") !== "connected") {
+      return new Response(JSON.stringify({ error: "Connect a JobSiteLynk account in Company Settings first." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
 
+    const endpoint = `${trimTrailingSlashes(String(integration.jobsitelynk_base_url))}/functions/v1/builderlink-list-projects`;
     const response = await fetch(endpoint, {
       method: "POST",
       headers: {
@@ -110,27 +114,15 @@ serve(async (req: Request) => {
       body: JSON.stringify({
         provider: "builderlink",
         external_company_id: String(integration.external_company_id || companyId),
-        external_admin_user_id: String(authData.user.id),
-        external_admin_user_email: String(profile?.email || authData.user.email || ""),
-        external_admin_user_name: externalUserName,
-        jobsitelynk_email: jobsitelynkEmail,
-        jobsitelynk_password: jobsitelynkPassword,
+        query,
+        limit: 50,
       }),
     });
 
     const responseJson = await response.json().catch(() => ({}));
-
     if (!response.ok) {
-      await admin
-        .from("company_jobsitelynk_integrations")
-        .update({
-          connection_status: "error",
-          last_connection_error: String(responseJson?.error || responseJson?.message || "Connection failed"),
-        })
-        .eq("company_id", companyId);
-
       return new Response(JSON.stringify({
-        error: responseJson?.error || responseJson?.message || "JobSiteLynk connection failed",
+        error: responseJson?.error || responseJson?.message || "Failed to load JobSiteLynk projects",
         details: responseJson,
       }), {
         status: response.status,
@@ -138,32 +130,16 @@ serve(async (req: Request) => {
       });
     }
 
-    const updatePayload = {
-      connection_status: "connected",
-      connected_account_email: String(responseJson?.connected_account_email || jobsitelynkEmail),
-      connected_account_name: String(responseJson?.connected_account_name || responseJson?.organization_name || "").trim() || null,
-      connected_at: new Date().toISOString(),
-      last_connection_error: null,
-    };
-
-    const { error: updateError } = await admin
-      .from("company_jobsitelynk_integrations")
-      .update(updatePayload)
-      .eq("company_id", companyId);
-    if (updateError) throw updateError;
-
     return new Response(JSON.stringify({
       success: true,
-      connected_account_email: updatePayload.connected_account_email,
-      connected_account_name: updatePayload.connected_account_name,
-      connected_at: updatePayload.connected_at,
+      projects: Array.isArray(responseJson?.projects) ? responseJson.projects : [],
     }), {
       status: 200,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Error in jobsitelynk-connect-account:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Failed to connect JobSiteLynk account" }), {
+    console.error("Error in jobsitelynk-list-projects:", error);
+    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Failed to load JobSiteLynk projects" }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

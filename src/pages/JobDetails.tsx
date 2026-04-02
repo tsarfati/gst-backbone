@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate, Download, FileCheck, Loader2 } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate, Download, FileCheck, Link2, ExternalLink, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -379,7 +379,6 @@ export default function JobDetails() {
 
     void loadSecurityCameraMappings();
   }, [id, currentCompany?.id, job?.company_id, isExternalView]);
-
   useEffect(() => {
     if (!jobSiteLynkModalOpen || !jobSiteLynkLaunchUrl) return;
 
@@ -773,6 +772,14 @@ export default function JobDetails() {
   const openJobSiteLynk = async () => {
     if (!id) return;
 
+    if (!jobSiteLynkConfigured) {
+      toast({
+        title: "Integration not configured",
+        description: "Configure JobSiteLynk in Company Settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!job?.jobsitelynk_project_id) {
       toast({
         title: "Project not linked",
@@ -962,6 +969,12 @@ export default function JobDetails() {
             Share / Handoff
           </Button>
         )}
+        {jobSiteLynkConfigured && job?.jobsitelynk_project_id && (
+          <Button variant="outline" size="sm" onClick={() => void openJobSiteLynk()}>
+            {jobSiteLynkLaunching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-2" />}
+            Open JobSiteLynk
+          </Button>
+        )}
       </div>
 
       {/* Tabbed Content */}
@@ -1133,6 +1146,42 @@ export default function JobDetails() {
                       </p>
                     </div>
                   </div>
+
+                  {!isExternalView && jobSiteLynkConfigured && (
+                    <Card className="border-dashed">
+                      <CardHeader className="flex flex-row items-center justify-between">
+                        <div>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Link2 className="h-4 w-4" />
+                            JobSiteLynk
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            Launch the linked JobSiteLynk project inside BuilderLynk.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {job?.jobsitelynk_project_id && <Badge variant="outline">Project ID: {job.jobsitelynk_project_id}</Badge>}
+                          {jobSiteLynkConfigured && job?.jobsitelynk_project_id ? (
+                            <Button size="sm" variant="outline" onClick={() => void openJobSiteLynk()}>
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Launch JobSiteLynk
+                            </Button>
+                          ) : null}
+                          {canManageJobSiteLynkLink ? (
+                            <Button size="sm" variant="outline" onClick={() => void openJobSiteLynkLinkDialog()}>
+                              <Link2 className="h-4 w-4 mr-2" />
+                              {job?.jobsitelynk_project_id ? "Edit Code" : "Add Code"}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">
+                        {job?.jobsitelynk_project_id
+                          ? "This job is linked and ready to open in the embedded JobSiteLynk viewer."
+                          : "Paste the JobSiteLynk project code from the matching JobSiteLynk job here to connect it to this BuilderLynk job."}
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {isExternalView ? (
                     <div className="pt-1">

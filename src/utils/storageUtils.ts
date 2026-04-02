@@ -1,6 +1,8 @@
 import { supabase } from "@/integrations/supabase/client";
+import { Upload } from "tus-js-client";
 
 const STORAGE_SUPABASE_URL = "https://watxvzoolmfjfijrgcvq.supabase.co";
+const STORAGE_SUPABASE_STORAGE_URL = "https://watxvzoolmfjfijrgcvq.storage.supabase.co";
 const STORAGE_SUPABASE_PUBLISHABLE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q";
 
 /**
@@ -16,6 +18,10 @@ interface UploadFileWithProgressParams {
   upsert?: boolean;
   onProgress?: (percent: number, loaded: number, total: number) => void;
 }
+
+const RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024;
+const RESUMABLE_UPLOAD_URL = `${STORAGE_SUPABASE_STORAGE_URL}/storage/v1/upload/resumable`;
+const RESUMABLE_CHUNK_SIZE = 6 * 1024 * 1024;
 
 /**
  * Extracts the storage path from a full Supabase storage URL.
@@ -145,6 +151,53 @@ export async function uploadFileWithProgress({
   const accessToken = sessionData.session?.access_token;
   if (!accessToken) {
     throw new Error("Missing authenticated session for file upload");
+  }
+
+  if (file.size > RESUMABLE_UPLOAD_THRESHOLD_BYTES) {
+    await new Promise<void>((resolve, reject) => {
+      const upload = new Upload(file, {
+        endpoint: RESUMABLE_UPLOAD_URL,
+        headers: {
+          apikey: STORAGE_SUPABASE_PUBLISHABLE_KEY,
+          Authorization: `Bearer ${accessToken}`,
+          "x-upsert": upsert ? "true" : "false",
+        },
+        metadata: {
+          bucketName,
+          objectName: filePath,
+          contentType: file.type || "application/octet-stream",
+          cacheControl: "3600",
+        },
+        chunkSize: RESUMABLE_CHUNK_SIZE,
+        uploadDataDuringCreation: true,
+        removeFingerprintOnSuccess: true,
+        retryDelays: [0, 1000, 3000, 5000],
+        onError: (error) => {
+          reject(error);
+        },
+        onProgress: (loaded, total) => {
+          if (!onProgress || total <= 0) return;
+          const percent = Math.max(0, Math.min(100, Math.round((loaded / total) * 100)));
+          onProgress(percent, loaded, total);
+        },
+        onSuccess: () => {
+          if (onProgress) {
+            onProgress(100, file.size, file.size);
+          }
+          resolve();
+        },
+      });
+
+      upload.findPreviousUploads().then((previousUploads) => {
+        if (previousUploads.length > 0) {
+          upload.resumeFromPreviousUpload(previousUploads[0]);
+        }
+        upload.start();
+      }).catch((error) => {
+        reject(error);
+      });
+    });
+    return;
   }
 
   const uploadUrl = `${STORAGE_SUPABASE_URL}/storage/v1/object/${bucketName}/${filePath
