@@ -4,6 +4,7 @@ import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 import { useCompany } from '@/contexts/CompanyContext';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil, ExternalLink, Upload, Minus, RotateCcw } from 'lucide-react';
@@ -22,6 +23,7 @@ import PhotoLocationMap from './PhotoLocationMap';
 import { ChevronDown, Star } from 'lucide-react';
 import { createMentionNotifications } from '@/utils/mentions';
 import MentionInput from '@/components/MentionInput';
+import jobSiteLynkLogo from '@/assets/jobsitelynk-logo.png';
 
 interface JobPhoto {
   id: string;
@@ -85,9 +87,17 @@ function ResolvedImage({ src, alt, className, onClick }: { src: string; alt: str
 
 interface JobPhotoAlbumProps {
   jobId: string;
+  jobSiteLynkConfigured?: boolean;
+  jobSiteLynkProjectId?: string | null;
+  onOpenJobSiteLynk?: () => void;
 }
 
-export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
+export default function JobPhotoAlbum({
+  jobId,
+  jobSiteLynkConfigured = false,
+  jobSiteLynkProjectId = null,
+  onOpenJobSiteLynk,
+}: JobPhotoAlbumProps) {
   const MIN_IMAGE_SCALE = 1;
   const MAX_IMAGE_SCALE = 6;
   const { toast } = useToast();
@@ -1397,6 +1407,32 @@ export default function JobPhotoAlbum({ jobId }: JobPhotoAlbumProps) {
       {/* Album Icons Grid */}
       {!selectedAlbumId || selectedAlbumId === 'all' ? (
         <div className={`grid ${albumViewMode === 'small' ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4'}`}>
+          {jobSiteLynkConfigured && (
+            <Card
+              className="cursor-pointer hover:border-primary transition-colors group"
+              onClick={() => {
+                if (jobSiteLynkProjectId) {
+                  onOpenJobSiteLynk?.();
+                } else {
+                  window.open('https://jobsitelynk.com', '_blank', 'noopener,noreferrer');
+                }
+              }}
+            >
+              <CardContent className={`${albumViewMode === 'small' ? 'p-2' : 'p-3'} flex flex-col items-center text-center`}>
+                <div className={`w-full aspect-square rounded-lg bg-black/90 flex items-center justify-center ${albumViewMode === 'small' ? 'mb-1' : 'mb-2'} overflow-hidden group-hover:ring-2 ring-primary transition-all relative`}>
+                  <img
+                    src={jobSiteLynkLogo}
+                    alt="JobSiteLynk"
+                    className="h-full w-full object-contain p-3"
+                  />
+                </div>
+                <p className={`${albumViewMode === 'small' ? 'text-xs' : 'text-sm'} font-medium line-clamp-2`}>JobSiteLynk</p>
+                <Badge variant={jobSiteLynkProjectId ? 'default' : 'outline'} className="mt-2">
+                  {jobSiteLynkProjectId ? 'Connected' : 'Not Connected'}
+                </Badge>
+              </CardContent>
+            </Card>
+          )}
           {albums.map((album) => (
             <Card 
               key={album.id} 
