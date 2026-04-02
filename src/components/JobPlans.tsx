@@ -20,6 +20,7 @@ import DragDropUpload from "@/components/DragDropUpload";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
 import { useUnifiedViewPreference, type UnifiedViewType } from "@/hooks/useUnifiedViewPreference";
 import { uploadFileWithProgress } from "@/utils/storageUtils";
+import builderlynkShieldIcon from "@/assets/builderlynk-icon-shield.png";
 
 interface JobPlansProps {
   jobId: string;
@@ -51,6 +52,7 @@ type PlanSortKey = "plan_name" | "plan_number" | "revision" | "architect" | "rev
 type SortDirection = "asc" | "desc";
 
 const PLAN_UPLOAD_MAX_SIZE_MB = 300;
+const PLAN_UPLOAD_MAX_SIZE_BYTES = PLAN_UPLOAD_MAX_SIZE_MB * 1024 * 1024;
 const PLAN_SYSTEM_FOLDER_NAME = "Plans";
 const INITIAL_PLAN_FORM = {
   plan_name: "",
@@ -62,12 +64,35 @@ const INITIAL_PLAN_FORM = {
   revision_date: "",
 };
 
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+function validatePlanFile(file: File | null) {
+  if (!file) return { valid: true as const };
+
+  if (file.size > PLAN_UPLOAD_MAX_SIZE_BYTES) {
+    return {
+      valid: false as const,
+      message: `This plan file is too large. The maximum upload size is ${PLAN_UPLOAD_MAX_SIZE_MB}MB.`,
+    };
+  }
+
+  return { valid: true as const };
+}
+
 function generatePlanFileId() {
   if (typeof globalThis !== "undefined" && globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
     return globalThis.crypto.randomUUID();
   }
 
   return `${Date.now()}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
+function generatePlanUuid() {
+  if (typeof globalThis !== "undefined" && globalThis.crypto && typeof globalThis.crypto.randomUUID === "function") {
+    return globalThis.crypto.randomUUID();
+  }
+
+  return "00000000-0000-4000-8000-000000000000";
 }
 
 function parsePlanMetadataFromFileName(fileName: string) {
@@ -193,7 +218,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
   const [deletingPlan, setDeletingPlan] = useState(false);
   const [sortKey, setSortKey] = useState<PlanSortKey>("uploaded_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
-  const { currentView, setCurrentView, setDefaultView, isDefault } = useUnifiedViewPreference("job-plans-view", "icons");
+  const { currentView, defaultView, setCurrentView, setDefaultView } = useUnifiedViewPreference("job-plans-view", "icons");
 
   const [formData, setFormData] = useState(INITIAL_PLAN_FORM);
   const [infoFormData, setInfoFormData] = useState({
@@ -205,6 +230,9 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
     is_permit_set: false,
     revision_date: "",
   });
+
+  const sortPlansCollection = (planList: JobPlan[]) =>
+    [...planList].sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
 
   const ensurePlansFolderId = async () => {
     if (!currentCompany?.id || !user?.id) {
@@ -336,7 +364,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
     }
   }, [jobId, currentCompany?.id]);
 
-  const fetchPlans = async () => {
+  const fetchPlans = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
       const { data, error } = await supabase
         .from("job_plans")
@@ -346,16 +374,27 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
         .order("uploaded_at", { ascending: false });
 
       if (error) throw error;
-      setPlans(data || []);
+      const nextPlans = sortPlansCollection((data || []) as JobPlan[]);
+      setPlans(nextPlans);
+      return nextPlans;
     } catch (error) {
       console.error("Error fetching plans:", error);
-      toast.error("Failed to load plans");
+      if (!silent) {
+        toast.error("Failed to load plans");
+      }
+      throw error;
     } finally {
       setLoading(false);
     }
   };
 
   const openUploadDialogWithFile = (file: File | null = null) => {
+    const validation = validatePlanFile(file);
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
+
     setEditingPlan(null);
     setFormData(INITIAL_PLAN_FORM);
     setSelectedFile(file);
@@ -385,6 +424,12 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       return;
     }
 
+    const validation = validatePlanFile(selectedFile);
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
+
     setUploading(true);
     setUploadProgress(0);
 
@@ -393,6 +438,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       let fileUrl = editingPlan?.file_url || "";
       let fileName = editingPlan?.file_name || "";
       let fileSize = editingPlan?.file_size || null;
+      let savedPlan: JobPlan | null = null;
 
       if (selectedFile) {
         fileName = selectedFile.name;
@@ -429,93 +475,117 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
 
       if (editingPlan) {
         // Update existing plan
+        const updatePayload = {
+          plan_name: formData.plan_name,
+          plan_number: formData.plan_number || null,
+          revision: formData.revision || null,
+          description: formData.description || null,
+          architect: formData.architect || null,
+          is_permit_set: formData.is_permit_set,
+          revision_date: formData.revision_date || null,
+          file_url: fileUrl,
+          file_name: fileName,
+          file_size: fileSize,
+          updated_at: new Date().toISOString(),
+        };
+
         const { error: updateError } = await supabase
           .from("job_plans")
-          .update({
-            plan_name: formData.plan_name,
-            plan_number: formData.plan_number || null,
-            revision: formData.revision || null,
-            description: formData.description || null,
-            architect: formData.architect || null,
-            is_permit_set: formData.is_permit_set,
-            revision_date: formData.revision_date || null,
-            file_url: fileUrl,
-            file_name: fileName,
-            file_size: fileSize,
-            updated_at: new Date().toISOString(),
-          })
+          .update(updatePayload)
           .eq("id", editingPlan.id);
 
         if (updateError) throw updateError;
-        if (selectedFile) {
-          const { data: existingCabinet } = await supabase
-            .from("job_files")
-            .select("file_url")
-            .eq("source_plan_id", editingPlan.id)
-            .maybeSingle();
-          try {
-            await syncPlanToFilingCabinet({
-              planId: editingPlan.id,
-              file: selectedFile,
-              fileName,
-              previousCabinetPath: existingCabinet?.file_url || null,
-              onProgress: (percent) => {
-                setUploadProgress(Math.max(84, Math.round(82 + percent * 0.18)));
-              },
-            });
-          } catch (syncError) {
-            filingCabinetSyncFailed = true;
-            console.error("Error syncing plan to filing cabinet:", syncError);
-          }
-        }
+        savedPlan = {
+          ...editingPlan,
+          ...updatePayload,
+        } as JobPlan;
+        setPlans((prev) => sortPlansCollection(prev.map((plan) => (plan.id === editingPlan.id ? savedPlan! : plan))));
       } else {
         // Create new plan
-        const { data: createdPlan, error: insertError } = await supabase
+        const createdAtIso = new Date().toISOString();
+        const newPlanId = generatePlanUuid();
+        const newPlanPayload = {
+          id: newPlanId,
+          job_id: jobId,
+          company_id: currentCompany?.id,
+          uploaded_by: user?.id,
+          plan_name: formData.plan_name,
+          plan_number: formData.plan_number || null,
+          revision: formData.revision || null,
+          description: formData.description || null,
+          architect: formData.architect || null,
+          is_permit_set: formData.is_permit_set,
+          revision_date: formData.revision_date || null,
+          file_url: fileUrl,
+          file_name: fileName,
+          file_size: fileSize,
+          uploaded_at: createdAtIso,
+          created_at: createdAtIso,
+          updated_at: createdAtIso,
+        };
+
+        const { error: insertError } = await supabase
           .from("job_plans")
-          .insert({
-            job_id: jobId,
-            company_id: currentCompany?.id,
-            uploaded_by: user?.id,
-            plan_name: formData.plan_name,
-            plan_number: formData.plan_number || null,
-            revision: formData.revision || null,
-            description: formData.description || null,
-            architect: formData.architect || null,
-            is_permit_set: formData.is_permit_set,
-            revision_date: formData.revision_date || null,
-            file_url: fileUrl,
-            file_name: fileName,
-            file_size: fileSize,
-          })
-          .select("id")
-          .single();
+          .insert(newPlanPayload);
 
         if (insertError) throw insertError;
-        if (selectedFile && createdPlan?.id) {
-          try {
-            await syncPlanToFilingCabinet({
-              planId: createdPlan.id,
-              file: selectedFile,
-              fileName,
-              onProgress: (percent) => {
-                setUploadProgress(Math.max(84, Math.round(82 + percent * 0.18)));
-              },
-            });
-          } catch (syncError) {
-            filingCabinetSyncFailed = true;
-            console.error("Error syncing plan to filing cabinet:", syncError);
+        savedPlan = newPlanPayload as JobPlan;
+        setPlans((prev) => sortPlansCollection([savedPlan!, ...prev.filter((plan) => plan.id !== newPlanId)]));
+      }
+
+      if (selectedFile && savedPlan?.id) {
+        try {
+          let previousCabinetPath: string | null = null;
+          if (editingPlan) {
+            const { data: existingCabinet } = await supabase
+              .from("job_files")
+              .select("file_url")
+              .eq("source_plan_id", savedPlan.id)
+              .maybeSingle();
+            previousCabinetPath = existingCabinet?.file_url || null;
           }
+
+          await syncPlanToFilingCabinet({
+            planId: savedPlan.id,
+            file: selectedFile,
+            fileName,
+            previousCabinetPath,
+            onProgress: (percent) => {
+              setUploadProgress(82 + Math.round(percent * 0.16));
+            },
+          });
+        } catch (syncError) {
+          filingCabinetSyncFailed = true;
+          console.error("Error syncing plan to filing cabinet:", syncError);
         }
       }
 
+      try {
+        await sleep(300);
+        const refreshedPlans = await fetchPlans({ silent: true });
+        const savedPlanStillVisible = refreshedPlans.some((plan) => plan.id === savedPlan!.id);
+        if (!savedPlanStillVisible) {
+          setPlans((prev) => {
+            const withoutSaved = prev.filter((plan) => plan.id !== savedPlan!.id);
+            return sortPlansCollection([savedPlan!, ...withoutSaved]);
+          });
+        }
+      } catch (refreshError) {
+        console.error("Error refreshing plans after upload:", refreshError);
+        setPlans((prev) => {
+          const withoutSaved = prev.filter((plan) => plan.id !== savedPlan!.id);
+          return sortPlansCollection([savedPlan!, ...withoutSaved]);
+        });
+      }
+
+      setUploadProgress(100);
       setDialogOpen(false);
       setFormData(INITIAL_PLAN_FORM);
       setSelectedFile(null);
       setEditingPlan(null);
-      setUploadProgress(100);
-      await fetchPlans();
+
       if (filingCabinetSyncFailed) {
-        toast.warning(editingPlan ? "Plan updated, but filing cabinet sync failed" : "Plan uploaded, but filing cabinet sync failed");
+        toast.warning("Plan saved, but the filing cabinet copy failed");
       } else {
         toast.success(editingPlan ? "Plan updated successfully" : "Plan uploaded successfully");
       }
@@ -629,6 +699,12 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
   };
 
   const applyFileAutoFill = (file: File | null) => {
+    const validation = validatePlanFile(file);
+    if (!validation.valid) {
+      toast.error(validation.message);
+      return;
+    }
+
     setSelectedFile(file);
     if (!file) return;
 
@@ -796,11 +872,11 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
           <UnifiedViewSelector
             currentView={currentView}
             onViewChange={(view) => setCurrentView(view as UnifiedViewType)}
-            onSetDefault={() => {
-              setDefaultView();
+            onSetDefault={(view) => {
+              setDefaultView(view as UnifiedViewType);
               toast.success("Default plans view updated");
             }}
-            isDefault={isDefault}
+            defaultView={defaultView}
           />
         </div>
       </div>
@@ -899,10 +975,50 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
         }}
       >
         <DialogContent className="max-w-md max-h-[90vh] overflow-y-auto">
+          {uploading ? (
+            <div className="relative overflow-hidden rounded-xl border">
+              <div className="absolute inset-0 bg-[radial-gradient(circle_at_top,_rgba(250,204,21,0.18),_transparent_45%),linear-gradient(145deg,rgba(250,204,21,0.14),rgba(59,130,246,0.18))]" />
+              <div className="relative flex min-h-[360px] flex-col items-center justify-center px-6 py-10 text-center">
+                <div className="relative flex h-36 w-36 items-center justify-center">
+                  <svg className="absolute inset-0 h-full w-full -rotate-90" viewBox="0 0 120 120" aria-hidden="true">
+                    <defs>
+                      <linearGradient id="planUploadProgressGradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                        <stop offset="0%" stopColor="#facc15" />
+                        <stop offset="100%" stopColor="#3b82f6" />
+                      </linearGradient>
+                    </defs>
+                    <circle cx="60" cy="60" r="52" fill="none" stroke="rgba(148,163,184,0.18)" strokeWidth="8" />
+                    <circle
+                      cx="60"
+                      cy="60"
+                      r="52"
+                      fill="none"
+                      stroke="url(#planUploadProgressGradient)"
+                      strokeWidth="8"
+                      strokeLinecap="round"
+                      strokeDasharray={Math.PI * 2 * 52}
+                      strokeDashoffset={(1 - uploadProgress / 100) * Math.PI * 2 * 52}
+                    />
+                  </svg>
+                  <div className="relative flex h-24 w-24 items-center justify-center rounded-full bg-background/90 shadow-sm backdrop-blur-sm">
+                    <img src={builderlynkShieldIcon} alt="BuilderLYNK" className="h-20 w-20 object-contain" />
+                  </div>
+                </div>
+                <div className="mt-6 space-y-2">
+                  <div className="text-4xl font-semibold tracking-tight">{uploadProgress}%</div>
+                  <div className="text-base font-medium">Uploading plan set</div>
+                  <div className="text-sm text-muted-foreground">
+                    Saving your file and preparing it for the Construction Plan Sets tab.
+                  </div>
+                </div>
+              </div>
+            </div>
+          ) : (
+          <>
           <DialogHeader>
             <DialogTitle>{editingPlan ? "Edit Plan Set" : "Upload New Plan Set"}</DialogTitle>
             <DialogDescription>
-              Add the plan set details and upload the file for this job.
+              Add the plan set details and confirm the selected file for this job.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4">
@@ -972,46 +1088,26 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
               />
             </div>
             <div>
-              <Label htmlFor="file">
-                {editingPlan ? "Upload New File (optional)" : "Select File *"}
-              </Label>
-              <div className="space-y-2">
-                <DragDropUpload
-                  onFileSelect={applyFileAutoFill}
-                  accept=".pdf,.dwg,.dxf"
-                  maxSize={PLAN_UPLOAD_MAX_SIZE_MB}
-                  disabled={uploading}
-                  title={editingPlan ? "Drag replacement plan set file here" : "Drag plan set file here"}
-                  dropTitle="Drop plan set file here"
-                  helperText={`PDF, DWG, or DXF up to ${PLAN_UPLOAD_MAX_SIZE_MB}MB`}
-                  buttonLabel={editingPlan ? "Choose Replacement File" : "Choose File to Upload"}
-                />
+              <Label htmlFor="file">{editingPlan ? "Replacement File (optional)" : "Selected File"}</Label>
+              <div className="rounded-lg border bg-muted/20 px-3 py-3">
+                <div className="text-sm font-medium text-foreground">
+                  {selectedFile ? selectedFile.name : editingPlan?.file_name || "No file selected"}
+                </div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  PDF, DWG, or DXF up to {PLAN_UPLOAD_MAX_SIZE_MB}MB
+                </div>
               </div>
               {selectedFile ? (
                 <p className="text-xs text-muted-foreground">
-                  Selected file: <span className="font-medium text-foreground">{selectedFile.name}</span>
+                  {editingPlan ? "A new file will replace the existing plan file." : "This file is ready to upload."}
                 </p>
               ) : null}
-              {!editingPlan && (
-                <p className="text-xs text-muted-foreground mt-1">
-                  Accepted formats: PDF, DWG, DXF
-                </p>
-              )}
               {editingPlan && !selectedFile && (
                 <p className="text-xs text-muted-foreground mt-1">
                   Leave empty to keep existing file
                 </p>
               )}
             </div>
-            {uploading ? (
-              <div className="space-y-2 rounded-lg border bg-muted/30 p-3">
-                <div className="flex items-center justify-between text-sm">
-                  <span className="font-medium">Uploading plan set</span>
-                  <span>{uploadProgress}%</span>
-                </div>
-                <Progress value={uploadProgress} className="h-2" />
-              </div>
-            ) : null}
             <div className="flex justify-end gap-2">
               <Button variant="outline" onClick={() => setDialogOpen(false)}>
                 Cancel
@@ -1021,6 +1117,8 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
               </Button>
             </div>
           </div>
+          </>
+          )}
         </DialogContent>
       </Dialog>
 

@@ -10,7 +10,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate, Download, FileCheck } from "lucide-react";
+import { ArrowLeft, Edit, Building, Plus, FileText, Calculator, DollarSign, Package, Clock, Users, TrendingUp, Camera, ClipboardList, LayoutTemplate, Download, FileCheck, Link2, ExternalLink, Loader2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -36,6 +36,7 @@ import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
 
 interface Job {
   id: string;
+  company_id?: string;
   name: string;
   project_number?: string | null;
   customer_id?: string | null;
@@ -49,6 +50,7 @@ interface Job {
   end_date?: string;
   description?: string;
   visitor_qr_code?: string;
+  jobsitelynk_project_id?: string | null;
   created_at?: string;
   customer?: {
     id: string;
@@ -126,6 +128,15 @@ export default function JobDetails() {
   const [targetCompanies, setTargetCompanies] = useState<Array<{ id: string; name: string }>>([]);
   const [loadingTargetCompanies, setLoadingTargetCompanies] = useState(false);
   const [submittingHandoff, setSubmittingHandoff] = useState(false);
+  const [jobSiteLynkConfigured, setJobSiteLynkConfigured] = useState(false);
+  const [jobSiteLynkLinkDialogOpen, setJobSiteLynkLinkDialogOpen] = useState(false);
+  const [savingJobSiteLynkLink, setSavingJobSiteLynkLink] = useState(false);
+  const [selectedJobSiteLynkProjectId, setSelectedJobSiteLynkProjectId] = useState("");
+  const [jobSiteLynkModalOpen, setJobSiteLynkModalOpen] = useState(false);
+  const [jobSiteLynkLaunchUrl, setJobSiteLynkLaunchUrl] = useState("");
+  const [jobSiteLynkLaunching, setJobSiteLynkLaunching] = useState(false);
+  const [jobSiteLynkReady, setJobSiteLynkReady] = useState(false);
+  const [jobSiteLynkError, setJobSiteLynkError] = useState<string | null>(null);
   const isVendorView = String(profile?.role || "").toLowerCase() === "vendor";
   const isDesignProfessionalView = String(profile?.role || "").toLowerCase() === "design_professional";
   const isExternalView = isDesignProfessionalView || isVendorView;
@@ -141,6 +152,7 @@ export default function JobDetails() {
       String(profile?.role || "").toLowerCase() === "design_professional"
       || String(currentCompany?.company_type || "").toLowerCase() === "design_professional"
     );
+  const canManageJobSiteLynkLink = permissions.canEditJobs() && canManageDesignProfessionalJob && !isVendorView;
   const returnToJobsPath = isDesignProfessionalView ? "/design-professional/jobs" : isVendorView ? "/vendor/jobs" : "/jobs";
   const visibleTabs = isDesignProfessionalView
     ? ["details", "plans", "rfis", "submittals", "filing-cabinet", "photo-album"]
@@ -156,7 +168,6 @@ export default function JobDetails() {
         effectiveJobAccess.canViewSubcontracts && "subcontracts",
       ].filter(Boolean) as string[]
     : ["details", "cost-budget", "forecasting", "committed-costs", "billing", "plans", "rfis", "rfps", "submittals", "filing-cabinet", "photo-album", "visitor-logs"];
-
   useEffect(() => {
     const fetchJob = async () => {
       if (!id) {
@@ -299,6 +310,49 @@ export default function JobDetails() {
 
     loadTargetCompanies();
   }, [handoffDialogOpen, canHandoffProject, user?.id, currentCompany?.id, toast]);
+
+  useEffect(() => {
+    const loadJobSiteLynkConfig = async () => {
+      if (!currentCompany?.id) return;
+      try {
+        const { data, error } = await (supabase as any)
+          .from("company_jobsitelynk_integrations")
+          .select("jobsitelynk_base_url")
+          .eq("company_id", currentCompany.id)
+          .maybeSingle();
+        if (error) throw error;
+        setJobSiteLynkConfigured(!!data?.jobsitelynk_base_url);
+      } catch (error) {
+        console.error("Error loading JobSiteLynk integration:", error);
+        setJobSiteLynkConfigured(false);
+      }
+    };
+
+    void loadJobSiteLynkConfig();
+  }, [currentCompany?.id]);
+
+  useEffect(() => {
+    if (!jobSiteLynkModalOpen || !jobSiteLynkLaunchUrl) return;
+
+    const handleMessage = (event: MessageEvent) => {
+      const data = event.data;
+      if (!data || data.source !== "jobsitelynk-embed") return;
+
+      if (data.type === "embed-ready") {
+        console.log("JobSiteLynk embed ready");
+        setJobSiteLynkReady(true);
+        setJobSiteLynkLaunching(false);
+      } else if (data.type === "embed-error") {
+        const message = String(data.message || data.error || "JobSiteLynk reported an embed error.");
+        console.error("JobSiteLynk embed error:", message, data);
+        setJobSiteLynkError(message);
+        setJobSiteLynkLaunching(false);
+      }
+    };
+
+    window.addEventListener("message", handleMessage);
+    return () => window.removeEventListener("message", handleMessage);
+  }, [jobSiteLynkModalOpen, jobSiteLynkLaunchUrl]);
 
   useEffect(() => {
     let ignore = false;
@@ -667,6 +721,105 @@ export default function JobDetails() {
     }
   };
 
+  const openJobSiteLynk = async () => {
+    if (!id) return;
+
+    if (!jobSiteLynkConfigured) {
+      toast({
+        title: "Integration not configured",
+        description: "Configure JobSiteLynk in Company Settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!job?.jobsitelynk_project_id) {
+      toast({
+        title: "Project not linked",
+        description: "Link this job to a JobSiteLynk project first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setJobSiteLynkModalOpen(true);
+      setJobSiteLynkLaunching(true);
+      setJobSiteLynkReady(false);
+      setJobSiteLynkError(null);
+      setJobSiteLynkLaunchUrl("");
+
+      const { data, error } = await supabase.functions.invoke("jobsitelynk-embed-session", {
+        body: { jobId: id },
+      });
+
+      if (error) throw error;
+      if (!data?.launch_url) {
+        throw new Error("JobSiteLynk did not return a launch URL.");
+      }
+
+      setJobSiteLynkLaunchUrl(String(data.launch_url));
+    } catch (error: any) {
+      console.error("Error launching JobSiteLynk:", error);
+      setJobSiteLynkError(error?.message || "Could not open JobSiteLynk.");
+      setJobSiteLynkLaunching(false);
+    }
+  };
+
+  const openJobSiteLynkLinkDialog = async () => {
+    if (!jobSiteLynkConfigured) {
+      toast({
+        title: "Integration not configured",
+        description: "Configure JobSiteLynk in Company Settings first.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setSelectedJobSiteLynkProjectId(job?.jobsitelynk_project_id || "");
+    setJobSiteLynkLinkDialogOpen(true);
+  };
+
+  const saveJobSiteLynkProjectLink = async () => {
+    const trimmedProjectId = selectedJobSiteLynkProjectId.trim();
+
+    if (!id || !trimmedProjectId) {
+      toast({
+        title: "Enter a project code",
+        description: "Paste the JobSiteLynk project code or link code for this job.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setSavingJobSiteLynkLink(true);
+      const { error } = await supabase
+        .from("jobs")
+        .update({ jobsitelynk_project_id: trimmedProjectId })
+        .eq("id", id);
+
+      if (error) throw error;
+
+      setJob((prev) => (prev ? { ...prev, jobsitelynk_project_id: trimmedProjectId } : prev));
+      setJobSiteLynkLinkDialogOpen(false);
+      toast({
+        title: "JobSiteLynk linked",
+        description: `${job?.name || "This job"} is now linked to JobSiteLynk project code ${trimmedProjectId}.`,
+      });
+    } catch (error: unknown) {
+      const message = error instanceof Error ? error.message : "Could not save the JobSiteLynk link.";
+      console.error("Error saving JobSiteLynk project link:", error);
+      toast({
+        title: "Link failed",
+        description: message,
+        variant: "destructive",
+      });
+    } finally {
+      setSavingJobSiteLynkLink(false);
+    }
+  };
+
   if (loading || (isVendorView && vendorAccessLoading)) {
     return (
       <div className="p-6">
@@ -750,6 +903,12 @@ export default function JobDetails() {
         {canHandoffProject && (
           <Button variant="outline" size="sm" onClick={() => setHandoffDialogOpen(true)}>
             Share / Handoff
+          </Button>
+        )}
+        {jobSiteLynkConfigured && job?.jobsitelynk_project_id && (
+          <Button variant="outline" size="sm" onClick={() => void openJobSiteLynk()}>
+            {jobSiteLynkLaunching ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <ExternalLink className="h-4 w-4 mr-2" />}
+            Open JobSiteLynk
           </Button>
         )}
       </div>
@@ -916,6 +1075,42 @@ export default function JobDetails() {
                       </p>
                     </div>
                   </div>
+
+                  {!isExternalView && jobSiteLynkConfigured && (
+                    <Card className="border-dashed">
+                      <CardHeader className="flex flex-row items-center justify-between">
+                        <div>
+                          <CardTitle className="text-base flex items-center gap-2">
+                            <Link2 className="h-4 w-4" />
+                            JobSiteLynk
+                          </CardTitle>
+                          <p className="text-sm text-muted-foreground">
+                            Launch the linked JobSiteLynk project inside BuilderLynk.
+                          </p>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {job?.jobsitelynk_project_id && <Badge variant="outline">Project ID: {job.jobsitelynk_project_id}</Badge>}
+                          {jobSiteLynkConfigured && job?.jobsitelynk_project_id ? (
+                            <Button size="sm" variant="outline" onClick={() => void openJobSiteLynk()}>
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              Launch JobSiteLynk
+                            </Button>
+                          ) : null}
+                          {canManageJobSiteLynkLink ? (
+                            <Button size="sm" variant="outline" onClick={() => void openJobSiteLynkLinkDialog()}>
+                              <Link2 className="h-4 w-4 mr-2" />
+                              {job?.jobsitelynk_project_id ? "Edit Code" : "Add Code"}
+                            </Button>
+                          ) : null}
+                        </div>
+                      </CardHeader>
+                      <CardContent className="text-sm text-muted-foreground">
+                        {job?.jobsitelynk_project_id
+                          ? "This job is linked and ready to open in the embedded JobSiteLynk viewer."
+                          : "Paste the JobSiteLynk project code from the matching JobSiteLynk job here to connect it to this BuilderLynk job."}
+                      </CardContent>
+                    </Card>
+                  )}
 
                   {isExternalView ? (
                     <div className="pt-1">
@@ -1354,6 +1549,108 @@ export default function JobDetails() {
               {submittingContractAction ? "Uploading..." : "Submit Signed Contract"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={jobSiteLynkLinkDialogOpen}
+        onOpenChange={(open) => {
+          setJobSiteLynkLinkDialogOpen(open);
+        }}
+      >
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Set JobSiteLynk Project Code</DialogTitle>
+            <DialogDescription>
+              Open the matching job in JobSiteLynk, copy its project code or link code, and paste it here.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="jobsitelynk-project-code">JobSiteLynk Project Code</Label>
+              <Input
+                id="jobsitelynk-project-code"
+                value={selectedJobSiteLynkProjectId}
+                onChange={(e) => setSelectedJobSiteLynkProjectId(e.target.value)}
+                placeholder="Paste the JobSiteLynk project code"
+                autoFocus
+              />
+            </div>
+
+            <div className="rounded-md border bg-muted/30 p-3 text-xs text-muted-foreground">
+              This code is stored on the BuilderLynk job record and used when launching the embedded JobSiteLynk viewer.
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setJobSiteLynkLinkDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void saveJobSiteLynkProjectLink()} disabled={savingJobSiteLynkLink || !selectedJobSiteLynkProjectId.trim()}>
+              {savingJobSiteLynkLink && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
+              Save Code
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={jobSiteLynkModalOpen}
+        onOpenChange={(open) => {
+          setJobSiteLynkModalOpen(open);
+          if (!open) {
+            setJobSiteLynkLaunchUrl("");
+            setJobSiteLynkError(null);
+            setJobSiteLynkLaunching(false);
+            setJobSiteLynkReady(false);
+          }
+        }}
+      >
+        <DialogContent className="max-w-[98vw] w-[98vw] h-[94vh] p-0 overflow-hidden">
+          <div className="flex h-full flex-col">
+            <div className="flex items-center justify-between border-b px-4 py-3">
+              <div>
+                <DialogTitle className="text-base">JobSiteLynk Viewer</DialogTitle>
+                <DialogDescription>{job?.name}</DialogDescription>
+              </div>
+            </div>
+            <div className="relative flex-1 bg-background">
+              {jobSiteLynkLaunchUrl ? (
+                <iframe
+                  src={jobSiteLynkLaunchUrl}
+                  title="JobSiteLynk Embedded Project"
+                  className="h-full w-full border-0"
+                  allow="clipboard-read; clipboard-write"
+                />
+              ) : null}
+
+              {(jobSiteLynkLaunching || !jobSiteLynkReady) && !jobSiteLynkError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background/95">
+                  <div className="flex items-center gap-3 text-sm text-muted-foreground">
+                    <Loader2 className="h-5 w-5 animate-spin" />
+                    <span className="loading-dots">Loading JobSiteLynk</span>
+                  </div>
+                </div>
+              )}
+
+              {jobSiteLynkError && (
+                <div className="absolute inset-0 flex items-center justify-center bg-background p-6">
+                  <Card className="max-w-lg w-full">
+                    <CardHeader>
+                      <CardTitle>Unable to open JobSiteLynk</CardTitle>
+                      <p className="text-sm text-muted-foreground">{jobSiteLynkError}</p>
+                    </CardHeader>
+                    <CardContent>
+                      <Button variant="outline" onClick={() => void openJobSiteLynk()}>
+                        Retry
+                      </Button>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
+            </div>
+          </div>
         </DialogContent>
       </Dialog>
     </div>

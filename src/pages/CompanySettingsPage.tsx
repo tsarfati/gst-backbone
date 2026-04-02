@@ -23,6 +23,7 @@ import PdfTemplateSettings from '@/components/PdfTemplateSettings';
 import ThemeSettings from '@/pages/ThemeSettings';
 import { useCompany } from '@/contexts/CompanyContext';
 import EmailTemplatesSettings from '@/components/EmailTemplatesSettings';
+import JobSiteLynkIntegrationSettings from '@/components/JobSiteLynkIntegrationSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/contexts/TenantContext';
@@ -90,7 +91,7 @@ interface CompanyEmailSettingsForm {
 export default function CompanySettingsPage() {
   const navigate = useNavigate();
   const { currentCompany, userCompanies, refreshCompanies } = useCompany();
-  const { currentTenant } = useTenant();
+  const { currentTenant, isSuperAdmin } = useTenant();
   const { user } = useAuth();
   const { toast } = useToast();
   const { hasAccess, permissions, loading: permissionsLoading } = useMenuPermissions();
@@ -133,11 +134,13 @@ export default function CompanySettingsPage() {
   });
 
   const currentUserCompany = userCompanies.find((uc) => uc.company_id === currentCompany?.id);
-  const canManageCompanyUsers = ['admin', 'company_admin', 'controller'].includes(String(currentUserCompany?.role || '').toLowerCase());
-  const canViewCompanySettings = hasAccess('company-settings-view') || hasAccess('company-settings');
-  const canEditCompanySettings = hasAccess('company-settings-edit');
+  const canManageCompanyUsers =
+    isSuperAdmin || ['admin', 'company_admin', 'controller'].includes(String(currentUserCompany?.role || '').toLowerCase());
+  const canViewCompanySettings = isSuperAdmin || hasAccess('company-settings-view') || hasAccess('company-settings');
+  const canEditCompanySettings = isSuperAdmin || hasAccess('company-settings-edit');
 
   const canAccessCompanyTab = (tabPermissionBase: string) => {
+    if (isSuperAdmin) return true;
     const viewKey = `${tabPermissionBase}-view`;
     if (typeof permissions[viewKey] === 'boolean') {
       return hasAccess(viewKey);
@@ -145,10 +148,11 @@ export default function CompanySettingsPage() {
     if (typeof permissions[tabPermissionBase] === 'boolean') {
       return hasAccess(tabPermissionBase);
     }
-    return canViewCompanySettings;
+    return tabPermissionBase === 'company-settings-tab-overview' ? canViewCompanySettings : false;
   };
 
   const canEditCompanyTab = (tabPermissionBase: string) => {
+    if (isSuperAdmin) return true;
     const editKey = `${tabPermissionBase}-edit`;
     if (typeof permissions[editKey] === 'boolean') {
       return hasAccess(editKey);
@@ -169,16 +173,18 @@ export default function CompanySettingsPage() {
   ].filter((tab) => canAccessCompanyTab(tab.permissionKey));
 
   const canAccessJobsSubtab = (permissionKey: string) => {
+    if (isSuperAdmin) return true;
     if (typeof permissions[`${permissionKey}-view`] === 'boolean') {
       return hasAccess(`${permissionKey}-view`);
     }
     if (typeof permissions[permissionKey] === 'boolean') {
       return hasAccess(permissionKey);
     }
-    return canAccessCompanyTab('company-settings-tab-jobs');
+    return false;
   };
 
   const canEditJobsSubtab = (permissionKey: string) => {
+    if (isSuperAdmin) return true;
     if (typeof permissions[`${permissionKey}-edit`] === 'boolean') {
       return hasAccess(`${permissionKey}-edit`);
     }
@@ -191,6 +197,7 @@ export default function CompanySettingsPage() {
   const jobsSubtabs = [
     { value: 'cost-code-setup', label: 'Cost Code Setup', permissionKey: 'company-settings-tab-jobs-cost-code-setup' },
     { value: 'design-professional-portal', label: 'Design Professional Portal', permissionKey: 'company-settings-tab-jobs-design-professional-portal' },
+    { value: 'jobsitelynk-connector', label: 'JobSiteLynk Connector', permissionKey: 'company-settings-tab-jobs' },
   ].filter((tab) => canAccessJobsSubtab(tab.permissionKey));
   const [activeJobsTab, setActiveJobsTab] = useState(jobsSubtabs[0]?.value || 'cost-code-setup');
 
@@ -888,6 +895,11 @@ export default function CompanySettingsPage() {
               <TabsContent value="design-professional-portal">
                 <div className={canEditJobsSubtab('company-settings-tab-jobs-design-professional-portal') ? '' : 'pointer-events-none opacity-75'}>
                   <DesignProfessionalPortalSettings />
+                </div>
+              </TabsContent>
+              <TabsContent value="jobsitelynk-connector">
+                <div className={canEditJobsSubtab('company-settings-tab-jobs') ? '' : 'pointer-events-none opacity-75'}>
+                  <JobSiteLynkIntegrationSettings />
                 </div>
               </TabsContent>
             </Tabs>
