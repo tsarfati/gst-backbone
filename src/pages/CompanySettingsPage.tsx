@@ -168,6 +168,7 @@ export default function CompanySettingsPage() {
     { value: 'overview', label: 'Overview', permissionKey: 'company-settings-tab-overview', icon: Building2 },
     { value: 'payables', label: 'Payables', permissionKey: 'company-settings-tab-payables', icon: CreditCard },
     { value: 'jobs', label: 'Jobs', permissionKey: 'company-settings-tab-jobs', icon: Briefcase },
+    { value: 'integrations', label: 'Integrations', permissionKey: 'company-settings-tab-integrations', icon: Link2 },
     { value: 'receivable-settings', label: 'Receivables', permissionKey: 'company-settings-tab-receivables', icon: FileText },
     { value: 'banking', label: 'Banking', permissionKey: 'company-settings-tab-banking', icon: DollarSign },
     { value: 'credit-cards', label: 'Credit Cards', permissionKey: 'company-settings-tab-credit-cards', icon: Banknote },
@@ -202,7 +203,6 @@ export default function CompanySettingsPage() {
   const jobsSubtabs = [
     { value: 'cost-code-setup', label: 'Cost Code Setup', permissionKey: 'company-settings-tab-jobs-cost-code-setup' },
     { value: 'design-professional-portal', label: 'Design Professional Portal', permissionKey: 'company-settings-tab-jobs-design-professional-portal' },
-    { value: 'jobsitelynk-connector', label: 'JobSiteLynk Connector', permissionKey: 'company-settings-tab-jobs' },
   ].filter((tab) => canAccessJobsSubtab(tab.permissionKey));
   const [activeJobsTab, setActiveJobsTab] = useState(jobsSubtabs[0]?.value || 'cost-code-setup');
 
@@ -922,36 +922,12 @@ export default function CompanySettingsPage() {
                   <DesignProfessionalPortalSettings />
                 </div>
               </TabsContent>
-              <TabsContent value="jobsitelynk-connector">
-                <div className={canEditJobsSubtab('company-settings-tab-jobs') ? '' : 'pointer-events-none opacity-75'}>
-                  <JobSiteLynkIntegrationSettings />
-                </div>
-              </TabsContent>
             </Tabs>
           </TabsContent>
 
           <TabsContent value="integrations">
             <div className={canEditCompanyTab('company-settings-tab-integrations') ? '' : 'pointer-events-none opacity-75'}>
-              {jobSiteLynkSettingsError ? (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>JobSiteLynk</CardTitle>
-                    <CardDescription>{jobSiteLynkSettingsError}</CardDescription>
-                  </CardHeader>
-                </Card>
-              ) : jobSiteLynkSettingsComponent ? (
-                React.createElement(jobSiteLynkSettingsComponent)
-              ) : (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>JobSiteLynk</CardTitle>
-                    <CardDescription className="flex items-center gap-2">
-                      <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="loading-dots">Loading connector</span>
-                    </CardDescription>
-                  </CardHeader>
-                </Card>
-              )}
+              <JobSiteLynkIntegrationSettings />
             </div>
           </TabsContent>
 

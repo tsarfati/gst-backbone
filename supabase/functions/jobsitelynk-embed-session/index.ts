@@ -9,6 +9,7 @@ const corsHeaders = {
 };
 
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/g, "");
+const DEFAULT_JOBSITELYNK_BASE_URL = "https://jobsitelynk.com";
 
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
@@ -19,6 +20,7 @@ serve(async (req: Request) => {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
+    const connectorSharedSecret = String(Deno.env.get("JOBSITELYNK_SHARED_SECRET") || "").trim();
     const authHeader = req.headers.get("Authorization");
 
     if (!authHeader) {
@@ -93,8 +95,18 @@ serve(async (req: Request) => {
       .eq("company_id", job.company_id)
       .maybeSingle();
     if (integrationError) throw integrationError;
-    if (!integration?.jobsitelynk_base_url || !integration?.shared_secret) {
+    const baseUrl = trimTrailingSlashes(String(integration?.jobsitelynk_base_url || DEFAULT_JOBSITELYNK_BASE_URL));
+    const requestSecret = String(integration?.shared_secret || connectorSharedSecret).trim();
+
+    if (!integration?.external_company_id) {
       return new Response(JSON.stringify({ error: "JobSiteLynk is not configured for this company." }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (!requestSecret) {
+      return new Response(JSON.stringify({ error: "Missing JOBSITELYNK_SHARED_SECRET in BuilderLynk backend configuration." }), {
         status: 400,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -121,17 +133,17 @@ serve(async (req: Request) => {
       external_user_email: String(profile?.email || authData.user.email || ""),
       external_user_name: externalUserName,
       requested_mode: "embed",
+      external_project_code: String(job.jobsitelynk_project_id),
     };
 
-    const baseUrl = trimTrailingSlashes(String(integration.jobsitelynk_base_url).trim());
     const endpoint = `${baseUrl}/functions/v1/builderlink-embed-session`;
 
     const embedResponse = await fetch(endpoint, {
       method: "POST",
       headers: {
         "Content-Type": "application/json",
-        "Authorization": `Bearer ${integration.shared_secret}`,
-        "x-builderlink-secret": integration.shared_secret,
+        "Authorization": `Bearer ${requestSecret}`,
+        "x-builderlink-secret": requestSecret,
       },
       body: JSON.stringify(embedRequestPayload),
     });
