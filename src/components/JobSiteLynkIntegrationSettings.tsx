@@ -9,7 +9,8 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
-import { KeyRound, Link2, Loader2, PlugZap } from "lucide-react";
+import { KeyRound, Loader2 } from "lucide-react";
+import jobSiteLynkLogo from "@/assets/jobsitelynk-logo.png";
 
 const DEFAULT_JOBSITELYNK_BASE_URL = "https://jobsitelynk.com";
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/g, "");
@@ -159,66 +160,52 @@ export default function JobSiteLynkIntegrationSettings() {
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Link2 className="h-5 w-5" />
-                JobSiteLynk
-              </CardTitle>
-              <CardDescription>
-                Connect this BuilderLynk company to JobSiteLynk, then paste the JobSiteLynk job code on each BuilderLynk job.
-              </CardDescription>
-            </div>
-            <Badge variant={isConnected ? "default" : connectionStatus === "error" ? "destructive" : "outline"}>
-              {isConnected ? "Connected" : connectionStatus === "error" ? "Connection Error" : "Not Connected"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <div className="py-4 text-muted-foreground flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="loading-dots">Loading connector</span>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-lg border p-4 space-y-2 text-sm">
-                <div className="text-muted-foreground">
-                  BuilderLynk Company ID: <span className="text-foreground">{normalizedCompanyId || currentCompany?.id || "Not set"}</span>
+      <div className="space-y-4">
+        <div>
+          <h2 className="text-xl font-semibold">Integrations</h2>
+          <p className="text-sm text-muted-foreground">
+            Open a connector to manage company-level app connections.
+          </p>
+        </div>
+
+        {loading ? (
+          <Card>
+            <CardContent className="py-10">
+              <div className="text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="loading-dots">Loading connector</span>
+              </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <div className="flex flex-wrap gap-4">
+            <button
+              type="button"
+              onClick={() => setSettingsDialogOpen(true)}
+              className="group flex w-[220px] flex-col rounded-2xl border border-border bg-card p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/70 hover:bg-primary/5 hover:shadow-[0_0_0_1px_rgba(249,115,22,0.25),0_20px_40px_-24px_rgba(249,115,22,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            >
+              <div className="flex items-start justify-between gap-3">
+                <div className="flex h-[180px] flex-1 items-center justify-center overflow-hidden p-1 transition-transform duration-200 group-hover:scale-[1.03]">
+                  <img
+                    src={jobSiteLynkLogo}
+                    alt="JobSiteLynk"
+                    className="h-full w-full object-contain"
+                  />
                 </div>
-                <div className="text-muted-foreground">
-                  JobSiteLynk environment: <span className="text-foreground">{DEFAULT_JOBSITELYNK_BASE_URL}</span>
-                </div>
-                {connectedAccountEmail && (
-                  <div className="text-muted-foreground">
-                    Connected account: <span className="text-foreground">{connectedAccountName || connectedAccountEmail}</span>
-                    {connectedAccountName ? <span className="text-muted-foreground"> ({connectedAccountEmail})</span> : null}
-                  </div>
-                )}
-                {connectedAt && (
-                  <div className="text-muted-foreground">
-                    Connected on: <span className="text-foreground">{new Date(connectedAt).toLocaleString()}</span>
-                  </div>
-                )}
-                {lastConnectionError && connectionStatus === "error" && (
-                  <div className="text-destructive">
-                    Last error: {lastConnectionError}
-                  </div>
-                )}
+                <Badge variant={isConnected ? "default" : connectionStatus === "error" ? "destructive" : "outline"}>
+                  {isConnected ? "Connected" : connectionStatus === "error" ? "Error" : "Disconnected"}
+                </Badge>
               </div>
 
-              <div className="flex justify-end">
-                <Button onClick={() => setSettingsDialogOpen(true)} disabled={!canEdit}>
-                  <PlugZap className="h-4 w-4 mr-2" />
-                  {isConnected ? "Manage Connector" : "Connect JobSiteLynk"}
-                </Button>
+              <div className="mt-4 flex flex-1 flex-col justify-between space-y-3">
+                <CardDescription className="min-h-[40px]">
+                  Connect the company once, then paste each JobSiteLynk job code on the matching BuilderLynk job.
+                </CardDescription>
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </button>
+          </div>
+        )}
+      </div>
 
       <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
         <DialogContent className="max-w-md">
@@ -233,6 +220,31 @@ export default function JobSiteLynkIntegrationSettings() {
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="rounded-lg border p-4 space-y-2 text-sm">
+              <div className="text-muted-foreground">
+                BuilderLynk Company ID: <span className="text-foreground">{normalizedCompanyId || currentCompany?.id || "Not set"}</span>
+              </div>
+              <div className="text-muted-foreground">
+                JobSiteLynk environment: <span className="text-foreground">{DEFAULT_JOBSITELYNK_BASE_URL}</span>
+              </div>
+              {connectedAccountEmail && (
+                <div className="text-muted-foreground">
+                  Connected account: <span className="text-foreground">{connectedAccountName || connectedAccountEmail}</span>
+                  {connectedAccountName ? <span className="text-muted-foreground"> ({connectedAccountEmail})</span> : null}
+                </div>
+              )}
+              {connectedAt && (
+                <div className="text-muted-foreground">
+                  Connected on: <span className="text-foreground">{new Date(connectedAt).toLocaleString()}</span>
+                </div>
+              )}
+              {lastConnectionError && connectionStatus === "error" && (
+                <div className="text-destructive">
+                  Last error: {lastConnectionError}
+                </div>
+              )}
+            </div>
+
             <div className="grid gap-2">
               <Label htmlFor="jobsitelynk-external-company-id">BuilderLynk Company ID</Label>
               <Input

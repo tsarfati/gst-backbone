@@ -164,13 +164,13 @@ export default function CompanySettingsPage() {
     { value: 'overview', label: 'Overview', permissionKey: 'company-settings-tab-overview', icon: Building2 },
     { value: 'payables', label: 'Payables', permissionKey: 'company-settings-tab-payables', icon: CreditCard },
     { value: 'jobs', label: 'Jobs', permissionKey: 'company-settings-tab-jobs', icon: Briefcase },
-    { value: 'integrations', label: 'Integrations', permissionKey: 'company-settings-tab-integrations', icon: Link2 },
     { value: 'receivable-settings', label: 'Receivables', permissionKey: 'company-settings-tab-receivables', icon: FileText },
     { value: 'banking', label: 'Banking', permissionKey: 'company-settings-tab-banking', icon: DollarSign },
     { value: 'credit-cards', label: 'Credit Cards', permissionKey: 'company-settings-tab-credit-cards', icon: Banknote },
     { value: 'theme', label: 'Themes & Appearance', permissionKey: 'company-settings-tab-theme', icon: Palette },
     { value: 'pdf-templates', label: 'PDF Templates', permissionKey: 'company-settings-tab-pdf-templates', icon: FileText },
     { value: 'email-templates', label: 'Email Templates', permissionKey: 'company-settings-tab-email-templates', icon: FileText },
+    { value: 'integrations', label: 'Integrations', permissionKey: 'company-settings-tab-integrations', icon: Link2 },
   ].filter((tab) => canAccessCompanyTab(tab.permissionKey));
 
   const canAccessJobsSubtab = (permissionKey: string) => {
