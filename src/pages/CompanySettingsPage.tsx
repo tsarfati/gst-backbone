@@ -23,7 +23,6 @@ import PdfTemplateSettings from '@/components/PdfTemplateSettings';
 import ThemeSettings from '@/pages/ThemeSettings';
 import { useCompany } from '@/contexts/CompanyContext';
 import EmailTemplatesSettings from '@/components/EmailTemplatesSettings';
-import JobSiteLynkIntegrationSettings from '@/components/JobSiteLynkIntegrationSettings';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useTenant } from '@/contexts/TenantContext';
@@ -927,7 +926,26 @@ export default function CompanySettingsPage() {
 
           <TabsContent value="integrations">
             <div className={canEditCompanyTab('company-settings-tab-integrations') ? '' : 'pointer-events-none opacity-75'}>
-              <JobSiteLynkIntegrationSettings />
+              {jobSiteLynkSettingsError ? (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>JobSiteLynk</CardTitle>
+                    <CardDescription>{jobSiteLynkSettingsError}</CardDescription>
+                  </CardHeader>
+                </Card>
+              ) : jobSiteLynkSettingsComponent ? (
+                React.createElement(jobSiteLynkSettingsComponent)
+              ) : (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>JobSiteLynk</CardTitle>
+                    <CardDescription className="flex items-center gap-2">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      <span className="loading-dots">Loading connector</span>
+                    </CardDescription>
+                  </CardHeader>
+                </Card>
+              )}
             </div>
           </TabsContent>
 
