@@ -1647,26 +1647,23 @@ export default function TaskDetails() {
 
           <Tabs defaultValue="timeline" className="space-y-4">
             <TabsList className="grid w-full grid-cols-3">
-              <TabsTrigger value="timeline">Task Timeline</TabsTrigger>
-              <TabsTrigger value="attachments">Attachments</TabsTrigger>
-              <TabsTrigger value="checklist">Task Checklist</TabsTrigger>
+              <TabsTrigger value="timeline" className="gap-2">
+                <span>Task Timeline</span>
+                {timeline.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{timeline.length}</Badge> : null}
+              </TabsTrigger>
+              <TabsTrigger value="attachments" className="gap-2">
+                <span>Attachments</span>
+                {attachments.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{attachments.length}</Badge> : null}
+              </TabsTrigger>
+              <TabsTrigger value="checklist" className="gap-2">
+                <span>Task Checklist</span>
+                {checklistItems.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{checklistItems.length}</Badge> : null}
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="timeline">
               <Card className="min-h-[760px]">
                 <CardContent className="space-y-0 p-0">
-                  <div className="border-b px-6 py-5">
-                    <div className="flex flex-wrap items-center justify-between gap-3">
-                      <div>
-                        <h3 className="text-xl font-semibold">Discussion</h3>
-                        <p className="text-sm text-muted-foreground">
-                          Conversation, system updates, attachments, and task activity in one feed.
-                        </p>
-                      </div>
-                      <Badge variant="outline">{timeline.length} entries</Badge>
-                    </div>
-                  </div>
-
                   <div className="max-h-[560px] space-y-1 overflow-y-auto px-6 py-4">
                     {timeline.length === 0 ? (
                       <div className="py-14 text-center text-sm text-muted-foreground">
