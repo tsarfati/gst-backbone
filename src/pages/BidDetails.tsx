@@ -1187,22 +1187,28 @@ export default function BidDetails() {
                         key={email.id}
                         className="rounded-md bg-muted/40 border"
                       >
-                        <button
-                          type="button"
-                          className="w-full text-left p-3 hover:bg-muted/30 transition-colors"
-                          onClick={() => setActiveEmailPreview(email)}
-                        >
+                        <div className="p-3">
                           <div className="flex items-center justify-between gap-2">
                             <div className="text-xs text-muted-foreground">
                               {email.direction === "inbound" ? "Inbound" : "Outbound"} • {format(new Date(email.created_at), "MMM d, yyyy h:mm a")}
                             </div>
-                            <span className="text-xs text-primary">Preview</span>
                           </div>
                           <div className="text-sm font-medium mt-1">{email.subject || "(No subject)"}</div>
                           <div className="text-xs text-muted-foreground mt-1">
                             From: {email.from_email || "-"} | To: {(email.to_emails || []).join(", ") || "-"}
                           </div>
-                        </button>
+                          <div className="mt-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              className="h-7 px-2.5 text-xs"
+                              onClick={() => setActiveEmailPreview(email)}
+                            >
+                              Open email
+                            </Button>
+                          </div>
+                        </div>
                       </div>
                     );
                   })

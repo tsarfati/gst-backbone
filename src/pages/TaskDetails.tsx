@@ -9,6 +9,7 @@ import {
   Copy,
   Download,
   FolderKanban,
+  Bot,
   Mail,
   Pencil,
   Paperclip,
@@ -1401,6 +1402,24 @@ export default function TaskDetails() {
     return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
   };
 
+  const getTimelineSummary = (entry: TimelineEntry) => {
+    if (entry.kind !== 'activity' || !entry.metadata?.batched || !Array.isArray(entry.metadata?.changes)) {
+      return entry.body;
+    }
+
+    const changeSummary = entry.metadata.changes
+      .map((change: any) => {
+        if (change.kind === 'field') {
+          return `${change.label}: ${change.to}`;
+        }
+        return String(change.label || '').trim();
+      })
+      .filter(Boolean)
+      .join(' • ');
+
+    return changeSummary ? `${entry.body} • ${changeSummary}` : entry.body;
+  };
+
   useEffect(() => {
     if (!task?.id || loading) return;
     autoSaveReadyRef.current = true;
@@ -1496,6 +1515,34 @@ export default function TaskDetails() {
     file_size: attachment.file_size,
   }));
   const isDeleteTaskConfirmed = deleteTaskConfirmText.trim() === task.title.trim();
+  const getTimelineAvatar = (entry: TimelineEntry) => {
+    if (entry.kind === 'email') {
+      return (
+        <Avatar className="mt-0.5 h-8 w-8 shrink-0">
+          <AvatarFallback className="bg-sky-500/12 text-sky-600">
+            <Mail className="h-4 w-4" />
+          </AvatarFallback>
+        </Avatar>
+      );
+    }
+
+    if (!entry.actorAvatar) {
+      return (
+        <Avatar className="mt-0.5 h-8 w-8 shrink-0">
+          <AvatarFallback className="bg-muted text-muted-foreground">
+            <Bot className="h-4 w-4" />
+          </AvatarFallback>
+        </Avatar>
+      );
+    }
+
+    return (
+      <Avatar className="mt-0.5 h-8 w-8 shrink-0">
+        <AvatarImage src={entry.actorAvatar || undefined} alt={entry.actorName} />
+        <AvatarFallback>{entry.actorName.charAt(0).toUpperCase()}</AvatarFallback>
+      </Avatar>
+    );
+  };
 
   return (
     <div className="p-6">
@@ -1607,120 +1654,136 @@ export default function TaskDetails() {
 
             <TabsContent value="timeline">
               <Card className="min-h-[760px]">
-                <CardContent className="space-y-4">
-                  <div className="flex justify-end">
-                    <Badge variant="outline">{timeline.length} entries</Badge>
-                  </div>
-                  <div className="space-y-2">
-                    <MentionTextarea
-                      value={newComment}
-                      onValueChange={setNewComment}
-                      companyId={currentCompany?.id}
-                      currentUserId={user?.id}
-                      allowedUserIds={assignees.map((assignee) => assignee.user_id)}
-                      placeholder="Enter a comment. Use @ to tag teammates or #tags for search..."
-                      rows={1}
-                      className="min-h-0 h-11 resize-none overflow-hidden"
-                      onKeyDown={(event) => {
-                        if (event.key === 'Enter' && !event.shiftKey) {
-                          event.preventDefault();
-                          void handleSendComment();
-                        }
-                      }}
-                    />
-                    <div className="flex justify-end">
-                      <Button onClick={handleSendComment} disabled={sendingComment || !newComment.trim()}>
-                        <Send className="mr-2 h-4 w-4" />
-                        Comment
-                      </Button>
+                <CardContent className="space-y-0 p-0">
+                  <div className="border-b px-6 py-5">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-xl font-semibold">Discussion</h3>
+                        <p className="text-sm text-muted-foreground">
+                          Conversation, system updates, attachments, and task activity in one feed.
+                        </p>
+                      </div>
+                      <Badge variant="outline">{timeline.length} entries</Badge>
                     </div>
                   </div>
 
-                  {timeline.length === 0 ? (
-                    <div className="rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground">
-                      No updates yet. Start the conversation or upload an attachment to create the first timeline entry.
-                    </div>
-                  ) : (
-                    <div className="space-y-4">
-                      {timeline.map((entry) => (
-                        <div key={entry.id} className="flex gap-3 rounded-xl border p-5">
-                          <Avatar className="h-10 w-10">
-                            <AvatarImage src={entry.actorAvatar || undefined} alt={entry.actorName} />
-                            <AvatarFallback>{entry.actorName.charAt(0).toUpperCase()}</AvatarFallback>
-                          </Avatar>
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <span className="font-medium">{entry.actorName}</span>
-                              <Badge variant="outline" className="text-[10px] uppercase">
-                                {entry.kind}
-                              </Badge>
-                              <span className="text-xs text-muted-foreground">
-                                {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
-                              </span>
-                            </div>
-                            {entry.kind === 'email' ? (
-                              <div className="mt-3 flex flex-wrap items-center gap-3 rounded-lg border bg-muted/20 px-3 py-2">
-                                <Badge variant="secondary" className="text-[10px] uppercase">
-                                  Email
-                                </Badge>
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={() => setActiveEmailPreview(emailMessages.find((email) => `email-${email.id}` === entry.id) || null)}
-                                >
-                                  View Email
-                                </Button>
+                  <div className="max-h-[560px] space-y-1 overflow-y-auto px-6 py-4">
+                    {timeline.length === 0 ? (
+                      <div className="py-14 text-center text-sm text-muted-foreground">
+                        No updates yet. Start the conversation or upload an attachment to create the first timeline entry.
+                      </div>
+                    ) : (
+                      timeline.map((entry, index) => (
+                        <div key={entry.id}>
+                          {entry.kind === 'email' ? (
+                            <div className="flex gap-3 py-3">
+                              <div className="shrink-0">
+                                {getTimelineAvatar(entry)}
                               </div>
-                            ) : (
-                              <p className="mt-2 whitespace-pre-wrap text-sm text-foreground">{entry.body}</p>
-                            )}
-                            {entry.kind === 'activity' && entry.metadata?.batched && Array.isArray(entry.metadata?.changes) ? (
-                              <div className="mt-3 space-y-2 rounded-lg border bg-muted/20 p-3">
-                                {entry.metadata.changes.map((change: any, index: number) => (
-                                  <div key={`${entry.id}-change-${index}`} className="text-sm text-foreground">
-                                    {change.kind === 'field' ? (
-                                      <span>
-                                        <span className="font-medium">{change.label}</span>
-                                        {' '}updated from{' '}
-                                        <span className="font-medium">{change.from}</span>
-                                        {' '}to{' '}
-                                        <span className="font-medium">{change.to}</span>
-                                      </span>
-                                    ) : (
-                                      <span>{change.label}</span>
-                                    )}
-                                  </div>
-                                ))}
-                              </div>
-                            ) : null}
-                            {entry.kind === 'comment' && entry.tags && entry.tags.length > 0 ? (
-                              <div className="mt-3 flex flex-wrap gap-2">
-                                {entry.tags.map((tag) => (
-                                  <Badge key={tag} variant="secondary" className="text-[11px]">
-                                    #{tag}
+                              <div className="min-w-0">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1 text-sm">
+                                  <span className="font-medium text-foreground">{entry.fromEmail}</span>
+                                  <Badge variant="outline" className="rounded-full text-[10px] uppercase">
+                                    Email
                                   </Badge>
-                                ))}
+                                  <span className="text-xs text-muted-foreground">
+                                    {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
+                                  </span>
+                                </div>
+                                <div className="mt-1.5 flex flex-wrap items-center gap-2">
+                                  <span className="max-w-full truncate text-sm text-foreground">
+                                    {entry.subject}
+                                  </span>
+                                  <Button
+                                    type="button"
+                                    variant="outline"
+                                    size="sm"
+                                    className="h-7 px-2.5 text-xs"
+                                    onClick={() => setActiveEmailPreview(emailMessages.find((email) => `email-${email.id}` === entry.id) || null)}
+                                  >
+                                    Open email
+                                  </Button>
+                                </div>
                               </div>
-                            ) : null}
-                            {entry.kind === 'attachment' ? (
-                              <div className="mt-3 rounded-lg border bg-muted/30 p-3">
-                                <a
-                                  href={entry.fileUrl}
-                                  target="_blank"
-                                  rel="noopener noreferrer"
-                                  className="inline-flex items-center gap-2 text-sm font-medium text-primary hover:underline"
-                                >
-                                  <Paperclip className="h-4 w-4" />
-                                  {entry.fileName}
-                                </a>
+                            </div>
+                          ) : (
+                            <div className="flex gap-3 py-3">
+                              {getTimelineAvatar(entry)}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                  <span className="text-sm font-semibold text-foreground">{entry.actorName}</span>
+                                  <span className="text-xs text-muted-foreground">
+                                    {format(new Date(entry.created_at), 'MMM d, h:mm a')}
+                                  </span>
+                                  <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px] font-medium uppercase tracking-wide">
+                                    {entry.kind}
+                                  </Badge>
+                                </div>
+                                <p className="mt-1 truncate text-sm leading-5 text-foreground">{getTimelineSummary(entry)}</p>
+
+                                {entry.kind === 'comment' && entry.tags && entry.tags.length > 0 ? (
+                                  <div className="mt-1 flex flex-wrap gap-1.5">
+                                    {entry.tags.map((tag) => (
+                                      <Badge key={tag} variant="secondary" className="rounded-full text-[11px]">
+                                        #{tag}
+                                      </Badge>
+                                    ))}
+                                  </div>
+                                ) : null}
+
+                                {entry.kind === 'attachment' ? (
+                                  <div className="mt-1">
+                                    <a
+                                      href={entry.fileUrl}
+                                      target="_blank"
+                                      rel="noopener noreferrer"
+                                      className="inline-flex items-center gap-2 rounded-full bg-muted/35 px-3 py-1 text-xs font-medium text-primary hover:bg-muted/50 hover:underline"
+                                    >
+                                      <Paperclip className="h-4 w-4" />
+                                      {entry.fileName}
+                                    </a>
+                                  </div>
+                                ) : null}
                               </div>
-                            ) : null}
-                          </div>
+                            </div>
+                          )}
+                          {index < timeline.length - 1 ? <div className="border-b border-border/60" /> : null}
                         </div>
-                      ))}
+                      ))
+                    )}
+                  </div>
+
+                  <div className="border-t bg-background px-6 py-4">
+                    <div className="space-y-3">
+                      <MentionTextarea
+                        value={newComment}
+                        onValueChange={setNewComment}
+                        companyId={currentCompany?.id}
+                        currentUserId={user?.id}
+                        allowedUserIds={assignees.map((assignee) => assignee.user_id)}
+                        placeholder="Add a comment..."
+                        rows={2}
+                        className="min-h-[96px] resize-none rounded-xl border bg-background"
+                        onKeyDown={(event) => {
+                          if (event.key === 'Enter' && !event.shiftKey) {
+                            event.preventDefault();
+                            void handleSendComment();
+                          }
+                        }}
+                      />
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                          <span>@ Mention</span>
+                          <span>Attachment</span>
+                          <span>Audit log</span>
+                        </div>
+                        <Button onClick={handleSendComment} disabled={sendingComment || !newComment.trim()} className="min-w-[120px]">
+                          <Send className="mr-2 h-4 w-4" />
+                          Comment
+                        </Button>
+                      </div>
                     </div>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
             </TabsContent>
