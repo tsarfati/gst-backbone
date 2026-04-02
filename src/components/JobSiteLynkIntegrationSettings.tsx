@@ -12,7 +12,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { KeyRound, Loader2 } from "lucide-react";
 import jobSiteLynkLogo from "@/assets/jobsitelynk-logo.png";
 
-const DEFAULT_JOBSITELYNK_BASE_URL = "https://jobsitelynk.com";
+const DEFAULT_JOBSITELYNK_BASE_URL = "https://buzavvtxdwsyskroyrpl.supabase.co";
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/g, "");
 
 export default function JobSiteLynkIntegrationSettings() {
@@ -54,7 +54,7 @@ export default function JobSiteLynkIntegrationSettings() {
         setLoading(true);
         const { data, error } = await supabase
           .from("company_jobsitelynk_integrations")
-          .select("external_company_id, connection_status, connected_account_email, connected_account_name, connected_at, last_connection_error, shared_secret")
+          .select("external_company_id, connection_status, connected_account_email, connected_account_name, connected_at, last_connection_error")
           .eq("company_id", currentCompany.id)
           .maybeSingle();
 
@@ -66,7 +66,7 @@ export default function JobSiteLynkIntegrationSettings() {
           jobsitelynk_email: "",
           jobsitelynk_password: "",
         }));
-        setConfigured(!!(data?.external_company_id || data?.shared_secret));
+        setConfigured(!!data?.external_company_id);
         setConnectionStatus(data?.connection_status || "not_connected");
         setConnectedAccountEmail(data?.connected_account_email || null);
         setConnectedAccountName(data?.connected_account_name || null);
@@ -163,9 +163,6 @@ export default function JobSiteLynkIntegrationSettings() {
       <div className="space-y-4">
         <div>
           <h2 className="text-xl font-semibold">Integrations</h2>
-          <p className="text-sm text-muted-foreground">
-            Open a connector to manage company-level app connections.
-          </p>
         </div>
 
         {loading ? (
@@ -182,25 +179,22 @@ export default function JobSiteLynkIntegrationSettings() {
             <button
               type="button"
               onClick={() => setSettingsDialogOpen(true)}
-              className="group flex w-[220px] flex-col rounded-2xl border border-border bg-card p-4 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/70 hover:bg-primary/5 hover:shadow-[0_0_0_1px_rgba(249,115,22,0.25),0_20px_40px_-24px_rgba(249,115,22,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+              className="group flex h-[240px] w-[240px] flex-col items-center justify-between rounded-3xl border border-border bg-card p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/70 hover:bg-primary/5 hover:shadow-[0_0_0_1px_rgba(249,115,22,0.25),0_20px_40px_-24px_rgba(249,115,22,0.55)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
             >
-              <div className="flex items-start justify-between gap-3">
-                <div className="flex h-[180px] flex-1 items-center justify-center overflow-hidden p-1 transition-transform duration-200 group-hover:scale-[1.03]">
+              <div className="flex flex-1 items-center justify-center overflow-hidden px-2 py-4 transition-transform duration-200 group-hover:scale-[1.04]">
+                <div className="flex h-[155px] w-[155px] items-center justify-center">
                   <img
                     src={jobSiteLynkLogo}
                     alt="JobSiteLynk"
                     className="h-full w-full object-contain"
                   />
                 </div>
-                <Badge variant={isConnected ? "default" : connectionStatus === "error" ? "destructive" : "outline"}>
-                  {isConnected ? "Connected" : connectionStatus === "error" ? "Error" : "Disconnected"}
-                </Badge>
               </div>
 
-              <div className="mt-4 flex flex-1 flex-col justify-between space-y-3">
-                <CardDescription className="min-h-[40px]">
-                  Connect the company once, then paste each JobSiteLynk job code on the matching BuilderLynk job.
-                </CardDescription>
+              <div className="flex w-full justify-center">
+                <Badge variant={isConnected ? "default" : connectionStatus === "error" ? "destructive" : "outline"} className="px-3 py-1">
+                  {isConnected ? "Connected" : connectionStatus === "error" ? "Error" : "Not Connected"}
+                </Badge>
               </div>
             </button>
           </div>

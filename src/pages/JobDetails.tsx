@@ -753,7 +753,24 @@ export default function JobDetails() {
         body: { jobId: id },
       });
 
-      if (error) throw error;
+      if (error) {
+        let detailedMessage = error.message || "Could not open JobSiteLynk.";
+        try {
+          const context = (error as any)?.context;
+          if (context?.json) {
+            const payload = await context.json();
+            detailedMessage =
+              payload?.error ||
+              payload?.message ||
+              payload?.details?.error ||
+              payload?.details?.message ||
+              detailedMessage;
+          }
+        } catch (contextError) {
+          console.warn("Could not read JobSiteLynk error details:", contextError);
+        }
+        throw new Error(detailedMessage);
+      }
       if (!data?.launch_url) {
         throw new Error("JobSiteLynk did not return a launch URL.");
       }

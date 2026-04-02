@@ -9,7 +9,16 @@ const corsHeaders = {
 
 const elevatedRoles = new Set(["super_admin", "owner", "admin", "company_admin", "controller"]);
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/g, "");
-const DEFAULT_JOBSITELYNK_BASE_URL = "https://jobsitelynk.com";
+const DEFAULT_JOBSITELYNK_BASE_URL = "https://buzavvtxdwsyskroyrpl.supabase.co";
+const LEGACY_JOBSITELYNK_BASE_URL = "https://jobsitelynk.com";
+
+const resolveJobSiteLynkBaseUrl = (value: unknown) => {
+  const normalized = trimTrailingSlashes(String(value || "").trim());
+  if (!normalized || normalized === LEGACY_JOBSITELYNK_BASE_URL) {
+    return DEFAULT_JOBSITELYNK_BASE_URL;
+  }
+  return normalized;
+};
 
 type MembershipRow = {
   role: string | null;
@@ -21,11 +30,13 @@ serve(async (req: Request) => {
     return new Response("ok", { headers: corsHeaders });
   }
 
+  let step = "init";
+
   try {
+    step = "env";
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const connectorSharedSecret = String(Deno.env.get("JOBSITELYNK_SHARED_SECRET") || "").trim();
     const authHeader = req.headers.get("Authorization");
 
     if (!authHeader) {
@@ -35,11 +46,13 @@ serve(async (req: Request) => {
       });
     }
 
+    step = "auth_client";
     const authed = createClient(supabaseUrl, supabaseAnonKey, {
       global: { headers: { Authorization: authHeader } },
     });
     const admin = createClient(supabaseUrl, supabaseServiceKey);
 
+    step = "auth_user";
     const token = authHeader.replace(/^Bearer\s+/i, "").trim();
     const { data: authData, error: authError } = await authed.auth.getUser(token);
     if (authError || !authData?.user?.id) {
@@ -49,6 +62,7 @@ serve(async (req: Request) => {
       });
     }
 
+    step = "parse_body";
     const body = await req.json().catch(() => ({}));
     const companyId = String(body.companyId || "").trim();
     const jobsitelynkEmail = String(body.jobsitelynk_email || "").trim();
@@ -61,6 +75,7 @@ serve(async (req: Request) => {
       });
     }
 
+    step = "load_memberships";
     const { data: memberships, error: membershipError } = await admin
       .from("user_company_access")
       .select("role, is_active")
@@ -68,6 +83,7 @@ serve(async (req: Request) => {
       .eq("user_id", authData.user.id);
     if (membershipError) throw membershipError;
 
+    step = "load_profile";
     const { data: profile, error: profileError } = await admin
       .from("profiles")
       .select("role, email, first_name, last_name, display_name")
@@ -85,6 +101,7 @@ serve(async (req: Request) => {
       });
     }
 
+    step = "load_integration";
     const { data: integration, error: integrationError } = await admin
       .from("company_jobsitelynk_integrations")
       .select("company_id, jobsitelynk_base_url, external_company_id, shared_secret")
@@ -92,37 +109,48 @@ serve(async (req: Request) => {
       .maybeSingle();
     if (integrationError) throw integrationError;
 
-    const baseUrl = trimTrailingSlashes(String(integration?.jobsitelynk_base_url || DEFAULT_JOBSITELYNK_BASE_URL));
-    const requestSecret = String(integration?.shared_secret || connectorSharedSecret).trim();
+    const baseUrl = resolveJobSiteLynkBaseUrl(integration?.jobsitelynk_base_url);
 
-    if (!requestSecret) {
-      return new Response(JSON.stringify({ error: "Missing JOBSITELYNK_SHARED_SECRET in BuilderLynk backend configuration." }), {
-        status: 400,
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
-    }
 
     const endpoint = `${baseUrl}/functions/v1/builderlink-connect-account`;
     const externalUserName = String(profile?.display_name || "").trim() || [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || authData.user.email || jobsitelynkEmail;
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        Authorization: `Bearer ${requestSecret}`,
-        "x-builderlink-secret": requestSecret,
-      },
-      body: JSON.stringify({
-        provider: "builderlink",
-        external_company_id: String(integration.external_company_id || companyId),
-        external_admin_user_id: String(authData.user.id),
-        external_admin_user_email: String(profile?.email || authData.user.email || ""),
-        external_admin_user_name: externalUserName,
-        jobsitelynk_email: jobsitelynkEmail,
-        jobsitelynk_password: jobsitelynkPassword,
-      }),
-    });
+    step = "request_jobsitelynk";
+    console.log("jobsitelynk-connect-account request", JSON.stringify({
+      endpoint,
+      companyId,
+      externalCompanyId: String(integration?.external_company_id || companyId),
+      userId: authData.user.id,
+      jobsitelynkEmail,
+    }));
 
+    let response: Response;
+    try {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          provider: "builderlink",
+          external_company_id: String(integration.external_company_id || companyId),
+          external_admin_user_id: String(authData.user.id),
+          external_admin_user_email: String(profile?.email || authData.user.email || ""),
+          external_admin_user_name: externalUserName,
+          jobsitelynk_email: jobsitelynkEmail,
+          jobsitelynk_password: jobsitelynkPassword,
+        }),
+      });
+    } catch (fetchError) {
+      console.error("jobsitelynk-connect-account fetch failed", JSON.stringify({
+        step,
+        endpoint,
+        message: fetchError instanceof Error ? fetchError.message : String(fetchError),
+      }));
+      throw new Error(`Could not reach JobSiteLynk at ${baseUrl}.`);
+    }
+
+    step = "parse_jobsitelynk_response";
     const responseJson = await response.json().catch(() => ({}));
 
     if (!response.ok) {
@@ -137,12 +165,14 @@ serve(async (req: Request) => {
       return new Response(JSON.stringify({
         error: responseJson?.error || responseJson?.message || "JobSiteLynk connection failed",
         details: responseJson,
+        step,
       }), {
         status: response.status,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
 
+    step = "update_integration";
     const updatePayload = {
       connection_status: "connected",
       connected_account_email: String(responseJson?.connected_account_email || jobsitelynkEmail),
@@ -167,8 +197,15 @@ serve(async (req: Request) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (error) {
-    console.error("Error in jobsitelynk-connect-account:", error);
-    return new Response(JSON.stringify({ error: error instanceof Error ? error.message : "Failed to connect JobSiteLynk account" }), {
+    console.error("Error in jobsitelynk-connect-account:", JSON.stringify({
+      step,
+      message: error instanceof Error ? error.message : String(error),
+      stack: error instanceof Error ? error.stack : null,
+    }));
+    return new Response(JSON.stringify({
+      error: error instanceof Error ? error.message : "Failed to connect JobSiteLynk account",
+      step,
+    }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
