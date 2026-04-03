@@ -45,7 +45,8 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ classNa
   const animationFrameRef = React.useRef<number | null>(null);
   const lastWaveSampleAtRef = React.useRef<number>(0);
   const finalizedTranscriptRef = React.useRef<string[]>([]);
-  const interimTranscriptRef = React.useRef<string>("");
+  const transcriptCommittedRef = React.useRef(false);
+  const recognizedResultIndicesRef = React.useRef<Set<number>>(new Set());
 
   React.useImperativeHandle(ref, () => innerRef.current as HTMLTextAreaElement);
 
@@ -132,15 +133,18 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ classNa
   }, [waveformBarCount]);
 
   const flushTranscript = React.useCallback(() => {
-    const transcript = [...finalizedTranscriptRef.current, interimTranscriptRef.current]
+    if (transcriptCommittedRef.current) return;
+
+    const transcript = finalizedTranscriptRef.current
       .map((segment) => segment.trim())
       .filter(Boolean)
       .join(" ")
       .replace(/\s+/g, " ")
       .trim();
 
+    transcriptCommittedRef.current = true;
     finalizedTranscriptRef.current = [];
-    interimTranscriptRef.current = "";
+    recognizedResultIndicesRef.current = new Set();
 
     if (transcript) {
       applyTranscript(transcript);
@@ -211,7 +215,6 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ classNa
       stopWaveformCapture();
       startedAtRef.current = null;
       setIsListening(false);
-      flushTranscript();
       return;
     }
 
@@ -220,24 +223,18 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ classNa
 
     const recognition = new Recognition();
     recognition.continuous = true;
-    recognition.interimResults = true;
+    recognition.interimResults = false;
     recognition.lang = "en-US";
     recognition.onresult = (event) => {
-      let latestInterim = "";
       for (let index = event.resultIndex; index < event.results.length; index += 1) {
         const result = event.results[index];
         const transcript = result?.[0]?.transcript || "";
         const trimmedTranscript = transcript.trim();
-        if (!trimmedTranscript) continue;
+        if (!trimmedTranscript || !result.isFinal || recognizedResultIndicesRef.current.has(index)) continue;
 
-        if (result.isFinal) {
-          finalizedTranscriptRef.current.push(trimmedTranscript);
-          latestInterim = "";
-        } else {
-          latestInterim = trimmedTranscript;
-        }
+        finalizedTranscriptRef.current.push(trimmedTranscript);
+        recognizedResultIndicesRef.current.add(index);
       }
-      interimTranscriptRef.current = latestInterim;
     };
     recognition.onerror = () => {
       stopWaveformCapture();
@@ -253,8 +250,9 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(({ classNa
     };
 
     recognitionRef.current = recognition;
+    transcriptCommittedRef.current = false;
     finalizedTranscriptRef.current = [];
-    interimTranscriptRef.current = "";
+    recognizedResultIndicesRef.current = new Set();
     void startWaveformCapture();
     recognition.start();
     setElapsedSeconds(0);
