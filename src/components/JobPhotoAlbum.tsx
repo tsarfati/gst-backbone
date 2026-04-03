@@ -1407,36 +1407,34 @@ export default function JobPhotoAlbum({
       {/* Album Icons Grid */}
       {!selectedAlbumId || selectedAlbumId === 'all' ? (
         <div className={`grid ${albumViewMode === 'small' ? 'grid-cols-3 sm:grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2' : 'grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4'}`}>
-          {jobSiteLynkConfigured && (
-            <Card
-              className="cursor-pointer hover:border-primary transition-colors group"
-              onClick={() => {
-                if (jobSiteLynkProjectId) {
-                  onOpenJobSiteLynk?.();
-                } else {
-                  window.open('https://jobsitelynk.com', '_blank', 'noopener,noreferrer');
-                }
-              }}
-            >
-              <CardContent className={`${albumViewMode === 'small' ? 'p-2' : 'p-3'} flex flex-col items-center text-center`}>
-                <div className={`w-full aspect-square rounded-lg bg-black/90 flex items-center justify-center ${albumViewMode === 'small' ? 'mb-1' : 'mb-2'} overflow-hidden group-hover:ring-2 ring-primary transition-all relative`}>
-                  <img
-                    src={jobSiteLynkLogo}
-                    alt="JobSiteLynk"
-                    className="h-full w-full object-contain p-3"
-                  />
-                </div>
-                <p className={`${albumViewMode === 'small' ? 'text-xs' : 'text-sm'} font-medium line-clamp-2`}>JobSiteLynk</p>
-                <Badge variant={jobSiteLynkProjectId ? 'default' : 'outline'} className="mt-2">
-                  {jobSiteLynkProjectId ? 'Connected' : 'Not Connected'}
-                </Badge>
-              </CardContent>
-            </Card>
-          )}
+          <Card
+            className="group cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/70 hover:bg-primary/5 hover:shadow-[0_0_0_1px_rgba(249,115,22,0.25),0_20px_40px_-24px_rgba(249,115,22,0.55)]"
+            onClick={() => {
+              if (jobSiteLynkProjectId) {
+                onOpenJobSiteLynk?.();
+              } else {
+                window.open('https://jobsitelynk.com', '_blank', 'noopener,noreferrer');
+              }
+            }}
+          >
+            <CardContent className={`${albumViewMode === 'small' ? 'p-2' : 'p-3'} flex flex-col items-center text-center`}>
+              <div className={`w-full aspect-square rounded-lg bg-black/90 flex items-center justify-center ${albumViewMode === 'small' ? 'mb-1' : 'mb-2'} overflow-hidden transition-all relative`}>
+                <img
+                  src={jobSiteLynkLogo}
+                  alt="JobSiteLynk"
+                  className="h-full w-full object-contain p-3"
+                />
+              </div>
+              <p className={`${albumViewMode === 'small' ? 'text-xs' : 'text-sm'} font-medium line-clamp-2`}>JobSiteLynk</p>
+              <Badge variant={jobSiteLynkProjectId ? 'default' : 'outline'} className="mt-2">
+                {jobSiteLynkProjectId ? 'Connected' : 'Not Connected'}
+              </Badge>
+            </CardContent>
+          </Card>
           {albums.map((album) => (
             <Card 
               key={album.id} 
-              className={`cursor-pointer hover:border-primary transition-colors group ${dragOverAlbumId === album.id ? 'border-primary ring-2 ring-primary bg-primary/5' : ''}`}
+              className={`group cursor-pointer transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/70 hover:bg-primary/5 hover:shadow-[0_0_0_1px_rgba(249,115,22,0.25),0_20px_40px_-24px_rgba(249,115,22,0.55)] ${dragOverAlbumId === album.id ? 'border-primary ring-2 ring-primary bg-primary/5 shadow-[0_0_0_1px_rgba(249,115,22,0.25),0_20px_40px_-24px_rgba(249,115,22,0.55)]' : ''}`}
               onClick={() => {
                 setSelectedAlbumId(album.id);
                 setLoading(true);
@@ -1446,7 +1444,7 @@ export default function JobPhotoAlbum({
               onDrop={(e) => handleDropOnAlbum(e, album.id)}
             >
               <CardContent className={`${albumViewMode === 'small' ? 'p-2' : 'p-3'} flex flex-col items-center text-center`}>
-                <div className={`w-full aspect-square rounded-lg bg-muted flex items-center justify-center ${albumViewMode === 'small' ? 'mb-1' : 'mb-2'} overflow-hidden group-hover:ring-2 ring-primary transition-all relative`}>
+                <div className={`w-full aspect-square rounded-lg bg-muted flex items-center justify-center ${albumViewMode === 'small' ? 'mb-1' : 'mb-2'} overflow-hidden transition-all relative`}>
                   {dragOverAlbumId === album.id ? (
                     <div className="absolute inset-0 flex items-center justify-center bg-primary/10 z-10">
                       <Upload className="h-8 w-8 text-primary animate-bounce" />

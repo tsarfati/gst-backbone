@@ -724,15 +724,6 @@ export default function JobDetails() {
   const openJobSiteLynk = async () => {
     if (!id) return;
 
-    if (!jobSiteLynkConfigured) {
-      toast({
-        title: "Integration not configured",
-        description: "Configure JobSiteLynk in Company Settings first.",
-        variant: "destructive",
-      });
-      return;
-    }
-
     if (!job?.jobsitelynk_project_id) {
       toast({
         title: "Project not linked",
