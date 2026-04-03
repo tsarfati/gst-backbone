@@ -12,6 +12,7 @@ import heroVideo2 from '@/assets/hero-construction-2.mp4';
 import heroVideo3 from '@/assets/hero-construction-3.mp4';
 import heroVideo4 from '@/assets/hero-construction-4.mp4';
 import heroVideo5 from '@/assets/hero-construction-5.mp4';
+import heroPoster from '@/assets/mockup-photos.png';
 import logoImage from '@/assets/builderlynk-logo-new.png';
 import logoTransparent from '@/assets/builderlynk-logo-new.png';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
@@ -34,7 +35,7 @@ import {
 } from 'lucide-react';
 import { CountUpStat } from '@/components/CountUpStat';
 
-const heroVideos = [heroVideo1, heroVideo2, heroVideo3, heroVideo4, heroVideo5];
+const heroVideos = [heroVideo2, heroVideo1, heroVideo3, heroVideo4, heroVideo5];
 
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -46,6 +47,8 @@ export default function LandingPage() {
   const parallaxOffset = useParallax(0.3);
   const [scrollY, setScrollY] = useState(0);
   const [showFirstVideo, setShowFirstVideo] = useState(true);
+  const [isHeroVideoReady, setIsHeroVideoReady] = useState(false);
+  const [secondaryVideoPrimed, setSecondaryVideoPrimed] = useState(false);
   const videoARef = useRef<HTMLVideoElement>(null);
   const videoBRef = useRef<HTMLVideoElement>(null);
 
@@ -80,6 +83,30 @@ export default function LandingPage() {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', handleScroll, { passive: true });
     return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    const primeSecondaryVideo = () => {
+      if (!cancelled) setSecondaryVideoPrimed(true);
+    };
+
+    if (typeof window !== 'undefined' && 'requestIdleCallback' in window) {
+      const idleCallbackId = (window as Window & { requestIdleCallback: (callback: () => void, options?: { timeout: number }) => number })
+        .requestIdleCallback(primeSecondaryVideo, { timeout: 2500 });
+      return () => {
+        cancelled = true;
+        if ('cancelIdleCallback' in window) {
+          (window as Window & { cancelIdleCallback: (id: number) => void }).cancelIdleCallback(idleCallbackId);
+        }
+      };
+    }
+
+    const timeoutId = window.setTimeout(primeSecondaryVideo, 1800);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(timeoutId);
+    };
   }, []);
 
   useEffect(() => {
@@ -268,6 +295,13 @@ export default function LandingPage() {
       <section className="relative h-screen flex items-center justify-center overflow-hidden">
         {/* Video Background - crossfade between two video elements */}
         <div className="absolute inset-0 z-0">
+          <div
+            className="absolute inset-0 bg-cover bg-center transition-opacity duration-700"
+            style={{
+              backgroundImage: `url(${heroPoster})`,
+              opacity: isHeroVideoReady ? 0 : 1,
+            }}
+          />
           {/* Video A */}
           <video
             ref={videoARef}
@@ -275,6 +309,9 @@ export default function LandingPage() {
             autoPlay={showFirstVideo}
             muted
             playsInline
+            preload="metadata"
+            poster={heroPoster}
+            onLoadedData={() => setIsHeroVideoReady(true)}
             onEnded={showFirstVideo ? handleVideoEnded : undefined}
             className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
             style={{ 
@@ -290,7 +327,7 @@ export default function LandingPage() {
             key={`videoB-${videoBSource}`}
             muted
             playsInline
-            preload="auto"
+            preload={secondaryVideoPrimed ? "metadata" : "none"}
             onEnded={!showFirstVideo ? handleVideoEnded : undefined}
             className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
             style={{ 
@@ -298,7 +335,7 @@ export default function LandingPage() {
               opacity: showFirstVideo ? 0 : 1
             }}
           >
-            <source src={heroVideos[videoBSource]} type="video/mp4" />
+            {secondaryVideoPrimed ? <source src={heroVideos[videoBSource]} type="video/mp4" /> : null}
           </video>
         </div>
         
