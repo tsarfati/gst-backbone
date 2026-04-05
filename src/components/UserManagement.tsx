@@ -139,7 +139,7 @@ export default function UserManagement() {
         .from('custom_roles')
         .select('id, role_name, role_key, color')
         .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
+        .or('is_active.eq.true,is_active.is.null')
         .order('role_name');
       if (error) throw error;
       setCustomRoles((data as CustomRole[]) || []);

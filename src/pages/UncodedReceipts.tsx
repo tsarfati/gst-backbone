@@ -1342,6 +1342,7 @@ export default function UncodedReceipts() {
                   currentUserId={user?.id || "current-user"}
                   currentUserName={profile?.display_name || profile?.first_name || "Current User"}
                   companyId={currentCompany?.id}
+                  jobId={selectedReceipt.job_id || null}
                 />
               </div>
             </div>

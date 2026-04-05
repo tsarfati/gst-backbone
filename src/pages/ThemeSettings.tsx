@@ -621,13 +621,13 @@ export default function ThemeSettings({
                         <SelectValue placeholder="Select time zone" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="America/New_York">Eastern Time</SelectItem>
-                        <SelectItem value="America/Chicago">Central Time</SelectItem>
-                        <SelectItem value="America/Denver">Mountain Time</SelectItem>
-                        <SelectItem value="America/Los_Angeles">Pacific Time</SelectItem>
-                        <SelectItem value="America/Phoenix">Arizona Time</SelectItem>
-                        <SelectItem value="America/Anchorage">Alaska Time</SelectItem>
-                        <SelectItem value="Pacific/Honolulu">Hawaii Time</SelectItem>
+                        <SelectItem value="America/New_York">Eastern Time (New York, UTC-5/-4)</SelectItem>
+                        <SelectItem value="America/Chicago">Central Time (Chicago, UTC-6/-5)</SelectItem>
+                        <SelectItem value="America/Denver">Mountain Time (Denver, UTC-7/-6)</SelectItem>
+                        <SelectItem value="America/Los_Angeles">Pacific Time (Los Angeles, UTC-8/-7)</SelectItem>
+                        <SelectItem value="America/Phoenix">Arizona Time (Phoenix, UTC-7)</SelectItem>
+                        <SelectItem value="America/Anchorage">Alaska Time (Anchorage, UTC-9/-8)</SelectItem>
+                        <SelectItem value="Pacific/Honolulu">Hawaii Time (Honolulu, UTC-10)</SelectItem>
                       </SelectContent>
                     </Select>
                   </div>

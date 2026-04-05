@@ -87,7 +87,7 @@ interface CompanyEmailSettingsForm {
   is_configured: boolean;
 }
 
-type JobSiteLynkIntegrationComponent = React.ComponentType<Record<string, never>>;
+type IntegrationsComponent = React.ComponentType<Record<string, never>>;
 
 export default function CompanySettingsPage() {
   const navigate = useNavigate();
@@ -133,8 +133,8 @@ export default function CompanySettingsPage() {
     use_ssl: true,
     is_configured: false,
   });
-  const [jobSiteLynkSettingsComponent, setJobSiteLynkSettingsComponent] = useState<JobSiteLynkIntegrationComponent | null>(null);
-  const [jobSiteLynkSettingsError, setJobSiteLynkSettingsError] = useState<string | null>(null);
+  const [integrationsComponent, setIntegrationsComponent] = useState<IntegrationsComponent | null>(null);
+  const [integrationsComponentError, setIntegrationsComponentError] = useState<string | null>(null);
 
   const currentUserCompany = userCompanies.find((uc) => uc.company_id === currentCompany?.id);
   const canManageCompanyUsers =
@@ -348,7 +348,7 @@ export default function CompanySettingsPage() {
         .from('custom_roles')
         .select('id, role_name')
         .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
+        .or('is_active.eq.true,is_active.is.null')
         .order('role_name', { ascending: true });
       if (error) throw error;
       setCustomRoles((data || []) as CustomRoleRecord[]);
@@ -669,24 +669,24 @@ export default function CompanySettingsPage() {
   }, [activeJobsTab, jobsSubtabs]);
 
   useEffect(() => {
-    if (jobSiteLynkSettingsComponent || jobSiteLynkSettingsError) return;
+    if (integrationsComponent || integrationsComponentError) return;
 
     let cancelled = false;
-    void import('@/components/JobSiteLynkIntegrationSettings')
+    void import('@/components/CompanyIntegrationsOverview')
       .then((module) => {
         if (cancelled) return;
-        setJobSiteLynkSettingsComponent(() => module.default);
+        setIntegrationsComponent(() => module.default);
       })
       .catch((error) => {
-        console.error('Failed to load JobSiteLynk integration settings component:', error);
+        console.error('Failed to load integrations component:', error);
         if (cancelled) return;
-        setJobSiteLynkSettingsError('Could not load the JobSiteLynk connector right now.');
+        setIntegrationsComponentError('Could not load the integrations panel right now.');
       });
 
     return () => {
       cancelled = true;
     };
-  }, [jobSiteLynkSettingsComponent, jobSiteLynkSettingsError]);
+  }, [integrationsComponent, integrationsComponentError]);
 
   if (!permissionsLoading && !visibleCompanyTabs.length) {
     return (
@@ -926,22 +926,22 @@ export default function CompanySettingsPage() {
 
           <TabsContent value="integrations">
             <div className={canEditCompanyTab('company-settings-tab-integrations') ? '' : 'pointer-events-none opacity-75'}>
-              {jobSiteLynkSettingsError ? (
+              {integrationsComponentError ? (
                 <Card>
                   <CardHeader>
-                    <CardTitle>JobSiteLynk</CardTitle>
-                    <CardDescription>{jobSiteLynkSettingsError}</CardDescription>
+                    <CardTitle>Integrations</CardTitle>
+                    <CardDescription>{integrationsComponentError}</CardDescription>
                   </CardHeader>
                 </Card>
-              ) : jobSiteLynkSettingsComponent ? (
-                React.createElement(jobSiteLynkSettingsComponent)
+              ) : integrationsComponent ? (
+                React.createElement(integrationsComponent)
               ) : (
                 <Card>
                   <CardHeader>
-                    <CardTitle>JobSiteLynk</CardTitle>
+                    <CardTitle>Integrations</CardTitle>
                     <CardDescription className="flex items-center gap-2">
                       <Loader2 className="h-4 w-4 animate-spin" />
-                      <span className="loading-dots">Loading connector</span>
+                      <span className="loading-dots">Loading integrations</span>
                     </CardDescription>
                   </CardHeader>
                 </Card>

@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
@@ -2698,8 +2699,8 @@ export default function VendorDashboard() {
           <div className="space-y-3">
             <div className="space-y-1">
               <Label>Negotiation Notes</Label>
-              <textarea
-                className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+              <Textarea
+                className="min-h-[120px]"
                 value={feedbackNotes}
                 onChange={(e) => setFeedbackNotes(e.target.value)}
                 placeholder="Describe requested changes or clarifications..."
@@ -2708,8 +2709,9 @@ export default function VendorDashboard() {
             {portalSettings.allowVendorSovInput && (
               <div className="space-y-1">
                 <Label>SOV Proposal (JSON, optional)</Label>
-                <textarea
-                  className="w-full min-h-[160px] rounded-md border border-input bg-background px-3 py-2 text-sm font-mono"
+                <Textarea
+                  className="min-h-[160px] font-mono"
+                  enableSpeech={false}
                   value={sovProposalJson}
                   onChange={(e) => setSovProposalJson(e.target.value)}
                   placeholder='[{"cost_code":"03-100","description":"Concrete","amount":12500}]'
@@ -2805,8 +2807,8 @@ export default function VendorDashboard() {
             </div>
             <div className="space-y-1">
               <Label>Notes</Label>
-              <textarea
-                className="w-full min-h-[120px] rounded-md border border-input bg-background px-3 py-2 text-sm"
+              <Textarea
+                className="min-h-[120px]"
                 value={bidForm.notes}
                 onChange={(e) => setBidForm((prev) => ({ ...prev, notes: e.target.value }))}
                 placeholder="Include clarifications, inclusions, or assumptions."

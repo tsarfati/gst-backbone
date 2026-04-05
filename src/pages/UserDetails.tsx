@@ -51,7 +51,6 @@ import AvatarLibraryDialog from "@/components/AvatarLibraryDialog";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
 import { UserPinSettings } from "@/components/UserPinSettings";
-import UserWebsiteJobAssignments from "@/components/UserWebsiteJobAssignments";
 import DocumentPreviewModal from "@/components/DocumentPreviewModal";
 import {
   AlertDialog,
@@ -164,6 +163,7 @@ const INTERNAL_ROLE_OPTIONS = [
   { value: 'admin', label: 'Administrator' },
   { value: 'controller', label: 'Controller' },
   { value: 'project_manager', label: 'Project Manager' },
+  { value: 'design_professional', label: 'Design Professional' },
   { value: 'employee', label: 'Employee' },
   { value: 'view_only', label: 'View Only' },
   { value: 'company_admin', label: 'Company Admin' },
@@ -219,6 +219,7 @@ export default function UserDetails() {
   const [userFiles, setUserFiles] = useState<UserProfileFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
   const [uploadingUserFile, setUploadingUserFile] = useState(false);
+  const ADD_ROLE_OPTION_VALUE = "__add_role__";
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showAvatarLibrary, setShowAvatarLibrary] = useState(false);
   const [showCamera, setShowCamera] = useState(false);
@@ -311,7 +312,7 @@ export default function UserDetails() {
         .from('custom_roles')
         .select('id, role_name, role_key, color')
         .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
+        .or('is_active.eq.true,is_active.is.null')
         .order('role_name');
       if (error) throw error;
       setCustomRoles((data as CustomRole[]) || []);
@@ -1307,7 +1308,16 @@ export default function UserDetails() {
                   <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                     <div>
                       <Label>Role</Label>
-                      <Select value={editForm.role} onValueChange={(v) => setEditForm(f => ({ ...f, role: v }))}>
+                      <Select
+                        value={editForm.role}
+                        onValueChange={(v) => {
+                          if (v === ADD_ROLE_OPTION_VALUE) {
+                            navigate('/settings/users?tab=roles');
+                            return;
+                          }
+                          setEditForm(f => ({ ...f, role: v }));
+                        }}
+                      >
                         <SelectTrigger><SelectValue /></SelectTrigger>
                         <SelectContent>
                           {INTERNAL_ROLE_OPTIONS.map((option) => (
@@ -1315,7 +1325,7 @@ export default function UserDetails() {
                               {option.label}
                             </SelectItem>
                           ))}
-                          {(editForm.role === 'vendor' || editForm.role === 'design_professional') && (
+                          {editForm.role === 'vendor' && (
                             <SelectItem value={editForm.role} disabled>
                               {roleLabels[editForm.role]} (External Access)
                             </SelectItem>
@@ -1332,6 +1342,9 @@ export default function UserDetails() {
                               ))}
                             </>
                           )}
+                          <SelectItem value={ADD_ROLE_OPTION_VALUE}>
+                            + Add Role
+                          </SelectItem>
                         </SelectContent>
                       </Select>
                     </div>
@@ -1629,21 +1642,15 @@ export default function UserDetails() {
         </Card>
       )}
 
-      {/* Punch Clock Job Access (renamed only) */}
       {!isVendorUser && (
-        <>
-          <div id="job-access-section">
-            <UserJobAccess
-              userId={userId!}
-              userRole={user.role}
-              title="Punch Clock Job Assignments & Cost Codes"
-              description={`Control which jobs and cost codes this ${user.role === 'employee' ? 'employee' : 'user'} can access in the punch clock app.`}
-            />
-          </div>
-
-          {/* Website / PM Lynk Job Access (simple job assignments only) */}
-          <UserWebsiteJobAssignments userId={userId!} canManage={canManage} />
-        </>
+        <div id="job-access-section">
+          <UserJobAccess
+            userId={userId!}
+            userRole={user.role}
+            title="Punch Clock Job Assignments & Cost Codes"
+            description={`Control which jobs and cost codes this user can access in the punch clock app.`}
+          />
+        </div>
       )}
 
       {isVendorUser && (

@@ -15,6 +15,7 @@ interface MentionTextareaProps {
   companyId?: string | null;
   jobId?: string | null;
   allowedUserIds?: string[];
+  includeEmployeeMentions?: boolean;
   currentUserId?: string | null;
   placeholder?: string;
   rows?: number;
@@ -37,6 +38,7 @@ export default function MentionTextarea({
   companyId,
   jobId,
   allowedUserIds,
+  includeEmployeeMentions = false,
   currentUserId,
   placeholder,
   rows,
@@ -59,14 +61,18 @@ export default function MentionTextarea({
         setLoadingUsers(true);
         const { data: accessRows, error: accessError } = await supabase
           .from("user_company_access")
-          .select("user_id")
+          .select("user_id, role")
           .eq("company_id", companyId)
           .eq("is_active", true);
         if (accessError) throw accessError;
 
+        const roleMap = new Map<string, string>(
+          (accessRows || []).map((row: any) => [String(row.user_id), String(row.role || "").toLowerCase()])
+        );
+
         const userIds = Array.from(
           new Set((accessRows || []).map((row: any) => row.user_id).filter(Boolean))
-        );
+        ).filter((userId) => includeEmployeeMentions || roleMap.get(String(userId)) !== "employee");
         if (!userIds.length) {
           setUsers([]);
           return;
@@ -125,7 +131,7 @@ export default function MentionTextarea({
     };
 
     loadUsers();
-  }, [companyId, currentUserId, jobId, Array.isArray(allowedUserIds) ? allowedUserIds.join(",") : ""]);
+  }, [companyId, currentUserId, includeEmployeeMentions, jobId, Array.isArray(allowedUserIds) ? allowedUserIds.join(",") : ""]);
 
   const filteredUsers = useMemo(() => {
     if (mentionQuery === null) return [];

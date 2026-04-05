@@ -98,10 +98,10 @@ const navigationCategories = [
     companyTypes: ['construction'] as CompanyType[],
     items: [
       { name: "Bank Accounts", href: "/banking/accounts", menuKey: "banking-accounts" },
-      { name: "Reporting", href: "/banking/reports", menuKey: "banking-reports" },
-      { name: "Journal Entries", href: "/banking/journal-entries", menuKey: "journal-entries" },
       { name: "Deposits", href: "/banking/deposits", menuKey: "deposits" },
       { name: "Print Checks", href: "/banking/print-checks", menuKey: "print-checks" },
+      { name: "Journal Entries", href: "/banking/journal-entries", menuKey: "journal-entries" },
+      { name: "Reporting", href: "/banking/reports", menuKey: "banking-reports" },
     ],
     collapsible: true,
   },

@@ -841,7 +841,7 @@ serve(async (req) => {
 
       const { data: tc, error: tcErr } = await supabaseAdmin
         .from('time_cards')
-        .select('company_id, user_id')
+        .select('company_id, user_id, punch_in_time, punch_out_time, job_id, cost_code_id')
         .eq('id', time_card_id)
         .maybeSingle();
       if (tcErr) return errorResponse(tcErr.message, 500);
@@ -857,6 +857,10 @@ serve(async (req) => {
           reason,
           status: 'pending',
           requested_at: new Date().toISOString(),
+          original_punch_in_time: tc.punch_in_time || null,
+          original_punch_out_time: tc.punch_out_time || null,
+          original_job_id: tc.job_id || null,
+          original_cost_code_id: tc.cost_code_id || null,
           proposed_punch_in_time: proposed_punch_in_time || null,
           proposed_punch_out_time: proposed_punch_out_time || null,
           proposed_job_id: proposed_job_id || null,
@@ -1795,13 +1799,29 @@ serve(async (req) => {
           return errorResponse("time_card_id and reason are required", 400);
         }
         
+        const { data: tc, error: tcErr } = await supabaseAdmin
+          .from('time_cards')
+          .select('company_id, user_id, punch_in_time, punch_out_time, job_id, cost_code_id')
+          .eq('id', time_card_id)
+          .maybeSingle();
+
+        if (tcErr) return errorResponse(tcErr.message, 500);
+        if (!tc) return errorResponse('Time card not found', 404);
+        if (tc.user_id !== userRow.user_id) return errorResponse('Cannot request changes for another user\'s time card', 403);
+
         const { error } = await supabaseAdmin
           .from('time_card_change_requests')
           .insert({
             time_card_id,
             user_id: userRow.user_id,
+            company_id: tc.company_id,
             reason,
             status: 'pending',
+            requested_at: new Date().toISOString(),
+            original_punch_in_time: tc.punch_in_time || null,
+            original_punch_out_time: tc.punch_out_time || null,
+            original_job_id: tc.job_id || null,
+            original_cost_code_id: tc.cost_code_id || null,
             proposed_punch_in_time: proposed_punch_in_time || null,
             proposed_punch_out_time: proposed_punch_out_time || null,
             proposed_job_id: proposed_job_id || null,

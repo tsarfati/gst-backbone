@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
+import { Textarea } from '@/components/ui/textarea';
 import { ArrowLeft, CheckCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
@@ -219,11 +220,11 @@ export default function DemoRequest() {
 
               <div>
                 <label className="block text-sm font-medium text-gray-300 mb-1.5">Anything else we should know?</label>
-                <textarea
+                <Textarea
                   value={form.details}
                   onChange={(e) => update('details', e.target.value)}
                   rows={3}
-                  className="w-full px-4 py-2.5 rounded-lg border border-white/10 bg-white/[0.04] text-white placeholder-gray-500 text-sm focus:outline-none focus:border-[#E88A2D]/50 transition-colors resize-none"
+                  className="resize-none border-white/10 bg-white/[0.04] px-4 py-2.5 text-white placeholder:text-gray-500 focus-visible:ring-0 focus-visible:ring-offset-0"
                 />
               </div>
 

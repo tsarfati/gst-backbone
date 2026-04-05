@@ -51,7 +51,7 @@ import { Mail, UserPlus, Loader2 } from 'lucide-react';
           .from('custom_roles')
           .select('id, role_name, role_key, is_active')
           .eq('company_id', currentCompany.id)
-          .eq('is_active', true)
+          .or('is_active.eq.true,is_active.is.null')
           .order('role_name');
 
         if (error) throw error;

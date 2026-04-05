@@ -25,8 +25,7 @@ export function useWebsiteJobAccess() {
     const role = (activeCompanyRole || "").toLowerCase();
     return role === "admin" || role === "company_admin" || role === "controller" || role === "owner";
   }, [activeCompanyRole]);
-  // Website/PM job visibility is always scoped to explicit job assignment, regardless of role.
-  const isPrivileged = false;
+  const isPrivileged = isPrivilegedRole && !isExternalSharedUser;
 
   useEffect(() => {
     const load = async () => {
@@ -39,25 +38,77 @@ export function useWebsiteJobAccess() {
 
       try {
         setLoading(true);
+        if (isPrivileged) {
+          setHasGlobalJobAccess(true);
+          setAllowedJobIds([]);
+          return;
+        }
 
-        const { data: accessData, error: accessError } = await supabase
-            .from("user_job_access")
-            .select("job_id, jobs!inner(company_id)")
-            .eq("user_id", user.id);
-        if (accessError) throw accessError;
-        
-        // Website/PM job visibility is driven by explicit website job assignments,
-        // not the legacy/global punch clock job access flag.
+        const [directoryRes, projectManagerRes, assistantPmRes, employeeSettingsRes, companyJobsRes] = await Promise.all([
+          supabase
+            .from('job_project_directory')
+            .select('job_id')
+            .eq('company_id', currentCompany.id)
+            .eq('linked_user_id', user.id)
+            .eq('is_active', true)
+            .eq('is_project_team_member', true),
+          supabase
+            .from('jobs')
+            .select('id')
+            .eq('company_id', currentCompany.id)
+            .eq('project_manager_user_id', user.id),
+          supabase
+            .from('job_assistant_managers')
+            .select('job_id')
+            .eq('user_id', user.id)
+            ,
+          supabase
+            .from('employee_timecard_settings')
+            .select('assigned_jobs')
+            .eq('company_id', currentCompany.id)
+            .eq('user_id', user.id)
+            .maybeSingle(),
+          supabase
+            .from('jobs')
+            .select('id')
+            .eq('company_id', currentCompany.id),
+        ]);
+
+        if (directoryRes.error) throw directoryRes.error;
+        if (projectManagerRes.error) throw projectManagerRes.error;
+        if (assistantPmRes.error) throw assistantPmRes.error;
+        if (companyJobsRes.error) throw companyJobsRes.error;
+        if (employeeSettingsRes.error && employeeSettingsRes.error.code !== 'PGRST116') {
+          throw employeeSettingsRes.error;
+        }
+
         setHasGlobalJobAccess(false);
 
-        const ids = (accessData || [])
-          .filter((row: any) =>
-            isExternalSharedUser
-              ? true
-              : row.jobs?.company_id === currentCompany.id,
-          )
-          .map((row: any) => row.job_id);
-        setAllowedJobIds(Array.from(new Set(ids)));
+        const allowedIds = new Set<string>();
+
+        const companyJobIds = new Set((companyJobsRes.data || []).map((row: any) => String(row.id)));
+
+        (directoryRes.data || []).forEach((row: any) => {
+          if (row?.job_id) allowedIds.add(String(row.job_id));
+        });
+
+        (projectManagerRes.data || []).forEach((row: any) => {
+          if (row?.id) allowedIds.add(String(row.id));
+        });
+
+        (assistantPmRes.data || []).forEach((row: any) => {
+          if (row?.job_id && companyJobIds.has(String(row.job_id))) {
+            allowedIds.add(String(row.job_id));
+          }
+        });
+
+        if (!isExternalSharedUser) {
+          (((employeeSettingsRes.data as any)?.assigned_jobs) || []).forEach((jobId: string) => {
+            if (jobId) allowedIds.add(String(jobId));
+          });
+        }
+
+        setAllowedJobIds(Array.from(allowedIds));
       } catch (error) {
         console.warn("Error loading website job access:", error);
         setHasGlobalJobAccess(false);
@@ -68,7 +119,7 @@ export function useWebsiteJobAccess() {
     };
 
     load();
-  }, [user?.id, currentCompany?.id, isPrivilegedRole, isExternalSharedUser]);
+  }, [user?.id, currentCompany?.id, isPrivileged, isExternalSharedUser]);
 
   const canAccessJob = useCallback((jobId: string | null | undefined) => {
     if (!jobId) return false;

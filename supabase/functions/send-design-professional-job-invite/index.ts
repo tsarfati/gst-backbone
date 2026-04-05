@@ -26,6 +26,8 @@ type InvitePayload = {
   email: string;
   firstName?: string;
   lastName?: string;
+  projectRoleId?: string | null;
+  projectRoleName?: string | null;
 };
 
 type PendingJobInviteNote = {
@@ -37,6 +39,8 @@ type PendingJobInviteNote = {
   email: string;
   firstName?: string | null;
   lastName?: string | null;
+  projectRoleId?: string | null;
+  projectRoleName?: string | null;
 };
 
 const safeParseNotes = (value: unknown): Record<string, unknown> => {
@@ -99,7 +103,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { companyId, jobId, email, firstName, lastName }: InvitePayload = await req.json();
+    const { companyId, jobId, email, firstName, lastName, projectRoleId, projectRoleName }: InvitePayload = await req.json();
     const normalizedEmail = String(email || "").trim().toLowerCase();
     if (!companyId || !jobId || !normalizedEmail) {
       return new Response(JSON.stringify({ error: "companyId, jobId, and email are required" }), {
@@ -155,6 +159,8 @@ const handler = async (req: Request): Promise<Response> => {
           expires_at: expiresAt,
           notes: {
             role: "design_professional",
+            projectRoleId: projectRoleId || null,
+            projectRoleName: projectRoleName || null,
           },
         },
         { onConflict: "invite_token" },
@@ -214,6 +220,8 @@ const handler = async (req: Request): Promise<Response> => {
           email: normalizedEmail,
           firstName: firstName || null,
           lastName: lastName || null,
+          projectRoleId: projectRoleId || null,
+          projectRoleName: projectRoleName || null,
         } satisfies PendingJobInviteNote,
       ];
 
@@ -224,6 +232,8 @@ const handler = async (req: Request): Promise<Response> => {
         email: normalizedEmail,
         invitedJobId: jobId,
         jobInviteToken: inviteToken,
+        projectRoleId: projectRoleId || null,
+        projectRoleName: projectRoleName || null,
         pendingJobInvites: nextPendingJobInvites,
       };
 

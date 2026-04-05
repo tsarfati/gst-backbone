@@ -19,14 +19,13 @@ import { useActionPermissions } from "@/hooks/useActionPermissions";
 import JobProjectTeam from "@/components/JobProjectTeam";
 import DragDropUpload from "@/components/DragDropUpload";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
-import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 
 export default function JobEdit() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
   const { profile } = useAuth();
-  const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
+  const { loading: websiteJobAccessLoading, isPrivileged, hasGlobalJobAccess, canAccessJob } = useWebsiteJobAccess();
   
   const isAdmin = profile?.role === 'admin';
   const { currentCompany } = useCompany();
@@ -101,7 +100,7 @@ export default function JobEdit() {
             variant: "destructive",
           });
         } else if (data) {
-          if (!canAccessAssignedJobOnly([data.id], isPrivileged, allowedJobIds)) {
+          if (!isPrivileged && !hasGlobalJobAccess && !canAccessJob(data.id)) {
             toast({
               title: "Access denied",
               description: "You do not have access to this job.",
@@ -153,7 +152,7 @@ export default function JobEdit() {
     }
     fetchCustomers();
     fetchJob();
-  }, [id, toast, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+  }, [id, toast, currentCompany?.id, websiteJobAccessLoading, isPrivileged, hasGlobalJobAccess, canAccessJob]);
 
   if (loading) {
     return (

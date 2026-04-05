@@ -26,6 +26,7 @@ interface ReceiptMessagingPanelProps {
   currentUserId: string;
   currentUserName: string;
   companyId?: string;
+  jobId?: string | null;
 }
 
 export default function ReceiptMessagingPanel({ 
@@ -35,6 +36,7 @@ export default function ReceiptMessagingPanel({
   currentUserId,
   currentUserName,
   companyId,
+  jobId,
 }: ReceiptMessagingPanelProps) {
   const [newMessage, setNewMessage] = useState("");
 
@@ -139,6 +141,7 @@ export default function ReceiptMessagingPanel({
                 value={newMessage}
                 onValueChange={setNewMessage}
                 companyId={companyId}
+                jobId={jobId}
                 currentUserId={currentUserId}
                 placeholder="Add a message about this receipt... (use @ to tag teammates)"
                 onKeyDown={handleKeyPress}

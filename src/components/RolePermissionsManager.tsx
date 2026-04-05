@@ -199,9 +199,11 @@ const menuCategories: MenuCategory[] = [
                 label: 'Albums',
                 description: 'Photo album controls',
                 actions: [
+                  { key: 'jobs-photos-view-albums', label: 'View Albums', description: 'View photo albums and album list' },
                   { key: 'jobs-photos-create-albums', label: 'Create Albums', description: 'Create photo albums' },
                   { key: 'jobs-photos-edit-albums', label: 'Edit Albums', description: 'Rename/reorganize albums' },
                   { key: 'jobs-photos-delete-albums', label: 'Delete Albums', description: 'Delete photo albums' },
+                  { key: 'jobs-photos-access-jobsitelynk', label: 'Access JobSiteLYNK', description: 'Open linked JobSiteLYNK access from photo albums when connected' },
                 ]
               },
               {
@@ -1186,6 +1188,10 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
   const [renameRoleKey, setRenameRoleKey] = useState('');
   const [renamingRole, setRenamingRole] = useState(false);
   const [duplicatingRoleId, setDuplicatingRoleId] = useState<string | null>(null);
+  const [copySystemRoleDialogOpen, setCopySystemRoleDialogOpen] = useState(false);
+  const [copySourceRole, setCopySourceRole] = useState<(typeof roles)[0] | null>(null);
+  const [copyRoleName, setCopyRoleName] = useState('');
+  const [copyingSystemRole, setCopyingSystemRole] = useState(false);
   const [bulkUpdatingRoleId, setBulkUpdatingRoleId] = useState<string | null>(null);
   const [editDialogOpen, setEditDialogOpen] = useState(false);
   const [editTargetRoleId, setEditTargetRoleId] = useState<string | null>(null);
@@ -1243,7 +1249,7 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
         .from('custom_roles')
         .select('*')
         .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
+        .or('is_active.eq.true,is_active.is.null')
         .order('role_name');
 
       if (rolesError) throw rolesError;
@@ -1490,6 +1496,7 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
           role_name: newRole.role_name,
           description: newRole.description,
           color: newRole.color,
+          is_active: true,
           created_by: user.id,
         })
         .select()
@@ -1577,6 +1584,7 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
         .update({
           role_name: trimmedName,
           role_key: sanitizedKey,
+          is_active: true,
         })
         .eq('id', renameTargetRoleId)
         .select()
@@ -1621,6 +1629,7 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
           role_name: copiedName,
           description: sourceRole.description,
           color: sourceRole.color,
+          is_active: true,
           created_by: user.id,
         })
         .select()
@@ -1659,6 +1668,93 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
         variant: "destructive",
       });
     } finally {
+      setDuplicatingRoleId(null);
+    }
+  };
+
+  const openCopySystemRoleDialog = (sourceRole: typeof roles[0]) => {
+    setCopySourceRole(sourceRole);
+    setCopyRoleName(`${sourceRole.label} Copy`);
+    setCopySystemRoleDialogOpen(true);
+  };
+
+  const copySystemRoleToCustomRole = async () => {
+    if (mode !== 'company' || !currentCompany || !user || !copySourceRole) return;
+
+    const trimmedName = copyRoleName.trim();
+    if (!trimmedName) {
+      toast({
+        title: "Validation Error",
+        description: "Please enter a name for the new custom role.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const duplicateName = customRoles.some((role) => role.role_name.trim().toLowerCase() === trimmedName.toLowerCase());
+    if (duplicateName) {
+      toast({
+        title: "Duplicate Role Name",
+        description: "That custom role name is already in use for this company.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setCopyingSystemRole(true);
+      setDuplicatingRoleId(copySourceRole.key);
+      const copiedKey = getUniqueRoleKey(trimmedName.replace(/\s+/g, '_'));
+
+      const { data: newRoleData, error: createError } = await supabase
+        .from('custom_roles')
+        .insert({
+          company_id: currentCompany.id,
+          role_key: copiedKey,
+          role_name: trimmedName,
+          description: `Copied from system role: ${copySourceRole.label}`,
+          color: copySourceRole.color,
+          is_active: true,
+          created_by: user.id,
+        })
+        .select()
+        .single();
+
+      if (createError) throw createError;
+
+      const permissionKeys = getAllPermissionKeysForBulkUpdate();
+      const copiedPermissions = permissionKeys.map((menuItem) => ({
+        custom_role_id: newRoleData.id,
+        menu_item: menuItem,
+        can_access: getPermission(copySourceRole.key, menuItem),
+      }));
+
+      const { data: insertedPerms, error: permsError } = await supabase
+        .from('custom_role_permissions')
+        .upsert(copiedPermissions, { onConflict: 'custom_role_id,menu_item' })
+        .select();
+
+      if (permsError) throw permsError;
+
+      setCustomRoles((prev) => [...prev, newRoleData]);
+      setCustomPermissions((prev) => [...prev, ...(insertedPerms || [])]);
+      setCopySystemRoleDialogOpen(false);
+      setCopySourceRole(null);
+      setCopyRoleName('');
+
+      toast({
+        title: "Custom Role Created",
+        description: `"${trimmedName}" starts with the current ${copySourceRole.label} system-role permissions.`,
+      });
+    } catch (error: any) {
+      console.error('Error copying system role:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to copy system role",
+        variant: "destructive",
+      });
+    } finally {
+      setCopyingSystemRole(false);
       setDuplicatingRoleId(null);
     }
   };
@@ -1760,6 +1856,7 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
         .update({
           description: editDescription.trim(),
           color: editColor.trim() || 'bg-indigo-100 text-indigo-800',
+          is_active: true,
         })
         .eq('id', editTargetRoleId)
         .select()
@@ -1967,7 +2064,7 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
                       disabled={duplicatingRoleId === role.key}
                       onClick={(e) => {
                         e.stopPropagation();
-                        copySystemRoleToCustomRole(role);
+                        openCopySystemRoleDialog(role);
                       }}
                     >
                       <Copy className="h-4 w-4" />
@@ -2058,6 +2155,14 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
                   const categoryKey = `${roleKey}-${category.key}`;
                   const isCategoryOpen = openCategories[categoryKey] || false;
                   const CategoryIcon = category.icon;
+                  const availableItemsCount = category.items.length;
+                  const enabledItemsCount = category.items.filter((item) => {
+                    const scopedKeys = permissionHierarchy.descendantsByKey[item.key] || [item.key];
+                    if (isCustomRole && customRoleData) {
+                      return scopedKeys.some((key) => getCustomRolePermission(customRoleData.id, key));
+                    }
+                    return scopedKeys.some((key) => getPermission(role.key, key));
+                  }).length;
                   
                   return (
                     <Collapsible 
@@ -2070,7 +2175,9 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
                           {isCategoryOpen ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                           <CategoryIcon className="h-4 w-4 text-primary" />
                           <span className="font-medium">{category.label}</span>
-                          <span className="text-xs text-muted-foreground ml-2">({category.items.length} items)</span>
+                          <span className="text-xs text-muted-foreground ml-2">
+                            ({enabledItemsCount} / {availableItemsCount})
+                          </span>
                         </div>
                       </CollapsibleTrigger>
                       
@@ -2313,6 +2420,55 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
 
               {mode === 'company' && (
               <Dialog
+                open={copySystemRoleDialogOpen}
+                onOpenChange={(open) => {
+                  setCopySystemRoleDialogOpen(open);
+                  if (!open) {
+                    setCopySourceRole(null);
+                    setCopyRoleName('');
+                  }
+                }}
+              >
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Copy System Role To Custom Role</DialogTitle>
+                    <DialogDescription>
+                      {copySourceRole
+                        ? `Create a custom role for this company starting with the current ${copySourceRole.label} system-role permissions.`
+                        : 'Create a custom role for this company starting with the selected system role permissions.'}
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Source System Role</Label>
+                      <div className="rounded-md border bg-muted/30 px-3 py-2 text-sm">
+                        {copySourceRole?.label || 'No system role selected'}
+                      </div>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="copy_role_name">New Custom Role Name</Label>
+                      <Input
+                        id="copy_role_name"
+                        value={copyRoleName}
+                        onChange={(e) => setCopyRoleName(e.target.value)}
+                        placeholder="e.g., Customer Coordinator"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setCopySystemRoleDialogOpen(false)}>
+                      Cancel
+                    </Button>
+                    <Button onClick={() => void copySystemRoleToCustomRole()} disabled={copyingSystemRole || !copyRoleName.trim()}>
+                      {copyingSystemRole ? 'Creating...' : 'Create Custom Role'}
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+              )}
+
+              {mode === 'company' && (
+              <Dialog
                 open={renameDialogOpen}
                 onOpenChange={(open) => {
                   setRenameDialogOpen(open);
@@ -2455,58 +2611,3 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
     </Tabs>
   );
 }
-  const copySystemRoleToCustomRole = async (sourceRole: typeof roles[0]) => {
-    if (mode !== 'company' || !currentCompany || !user) return;
-
-    try {
-      setDuplicatingRoleId(sourceRole.key);
-      const copiedName = `${sourceRole.label} Copy`;
-      const copiedKey = getUniqueRoleKey(`${sourceRole.key}_copy`);
-
-      const { data: newRoleData, error: createError } = await supabase
-        .from('custom_roles')
-        .insert({
-          company_id: currentCompany.id,
-          role_key: copiedKey,
-          role_name: copiedName,
-          description: `Copied from system role: ${sourceRole.label}`,
-          color: sourceRole.color,
-          created_by: user.id,
-        })
-        .select()
-        .single();
-
-      if (createError) throw createError;
-
-      const permissionKeys = getAllPermissionKeysForBulkUpdate();
-      const copiedPermissions = permissionKeys.map((menuItem) => ({
-        custom_role_id: newRoleData.id,
-        menu_item: menuItem,
-        can_access: getPermission(sourceRole.key, menuItem),
-      }));
-
-      const { data: insertedPerms, error: permsError } = await supabase
-        .from('custom_role_permissions')
-        .upsert(copiedPermissions, { onConflict: 'custom_role_id,menu_item' })
-        .select();
-
-      if (permsError) throw permsError;
-
-      setCustomRoles((prev) => [...prev, newRoleData]);
-      setCustomPermissions((prev) => [...prev, ...(insertedPerms || [])]);
-
-      toast({
-        title: "Custom Role Created",
-        description: `"${copiedName}" starts with the current ${sourceRole.label} system-role permissions.`,
-      });
-    } catch (error: any) {
-      console.error('Error copying system role:', error);
-      toast({
-        title: "Error",
-        description: error.message || "Failed to copy system role",
-        variant: "destructive",
-      });
-    } finally {
-      setDuplicatingRoleId(null);
-    }
-  };

@@ -8,6 +8,7 @@ import { SettingsProvider } from "@/contexts/SettingsContext";
 import { ReceiptProvider } from "@/contexts/ReceiptContext";
 import { CompanyProvider } from "@/contexts/CompanyContext";
 import { useCompany } from "@/contexts/CompanyContext";
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { TenantProvider, useTenant } from "@/contexts/TenantContext";
 import { AuthProvider, useAuth } from "@/contexts/AuthContext";
 import { AccessControl } from "@/components/AccessControl";
@@ -269,6 +270,28 @@ function PMLynkFeatureRoute({ children }: { children: React.ReactNode }) {
 
   if (!hasFeature('pm_lynk')) {
     return <Navigate to="/settings/company" replace />;
+  }
+
+  return <>{children}</>;
+}
+
+function MenuPermissionRoute({
+  menuKey,
+  children,
+  redirectTo = '/',
+}: {
+  menuKey: string;
+  children: React.ReactNode;
+  redirectTo?: string;
+}) {
+  const { hasAccess, loading } = useMenuPermissions();
+
+  if (loading) {
+    return <PremiumLoadingScreen />;
+  }
+
+  if (!hasAccess(menuKey)) {
+    return <Navigate to={redirectTo} replace />;
   }
 
   return <>{children}</>;
@@ -607,23 +630,23 @@ function AuthenticatedRoutes() {
                 } />
                 <Route path="punch-clock/dashboard" element={
                   <PunchClockFeatureRoute>
-                    <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <MenuPermissionRoute menuKey="punch-clock-dashboard">
                       <PunchClockDashboard />
-                    </RoleGuard>
+                    </MenuPermissionRoute>
                   </PunchClockFeatureRoute>
                 } />
                 <Route path="punch-clock/reports" element={
                   <PunchClockFeatureRoute>
-                    <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <MenuPermissionRoute menuKey="timecard-reports">
                       <TimecardReports />
-                    </RoleGuard>
+                    </MenuPermissionRoute>
                   </PunchClockFeatureRoute>
                 } />
                 <Route path="punch-clock/settings" element={
                   <PunchClockFeatureRoute>
-                    <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                    <MenuPermissionRoute menuKey="punch-clock-settings">
                       <PunchClockSettings />
-                    </RoleGuard>
+                    </MenuPermissionRoute>
                   </PunchClockFeatureRoute>
                 } />
               </Route>

@@ -73,8 +73,10 @@ const PERMISSION_CATEGORIES: PermissionCategory[] = [
       { key: 'jobs.tabs.photos.edit', label: 'Photos Tab (Edit)', description: 'Can upload/delete job photos' },
       { key: 'jobs.tabs.files.view', label: 'Filing Cabinet Tab (View)', description: 'Can view job documents' },
       { key: 'jobs.tabs.files.edit', label: 'Filing Cabinet Tab (Edit)', description: 'Can upload/delete job documents' },
+      { key: 'jobs.view_photo_albums', label: 'View Job Photo Albums', description: 'Can view photo albums and the album list' },
       { key: 'jobs.upload_photos', label: 'Upload Job Photos', description: 'Can upload photos to job album' },
       { key: 'jobs.delete_photos', label: 'Delete Job Photos', description: 'Can delete photos from job album' },
+      { key: 'jobs.access_jobsitelynk_photos', label: 'Access JobSiteLYNK Photos', description: 'Can open JobSiteLYNK from photo albums when connected' },
       { key: 'jobs.view_location', label: 'View Job Location', description: 'Can view job location and map' },
       { key: 'jobs.edit_location', label: 'Edit Job Location', description: 'Can modify job address and GPS coordinates' },
     ]

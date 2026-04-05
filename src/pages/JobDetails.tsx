@@ -978,7 +978,7 @@ export default function JobDetails() {
       </div>
 
       {/* Tabbed Content */}
-      <Card>
+      <Card className="border-0 bg-transparent shadow-none">
         <Tabs value={activeTab} onValueChange={(val) => { setActiveTab(val); if (val === 'details') { setSearchParams(prev => { const sp = new URLSearchParams(prev); sp.delete('tab'); return sp; }); } else { setSearchParams(prev => { const sp = new URLSearchParams(prev); sp.set('tab', val); return sp; }); } }} className="w-full">
           <TabsList className="w-full flex-wrap h-auto justify-start rounded-none border-b bg-transparent p-0 gap-0">
             {visibleTabs.includes("details") && <TabsTrigger 
@@ -1085,7 +1085,7 @@ export default function JobDetails() {
           
           {visibleTabs.includes("details") && <TabsContent value="details" className="p-6">
             <div className="mb-6">
-              <Card>
+              <Card className="border-0 bg-transparent shadow-none">
                 <CardHeader className="flex flex-row items-center justify-between">
                   <CardTitle>Job Information</CardTitle>
                   {permissions.canEditJobs() && canManageDesignProfessionalJob && !isVendorView && (

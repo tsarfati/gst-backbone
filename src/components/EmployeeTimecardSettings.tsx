@@ -109,7 +109,7 @@ export default function EmployeeTimecardSettings({
       setEmployees(list);
     } catch (error) {
       console.error('Error loading employees:', error);
-      toast({ title: "Error", description: "Failed to load employees", variant: "destructive" });
+      toast({ title: "Error", description: "Failed to load punch clock users", variant: "destructive" });
     }
   };
 
@@ -168,8 +168,8 @@ export default function EmployeeTimecardSettings({
         });
       }
     } catch (error) {
-      console.error('Error loading employee settings:', error);
-      toast({ title: "Error", description: "Failed to load employee settings", variant: "destructive" });
+      console.error('Error loading punch clock settings:', error);
+      toast({ title: "Error", description: "Failed to load punch clock settings", variant: "destructive" });
     } finally {
       setLoading(false);
     }
@@ -230,11 +230,11 @@ export default function EmployeeTimecardSettings({
       if (error) throw error;
 
       if (distanceSettingsColumnsAvailable) {
-        toast({ title: "Settings Saved", description: "Employee timecard settings have been updated successfully." });
+        toast({ title: "Settings Saved", description: "Punch clock access settings have been updated successfully." });
       }
     } catch (error) {
-      console.error('Error saving employee settings:', error);
-      toast({ title: "Error", description: "Failed to save employee settings", variant: "destructive" });
+      console.error('Error saving punch clock settings:', error);
+      toast({ title: "Error", description: "Failed to save punch clock settings", variant: "destructive" });
     } finally {
       setSaving(false);
     }

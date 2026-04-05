@@ -289,6 +289,7 @@ export default function MessageThreadView({
             value={replyContent}
             onValueChange={setReplyContent}
             companyId={companyId}
+            includeEmployeeMentions
             currentUserId={userId}
             placeholder="Type your reply... (use @ to tag teammates)"
             rows={3}

@@ -35,6 +35,7 @@ interface JobPhoto {
   location_lat?: number;
   location_lng?: number;
   location_address?: string;
+  rotation_degrees?: number | null;
   
   profiles?: {
     first_name?: string;
@@ -164,6 +165,10 @@ export default function JobPhotoAlbum({
   } | null>(null);
   const [imageScale, setImageScale] = useState(1);
   const [imageOffset, setImageOffset] = useState({ x: 0, y: 0 });
+  const [imageRotation, setImageRotation] = useState(0);
+  const [persistedImageRotation, setPersistedImageRotation] = useState(0);
+  const [wheelZoomEnabled, setWheelZoomEnabled] = useState(false);
+  const [savingRotation, setSavingRotation] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [showImageControls, setShowImageControls] = useState(true);
 
@@ -247,13 +252,16 @@ export default function JobPhotoAlbum({
     const viewport = imageViewportRef.current;
     if (!viewport || scale <= MIN_IMAGE_SCALE) return { x: 0, y: 0 };
     const rect = viewport.getBoundingClientRect();
-    const maxX = ((scale - 1) * rect.width) / 2;
-    const maxY = ((scale - 1) * rect.height) / 2;
+    const quarterTurns = ((Math.round(imageRotation / 90) % 4) + 4) % 4;
+    const rotatedWidth = quarterTurns % 2 === 1 ? rect.height : rect.width;
+    const rotatedHeight = quarterTurns % 2 === 1 ? rect.width : rect.height;
+    const maxX = ((scale - 1) * rotatedWidth) / 2;
+    const maxY = ((scale - 1) * rotatedHeight) / 2;
     return {
       x: Math.max(-maxX, Math.min(maxX, offset.x)),
       y: Math.max(-maxY, Math.min(maxY, offset.y)),
     };
-  }, []);
+  }, [imageRotation]);
 
   const applyImageTransform = useCallback((scale: number, offset: { x: number; y: number }) => {
     const clampedScale = Math.max(MIN_IMAGE_SCALE, Math.min(MAX_IMAGE_SCALE, scale));
@@ -267,6 +275,11 @@ export default function JobPhotoAlbum({
     pinchStartRef.current = null;
     setImageScale(1);
     setImageOffset({ x: 0, y: 0 });
+  }, []);
+
+  const normalizeRotation = useCallback((rotation: number) => {
+    const normalized = rotation % 360;
+    return normalized < 0 ? normalized + 360 : normalized;
   }, []);
 
   const beginGesture = useCallback(() => {
@@ -337,6 +350,7 @@ export default function JobPhotoAlbum({
   }, [beginGesture]);
 
   const handleImageWheel = useCallback((e: React.WheelEvent<HTMLDivElement>) => {
+    if (!wheelZoomEnabled) return;
     e.preventDefault();
     const rect = e.currentTarget.getBoundingClientRect();
     const focal = {
@@ -351,7 +365,7 @@ export default function JobPhotoAlbum({
       y: (imageOffset.y - focal.y) * scaleRatio + focal.y,
     };
     applyImageTransform(nextScale, nextOffset);
-  }, [applyImageTransform, imageOffset, imageScale]);
+  }, [applyImageTransform, imageOffset, imageScale, wheelZoomEnabled]);
 
   const handleImageDoubleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     const rect = e.currentTarget.getBoundingClientRect();
@@ -375,12 +389,56 @@ export default function JobPhotoAlbum({
       loadComments(selectedPhoto.id);
       setResolvedDetailUrl(null);
       resetImageTransform();
+      const nextRotation = normalizeRotation(selectedPhoto.rotation_degrees || 0);
+      setImageRotation(nextRotation);
+      setPersistedImageRotation(nextRotation);
+      setWheelZoomEnabled(false);
       setShowImageControls(true);
       resolveStorageUrl('punch-photos', selectedPhoto.photo_url).then((url) => {
         setResolvedDetailUrl(url || selectedPhoto.photo_url);
       });
     }
-  }, [resetImageTransform, selectedPhoto]);
+  }, [normalizeRotation, resetImageTransform, selectedPhoto]);
+
+  const rotateImage = useCallback(() => {
+    setImageRotation((current) => normalizeRotation(current + 90));
+    setImageOffset({ x: 0, y: 0 });
+  }, [normalizeRotation]);
+
+  const saveImageRotation = useCallback(async () => {
+    if (!selectedPhoto) return;
+
+    try {
+      setSavingRotation(true);
+      const normalizedRotation = normalizeRotation(imageRotation);
+      const { error } = await supabase
+        .from('job_photos')
+        .update({ rotation_degrees: normalizedRotation })
+        .eq('id', selectedPhoto.id);
+
+      if (error) throw error;
+
+      setPersistedImageRotation(normalizedRotation);
+      setSelectedPhoto((prev) => (prev ? { ...prev, rotation_degrees: normalizedRotation } : prev));
+      setPhotos((prev) => prev.map((photo) => (
+        photo.id === selectedPhoto.id ? { ...photo, rotation_degrees: normalizedRotation } : photo
+      )));
+
+      toast({
+        title: 'Rotation saved',
+        description: 'This photo rotation is now saved for everyone on the job.',
+      });
+    } catch (error) {
+      console.error('Error saving photo rotation:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to save photo rotation',
+        variant: 'destructive',
+      });
+    } finally {
+      setSavingRotation(false);
+    }
+  }, [imageRotation, normalizeRotation, selectedPhoto, toast]);
 
   // Reload photos when selectedAlbumId changes
   useEffect(() => {
@@ -1826,14 +1884,30 @@ export default function JobPhotoAlbum({
               <span>Photo Details</span>
               {showImageControls && (
                 <div className="flex items-center gap-1">
+                  <Button
+                    type="button"
+                    variant={wheelZoomEnabled ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setWheelZoomEnabled((prev) => !prev)}
+                  >
+                    Scroll to Zoom
+                  </Button>
                   <Button type="button" variant="outline" size="icon" onClick={() => applyImageTransform(imageScale * 0.9, imageOffset)}>
                     <Minus className="h-4 w-4" />
                   </Button>
                   <Button type="button" variant="outline" size="icon" onClick={() => applyImageTransform(imageScale * 1.1, imageOffset)}>
                     <Plus className="h-4 w-4" />
                   </Button>
-                  <Button type="button" variant="outline" size="icon" onClick={resetImageTransform}>
+                  <Button type="button" variant="outline" size="icon" onClick={rotateImage}>
                     <RotateCcw className="h-4 w-4" />
+                  </Button>
+                  {imageRotation !== persistedImageRotation ? (
+                    <Button type="button" onClick={() => void saveImageRotation()} disabled={savingRotation}>
+                      {savingRotation ? 'Saving...' : 'Save'}
+                    </Button>
+                  ) : null}
+                  <Button type="button" variant="outline" size="sm" onClick={resetImageTransform}>
+                    Reset View
                   </Button>
                 </div>
               )}
@@ -1860,7 +1934,7 @@ export default function JobPhotoAlbum({
                     alt="Job photo"
                     className="pointer-events-none absolute left-1/2 top-1/2 h-full w-full object-contain select-none"
                     style={{
-                      transform: `translate(calc(-50% + ${imageOffset.x}px), calc(-50% + ${imageOffset.y}px)) scale(${imageScale})`,
+                      transform: `translate(calc(-50% + ${imageOffset.x}px), calc(-50% + ${imageOffset.y}px)) rotate(${imageRotation}deg) scale(${imageScale})`,
                       transformOrigin: 'center center',
                     }}
                     draggable={false}
@@ -1870,7 +1944,7 @@ export default function JobPhotoAlbum({
                 )}
               </div>
               <p className="text-xs text-muted-foreground">
-                Pinch or scroll to zoom. Drag to pan when zoomed.{isSmallScreen ? ' Tap photo to show/hide controls.' : ''}
+                Pinch to zoom. {wheelZoomEnabled ? 'Use the mouse wheel to zoom.' : 'Turn on Scroll to Zoom if you want wheel zoom.'} Drag to pan when zoomed.{isSmallScreen ? ' Tap photo to show/hide controls.' : ''}
               </p>
               
               {/* Uploader Info */}

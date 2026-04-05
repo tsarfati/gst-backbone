@@ -302,6 +302,7 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
               value={message}
               onValueChange={setMessage}
               companyId={companyId}
+              includeEmployeeMentions
               currentUserId={userId}
               placeholder="Type your message here... (use @ to tag teammates)"
               rows={6}

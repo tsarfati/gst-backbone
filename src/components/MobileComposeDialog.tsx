@@ -224,6 +224,7 @@ export function MobileComposeDialog({ isOpen, onClose, onMessageSent, replyToMes
               value={message}
               onValueChange={setMessage}
               companyId={currentCompany?.id}
+              includeEmployeeMentions
               currentUserId={user?.id}
               placeholder="Type your message here... (use @ to tag teammates)"
               rows={6}

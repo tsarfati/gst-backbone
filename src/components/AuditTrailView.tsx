@@ -26,6 +26,20 @@ interface AuditTrailEntry {
   };
 }
 
+interface ChangeRequestSummary {
+  id: string;
+  requested_at?: string;
+  created_at?: string;
+  original_punch_in_time?: string | null;
+  original_punch_out_time?: string | null;
+  original_job_id?: string | null;
+  original_cost_code_id?: string | null;
+  proposed_punch_in_time?: string | null;
+  proposed_punch_out_time?: string | null;
+  proposed_job_id?: string | null;
+  proposed_cost_code_id?: string | null;
+}
+
 interface AuditTrailViewProps {
   timeCardId: string;
 }
@@ -34,6 +48,9 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
   const { settings } = useSettings();
   const companyTimeZone = settings.timeZone;
   const [auditEntries, setAuditEntries] = useState<AuditTrailEntry[]>([]);
+  const [changeRequests, setChangeRequests] = useState<ChangeRequestSummary[]>([]);
+  const [jobs, setJobs] = useState<Record<string, { name: string }>>({});
+  const [costCodes, setCostCodes] = useState<Record<string, { code: string; description: string }>>({});
   const [loading, setLoading] = useState(false);
 
   useEffect(() => {
@@ -87,6 +104,74 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
       }));
 
       setAuditEntries(entriesWithProfiles);
+
+      const { data: timeCardData } = await supabase
+        .from('time_cards')
+        .select('job_id, cost_code_id, company_id')
+        .eq('id', timeCardId)
+        .maybeSingle();
+
+      const { data: changeRequestData } = await supabase
+        .from('time_card_change_requests')
+        .select('id, requested_at, created_at, original_punch_in_time, original_punch_out_time, original_job_id, original_cost_code_id, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id')
+        .eq('time_card_id', timeCardId)
+        .order('requested_at', { ascending: false })
+        .order('created_at', { ascending: false });
+
+      setChangeRequests(changeRequestData || []);
+
+      const jobIds = Array.from(
+        new Set(
+          [
+            timeCardData?.job_id,
+            ...(changeRequestData || []).map((request) => request.original_job_id),
+            ...(changeRequestData || []).map((request) => request.proposed_job_id),
+            ...((data || []).flatMap((entry) => [entry.old_value, entry.new_value])),
+          ].filter((value): value is string => Boolean(value) && /^[0-9a-f-]{36}$/i.test(String(value)))
+        )
+      );
+
+      const costCodeIds = Array.from(
+        new Set(
+          [
+            timeCardData?.cost_code_id,
+            ...(changeRequestData || []).map((request) => request.original_cost_code_id),
+            ...(changeRequestData || []).map((request) => request.proposed_cost_code_id),
+            ...((data || []).flatMap((entry) => [entry.old_value, entry.new_value])),
+          ].filter((value): value is string => Boolean(value) && /^[0-9a-f-]{36}$/i.test(String(value)))
+        )
+      );
+
+      if (jobIds.length > 0) {
+        const { data: jobsData } = await supabase
+          .from('jobs')
+          .select('id, name')
+          .in('id', jobIds);
+        const jobMap: Record<string, { name: string }> = {};
+        (jobsData || []).forEach((job) => {
+          jobMap[job.id] = { name: job.name };
+        });
+        setJobs(jobMap);
+      } else {
+        setJobs({});
+      }
+
+      if (costCodeIds.length > 0) {
+        const { data: costCodeData } = await supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .in('id', costCodeIds);
+        const costCodeMap: Record<string, { code: string; description: string }> = {};
+        (costCodeData || []).forEach((costCode) => {
+          costCodeMap[costCode.id] = {
+            code: costCode.code,
+            description: costCode.description,
+          };
+        });
+        setCostCodes(costCodeMap);
+      } else {
+        setCostCodes({});
+      }
     } catch (error) {
       console.error('Error loading audit trail:', error);
     } finally {
@@ -143,10 +228,69 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
     return formatCompanyDateTime(dateTime, companyTimeZone);
   };
 
+  const getClosestChangeRequest = (createdAt: string) => {
+    if (changeRequests.length === 0) return null;
+
+    const target = new Date(createdAt).getTime();
+    return changeRequests.reduce<ChangeRequestSummary | null>((closest, request) => {
+      const requestTime = new Date(request.requested_at || request.created_at || createdAt).getTime();
+      if (!closest) return request;
+      const closestTime = new Date(closest.requested_at || closest.created_at || createdAt).getTime();
+      return Math.abs(requestTime - target) < Math.abs(closestTime - target) ? request : closest;
+    }, null);
+  };
+
+  const getRequestedChanges = (request: ChangeRequestSummary | null) => {
+    if (!request) return [];
+
+    const changes: Array<{ label: string; value: string }> = [];
+
+    if (request.proposed_punch_in_time) {
+      changes.push({
+        label: 'Requested Punch In',
+        value: formatCompanyDateTime(request.proposed_punch_in_time, companyTimeZone),
+      });
+    }
+
+    if (request.proposed_punch_out_time) {
+      changes.push({
+        label: 'Requested Punch Out',
+        value: formatCompanyDateTime(request.proposed_punch_out_time, companyTimeZone),
+      });
+    }
+
+    if (request.proposed_job_id) {
+      const proposedJobName = jobs[request.proposed_job_id]?.name || request.proposed_job_id;
+      changes.push({
+        label: 'Requested Job',
+        value: proposedJobName,
+      });
+    }
+
+    if (request.proposed_cost_code_id) {
+      const proposedCostCode = costCodes[request.proposed_cost_code_id];
+      changes.push({
+        label: 'Requested Cost Code',
+        value: proposedCostCode
+          ? `${proposedCostCode.code} - ${proposedCostCode.description}`
+          : request.proposed_cost_code_id,
+      });
+    }
+
+    return changes;
+  };
+
   const formatAuditValue = (fieldName: string | undefined, value: string | undefined) => {
     if (!value) return value;
 
     const normalizedField = String(fieldName || "").toLowerCase();
+    if (normalizedField === 'job_id') {
+      return jobs[value]?.name || value;
+    }
+    if (normalizedField === 'cost_code' || normalizedField === 'cost_code_id') {
+      const costCode = costCodes[value];
+      return costCode ? `${costCode.code} - ${costCode.description}` : value;
+    }
     const isTimeField = normalizedField === "punch_in_time" || normalizedField === "punch_out_time";
     const looksLikeIsoTimestamp =
       /\d{4}-\d{2}-\d{2}[ t]\d{2}:\d{2}/i.test(value) ||
@@ -201,6 +345,13 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
             <div className="space-y-4">
               {auditEntries.map((entry, index) => (
                 <div key={entry.id}>
+                  {(() => {
+                    const matchingChangeRequest = entry.change_type === 'change_requested'
+                      ? getClosestChangeRequest(entry.created_at)
+                      : null;
+                    const requestedChanges = getRequestedChanges(matchingChangeRequest);
+
+                    return (
                   <div className="flex items-start gap-3">
                     <Avatar className="h-8 w-8 mt-1">
                       <AvatarImage src={entry.profiles?.avatar_url} />
@@ -228,6 +379,26 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                               <span className="font-medium">Reason:</span> {entry.reason}
                             </div>
                           )}
+                          {requestedChanges.length > 0 && (
+                            <div className="mt-2 space-y-2">
+                              {requestedChanges.map((change) => (
+                                <div key={change.label} className="rounded border bg-background/50 p-2">
+                                  <div className="text-[11px] uppercase tracking-wide text-muted-foreground">{change.label}</div>
+                                  <div className="text-sm">{change.value}</div>
+                                </div>
+                              ))}
+                            </div>
+                          )}
+                        </div>
+                      )}
+
+                      {['punch_in', 'punch_out'].includes(entry.change_type) && entry.field_name && (
+                        <div className="text-sm mt-1">
+                          <span className="font-medium">{formatFieldName(entry.field_name)}</span>
+                          <div className="mt-1 rounded border bg-green-50 dark:bg-green-950/20 border-green-200 dark:border-green-800 p-2 text-xs">
+                            <span className="text-muted-foreground">Recorded:</span>{' '}
+                            {entry.new_value ? formatAuditValue(entry.field_name, entry.new_value) : 'Not available'}
+                          </div>
                         </div>
                       )}
                       
@@ -294,7 +465,7 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                       )}
                       
                       {/* Regular field changes */}
-                      {entry.field_name && !['change_requested', 'change_request_approved', 'change_request_rejected'].includes(entry.change_type) && (
+                      {entry.field_name && !['change_requested', 'change_request_approved', 'change_request_rejected', 'punch_in', 'punch_out'].includes(entry.change_type) && (
                         <div className="text-sm">
                           <span className="font-medium">{formatFieldName(entry.field_name)}</span>
                           {(entry.old_value || entry.new_value) && (
@@ -324,6 +495,8 @@ export default function AuditTrailView({ timeCardId }: AuditTrailViewProps) {
                       )}
                     </div>
                   </div>
+                    );
+                  })()}
                   {index < auditEntries.length - 1 && <Separator className="mt-4" />}
                 </div>
               ))}

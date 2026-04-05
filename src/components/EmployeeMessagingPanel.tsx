@@ -305,6 +305,7 @@ export default function EmployeeMessagingPanel({ currentJobId, isVisible }: Empl
                   onValueChange={setNewMessage}
                   companyId={currentCompany?.id}
                   jobId={currentJobId}
+                  includeEmployeeMentions
                   currentUserId={user?.id}
                   placeholder="Type your message to the project manager... (use @ to tag teammates)"
                   rows={3}

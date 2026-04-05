@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
+import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
@@ -434,9 +435,9 @@ export default function EmployeeQRCardsReport() {
 
             <div className="space-y-2 md:col-span-2">
               <Label htmlFor="instructions">Instructions (HTML supported)</Label>
-              <textarea
+              <Textarea
                 id="instructions"
-                className="flex min-h-[80px] w-full rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                className="min-h-[80px]"
                 value={customization.instructions}
                 onChange={(e) => setCustomization({ ...customization, instructions: e.target.value })}
                 placeholder="Scan this QR code<br>to access the Punch Clock"

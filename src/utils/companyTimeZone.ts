@@ -129,3 +129,76 @@ export const getCompanyWeekStartKey = (value: DateLike, timeZone?: string | null
 
 export const companyDateKeyToDate = (dateKey: string) =>
   new Date(`${dateKey}T12:00:00Z`);
+
+const getTimeZoneOffsetMinutes = (timeZone: string, date: Date) => {
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone,
+    timeZoneName: "shortOffset",
+    hour: "2-digit",
+  }).formatToParts(date);
+
+  const offsetToken = parts.find((part) => part.type === "timeZoneName")?.value || "GMT";
+  const match = offsetToken.match(/^GMT([+-])(\d{1,2})(?::?(\d{2}))?$/i);
+  if (!match) return 0;
+
+  const sign = match[1] === "-" ? -1 : 1;
+  const hours = Number(match[2] || 0);
+  const minutes = Number(match[3] || 0);
+  return sign * (hours * 60 + minutes);
+};
+
+export const formatCompanyDateTimeInputValue = (value: DateLike, timeZone?: string | null) => {
+  const date = value instanceof Date ? value : new Date(value);
+  if (Number.isNaN(date.getTime())) return "";
+
+  const parts = new Intl.DateTimeFormat("en-CA", {
+    timeZone: getCompanyTimeZone(timeZone),
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+    hour: "2-digit",
+    minute: "2-digit",
+    hourCycle: "h23",
+  }).formatToParts(date);
+
+  const year = parts.find((part) => part.type === "year")?.value;
+  const month = parts.find((part) => part.type === "month")?.value;
+  const day = parts.find((part) => part.type === "day")?.value;
+  const hour = parts.find((part) => part.type === "hour")?.value;
+  const minute = parts.find((part) => part.type === "minute")?.value;
+
+  return year && month && day && hour && minute
+    ? `${year}-${month}-${day}T${hour}:${minute}`
+    : "";
+};
+
+export const companyInputDateTimeToIso = (value: string, timeZone?: string | null) => {
+  if (!value) return "";
+
+  const match = value.match(/^(\d{4})-(\d{2})-(\d{2})T(\d{2}):(\d{2})$/);
+  if (!match) return "";
+
+  const [, year, month, day, hour, minute] = match;
+  const tz = getCompanyTimeZone(timeZone);
+
+  let utcMillis = Date.UTC(
+    Number(year),
+    Number(month) - 1,
+    Number(day),
+    Number(hour),
+    Number(minute),
+    0,
+    0,
+  );
+
+  let offsetMinutes = getTimeZoneOffsetMinutes(tz, new Date(utcMillis));
+  utcMillis -= offsetMinutes * 60 * 1000;
+
+  const refinedOffsetMinutes = getTimeZoneOffsetMinutes(tz, new Date(utcMillis));
+  if (refinedOffsetMinutes !== offsetMinutes) {
+    utcMillis += offsetMinutes * 60 * 1000;
+    utcMillis -= refinedOffsetMinutes * 60 * 1000;
+  }
+
+  return new Date(utcMillis).toISOString();
+};

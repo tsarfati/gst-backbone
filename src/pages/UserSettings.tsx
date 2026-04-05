@@ -17,6 +17,7 @@ import UserRoleManagement from "@/components/UserRoleManagement";
 import RolePermissionsManager from "@/components/RolePermissionsManager";
 import EmployeeGroupManager from "@/components/EmployeeGroupManager";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import AddSystemUserDialog from "@/components/AddSystemUserDialog";
 import { useTenant } from "@/contexts/TenantContext";
@@ -128,8 +129,12 @@ export default function UserSettings() {
   const { toast } = useToast();
   const navigate = useNavigate();
   const activeCompanyRole = useActiveCompanyRole();
+  const { hasAccess, permissions, loading: permissionsLoading } = useMenuPermissions();
   const { isSuperAdmin } = useTenant();
    const { settings } = useSettings();
+  const urlParams = new URLSearchParams(window.location.search);
+  const initialTab = urlParams.get('tab') || 'users';
+  const [activeTab, setActiveTab] = useState(initialTab);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
    const [invitations, setInvitations] = useState<Invitation[]>([]);
@@ -144,7 +149,26 @@ export default function UserSettings() {
   const effectiveRole = activeCompanyRole || profile?.role;
   const isAdmin = effectiveRole === 'admin' || effectiveRole === 'company_admin' || effectiveRole === 'owner' || isSuperAdmin;
   const isController = effectiveRole === 'controller';
-  const canManageUsers = isAdmin || isController;
+  const canViewUserManagement = hasAccess('user-settings-view') || hasAccess('user-settings');
+  const canManageUsers = isAdmin || isController || canViewUserManagement;
+
+  const canAccessUserSettingsTab = (tabPermissionKey: string) => {
+    if (isSuperAdmin) return true;
+    if (typeof permissions[tabPermissionKey] === 'boolean') {
+      return hasAccess(tabPermissionKey);
+    }
+    return canViewUserManagement;
+  };
+
+  const visibleTabs = [
+    { value: 'users', label: 'System Users', permissionKey: 'user-settings-tab-users', icon: Users },
+    { value: 'user-roles', label: 'User Roles', permissionKey: 'user-settings-tab-user-roles', icon: Shield },
+    { value: 'roles', label: 'Role Definitions', permissionKey: 'user-settings-tab-roles', icon: UserCheck },
+    { value: 'vendor-access', label: 'Vendor Access', permissionKey: 'user-settings-tab-vendor-access', icon: Store },
+    { value: 'design-professional-access', label: 'Design Professional Access', permissionKey: 'user-settings-tab-design-professional-access', icon: HardHat },
+    { value: 'intake-queue', label: 'Intake Queue', permissionKey: 'user-settings-tab-intake-queue', icon: MailOpen },
+    { value: 'groups', label: 'Groups', permissionKey: 'user-settings-tab-groups', icon: Users },
+  ].filter((tab) => canAccessUserSettingsTab(tab.permissionKey));
 
   useEffect(() => {
     if (currentCompany) {
@@ -155,6 +179,14 @@ export default function UserSettings() {
     }
   }, [currentCompany]);
 
+  useEffect(() => {
+    if (permissionsLoading) return;
+    if (!visibleTabs.length) return;
+    if (!visibleTabs.some((tab) => tab.value === activeTab)) {
+      setActiveTab(visibleTabs[0].value);
+    }
+  }, [activeTab, permissionsLoading, visibleTabs]);
+
   const fetchCustomRoles = async () => {
     if (!currentCompany) return;
 
@@ -163,7 +195,7 @@ export default function UserSettings() {
         .from('custom_roles')
         .select('id, role_name, role_key, color')
         .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
+        .or('is_active.eq.true,is_active.is.null')
         .order('role_name');
 
       if (error) throw error;
@@ -525,7 +557,7 @@ export default function UserSettings() {
     );
   };
 
-  if (!canManageUsers) {
+  if (!canManageUsers || (!permissionsLoading && !visibleTabs.length)) {
     return (
       <div className="p-4 md:p-6">
         <div className="text-center">
@@ -543,57 +575,21 @@ export default function UserSettings() {
         </div>
       </div>
 
-      <Tabs defaultValue="users" className="space-y-6">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-6">
         <TabsList className="w-full justify-start rounded-none border-b bg-transparent p-0">
-          <TabsTrigger 
-            value="users" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <Users className="h-4 w-4 mr-2" />
-            System Users
-          </TabsTrigger>
-          <TabsTrigger 
-            value="user-roles" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <Shield className="h-4 w-4 mr-2" />
-            User Roles
-          </TabsTrigger>
-          <TabsTrigger 
-            value="roles" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <UserCheck className="h-4 w-4 mr-2" />
-            Role Definitions
-          </TabsTrigger>
-          <TabsTrigger
-            value="vendor-access"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <Store className="h-4 w-4 mr-2" />
-            Vendor Access
-          </TabsTrigger>
-          <TabsTrigger
-            value="design-professional-access"
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <HardHat className="h-4 w-4 mr-2" />
-            Design Professional Access
-          </TabsTrigger>
-          <TabsTrigger
-            value="intake-queue" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <MailOpen className="h-4 w-4 mr-2" />
-            Intake Queue
-          </TabsTrigger>
-          <TabsTrigger 
-            value="groups" 
-            className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
-          >
-            <Users className="h-4 w-4 mr-2" />
-            Groups
-          </TabsTrigger>
+          {visibleTabs.map((tab) => {
+            const Icon = tab.icon;
+            return (
+              <TabsTrigger
+                key={tab.value}
+                value={tab.value}
+                className="rounded-none border-b-2 border-transparent data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-primary transition-colors"
+              >
+                <Icon className="h-4 w-4 mr-2" />
+                {tab.label}
+              </TabsTrigger>
+            );
+          })}
         </TabsList>
 
         <TabsContent value="users">

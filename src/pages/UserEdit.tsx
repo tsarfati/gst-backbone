@@ -357,6 +357,21 @@ export default function UserEdit() {
 
       if (error) throw error;
 
+      const { error: accessRoleError } = await supabase
+        .from('user_company_access')
+        .upsert({
+          user_id: user.user_id,
+          company_id: currentCompany.id,
+          role: user.role as any,
+          granted_by: profile?.user_id || user.user_id,
+          is_active: true,
+          granted_at: new Date().toISOString(),
+        }, {
+          onConflict: 'user_id,company_id',
+        });
+
+      if (accessRoleError) throw accessRoleError;
+
       // Keep legacy and new group-membership models in sync for report/group filters.
       const { data: companyGroups, error: companyGroupsError } = await supabase
         .from('employee_groups')

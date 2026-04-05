@@ -20,8 +20,10 @@ import AvatarUploader from '@/components/AvatarUploader';
 import { createMentionNotifications } from '@/utils/mentions';
 import MentionTextarea from '@/components/MentionTextarea';
 import {
+  companyInputDateTimeToIso,
   companyDateKeyToDate,
   formatCompanyDateTime,
+  formatCompanyDateTimeInputValue,
   formatCompanyMonthDay,
   formatCompanyWeekdayMonthDay,
   formatCompanyTime,
@@ -66,6 +68,7 @@ interface ManualEntryFormProps {
 
 function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess }: ManualEntryFormProps) {
   const { user } = useAuth();
+  const { settings } = useSettings();
   const { toast } = useToast();
   const [submitting, setSubmitting] = useState(false);
   const [formData, setFormData] = useState({
@@ -89,9 +92,20 @@ function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess 
       return;
     }
 
-    // Validate times
-    const punchInDateTime = new Date(`${formData.date}T${formData.punch_in_time}`);
-    const punchOutDateTime = new Date(`${formData.date}T${formData.punch_out_time}`);
+    const companyTimeZone = settings.timeZone;
+    const proposedPunchInIso = companyInputDateTimeToIso(`${formData.date}T${formData.punch_in_time}`, companyTimeZone);
+    const proposedPunchOutIso = companyInputDateTimeToIso(`${formData.date}T${formData.punch_out_time}`, companyTimeZone);
+    const punchInDateTime = new Date(proposedPunchInIso);
+    const punchOutDateTime = new Date(proposedPunchOutIso);
+
+    if (!proposedPunchInIso || !proposedPunchOutIso || Number.isNaN(punchInDateTime.getTime()) || Number.isNaN(punchOutDateTime.getTime())) {
+      toast({
+        title: 'Invalid Times',
+        description: 'Unable to parse the requested punch times.',
+        variant: 'destructive'
+      });
+      return;
+    }
     
     if (punchOutDateTime <= punchInDateTime) {
       toast({
@@ -148,8 +162,8 @@ function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess 
           user_id: userId,
           job_id: formData.job_id,
           cost_code_id: formData.cost_code_id || null,
-          punch_in_time: punchInDateTime.toISOString(),
-          punch_out_time: punchOutDateTime.toISOString(),
+          punch_in_time: proposedPunchInIso,
+          punch_out_time: proposedPunchOutIso,
           total_hours: totalHours,
           status: 'pending', // Requires approval
           company_id: companyId,
@@ -169,8 +183,12 @@ function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess 
           company_id: companyId,
           reason: `Manual Entry: ${formData.reason}`,
           status: 'pending',
-          proposed_punch_in_time: punchInDateTime.toISOString(),
-          proposed_punch_out_time: punchOutDateTime.toISOString(),
+          original_punch_in_time: proposedPunchInIso,
+          original_punch_out_time: proposedPunchOutIso,
+          original_job_id: formData.job_id,
+          original_cost_code_id: formData.cost_code_id || null,
+          proposed_punch_in_time: proposedPunchInIso,
+          proposed_punch_out_time: proposedPunchOutIso,
           proposed_job_id: formData.job_id,
           proposed_cost_code_id: formData.cost_code_id || null
         });
@@ -819,8 +837,8 @@ export default function EmployeeDashboard() {
             pin,
             time_card_id: selectedTimeCard.id,
             reason: changeReason,
-            proposed_punch_in_time: changeRequestData.proposed_punch_in_time ? new Date(changeRequestData.proposed_punch_in_time).toISOString() : null,
-            proposed_punch_out_time: changeRequestData.proposed_punch_out_time ? new Date(changeRequestData.proposed_punch_out_time).toISOString() : null,
+            proposed_punch_in_time: changeRequestData.proposed_punch_in_time ? companyInputDateTimeToIso(changeRequestData.proposed_punch_in_time, companyTimeZone) : null,
+            proposed_punch_out_time: changeRequestData.proposed_punch_out_time ? companyInputDateTimeToIso(changeRequestData.proposed_punch_out_time, companyTimeZone) : null,
             proposed_job_id: changeRequestData.proposed_job_id || null,
             proposed_cost_code_id: changeRequestData.proposed_cost_code_id || null
           })
@@ -854,8 +872,12 @@ export default function EmployeeDashboard() {
             reason: changeReason,
             status: 'pending',
             requested_at: new Date().toISOString(),
-            proposed_punch_in_time: changeRequestData.proposed_punch_in_time ? new Date(changeRequestData.proposed_punch_in_time).toISOString() : null,
-            proposed_punch_out_time: changeRequestData.proposed_punch_out_time ? new Date(changeRequestData.proposed_punch_out_time).toISOString() : null,
+            original_punch_in_time: selectedTimeCard.punch_in_time,
+            original_punch_out_time: selectedTimeCard.punch_out_time,
+            original_job_id: selectedTimeCard.job_id || null,
+            original_cost_code_id: selectedTimeCard.cost_code_id || null,
+            proposed_punch_in_time: changeRequestData.proposed_punch_in_time ? companyInputDateTimeToIso(changeRequestData.proposed_punch_in_time, companyTimeZone) : null,
+            proposed_punch_out_time: changeRequestData.proposed_punch_out_time ? companyInputDateTimeToIso(changeRequestData.proposed_punch_out_time, companyTimeZone) : null,
             proposed_job_id: changeRequestData.proposed_job_id || null,
             proposed_cost_code_id: changeRequestData.proposed_cost_code_id || null
           });
@@ -1233,19 +1255,9 @@ export default function EmployeeDashboard() {
                                   size="sm"
                                   onClick={() => {
                                     setSelectedTimeCard(card);
-                                    const formatForInput = (dateStr: string | null) => {
-                                      if (!dateStr) return '';
-                                      const date = new Date(dateStr);
-                                      const year = date.getFullYear();
-                                      const month = String(date.getMonth() + 1).padStart(2, '0');
-                                      const day = String(date.getDate()).padStart(2, '0');
-                                      const hours = String(date.getHours()).padStart(2, '0');
-                                      const minutes = String(date.getMinutes()).padStart(2, '0');
-                                      return `${year}-${month}-${day}T${hours}:${minutes}`;
-                                    };
                                     setChangeRequestData({
-                                      proposed_punch_in_time: formatForInput(card.punch_in_time),
-                                      proposed_punch_out_time: formatForInput(card.punch_out_time),
+                                      proposed_punch_in_time: formatCompanyDateTimeInputValue(card.punch_in_time, companyTimeZone),
+                                      proposed_punch_out_time: formatCompanyDateTimeInputValue(card.punch_out_time, companyTimeZone),
                                       proposed_job_id: card.job_id || '',
                                       proposed_cost_code_id: card.cost_code_id || ''
                                     });
@@ -1470,6 +1482,7 @@ export default function EmployeeDashboard() {
                         value={message}
                         onValueChange={setMessage}
                         companyId={profile?.current_company_id}
+                        includeEmployeeMentions
                         currentUserId={(user as any)?.user_id || (user as any)?.id}
                         placeholder="Type your message here... (use @ to tag teammates)"
                         rows={6}

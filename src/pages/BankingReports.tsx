@@ -203,7 +203,7 @@ export default function BankingReports() {
     <div className="p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
-          <h1 className="text-2xl font-bold text-foreground">Banking Reports</h1>
+          <h1 className="text-2xl font-bold text-foreground">Reports</h1>
         </div>
         <div className="flex space-x-2">
           <Select value={selectedPeriod} onValueChange={setSelectedPeriod}>

@@ -4,6 +4,8 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } f
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -21,7 +23,7 @@ import { formatDistanceLabel } from '@/lib/distanceUnits';
 import { useToast } from '@/hooks/use-toast';
 import AuditTrailView from './AuditTrailView';
 import EditTimeCardDialog from './EditTimeCardDialog';
-import { formatCompanyDate, formatCompanyDateTime, formatCompanyTime } from '@/utils/companyTimeZone';
+import { companyInputDateTimeToIso, formatCompanyDate, formatCompanyDateTime, formatCompanyDateTimeInputValue, formatCompanyTime, getCompanyDateKey } from '@/utils/companyTimeZone';
 
 interface TimeCardDetailViewProps {
   open: boolean;
@@ -77,6 +79,12 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
   const [pendingChangeRequest, setPendingChangeRequest] = useState<any>(null);
   const [approving, setApproving] = useState(false);
   const [denying, setDenying] = useState(false);
+  const [correctingRequest, setCorrectingRequest] = useState(false);
+  const [correctionDialogOpen, setCorrectionDialogOpen] = useState(false);
+  const [requestCorrectionData, setRequestCorrectionData] = useState({
+    proposed_punch_in_time: '',
+    proposed_punch_out_time: '',
+  });
   const [jobs, setJobs] = useState<Record<string, any>>({});
   const [costCodes, setCostCodes] = useState<Record<string, any>>({});
   const mapContainer = useRef<HTMLDivElement>(null);
@@ -154,9 +162,9 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .single() : Promise.resolve({ data: null }),
         // Fetch punch records with buffer time to capture actual punch records (include cost_code_id)
         (() => {
-          const punchInBuffer = new Date(new Date(timeCardData.punch_in_time).getTime() - 30000).toISOString();
+          const punchInBuffer = new Date(new Date(timeCardData.punch_in_time).getTime() - 30 * 60 * 1000).toISOString();
           const punchOutBuffer = timeCardData.punch_out_time 
-            ? new Date(new Date(timeCardData.punch_out_time).getTime() + 30000).toISOString()
+            ? new Date(new Date(timeCardData.punch_out_time).getTime() + 30 * 60 * 1000).toISOString()
             : new Date().toISOString();
           
           return supabase
@@ -252,7 +260,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       // Check for latest change request (prefer pending)
       const { data: changeRequests } = await supabase
         .from('time_card_change_requests')
-        .select('id, status, reason, created_at, requested_at, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id')
+        .select('id, status, reason, created_at, requested_at, original_punch_in_time, original_punch_out_time, original_job_id, original_cost_code_id, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id')
         .eq('time_card_id', timeCardId)
         .order('requested_at', { ascending: false })
         .order('created_at', { ascending: false })
@@ -268,11 +276,13 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       if (crForLookup) {
         const jobIdsToLoad = [
           timeCardData.job_id,
+          crForLookup.original_job_id,
           crForLookup.proposed_job_id
         ].filter(Boolean);
         
         const costCodeIdsToLoad = [
           timeCardData.cost_code_id,
+          crForLookup.original_cost_code_id,
           crForLookup.proposed_cost_code_id
         ].filter(Boolean);
         
@@ -344,6 +354,192 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       console.error('Error loading time card details:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+
+  function formatDisplay(dateString: string) {
+    return formatCompanyDateTime(dateString, companyTimeZone);
+  }
+
+  function isSameDisplayedTime(a?: string | null, b?: string | null) {
+    if (!a || !b) return false;
+    try {
+      return formatDisplay(a) === formatDisplay(b);
+    } catch {
+      return false;
+    }
+  }
+
+  function isSuspiciousRequestedTime(original?: string | null, proposed?: string | null, requestedAt?: string | null) {
+    if (!original || !proposed) return false;
+    try {
+      const originalDate = getCompanyDateKey(original, companyTimeZone);
+      const proposedDate = getCompanyDateKey(proposed, companyTimeZone);
+      const requestDate = requestedAt ? getCompanyDateKey(requestedAt, companyTimeZone) : '';
+      if (!originalDate || !proposedDate) return false;
+
+      const originalMillis = new Date(original).getTime();
+      const proposedMillis = new Date(proposed).getTime();
+      const hoursDelta = Math.abs(proposedMillis - originalMillis) / (1000 * 60 * 60);
+
+      if (originalDate !== proposedDate && hoursDelta > 24) {
+        return true;
+      }
+
+      if (requestDate && requestDate !== proposedDate && originalDate === requestDate && hoursDelta > 12) {
+        return true;
+      }
+
+      return false;
+    } catch {
+      return false;
+    }
+  }
+
+  const getRequestedChanges = (changeRequest: any) => {
+    if (!changeRequest || !timeCard) return [];
+
+    const changes: Array<{ label: string; from: string; to: string }> = [];
+    const originalJobId = changeRequest.original_job_id ?? timeCard.job_id;
+    const originalCostCodeId = changeRequest.original_cost_code_id ?? timeCard.cost_code_id;
+    const originalPunchInTime = changeRequest.original_punch_in_time ?? timeCard.punch_in_time;
+    const originalPunchOutTime = changeRequest.original_punch_out_time ?? timeCard.punch_out_time;
+
+    if (changeRequest.proposed_job_id && changeRequest.proposed_job_id !== originalJobId) {
+      changes.push({
+        label: 'Job',
+        from: jobs[originalJobId]?.name || (originalJobId === timeCard.job_id ? job?.name : null) || 'Unassigned',
+        to: jobs[changeRequest.proposed_job_id]?.name || 'Unknown',
+      });
+    }
+
+    if (changeRequest.proposed_cost_code_id && changeRequest.proposed_cost_code_id !== originalCostCodeId) {
+      const currentCostCode = originalCostCodeId && costCodes[originalCostCodeId]
+        ? `${costCodes[originalCostCodeId].code} - ${costCodes[originalCostCodeId].description}`
+        : originalCostCodeId === timeCard.cost_code_id && costCode
+          ? `${costCode.code} - ${costCode.description}`
+          : 'Unassigned';
+      const nextCostCode = costCodes[changeRequest.proposed_cost_code_id]
+        ? `${costCodes[changeRequest.proposed_cost_code_id].code} - ${costCodes[changeRequest.proposed_cost_code_id].description}`
+        : 'Unknown';
+      changes.push({
+        label: 'Cost Code',
+        from: currentCostCode,
+        to: nextCostCode,
+      });
+    }
+
+    if (changeRequest.proposed_punch_in_time) {
+      const original = originalPunchInTime as string | null;
+      const proposed = changeRequest.proposed_punch_in_time as string;
+      if (!original || !isSameDisplayedTime(original, proposed)) {
+        changes.push({
+          label: 'Punch In',
+          from: original ? formatDisplay(original) : 'No punch in recorded',
+          to: formatDisplay(proposed),
+        });
+      }
+    }
+
+    if (changeRequest.proposed_punch_out_time) {
+      const original = originalPunchOutTime as string | null;
+      const proposed = changeRequest.proposed_punch_out_time as string;
+      if (!original || !isSameDisplayedTime(original, proposed)) {
+        changes.push({
+          label: 'Punch Out',
+          from: original ? formatDisplay(original) : 'No punch out recorded',
+          to: formatDisplay(proposed),
+        });
+      }
+    }
+
+    return changes;
+  };
+
+  const pendingRequestedChanges = getRequestedChanges(pendingChangeRequest);
+  const hasSuspiciousRequestedTimes = Boolean(
+    pendingChangeRequest && (
+      isSuspiciousRequestedTime(pendingChangeRequest.original_punch_in_time ?? timeCard?.punch_in_time, pendingChangeRequest.proposed_punch_in_time, pendingChangeRequest.requested_at)
+      || isSuspiciousRequestedTime(pendingChangeRequest.original_punch_out_time ?? timeCard?.punch_out_time, pendingChangeRequest.proposed_punch_out_time, pendingChangeRequest.requested_at)
+    )
+  );
+
+  const openCorrectRequestDialog = () => {
+    if (!pendingChangeRequest || !timeCard) return;
+    setRequestCorrectionData({
+      proposed_punch_in_time: formatCompanyDateTimeInputValue(
+        pendingChangeRequest.proposed_punch_in_time || timeCard.punch_in_time,
+        companyTimeZone,
+      ),
+      proposed_punch_out_time: formatCompanyDateTimeInputValue(
+        pendingChangeRequest.proposed_punch_out_time || timeCard.punch_out_time,
+        companyTimeZone,
+      ),
+    });
+    setCorrectionDialogOpen(true);
+  };
+
+  const handleSaveCorrectedRequest = async () => {
+    if (!pendingChangeRequest) return;
+
+    const proposedPunchInIso = requestCorrectionData.proposed_punch_in_time
+      ? companyInputDateTimeToIso(requestCorrectionData.proposed_punch_in_time, companyTimeZone)
+      : null;
+    const proposedPunchOutIso = requestCorrectionData.proposed_punch_out_time
+      ? companyInputDateTimeToIso(requestCorrectionData.proposed_punch_out_time, companyTimeZone)
+      : null;
+
+    if (!proposedPunchInIso || !proposedPunchOutIso) {
+      toast({
+        title: 'Invalid requested times',
+        description: 'Please enter valid punch in and punch out times.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (new Date(proposedPunchOutIso).getTime() <= new Date(proposedPunchInIso).getTime()) {
+      toast({
+        title: 'Invalid requested times',
+        description: 'Requested punch out must be after requested punch in.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setCorrectingRequest(true);
+      const { error } = await supabase
+        .from('time_card_change_requests')
+        .update({
+          proposed_punch_in_time: proposedPunchInIso,
+          proposed_punch_out_time: proposedPunchOutIso,
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', pendingChangeRequest.id);
+
+      if (error) throw error;
+
+      setPendingChangeRequest((prev: any) => prev ? {
+        ...prev,
+        proposed_punch_in_time: proposedPunchInIso,
+        proposed_punch_out_time: proposedPunchOutIso,
+      } : prev);
+      setCorrectionDialogOpen(false);
+      toast({
+        title: 'Request corrected',
+        description: 'The pending requested times were updated.',
+      });
+    } catch (error) {
+      console.error('Error correcting requested change:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to update the requested times.',
+        variant: 'destructive',
+      });
+    } finally {
+      setCorrectingRequest(false);
     }
   };
 
@@ -502,17 +698,6 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
     return formatCompanyDate(dateString, companyTimeZone);
   };
 
-  // Compare by displayed value to avoid false positives from timezone/seconds differences
-  const formatDisplay = (dateString: string) => formatCompanyDateTime(dateString, companyTimeZone);
-  const isSameDisplayedTime = (a?: string | null, b?: string | null) => {
-    if (!a || !b) return false;
-    try {
-      return formatDisplay(a) === formatDisplay(b);
-    } catch {
-      return false;
-    }
-  };
-
   const handleApproveChangeRequest = async () => {
     if (!pendingChangeRequest || !isManager) return;
 
@@ -547,6 +732,10 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
       // Log to audit trail with field changes
       const auditEntries = [];
+      const originalPunchIn = pendingChangeRequest.original_punch_in_time || timeCard.punch_in_time;
+      const originalPunchOut = pendingChangeRequest.original_punch_out_time || timeCard.punch_out_time;
+      const originalJobId = pendingChangeRequest.original_job_id || timeCard.job_id;
+      const originalCostCodeId = pendingChangeRequest.original_cost_code_id || timeCard.cost_code_id;
       
       // Main approval entry
       auditEntries.push({
@@ -558,34 +747,34 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       });
 
       // Add entries for each field change with formatted values
-      if (pendingChangeRequest.proposed_punch_in_time && pendingChangeRequest.proposed_punch_in_time !== timeCard.punch_in_time) {
+      if (pendingChangeRequest.proposed_punch_in_time && pendingChangeRequest.proposed_punch_in_time !== originalPunchIn) {
         auditEntries.push({
           time_card_id: timeCard.id,
           changed_by: user?.id,
           change_type: 'change_request_approved',
           field_name: 'punch_in_time',
-          old_value: formatCompanyDateTime(timeCard.punch_in_time, companyTimeZone),
+          old_value: formatCompanyDateTime(originalPunchIn, companyTimeZone),
           new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_in_time, companyTimeZone),
           reason: comments || 'Change request approved',
           created_at: new Date().toISOString()
         });
       }
 
-      if (pendingChangeRequest.proposed_punch_out_time && pendingChangeRequest.proposed_punch_out_time !== timeCard.punch_out_time) {
+      if (pendingChangeRequest.proposed_punch_out_time && pendingChangeRequest.proposed_punch_out_time !== originalPunchOut) {
         auditEntries.push({
           time_card_id: timeCard.id,
           changed_by: user?.id,
           change_type: 'change_request_approved',
           field_name: 'punch_out_time',
-          old_value: formatCompanyDateTime(timeCard.punch_out_time, companyTimeZone),
+          old_value: formatCompanyDateTime(originalPunchOut, companyTimeZone),
           new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_out_time, companyTimeZone),
           reason: comments || 'Change request approved',
           created_at: new Date().toISOString()
         });
       }
 
-      if (pendingChangeRequest.proposed_job_id && pendingChangeRequest.proposed_job_id !== timeCard.job_id) {
-        const oldJobName = jobs[timeCard.job_id]?.name || timeCard.job_id;
+      if (pendingChangeRequest.proposed_job_id && pendingChangeRequest.proposed_job_id !== originalJobId) {
+        const oldJobName = jobs[originalJobId]?.name || originalJobId;
         const newJobName = jobs[pendingChangeRequest.proposed_job_id]?.name || pendingChangeRequest.proposed_job_id;
         auditEntries.push({
           time_card_id: timeCard.id,
@@ -599,8 +788,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         });
       }
 
-      if (pendingChangeRequest.proposed_cost_code_id && pendingChangeRequest.proposed_cost_code_id !== timeCard.cost_code_id) {
-        const oldCostCode = costCodes[timeCard.cost_code_id]?.code || timeCard.cost_code_id;
+      if (pendingChangeRequest.proposed_cost_code_id && pendingChangeRequest.proposed_cost_code_id !== originalCostCodeId) {
+        const oldCostCode = costCodes[originalCostCodeId]?.code || originalCostCodeId;
         const newCostCode = costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || pendingChangeRequest.proposed_cost_code_id;
         auditEntries.push({
           time_card_id: timeCard.id,
@@ -657,6 +846,10 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
 
       // Log to audit trail with field changes that were rejected
       const auditEntries = [];
+      const originalPunchIn = pendingChangeRequest.original_punch_in_time || timeCard.punch_in_time;
+      const originalPunchOut = pendingChangeRequest.original_punch_out_time || timeCard.punch_out_time;
+      const originalJobId = pendingChangeRequest.original_job_id || timeCard.job_id;
+      const originalCostCodeId = pendingChangeRequest.original_cost_code_id || timeCard.cost_code_id;
       
       // Main rejection entry
       auditEntries.push({
@@ -668,34 +861,34 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       });
 
       // Add entries for each field change that was rejected with formatted values
-      if (pendingChangeRequest.proposed_punch_in_time && pendingChangeRequest.proposed_punch_in_time !== timeCard.punch_in_time) {
+      if (pendingChangeRequest.proposed_punch_in_time && pendingChangeRequest.proposed_punch_in_time !== originalPunchIn) {
         auditEntries.push({
           time_card_id: timeCard.id,
           changed_by: user?.id,
           change_type: 'change_request_rejected',
           field_name: 'punch_in_time',
-          old_value: formatCompanyDateTime(timeCard.punch_in_time, companyTimeZone),
+          old_value: formatCompanyDateTime(originalPunchIn, companyTimeZone),
           new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_in_time, companyTimeZone),
           reason: comments || 'Change request denied',
           created_at: new Date().toISOString()
         });
       }
 
-      if (pendingChangeRequest.proposed_punch_out_time && pendingChangeRequest.proposed_punch_out_time !== timeCard.punch_out_time) {
+      if (pendingChangeRequest.proposed_punch_out_time && pendingChangeRequest.proposed_punch_out_time !== originalPunchOut) {
         auditEntries.push({
           time_card_id: timeCard.id,
           changed_by: user?.id,
           change_type: 'change_request_rejected',
           field_name: 'punch_out_time',
-          old_value: formatCompanyDateTime(timeCard.punch_out_time, companyTimeZone),
+          old_value: formatCompanyDateTime(originalPunchOut, companyTimeZone),
           new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_out_time, companyTimeZone),
           reason: comments || 'Change request denied',
           created_at: new Date().toISOString()
         });
       }
 
-      if (pendingChangeRequest.proposed_job_id && pendingChangeRequest.proposed_job_id !== timeCard.job_id) {
-        const oldJobName = jobs[timeCard.job_id]?.name || timeCard.job_id;
+      if (pendingChangeRequest.proposed_job_id && pendingChangeRequest.proposed_job_id !== originalJobId) {
+        const oldJobName = jobs[originalJobId]?.name || originalJobId;
         const newJobName = jobs[pendingChangeRequest.proposed_job_id]?.name || pendingChangeRequest.proposed_job_id;
         auditEntries.push({
           time_card_id: timeCard.id,
@@ -709,8 +902,8 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
         });
       }
 
-      if (pendingChangeRequest.proposed_cost_code_id && pendingChangeRequest.proposed_cost_code_id !== timeCard.cost_code_id) {
-        const oldCostCode = costCodes[timeCard.cost_code_id]?.code || timeCard.cost_code_id;
+      if (pendingChangeRequest.proposed_cost_code_id && pendingChangeRequest.proposed_cost_code_id !== originalCostCodeId) {
+        const oldCostCode = costCodes[originalCostCodeId]?.code || originalCostCodeId;
         const newCostCode = costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || pendingChangeRequest.proposed_cost_code_id;
         auditEntries.push({
           time_card_id: timeCard.id,
@@ -930,8 +1123,47 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                 {pendingChangeRequest.reason && (
                   <p className="text-xs text-muted-foreground ml-6">{pendingChangeRequest.reason}</p>
                 )}
+                <div className="mt-3 rounded-md border bg-background/50 p-3 ml-6 space-y-2">
+                  <div className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                    Requested Changes
+                  </div>
+                  {hasSuspiciousRequestedTimes && (
+                    <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-xs text-amber-900 dark:border-amber-800 dark:bg-amber-950/30 dark:text-amber-100">
+                      One or more requested timestamps look malformed compared to the original time card. This usually means the request was created with a bad timezone conversion. Please verify with the employee before approving.
+                    </div>
+                  )}
+                  {pendingRequestedChanges.length > 0 ? (
+                    pendingRequestedChanges.map((change) => (
+                      <div key={change.label} className="grid gap-2 md:grid-cols-[120px_1fr_1fr] text-sm">
+                        <div className="font-medium">{change.label}</div>
+                        <div className="rounded border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-950/20 px-2 py-1">
+                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Original</div>
+                          <div>{change.from}</div>
+                        </div>
+                        <div className="rounded border border-green-200 dark:border-green-800 bg-green-50 dark:bg-green-950/20 px-2 py-1">
+                          <div className="text-[11px] uppercase tracking-wide text-muted-foreground">Requested</div>
+                          <div>{change.to}</div>
+                        </div>
+                      </div>
+                    ))
+                  ) : (
+                    <div className="text-sm text-muted-foreground">
+                      No field changes were detected on this request.
+                    </div>
+                  )}
+                </div>
               </div>
               <div className="flex gap-2 flex-shrink-0">
+                <Button
+                  onClick={openCorrectRequestDialog}
+                  disabled={approving || denying || correctingRequest}
+                  variant="outline"
+                  size="sm"
+                  className="gap-1"
+                >
+                  <Edit className="h-3 w-3" />
+                  Correct Request
+                </Button>
                 <Button 
                   onClick={handleApproveChangeRequest}
                   disabled={approving || denying}
@@ -955,6 +1187,51 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             </div>
           </div>
         )}
+
+        <Dialog open={correctionDialogOpen} onOpenChange={setCorrectionDialogOpen}>
+          <DialogContent className="max-w-md">
+            <DialogHeader>
+              <DialogTitle>Correct Requested Times</DialogTitle>
+              <DialogDescription>
+                Update the pending requested punch times before reviewing the request.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="correct-requested-punch-in">Requested Punch In</Label>
+                <Input
+                  id="correct-requested-punch-in"
+                  type="datetime-local"
+                  value={requestCorrectionData.proposed_punch_in_time}
+                  onChange={(e) => setRequestCorrectionData((prev) => ({
+                    ...prev,
+                    proposed_punch_in_time: e.target.value,
+                  }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="correct-requested-punch-out">Requested Punch Out</Label>
+                <Input
+                  id="correct-requested-punch-out"
+                  type="datetime-local"
+                  value={requestCorrectionData.proposed_punch_out_time}
+                  onChange={(e) => setRequestCorrectionData((prev) => ({
+                    ...prev,
+                    proposed_punch_out_time: e.target.value,
+                  }))}
+                />
+              </div>
+            </div>
+            <div className="flex justify-end gap-2">
+              <Button variant="outline" onClick={() => setCorrectionDialogOpen(false)} disabled={correctingRequest}>
+                Cancel
+              </Button>
+              <Button onClick={handleSaveCorrectedRequest} disabled={correctingRequest}>
+                {correctingRequest ? 'Saving...' : 'Save Requested Times'}
+              </Button>
+            </div>
+          </DialogContent>
+        </Dialog>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'details' | 'audit' | 'map')} className="w-full">
           <div className="flex justify-between items-center mb-4">

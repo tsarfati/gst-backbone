@@ -4920,6 +4920,7 @@ export type Database = {
           note: string | null
           photo_url: string
           pin_employee_id: string | null
+          rotation_degrees: number
           updated_at: string
           uploaded_by: string
         }
@@ -4934,6 +4935,7 @@ export type Database = {
           note?: string | null
           photo_url: string
           pin_employee_id?: string | null
+          rotation_degrees?: number
           updated_at?: string
           uploaded_by: string
         }
@@ -4948,6 +4950,7 @@ export type Database = {
           note?: string | null
           photo_url?: string
           pin_employee_id?: string | null
+          rotation_degrees?: number
           updated_at?: string
           uploaded_by?: string
         }
@@ -9692,6 +9695,10 @@ export type Database = {
           company_id: string
           created_at: string
           id: string
+          original_cost_code_id: string | null
+          original_job_id: string | null
+          original_punch_in_time: string | null
+          original_punch_out_time: string | null
           proposed_cost_code_id: string | null
           proposed_job_id: string | null
           proposed_punch_in_time: string | null
@@ -9710,6 +9717,10 @@ export type Database = {
           company_id: string
           created_at?: string
           id?: string
+          original_cost_code_id?: string | null
+          original_job_id?: string | null
+          original_punch_in_time?: string | null
+          original_punch_out_time?: string | null
           proposed_cost_code_id?: string | null
           proposed_job_id?: string | null
           proposed_punch_in_time?: string | null
@@ -9728,6 +9739,10 @@ export type Database = {
           company_id?: string
           created_at?: string
           id?: string
+          original_cost_code_id?: string | null
+          original_job_id?: string | null
+          original_punch_in_time?: string | null
+          original_punch_out_time?: string | null
           proposed_cost_code_id?: string | null
           proposed_job_id?: string | null
           proposed_punch_in_time?: string | null

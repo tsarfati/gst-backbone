@@ -42,27 +42,48 @@ export default function UserAssignmentPanel({
         // Get user IDs for this company
         const { data: accessData, error: accessError } = await supabase
           .from('user_company_access')
-          .select('user_id')
+          .select('user_id, role')
           .eq('company_id', currentCompany.id)
           .eq('is_active', true);
 
         if (accessError) throw accessError;
 
         const userIds = (accessData || []).map(a => a.user_id);
+        const accessRoleMap = new Map((accessData || []).map(a => [a.user_id, a.role]));
 
         // Fetch profiles for users in this company
         const { data, error } = await supabase
           .from('profiles')
-          .select('user_id, display_name, role')
+          .select('user_id, display_name, first_name, last_name, custom_role_id')
           .in('user_id', userIds.length > 0 ? userIds : ['00000000-0000-0000-0000-000000000000'])
           .order('display_name');
 
         if (error) throw error;
 
+        const customRoleIds = Array.from(
+          new Set((data || []).map(profile => profile.custom_role_id).filter(Boolean))
+        );
+
+        let customRoleMap = new Map<string, string>();
+        if (customRoleIds.length > 0) {
+          const { data: customRoles, error: customRoleError } = await supabase
+            .from('custom_roles')
+            .select('id, role_name')
+            .in('id', customRoleIds as string[]);
+
+          if (customRoleError) throw customRoleError;
+          customRoleMap = new Map((customRoles || []).map(role => [role.id, role.role_name]));
+        }
+
         const userList = (data || []).map(profile => ({
           id: profile.user_id,
-          name: profile.display_name || 'Unknown User',
-          role: profile.role || 'employee'
+          name:
+            profile.display_name
+            || [profile.first_name, profile.last_name].filter(Boolean).join(' ').trim()
+            || 'Unknown User',
+          role:
+            (profile.custom_role_id ? customRoleMap.get(profile.custom_role_id) : null)
+            || String(accessRoleMap.get(profile.user_id) || 'employee').replace(/_/g, ' ')
         }));
 
         setUsers(userList);

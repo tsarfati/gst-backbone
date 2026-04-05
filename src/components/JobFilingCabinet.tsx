@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -380,7 +380,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     load();
   }, [loadFolders, loadFiles, loadVendorCabinetAccess, isVendorPortalUser]);
 
-  const allFiles = Object.values(files).flat();
+  const allFiles = useMemo(() => Object.values(files).flat(), [files]);
 
   useEffect(() => {
     const ownerIds = new Set<string>();
@@ -412,7 +412,25 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
       (data || []).forEach((row: any) => {
         mapped[row.user_id] = row as OwnerProfile;
       });
-      setOwnerProfilesById(mapped);
+      setOwnerProfilesById((prev) => {
+        const prevKeys = Object.keys(prev);
+        const nextKeys = Object.keys(mapped);
+        if (prevKeys.length === nextKeys.length) {
+          const unchanged = nextKeys.every((key) => {
+            const prevRow = prev[key];
+            const nextRow = mapped[key];
+            return (
+              prevRow?.user_id === nextRow?.user_id &&
+              prevRow?.first_name === nextRow?.first_name &&
+              prevRow?.last_name === nextRow?.last_name &&
+              prevRow?.display_name === nextRow?.display_name &&
+              prevRow?.avatar_url === nextRow?.avatar_url
+            );
+          });
+          if (unchanged) return prev;
+        }
+        return mapped;
+      });
     })();
 
     return () => {

@@ -49,6 +49,7 @@ export default function UserJobAccess({
   const [userJobCostCodes, setUserJobCostCodes] = useState<Record<string, string[]>>({});
   const [hasGlobalAccess, setHasGlobalAccess] = useState(false);
   const [expandedJobs, setExpandedJobs] = useState<Record<string, boolean>>({});
+  const isFieldEmployee = String(userRole || '').toLowerCase() === 'employee';
 
   useEffect(() => {
     loadJobAccess();
@@ -338,7 +339,7 @@ export default function UserJobAccess({
             {title || 'Job Assignments & Cost Codes'}
           </CardTitle>
           <p className="text-sm text-muted-foreground mt-1">
-            {description || `Control which jobs and cost codes this ${userRole === 'employee' ? 'employee' : 'user'} can access in the punch clock app`}
+            {description || `Control which jobs and cost codes this ${isFieldEmployee ? 'field employee' : 'user'} can access in the punch clock app`}
           </p>
         </div>
       </CardHeader>
@@ -346,7 +347,7 @@ export default function UserJobAccess({
         {/* Hidden save trigger for parent page */}
         <button data-save-jobs className="hidden" onClick={saveJobAccess} />
         {/* Global Access Toggle */}
-        {userRole !== 'employee' && (
+        {!isFieldEmployee && (
           <div className="p-4 border rounded-lg bg-muted/50">
             <div className="flex items-center justify-between">
               <div className="space-y-1">
@@ -367,10 +368,10 @@ export default function UserJobAccess({
         )}
 
         {/* Individual Job Access with nested Cost Codes - collapsed by default */}
-        {(!hasGlobalAccess || userRole === 'employee') && (
+        {(!hasGlobalAccess || isFieldEmployee) && (
           <div className="space-y-4">
             <div className="text-sm text-muted-foreground">
-              Select specific jobs and cost codes this {userRole === 'employee' ? 'employee' : 'user'} can access.
+              Select specific jobs and cost codes this {isFieldEmployee ? 'field employee' : 'user'} can access.
             </div>
 
             {jobs.length === 0 ? (
