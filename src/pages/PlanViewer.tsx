@@ -470,6 +470,16 @@ export default function PlanViewer() {
     };
 
     const onWheel = (e: WheelEvent) => {
+      if (e.altKey) {
+        const target = e.target as Node | null;
+        const inPdfViewer = !!(target && pdfContainerRef.current?.contains(target));
+        if (inPdfViewer) {
+          if (e.cancelable) e.preventDefault();
+          e.stopPropagation();
+        }
+        return;
+      }
+
       if (!(e.ctrlKey || e.metaKey)) return;
       const target = e.target as Node | null;
       const inPdfViewer = !!(target && pdfContainerRef.current?.contains(target));
@@ -493,7 +503,7 @@ export default function PlanViewer() {
       e.stopPropagation();
 
       if (zoomInKeys) {
-        setZoomLevel((prev) => Math.min(prev + 0.25, 3));
+        setZoomLevel((prev) => Math.min(prev + 0.25, 5));
       } else if (zoomOutKeys) {
         setZoomLevel((prev) => Math.max(prev - 0.25, 0.5));
       } else {
@@ -551,15 +561,6 @@ export default function PlanViewer() {
       }
     };
   }, []);
-
-  useEffect(() => {
-    // Only auto-analyze after the initial plan/pages fetch has completed.
-    // Otherwise `setPlan(...)` can fire before `setPages(...)` and falsely look like an empty index.
-    if (!initialPlanDataLoaded || loading) return;
-    if (plan && pages.length === 0 && !analyzing) {
-      analyzePlan();
-    }
-  }, [initialPlanDataLoaded, loading, plan, pages, analyzing]);
 
   // Initialize Fabric.js canvas for markups (only once)
   useEffect(() => {
@@ -2050,10 +2051,8 @@ export default function PlanViewer() {
                   zoomLevel={zoomLevel}
                   onPageRectChange={setPdfPageRect}
                   onTotalPagesChange={(total) => {
-                    // If no pages exist yet and we get a total, we could trigger analysis
-                    if (pages.length === 0 && total > 0 && !analyzing) {
-                      // Optionally auto-analyze
-                    }
+                    // Intentionally do not auto-analyze on open.
+                    // Plan analysis should only run when explicitly requested by the user.
                   }}
                   onZoomChange={(newZoom) => {
                     setZoomLevel(Math.round(newZoom * 100) / 100);

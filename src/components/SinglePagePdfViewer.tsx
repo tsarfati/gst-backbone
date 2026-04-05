@@ -203,10 +203,6 @@ export default function SinglePagePdfViewer({
     };
 
     const handleWheel = (e: WheelEvent) => {
-      // Trackpad pinch in Chromium => wheel with ctrlKey=true.
-      // Mousewheel zoom on macOS can be used with Cmd (metaKey).
-      if (!(e.ctrlKey || e.metaKey)) return;
-
       // Only intercept when the gesture originates within the PDF viewer.
       const isInside =
         containsTarget(e.target) ||
@@ -214,8 +210,24 @@ export default function SinglePagePdfViewer({
         containsPoint(e.clientX, e.clientY);
       if (!isInside) return;
 
-      // Cancel browser page-zoom and keep this event from reaching higher-level listeners.
-      // (Some WebKit builds only reliably stop page zoom when we also stopImmediatePropagation.)
+      // Option/Alt+wheel should not scroll the surrounding page while hovering the plan.
+      if (e.altKey) {
+        try {
+          e.preventDefault();
+        } catch {
+          // ignore
+        }
+        try {
+          (e as any).stopImmediatePropagation?.();
+        } catch {
+          // ignore
+        }
+        e.stopPropagation();
+        return;
+      }
+
+      // Own wheel behavior inside the plan viewer so the surrounding page never starts
+      // scrolling once zoom hits its clamp. We still cancel browser page-zoom for ctrl/cmd.
       try {
         e.preventDefault();
       } catch {
@@ -228,8 +240,15 @@ export default function SinglePagePdfViewer({
       }
       e.stopPropagation();
       const prevZoom = zoomRef.current;
-      const delta = -e.deltaY * 0.01;
+      const deltaScale = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 0.05 : 0.01;
+      const delta = -e.deltaY * deltaScale;
       const nextZoom = clampZoom(Math.round((prevZoom + delta) * 100) / 100);
+
+      // Even if we are already clamped, keep consuming the wheel event so the page behind
+      // the viewer does not begin scrolling.
+      if (nextZoom === prevZoom) {
+        return;
+      }
 
       const rect = container.getBoundingClientRect();
       const focusX = Math.min(Math.max(e.clientX - rect.left, 0), rect.width);

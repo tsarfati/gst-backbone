@@ -1107,18 +1107,9 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     return null;
   };
 
-  const getExternalTypeBadge = (member: DirectoryMember) => {
-    const type = getExternalMemberType(member);
-    if (type === 'design_professional') {
-      return <Badge variant="secondary" className="text-xs">Design Professional</Badge>;
-    }
-    if (type === 'subcontractor') {
-      return <Badge variant="outline" className="text-xs">Subcontractor</Badge>;
-    }
-    return null;
-  };
-
   const groupedTeamMembers = useMemo(() => {
+    const primaryCompanyName = String((currentCompany as any)?.display_name || currentCompany?.name || 'Company');
+
     const internalLeadershipMembers = teamMembers.filter((member) => {
       if (member.source === 'employee') return false;
       if (getExternalMemberType(member)) return false;
@@ -1126,16 +1117,36 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     });
 
     const employeeMembers = teamMembers.filter((member) => member.source === 'employee');
-    const externalDesignMembers = teamMembers.filter((member) => getExternalMemberType(member) === 'design_professional');
-    const externalSubcontractorMembers = teamMembers.filter((member) => getExternalMemberType(member) === 'subcontractor');
+    const externalMembers = teamMembers.filter((member) => !!getExternalMemberType(member));
+
+    const externalGroups = externalMembers.reduce<Array<{
+      key: string;
+      title: string;
+      members: DirectoryMember[];
+      badgeClasses: string;
+    }>>((groups, member) => {
+      const groupName = String(member.company_name || 'External Company');
+      const key = `company-${groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
+      const existing = groups.find((group) => group.key === key);
+      if (existing) {
+        existing.members.push(member);
+      } else {
+        groups.push({
+          key,
+          title: groupName,
+          members: [member],
+          badgeClasses: 'border-zinc-200 bg-zinc-50 text-zinc-900',
+        });
+      }
+      return groups;
+    }, []);
 
     return [
-      { key: 'inner-company', title: 'Inner Company', members: internalLeadershipMembers, badgeClasses: 'border-sky-200 bg-sky-50 text-sky-900' },
-      { key: 'employees', title: 'Employees', members: employeeMembers, badgeClasses: 'border-slate-200 bg-slate-50 text-slate-800' },
-      { key: 'design-professionals', title: 'Design Professionals', members: externalDesignMembers, badgeClasses: 'border-fuchsia-200 bg-fuchsia-50 text-fuchsia-900' },
-      { key: 'subcontractors', title: 'Subcontractors', members: externalSubcontractorMembers, badgeClasses: 'border-orange-200 bg-orange-50 text-orange-900' },
+      { key: 'inner-company', title: primaryCompanyName, members: internalLeadershipMembers, badgeClasses: 'border-sky-200 bg-sky-50 text-sky-900' },
+      { key: 'employees', title: `${primaryCompanyName} Employees`, members: employeeMembers, badgeClasses: 'border-slate-200 bg-slate-50 text-slate-800' },
+      ...externalGroups,
     ].filter((group) => group.members.length > 0);
-  }, [teamMembers, designProfessionalVendors, subcontractorVendors, designProfessionalUserIds]);
+  }, [teamMembers, currentCompany]);
 
   if (loading) {
     return (
@@ -1664,7 +1675,6 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                         <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" fill="currentColor" />
                       )}
                       {getSourceBadge(member.source)}
-                      {getExternalTypeBadge(member)}
                       {member.project_role?.name && (
                         <Badge variant="outline" className={`text-[10px] h-5 px-1.5 border ${getRoleBadgeClasses(member.project_role.name, member.source)}`}>
                           {member.project_role.name}
