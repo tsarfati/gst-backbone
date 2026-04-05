@@ -36,7 +36,7 @@ import {
 } from 'lucide-react';
 import { CountUpStat } from '@/components/CountUpStat';
 
-const heroVideos = [heroVideo2, heroVideo1, heroVideo3, heroVideo4, heroVideo5];
+const heroVideos = [heroVideo2Intro, heroVideo3, heroVideo1, heroVideo4, heroVideo5];
 
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
@@ -48,8 +48,6 @@ export default function LandingPage() {
   const parallaxOffset = useParallax(0.3);
   const [scrollY, setScrollY] = useState(0);
   const [showFirstVideo, setShowFirstVideo] = useState(true);
-  const [showIntroClip, setShowIntroClip] = useState(true);
-  const [isIntroHandoffActive, setIsIntroHandoffActive] = useState(false);
   const [isHeroVideoReady, setIsHeroVideoReady] = useState(false);
   const [secondaryVideoPrimed, setSecondaryVideoPrimed] = useState(false);
   const videoARef = useRef<HTMLVideoElement>(null);
@@ -80,32 +78,6 @@ export default function LandingPage() {
         setVideoBSource(nextIndex);
       }, 1000);
     }
-  };
-
-  const handleIntroEnded = async () => {
-    const primaryVideo = videoARef.current;
-
-    setShowIntroClip(false);
-    setShowFirstVideo(true);
-    setIsIntroHandoffActive(true);
-
-    if (!primaryVideo) return;
-
-    try {
-      primaryVideo.currentTime = 5;
-    } catch {
-      primaryVideo.currentTime = 0;
-    }
-
-    try {
-      await primaryVideo.play();
-    } catch {
-      // Keep the hero stable even if autoplay policies vary.
-    }
-
-    window.setTimeout(() => {
-      setIsIntroHandoffActive(false);
-    }, 50);
   };
 
   useEffect(() => {
@@ -338,42 +310,21 @@ export default function LandingPage() {
               opacity: isHeroVideoReady ? 0 : 1,
             }}
           />
-          {/* Intro clip: first few seconds start immediately while the full video loads in the background */}
-          {showIntroClip ? (
-            <video
-              autoPlay
-              muted
-              playsInline
-              preload="auto"
-              poster={heroPoster}
-              onLoadedData={() => setIsHeroVideoReady(true)}
-              onEnded={handleIntroEnded}
-              className="absolute inset-0 w-full h-full object-cover transition-opacity"
-              style={{
-                transform: `translateY(${parallaxOffset}px)`,
-                opacity: 1,
-                transitionDuration: isIntroHandoffActive ? '0ms' : '700ms',
-              }}
-            >
-              <source src={heroVideo2Intro} type="video/mp4" />
-            </video>
-          ) : null}
           {/* Video A */}
           <video
             ref={videoARef}
             key={`videoA-${videoASource}`}
-            autoPlay={showFirstVideo && !showIntroClip}
+            autoPlay={showFirstVideo}
             muted
             playsInline
             preload="auto"
             poster={heroPoster}
             onLoadedData={() => setIsHeroVideoReady(true)}
-            onEnded={showFirstVideo && !showIntroClip ? handleVideoEnded : undefined}
-            className="absolute inset-0 w-full h-full object-cover transition-opacity"
+            onEnded={showFirstVideo ? handleVideoEnded : undefined}
+            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
             style={{ 
               transform: `translateY(${parallaxOffset}px)`,
-              opacity: showFirstVideo && !showIntroClip ? 1 : 0,
-              transitionDuration: isIntroHandoffActive ? '0ms' : '1000ms',
+              opacity: showFirstVideo ? 1 : 0,
             }}
           >
             <source src={heroVideos[videoASource]} type="video/mp4" />

@@ -33,6 +33,24 @@ interface CompanyUser {
   type: 'user';
 }
 
+interface CompanyDirectoryUser {
+  user_id: string;
+  display_name?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
+}
+
+interface CompanyProfileRow {
+  user_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  display_name?: string | null;
+  phone?: string | null;
+  avatar_url?: string | null;
+  custom_role_id?: string | null;
+}
+
 interface JobDirectoryModalProps {
   jobId: string;
   onDirectoryChange?: () => void;
@@ -102,7 +120,6 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
     if (!currentCompany?.id) return;
     
     try {
-      // Fetch regular users with access to this company
       const { data: userAccess, error: userError } = await supabase
         .from('user_company_access')
         .select('user_id')
@@ -118,10 +135,20 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
       if (userIds.length > 0) {
         const { data: profiles, error: profileError } = await supabase
           .from('profiles')
-          .select('user_id, first_name, last_name, display_name, phone, avatar_url')
+          .select('user_id, first_name, last_name, display_name, phone, avatar_url, custom_role_id')
           .in('user_id', userIds);
         
         if (profileError) throw profileError;
+
+        let directoryUsers: CompanyDirectoryUser[] = [];
+        const { data: directoryRows, error: directoryError } = await supabase
+          .rpc('get_company_directory', { p_company_id: currentCompany.id });
+
+        if (!directoryError) {
+          directoryUsers = (directoryRows || []) as CompanyDirectoryUser[];
+        } else {
+          console.warn('Company directory lookup failed in job directory modal, using profile fallback only.', directoryError);
+        }
         
         // Fetch user emails from auth.users via edge function
         const { data: emailData } = await supabase.functions.invoke('get-user-email', {
@@ -135,18 +162,32 @@ export default function JobDirectoryModal({ jobId, onDirectoryChange, trigger, v
           });
         }
         
-        users = (profiles || []).map(p => ({
-          id: p.user_id,
-          display_name: [p.first_name, p.last_name].filter(Boolean).join(' ') || p.display_name || 'Unknown',
-          email: emailMap.get(p.user_id) || null,
-          phone: p.phone,
-          company_name: currentCompany.name,
-          avatar_url: p.avatar_url,
-          type: 'user' as const
-        }));
+        users = ((profiles || []) as CompanyProfileRow[]).map((profile) => {
+          const directoryProfile = directoryUsers.find((d) => d.user_id === profile.user_id);
+          const displayName =
+            [directoryProfile?.first_name, directoryProfile?.last_name].filter(Boolean).join(' ') ||
+            directoryProfile?.display_name ||
+            [profile.first_name, profile.last_name].filter(Boolean).join(' ') ||
+            profile.display_name ||
+            'Unknown';
+
+          return {
+            id: profile.user_id,
+            display_name: displayName,
+            email: emailMap.get(profile.user_id) || null,
+            phone: profile.phone || null,
+            company_name: currentCompany.name,
+            avatar_url: directoryProfile?.avatar_url || profile.avatar_url || null,
+            type: 'user' as const,
+          };
+        });
       }
       
-      setCompanyUsers(users.sort((a, b) => a.display_name.localeCompare(b.display_name)));
+      const dedupedUsers = Array.from(
+        new Map(users.map((companyUser) => [companyUser.id, companyUser])).values()
+      );
+
+      setCompanyUsers(dedupedUsers.sort((a, b) => a.display_name.localeCompare(b.display_name)));
     } catch (error) {
       console.error('Error loading company users:', error);
     }
