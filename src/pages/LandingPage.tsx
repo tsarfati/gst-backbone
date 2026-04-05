@@ -9,6 +9,7 @@ import { useParallax } from '@/hooks/useScrollAnimation';
 import { Loader2 } from 'lucide-react';
 import heroVideo1 from '@/assets/hero-construction.mp4';
 import heroVideo2 from '@/assets/hero-construction-2.mp4';
+import heroVideo2Intro from '@/assets/hero-construction-2-intro.mp4';
 import heroVideo3 from '@/assets/hero-construction-3.mp4';
 import heroVideo4 from '@/assets/hero-construction-4.mp4';
 import heroVideo5 from '@/assets/hero-construction-5.mp4';
@@ -47,6 +48,8 @@ export default function LandingPage() {
   const parallaxOffset = useParallax(0.3);
   const [scrollY, setScrollY] = useState(0);
   const [showFirstVideo, setShowFirstVideo] = useState(true);
+  const [showIntroClip, setShowIntroClip] = useState(true);
+  const [isIntroHandoffActive, setIsIntroHandoffActive] = useState(false);
   const [isHeroVideoReady, setIsHeroVideoReady] = useState(false);
   const [secondaryVideoPrimed, setSecondaryVideoPrimed] = useState(false);
   const videoARef = useRef<HTMLVideoElement>(null);
@@ -79,6 +82,32 @@ export default function LandingPage() {
     }
   };
 
+  const handleIntroEnded = async () => {
+    const primaryVideo = videoARef.current;
+
+    setShowIntroClip(false);
+    setShowFirstVideo(true);
+    setIsIntroHandoffActive(true);
+
+    if (!primaryVideo) return;
+
+    try {
+      primaryVideo.currentTime = 5;
+    } catch {
+      primaryVideo.currentTime = 0;
+    }
+
+    try {
+      await primaryVideo.play();
+    } catch {
+      // Keep the hero stable even if autoplay policies vary.
+    }
+
+    window.setTimeout(() => {
+      setIsIntroHandoffActive(false);
+    }, 50);
+  };
+
   useEffect(() => {
     const handleScroll = () => setScrollY(window.scrollY);
     window.addEventListener('scroll', handleScroll, { passive: true });
@@ -108,6 +137,13 @@ export default function LandingPage() {
       window.clearTimeout(timeoutId);
     };
   }, []);
+
+  useEffect(() => {
+    const primaryVideo = videoARef.current;
+    if (!primaryVideo) return;
+
+    primaryVideo.load();
+  }, [videoASource]);
 
   useEffect(() => {
     if (!location.hash || loading || user) return;
@@ -302,21 +338,42 @@ export default function LandingPage() {
               opacity: isHeroVideoReady ? 0 : 1,
             }}
           />
+          {/* Intro clip: first few seconds start immediately while the full video loads in the background */}
+          {showIntroClip ? (
+            <video
+              autoPlay
+              muted
+              playsInline
+              preload="auto"
+              poster={heroPoster}
+              onLoadedData={() => setIsHeroVideoReady(true)}
+              onEnded={handleIntroEnded}
+              className="absolute inset-0 w-full h-full object-cover transition-opacity"
+              style={{
+                transform: `translateY(${parallaxOffset}px)`,
+                opacity: 1,
+                transitionDuration: isIntroHandoffActive ? '0ms' : '700ms',
+              }}
+            >
+              <source src={heroVideo2Intro} type="video/mp4" />
+            </video>
+          ) : null}
           {/* Video A */}
           <video
             ref={videoARef}
             key={`videoA-${videoASource}`}
-            autoPlay={showFirstVideo}
+            autoPlay={showFirstVideo && !showIntroClip}
             muted
             playsInline
-            preload="metadata"
+            preload="auto"
             poster={heroPoster}
             onLoadedData={() => setIsHeroVideoReady(true)}
-            onEnded={showFirstVideo ? handleVideoEnded : undefined}
-            className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
+            onEnded={showFirstVideo && !showIntroClip ? handleVideoEnded : undefined}
+            className="absolute inset-0 w-full h-full object-cover transition-opacity"
             style={{ 
               transform: `translateY(${parallaxOffset}px)`,
-              opacity: showFirstVideo ? 1 : 0
+              opacity: showFirstVideo && !showIntroClip ? 1 : 0,
+              transitionDuration: isIntroHandoffActive ? '0ms' : '1000ms',
             }}
           >
             <source src={heroVideos[videoASource]} type="video/mp4" />
