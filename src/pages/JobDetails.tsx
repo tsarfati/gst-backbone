@@ -31,6 +31,7 @@ import JobRFIs from "@/components/JobRFIs";
 import JobProjectTeam from "@/components/JobProjectTeam";
 import JobExportModal from "@/components/JobExportModal";
 import JobSubmittals from "@/components/JobSubmittals";
+import JobSecurityCameras from "@/components/JobSecurityCameras";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
 
@@ -129,6 +130,7 @@ export default function JobDetails() {
   const [loadingTargetCompanies, setLoadingTargetCompanies] = useState(false);
   const [submittingHandoff, setSubmittingHandoff] = useState(false);
   const [jobSiteLynkConfigured, setJobSiteLynkConfigured] = useState(false);
+  const [hasSecurityCameraMappings, setHasSecurityCameraMappings] = useState(false);
   const [jobSiteLynkLinkDialogOpen, setJobSiteLynkLinkDialogOpen] = useState(false);
   const [savingJobSiteLynkLink, setSavingJobSiteLynkLink] = useState(false);
   const [selectedJobSiteLynkProjectId, setSelectedJobSiteLynkProjectId] = useState("");
@@ -154,6 +156,7 @@ export default function JobDetails() {
     );
   const canManageJobSiteLynkLink = permissions.canEditJobs() && canManageDesignProfessionalJob && !isVendorView;
   const returnToJobsPath = isDesignProfessionalView ? "/design-professional/jobs" : isVendorView ? "/vendor/jobs" : "/jobs";
+  const showSecurityCamerasTab = !isExternalView && hasSecurityCameraMappings;
   const visibleTabs = isDesignProfessionalView
     ? ["details", "plans", "rfis", "submittals", "filing-cabinet", "photo-album"]
     : isVendorView
@@ -167,7 +170,21 @@ export default function JobDetails() {
         (effectiveJobAccess.canViewRfps || effectiveJobAccess.canSubmitBids) && "rfps",
         effectiveJobAccess.canViewSubcontracts && "subcontracts",
       ].filter(Boolean) as string[]
-    : ["details", "cost-budget", "forecasting", "committed-costs", "billing", "plans", "rfis", "rfps", "submittals", "filing-cabinet", "photo-album", "visitor-logs"];
+    : [
+        "details",
+        "cost-budget",
+        "forecasting",
+        "committed-costs",
+        "billing",
+        "plans",
+        "rfis",
+        "rfps",
+        "submittals",
+        "filing-cabinet",
+        "photo-album",
+        ...(showSecurityCamerasTab ? ["security-cameras"] : []),
+        "visitor-logs",
+      ];
   useEffect(() => {
     const fetchJob = async () => {
       if (!id) {
@@ -330,6 +347,38 @@ export default function JobDetails() {
 
     void loadJobSiteLynkConfig();
   }, [currentCompany?.id]);
+
+  useEffect(() => {
+    const loadSecurityCameraMappings = async () => {
+      if (!id) {
+        setHasSecurityCameraMappings(false);
+        return;
+      }
+
+      const companyId = job?.company_id || currentCompany?.id;
+      if (!companyId || isExternalView) {
+        setHasSecurityCameraMappings(false);
+        return;
+      }
+
+      try {
+        const { data, error } = await (supabase as any)
+          .from("job_security_camera_mappings")
+          .select("id")
+          .eq("company_id", companyId)
+          .eq("job_id", id)
+          .eq("is_active", true)
+          .limit(1);
+        if (error) throw error;
+        setHasSecurityCameraMappings((data || []).length > 0);
+      } catch (error) {
+        console.error("Error loading security camera mappings:", error);
+        setHasSecurityCameraMappings(false);
+      }
+    };
+
+    void loadSecurityCameraMappings();
+  }, [id, currentCompany?.id, job?.company_id, isExternalView]);
 
   useEffect(() => {
     if (!jobSiteLynkModalOpen || !jobSiteLynkLaunchUrl) return;
@@ -1005,6 +1054,13 @@ export default function JobDetails() {
               <Camera className="h-4 w-4 mr-2" />
               Photos
             </TabsTrigger>}
+            {showSecurityCamerasTab && <TabsTrigger
+              value="security-cameras"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <Camera className="h-4 w-4 mr-2" />
+              Security Cameras
+            </TabsTrigger>}
             {!isExternalView && <TabsTrigger 
               value="visitor-logs"
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
@@ -1328,6 +1384,14 @@ export default function JobDetails() {
               jobSiteLynkConfigured={!isExternalView && jobSiteLynkConfigured}
               jobSiteLynkProjectId={job?.jobsitelynk_project_id || null}
               onOpenJobSiteLynk={() => void openJobSiteLynk()}
+            />
+          </TabsContent>}
+
+          {showSecurityCamerasTab && <TabsContent value="security-cameras" className="p-6">
+            <JobSecurityCameras
+              companyId={job?.company_id || currentCompany?.id}
+              jobId={id!}
+              canManage={permissions.canEditJobs() && !isVendorView}
             />
           </TabsContent>}
         </Tabs>
