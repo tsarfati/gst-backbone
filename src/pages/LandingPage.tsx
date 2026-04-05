@@ -13,7 +13,6 @@ import heroVideo2Intro from '@/assets/hero-construction-2-intro.mp4';
 import heroVideo3 from '@/assets/hero-construction-3.mp4';
 import heroVideo4 from '@/assets/hero-construction-4.mp4';
 import heroVideo5 from '@/assets/hero-construction-5.mp4';
-import heroPoster from '@/assets/mockup-photos.png';
 import logoImage from '@/assets/builderlynk-logo-new.png';
 import logoTransparent from '@/assets/builderlynk-logo-new.png';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
@@ -304,10 +303,14 @@ export default function LandingPage() {
         {/* Video Background - crossfade between two video elements */}
         <div className="absolute inset-0 z-0">
           <div
-            className="absolute inset-0 bg-cover bg-center transition-opacity duration-700"
+            className="absolute inset-0 transition-opacity duration-700"
+            style={{ opacity: isHeroVideoReady ? 0 : 1 }}
+          />
+          <div
+            className="absolute inset-0"
             style={{
-              backgroundImage: `url(${heroPoster})`,
-              opacity: isHeroVideoReady ? 0 : 1,
+              background:
+                'radial-gradient(circle at 20% 20%, rgba(59,130,246,0.22), transparent 34%), radial-gradient(circle at 78% 18%, rgba(245,158,11,0.18), transparent 28%), linear-gradient(180deg, #0a1220 0%, #08111d 48%, #050b14 100%)',
             }}
           />
           {/* Video A */}
@@ -318,7 +321,6 @@ export default function LandingPage() {
             muted
             playsInline
             preload="auto"
-            poster={heroPoster}
             onLoadedData={() => setIsHeroVideoReady(true)}
             onEnded={showFirstVideo ? handleVideoEnded : undefined}
             className="absolute inset-0 w-full h-full object-cover transition-opacity duration-1000"
