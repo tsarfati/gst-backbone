@@ -20,6 +20,7 @@ import DragDropUpload from "@/components/DragDropUpload";
 import UnifiedViewSelector from "@/components/ui/unified-view-selector";
 import { useUnifiedViewPreference, type UnifiedViewType } from "@/hooks/useUnifiedViewPreference";
 import { uploadFileWithProgress } from "@/utils/storageUtils";
+import { indexPlanPagesOnce } from "@/utils/planIndexing";
 import builderlynkShieldIcon from "@/assets/builderlynk-icon-shield.png";
 
 interface JobPlansProps {
@@ -439,6 +440,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       let fileName = editingPlan?.file_name || "";
       let fileSize = editingPlan?.file_size || null;
       let savedPlan: JobPlan | null = null;
+      let shouldIndexPlanInBackground = false;
 
       if (selectedFile) {
         fileName = selectedFile.name;
@@ -530,6 +532,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
 
         if (insertError) throw insertError;
         savedPlan = newPlanPayload as JobPlan;
+        shouldIndexPlanInBackground = true;
         setPlans((prev) => sortPlansCollection([savedPlan!, ...prev.filter((plan) => plan.id !== newPlanId)]));
       }
 
@@ -588,6 +591,25 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
         toast.warning("Plan saved, but the filing cabinet copy failed");
       } else {
         toast.success(editingPlan ? "Plan updated successfully" : "Plan uploaded successfully");
+      }
+
+      if (shouldIndexPlanInBackground && savedPlan?.id && savedPlan.file_url) {
+        toast.message("Plan uploaded. Indexing pages in the background.");
+        window.setTimeout(() => {
+          void indexPlanPagesOnce({
+            planId: savedPlan!.id,
+            planUrl: savedPlan!.file_url,
+          })
+            .then((result) => {
+              if (!result.skipped && result.successCount > 0) {
+                toast.success(`Plan indexed - ${result.successCount}/${result.totalPages} pages ready`);
+              }
+            })
+            .catch((error) => {
+              console.error("Background plan indexing failed:", error);
+              toast.error("Plan uploaded, but page indexing failed. Re-analyze from plan settings if needed.");
+            });
+        }, 0);
       }
     } catch (error: any) {
       console.error("Error uploading plan:", error);
