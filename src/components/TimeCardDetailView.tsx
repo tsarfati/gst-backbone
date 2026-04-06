@@ -47,10 +47,13 @@ interface TimeCardDetail {
   
   distance_warning: boolean;
   distance_from_job_meters?: number;
+  low_location_confidence: boolean;
   requires_approval: boolean;
   created_via_punch_clock: boolean;
+  punch_in_accuracy_meters?: number | null;
   punch_in_location_lat?: number;
   punch_in_location_lng?: number;
+  punch_out_accuracy_meters?: number | null;
   punch_out_location_lat?: number;
   punch_out_location_lng?: number;
   punch_in_photo_url?: string;
@@ -1307,6 +1310,12 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                         <Badge variant={pendingChangeRequest ? 'secondary' : getStatusColor(timeCard.status)}>
                           {pendingChangeRequest ? 'Pending Approval' : (timeCard.status === 'approved-edited' ? 'Approved (Edited)' : timeCard.status)}
                         </Badge>
+                        {timeCard.low_location_confidence && (
+                          <Badge variant="secondary" className="flex items-center gap-1">
+                            <MapPin className="h-3 w-3" />
+                            Low GPS
+                          </Badge>
+                        )}
                         {isManager && timeCard.status === 'submitted' && !pendingChangeRequest && (
                           <Button 
                             onClick={handleApproveTimeCard}
@@ -1506,6 +1515,30 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
                             <span className="text-sm font-medium">{formatDistanceLabel(punchOutDistance, distanceUnit)}</span>
                           </div>
                         )}
+                      </div>
+                    )}
+
+                    {timeCard.low_location_confidence && (
+                      <div className="pt-2 space-y-2">
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-4 w-4 text-amber-500" />
+                          <p className="text-sm font-medium">Low GPS Confidence</p>
+                        </div>
+                        {timeCard.punch_in_accuracy_meters != null && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Punch In Accuracy:</span>
+                            <span className="text-sm font-medium">{formatDistanceLabel(timeCard.punch_in_accuracy_meters, distanceUnit)}</span>
+                          </div>
+                        )}
+                        {timeCard.punch_out_accuracy_meters != null && (
+                          <div className="flex justify-between">
+                            <span className="text-sm text-muted-foreground">Punch Out Accuracy:</span>
+                            <span className="text-sm font-medium">{formatDistanceLabel(timeCard.punch_out_accuracy_meters, distanceUnit)}</span>
+                          </div>
+                        )}
+                        <p className="text-xs text-muted-foreground">
+                          This time card was flagged because one or both GPS readings had weak location accuracy.
+                        </p>
                       </div>
                     )}
                   </div>

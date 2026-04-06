@@ -125,6 +125,16 @@ export default function TimecardReports() {
     return [...new Set([...filters.employees, ...usersFromGroups])];
   };
 
+  const getEffectiveJobFilter = () => {
+    if (isPrivileged) {
+      return filters.jobs.length > 0 ? [...filters.jobs] : jobs.map((job) => job.id);
+    }
+    if (filters.jobs.length > 0) {
+      return filters.jobs.filter((jobId) => allowedJobIds.includes(jobId));
+    }
+    return [...allowedJobIds];
+  };
+
   useEffect(() => {
     if (currentCompany?.id && !websiteJobAccessLoading) {
       loadInitialData();
@@ -394,17 +404,15 @@ export default function TimecardReports() {
         query = query.eq('user_id', user?.id);
       }
 
-      const allowedSelectedJobs = isPrivileged
-        ? filters.jobs
-        : filters.jobs.filter((jobId) => allowedJobIds.includes(jobId));
+      const effectiveJobFilter = getEffectiveJobFilter();
 
-      // Job filter is required - if no jobs selected, return empty results
-      if (allowedSelectedJobs.length === 0) {
+      // No effective jobs means the user has no job access in scope.
+      if (effectiveJobFilter.length === 0) {
         setRecords([]);
         setLoading(false);
         return;
       }
-      query = query.in('job_id', allowedSelectedJobs);
+      query = query.in('job_id', effectiveJobFilter);
 
       // Load punch clock settings - prioritize job-specific settings if filtering by a single job
       let settingsData = null;
@@ -652,15 +660,12 @@ export default function TimecardReports() {
         query = query.eq('user_id', user?.id);
       }
 
-      const allowedSelectedJobs = isPrivileged
-        ? filters.jobs
-        : filters.jobs.filter((jobId) => allowedJobIds.includes(jobId));
+      const effectiveJobFilter = getEffectiveJobFilter();
 
-      // Apply job filters - required for filtering
-      if (allowedSelectedJobs.length === 0) {
-        return false; // No jobs selected means no records to check
+      if (effectiveJobFilter.length === 0) {
+        return false;
       }
-      query = query.in('job_id', allowedSelectedJobs);
+      query = query.in('job_id', effectiveJobFilter);
 
       const { data, error } = await query;
       if (error) throw error;
@@ -689,16 +694,13 @@ export default function TimecardReports() {
       } else if (!isManager) {
         query = query.eq('user_id', user?.id);
       }
-      const allowedSelectedJobs = isPrivileged
-        ? filters.jobs
-        : filters.jobs.filter((jobId) => allowedJobIds.includes(jobId));
+      const effectiveJobFilter = getEffectiveJobFilter();
 
-      // Job filter is required - if no jobs selected, return empty results
-      if (allowedSelectedJobs.length === 0) {
+      if (effectiveJobFilter.length === 0) {
         setPunches([]);
         return;
       }
-      query = query.in('job_id', allowedSelectedJobs);
+      query = query.in('job_id', effectiveJobFilter);
       // Normalize date range to full days in UTC
       const startISO = filters.startDate ? new Date(Date.UTC(
         filters.startDate.getFullYear(),
@@ -744,7 +746,7 @@ export default function TimecardReports() {
         if (fallbackEmployeeFilter.length > 0) {
           q2 = q2.in('user_id', fallbackEmployeeFilter);
         }
-        if (allowedSelectedJobs.length > 0) q2 = q2.in('job_id', allowedSelectedJobs);
+        if (effectiveJobFilter.length > 0) q2 = q2.in('job_id', effectiveJobFilter);
         const { data: d2 } = await q2;
         punchData = d2 || [];
       }

@@ -23,8 +23,16 @@ export function useWebsiteJobAccess() {
 
   const isPrivilegedRole = useMemo(() => {
     const role = (activeCompanyRole || "").toLowerCase();
-    return role === "admin" || role === "company_admin" || role === "controller" || role === "owner";
-  }, [activeCompanyRole]);
+    const profileRole = String(profile?.role || "").toLowerCase();
+    return (
+      role === "admin" ||
+      role === "company_admin" ||
+      role === "controller" ||
+      role === "owner" ||
+      role === "super_admin" ||
+      profileRole === "super_admin"
+    );
+  }, [activeCompanyRole, profile?.role]);
   const isPrivileged = isPrivilegedRole && !isExternalSharedUser;
 
   useEffect(() => {

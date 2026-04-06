@@ -3,7 +3,7 @@ export const canAccessJobIds = (
   isPrivileged: boolean,
   allowedJobIds: string[],
 ): boolean => {
-  void isPrivileged;
+  if (isPrivileged) return true;
   const normalized = jobIds.filter((id): id is string => !!id);
   if (normalized.length === 0) return true;
   return normalized.every((id) => allowedJobIds.includes(id));
@@ -15,7 +15,7 @@ export const canAccessAssignedJobOnly = (
   isPrivileged: boolean,
   allowedJobIds: string[],
 ): boolean => {
-  void isPrivileged;
+  if (isPrivileged) return true;
   const normalized = jobIds.filter((id): id is string => !!id);
   if (normalized.length === 0) return false;
   return normalized.every((id) => allowedJobIds.includes(id));
@@ -26,7 +26,7 @@ export const ensureAllowedJobFilter = (
   isPrivileged: boolean,
   allowedJobIds: string[],
 ): string | null => {
-  void isPrivileged;
+  if (isPrivileged) return selectedJobId || null;
   if (!selectedJobId) return null;
   return allowedJobIds.includes(selectedJobId) ? selectedJobId : null;
 };

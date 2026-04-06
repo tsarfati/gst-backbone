@@ -2,7 +2,7 @@
 // Enables PIN-authenticated punch clock operations without a Supabase auth session
 // Endpoints:
 // - GET /init?pin=XXXXXX -> returns { jobs, cost_codes, current_punch }
-// - POST /punch { pin, action: 'in'|'out', job_id?, cost_code_id?, latitude?, longitude?, photo_url? }
+// - POST /punch { pin, action: 'in'|'out', job_id?, cost_code_id?, latitude?, longitude?, accuracy_meters?, photo_url? }
 //   -> performs punch in/out and returns { ok: true }
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
@@ -74,6 +74,22 @@ function isMissingColumnError(err: any, columnName: string) {
 function asFiniteNumber(value: any): number | null {
   const n = Number(value);
   return Number.isFinite(n) ? n : null;
+}
+
+function clampLocationAccuracy(value: any): number | null {
+  const n = asFiniteNumber(value);
+  if (n == null || n < 0) return null;
+  return Math.round(n * 100) / 100;
+}
+
+function getEffectiveDistanceFromJob(params: {
+  rawDistanceMeters: number;
+  accuracyMeters: number | null;
+}) {
+  const accuracy = params.accuracyMeters ?? 0;
+  // Treat the reported position as an uncertainty circle. This reduces
+  // false-positive "far away" results when the device itself reports a poor fix.
+  return Math.max(0, params.rawDistanceMeters - accuracy);
 }
 
 async function insertPunchAttemptAudit(supabaseAdmin: any, row: Record<string, unknown>) {
@@ -245,12 +261,14 @@ async function enforcePunchDistanceIfRequired(
     job_id: string | null;
     latitude?: number | null;
     longitude?: number | null;
+    accuracy_meters?: number | null;
     is_pin_employee?: boolean;
   }
 ) {
   const attemptedAction = params.action === "in" ? "punch_in" : "punch_out";
   const requestLat = asFiniteNumber(params.latitude);
   const requestLng = asFiniteNumber(params.longitude);
+  const requestAccuracyMeters = clampLocationAccuracy(params.accuracy_meters);
   const isPinEmployee = params.is_pin_employee === true;
 
   const employeeSettingsResult = await loadEmployeeGeofenceSettings(supabaseAdmin, {
@@ -263,6 +281,20 @@ async function enforcePunchDistanceIfRequired(
   const strictLimit = [10, 50, 100, 300].includes(Number(employeeSettings?.punch_in_distance_limit_meters))
     ? Number(employeeSettings?.punch_in_distance_limit_meters)
     : null;
+
+  const { data: companyPunchSettings } = params.company_id
+    ? await supabaseAdmin
+        .from("punch_clock_settings")
+        .select("location_accuracy_meters")
+        .eq("company_id", params.company_id)
+        .maybeSingle()
+    : { data: null };
+
+  const minReliableAccuracyMeters = [25, 50, 75, 100, 150, 200].includes(
+    Number(companyPunchSettings?.location_accuracy_meters)
+  )
+    ? Number(companyPunchSettings?.location_accuracy_meters)
+    : 100;
 
   if (!strictEnabled) {
     // Company-level warning-only fallback (non-blocking)
@@ -338,14 +370,64 @@ async function enforcePunchDistanceIfRequired(
     }
 
     const distance = haversineMeters(requestLat, requestLng, jobLat, jobLng);
-    if (distance > warningLimit) {
+    const effectiveDistance = getEffectiveDistanceFromJob({
+      rawDistanceMeters: distance,
+      accuracyMeters: requestAccuracyMeters,
+    });
+
+    if (requestAccuracyMeters != null && requestAccuracyMeters > minReliableAccuracyMeters) {
+      const warningPayload = {
+        warning_code: "LOW_LOCATION_CONFIDENCE_SUPERVISOR_APPROVAL_REQUIRED",
+        warning_reason: "low_location_confidence",
+        requires_supervisor_approval: true,
+        action: attemptedAction,
+        location_accuracy_meters: requestAccuracyMeters,
+        distance_from_job_meters: Math.round(distance),
+        effective_distance_from_job_meters: Math.round(effectiveDistance),
+        accuracy_threshold_meters: minReliableAccuracyMeters,
+        message:
+          params.action === "in"
+            ? "Your GPS signal is weak. This punch will need supervisor approval."
+            : "Your GPS signal is weak. This punch out will need supervisor approval.",
+      };
+
+      await insertPunchAttemptAudit(supabaseAdmin, {
+        app_source: "punch_clock",
+        attempted_action: attemptedAction,
+        outcome: "allowed",
+        block_reason: null,
+        company_id: params.company_id,
+        user_id: params.user_id,
+        pin_employee_id: params.pin_employee_id ?? null,
+        is_pin_employee: isPinEmployee,
+        job_id: params.job_id,
+        distance_from_job_meters: Math.round(distance),
+        distance_limit_meters: warningLimit,
+        device_latitude: requestLat,
+        device_longitude: requestLng,
+        job_latitude: jobLat,
+        job_longitude: jobLng,
+        details: {
+          warning_reason: "low_location_confidence",
+          location_accuracy_meters: requestAccuracyMeters,
+          accuracy_threshold_meters: minReliableAccuracyMeters,
+          effective_distance_from_job_meters: Math.round(effectiveDistance),
+        },
+      });
+
+      return { blockedResponse: null, warning: warningPayload };
+    }
+
+    if (effectiveDistance > warningLimit) {
       const warningPayload = {
         warning_code: "OUTSIDE_JOBSITE_SUPERVISOR_APPROVAL_REQUIRED",
         warning_reason: "outside_jobsite_warning",
         requires_supervisor_approval: true,
         action: attemptedAction,
         distance_from_job_meters: Math.round(distance),
+        effective_distance_from_job_meters: Math.round(effectiveDistance),
         distance_limit_meters: warningLimit,
+        location_accuracy_meters: requestAccuracyMeters,
         message:
           params.action === "in"
             ? "You are not at the job site. This punch will need to be approved by a supervisor. Please talk to your supervisor."
@@ -368,7 +450,11 @@ async function enforcePunchDistanceIfRequired(
         device_longitude: requestLng,
         job_latitude: jobLat,
         job_longitude: jobLng,
-        details: { warning_reason: "outside_jobsite_warning" },
+        details: {
+          warning_reason: "outside_jobsite_warning",
+          location_accuracy_meters: requestAccuracyMeters,
+          effective_distance_from_job_meters: Math.round(effectiveDistance),
+        },
       });
 
       return { blockedResponse: null, warning: warningPayload };
@@ -469,7 +555,50 @@ async function enforcePunchDistanceIfRequired(
 
   const effectiveLimit = strictLimit ?? 50;
   const distance = haversineMeters(requestLat, requestLng, jobLat, jobLng);
-  if (distance > effectiveLimit) {
+  const effectiveDistance = getEffectiveDistanceFromJob({
+    rawDistanceMeters: distance,
+    accuracyMeters: requestAccuracyMeters,
+  });
+
+  if (requestAccuracyMeters != null && requestAccuracyMeters > minReliableAccuracyMeters) {
+    const resp = geofenceBlockResponse({
+      code: "LOCATION_REQUIRED",
+      message:
+        params.action === "in"
+          ? "GPS signal is too weak to verify you are at the job site. Move closer, wait for a better signal, and try again."
+          : "GPS signal is too weak to verify you are at the job site. Move closer, wait for a better signal, and try again.",
+      action: attemptedAction,
+      block_reason: "location_unavailable",
+      distance_from_job_meters: Math.round(distance),
+      distance_limit_meters: effectiveLimit,
+    });
+    await insertPunchAttemptAudit(supabaseAdmin, {
+      app_source: "punch_clock",
+      attempted_action: attemptedAction,
+      outcome: "blocked",
+      block_reason: "location_unavailable",
+      company_id: params.company_id,
+      user_id: params.user_id,
+      pin_employee_id: params.pin_employee_id ?? null,
+      is_pin_employee: isPinEmployee,
+      job_id: params.job_id,
+      distance_from_job_meters: Math.round(distance),
+      distance_limit_meters: effectiveLimit,
+      device_latitude: requestLat,
+      device_longitude: requestLng,
+      job_latitude: jobLat,
+      job_longitude: jobLng,
+      details: {
+        reason: "low_location_confidence",
+        location_accuracy_meters: requestAccuracyMeters,
+        accuracy_threshold_meters: minReliableAccuracyMeters,
+        effective_distance_from_job_meters: Math.round(effectiveDistance),
+      },
+    });
+    return { blockedResponse: resp, warning: null };
+  }
+
+  if (effectiveDistance > effectiveLimit) {
     const roundedDistance = Math.round(distance);
     const resp = geofenceBlockResponse({
       code: "OUT_OF_GEOFENCE_RANGE",
@@ -498,6 +627,10 @@ async function enforcePunchDistanceIfRequired(
       device_longitude: requestLng,
       job_latitude: jobLat,
       job_longitude: jobLng,
+      details: {
+        location_accuracy_meters: requestAccuracyMeters,
+        effective_distance_from_job_meters: Math.round(effectiveDistance),
+      },
     });
     return { blockedResponse: resp, warning: null };
   }
@@ -506,6 +639,7 @@ async function enforcePunchDistanceIfRequired(
     blockedResponse: null,
     warning: null,
     geofenceDistanceMeters: Math.round(distance),
+    effectiveDistanceFromJobMeters: Math.round(effectiveDistance),
     geofenceLimitMeters: effectiveLimit,
   };
 }
@@ -1065,7 +1199,21 @@ serve(async (req) => {
         return errorResponse((e as Error).message || 'Upload failed', 500);
       }
     } else if (req.method === "POST" && url.pathname.endsWith("/punch")) {
-      let { pin, action, job_id, cost_code_id, latitude, longitude, photo_url, image, timezone_offset_minutes } = body || {};
+      let {
+        pin,
+        action,
+        job_id,
+        cost_code_id,
+        latitude,
+        longitude,
+        accuracy_meters,
+        location_accuracy_meters,
+        photo_url,
+        image,
+        timezone_offset_minutes
+      } = body || {};
+      const requestAccuracyMeters =
+        clampLocationAccuracy(accuracy_meters) ?? clampLocationAccuracy(location_accuracy_meters);
       if (typeof cost_code_id === 'string' && cost_code_id.trim() === '') {
         cost_code_id = null;
       }
@@ -1161,7 +1309,7 @@ serve(async (req) => {
 
         const { data: companySettings, error: companySettingsErr } = await supabaseAdmin
           .from("punch_clock_settings")
-          .select("require_photo, require_location, company_id")
+          .select("require_photo, require_location, company_id, location_accuracy_meters")
           .limit(1)
           .maybeSingle();
 
@@ -1172,7 +1320,7 @@ serve(async (req) => {
         const locationRequired = jobSettings?.require_location ?? companySettings?.require_location ?? false;
 
         let locationWarning: string | null = null;
-        if (locationRequired && (!latitude || !longitude)) {
+        if (locationRequired && (asFiniteNumber(latitude) == null || asFiniteNumber(longitude) == null)) {
           console.log("Location required but missing; proceeding for punch in");
           locationWarning = "Location missing (required by settings)";
         }
@@ -1186,6 +1334,7 @@ serve(async (req) => {
           job_id,
           latitude,
           longitude,
+          accuracy_meters: requestAccuracyMeters,
           is_pin_employee: false,
         });
         if (geofenceResultIn.blockedResponse) return geofenceResultIn.blockedResponse;
@@ -1264,6 +1413,7 @@ serve(async (req) => {
           punch_time: actualPunchTime,
           latitude,
           longitude,
+          accuracy_meters: requestAccuracyMeters,
           photo_url,
           user_agent: userAgent,
           ip_address: ipAddress,
@@ -1279,6 +1429,7 @@ serve(async (req) => {
             punch_in_time: actualPunchTime,
             punch_in_location_lat: latitude,
             punch_in_location_lng: longitude,
+            punch_in_accuracy_meters: requestAccuracyMeters,
             punch_in_photo_url: photo_url,
             is_active: true,
           }, { onConflict: 'user_id' });
@@ -1303,9 +1454,13 @@ serve(async (req) => {
           ok: true,
           current_punch: updatedPunch,
           warning: [earlyPunchWarning, locationWarning].filter(Boolean).join(' | ') || null,
+          ...(requestAccuracyMeters != null ? { location_accuracy_meters: requestAccuracyMeters } : {}),
           ...(geofenceResultIn.warning ? { geofence_warning: geofenceResultIn.warning } : {}),
           ...(geofenceResultIn.geofenceDistanceMeters != null
             ? { distance_from_job_meters: geofenceResultIn.geofenceDistanceMeters }
+            : {}),
+          ...(geofenceResultIn.effectiveDistanceFromJobMeters != null
+            ? { effective_distance_from_job_meters: geofenceResultIn.effectiveDistanceFromJobMeters }
             : {}),
         });
       }
@@ -1340,7 +1495,7 @@ serve(async (req) => {
 
         const { data: companySettings, error: companySettingsErr } = await supabaseAdmin
           .from("punch_clock_settings")
-          .select("require_photo, require_location, company_id")
+          .select("require_photo, require_location, company_id, location_accuracy_meters")
           .limit(1)
           .maybeSingle();
 
@@ -1457,7 +1612,7 @@ serve(async (req) => {
         }
 
         let locationWarningOut: string | null = null;
-        if (locationRequired && (!latitude || !longitude)) {
+        if (locationRequired && (asFiniteNumber(latitude) == null || asFiniteNumber(longitude) == null)) {
           locationWarningOut = "Location missing (required by settings)";
         }
 
@@ -1470,6 +1625,7 @@ serve(async (req) => {
           job_id: currentPunch.job_id ?? null,
           latitude,
           longitude,
+          accuracy_meters: requestAccuracyMeters,
           is_pin_employee: false,
         });
         if (geofenceResultOut.blockedResponse) return geofenceResultOut.blockedResponse;
@@ -1486,6 +1642,7 @@ serve(async (req) => {
           punch_time: now,
           latitude,
           longitude,
+          accuracy_meters: requestAccuracyMeters,
           photo_url,
           user_agent: userAgent,
           ip_address: ipAddress,
@@ -1603,8 +1760,15 @@ serve(async (req) => {
 
           const punchInLat = currentPunch.punch_in_location_lat ?? null;
           const punchInLng = currentPunch.punch_in_location_lng ?? null;
+          const punchInAccuracyMeters = clampLocationAccuracy(currentPunch.punch_in_accuracy_meters ?? null);
           const punchOutLat = latitude ?? null;
           const punchOutLng = longitude ?? null;
+          const punchOutAccuracyMeters = requestAccuracyMeters;
+          const accuracyThresholdMeters = [25, 50, 75, 100, 150, 200].includes(
+            Number(companySettings?.location_accuracy_meters)
+          )
+            ? Number(companySettings?.location_accuracy_meters)
+            : 100;
           
           const distanceMeters = calculateDistanceMeters(punchInLat, punchInLng, punchOutLat, punchOutLng);
           const LOCATION_THRESHOLD_METERS = 500;
@@ -1612,13 +1776,19 @@ serve(async (req) => {
           
           const shouldFlagHours = (flagOver24 && totalHours > 24) || (flagOver12 && totalHours > 12);
           const geofenceWarningTriggered = geofenceResultOut.warning?.warning_reason === 'outside_jobsite_warning';
-          const shouldFlag = shouldFlagHours || locationsDiffer || geofenceWarningTriggered;
+          const lowLocationConfidenceTriggered =
+            geofenceResultOut.warning?.warning_reason === 'low_location_confidence' ||
+            (punchInAccuracyMeters != null && punchInAccuracyMeters > accuracyThresholdMeters) ||
+            (punchOutAccuracyMeters != null && punchOutAccuracyMeters > accuracyThresholdMeters);
+          const shouldFlag = shouldFlagHours || locationsDiffer || geofenceWarningTriggered || lowLocationConfidenceTriggered;
           const timecardStatus = shouldFlag ? 'pending' : 'approved';
           
           const flagReason = locationsDiffer 
             ? `Punch-out location differs from punch-in (${distanceMeters?.toFixed(0)}m apart)`
             : shouldFlagHours 
               ? `Time card exceeds ${totalHours > 24 ? '24' : '12'} hours`
+              : lowLocationConfidenceTriggered
+                ? `Low GPS confidence (in: ${punchInAccuracyMeters ?? 'n/a'}m, out: ${punchOutAccuracyMeters ?? 'n/a'}m)`
               : geofenceWarningTriggered
                 ? `Punched outside jobsite warning distance (${geofenceResultOut.warning?.distance_from_job_meters}m > ${geofenceResultOut.warning?.distance_limit_meters}m)`
                 : null;
@@ -1637,15 +1807,18 @@ serve(async (req) => {
               break_minutes: breakMinutes,
               punch_in_location_lat: punchInLat,
               punch_in_location_lng: punchInLng,
+              punch_in_accuracy_meters: punchInAccuracyMeters,
               punch_out_location_lat: punchOutLat,
               punch_out_location_lng: punchOutLng,
+              punch_out_accuracy_meters: punchOutAccuracyMeters,
               punch_in_photo_url: currentPunch.punch_in_photo_url ?? null,
               punch_out_photo_url: photo_url ?? null,
               notes: locationsDiffer ? (body?.notes ? `${body.notes} | ${flagReason}` : flagReason) : (body?.notes ?? null),
               status: timecardStatus,
               created_via_punch_clock: true,
               requires_approval: shouldFlag,
-              distance_warning: locationsDiffer
+              distance_warning: locationsDiffer,
+              low_location_confidence: lowLocationConfidenceTriggered,
             });
 
           if (tcErr) {
@@ -1659,9 +1832,13 @@ serve(async (req) => {
           ok: true,
           current_punch: null,
           warning: locationWarningOut,
+          ...(requestAccuracyMeters != null ? { location_accuracy_meters: requestAccuracyMeters } : {}),
           ...(geofenceResultOut.warning ? { geofence_warning: geofenceResultOut.warning } : {}),
           ...(geofenceResultOut.geofenceDistanceMeters != null
             ? { distance_from_job_meters: geofenceResultOut.geofenceDistanceMeters }
+            : {}),
+          ...(geofenceResultOut.effectiveDistanceFromJobMeters != null
+            ? { effective_distance_from_job_meters: geofenceResultOut.effectiveDistanceFromJobMeters }
             : {}),
         });
       }

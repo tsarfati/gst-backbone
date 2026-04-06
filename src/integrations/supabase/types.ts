@@ -2931,6 +2931,7 @@ export type Database = {
           id: string
           is_active: boolean
           job_id: string | null
+          punch_in_accuracy_meters: number | null
           punch_in_location_lat: number | null
           punch_in_location_lng: number | null
           punch_in_photo_url: string | null
@@ -2944,6 +2945,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_id?: string | null
+          punch_in_accuracy_meters?: number | null
           punch_in_location_lat?: number | null
           punch_in_location_lng?: number | null
           punch_in_photo_url?: string | null
@@ -2957,6 +2959,7 @@ export type Database = {
           id?: string
           is_active?: boolean
           job_id?: string | null
+          punch_in_accuracy_meters?: number | null
           punch_in_location_lat?: number | null
           punch_in_location_lng?: number | null
           punch_in_photo_url?: string | null
@@ -7674,6 +7677,7 @@ export type Database = {
       }
       punch_records: {
         Row: {
+          accuracy_meters: number | null
           company_id: string
           cost_code_id: string | null
           created_at: string
@@ -7691,6 +7695,7 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          accuracy_meters?: number | null
           company_id: string
           cost_code_id?: string | null
           created_at?: string
@@ -7708,6 +7713,7 @@ export type Database = {
           user_id: string
         }
         Update: {
+          accuracy_meters?: number | null
           company_id?: string
           cost_code_id?: string | null
           created_at?: string
@@ -9859,13 +9865,16 @@ export type Database = {
           id: string
           is_correction: boolean | null
           job_id: string | null
+          low_location_confidence: boolean
           notes: string | null
           original_time_card_id: string | null
           overtime_hours: number | null
+          punch_in_accuracy_meters: number | null
           punch_in_location_lat: number | null
           punch_in_location_lng: number | null
           punch_in_photo_url: string | null
           punch_in_time: string
+          punch_out_accuracy_meters: number | null
           punch_out_location_lat: number | null
           punch_out_location_lng: number | null
           punch_out_photo_url: string | null
@@ -9894,13 +9903,16 @@ export type Database = {
           id?: string
           is_correction?: boolean | null
           job_id?: string | null
+          low_location_confidence?: boolean
           notes?: string | null
           original_time_card_id?: string | null
           overtime_hours?: number | null
+          punch_in_accuracy_meters?: number | null
           punch_in_location_lat?: number | null
           punch_in_location_lng?: number | null
           punch_in_photo_url?: string | null
           punch_in_time: string
+          punch_out_accuracy_meters?: number | null
           punch_out_location_lat?: number | null
           punch_out_location_lng?: number | null
           punch_out_photo_url?: string | null
@@ -9929,13 +9941,16 @@ export type Database = {
           id?: string
           is_correction?: boolean | null
           job_id?: string | null
+          low_location_confidence?: boolean
           notes?: string | null
           original_time_card_id?: string | null
           overtime_hours?: number | null
+          punch_in_accuracy_meters?: number | null
           punch_in_location_lat?: number | null
           punch_in_location_lng?: number | null
           punch_in_photo_url?: string | null
           punch_in_time?: string
+          punch_out_accuracy_meters?: number | null
           punch_out_location_lat?: number | null
           punch_out_location_lng?: number | null
           punch_out_photo_url?: string | null

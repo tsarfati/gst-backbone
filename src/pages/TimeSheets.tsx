@@ -33,9 +33,12 @@ interface TimeCard {
   notes?: string;
   requires_approval?: boolean;
   distance_warning?: boolean;
+  low_location_confidence?: boolean;
   created_via_punch_clock?: boolean;
   punch_in_photo_url?: string | null;
   punch_out_photo_url?: string | null;
+  punch_in_accuracy_meters?: number | null;
+  punch_out_accuracy_meters?: number | null;
   punch_in_location_lat?: number | null;
   punch_in_location_lng?: number | null;
   punch_out_location_lat?: number | null;
@@ -64,10 +67,13 @@ type SupabaseTimeCard = {
   notes?: string | null;
   punch_in_photo_url?: string | null;
   punch_out_photo_url?: string | null;
+  punch_in_accuracy_meters?: number | null;
+  punch_out_accuracy_meters?: number | null;
   punch_in_location_lat?: number | null;
   punch_in_location_lng?: number | null;
   punch_out_location_lat?: number | null;
   punch_out_location_lng?: number | null;
+  low_location_confidence?: boolean | null;
   jobs?: { name: string } | null;
   cost_codes?: { code: string; description: string } | null;
   profiles?: { first_name: string; last_name: string; display_name: string } | null;
@@ -209,8 +215,11 @@ export default function TimeSheets() {
           status,
           break_minutes,
           notes,
+          low_location_confidence,
           punch_in_photo_url,
           punch_out_photo_url,
+          punch_in_accuracy_meters,
+          punch_out_accuracy_meters,
           punch_in_location_lat,
           punch_in_location_lng,
           punch_out_location_lat,
@@ -528,6 +537,19 @@ export default function TimeSheets() {
     return 'Unknown Employee';
   };
 
+  const isLowLocationConfidence = (timeCard: TimeCard) => timeCard.low_location_confidence === true;
+
+  const timeCardNeedsApproval = (timeCard: TimeCard) => {
+    const hasPendingChangeRequest = pendingChangeRequestTimeCardIds.includes(timeCard.id);
+    const approvalPendingStatus = timeCard.status === 'submitted' || timeCard.status === 'pending';
+    const explicitlyRequiresApproval = timeCard.requires_approval !== false;
+
+    if (hasPendingChangeRequest) return true;
+    if (!approvalPendingStatus) return false;
+    if (timeCard.status === 'pending') return true;
+    return explicitlyRequiresApproval;
+  };
+
   const handleSort = (field: SortField) => {
     if (sortField === field) {
       setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc');
@@ -545,12 +567,7 @@ export default function TimeSheets() {
       if (statusFilter === 'pending') {
         filtered = filtered.filter(tc => tc.status === 'submitted' || tc.status === 'draft');
       } else if (statusFilter === 'pending_approval') {
-        // Show time cards with pending change requests that are not already approved
-        filtered = filtered.filter(tc => 
-          pendingChangeRequestTimeCardIds.includes(tc.id) &&
-          tc.status !== 'approved' &&
-          tc.status !== 'approved-edited'
-        );
+        filtered = filtered.filter(tc => timeCardNeedsApproval(tc));
       } else {
         filtered = filtered.filter(tc => tc.status === statusFilter);
       }
@@ -726,11 +743,7 @@ export default function TimeSheets() {
     ? totalHoursFiltered / uniqueDaysInFiltered.size
     : 0;
 
-  const pendingCards = filteredTimeCards.filter(tc =>
-    pendingChangeRequestTimeCardIds.includes(tc.id) &&
-    tc.status !== 'approved' &&
-    tc.status !== 'approved-edited'
-  ).length;
+  const pendingCards = filteredTimeCards.filter(tc => timeCardNeedsApproval(tc)).length;
 
   if (loading) {
     return (
@@ -979,6 +992,12 @@ export default function TimeSheets() {
                                   <AlertTriangle className="h-3 w-3" />
                                 </Badge>
                               )}
+                              {isLowLocationConfidence(timeCard) && (
+                                <Badge variant="secondary" className="flex items-center gap-1">
+                                  <MapPin className="h-3 w-3" />
+                                  Low GPS
+                                </Badge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell className="border-y border-transparent group-hover:border-primary">
@@ -1037,6 +1056,12 @@ export default function TimeSheets() {
                                <Badge variant="destructive" className="flex items-center gap-1 text-xs">
                                  <AlertTriangle className="h-3 w-3" />
                                  Distance
+                               </Badge>
+                             )}
+                             {isLowLocationConfidence(timeCard) && (
+                               <Badge variant="secondary" className="flex items-center gap-1 text-xs">
+                                 <MapPin className="h-3 w-3" />
+                                 Low GPS
                                </Badge>
                              )}
                              {!timeCard.requires_approval && timeCard.created_via_punch_clock && (
@@ -1224,6 +1249,12 @@ export default function TimeSheets() {
                            {timeCard.distance_warning && (
                              <Badge variant="destructive" className="flex items-center gap-1 text-xs">
                                <AlertTriangle className="h-3 w-3" />
+                             </Badge>
+                           )}
+                           {isLowLocationConfidence(timeCard) && (
+                             <Badge variant="secondary" className="flex items-center gap-1 text-xs">
+                               <MapPin className="h-3 w-3" />
+                               Low GPS
                              </Badge>
                            )}
                          </div>

@@ -70,7 +70,12 @@ export default function ManualPunchOut() {
   const [selectedCostCodeId, setSelectedCostCodeId] = useState<string>('');
   const [loadingCostCodes, setLoadingCostCodes] = useState(false);
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  const normalizedRole = String(profile?.role || '').toLowerCase();
+  const isManager =
+    normalizedRole === 'admin' ||
+    normalizedRole === 'controller' ||
+    normalizedRole === 'project_manager' ||
+    normalizedRole === 'super_admin';
 
   useEffect(() => {
     if (websiteJobAccessLoading) return;
