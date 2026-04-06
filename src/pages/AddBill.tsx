@@ -1572,26 +1572,6 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     (commitmentDistribution.length === 1);
   const hasValidNonCommitmentDistribution = isDistributionValid();
 
-  // Debug form validation
-  console.log('Form validation debug:', {
-    billType,
-    vendor_id: formData.vendor_id,
-    job_id: formData.job_id,
-    expense_account_id: formData.expense_account_id,
-    amount: formData.amount,
-    issueDate: formData.issueDate,
-    attachmentRequired,
-    billFiles_length: billFiles.length,
-    attachedReceipt: !!attachedReceipt,
-    use_terms: formData.use_terms,
-    payment_terms: formData.payment_terms,
-    dueDate: formData.dueDate,
-    cost_code_id: formData.cost_code_id,
-    needsDistribution,
-    billDistribution_length: billDistribution.length,
-    commitmentDistribution_length: commitmentDistribution.length
-  });
-
   const isFormValid = billType === "commitment"
     ? Boolean(
         formData.vendor_id &&
@@ -1610,8 +1590,6 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
         hasValidPaymentTiming &&
         hasValidNonCommitmentDistribution
       );
-
-  console.log('isFormValid:', isFormValid);
 
   if (loading) {
     return <div className="p-4 md:p-6 text-center"><span className="loading-dots">Loading</span></div>;

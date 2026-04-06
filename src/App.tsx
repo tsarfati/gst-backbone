@@ -146,6 +146,7 @@ import SubcontractSummaryReport from "./pages/reports/SubcontractSummaryReport";
 import SubcontractDetailsByVendor from "./pages/reports/SubcontractDetailsByVendor";
 import ProjectCostBudgetStatus from "./pages/reports/ProjectCostBudgetStatus";
 import CommittedCostDetails from "./pages/reports/CommittedCostDetails";
+import APAgingByJobReport from "./pages/reports/APAgingByJobReport";
 
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
@@ -475,6 +476,26 @@ function AuthenticatedRoutes() {
                   <DesignProfessionalJobs />
                 </RoleGuard>
               } />
+              <Route path="design-professional/tasks" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <AllTasks />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/messages" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <AllMessages />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/team-chat" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <TeamChat />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/announcements" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <Announcements />
+                </RoleGuard>
+              } />
               <Route path="design-professional/jobs/:id" element={
                 <RoleGuard allowedRoles={['design_professional']}>
                   <JobDetails />
@@ -537,6 +558,7 @@ function AuthenticatedRoutes() {
                 <Route path="construction/reports/subcontract-summary" element={<SubcontractSummaryReport />} />
                 <Route path="construction/reports/subcontract-details" element={<SubcontractDetailsByVendor />} />
                 <Route path="construction/reports/budget-status" element={<ProjectCostBudgetStatus />} />
+                <Route path="construction/reports/ap-aging-by-job" element={<APAgingByJobReport />} />
               </Route>
               <Route path="construction/rfps" element={<RFPs />} />
               <Route path="construction/submittals" element={<ConstructionSubmittals />} />

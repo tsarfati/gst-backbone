@@ -29,6 +29,25 @@ const isMissingRelationError = (error: unknown, relationName: string): boolean =
   );
 };
 
+const formatDisplayName = (profile: any, fallbackEmail: string, invite: any): string => {
+  const profileName = String(profile?.display_name || "").trim();
+  if (profileName) return profileName;
+
+  const fullName = [profile?.first_name, profile?.last_name]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" ");
+  if (fullName) return fullName;
+
+  const inviteName = [invite?.firstName, invite?.lastName]
+    .map((value) => String(value || "").trim())
+    .filter(Boolean)
+    .join(" ");
+  if (inviteName) return inviteName;
+
+  return fallbackEmail || "Design Professional";
+};
+
 serve(async (req: Request) => {
   if (req.method === "OPTIONS") {
     return new Response("ok", { headers: corsHeaders });
@@ -153,6 +172,7 @@ serve(async (req: Request) => {
     }
 
     const grantedBy = String(matchingInvite?.invitedBy || authData.user.id);
+    const normalizedEmail = String(authData.user.email || matchingInvite?.email || "").trim().toLowerCase();
 
     const { data: existingCompanyAccess, error: existingCompanyAccessError } = await admin
       .from("user_company_access")
@@ -205,6 +225,86 @@ serve(async (req: Request) => {
       if (insertJobAccessError) throw insertJobAccessError;
     }
 
+    const { data: profileRow, error: profileError } = await admin
+      .from("profiles")
+      .select("first_name, last_name, display_name, phone, current_company_id")
+      .eq("user_id", authData.user.id)
+      .maybeSingle();
+    if (profileError) throw profileError;
+
+    let designCompanyName: string | null = null;
+    if (profileRow?.current_company_id) {
+      const { data: designCompanyRow, error: designCompanyError } = await admin
+        .from("companies")
+        .select("name, display_name")
+        .eq("id", profileRow.current_company_id)
+        .maybeSingle();
+      if (designCompanyError) throw designCompanyError;
+      designCompanyName = String(designCompanyRow?.display_name || designCompanyRow?.name || "").trim() || null;
+    }
+
+    const memberName = formatDisplayName(profileRow, normalizedEmail, matchingInvite);
+    const memberPayload = {
+      name: memberName,
+      email: normalizedEmail || null,
+      phone: profileRow?.phone || null,
+      company_name: designCompanyName,
+      linked_user_id: authData.user.id,
+      is_project_team_member: true,
+      project_role_id: matchingInvite?.projectRoleId || null,
+      is_primary_contact: false,
+      created_by: grantedBy,
+    };
+
+    const { data: existingLinkedDirectoryRow, error: existingLinkedDirectoryError } = await admin
+      .from("job_project_directory")
+      .select("id")
+      .eq("job_id", jobId)
+      .eq("company_id", companyId)
+      .eq("linked_user_id", authData.user.id)
+      .eq("is_active", true)
+      .maybeSingle();
+    if (existingLinkedDirectoryError) throw existingLinkedDirectoryError;
+
+    if (existingLinkedDirectoryRow?.id) {
+      const { error: updateDirectoryError } = await admin
+        .from("job_project_directory")
+        .update(memberPayload)
+        .eq("id", existingLinkedDirectoryRow.id);
+      if (updateDirectoryError) throw updateDirectoryError;
+    } else {
+      let existingEmailDirectoryRow: { id: string } | null = null;
+      if (normalizedEmail) {
+        const { data: emailDirectoryRow, error: emailDirectoryError } = await admin
+          .from("job_project_directory")
+          .select("id")
+          .eq("job_id", jobId)
+          .eq("company_id", companyId)
+          .eq("email", normalizedEmail)
+          .eq("is_active", true)
+          .maybeSingle();
+        if (emailDirectoryError) throw emailDirectoryError;
+        existingEmailDirectoryRow = emailDirectoryRow;
+      }
+
+      if (existingEmailDirectoryRow?.id) {
+        const { error: updateDirectoryError } = await admin
+          .from("job_project_directory")
+          .update(memberPayload)
+          .eq("id", existingEmailDirectoryRow.id);
+        if (updateDirectoryError) throw updateDirectoryError;
+      } else {
+        const { error: insertDirectoryError } = await admin
+          .from("job_project_directory")
+          .insert({
+            job_id: jobId,
+            company_id: companyId,
+            ...memberPayload,
+          });
+        if (insertDirectoryError) throw insertDirectoryError;
+      }
+    }
+
     const remainingPendingJobInvites = inviteCandidates.filter((row: any) => {
       const sameJob = String(row?.jobId || "") === String(jobId);
       const sameCompany = String(row?.companyId || "") === String(companyId);
@@ -250,7 +350,7 @@ serve(async (req: Request) => {
       })
       .eq("company_id", companyId)
       .eq("job_id", jobId)
-      .eq("email", String(authData.user.email || "").trim().toLowerCase())
+      .eq("email", normalizedEmail)
       .eq("status", "pending");
     if (inviteTableUpdateError && !isMissingRelationError(inviteTableUpdateError, "design_professional_job_invites")) {
       throw inviteTableUpdateError;

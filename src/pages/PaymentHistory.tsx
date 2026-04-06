@@ -87,14 +87,29 @@ export default function PaymentHistory() {
       if (!currentCompany || websiteJobAccessLoading) return;
       setLoading(true);
       try {
-        // Fetch payments for current company through vendors
-        // @ts-ignore - Supabase type inference issue with deeply nested types
+        const vendorResponse: any = await supabase
+          .from("vendors")
+          .select("id, name")
+          .eq("company_id", currentCompany.id);
+
+        if (vendorResponse.error) throw vendorResponse.error;
+
+        const vendorData = vendorResponse.data || [];
+        const vendorIds = vendorData
+          .map((vendor: any) => vendor.id)
+          .filter((id: any): id is string => !!id);
+
+        if (!vendorIds.length) {
+          setRows([]);
+          return;
+        }
+
         const paymentResponse: any = await supabase
           .from("payments")
-          .select("*, vendors!inner(company_id)")
-          .eq("vendors.company_id", currentCompany.id)
+          .select("*")
+          .in("vendor_id", vendorIds)
           .order("payment_date", { ascending: false });
-        
+
         const { data: paymentData, error: paymentError } = paymentResponse;
 
         if (paymentError) throw paymentError;
@@ -102,21 +117,6 @@ export default function PaymentHistory() {
           setRows([]);
           return;
         }
-
-        // Fetch vendors
-        const vendorIds = paymentData
-          .map((p: any) => p.vendor_id)
-          .filter((id: any): id is string => !!id);
-        
-        const uniqueVendorIds = [...new Set(vendorIds)];
-        
-        const vendorResponse: any = uniqueVendorIds.length > 0
-          ? await supabase.from("vendors").select("id, name").in("id", uniqueVendorIds as string[])
-          : { data: [], error: null };
-        
-        const { data: vendorData, error: vendorError } = vendorResponse;
-
-        if (vendorError) throw vendorError;
 
         const vendorMap: Record<string, string> = {};
         vendorData?.forEach((v: any) => {

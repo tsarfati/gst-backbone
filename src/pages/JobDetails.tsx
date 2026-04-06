@@ -58,6 +58,11 @@ interface Job {
     name: string;
     display_name?: string | null;
   } | null;
+  company?: {
+    id: string;
+    name: string;
+    display_name?: string | null;
+  } | null;
 }
 
 interface JobRfp {
@@ -207,7 +212,8 @@ export default function JobDetails() {
           .from('jobs')
           .select(`
             *,
-            customer:customers(id, name, display_name)
+            customer:customers(id, name, display_name),
+            company:companies(id, name, display_name)
           `)
           .eq('id', id)
           .maybeSingle();
@@ -1177,9 +1183,18 @@ export default function JobDetails() {
               </div>
             )}
 
-            {!isExternalView && (
+            {!isVendorView && (
               <div className="grid grid-cols-1 lg:grid-cols-[70%_30%] gap-6">
-                <JobProjectTeam jobId={id!} />
+                {isDesignProfessionalView ? (
+                  <JobProjectTeam
+                    jobId={id!}
+                    readOnly
+                    companyIdOverride={job.company_id || null}
+                    companyNameOverride={String(job.company?.display_name || job.company?.name || '') || null}
+                  />
+                ) : (
+                  <JobProjectTeam jobId={id!} />
+                )}
                 <JobLocationMap address={job.address} />
               </div>
             )}

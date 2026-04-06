@@ -238,14 +238,14 @@ const handler = async (req: Request): Promise<Response> => {
       };
 
       if (existingRequest?.id) {
-        const nextStatus = existingAccess?.is_active ? existingRequest.status || "approved" : "pending";
+        const nextStatus = "approved";
         const { error: requestUpdateError } = await admin
           .from("company_access_requests")
           .update({
             status: nextStatus,
             requested_at: invitedAt,
-            reviewed_at: nextStatus === "pending" ? null : null,
-            reviewed_by: nextStatus === "pending" ? null : null,
+            reviewed_at: invitedAt,
+            reviewed_by: authData.user.id,
             notes: JSON.stringify(mergedNotes),
           })
           .eq("id", existingRequest.id);
@@ -256,8 +256,10 @@ const handler = async (req: Request): Promise<Response> => {
           .insert({
             user_id: existingProfile.user_id,
             company_id: companyId,
-            status: existingAccess?.is_active ? "approved" : "pending",
+            status: "approved",
             requested_at: invitedAt,
+            reviewed_at: invitedAt,
+            reviewed_by: authData.user.id,
             notes: JSON.stringify(mergedNotes),
           });
         if (requestInsertError) throw requestInsertError;

@@ -218,6 +218,7 @@ export default function UserDetails() {
   const [activeTab, setActiveTab] = useState<'profile' | 'files'>('profile');
   const [userFiles, setUserFiles] = useState<UserProfileFile[]>([]);
   const [filesLoading, setFilesLoading] = useState(false);
+  const [userFilesFeatureAvailable, setUserFilesFeatureAvailable] = useState(true);
   const [uploadingUserFile, setUploadingUserFile] = useState(false);
   const ADD_ROLE_OPTION_VALUE = "__add_role__";
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
@@ -263,15 +264,31 @@ export default function UserDetails() {
   useEffect(() => {
     if (userId && (currentCompany || isSuperAdmin)) {
       fetchUserDetails();
-      fetchUserJobs();
-      fetchLoginAudit();
-      fetchUserEmail();
-      fetchUserFiles();
+      if (!userFilesFeatureAvailable) {
+        setUserFiles([]);
+      }
       if (currentCompany) fetchCustomRoles();
       if (currentCompany) fetchGroups();
       if (currentCompany) fetchVendors();
     }
-  }, [userId, currentCompany, isSuperAdmin, tenantMember?.role, tenantMember?.user_id]);
+  }, [userId, currentCompany, isSuperAdmin, tenantMember?.role, tenantMember?.user_id, userFilesFeatureAvailable]);
+
+  useEffect(() => {
+    if (!userId || !currentCompany || !user) return;
+
+    fetchUserJobs();
+
+    const isExternalAccessUser = user.role === 'vendor' || user.role === 'design_professional';
+    if (isExternalAccessUser) {
+      setLoginAudit([]);
+      setUserFiles([]);
+      return;
+    }
+
+    fetchLoginAudit();
+    fetchUserEmail();
+    if (userFilesFeatureAvailable) fetchUserFiles();
+  }, [userId, currentCompany, user?.role, userFilesFeatureAvailable]);
 
   useEffect(() => {
     if (selectedVendorId) {
@@ -450,6 +467,25 @@ export default function UserDetails() {
   const fetchUserJobs = async () => {
     if (!currentCompany) return;
     try {
+      const effectiveRole = String(user?.role || '').toLowerCase();
+
+      if (effectiveRole === 'design_professional') {
+        const { data: externalJobRows, error: externalJobsError } = await supabase
+          .from('job_project_directory')
+          .select('job_id, jobs(id, name)')
+          .eq('linked_user_id', userId)
+          .eq('company_id', currentCompany.id)
+          .eq('is_project_team_member', true)
+          .eq('is_active', true);
+
+        if (externalJobsError) throw externalJobsError;
+
+        const mappedJobs = (externalJobRows || []).map((item: any) => item.jobs).filter(Boolean);
+        const uniqueJobs = Array.from(new Map(mappedJobs.map((job: any) => [job.id, job])).values());
+        setUserJobs(uniqueJobs);
+        return;
+      }
+
       const { data: userJobsData } = await supabase.from('user_job_access').select('job_id, jobs(id, name)').eq('user_id', userId);
       if (userJobsData && userJobsData.length > 0) {
         setUserJobs(userJobsData.map((item: any) => item.jobs).filter(Boolean));
@@ -487,7 +523,7 @@ export default function UserDetails() {
   };
 
   const fetchUserFiles = async () => {
-    if (!currentCompany?.id || !userId) return;
+    if (!currentCompany?.id || !userId || !userFilesFeatureAvailable) return;
     setFilesLoading(true);
     try {
       const { data, error } = await (supabase as any)
@@ -499,7 +535,12 @@ export default function UserDetails() {
         .order('created_at', { ascending: false });
       if (error) throw error;
       setUserFiles((data || []) as UserProfileFile[]);
-    } catch (error) {
+    } catch (error: any) {
+      if (error?.code === 'PGRST205' || error?.status === 404) {
+        setUserFilesFeatureAvailable(false);
+        setUserFiles([]);
+        return;
+      }
       console.error('Error fetching user profile files:', error);
     } finally {
       setFilesLoading(false);
@@ -1037,6 +1078,8 @@ export default function UserDetails() {
   const initials = user.display_name?.[0]?.toUpperCase() || user.first_name?.[0]?.toUpperCase() || 'U';
   const isSelf = profile?.user_id === userId;
   const isVendorUser = user.role === 'vendor';
+  const isDesignProfessionalUser = user.role === 'design_professional';
+  const isExternalAccessUser = isVendorUser || isDesignProfessionalUser;
   const assignedCustomRole = user.custom_role_id ? customRoles.find((r) => r.id === user.custom_role_id) : null;
 
   const getAppLabel = (source?: string) => {
@@ -1050,6 +1093,126 @@ export default function UserDetails() {
     if (source === 'pmlynk') return 'default';
     return 'outline';
   };
+
+  if (isExternalAccessUser) {
+    return (
+      <div className="p-6 space-y-6 max-w-5xl mx-auto">
+        <div className="flex items-center justify-between">
+          <Button
+            variant="ghost"
+            onClick={() => navigate('/settings/users?tab=' + (isDesignProfessionalUser ? 'design-professional-access' : 'vendor-access'))}
+            className="flex items-center gap-2"
+          >
+            <ArrowLeft className="h-4 w-4" />
+            Back to {isDesignProfessionalUser ? 'Design Professional Access' : 'Vendor Access'}
+          </Button>
+        </div>
+
+        <Card>
+          <CardHeader>
+            <CardTitle>{isDesignProfessionalUser ? 'Design Professional Access' : 'Vendor Access'}</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-start gap-6">
+              <Avatar className="h-20 w-20 shrink-0">
+                <AvatarImage src={user.avatar_url} />
+                <AvatarFallback className="text-2xl">{initials}</AvatarFallback>
+              </Avatar>
+              <div className="flex-1 space-y-4">
+                <div>
+                  <h2 className="text-3xl font-bold">{displayName}</h2>
+                  <div className="flex items-center gap-2 mt-2">
+                    <Badge className={roleColors[user.role] || 'bg-muted'}>
+                      {roleLabels[user.role] || user.role}
+                    </Badge>
+                    <Badge className={statusColors[user.status] || 'bg-muted'}>
+                      {user.status}
+                    </Badge>
+                  </div>
+                </div>
+
+                <Separator />
+
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4" />
+                    <span>External access user</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    <span>Linked {new Date(user.created_at).toLocaleDateString()}</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <User className="h-4 w-4" />
+                    <span className="text-xs font-mono break-all">ID: {user.user_id}</span>
+                  </div>
+                  {isVendorUser && associatedVendor && (
+                    <div className="flex items-center gap-2">
+                      <Store className="h-4 w-4" />
+                      <span>Linked Vendor: {associatedVendor.name}</span>
+                    </div>
+                  )}
+                </div>
+
+                <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
+                  {isDesignProfessionalUser
+                    ? 'This user belongs to an external design professional company. Their profile, login access, and contact details are managed from their own company account. From the GC side, this page only shows which jobs they currently have access to.'
+                    : 'This user belongs to an external vendor company. Their profile, login access, and contact details are managed from their own company account. From the builder side, this page only shows which jobs they currently have access to.'}
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Briefcase className="h-5 w-5" />
+              Job Access
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            {isVendorUser ? (
+              !associatedVendor ? (
+                <p className="text-sm text-muted-foreground">
+                  No vendor account linked. Link this user to a vendor account from the vendor profile flow.
+                </p>
+              ) : vendorJobs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  No jobs currently assigned on the linked vendor profile.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {vendorJobs.map((job) => (
+                    <div key={job.id} className="flex items-center justify-between rounded-md border p-3">
+                      <span className="font-medium">{job.name}</span>
+                      <Badge variant="outline">Managed from Vendor / Job Access</Badge>
+                    </div>
+                  ))}
+                </div>
+              )
+            ) : userJobs.length === 0 ? (
+              <p className="text-sm text-muted-foreground">
+                This design professional does not currently have any assigned jobs.
+              </p>
+            ) : (
+              <div className="space-y-2">
+                {userJobs.map((job) => (
+                  <div key={job.id} className="flex items-center justify-between rounded-md border p-3">
+                    <span className="font-medium">{job.name}</span>
+                    <Badge variant="outline">Managed from Project Team</Badge>
+                  </div>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-muted-foreground mt-3">
+              Remove access from the job itself by editing that job’s Project Team.
+            </p>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
 
   return (
     <div className="p-6 space-y-6 max-w-5xl mx-auto">

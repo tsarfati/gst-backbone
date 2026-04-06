@@ -1005,181 +1005,183 @@ export default function TimeSheets() {
                 )}
                 
                 {currentView === 'list' && getFilteredAndSortedTimeCards().map((timeCard) => (
-                  <div key={timeCard.id} className={`border rounded-xl p-6 hover-card cursor-pointer ${(timeCard.over_12h || timeCard.over_24h) ? 'animate-pulse-red' : ''}`} onClick={() => handleViewDetails(timeCard.id)}>
-                     <div className="flex items-start justify-between mb-4">
-                       <div className="space-y-1">
-                         {isManager && (
-                           <div className="flex items-center gap-2">
-                             <h3 className="font-semibold text-lg">{getEmployeeName(timeCard)}</h3>
-                             {timeCard.distance_warning && (
-                               <Badge variant="destructive" className="flex items-center gap-1 text-xs">
-                                 <AlertTriangle className="h-3 w-3" />
-                                 Distance
-                               </Badge>
-                             )}
-                             {isLowLocationConfidence(timeCard) && (
-                               <Badge variant="secondary" className="flex items-center gap-1 text-xs">
-                                 <MapPin className="h-3 w-3" />
-                                 Low GPS
-                               </Badge>
-                             )}
-                             {!timeCard.requires_approval && timeCard.created_via_punch_clock && (
-                               <Badge variant="outline" className="text-xs">
-                                 Auto-Approved
-                               </Badge>
-                             )}
-                           </div>
-                         )}
-                         <div className="flex items-center gap-2 text-muted-foreground">
-                           <Calendar className="h-4 w-4" />
-                           <span className="text-sm">{formatWeekRange(timeCard.punch_in_time)}</span>
-                         </div>
-                         <div className="text-sm text-muted-foreground">
-                           {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', { 
-                             weekday: 'long', 
-                             month: 'short', 
-                             day: 'numeric' 
-                           })}
-                         </div>
-                       </div>
-                       <div className="text-right space-y-2">
-<div className="font-bold text-xl flex items-center gap-2">
-  <Clock className="h-5 w-5" />
-  {timeCard.total_hours.toFixed(1)} hrs
-  {timeCard.over_24h && (<Badge variant="destructive" className="text-xs">24h+</Badge>)}
-  {!timeCard.over_24h && timeCard.over_12h && (<Badge variant="secondary" className="text-xs">12h+</Badge>)}
-</div>
-{timeCard.overtime_hours > 0 && (
-  <div className="text-sm text-warning font-medium">
-    +{timeCard.overtime_hours.toFixed(1)} OT
-  </div>
-)}
-                         <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)} className="ml-auto">
-                           {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
-                         </Badge>
-                       </div>
-                    </div>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-muted-foreground">Job Details</h4>
-                         <div className="bg-muted/50 rounded-lg p-3">
-                          <div className="font-medium">{timeCard.jobs?.name || 'Unknown Job'}</div>
-                          <div className="text-sm text-muted-foreground">
-                            {timeCard.cost_codes ? `${timeCard.cost_codes.code} - ${timeCard.cost_codes.description}` : 'N/A'}
+                  <div
+                    key={timeCard.id}
+                    className={`border rounded-xl px-4 py-3 hover-card cursor-pointer ${(timeCard.over_12h || timeCard.over_24h) ? 'animate-pulse-red' : ''}`}
+                    onClick={() => handleViewDetails(timeCard.id)}
+                  >
+                    <div className="space-y-1.5">
+                      <div className="grid gap-2 text-sm md:grid-cols-[minmax(0,1.35fr)_minmax(0,1.1fr)_auto] md:items-center">
+                        <div className="min-w-0">
+                          {isManager ? (
+                            <div className="font-semibold leading-tight truncate">{getEmployeeName(timeCard)}</div>
+                          ) : null}
+                          <div className="font-medium leading-tight truncate">
+                            {timeCard.jobs?.name || 'Unknown Job'}
                           </div>
                         </div>
+
+                        <div className="min-w-0 text-muted-foreground">
+                          <div className="truncate">
+                            {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                            })}
+                          </div>
+                          <div className="truncate text-xs">{formatWeekRange(timeCard.punch_in_time)}</div>
+                        </div>
+
+                        <div className="min-w-0 text-muted-foreground">
+                          {timeCard.cost_codes ? (
+                            <div className="truncate">{`${timeCard.cost_codes.code} - ${timeCard.cost_codes.description}`}</div>
+                          ) : (
+                            <div className="truncate">No cost code</div>
+                          )}
+                          <div className="truncate text-xs">{formatWeekRange(timeCard.punch_in_time)}</div>
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-start gap-1.5 md:justify-end">
+                          <Badge variant={(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'secondary' : getStatusColor(timeCard.status)} className="text-[11px]">
+                            {(pendingChangeRequestTimeCardIds.includes(timeCard.id) && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited') ? 'CHANGE REQUESTED' : timeCard.status.toUpperCase()}
+                          </Badge>
+                          {timeCard.distance_warning && (
+                            <Badge variant="destructive" className="flex items-center gap-1 text-[11px]">
+                              <AlertTriangle className="h-3 w-3" />
+                              Distance
+                            </Badge>
+                          )}
+                          {isLowLocationConfidence(timeCard) && (
+                            <Badge variant="secondary" className="flex items-center gap-1 text-[11px]">
+                              <MapPin className="h-3 w-3" />
+                              Low GPS
+                            </Badge>
+                          )}
+                          {!timeCard.requires_approval && timeCard.created_via_punch_clock && (
+                            <Badge variant="outline" className="text-[11px]">
+                              Auto-Approved
+                            </Badge>
+                          )}
+                        </div>
                       </div>
-                      
-                      <div className="space-y-2">
-                        <h4 className="text-sm font-medium text-muted-foreground">Time Details</h4>
-                        <div className="bg-muted/50 rounded-lg p-3 space-y-1">
-                          <div className="text-sm">
-                            In: {new Date(timeCard.punch_in_time).toLocaleTimeString('en-US', { 
-                              hour: 'numeric', 
-                              minute: '2-digit' 
+
+                      <div className="grid gap-2 text-sm md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_auto] md:items-center">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">In</div>
+                          <div className="font-medium leading-tight">
+                            {new Date(timeCard.punch_in_time).toLocaleDateString('en-US', {
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                            })}{' '}
+                            {new Date(timeCard.punch_in_time).toLocaleTimeString('en-US', {
+                              hour: 'numeric',
+                              minute: '2-digit',
                             })}
                           </div>
-                          <div className="text-sm">
-                            Out: {new Date(timeCard.punch_out_time).toLocaleTimeString('en-US', { 
-                              hour: 'numeric', 
-                              minute: '2-digit' 
-                            })}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-muted-foreground min-w-0 md:justify-center">
+                          {timeCard.break_minutes > 0 ? (
+                            <span>Break: {timeCard.break_minutes} min</span>
+                          ) : (
+                            <span>Break: 0 min</span>
+                          )}
+                          {timeCard.overtime_hours > 0 ? (
+                            <span className="text-warning font-medium">OT: {timeCard.overtime_hours.toFixed(1)}h</span>
+                          ) : null}
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 min-w-0 md:justify-center">
+                          <span className="font-semibold whitespace-nowrap">{timeCard.total_hours.toFixed(1)} hrs</span>
+                          {timeCard.over_24h && <Badge variant="destructive" className="text-[11px]">24h+</Badge>}
+                          {!timeCard.over_24h && timeCard.over_12h && <Badge variant="secondary" className="text-[11px]">12h+</Badge>}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+                          {timeCard.punch_in_location_lat && timeCard.punch_in_location_lng ? (
+                            <a
+                              href={`https://www.openstreetmap.org/?mlat=${timeCard.punch_in_location_lat}&mlon=${timeCard.punch_in_location_lng}&zoom=15`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline text-primary text-xs"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              In Map
+                            </a>
+                          ) : null}
+                          <PhotoButton url={timeCard.punch_in_photo_url || undefined} type="in" />
+                        </div>
+                      </div>
+
+                      <div className="grid gap-2 text-sm md:grid-cols-[minmax(0,1.1fr)_minmax(0,0.8fr)_minmax(0,0.9fr)_auto] md:items-center">
+                        <div className="min-w-0">
+                          <div className="text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">Out</div>
+                          <div className="font-medium leading-tight">
+                            {timeCard.punch_out_time ? (
+                              <>
+                                {new Date(timeCard.punch_out_time).toLocaleDateString('en-US', {
+                                  weekday: 'short',
+                                  month: 'short',
+                                  day: 'numeric',
+                                })}{' '}
+                                {new Date(timeCard.punch_out_time).toLocaleTimeString('en-US', {
+                                  hour: 'numeric',
+                                  minute: '2-digit',
+                                })}
+                              </>
+                            ) : (
+                              <span className="text-muted-foreground">Not punched out</span>
+                            )}
                           </div>
-                          {timeCard.break_minutes > 0 && (
-                            <div className="text-sm text-muted-foreground">
-                              Break: {timeCard.break_minutes} min
-                            </div>
+                        </div>
+
+                        <div className="text-muted-foreground min-w-0 md:justify-self-center">
+                          <span>{formatWeekRange(timeCard.punch_in_time)}</span>
+                        </div>
+
+                        <div className="flex flex-wrap items-center gap-3 min-w-0 md:justify-center">
+                          {timeCard.punch_out_location_lat && timeCard.punch_out_location_lng ? (
+                            <a
+                              href={`https://www.openstreetmap.org/?mlat=${timeCard.punch_out_location_lat}&mlon=${timeCard.punch_out_location_lng}&zoom=15`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="underline text-primary text-xs"
+                              onClick={(e) => e.stopPropagation()}
+                            >
+                              Out Map
+                            </a>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">No out map</span>
+                          )}
+                        </div>
+
+                        <div className="flex flex-wrap items-center justify-start gap-2 md:justify-end">
+                          <PhotoButton url={timeCard.punch_out_photo_url || undefined} type="out" />
+                          {isManager && timeCard.status === 'submitted' && (timeCard.requires_approval !== false) && (
+                            <>
+                              <Button
+                                size="sm"
+                                onClick={(e) => { e.stopPropagation(); handleApproval(timeCard.id, true); }}
+                                className="rounded-lg h-8"
+                              >
+                                Approve
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="destructive"
+                                onClick={(e) => { e.stopPropagation(); handleApproval(timeCard.id, false); }}
+                                className="rounded-lg h-8"
+                              >
+                                Reject
+                              </Button>
+                            </>
                           )}
                         </div>
                       </div>
                     </div>
-
-                     {/* Locations */}
-                     {(timeCard.punch_in_location_lat && timeCard.punch_in_location_lng) || (timeCard.punch_out_location_lat && timeCard.punch_out_location_lng) ? (
-                       <div className="mb-4">
-                         <h4 className="text-sm font-medium text-muted-foreground mb-2">Locations</h4>
-                         <div className="flex gap-4 text-sm">
-                           <div className="flex items-center gap-1">
-                             <MapPin className="h-4 w-4" />
-                             {timeCard.punch_in_location_lat && timeCard.punch_in_location_lng ? (
-                               <a href={`https://www.openstreetmap.org/?mlat=${timeCard.punch_in_location_lat}&mlon=${timeCard.punch_in_location_lng}&zoom=15`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="underline text-primary">In</a>
-                             ) : (
-                               <span className="text-muted-foreground">In: -</span>
-                             )}
-                           </div>
-                           <div className="flex items-center gap-1">
-                             <MapPin className="h-4 w-4" />
-                             {timeCard.punch_out_location_lat && timeCard.punch_out_location_lng ? (
-                               <a href={`https://www.openstreetmap.org/?mlat=${timeCard.punch_out_location_lat}&mlon=${timeCard.punch_out_location_lng}&zoom=15`} target="_blank" rel="noopener noreferrer" onClick={(e) => e.stopPropagation()} className="underline text-primary">Out</a>
-                             ) : (
-                               <span className="text-muted-foreground">Out: -</span>
-                             )}
-                           </div>
-                         </div>
-                       </div>
-                     ) : null}
-
-                     {timeCard.notes && (
-                       <div className="mb-4">
-                         <h4 className="text-sm font-medium text-muted-foreground mb-2">Notes</h4>
-                         <div className="bg-muted/30 rounded-lg p-3 text-sm">
-                           {timeCard.notes}
-                         </div>
-                       </div>
-                     )}
-
-                     {/* Photo Display */}
-                     {(timeCard.punch_in_photo_url || timeCard.punch_out_photo_url) && (
-                       <div className="mb-4">
-                         <h4 className="text-sm font-medium text-muted-foreground mb-2">Photos</h4>
-                         <div className="flex gap-4">
-                           {timeCard.punch_in_photo_url && (
-                             <div className="space-y-2">
-                               <div className="text-xs text-muted-foreground">Punch In</div>
-                               <PhotoButton
-                                 url={timeCard.punch_in_photo_url}
-                                 type="in"
-                                 className="h-10 px-3 gap-2"
-                               />
-                             </div>
-                           )}
-                           {timeCard.punch_out_photo_url && (
-                             <div className="space-y-2">
-                               <div className="text-xs text-muted-foreground">Punch Out</div>
-                               <PhotoButton
-                                 url={timeCard.punch_out_photo_url}
-                                 type="out"
-                                 className="h-10 px-3 gap-2"
-                               />
-                             </div>
-                           )}
-                         </div>
-                       </div>
-                      )}
-
-                      {/* Approval buttons for managers */}
-                      {isManager && timeCard.status === 'submitted' && (timeCard.requires_approval !== false) && (
-                        <div className="flex gap-3 pt-2">
-                          <Button 
-                            size="sm" 
-                            onClick={(e) => { e.stopPropagation(); handleApproval(timeCard.id, true); }}
-                            className="rounded-lg"
-                          >
-                            Approve
-                          </Button>
-                          <Button 
-                            size="sm" 
-                            variant="destructive"
-                            onClick={(e) => { e.stopPropagation(); handleApproval(timeCard.id, false); }}
-                            className="rounded-lg"
-                          >
-                            Reject
-                          </Button>
-                        </div>
-                      )}
-                   </div>
-                 ))}
+                  </div>
+                ))}
 
                 {/* Compact View */}
                 {currentView === 'compact' && getFilteredAndSortedTimeCards().map((timeCard) => (

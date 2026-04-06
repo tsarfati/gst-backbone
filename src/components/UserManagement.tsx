@@ -81,6 +81,17 @@ interface PendingSignupMeta {
   customRoleName: string | null;
 }
 
+const isProjectDesignProfessionalInvite = (notes?: string | null): boolean => {
+  if (!notes) return false;
+  try {
+    const parsed = JSON.parse(notes);
+    return String(parsed?.requestedRole || '').toLowerCase() === 'design_professional'
+      && Boolean(String(parsed?.invitedJobId || '').trim());
+  } catch {
+    return false;
+  }
+};
+
 interface VendorCompanyOption {
   id: string;
   name: string;
@@ -214,7 +225,8 @@ export default function UserManagement() {
 
       setUsers(allUsers);
 
-      const pendingRequests = pendingRequestsResult.data || [];
+      const pendingRequests = (pendingRequestsResult.data || [])
+        .filter((request: any) => !isProjectDesignProfessionalInvite(request.notes || null));
 
       const pendingMap: Record<string, PendingSignupMeta> = {};
       (pendingRequests || []).forEach((request: any) => {

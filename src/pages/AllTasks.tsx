@@ -134,11 +134,24 @@ export default function AllTasks() {
     }
     setLoading(true);
     try {
-      const { data: taskRows, error: taskError } = await supabase
+      const { data: sharedJobAccessRows, error: sharedJobAccessError } = await supabase
+        .from("user_job_access")
+        .select("job_id")
+        .eq("user_id", user.id);
+      if (sharedJobAccessError) throw sharedJobAccessError;
+
+      const sharedJobIds = Array.from(new Set((sharedJobAccessRows || []).map((row: any) => String(row.job_id || "")).filter(Boolean)));
+
+      const baseTaskQuery = supabase
         .from("tasks")
-        .select("id, title, description, status, priority, due_date, is_due_asap, completion_percentage, job_id, created_by, leader_user_id, jobs(name)")
-        .eq("company_id", currentCompany.id)
+        .select("id, title, description, status, priority, due_date, is_due_asap, completion_percentage, job_id, created_by, leader_user_id, company_id, jobs(name)")
         .order("created_at", { ascending: false });
+
+      const taskQuery = sharedJobIds.length > 0
+        ? baseTaskQuery.or(`company_id.eq.${currentCompany.id},job_id.in.(${sharedJobIds.join(",")})`)
+        : baseTaskQuery.eq("company_id", currentCompany.id);
+
+      const { data: taskRows, error: taskError } = await taskQuery;
       if (taskError) throw taskError;
 
       const companyVisibleTasks = (taskRows || []) as TaskRow[];
@@ -216,13 +229,24 @@ export default function AllTasks() {
 
   const loadProjects = async () => {
     if (!currentCompany) return;
-    const { data } = await supabase
+    const { data: sharedJobAccessRows } = await supabase
+      .from("user_job_access")
+      .select("job_id")
+      .eq("user_id", user?.id || "");
+
+    const sharedJobIds = Array.from(new Set((sharedJobAccessRows || []).map((row: any) => String(row.job_id || "")).filter(Boolean)));
+
+    const baseJobsQuery = supabase
       .from("jobs")
       .select("id, name")
-      .eq("company_id", currentCompany.id)
       .eq("is_active", true)
       .order("name");
 
+    const jobsQuery = sharedJobIds.length > 0
+      ? baseJobsQuery.or(`company_id.eq.${currentCompany.id},id.in.(${sharedJobIds.join(",")})`)
+      : baseJobsQuery.eq("company_id", currentCompany.id);
+
+    const { data } = await jobsQuery;
     setProjects(data || []);
   };
 

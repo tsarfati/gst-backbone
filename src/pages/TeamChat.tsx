@@ -194,6 +194,91 @@ export default function TeamChat() {
     if (!user || !profile?.current_company_id) return;
 
     try {
+      const isDesignProfessional = String(profile?.role || '').toLowerCase() === 'design_professional';
+
+      if (isDesignProfessional) {
+        const { data: ownCompanyUsers, error: ownCompanyError } = await supabase
+          .from('user_company_access')
+          .select('user_id')
+          .eq('company_id', profile.current_company_id)
+          .eq('is_active', true);
+
+        if (ownCompanyError) throw ownCompanyError;
+
+        const { data: sharedJobAccessRows, error: sharedJobAccessError } = await supabase
+          .from('user_job_access')
+          .select('job_id')
+          .eq('user_id', user.id)
+          .eq('is_active', true);
+
+        if (sharedJobAccessError) throw sharedJobAccessError;
+
+        const sharedJobIds = Array.from(new Set((sharedJobAccessRows || []).map((row: any) => row.job_id).filter(Boolean)));
+        let sharedUserIds: string[] = [];
+
+        if (sharedJobIds.length > 0) {
+          const { data: sharedDirectoryRows, error: sharedDirectoryError } = await supabase
+            .from('job_project_directory')
+            .select('linked_user_id')
+            .in('job_id', sharedJobIds)
+            .eq('is_project_team_member', true)
+            .eq('is_active', true)
+            .not('linked_user_id', 'is', null);
+
+          if (sharedDirectoryError) throw sharedDirectoryError;
+          sharedUserIds = Array.from(
+            new Set((sharedDirectoryRows || []).map((row: any) => row.linked_user_id).filter(Boolean))
+          );
+        }
+
+        const userIds = Array.from(
+          new Set([...(ownCompanyUsers || []).map((u: any) => u.user_id), ...sharedUserIds, user.id].filter(Boolean))
+        );
+
+        if (userIds.length === 0) {
+          setAllUsers([{
+            id: user.id,
+            name: currentUserName || 'You',
+            role: (profile?.role as unknown as string) || 'design_professional',
+            status: 'offline' as const,
+          }]);
+          return;
+        }
+
+        const { data: profilesData, error: profilesError } = await supabase
+          .from('profiles')
+          .select('user_id, display_name, role, status, avatar_url')
+          .in('user_id', userIds);
+
+        if (profilesError) throw profilesError;
+
+        const activeProfiles = (profilesData || []).filter((p: any) => {
+          const s = String(p?.status || '').toLowerCase();
+          return s !== 'deleted' && s !== 'inactive' && s !== 'disabled';
+        });
+
+        const usersFromDb: OnlineUser[] = activeProfiles.map((p: any) => ({
+          id: p.user_id,
+          name: p.display_name || 'Unknown User',
+          role: p.role || 'project_member',
+          status: 'offline' as const,
+          avatar_url: p.avatar_url,
+        }));
+
+        const me: OnlineUser = {
+          id: user.id,
+          name: currentUserName || 'You',
+          role: (profile?.role as unknown as string) || 'design_professional',
+          status: 'offline' as const,
+          avatar_url: profile?.avatar_url,
+        };
+
+        const byId = new Map<string, OnlineUser>();
+        [...usersFromDb, me].forEach((u) => byId.set(u.id, u));
+        setAllUsers(Array.from(byId.values()));
+        return;
+      }
+
       // Query only users who have active access to the current company
       const { data: companyUsers, error: accessError } = await supabase
         .from('user_company_access')

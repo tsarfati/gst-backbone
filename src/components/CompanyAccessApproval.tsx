@@ -66,6 +66,17 @@ const parseCustomRoleName = (notes?: string): string | null => {
   }
 };
 
+const isProjectDesignProfessionalInvite = (notes?: string): boolean => {
+  if (!notes) return false;
+  try {
+    const parsed = JSON.parse(notes);
+    return String(parsed?.requestedRole || '').toLowerCase() === 'design_professional'
+      && Boolean(String(parsed?.invitedJobId || '').trim());
+  } catch {
+    return false;
+  }
+};
+
 export default function CompanyAccessApproval() {
   const { user } = useAuth();
   const { currentCompany, loading: companyLoading } = useCompany();
@@ -95,8 +106,10 @@ export default function CompanyAccessApproval() {
       if (requestsError) throw requestsError;
 
         // Then get user profiles for each request
-        const requestsWithProfiles = await Promise.all(
-          (requestsData || []).map(async (request) => {
+      const relevantRequests = (requestsData || []).filter((request: any) => !isProjectDesignProfessionalInvite(request.notes || undefined));
+
+      const requestsWithProfiles = await Promise.all(
+          relevantRequests.map(async (request) => {
             const { data: profile, error: profileError } = await supabase
               .from('profiles')
               .select('first_name, last_name, display_name, nickname, birthday, avatar_url')

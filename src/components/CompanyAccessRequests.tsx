@@ -95,6 +95,17 @@ const parseInvitedJobId = (notes?: string): string | null => {
   }
 };
 
+const isProjectDesignProfessionalInvite = (notes?: string): boolean => {
+  if (!notes) return false;
+  try {
+    const parsed = JSON.parse(notes);
+    return String(parsed?.requestedRole || '').toLowerCase() === 'design_professional'
+      && Boolean(String(parsed?.invitedJobId || '').trim());
+  } catch {
+    return false;
+  }
+};
+
 type RequestedRole = 'employee' | 'vendor' | 'design_professional';
 type RequestStatus = 'pending' | 'approved' | 'rejected';
 
@@ -231,7 +242,8 @@ export default function CompanyAccessRequests({
           } satisfies AccessRequest;
         });
 
-      const mapped = [...mappedFromRequests, ...mappedFallback];
+      const mapped = [...mappedFromRequests, ...mappedFallback]
+        .filter((request) => !isProjectDesignProfessionalInvite(request.notes || undefined));
 
       const roleFiltered = requestedRoleFilter?.length
         ? mapped.filter((r) => requestedRoleFilter.includes((r.requested_role || 'employee') as RequestedRole))

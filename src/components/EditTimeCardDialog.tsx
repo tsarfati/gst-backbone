@@ -77,16 +77,45 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
 
   useEffect(() => {
     if (selectedJobId) {
-      supabase
-        .from('cost_codes')
-        .select('id, code, description')
-        .eq('job_id', selectedJobId)
-        .eq('is_active', true)
-        .then(({ data }) => setJobCostCodes(data || []));
+      if (!timeCard?.user_id || !timeCard?.company_id) {
+        setJobCostCodes([]);
+        return;
+      }
+
+      const loadAssignedCostCodes = async () => {
+        const { data: settingsData } = await supabase
+          .from('employee_timecard_settings')
+          .select('assigned_cost_codes')
+          .eq('user_id', timeCard.user_id)
+          .eq('company_id', timeCard.company_id)
+          .maybeSingle();
+
+        const assignedCostCodeIds = (settingsData?.assigned_cost_codes || []).filter(Boolean);
+
+        let query = supabase
+          .from('cost_codes')
+          .select('id, code, description')
+          .eq('job_id', selectedJobId)
+          .eq('is_active', true);
+
+        if (assignedCostCodeIds.length > 0) {
+          query = query.in('id', assignedCostCodeIds);
+        } else if (selectedCostCodeId) {
+          query = query.eq('id', selectedCostCodeId);
+        } else {
+          setJobCostCodes([]);
+          return;
+        }
+
+        const { data } = await query.order('code', { ascending: true });
+        setJobCostCodes(data || []);
+      };
+
+      void loadAssignedCostCodes();
     } else {
       setJobCostCodes([]);
     }
-  }, [selectedJobId]);
+  }, [selectedJobId, selectedCostCodeId, timeCard?.user_id, timeCard?.company_id]);
 
   const loadTimeCard = async () => {
     if (!timeCardId) return;
@@ -308,6 +337,10 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Loading Time Card</DialogTitle>
+            <DialogDescription>Please wait while we load the time card details.</DialogDescription>
+          </DialogHeader>
           <div className="flex items-center justify-center p-8">
             <div><span className="loading-dots">Loading time card</span></div>
           </div>
@@ -320,6 +353,10 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Time Card Not Found</DialogTitle>
+            <DialogDescription>The selected time card could not be loaded.</DialogDescription>
+          </DialogHeader>
           <div className="flex items-center justify-center p-8">
             <div>Time card not found.</div>
           </div>
@@ -332,6 +369,10 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
     return (
       <Dialog open={open} onOpenChange={onOpenChange}>
         <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Access Denied</DialogTitle>
+            <DialogDescription>You do not have permission to edit this time card.</DialogDescription>
+          </DialogHeader>
           <div className="flex items-center justify-center p-8">
             <div className="text-center">
               <AlertTriangle className="h-12 w-12 text-yellow-500 mx-auto mb-4" />

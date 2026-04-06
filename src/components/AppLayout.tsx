@@ -223,11 +223,22 @@ const designProfessionalNavigationCategories = [
     collapsible: false,
   },
   {
+    title: "Messaging",
+    icon: MessageSquare,
+    companyTypes: ['design_professional'] as CompanyType[],
+    items: [
+      { name: "All Messages", href: "/design-professional/messages", menuKey: "messages" },
+      { name: "Team Chat", href: "/design-professional/team-chat", menuKey: "messages" },
+      { name: "Announcements", href: "/design-professional/announcements", menuKey: "announcements" },
+    ],
+    collapsible: true,
+  },
+  {
     title: "Tasks",
     icon: CheckSquare,
     companyTypes: ['design_professional'] as CompanyType[],
     items: [
-      { name: "Tasks", href: "/tasks", menuKey: "jobs" },
+      { name: "Tasks", href: "/design-professional/tasks", menuKey: "jobs" },
     ],
     collapsible: false,
   },

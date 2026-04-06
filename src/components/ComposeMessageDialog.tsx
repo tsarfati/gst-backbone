@@ -33,8 +33,33 @@ interface UserOption {
   avatar_url?: string | null;
 }
 
+const mapDirectoryUsers = (
+  rows: Array<{
+    user_id: string;
+    display_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    role?: string | null;
+    avatar_url?: string | null;
+  }>,
+  fallbackRole: string,
+  currentUserId: string
+): UserOption[] =>
+  rows
+    .filter((row) => row.user_id && row.user_id !== currentUserId)
+    .map((row) => ({
+      id: row.user_id,
+      user_id: row.user_id,
+      name:
+        row.display_name ||
+        [row.first_name, row.last_name].filter(Boolean).join(' ') ||
+        'Unknown User',
+      role: String(row.role || fallbackRole),
+      avatar_url: row.avatar_url || null,
+    }));
+
 export default function ComposeMessageDialog({ children, onMessageSent }: ComposeMessageDialogProps) {
-  const { user } = useAuth();
+  const { user, profile } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const [open, setOpen] = useState(false);
@@ -47,7 +72,8 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
   const [loading, setLoading] = useState(false);
 
   const userId = user?.id || CURRENT_USER_ID;
-  const companyId = currentCompany?.id || CURRENT_COMPANY_ID;
+  const isDesignProfessional = String(profile?.role || '').toLowerCase() === 'design_professional';
+  const companyId = (isDesignProfessional ? profile?.current_company_id : currentCompany?.id) || currentCompany?.id || CURRENT_COMPANY_ID;
   const actorName =
     (user as any)?.user_metadata?.full_name ||
     (user as any)?.user_metadata?.name ||
@@ -65,38 +91,130 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
   const fetchUsers = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .rpc('get_company_directory', { p_company_id: companyId });
+      if (!isDesignProfessional) {
+        const { data, error } = await supabase
+          .rpc('get_company_directory', { p_company_id: companyId });
 
-      if (error) throw error;
+        if (error) throw error;
 
-      const companyUsers = ((data || []) as Array<{
-        user_id: string;
-        display_name: string;
-        first_name: string;
-        last_name: string;
-        role: string;
-        avatar_url: string;
-      }>)
-        .filter((row) => row.user_id && row.user_id !== userId)
-        .map((row) => ({
-          id: row.user_id,
-          user_id: row.user_id,
-          name:
-            row.display_name ||
-            [row.first_name, row.last_name].filter(Boolean).join(' ') ||
-            'Unknown User',
-          role: String(row.role || 'employee'),
-          avatar_url: row.avatar_url || null,
-        }))
-        .sort((a, b) => a.name.localeCompare(b.name));
+        const companyUsers = mapDirectoryUsers((data || []) as any[], 'employee', userId)
+          .sort((a, b) => a.name.localeCompare(b.name));
 
-      if (companyUsers.length === 0) {
-        setAvailableUsers([]);
+        setAvailableUsers(companyUsers);
         return;
       }
 
-      setAvailableUsers(companyUsers);
+      let ownCompanyUsers: UserOption[] = [];
+      const { data: ownCompanyDirectory, error: ownCompanyError } = await supabase
+        .rpc('get_company_directory', { p_company_id: companyId });
+
+      if (!ownCompanyError) {
+        ownCompanyUsers = mapDirectoryUsers((ownCompanyDirectory || []) as any[], 'design_professional', userId);
+      } else {
+        console.warn('Design professional company directory lookup failed, falling back to direct company access lookup.', ownCompanyError);
+        const { data: ownCompanyAccessRows, error: ownCompanyAccessError } = await supabase
+          .from('user_company_access')
+          .select('user_id, role')
+          .eq('company_id', companyId)
+          .eq('is_active', true);
+
+        if (!ownCompanyAccessError) {
+          const ownCompanyUserIds = Array.from(new Set((ownCompanyAccessRows || []).map((row: any) => row.user_id).filter(Boolean)));
+          if (ownCompanyUserIds.length > 0) {
+            const { data: ownCompanyProfiles, error: ownCompanyProfilesError } = await supabase
+              .from('profiles')
+              .select('user_id, first_name, last_name, display_name, avatar_url, role')
+              .in('user_id', ownCompanyUserIds);
+
+            if (!ownCompanyProfilesError) {
+              ownCompanyUsers = mapDirectoryUsers((ownCompanyProfiles || []) as any[], 'design_professional', userId);
+            } else {
+              console.warn('Design professional profile fallback lookup failed.', ownCompanyProfilesError);
+            }
+          }
+        } else {
+          console.warn('Design professional company access fallback lookup failed.', ownCompanyAccessError);
+        }
+      }
+
+      let sharedJobIds: string[] = [];
+      const { data: sharedJobAccessRows, error: sharedJobAccessError } = await supabase
+        .from('user_job_access')
+        .select('job_id')
+        .eq('user_id', userId)
+        .eq('is_active', true);
+
+      if (!sharedJobAccessError) {
+        sharedJobIds = Array.from(new Set((sharedJobAccessRows || []).map((row: any) => row.job_id).filter(Boolean)));
+      } else {
+        console.warn('Shared job access lookup failed for compose recipients.', sharedJobAccessError);
+      }
+
+      let sharedJobUsers: UserOption[] = [];
+
+      if (sharedJobIds.length > 0) {
+        const { data: sharedDirectoryRows, error: sharedDirectoryError } = await supabase
+          .from('job_project_directory')
+          .select('linked_user_id, name')
+          .in('job_id', sharedJobIds)
+          .eq('is_project_team_member', true)
+          .eq('is_active', true)
+          .not('linked_user_id', 'is', null);
+
+        if (!sharedDirectoryError) {
+          const sharedUserIds = Array.from(
+            new Set((sharedDirectoryRows || []).map((row: any) => row.linked_user_id).filter((id: any) => !!id && id !== userId))
+          );
+
+          if (sharedUserIds.length > 0) {
+            const { data: sharedProfiles, error: sharedProfilesError } = await supabase
+              .from('profiles')
+              .select('user_id, first_name, last_name, display_name, avatar_url, role')
+              .in('user_id', sharedUserIds);
+
+            if (!sharedProfilesError) {
+              const profileMap = new Map((sharedProfiles || []).map((row: any) => [row.user_id, row]));
+              sharedJobUsers = sharedUserIds.map((sharedUserId) => {
+                const profileRow: any = profileMap.get(sharedUserId);
+                const directoryRow = (sharedDirectoryRows || []).find((row: any) => row.linked_user_id === sharedUserId);
+                return {
+                  id: sharedUserId,
+                  user_id: sharedUserId,
+                  name:
+                    profileRow?.display_name ||
+                    [profileRow?.first_name, profileRow?.last_name].filter(Boolean).join(' ') ||
+                    directoryRow?.name ||
+                    'Unknown User',
+                  role: String(profileRow?.role || 'project_member'),
+                  avatar_url: profileRow?.avatar_url || null,
+                };
+              });
+            } else {
+              console.warn('Shared job profile lookup failed for compose recipients.', sharedProfilesError);
+            }
+          }
+        } else {
+          console.warn('Shared project directory lookup failed for compose recipients.', sharedDirectoryError);
+        }
+      }
+
+      const mergedUsers = Array.from(
+        new Map(
+          [...ownCompanyUsers, ...sharedJobUsers]
+            .filter((row) => row.user_id && row.user_id !== userId)
+            .map((row) => [row.user_id, row])
+        ).values()
+      ).sort((a, b) => a.name.localeCompare(b.name));
+
+      if (mergedUsers.length === 0 && ownCompanyUsers.length === 0) {
+        console.warn('Compose message loaded with no available recipients for current scope.', {
+          companyId,
+          userId,
+          isDesignProfessional,
+        });
+      }
+
+      setAvailableUsers(mergedUsers);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({
@@ -151,7 +269,7 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
         actorName,
         content: message.trim(),
         contextLabel: 'Messages',
-        targetPath: '/messages',
+        targetPath: isDesignProfessional ? '/design-professional/messages' : '/messages',
       });
 
       toast({

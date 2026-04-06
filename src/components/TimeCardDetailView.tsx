@@ -187,16 +187,10 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .single()
       ]);
 
-      console.log('Time card data:', timeCardData);
-      console.log('Punch records found:', punchData.data);
-
       // Backfill missing location, photo and cost code data from punch records
       const punchRecords = punchData.data || [];
       const punchIn = punchRecords.find(p => p.punch_type === 'punched_in');
       const punchOut = punchRecords.find(p => p.punch_type === 'punched_out');
-
-      console.log('Punch in record:', punchIn);
-      console.log('Punch out record:', punchOut);
 
       // If cost code missing on time card, try to backfill from punch_out record first
       let resolvedCostCode = costCodeData.data as any;
@@ -257,7 +251,6 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .eq('id', timeCardId);
       }
 
-      console.log('Final time card data:', data);
       setTimeCard(data as any);
       
       // Check for latest change request (prefer pending)
@@ -271,7 +264,6 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       
       const pendingCR = (changeRequests || []).find((cr: any) => cr.status === 'pending') || null;
       const latestCR = pendingCR || (changeRequests && changeRequests[0]) || null;
-      console.log('Pending (or latest) change request:', latestCR);
       setPendingChangeRequest(pendingCR); // only show UI when truly pending
       
       // Load job and cost code data for change request if it exists
@@ -314,11 +306,12 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
       
       // Load distance warning settings if job exists
       if (timeCardData.job_id) {
-        const { data: settings } = await supabase
+        const { data: settingsRows } = await supabase
           .from('job_punch_clock_settings')
           .select('enable_distance_warning, max_distance_from_job_meters')
           .eq('job_id', timeCardData.job_id)
-          .maybeSingle();
+          .limit(1);
+        const settings = settingsRows?.[0] || null;
           
         if (settings) {
           setDistanceWarningSettings({

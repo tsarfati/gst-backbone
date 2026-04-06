@@ -90,57 +90,66 @@ export function UserPinSettings({ userId, currentPin, userName }: UserPinSetting
           )}
         </CardTitle>
       </CardHeader>
-      <CardContent className="space-y-4">
-        <div className="space-y-2">
-          <Label htmlFor="pin">6-Digit PIN</Label>
-          <Input
-            id="pin"
-            type="password"
-            value={pin}
-            onChange={(e) => handlePinInput(e.target.value, setPin)}
-            placeholder="••••••"
-            className="text-center text-lg tracking-widest"
-            maxLength={6}
-          />
-        </div>
+      <CardContent>
+        <form
+          className="space-y-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void handleSavePin();
+          }}
+        >
+          <div className="space-y-2">
+            <Label htmlFor="pin">6-Digit PIN</Label>
+            <Input
+              id="pin"
+              type="password"
+              value={pin}
+              onChange={(e) => handlePinInput(e.target.value, setPin)}
+              placeholder="••••••"
+              className="text-center text-lg tracking-widest"
+              maxLength={6}
+            />
+          </div>
 
-        <div className="space-y-2">
-          <Label htmlFor="confirm-pin">Confirm PIN</Label>
-          <Input
-            id="confirm-pin"
-            type="password"
-            value={confirmPin}
-            onChange={(e) => handlePinInput(e.target.value, setConfirmPin)}
-            placeholder="••••••"
-            className="text-center text-lg tracking-widest"
-            maxLength={6}
-          />
-        </div>
+          <div className="space-y-2">
+            <Label htmlFor="confirm-pin">Confirm PIN</Label>
+            <Input
+              id="confirm-pin"
+              type="password"
+              value={confirmPin}
+              onChange={(e) => handlePinInput(e.target.value, setConfirmPin)}
+              placeholder="••••••"
+              className="text-center text-lg tracking-widest"
+              maxLength={6}
+            />
+          </div>
 
-        <div className="flex gap-2">
-          <Button
-            onClick={generateRandomPin}
-            variant="outline"
-            className="flex-1"
-          >
-            <RefreshCw className="h-4 w-4 mr-2" />
-            Generate Random
-          </Button>
-          <Button
-            onClick={handleSavePin}
-            disabled={loading || pin.length !== 6 || pin !== confirmPin}
-            className="flex-1"
-          >
-            <Save className="h-4 w-4 mr-2" />
-            {loading ? 'Saving...' : 'Save PIN'}
-          </Button>
-        </div>
+          <div className="flex gap-2">
+            <Button
+              type="button"
+              onClick={generateRandomPin}
+              variant="outline"
+              className="flex-1"
+            >
+              <RefreshCw className="h-4 w-4 mr-2" />
+              Generate Random
+            </Button>
+            <Button
+              type="submit"
+              disabled={loading || pin.length !== 6 || pin !== confirmPin}
+              className="flex-1"
+            >
+              <Save className="h-4 w-4 mr-2" />
+              {loading ? 'Saving...' : 'Save PIN'}
+            </Button>
+          </div>
 
-        {currentPin && (
-          <p className="text-sm text-muted-foreground text-center">
-            This user already has a PIN set. Setting a new PIN will overwrite the existing one.
-          </p>
-        )}
+          {currentPin && (
+            <p className="text-sm text-muted-foreground text-center">
+              This user already has a PIN set. Setting a new PIN will overwrite the existing one.
+            </p>
+          )}
+        </form>
       </CardContent>
     </Card>
   );

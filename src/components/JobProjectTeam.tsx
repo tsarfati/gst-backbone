@@ -79,10 +79,14 @@ interface CompanyProfileRow {
   avatar_url?: string | null;
   custom_role_id?: string | null;
   role?: string | null;
+  current_company_id?: string | null;
 }
 
 interface JobProjectTeamProps {
   jobId: string;
+  readOnly?: boolean;
+  companyIdOverride?: string | null;
+  companyNameOverride?: string | null;
 }
 
 interface PendingDesignInvite {
@@ -105,7 +109,7 @@ interface ConnectedVendorOption {
 const ADD_DESIGN_PROFESSIONAL_ROLE_VALUE = '__add_design_professional_role__';
 const ADD_SUBCONTRACTOR_ROLE_VALUE = '__add_subcontractor_role__';
 
-export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
+export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverride = null, companyNameOverride = null }: JobProjectTeamProps) {
   const { currentCompany } = useCompany();
   const { user } = useAuth();
   const { toast } = useToast();
@@ -142,6 +146,8 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     email: '',
   });
   const [inviteProjectRoleId, setInviteProjectRoleId] = useState('');
+  const companyScopeId = companyIdOverride || currentCompany?.id || null;
+  const primaryGroupCompanyName = String(companyNameOverride || (currentCompany as any)?.display_name || currentCompany?.name || 'Company');
   const canInviteDesignProfessional = ['admin', 'company_admin', 'controller', 'owner', 'project_manager'].includes(String(activeCompanyRole || '').toLowerCase());
   const designProfessionalProjectRoles = useMemo(() => {
     const roleNames = [
@@ -207,6 +213,10 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     () => connectedVendors.filter((vendor) => String(vendor.vendor_type || '').toLowerCase() !== 'design_professional'),
     [connectedVendors]
   );
+  const availableCompanyUserById = useMemo(
+    () => new Map(availableCompanyUsers.map((companyUser) => [companyUser.user_id, companyUser])),
+    [availableCompanyUsers]
+  );
   const designProfessionalCompanyUsers = useMemo(
     () => availableCompanyUsers.filter((companyUser) => companyUser.role === 'design_professional'),
     [availableCompanyUsers]
@@ -237,13 +247,13 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
   };
 
   useEffect(() => {
-    if (currentCompany?.id && jobId) {
+    if (companyScopeId && jobId) {
       loadData();
     }
-  }, [currentCompany?.id, jobId, refreshKey]);
+  }, [companyScopeId, jobId, refreshKey]);
 
   useEffect(() => {
-    if (!inviteDialogOpen || !currentCompany?.id) return;
+    if (!inviteDialogOpen || !companyScopeId) return;
 
     const query = designProfessionalSearch.trim();
     if (query.length < 2) {
@@ -255,7 +265,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     const timeoutId = window.setTimeout(async () => {
       try {
         setDesignProfessionalSearchLoading(true);
-        const results = await searchDesignProfessionalAccounts(currentCompany.id, query);
+        const results = await searchDesignProfessionalAccounts(companyScopeId, query);
         setDesignProfessionalSearchResults(results);
       } catch (error) {
         console.error('Error searching design professional accounts:', error);
@@ -266,7 +276,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     }, 250);
 
     return () => window.clearTimeout(timeoutId);
-  }, [inviteDialogOpen, currentCompany?.id, designProfessionalSearch]);
+  }, [inviteDialogOpen, companyScopeId, designProfessionalSearch]);
 
   const loadData = async () => {
     try {
@@ -287,7 +297,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
         supabase
           .from('project_roles')
           .select('id, name')
-          .eq('company_id', currentCompany?.id)
+          .eq('company_id', companyScopeId)
           .eq('is_active', true)
           .order('sort_order'),
         supabase
@@ -302,19 +312,19 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
         supabase
           .from('company_access_requests')
           .select('id, user_id, requested_at, status, notes')
-          .eq('company_id', currentCompany?.id)
-          .eq('status', 'pending')
+          .eq('company_id', companyScopeId)
+          .in('status', ['pending', 'approved'])
           .order('requested_at', { ascending: false }),
         supabase
           .from('vendors')
           .select('id, name, email, phone, vendor_type, contact_person')
-          .eq('company_id', currentCompany?.id)
+          .eq('company_id', companyScopeId)
           .eq('is_active', true)
           .order('name', { ascending: true }),
         supabase
           .from('employee_timecard_settings')
           .select('user_id, assigned_jobs, assigned_cost_codes')
-          .eq('company_id', currentCompany?.id),
+          .eq('company_id', companyScopeId),
       ]);
 
       if (allMembersRes.error) throw allMembersRes.error;
@@ -332,8 +342,18 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       const pendingRows = (pendingRequestsRes.data || []).filter((row: any) => {
         try {
           const parsed = row.notes ? JSON.parse(row.notes) : {};
-          return String(parsed?.requestedRole || '').toLowerCase() === 'design_professional'
-            && String(parsed?.invitedJobId || '') === jobId;
+          if (String(parsed?.requestedRole || '').toLowerCase() !== 'design_professional') {
+            return false;
+          }
+
+          const pendingInvites = Array.isArray(parsed?.pendingJobInvites)
+            ? parsed.pendingJobInvites
+            : [];
+
+          const hasMatchingPendingInvite = pendingInvites.some((invite: any) => String(invite?.jobId || '') === jobId);
+          const legacyMatchingInvite = !pendingInvites.length && String(parsed?.invitedJobId || '') === jobId;
+
+          return hasMatchingPendingInvite || legacyMatchingInvite;
         } catch {
           return false;
         }
@@ -374,7 +394,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       const { data: accessRows, error: accessError } = await supabase
         .from('user_company_access')
         .select('user_id, role')
-        .eq('company_id', currentCompany?.id)
+        .eq('company_id', companyScopeId)
         .eq('is_active', true);
 
       if (accessError) throw accessError;
@@ -412,7 +432,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       });
       let directoryUsers: CompanyDirectoryUser[] = [];
       const { data: directoryRows, error: directoryError } = await supabase
-        .rpc('get_company_directory', { p_company_id: currentCompany?.id });
+        .rpc('get_company_directory', { p_company_id: companyScopeId });
 
       if (!directoryError) {
         directoryUsers = (directoryRows || []) as CompanyDirectoryUser[];
@@ -429,15 +449,38 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       let companyUserOptions: CompanyUserOption[] = [];
       let companyProfileRows: CompanyProfileRow[] = [];
       let customRoleMap = new Map<string, string>();
+      let companyNameById = new Map<string, string>();
 
       if (companyUserIds.length > 0) {
         const { data: profileRows, error: profileError } = await supabase
           .from('profiles')
-          .select('user_id, first_name, last_name, display_name, phone, avatar_url, custom_role_id, role')
+          .select('user_id, first_name, last_name, display_name, phone, avatar_url, custom_role_id, role, current_company_id')
           .in('user_id', companyUserIds);
 
         if (profileError) throw profileError;
         companyProfileRows = (profileRows || []) as CompanyProfileRow[];
+
+        const externalCompanyIds = Array.from(
+          new Set(
+            companyProfileRows
+              .map((profile) => profile.current_company_id)
+              .filter((companyId): companyId is string => !!companyId)
+          )
+        );
+
+        if (externalCompanyIds.length > 0) {
+          const { data: companyRows } = await supabase
+            .from('companies')
+            .select('id, name, display_name')
+            .in('id', externalCompanyIds);
+
+          companyNameById = new Map(
+            (companyRows || []).map((company: any) => [
+              company.id,
+              String(company.display_name || company.name || 'Company'),
+            ])
+          );
+        }
 
         const customRoleIds = Array.from(
           new Set(
@@ -574,12 +617,16 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                   .join(' ')
               : 'User';
 
+          const resolvedCompanyName = normalizedRole === 'design_professional' && profile.current_company_id
+            ? companyNameById.get(profile.current_company_id) || primaryGroupCompanyName || null
+            : primaryGroupCompanyName || null;
+
           return {
             user_id: profile.user_id,
             name,
             email: emailMap.get(profile.user_id) || null,
             phone: profile.phone || null,
-            company_name: currentCompany?.name || null,
+            company_name: resolvedCompanyName,
             avatar_url: directoryProfile?.avatar_url || profile.avatar_url || null,
             role: normalizedRole,
             role_label: roleLabel,
@@ -700,7 +747,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
   };
 
   const sendDesignProfessionalInvite = async () => {
-    if (!currentCompany?.id || !inviteForm.email.trim()) {
+    if (!companyScopeId || !inviteForm.email.trim()) {
       toast({
         title: "Email required",
         description: "Enter an email address to send the invitation.",
@@ -712,7 +759,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     try {
       setInviteSubmitting(true);
       await sendDesignProfessionalJobInvite({
-        companyId: currentCompany.id,
+        companyId: companyScopeId,
         jobId,
         email: inviteForm.email.trim().toLowerCase(),
         firstName: inviteForm.firstName.trim() || null,
@@ -794,7 +841,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     if (!selectedRoleValue.startsWith('role-name:')) return selectedRoleValue;
 
     const roleName = selectedRoleValue.replace('role-name:', '').trim();
-    if (!roleName || !currentCompany?.id) return null;
+    if (!roleName || !companyScopeId) return null;
 
     const existingRole = roles.find((role) => String(role.name || '').toLowerCase() === roleName.toLowerCase());
     if (existingRole) return existingRole.id;
@@ -803,7 +850,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     const { data, error } = await supabase
       .from('project_roles')
       .insert({
-        company_id: currentCompany.id,
+        company_id: companyScopeId,
         name: roleName,
         is_active: true,
         sort_order: nextSortOrder,
@@ -856,7 +903,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           .from('job_project_directory')
           .insert({
             job_id: jobId,
-            company_id: currentCompany?.id,
+            company_id: companyScopeId,
             name: selectedCompanyUser.name,
             email: selectedCompanyUser.email,
             phone: selectedCompanyUser.phone,
@@ -881,7 +928,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           .from('job_project_directory')
           .insert({
             job_id: jobId,
-            company_id: currentCompany?.id,
+            company_id: companyScopeId,
             name: selectedVendor.name,
             email: selectedVendor.email,
             phone: selectedVendor.phone,
@@ -1080,8 +1127,14 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     const memberCompany = String(member.company_name || '').toLowerCase();
     const linkedUserId = String(member.linked_user_id || '');
 
-    if (linkedUserId && designProfessionalUserIds.has(linkedUserId)) {
-      return 'design_professional';
+    if (linkedUserId) {
+      const linkedCompanyUser = availableCompanyUserById.get(linkedUserId);
+      if (linkedCompanyUser) {
+        if (linkedCompanyUser.role === 'design_professional') {
+          return 'design_professional';
+        }
+        return null;
+      }
     }
 
     const matchingDesignProfessional = designProfessionalVendors.find((vendor) => {
@@ -1107,8 +1160,19 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
     return null;
   };
 
+  const getResolvedMemberCompanyName = (member: DirectoryMember) => {
+    const linkedUserId = String(member.linked_user_id || '');
+    if (linkedUserId) {
+      const linkedCompanyUser = availableCompanyUserById.get(linkedUserId);
+      if (linkedCompanyUser?.company_name) {
+        return linkedCompanyUser.company_name;
+      }
+    }
+    return member.company_name || 'External Company';
+  };
+
   const groupedTeamMembers = useMemo(() => {
-    const primaryCompanyName = String((currentCompany as any)?.display_name || currentCompany?.name || 'Company');
+    const primaryCompanyName = primaryGroupCompanyName;
 
     const internalLeadershipMembers = teamMembers.filter((member) => {
       if (member.source === 'employee') return false;
@@ -1125,7 +1189,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       members: DirectoryMember[];
       badgeClasses: string;
     }>>((groups, member) => {
-      const groupName = String(member.company_name || 'External Company');
+      const groupName = String(getResolvedMemberCompanyName(member));
       const key = `company-${groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
       const existing = groups.find((group) => group.key === key);
       if (existing) {
@@ -1146,7 +1210,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
       { key: 'employees', title: `${primaryCompanyName} Employees`, members: employeeMembers, badgeClasses: 'border-slate-200 bg-slate-50 text-slate-800' },
       ...externalGroups,
     ].filter((group) => group.members.length > 0);
-  }, [teamMembers, currentCompany]);
+  }, [teamMembers, availableCompanyUserById, designProfessionalVendors, subcontractorVendors, primaryGroupCompanyName]);
 
   if (loading) {
     return (
@@ -1168,7 +1232,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
           </CardTitle>
         </div>
         <div className="flex items-center gap-2">
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          {!readOnly && <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
             <DialogTrigger asChild>
               <Button onClick={openAddDialog} size="sm" disabled={availableMembers.length === 0 && !editingMember}>
                 <Plus className="h-4 w-4 mr-2" />
@@ -1470,8 +1534,8 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
-          {canInviteDesignProfessional && (
+          </Dialog>}
+          {!readOnly && canInviteDesignProfessional && (
             <Dialog open={inviteDialogOpen} onOpenChange={(open) => {
               setInviteDialogOpen(open);
               if (!open) {
@@ -1579,7 +1643,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
               </DialogContent>
             </Dialog>
           )}
-          <Dialog open={vendorInviteDialogOpen} onOpenChange={setVendorInviteDialogOpen}>
+          {!readOnly && <Dialog open={vendorInviteDialogOpen} onOpenChange={setVendorInviteDialogOpen}>
             <DialogContent className="max-w-md">
               <DialogHeader>
                 <DialogTitle>Invite Vendor to Portal</DialogTitle>
@@ -1609,14 +1673,14 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                 </Button>
               </DialogFooter>
             </DialogContent>
-          </Dialog>
+          </Dialog>}
         </div>
       </CardHeader>
       <CardContent>
-        {pendingDesignInvites.length > 0 && (
+        {!readOnly && pendingDesignInvites.length > 0 && (
           <div className="mb-4 rounded-lg bg-primary/5 p-3 space-y-2">
             <div className="flex items-center justify-between">
-              <p className="text-sm font-semibold">Pending Design Professional Approvals</p>
+              <p className="text-sm font-semibold">Awaiting Design Professional Acceptance</p>
               <Badge variant="warning">{pendingDesignInvites.length}</Badge>
             </div>
             {pendingDesignInvites.slice(0, 5).map((invite) => (
@@ -1629,7 +1693,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
               </div>
             ))}
             <p className="text-xs text-muted-foreground">
-              Approve from User Management → Intake Queue.
+              These project invites become active automatically as soon as the design professional accepts them.
             </p>
           </div>
         )}
@@ -1639,7 +1703,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
             <Users className="h-12 w-12 mx-auto mb-3 opacity-50" />
             <p>No team members assigned yet.</p>
             <p className="text-sm">
-              {availableMembers.length > 0 
+              {!readOnly && availableMembers.length > 0 
                 ? 'Click "Add Member" to assign company users or job contacts.'
                 : 'No eligible people are available to add right now.'}
             </p>
@@ -1684,7 +1748,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                     <div className="mt-0.5 grid grid-cols-1 lg:grid-cols-3 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
                       <div className="truncate flex items-center gap-1">
                         <Building2 className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{member.company_name || 'No company'}</span>
+                        <span className="truncate">{getResolvedMemberCompanyName(member)}</span>
                       </div>
                       <div className="truncate">
                         {member.email ? (
@@ -1716,7 +1780,7 @@ export default function JobProjectTeam({ jobId }: JobProjectTeamProps) {
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
-                    {(!member.source || member.source === 'directory') ? (
+                    {!readOnly && (!member.source || member.source === 'directory') ? (
                       <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
                         <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(member)}>
                           <Edit className="h-3.5 w-3.5" />

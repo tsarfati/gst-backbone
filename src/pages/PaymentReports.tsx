@@ -119,10 +119,29 @@ export default function PaymentReports() {
       try {
         const startDate = getStartDate(selectedPeriod);
 
+        const vendorResponse: any = await supabase
+          .from("vendors")
+          .select("id, name")
+          .eq("company_id", currentCompany.id);
+
+        if (vendorResponse.error) throw vendorResponse.error;
+
+        const vendors = vendorResponse.data || [];
+        const vendorIds = vendors.map((vendor: any) => vendor.id).filter(Boolean);
+        const vendorNameById = new Map<string, string>(
+          vendors.map((vendor: any) => [vendor.id, vendor.name || "Unknown Vendor"])
+        );
+
+        if (!vendorIds.length) {
+          setPayments([]);
+          setInvoiceCreatedAtByPaymentId({});
+          return;
+        }
+
         const paymentResponse: any = await supabase
           .from("payments")
-          .select("id, amount, payment_date, payment_method, vendor_id, vendors!inner(company_id, name, display_name)")
-          .eq("vendors.company_id", currentCompany.id)
+          .select("id, amount, payment_date, payment_method, vendor_id")
+          .in("vendor_id", vendorIds)
           .gte("payment_date", startDate.toISOString().slice(0, 10))
           .order("payment_date", { ascending: true });
 
@@ -133,7 +152,7 @@ export default function PaymentReports() {
           amount: Number(row.amount) || 0,
           payment_date: row.payment_date,
           payment_method: row.payment_method || "unknown",
-          vendor_name: row.vendors?.display_name || row.vendors?.name || "Unknown Vendor",
+          vendor_name: vendorNameById.get(row.vendor_id) || "Unknown Vendor",
         }));
 
         setPayments(mappedPayments);

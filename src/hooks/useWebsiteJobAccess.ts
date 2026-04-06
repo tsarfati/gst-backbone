@@ -52,7 +52,7 @@ export function useWebsiteJobAccess() {
           return;
         }
 
-        const [directoryRes, projectManagerRes, assistantPmRes, employeeSettingsRes, companyJobsRes] = await Promise.all([
+        const [directoryRes, projectManagerRes, assistantPmRes, employeeSettingsRes, companyJobsRes, sharedJobAccessRes] = await Promise.all([
           supabase
             .from('job_project_directory')
             .select('job_id')
@@ -80,12 +80,17 @@ export function useWebsiteJobAccess() {
             .from('jobs')
             .select('id')
             .eq('company_id', currentCompany.id),
+          supabase
+            .from('user_job_access')
+            .select('job_id')
+            .eq('user_id', user.id),
         ]);
 
         if (directoryRes.error) throw directoryRes.error;
         if (projectManagerRes.error) throw projectManagerRes.error;
         if (assistantPmRes.error) throw assistantPmRes.error;
         if (companyJobsRes.error) throw companyJobsRes.error;
+        if (sharedJobAccessRes.error) throw sharedJobAccessRes.error;
         if (employeeSettingsRes.error && employeeSettingsRes.error.code !== 'PGRST116') {
           throw employeeSettingsRes.error;
         }
@@ -106,6 +111,12 @@ export function useWebsiteJobAccess() {
 
         (assistantPmRes.data || []).forEach((row: any) => {
           if (row?.job_id && companyJobIds.has(String(row.job_id))) {
+            allowedIds.add(String(row.job_id));
+          }
+        });
+
+        (sharedJobAccessRes.data || []).forEach((row: any) => {
+          if (row?.job_id) {
             allowedIds.add(String(row.job_id));
           }
         });
