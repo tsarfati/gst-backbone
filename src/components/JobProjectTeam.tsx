@@ -95,6 +95,7 @@ interface PendingDesignInvite {
   requested_at: string;
   business_name?: string | null;
   display_name?: string;
+  email?: string | null;
 }
 
 interface ConnectedVendorOption {
@@ -108,6 +109,15 @@ interface ConnectedVendorOption {
 
 const ADD_DESIGN_PROFESSIONAL_ROLE_VALUE = '__add_design_professional_role__';
 const ADD_SUBCONTRACTOR_ROLE_VALUE = '__add_subcontractor_role__';
+
+const isMissingRelationError = (error: unknown, relationName: string): boolean => {
+  const message = String((error as any)?.message || error || '').toLowerCase();
+  return message.includes(relationName.toLowerCase()) && (
+    message.includes('schema cache') ||
+    message.includes('does not exist') ||
+    message.includes('relation')
+  );
+};
 
 export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverride = null, companyNameOverride = null }: JobProjectTeamProps) {
   const { currentCompany } = useCompany();
@@ -339,38 +349,57 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
       
       setRoles(rolesRes.data || []);
 
-      const pendingRows = (pendingRequestsRes.data || []).filter((row: any) => {
-        try {
-          const parsed = row.notes ? JSON.parse(row.notes) : {};
-          if (String(parsed?.requestedRole || '').toLowerCase() !== 'design_professional') {
+      let nextPendingDesignInvites: PendingDesignInvite[] = [];
+      const { data: inviteRows, error: inviteRowsError } = await supabase
+        .from('design_professional_job_invites')
+        .select('id, accepted_by_user_id, company_id, job_id, email, first_name, last_name, invited_by, created_at, status')
+        .eq('company_id', companyScopeId)
+        .eq('job_id', jobId)
+        .eq('status', 'pending')
+        .order('created_at', { ascending: false });
+
+      if (!inviteRowsError) {
+        nextPendingDesignInvites = (inviteRows || []).map((row: any) => ({
+          id: row.id,
+          user_id: row.accepted_by_user_id || row.email || row.id,
+          requested_at: row.created_at,
+          display_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || 'Pending user',
+          email: row.email || null,
+        }));
+      } else if (!isMissingRelationError(inviteRowsError, 'design_professional_job_invites')) {
+        throw inviteRowsError;
+      } else {
+        const pendingRows = (pendingRequestsRes.data || []).filter((row: any) => {
+          try {
+            const parsed = row.notes ? JSON.parse(row.notes) : {};
+            if (String(parsed?.requestedRole || '').toLowerCase() !== 'design_professional') {
+              return false;
+            }
+
+            const pendingInvites = Array.isArray(parsed?.pendingJobInvites)
+              ? parsed.pendingJobInvites
+              : [];
+
+            const hasMatchingPendingInvite = pendingInvites.some((invite: any) => String(invite?.jobId || '') === jobId);
+            const legacyMatchingInvite = !pendingInvites.length && String(parsed?.invitedJobId || '') === jobId;
+
+            return hasMatchingPendingInvite || legacyMatchingInvite;
+          } catch {
             return false;
           }
+        });
 
-          const pendingInvites = Array.isArray(parsed?.pendingJobInvites)
-            ? parsed.pendingJobInvites
-            : [];
-
-          const hasMatchingPendingInvite = pendingInvites.some((invite: any) => String(invite?.jobId || '') === jobId);
-          const legacyMatchingInvite = !pendingInvites.length && String(parsed?.invitedJobId || '') === jobId;
-
-          return hasMatchingPendingInvite || legacyMatchingInvite;
-        } catch {
-          return false;
+        const pendingUserIds = Array.from(new Set(pendingRows.map((r: any) => r.user_id).filter(Boolean)));
+        let pendingProfiles: any[] = [];
+        if (pendingUserIds.length > 0) {
+          const { data: profileRows } = await supabase
+            .from('profiles')
+            .select('user_id, first_name, last_name, display_name')
+            .in('user_id', pendingUserIds);
+          pendingProfiles = profileRows || [];
         }
-      });
 
-      const pendingUserIds = Array.from(new Set(pendingRows.map((r: any) => r.user_id).filter(Boolean)));
-      let pendingProfiles: any[] = [];
-      if (pendingUserIds.length > 0) {
-        const { data: profileRows } = await supabase
-          .from('profiles')
-          .select('user_id, first_name, last_name, display_name')
-          .in('user_id', pendingUserIds);
-        pendingProfiles = profileRows || [];
-      }
-
-      setPendingDesignInvites(
-        pendingRows.map((row: any) => {
+        nextPendingDesignInvites = pendingRows.map((row: any) => {
           let businessName: string | null = null;
           try {
             const parsed = row.notes ? JSON.parse(row.notes) : {};
@@ -387,8 +416,10 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
             business_name: businessName,
             display_name: displayName || 'Pending user',
           };
-        })
-      );
+        });
+      }
+
+      setPendingDesignInvites(nextPendingDesignInvites);
       setConnectedVendors((connectedVendorsRes.data || []) as ConnectedVendorOption[]);
 
       const { data: accessRows, error: accessError } = await supabase
