@@ -17,6 +17,11 @@ const corsHeaders = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
 };
 
+// Temporary override: allow punches to proceed even when device GPS accuracy is
+// weaker than the configured threshold. This keeps punch-in/out working until
+// the Punch Clock app is updated to handle the precise-location requirement.
+const TEMP_DISABLE_LOW_LOCATION_CONFIDENCE_BLOCK = true;
+
 function errorResponse(message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
     status,
@@ -375,7 +380,7 @@ async function enforcePunchDistanceIfRequired(
       accuracyMeters: requestAccuracyMeters,
     });
 
-    if (requestAccuracyMeters != null && requestAccuracyMeters > minReliableAccuracyMeters) {
+    if (!TEMP_DISABLE_LOW_LOCATION_CONFIDENCE_BLOCK && requestAccuracyMeters != null && requestAccuracyMeters > minReliableAccuracyMeters) {
       const warningPayload = {
         warning_code: "LOW_LOCATION_CONFIDENCE_SUPERVISOR_APPROVAL_REQUIRED",
         warning_reason: "low_location_confidence",
@@ -560,7 +565,7 @@ async function enforcePunchDistanceIfRequired(
     accuracyMeters: requestAccuracyMeters,
   });
 
-  if (requestAccuracyMeters != null && requestAccuracyMeters > minReliableAccuracyMeters) {
+  if (!TEMP_DISABLE_LOW_LOCATION_CONFIDENCE_BLOCK && requestAccuracyMeters != null && requestAccuracyMeters > minReliableAccuracyMeters) {
     const resp = geofenceBlockResponse({
       code: "LOCATION_REQUIRED",
       message:
