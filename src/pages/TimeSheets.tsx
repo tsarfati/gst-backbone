@@ -108,30 +108,7 @@ export default function TimeSheets() {
       if (isManager) {
         loadEmployees();
       }
-      loadTimeCards();
     }
-
-    // Set up real-time subscription for time cards
-    const channel = supabase
-      .channel('time-cards-changes')
-      .on(
-        'postgres_changes',
-        {
-          event: '*', // Listen to all events (INSERT, UPDATE, DELETE)
-          schema: 'public',
-          table: 'time_cards'
-        },
-        (payload) => {
-          console.log('Time card change detected:', payload);
-          // Reload time cards when changes occur
-          loadTimeCards();
-        }
-      )
-      .subscribe();
-
-    return () => {
-      supabase.removeChannel(channel);
-    };
   }, [user, profile, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
@@ -215,20 +192,12 @@ export default function TimeSheets() {
           status,
           break_minutes,
           notes,
-          low_location_confidence,
           punch_in_photo_url,
           punch_out_photo_url,
-          punch_in_accuracy_meters,
-          punch_out_accuracy_meters,
-          punch_in_location_lat,
-          punch_in_location_lng,
-          punch_out_location_lat,
-          punch_out_location_lng,
           deleted_at
         `)
         .eq('company_id', currentCompany.id)
-        .is('deleted_at', null)
-        .order('punch_in_time', { ascending: false });
+        .is('deleted_at', null);
 
       if (!isPrivileged) {
         if (allowedJobIds.length === 0) {
@@ -246,13 +215,18 @@ export default function TimeSheets() {
         query = query.eq('user_id', selectedEmployeeId);
       }
 
+      const queryUrl = (query as any)?.url;
+      if (queryUrl?.searchParams?.get('order')) {
+        queryUrl.searchParams.delete('order');
+      }
+
       const { data: timeCardData, error } = await query;
 
       if (error) {
         console.error('Error loading time cards:', error);
         toast({
           title: 'Error',
-          description: 'Failed to load time sheets',
+          description: (error as any)?.message || 'Failed to load time sheets',
           variant: 'destructive',
         });
         return;
@@ -325,6 +299,7 @@ export default function TimeSheets() {
 
         return {
           ...tc,
+          low_location_confidence: tc.low_location_confidence ?? false,
           punch_in_photo_url: tc.punch_in_photo_url,
           punch_out_photo_url: tc.punch_out_photo_url,
           requires_approval: shouldFlag || tc.status === 'pending',
@@ -419,7 +394,11 @@ export default function TimeSheets() {
         return updated;
       }));
 
-      setTimeCards(enrichedData);
+      const sortedEnrichedData = [...enrichedData].sort(
+        (a, b) => new Date(b.punch_in_time).getTime() - new Date(a.punch_in_time).getTime()
+      );
+
+      setTimeCards(sortedEnrichedData);
     } catch (error) {
       console.error('Error:', error);
       toast({
@@ -630,51 +609,31 @@ export default function TimeSheets() {
     </TableHead>
   );
 
-  const PhotoDisplay = ({ url, type, className }: { url?: string; type: 'in' | 'out'; className?: string }) => {
-    // Normalize photo URL to handle Supabase storage paths
-    const [resolvedUrl, setResolvedUrl] = useState<string | null>(null);
-    
-    useEffect(() => {
-      if (!url) return;
-      const resolve = async () => {
-        if (url.startsWith('http') && !url.includes('supabase.co/storage')) {
-          setResolvedUrl(url);
-        } else {
-          // Some legacy rows store full storage URLs with an old bucket.
-          // Extract path and retry against punch-photos to avoid "bucket not found".
-          let candidatePath = url;
-          if (url.includes('/storage/v1/object/public/') || url.includes('/storage/v1/object/sign/')) {
-            const marker = url.includes('/storage/v1/object/public/')
-              ? '/storage/v1/object/public/'
-              : '/storage/v1/object/sign/';
-            const afterMarker = url.split(marker)[1] || '';
-            const slashIndex = afterMarker.indexOf('/');
-            if (slashIndex >= 0) {
-              candidatePath = afterMarker.slice(slashIndex + 1).split('?')[0];
-            }
-          }
+  const openPunchPhoto = async (url?: string | null) => {
+    if (!url) return;
+    const resolved = await resolveStorageUrl('punch-photos', url);
+    if (resolved) {
+      window.open(resolved, '_blank', 'noopener,noreferrer');
+    }
+  };
 
-          const signed = await resolveStorageUrl('punch-photos', candidatePath);
-          setResolvedUrl(signed || url);
-        }
-      };
-      resolve();
-    }, [url]);
+  const PhotoButton = ({ url, type, className }: { url?: string; type: 'in' | 'out'; className?: string }) => {
+    if (!url) return null;
 
-    if (!resolvedUrl) return null;
-    
     return (
-      <div className="relative">
-        <img 
-          src={resolvedUrl} 
-          alt={`Punch ${type} photo`}
-          className={className || "h-8 w-8 rounded object-cover cursor-pointer hover:scale-110 transition-transform"}
-          onClick={() => window.open(resolvedUrl, '_blank')}
-        />
-        <div className="absolute -top-1 -right-1 bg-primary text-primary-foreground rounded-full p-1">
-          <Camera className="h-2 w-2" />
-        </div>
-      </div>
+      <Button
+        type="button"
+        variant="outline"
+        size="sm"
+        className={className || "h-8 px-2 gap-1"}
+        onClick={(e) => {
+          e.stopPropagation();
+          void openPunchPhoto(url);
+        }}
+      >
+        <Camera className="h-3.5 w-3.5" />
+        {type === 'in' ? 'In' : 'Out'}
+      </Button>
     );
   };
 
@@ -1002,8 +961,8 @@ export default function TimeSheets() {
                           </TableCell>
                           <TableCell className="border-y border-transparent group-hover:border-primary">
                             <div className="flex items-center gap-2">
-                              <PhotoDisplay url={timeCard.punch_in_photo_url || undefined} type="in" />
-                              <PhotoDisplay url={timeCard.punch_out_photo_url || undefined} type="out" />
+                              <PhotoButton url={timeCard.punch_in_photo_url || undefined} type="in" />
+                              <PhotoButton url={timeCard.punch_out_photo_url || undefined} type="out" />
                               {!timeCard.punch_in_photo_url && !timeCard.punch_out_photo_url && (
                                 <span className="text-muted-foreground text-sm">No photos</span>
                               )}
@@ -1178,20 +1137,20 @@ export default function TimeSheets() {
                            {timeCard.punch_in_photo_url && (
                              <div className="space-y-2">
                                <div className="text-xs text-muted-foreground">Punch In</div>
-                               <PhotoDisplay
+                               <PhotoButton
                                  url={timeCard.punch_in_photo_url}
                                  type="in"
-                                 className="w-20 h-20 rounded object-cover cursor-pointer hover:scale-105 transition-transform"
+                                 className="h-10 px-3 gap-2"
                                />
                              </div>
                            )}
                            {timeCard.punch_out_photo_url && (
                              <div className="space-y-2">
                                <div className="text-xs text-muted-foreground">Punch Out</div>
-                               <PhotoDisplay
+                               <PhotoButton
                                  url={timeCard.punch_out_photo_url}
                                  type="out"
-                                 className="w-20 h-20 rounded object-cover cursor-pointer hover:scale-105 transition-transform"
+                                 className="h-10 px-3 gap-2"
                                />
                              </div>
                            )}

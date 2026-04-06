@@ -22,6 +22,13 @@ interface UploadFileWithProgressParams {
 const RESUMABLE_UPLOAD_THRESHOLD_BYTES = 6 * 1024 * 1024;
 const RESUMABLE_UPLOAD_URL = `${STORAGE_SUPABASE_STORAGE_URL}/storage/v1/upload/resumable`;
 const RESUMABLE_CHUNK_SIZE = 6 * 1024 * 1024;
+const SIGNED_URL_CACHE_TTL_MS = 55 * 60 * 1000;
+const SIGNED_URL_RETRY_COOLDOWN_MS = 60 * 1000;
+
+const signedUrlCache = new Map<string, { url: string; expiresAt: number }>();
+const signedUrlInflight = new Map<string, Promise<string>>();
+const signedUrlCooldowns = new Map<string, number>();
+const signedUrlWarned = new Set<string>();
 
 /**
  * Extracts the storage path from a full Supabase storage URL.
@@ -29,7 +36,10 @@ const RESUMABLE_CHUNK_SIZE = 6 * 1024 * 1024;
  */
 function extractStoragePath(bucketName: string, urlOrPath: string): string {
   // If it's already just a path (no http), return as-is
-  if (!urlOrPath.startsWith('http')) return urlOrPath;
+  if (!urlOrPath.startsWith('http')) {
+    const bucketPrefix = `${bucketName}/`;
+    return urlOrPath.startsWith(bucketPrefix) ? urlOrPath.slice(bucketPrefix.length) : urlOrPath;
+  }
 
   // Try to extract path from full Supabase storage URL
   // Format: https://<project>.supabase.co/storage/v1/object/public/<bucket>/<path>
@@ -73,17 +83,51 @@ export async function getSignedStorageUrl(
   }
 
   const path = extractStoragePath(bucketName, urlOrPath);
+  const cacheKey = `${bucketName}:${path}`;
+  const now = Date.now();
 
-  const { data, error } = await supabase.storage
-    .from(bucketName)
-    .createSignedUrl(path, expiresIn);
-
-  if (error || !data?.signedUrl) {
-    console.warn(`Failed to create signed URL for ${bucketName}/${path}:`, error);
-    return urlOrPath; // Fall back to original
+  const cached = signedUrlCache.get(cacheKey);
+  if (cached && cached.expiresAt > now) {
+    return cached.url;
   }
 
-  return data.signedUrl;
+  const cooldownUntil = signedUrlCooldowns.get(cacheKey);
+  if (cooldownUntil && cooldownUntil > now) {
+    return urlOrPath;
+  }
+
+  const inflight = signedUrlInflight.get(cacheKey);
+  if (inflight) {
+    return inflight;
+  }
+
+  const request = (async () => {
+    const { data, error } = await supabase.storage
+      .from(bucketName)
+      .createSignedUrl(path, expiresIn);
+
+    if (error || !data?.signedUrl) {
+      signedUrlCooldowns.set(cacheKey, Date.now() + SIGNED_URL_RETRY_COOLDOWN_MS);
+      if (!signedUrlWarned.has(cacheKey)) {
+        console.warn(`Failed to create signed URL for ${bucketName}/${path}:`, error);
+        signedUrlWarned.add(cacheKey);
+        window.setTimeout(() => signedUrlWarned.delete(cacheKey), SIGNED_URL_RETRY_COOLDOWN_MS);
+      }
+      return urlOrPath; // Fall back to original
+    }
+
+    signedUrlCache.set(cacheKey, {
+      url: data.signedUrl,
+      expiresAt: Date.now() + Math.min(expiresIn * 1000, SIGNED_URL_CACHE_TTL_MS),
+    });
+    signedUrlCooldowns.delete(cacheKey);
+    return data.signedUrl;
+  })().finally(() => {
+    signedUrlInflight.delete(cacheKey);
+  });
+
+  signedUrlInflight.set(cacheKey, request);
+  return request;
 }
 
 /**

@@ -1560,6 +1560,17 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
   };
 
   const attachmentRequired = !canBypassAttachment();
+  const hasRequiredAttachment = attachmentRequired
+    ? (billFiles.length > 0 || !!attachedReceipt)
+    : (billFiles.length > 0 || !!attachedReceipt || noAttachmentNeeded);
+  const hasValidPaymentTiming = formData.use_terms
+    ? Boolean(formData.payment_terms)
+    : Boolean(formData.dueDate);
+  const hasValidCommitmentCoding =
+    Boolean(formData.cost_code_id) ||
+    (needsDistribution && billDistribution.length > 0) ||
+    (commitmentDistribution.length === 1);
+  const hasValidNonCommitmentDistribution = isDistributionValid();
 
   // Debug form validation
   console.log('Form validation debug:', {
@@ -1581,13 +1592,24 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     commitmentDistribution_length: commitmentDistribution.length
   });
 
-  const isFormValid = billType === "commitment" 
-    ? formData.vendor_id && (formData.job_id || formData.expense_account_id) && formData.amount && 
-      formData.issueDate && (attachmentRequired ? (billFiles.length > 0 || attachedReceipt) : true) && (formData.use_terms ? formData.payment_terms : formData.dueDate) &&
-      (formData.cost_code_id || (needsDistribution && billDistribution.length > 0) || (commitmentDistribution.length === 1)) // Accept auto-applied single distribution
-    : formData.vendor_id && formData.amount && formData.issueDate && (attachmentRequired ? (billFiles.length > 0 || attachedReceipt) : true) && 
-      (formData.use_terms ? formData.payment_terms : formData.dueDate) && 
-      isDistributionValid(); // Valid distribution required
+  const isFormValid = billType === "commitment"
+    ? Boolean(
+        formData.vendor_id &&
+        (formData.job_id || formData.expense_account_id) &&
+        formData.amount &&
+        formData.issueDate &&
+        hasRequiredAttachment &&
+        hasValidPaymentTiming &&
+        hasValidCommitmentCoding
+      )
+    : Boolean(
+        formData.vendor_id &&
+        formData.amount &&
+        formData.issueDate &&
+        hasRequiredAttachment &&
+        hasValidPaymentTiming &&
+        hasValidNonCommitmentDistribution
+      );
 
   console.log('isFormValid:', isFormValid);
 
@@ -1608,9 +1630,220 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       </div>
 
       <form onSubmit={handleSubmit} className="space-y-6">
-        {/* Form Fields - Compact Layout at Top */}
-        <div className="space-y-6">
-        {/* Invoice Information */}
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] xl:items-start">
+          <div className="xl:sticky xl:top-6">
+            <Card className="overflow-hidden">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Bill Document
+                  {attachmentRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div
+                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
+                    isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                  }`}
+                  onDragOver={handleDragOver}
+                  onDragLeave={handleDragLeave}
+                  onDrop={handleDrop}
+                >
+                  {billFiles.length > 0 ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-center w-16 h-16 mx-auto bg-success/10 rounded-full">
+                        <FileText className="h-8 w-8 text-success" />
+                      </div>
+                      <p className="font-medium">{billFiles.length} file{billFiles.length > 1 ? 's' : ''} selected</p>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/25 px-4 py-4 sm:flex-row">
+                      <Upload className="h-4 w-4 text-muted-foreground" />
+                      <p className="text-sm font-medium">
+                        {isDragOver ? "Drop Files Here" : "Drag Files Here"}
+                      </p>
+                      <p className="text-sm text-muted-foreground">or</p>
+                      <div>
+                        <input
+                          type="file"
+                          multiple
+                          accept=".pdf,.jpg,.jpeg,.png,.webp"
+                          onChange={handleFileInputChange}
+                          className="hidden"
+                          id="bill-file-upload"
+                        />
+                        <Button type="button" asChild size="sm">
+                          <label htmlFor="bill-file-upload" className="cursor-pointer">
+                            Choose Files to Add
+                          </label>
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {(billFiles.length > 0 || attachedReceipt) ? (
+                  <div className="space-y-3">
+                    <Label className="text-base font-semibold">Document Preview</Label>
+
+                    {attachedReceipt && (
+                      <div className="border rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between p-3 bg-amber-50 border-b">
+                          <div className="flex items-center gap-2">
+                            <Receipt className="h-4 w-4 text-amber-600" />
+                            <span className="font-medium text-sm">Attached Receipt: {attachedReceipt.filename}</span>
+                            <Badge variant="secondary" className="text-xs">
+                              From Receipt System
+                            </Badge>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const link = document.createElement('a');
+                                link.href = attachedReceipt.file_url;
+                                link.download = attachedReceipt.filename || 'receipt';
+                                link.target = '_blank';
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                              }}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setAttachedReceipt(null);
+                                toast({
+                                  title: "Receipt detached",
+                                  description: "Receipt has been removed from this bill"
+                                });
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        <div className="h-[70vh] overflow-auto bg-gray-50">
+                          {(attachedReceipt.file_name?.toLowerCase().endsWith('.pdf') || attachedReceipt.type === 'pdf') && attachedReceipt.file_url ? (
+                            <UrlPdfInlinePreview url={attachedReceipt.file_url} className="w-full" />
+                          ) : attachedReceipt.file_url ? (
+                            <img
+                              src={attachedReceipt.file_url}
+                              alt="Receipt preview"
+                              className="w-full h-auto"
+                            />
+                          ) : (
+                            <div className="p-8 text-center text-muted-foreground">
+                              <FileText className="h-12 w-12 mx-auto mb-2" />
+                              <p>Receipt preview not available</p>
+                            </div>
+                          )}
+                        </div>
+                      </div>
+                    )}
+
+                    {billFiles.map((file, index) => (
+                      <div key={index} className="border rounded-lg overflow-hidden">
+                        <div className="flex items-center justify-between p-3 bg-muted">
+                          <div className="flex items-center gap-2">
+                            <FileText className="h-4 w-4" />
+                            <span className="font-medium text-sm">{file.name}</span>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button
+                              type="button"
+                              variant="outline"
+                              size="sm"
+                              onClick={() => {
+                                const url = URL.createObjectURL(file);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = file.name;
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                URL.revokeObjectURL(url);
+                              }}
+                            >
+                              <Download className="h-4 w-4" />
+                            </Button>
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => removeFile(index)}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        </div>
+                        {file.type === 'application/pdf' ? (
+                          <div className="h-[70vh] overflow-auto bg-gray-50">
+                            <PdfInlinePreview file={file} className="w-full" />
+                          </div>
+                        ) : (
+                          <div className="h-[70vh] overflow-auto bg-gray-50">
+                            <img
+                              src={URL.createObjectURL(file)}
+                              alt="Bill preview"
+                              className="w-full h-auto"
+                            />
+                          </div>
+                        )}
+                      </div>
+                    ))}
+
+                    <div
+                      className={`border-2 border-dashed rounded-lg px-4 py-3 text-center transition-colors ${
+                        isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                    >
+                      <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+                        <Upload className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm font-medium">
+                          {isDragOver ? "Drop Files Here" : "Drag Files Here"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">or</p>
+                        <div>
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.jpg,.jpeg,.png,.webp"
+                            onChange={handleFileInputChange}
+                            className="hidden"
+                            id="bill-file-upload-additional"
+                          />
+                          <Button type="button" asChild size="sm" variant="outline">
+                            <label htmlFor="bill-file-upload-additional" className="cursor-pointer">
+                              Choose Files to Add
+                            </label>
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : (
+                  attachmentRequired ? (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <AlertCircle className="h-4 w-4" />
+                      <span>Bill document or receipt attachment is required before saving</span>
+                    </div>
+                  ) : null
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          <div className="space-y-6 min-w-0">
         <Card>
           <CardHeader>
             <CardTitle>
@@ -2423,220 +2656,6 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             onReceiptAttached={handleReceiptAttach}
           />
         )}
-        </div>
-        
-        {/* Bill File Upload & Preview - Full Width at Bottom */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Bill Document
-              {attachmentRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div
-              className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-              }`}
-              onDragOver={handleDragOver}
-              onDragLeave={handleDragLeave}
-              onDrop={handleDrop}
-            >
-              {billFiles.length > 0 ? (
-                <div className="space-y-3">
-                  <div className="flex items-center justify-center w-16 h-16 mx-auto bg-success/10 rounded-full">
-                    <FileText className="h-8 w-8 text-success" />
-                  </div>
-                  <p className="font-medium">{billFiles.length} file{billFiles.length > 1 ? 's' : ''} selected</p>
-                </div>
-              ) : (
-                <div className="flex items-center justify-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/25 px-4 py-3">
-                  <Upload className="h-4 w-4 text-muted-foreground" />
-                  <p className="text-sm font-medium">
-                    {isDragOver ? "Drop Files Here" : "Drag Files Here"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">or</p>
-                  <div>
-                    <input
-                      type="file"
-                      multiple
-                      accept=".pdf,.jpg,.jpeg,.png,.webp"
-                      onChange={handleFileInputChange}
-                      className="hidden"
-                      id="bill-file-upload"
-                    />
-                    <Button type="button" asChild size="sm">
-                      <label htmlFor="bill-file-upload" className="cursor-pointer">
-                        Choose Files to Add
-                      </label>
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-            
-            {/* Bill Preview - Full Width */}
-            {(billFiles.length > 0 || attachedReceipt) && (
-              <div className="space-y-3">
-                <Label className="text-base font-semibold">Document Preview</Label>
-                
-                {/* Attached Receipt Preview */}
-                {attachedReceipt && (
-                  <div className="border rounded-lg overflow-hidden">
-                    <div className="flex items-center justify-between p-3 bg-amber-50 border-b">
-                      <div className="flex items-center gap-2">
-                        <Receipt className="h-4 w-4 text-amber-600" />
-                        <span className="font-medium text-sm">Attached Receipt: {attachedReceipt.filename}</span>
-                        <Badge variant="secondary" className="text-xs">
-                          From Receipt System
-                        </Badge>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const link = document.createElement('a');
-                            link.href = attachedReceipt.file_url;
-                            link.download = attachedReceipt.filename || 'receipt';
-                            link.target = '_blank';
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                          }}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => {
-                            setAttachedReceipt(null);
-                            toast({
-                              title: "Receipt detached",
-                              description: "Receipt has been removed from this bill"
-                            });
-                          }}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    <div className="max-h-[800px] overflow-y-auto bg-gray-50">
-                      {(attachedReceipt.file_name?.toLowerCase().endsWith('.pdf') || attachedReceipt.type === 'pdf') && attachedReceipt.file_url ? (
-                        <UrlPdfInlinePreview url={attachedReceipt.file_url} className="w-full" />
-                      ) : attachedReceipt.file_url ? (
-                        <img
-                          src={attachedReceipt.file_url}
-                          alt="Receipt preview"
-                          className="w-full h-auto"
-                        />
-                      ) : (
-                        <div className="p-8 text-center text-muted-foreground">
-                          <FileText className="h-12 w-12 mx-auto mb-2" />
-                          <p>Receipt preview not available</p>
-                        </div>
-                      )}
-                    </div>
-                  </div>
-                )}
-                
-                {/* Uploaded Bill Files */}
-                {billFiles.map((file, index) => (
-                  <div key={index} className="border rounded-lg overflow-hidden">
-                    <div className="flex items-center justify-between p-3 bg-muted">
-                      <div className="flex items-center gap-2">
-                        <FileText className="h-4 w-4" />
-                        <span className="font-medium text-sm">{file.name}</span>
-                      </div>
-                      <div className="flex items-center gap-2">
-                        <Button
-                          type="button"
-                          variant="outline"
-                          size="sm"
-                          onClick={() => {
-                            const url = URL.createObjectURL(file);
-                            const link = document.createElement('a');
-                            link.href = url;
-                            link.download = file.name;
-                            document.body.appendChild(link);
-                            link.click();
-                            document.body.removeChild(link);
-                            URL.revokeObjectURL(url);
-                          }}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="sm"
-                          onClick={() => removeFile(index)}
-                        >
-                          <X className="h-4 w-4" />
-                        </Button>
-                      </div>
-                    </div>
-                    {file.type === 'application/pdf' ? (
-                      <div className="max-h-[800px] overflow-y-auto bg-gray-50">
-                        <PdfInlinePreview file={file} className="w-full" />
-                      </div>
-                    ) : (
-                      <img
-                        src={URL.createObjectURL(file)}
-                        alt="Bill preview"
-                        className="w-full h-auto"
-                      />
-                    )}
-                  </div>
-                ))}
-                
-                {/* Additional document upload section - below preview */}
-                <div
-                  className={`border-2 border-dashed rounded-lg px-4 py-3 text-center transition-colors ${
-                    isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  <div className="flex items-center justify-center gap-3">
-                    <Upload className="h-4 w-4 text-muted-foreground" />
-                    <p className="text-sm font-medium">
-                      {isDragOver ? "Drop Files Here" : "Drag Files Here"}
-                    </p>
-                    <p className="text-sm text-muted-foreground">or</p>
-                    <div>
-                      <input
-                        type="file"
-                        multiple
-                        accept=".pdf,.jpg,.jpeg,.png,.webp"
-                        onChange={handleFileInputChange}
-                        className="hidden"
-                        id="bill-file-upload-additional"
-                      />
-                      <Button type="button" asChild size="sm" variant="outline">
-                        <label htmlFor="bill-file-upload-additional" className="cursor-pointer">
-                          Choose Files to Add
-                        </label>
-                      </Button>
-                    </div>
-                  </div>
-                </div>
-              </div>
-            )}
-            
-            {billFiles.length === 0 && !attachedReceipt && attachmentRequired && (
-              <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                <AlertCircle className="h-4 w-4" />
-                <span>Bill document or receipt attachment is required before saving</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
 
         {/* Request Help Option */}
         <Card>
@@ -2691,6 +2710,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
               This invoice number already exists for this vendor. Please use a different invoice number.
             </p>
           )}
+        </div>
+          </div>
         </div>
       </form>
     </div>

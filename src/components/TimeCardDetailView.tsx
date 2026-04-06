@@ -318,7 +318,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
           .from('job_punch_clock_settings')
           .select('enable_distance_warning, max_distance_from_job_meters')
           .eq('job_id', timeCardData.job_id)
-          .single();
+          .maybeSingle();
           
         if (settings) {
           setDistanceWarningSettings({

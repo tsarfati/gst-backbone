@@ -1716,7 +1716,9 @@ export default function TaskDetails() {
                                     {entry.kind}
                                   </Badge>
                                 </div>
-                                <p className="mt-1 truncate text-sm leading-5 text-foreground">{getTimelineSummary(entry)}</p>
+                                <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-foreground">
+                                  {getTimelineSummary(entry)}
+                                </p>
 
                                 {entry.kind === 'comment' && entry.tags && entry.tags.length > 0 ? (
                                   <div className="mt-1 flex flex-wrap gap-1.5">

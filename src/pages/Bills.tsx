@@ -257,27 +257,58 @@ export default function Bills() {
         };
       });
 
-      // Sync invoices that were paid via posted credit card transactions
+      // Reconcile invoice statuses from actual payment allocations so partially paid
+      // bills remain visible and only fully paid bills are marked paid.
       let finalBills = formattedBills;
       try {
-        const idsToCheck = (data || []).filter((b: any) => b.status !== 'paid').map((b: any) => b.id);
-        if (idsToCheck.length > 0) {
-          const { data: postedTx, error: txErr } = await supabase
-            .from('credit_card_transactions')
-            .select('invoice_id')
-            .in('invoice_id', idsToCheck)
-            .not('journal_entry_id', 'is', null);
+        if (invoiceIds.length > 0) {
+          const { data: paymentLines, error: paymentLinesError } = await supabase
+            .from('payment_invoice_lines')
+            .select('invoice_id, amount_paid')
+            .in('invoice_id', invoiceIds);
 
-          if (!txErr && postedTx && postedTx.length > 0) {
-            const idsPaid = Array.from(new Set((postedTx as any[]).map(t => t.invoice_id).filter(Boolean)));
-            if (idsPaid.length > 0) {
-              await supabase.from('invoices').update({ status: 'paid' }).in('id', idsPaid);
-              finalBills = formattedBills.map(b => idsPaid.includes(b.id) ? { ...b, status: 'paid' } : b);
+          if (paymentLinesError) throw paymentLinesError;
+
+          const totalPaidByInvoiceId = new Map<string, number>();
+          (paymentLines || []).forEach((line: any) => {
+            const invoiceId = String(line.invoice_id || '');
+            if (!invoiceId) return;
+            totalPaidByInvoiceId.set(
+              invoiceId,
+              (totalPaidByInvoiceId.get(invoiceId) || 0) + Number(line.amount_paid || 0),
+            );
+          });
+
+          const idsFullyPaid: string[] = [];
+          const idsPartiallyPaid: string[] = [];
+
+          finalBills = formattedBills.map((bill) => {
+            const totalPaid = totalPaidByInvoiceId.get(bill.id) || 0;
+            const remainingBalance = Number(bill.amount || 0) - totalPaid;
+
+            if (totalPaid > 0 && remainingBalance <= 0.01) {
+              idsFullyPaid.push(bill.id);
+              return { ...bill, status: 'paid' };
             }
+
+            if (totalPaid > 0) {
+              idsPartiallyPaid.push(bill.id);
+              return { ...bill, status: 'pending_payment' };
+            }
+
+            return bill;
+          });
+
+          if (idsFullyPaid.length > 0) {
+            await supabase.from('invoices').update({ status: 'paid' }).in('id', idsFullyPaid);
+          }
+
+          if (idsPartiallyPaid.length > 0) {
+            await supabase.from('invoices').update({ status: 'pending_payment' }).in('id', idsPartiallyPaid);
           }
         }
       } catch (e) {
-        console.warn('Invoice status sync skipped', e);
+        console.warn('Invoice payment-status reconciliation skipped', e);
       }
 
       setBills(finalBills);
