@@ -21,6 +21,7 @@ const corsHeaders = {
 // weaker than the configured threshold. This keeps punch-in/out working until
 // the Punch Clock app is updated to handle the precise-location requirement.
 const TEMP_DISABLE_LOW_LOCATION_CONFIDENCE_BLOCK = true;
+const TEMP_DISABLE_LOCATION_ENFORCEMENT = true;
 
 function errorResponse(message: string, status = 400) {
   return new Response(JSON.stringify({ error: message }), {
@@ -275,6 +276,10 @@ async function enforcePunchDistanceIfRequired(
   const requestLng = asFiniteNumber(params.longitude);
   const requestAccuracyMeters = clampLocationAccuracy(params.accuracy_meters);
   const isPinEmployee = params.is_pin_employee === true;
+
+  if (TEMP_DISABLE_LOCATION_ENFORCEMENT) {
+    return { blockedResponse: null, warning: null };
+  }
 
   const employeeSettingsResult = await loadEmployeeGeofenceSettings(supabaseAdmin, {
     user_id: params.user_id,
