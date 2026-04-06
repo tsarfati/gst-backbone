@@ -274,7 +274,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const baseUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
     const inviteUrl = existingProfile?.user_id
-      ? `${baseUrl}/auth?portal=designpro`
+      ? `${baseUrl}/auth?portal=designpro&jobInvite=${encodeURIComponent(inviteToken)}&company=${encodeURIComponent(companyId)}&job=${encodeURIComponent(jobId)}`
       : `${baseUrl}/design-professional-signup?company=${encodeURIComponent(companyId)}&jobInvite=${encodeURIComponent(inviteToken)}`;
 
     if (resend) {

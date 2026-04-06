@@ -168,6 +168,10 @@ export default function DesignProfessionalSignup() {
       setError('First name and last name are required.');
       return;
     }
+    if (!form.businessName.trim()) {
+      setError('Company name is required.');
+      return;
+    }
     if (isInviteFlow && !form.companyId) {
       setError('This invitation is invalid. Please use your latest invite link.');
       return;
@@ -370,8 +374,14 @@ export default function DesignProfessionalSignup() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="signup-business-name">Business Name</Label>
-              <Input id="signup-business-name" value={form.businessName} onChange={(e) => setForm((prev) => ({ ...prev, businessName: e.target.value }))} placeholder="Optional" />
+              <Label htmlFor="signup-business-name">Company Name</Label>
+              <Input
+                id="signup-business-name"
+                value={form.businessName}
+                onChange={(e) => setForm((prev) => ({ ...prev, businessName: e.target.value }))}
+                placeholder="Required"
+                required
+              />
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -71,7 +71,7 @@ export const resolveCompanyLogoEmailUrl = (logoUrl?: string | null): string | nu
   return resolveEmailAssetUrl("company-logos", cleaned);
 };
 
-export const BUILDERLYNK_EMAIL_LOGO_URL = resolveEmailAssetUrl(
-  "company-logos",
-  "builder lynk.png",
-);
+// Use a stable public asset URL for the BuilderLYNK brand header so transactional
+// emails do not depend on a mutable storage object path.
+export const BUILDERLYNK_EMAIL_LOGO_URL =
+  "https://raw.githubusercontent.com/tsarfati/gst-backbone/main/src/assets/builderlynk-logo-new.png";

@@ -84,7 +84,22 @@ serve(async (req: Request) => {
       ? notes.pendingJobInvites.filter(Boolean)
       : [];
 
-    const matchingInvite = pendingJobInvites.find((row: any) => {
+    const legacyInvite =
+      notes.invitedJobId && notes.externalCompanyId
+        ? {
+            inviteToken: notes.jobInviteToken || null,
+            jobId: notes.invitedJobId,
+            companyId: notes.externalCompanyId,
+            invitedAt: notes.requestedAt || null,
+          }
+        : null;
+
+    const inviteCandidates = [
+      ...pendingJobInvites,
+      ...(legacyInvite ? [legacyInvite] : []),
+    ];
+
+    const matchingInvite = inviteCandidates.find((row: any) => {
       const rowJobId = String(row?.jobId || "");
       const rowCompanyId = String(row?.companyId || "");
       const rowInviteToken = String(row?.inviteToken || "");
@@ -94,6 +109,43 @@ serve(async (req: Request) => {
     });
 
     if (!matchingInvite) {
+      const [{ data: existingCompanyAccess, error: existingCompanyAccessError }, { data: existingJobAccess, error: existingJobAccessError }] = await Promise.all([
+        admin
+          .from("user_company_access")
+          .select("user_id, role, is_active")
+          .eq("user_id", authData.user.id)
+          .eq("company_id", companyId)
+          .maybeSingle(),
+        admin
+          .from("user_job_access")
+          .select("id")
+          .eq("user_id", authData.user.id)
+          .eq("job_id", jobId)
+          .maybeSingle(),
+      ]);
+
+      if (existingCompanyAccessError) throw existingCompanyAccessError;
+      if (existingJobAccessError) throw existingJobAccessError;
+
+      const alreadyProvisioned =
+        existingCompanyAccess?.user_id &&
+        existingCompanyAccess?.is_active === true &&
+        String(existingCompanyAccess?.role || "").toLowerCase() === "design_professional" &&
+        existingJobAccess?.id;
+
+      if (alreadyProvisioned) {
+        await admin
+          .from("notifications")
+          .update({ read: true })
+          .eq("user_id", authData.user.id)
+          .eq("type", `design_pro_job_invite:${jobId}`);
+
+        return new Response(JSON.stringify({ success: true, alreadyAccepted: true }), {
+          status: 200,
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
       return new Response(JSON.stringify({ error: "Pending invitation not found for this job" }), {
         status: 404,
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -153,7 +205,7 @@ serve(async (req: Request) => {
       if (insertJobAccessError) throw insertJobAccessError;
     }
 
-    const remainingPendingJobInvites = pendingJobInvites.filter((row: any) => {
+    const remainingPendingJobInvites = inviteCandidates.filter((row: any) => {
       const sameJob = String(row?.jobId || "") === String(jobId);
       const sameCompany = String(row?.companyId || "") === String(companyId);
       const sameToken = !inviteToken || String(row?.inviteToken || "") === String(inviteToken);
@@ -164,6 +216,7 @@ serve(async (req: Request) => {
       ...notes,
       invitedJobId: remainingPendingJobInvites[0]?.jobId || null,
       jobInviteToken: remainingPendingJobInvites[0]?.inviteToken || null,
+      externalCompanyId: remainingPendingJobInvites[0]?.companyId || notes.externalCompanyId || null,
       pendingJobInvites: remainingPendingJobInvites,
       lastAcceptedJobInviteAt: new Date().toISOString(),
     };

@@ -55,16 +55,25 @@ export default function Auth() {
   const [inviteHandledToken, setInviteHandledToken] = useState<string | null>(null);
   const [inviteRetryTick, setInviteRetryTick] = useState(0);
   const [inviteAcceptFailures, setInviteAcceptFailures] = useState(0);
+  const [designProJobInviteAccepting, setDesignProJobInviteAccepting] = useState(false);
+  const [designProJobInviteAccepted, setDesignProJobInviteAccepted] = useState(false);
+  const [designProJobInviteHandledToken, setDesignProJobInviteHandledToken] = useState<string | null>(null);
+  const [designProJobInviteRetryTick, setDesignProJobInviteRetryTick] = useState(0);
   const [showEmailConfirmModal, setShowEmailConfirmModal] = useState(false);
   const [signupConfirmed, setSignupConfirmed] = useState(false);
   const lastInviteAcceptAttemptAtRef = useRef<number>(0);
   const inviteAttemptCountRef = useRef(0);
+  const lastDesignProInviteAcceptAttemptAtRef = useRef<number>(0);
+  const designProInviteAttemptCountRef = useRef(0);
   
   const { signIn, signUp, signInWithGoogle, user, profile, refreshProfile } = useAuth();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const inviteToken = searchParams.get('invite');
+  const designProJobInviteToken = searchParams.get('jobInvite');
+  const designProInviteCompanyId = searchParams.get('company');
+  const designProInviteJobId = searchParams.get('job');
   
   // Use role-based routing after successful auth
   useRoleBasedRouting();
@@ -107,6 +116,12 @@ export default function Auth() {
       setActiveTab('signup');
     }
   }, [inviteToken, user]);
+
+  useEffect(() => {
+    if (designProJobInviteToken && !user) {
+      setActiveTab('signin');
+    }
+  }, [designProJobInviteToken, user]);
 
   // Check for recovery token in URL
   useEffect(() => {
@@ -166,10 +181,10 @@ export default function Auth() {
     if (!user) return;
     // Do not trap users on /auth while invite acceptance retries.
     // Only pause redirect while an accept attempt is actively running.
-    if (inviteToken && inviteAccepting) return;
+    if ((inviteToken && inviteAccepting) || (designProJobInviteToken && designProJobInviteAccepting)) return;
     
     // User is authenticated — redirect away from auth page
-    if (!profile || profile?.profile_completed === false) {
+    if (profile?.profile_completed === false) {
       navigate('/profile-completion', { replace: true });
     } else {
       const role = String(profile?.role || '').toLowerCase();
@@ -181,7 +196,7 @@ export default function Auth() {
         navigate('/dashboard', { replace: true });
       }
     }
-  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting]);
+  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting]);
 
   useEffect(() => {
     const maxInviteAttempts = 6;
@@ -293,6 +308,132 @@ export default function Auth() {
       if (retryTimer) window.clearTimeout(retryTimer);
     };
   }, [inviteToken, user, inviteAccepted, inviteAccepting, inviteHandledToken, toast, inviteRetryTick]);
+
+  useEffect(() => {
+    const maxInviteAttempts = 6;
+    if (
+      !designProJobInviteToken ||
+      !designProInviteCompanyId ||
+      !designProInviteJobId ||
+      !user ||
+      designProJobInviteAccepted ||
+      designProJobInviteAccepting ||
+      designProJobInviteHandledToken === designProJobInviteToken
+    ) {
+      return;
+    }
+    if (designProInviteAttemptCountRef.current >= maxInviteAttempts) return;
+    const now = Date.now();
+    if (now - lastDesignProInviteAcceptAttemptAtRef.current < 3000) return;
+
+    let cancelled = false;
+    let retryTimer: number | null = null;
+
+    const acceptDesignProfessionalInvite = async () => {
+      designProInviteAttemptCountRef.current += 1;
+      lastDesignProInviteAcceptAttemptAtRef.current = Date.now();
+      setDesignProJobInviteAccepting(true);
+
+      try {
+        const invokeAcceptInvite = async () => {
+          let lastError: any = null;
+          for (let attempt = 0; attempt < 4; attempt++) {
+            const { data: sessionData } = await supabase.auth.getSession();
+            const accessToken = sessionData.session?.access_token;
+
+            const { data, error } = await supabase.functions.invoke("accept-design-professional-job-invite", {
+              body: {
+                companyId: designProInviteCompanyId,
+                jobId: designProInviteJobId,
+                inviteToken: designProJobInviteToken,
+              },
+              headers: accessToken ? { Authorization: `Bearer ${accessToken}` } : undefined,
+            });
+
+            if (!error) return { data, error: null as any };
+
+            lastError = error;
+            const message = String(error?.message || "");
+            const isUnauthorized = message.includes("401") || message.toLowerCase().includes("unauthorized");
+            if (!isUnauthorized || attempt === 3) {
+              return { data, error };
+            }
+
+            await new Promise((r) => setTimeout(r, 500 * (attempt + 1)));
+          }
+
+          return { data: null, error: lastError };
+        };
+
+        const { error } = await invokeAcceptInvite();
+        if (error) {
+          throw error;
+        }
+        if (cancelled) return;
+
+        setDesignProJobInviteAccepted(true);
+        setDesignProJobInviteHandledToken(designProJobInviteToken);
+        await new Promise((r) => setTimeout(r, 0));
+        await refreshProfile();
+
+        toast({
+          title: "Design professional invitation accepted",
+          description: "That project has been added to your design professional workspace.",
+        });
+
+        const url = new URL(window.location.href);
+        url.searchParams.delete("jobInvite");
+        url.searchParams.delete("company");
+        url.searchParams.delete("job");
+        window.history.replaceState({}, document.title, `${url.pathname}${url.search}${url.hash}`);
+      } catch (error: any) {
+        if (cancelled) return;
+
+        const message = String(error?.message || "").toLowerCase();
+        const terminalError =
+          message.includes("not found") ||
+          message.includes("expired") ||
+          message.includes("different email") ||
+          message.includes("pending invitation not found");
+
+        if (terminalError) {
+          setDesignProJobInviteHandledToken(designProJobInviteToken);
+        }
+
+        toast({
+          title: "Invitation issue",
+          description: error?.message || "Unable to apply this design professional invitation automatically.",
+          variant: "destructive",
+        });
+
+        if (!terminalError && designProInviteAttemptCountRef.current < maxInviteAttempts) {
+          retryTimer = window.setTimeout(() => {
+            setDesignProJobInviteRetryTick((n) => n + 1);
+          }, 2500);
+        }
+      } finally {
+        if (!cancelled) setDesignProJobInviteAccepting(false);
+      }
+    };
+
+    void acceptDesignProfessionalInvite();
+
+    return () => {
+      cancelled = true;
+      if (retryTimer) window.clearTimeout(retryTimer);
+    };
+  }, [
+    designProJobInviteToken,
+    designProInviteCompanyId,
+    designProInviteJobId,
+    user,
+    designProJobInviteAccepted,
+    designProJobInviteAccepting,
+    designProJobInviteHandledToken,
+    designProJobInviteRetryTick,
+    refreshProfile,
+    toast,
+  ]);
 
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();

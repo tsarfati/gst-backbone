@@ -506,6 +506,21 @@ serve(async (req: Request): Promise<Response> => {
       businessName: businessName || null,
       invitedJobId: invitedJobId || null,
       jobInviteToken: jobInviteToken || null,
+      pendingJobInvites:
+        requestedRole === "design_professional" && invitedJobId && jobInviteToken
+          ? [
+              {
+                inviteToken: jobInviteToken,
+                jobId: invitedJobId,
+                companyId: externalCompanyId || null,
+                invitedAt: new Date().toISOString(),
+                invitedBy: null,
+                email,
+                firstName: firstName || null,
+                lastName: lastName || null,
+              },
+            ]
+          : [],
       homeCompanyId,
       homeCompanyName: homeCompany?.display_name || homeCompany?.name || null,
       externalCompanyId: externalCompanyId || null,
@@ -606,22 +621,6 @@ serve(async (req: Request): Promise<Response> => {
         }),
         context: "create-vendor-signup-request-confirmation",
       });
-    }
-
-    if (requestedRole === "design_professional" && jobInviteToken) {
-      const { error: inviteUpdateError } = await supabase
-        .from("design_professional_job_invites")
-        .update({
-          status: "accepted",
-          accepted_by_user_id: userId,
-          accepted_at: new Date().toISOString(),
-        })
-        .eq("invite_token", jobInviteToken)
-        .eq("company_id", externalCompanyId)
-        .eq("status", "pending");
-      if (inviteUpdateError) {
-        console.warn("Failed to mark design professional invite accepted:", inviteUpdateError);
-      }
     }
 
     try {
