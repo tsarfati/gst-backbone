@@ -29,6 +29,7 @@ interface TimeCardDetailViewProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   timeCardId: string;
+  onTimeCardUpdated?: () => void | Promise<void>;
 }
 
 interface TimeCardDetail {
@@ -64,7 +65,7 @@ interface TimeCardDetail {
   cost_codes?: { code: string; description: string; type?: string };
 }
 
-export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: TimeCardDetailViewProps) {
+export default function TimeCardDetailView({ open, onOpenChange, timeCardId, onTimeCardUpdated }: TimeCardDetailViewProps) {
   const { user, profile } = useAuth();
   const { currentCompany, userCompanies } = useCompany();
   const { settings: appSettings } = useSettings();
@@ -1641,8 +1642,9 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId }: T
             open={editDialogOpen}
             onOpenChange={setEditDialogOpen}
             timeCardId={timeCard.id}
-            onSave={() => {
-              loadTimeCardDetails();
+            onSave={async () => {
+              await loadTimeCardDetails();
+              await onTimeCardUpdated?.();
               setEditDialogOpen(false);
             }}
           />

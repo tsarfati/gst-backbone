@@ -3,9 +3,10 @@ import { resolveStorageUrl } from '@/utils/storageUtils';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
-import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit, LogOut, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Camera, MapPin } from 'lucide-react';
+import { Calendar, FileText, Download, Plus, Clock, Loader2, User, Eye, List, LayoutGrid, Settings, AlertTriangle, Edit, Trash2, ArrowUpDown, ArrowUp, ArrowDown, Camera, MapPin } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
@@ -91,6 +92,10 @@ export default function TimeSheets() {
   const [sortField, setSortField] = useState<SortField>('date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('desc');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [dateFromInput, setDateFromInput] = useState<string>('');
+  const [dateToInput, setDateToInput] = useState<string>('');
+  const [dateFrom, setDateFrom] = useState<string>('');
+  const [dateTo, setDateTo] = useState<string>('');
   const { profile, user } = useAuth();
   const { currentCompany, userCompanies } = useCompany();
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
@@ -102,6 +107,17 @@ export default function TimeSheets() {
 
   const companyRole = userCompanies.find(c => c.company_id === currentCompany?.id)?.role;
   const isManager = ['admin', 'controller', 'project_manager', 'manager'].includes((companyRole || '') as string);
+  const isCompleteDateInput = (value: string) => value === '' || /^\d{4}-\d{2}-\d{2}$/.test(value);
+  const commitDateFilter = (field: 'from' | 'to') => {
+    const value = field === 'from' ? dateFromInput : dateToInput;
+    if (!isCompleteDateInput(value)) return;
+
+    if (field === 'from') {
+      setDateFrom(value);
+    } else {
+      setDateTo(value);
+    }
+  };
 
   useEffect(() => {
     if (currentCompany?.id && !websiteJobAccessLoading) {
@@ -115,7 +131,7 @@ export default function TimeSheets() {
     if (selectedEmployeeId && !websiteJobAccessLoading) {
       loadTimeCards();
     }
-  }, [selectedEmployeeId, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+  }, [selectedEmployeeId, dateFrom, dateTo, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadEmployees = async () => {
     if (!user || !currentCompany?.id) return;
@@ -206,6 +222,20 @@ export default function TimeSheets() {
           return;
         }
         query = query.in('job_id', allowedJobIds);
+      }
+
+      if (dateFrom) {
+        const fromDate = new Date(`${dateFrom}T00:00:00`);
+        if (!Number.isNaN(fromDate.getTime())) {
+          query = query.gte('punch_in_time', fromDate.toISOString());
+        }
+      }
+
+      if (dateTo) {
+        const toDate = new Date(`${dateTo}T23:59:59.999`);
+        if (!Number.isNaN(toDate.getTime())) {
+          query = query.lte('punch_in_time', toDate.toISOString());
+        }
       }
 
       // Filter records based on user role and selection
@@ -315,90 +345,90 @@ export default function TimeSheets() {
         };
       });
 
-      // Backfill missing photos/locations from punch_records for PIN employees and others
-      const enrichedData: TimeCard[] = await Promise.all(transformedData.map(async (tc) => {
-        const needsInPhoto = !tc.punch_in_photo_url;
-        const needsOutPhoto = !tc.punch_out_photo_url && tc.punch_out_time;
-        const needsInLoc = (!tc.punch_in_location_lat || !tc.punch_in_location_lng);
-        const needsOutLoc = tc.punch_out_time && (!tc.punch_out_location_lat || !tc.punch_out_location_lng);
-        const needsCostCode = !tc.cost_code_id;
-        
-        if (!needsInPhoto && !needsOutPhoto && !needsInLoc && !needsOutLoc && !needsCostCode) return tc;
-
-        const from = new Date(new Date(tc.punch_in_time).getTime() - 60_000).toISOString();
-        const to = new Date(new Date(tc.punch_out_time || tc.punch_in_time).getTime() + 60_000).toISOString();
-        const { data: punches } = await supabase
-          .from('punch_records')
-          .select('punch_type, photo_url, latitude, longitude, punch_time, cost_code_id')
-          .eq('user_id', tc.user_id)
-          .gte('punch_time', from)
-          .lte('punch_time', to)
-          .order('punch_time', { ascending: true });
-
-        const punchIn = (punches || []).find(p => p.punch_type === 'punched_in');
-        const punchOut = (punches || []).find(p => p.punch_type === 'punched_out');
-
-        let resolvedCostCodeId: string | null = tc.cost_code_id || punchOut?.cost_code_id || punchIn?.cost_code_id || null;
-        let resolvedCost: { code: string; description: string } | null = tc.cost_codes || null;
-        if (resolvedCostCodeId && !resolvedCost) {
-          // try from local map first
-          const cc = costCodesMap.get(resolvedCostCodeId);
-          if (cc) {
-            resolvedCost = { code: cc.code, description: cc.description };
-          } else {
-            const { data: ccData } = await supabase
-              .from('cost_codes')
-              .select('id, code, description')
-              .eq('id', resolvedCostCodeId)
-              .maybeSingle();
-            if (ccData) {
-              resolvedCost = { code: ccData.code, description: ccData.description };
-            }
-          }
-        }
-
-        const updated: TimeCard = {
-          ...tc,
-          punch_in_photo_url: tc.punch_in_photo_url || punchIn?.photo_url || null,
-          punch_out_photo_url: tc.punch_out_photo_url || punchOut?.photo_url || null,
-          punch_in_location_lat: tc.punch_in_location_lat ?? (punchIn?.latitude ?? null),
-          punch_in_location_lng: tc.punch_in_location_lng ?? (punchIn?.longitude ?? null),
-          punch_out_location_lat: tc.punch_out_location_lat ?? (punchOut?.latitude ?? null),
-          punch_out_location_lng: tc.punch_out_location_lng ?? (punchOut?.longitude ?? null),
-          cost_code_id: resolvedCostCodeId as any,
-          cost_codes: resolvedCost as any,
-        } as any;
-
-        // Persist backfilled fields so photos/maps/cost codes stay linked next load
-        if (
-          (needsInPhoto && updated.punch_in_photo_url) ||
-          (needsOutPhoto && updated.punch_out_photo_url) ||
-          (needsInLoc && (updated.punch_in_location_lat || updated.punch_in_location_lng)) ||
-          (needsOutLoc && (updated.punch_out_location_lat || updated.punch_out_location_lng)) ||
-          (needsCostCode && updated.cost_code_id)
-        ) {
-          await supabase
-            .from('time_cards')
-            .update({
-              punch_in_photo_url: updated.punch_in_photo_url,
-              punch_out_photo_url: updated.punch_out_photo_url,
-              punch_in_location_lat: updated.punch_in_location_lat,
-              punch_in_location_lng: updated.punch_in_location_lng,
-              punch_out_location_lat: updated.punch_out_location_lat,
-              punch_out_location_lng: updated.punch_out_location_lng,
-              cost_code_id: updated.cost_code_id,
-            })
-            .eq('id', tc.id);
-        }
-
-        return updated;
-      }));
-
-      const sortedEnrichedData = [...enrichedData].sort(
+      const sortedData = [...transformedData].sort(
         (a, b) => new Date(b.punch_in_time).getTime() - new Date(a.punch_in_time).getTime()
       );
 
-      setTimeCards(sortedEnrichedData);
+      setTimeCards(sortedData);
+      setLoading(false);
+
+      // Backfill slower punch-record details after the main list is visible.
+      void (async () => {
+        try {
+          const enrichedData: TimeCard[] = await Promise.all(transformedData.map(async (tc) => {
+            const needsInPhoto = !tc.punch_in_photo_url;
+            const needsOutPhoto = !tc.punch_out_photo_url && tc.punch_out_time;
+            const needsInLoc = (!tc.punch_in_location_lat || !tc.punch_in_location_lng);
+            const needsOutLoc = tc.punch_out_time && (!tc.punch_out_location_lat || !tc.punch_out_location_lng);
+            const needsCostCode = !tc.cost_code_id;
+            
+            if (!needsInPhoto && !needsOutPhoto && !needsInLoc && !needsOutLoc && !needsCostCode) return tc;
+
+            const from = new Date(new Date(tc.punch_in_time).getTime() - 60_000).toISOString();
+            const to = new Date(new Date(tc.punch_out_time || tc.punch_in_time).getTime() + 60_000).toISOString();
+            const { data: punches } = await supabase
+              .from('punch_records')
+              .select('punch_type, photo_url, latitude, longitude, punch_time, cost_code_id')
+              .eq('user_id', tc.user_id)
+              .gte('punch_time', from)
+              .lte('punch_time', to)
+              .order('punch_time', { ascending: true });
+
+            const punchIn = (punches || []).find(p => p.punch_type === 'punched_in');
+            const punchOut = (punches || []).find(p => p.punch_type === 'punched_out');
+
+            const resolvedCostCodeId: string | null = tc.cost_code_id || punchOut?.cost_code_id || punchIn?.cost_code_id || null;
+            const resolvedCost = resolvedCostCodeId && costCodesMap.get(resolvedCostCodeId)
+              ? { code: costCodesMap.get(resolvedCostCodeId)!.code, description: costCodesMap.get(resolvedCostCodeId)!.description }
+              : tc.cost_codes || null;
+
+            const updated: TimeCard = {
+              ...tc,
+              punch_in_photo_url: tc.punch_in_photo_url || punchIn?.photo_url || null,
+              punch_out_photo_url: tc.punch_out_photo_url || punchOut?.photo_url || null,
+              punch_in_location_lat: tc.punch_in_location_lat ?? (punchIn?.latitude ?? null),
+              punch_in_location_lng: tc.punch_in_location_lng ?? (punchIn?.longitude ?? null),
+              punch_out_location_lat: tc.punch_out_location_lat ?? (punchOut?.latitude ?? null),
+              punch_out_location_lng: tc.punch_out_location_lng ?? (punchOut?.longitude ?? null),
+              cost_code_id: resolvedCostCodeId as any,
+              cost_codes: resolvedCost as any,
+            } as any;
+
+            if (
+              (needsInPhoto && updated.punch_in_photo_url) ||
+              (needsOutPhoto && updated.punch_out_photo_url) ||
+              (needsInLoc && (updated.punch_in_location_lat || updated.punch_in_location_lng)) ||
+              (needsOutLoc && (updated.punch_out_location_lat || updated.punch_out_location_lng)) ||
+              (needsCostCode && updated.cost_code_id)
+            ) {
+              await supabase
+                .from('time_cards')
+                .update({
+                  punch_in_photo_url: updated.punch_in_photo_url,
+                  punch_out_photo_url: updated.punch_out_photo_url,
+                  punch_in_location_lat: updated.punch_in_location_lat,
+                  punch_in_location_lng: updated.punch_in_location_lng,
+                  punch_out_location_lat: updated.punch_out_location_lat,
+                  punch_out_location_lng: updated.punch_out_location_lng,
+                  cost_code_id: updated.cost_code_id,
+                })
+                .eq('id', tc.id);
+            }
+
+            return updated;
+          }));
+
+          const sortedEnrichedData = [...enrichedData].sort(
+            (a, b) => new Date(b.punch_in_time).getTime() - new Date(a.punch_in_time).getTime()
+          );
+
+          setTimeCards((prev) => prev.map((timeCard) =>
+            sortedEnrichedData.find((enriched) => enriched.id === timeCard.id) || timeCard
+          ));
+        } catch (error) {
+          console.warn('Time card enrichment skipped:', error);
+        }
+      })();
     } catch (error) {
       console.error('Error:', error);
       toast({
@@ -743,6 +773,35 @@ export default function TimeSheets() {
               </SelectContent>
             </Select>
           )}
+          <div className="flex items-center gap-2">
+            <Input
+              type="date"
+              value={dateFromInput}
+              onChange={(event) => setDateFromInput(event.target.value)}
+              onBlur={() => commitDateFilter('from')}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  commitDateFilter('from');
+                }
+              }}
+              className="h-11 w-40"
+              aria-label="Filter time sheets from date"
+            />
+            <span className="text-sm text-muted-foreground">to</span>
+            <Input
+              type="date"
+              value={dateToInput}
+              onChange={(event) => setDateToInput(event.target.value)}
+              onBlur={() => commitDateFilter('to')}
+              onKeyDown={(event) => {
+                if (event.key === 'Enter') {
+                  commitDateFilter('to');
+                }
+              }}
+              className="h-11 w-40"
+              aria-label="Filter time sheets to date"
+            />
+          </div>
           <Select value={statusFilter} onValueChange={setStatusFilter}>
             <SelectTrigger className="w-48 h-11">
               <SelectValue placeholder="Filter by status" />
@@ -776,14 +835,6 @@ export default function TimeSheets() {
               >
                 <Plus className="h-4 w-4" />
                 New Time Sheet
-              </Button>
-              <Button 
-                variant="outline" 
-                className="h-11 gap-2"
-                onClick={() => navigate('/manual-punch-out')}
-              >
-                <LogOut className="h-4 w-4" />
-                Punch Out Employees
               </Button>
             </>
           )}
@@ -1281,6 +1332,9 @@ export default function TimeSheets() {
           open={showDetailView}
           onOpenChange={setShowDetailView}
           timeCardId={selectedTimeCardId}
+          onTimeCardUpdated={() => {
+            void loadTimeCards();
+          }}
         />
       )}
 
@@ -1304,7 +1358,7 @@ export default function TimeSheets() {
                 ),
               );
             }
-            await loadTimeCards();
+            void loadTimeCards();
             setSelectedTimeCardId('');
           }}
         />

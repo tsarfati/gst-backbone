@@ -338,6 +338,7 @@ export default function PlanViewer() {
   const [loading, setLoading] = useState(true);
   const [analyzing, setAnalyzing] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
+  const [pdfTotalPages, setPdfTotalPages] = useState<number | null>(null);
   const [editingPage, setEditingPage] = useState<string | null>(null);
   const [newComment, setNewComment] = useState("");
   const [activeTool, setActiveTool] = useState<"select" | "pen" | "circle" | "line" | "comment" | "measure">("select");
@@ -388,6 +389,7 @@ export default function PlanViewer() {
   const fabricCanvasRef = useRef<FabricCanvas | null>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const aiSelectionStartRef = useRef<{ x: number; y: number } | null>(null);
+  const ensuredPagePlaceholderKeyRef = useRef<string>("");
   const planAiEnabled = !featureLoading && hasFeature("ai_plan_qa_v1");
   
 
@@ -837,6 +839,50 @@ export default function PlanViewer() {
     } finally {
       setInitialPlanDataLoaded(true);
       setLoading(false);
+    }
+  };
+
+  const ensurePlanPagePlaceholders = async (totalPages: number) => {
+    if (!planId || totalPages <= 0) return;
+
+    const ensureKey = `${planId}:${totalPages}`;
+    if (ensuredPagePlaceholderKeyRef.current === ensureKey) return;
+    ensuredPagePlaceholderKeyRef.current = ensureKey;
+
+    try {
+      const { data: existingRows, error: existingError } = await supabase
+        .from("plan_pages" as any)
+        .select("page_number")
+        .eq("plan_id", planId);
+
+      if (existingError) throw existingError;
+
+      const existingPageNumbers = new Set(
+        ((existingRows || []) as Array<{ page_number: number }>).map((row) => Number(row.page_number))
+      );
+
+      const missingRows = Array.from({ length: totalPages }, (_, index) => index + 1)
+        .filter((pageNumber) => !existingPageNumbers.has(pageNumber))
+        .map((pageNumber) => ({
+          plan_id: planId,
+          page_number: pageNumber,
+          sheet_number: `Page ${pageNumber}`,
+          page_title: `Page ${pageNumber}`,
+          discipline: "General",
+          page_description: `Page ${pageNumber}`,
+        }));
+
+      if (missingRows.length === 0) return;
+
+      const { error: insertError } = await supabase
+        .from("plan_pages" as any)
+        .insert(missingRows);
+
+      if (insertError) throw insertError;
+      await fetchPlanData();
+    } catch (error) {
+      console.warn("Failed to create missing plan page placeholders:", error);
+      ensuredPagePlaceholderKeyRef.current = "";
     }
   };
 
@@ -1449,10 +1495,13 @@ export default function PlanViewer() {
     }
   };
 
-  const sortedPageNumbers = useMemo(
-    () => pages.map((p) => p.page_number).sort((a, b) => a - b),
-    [pages]
-  );
+  const sortedPageNumbers = useMemo(() => {
+    if (pdfTotalPages && pdfTotalPages > 0) {
+      return Array.from({ length: pdfTotalPages }, (_, index) => index + 1);
+    }
+
+    return pages.map((p) => p.page_number).sort((a, b) => a - b);
+  }, [pages, pdfTotalPages]);
 
   const currentPageIndex = useMemo(
     () => sortedPageNumbers.indexOf(currentPage),
@@ -1486,6 +1535,14 @@ export default function PlanViewer() {
     setCurrentPage(pageNumber);
     setSearchParams({ page: pageNumber.toString() });
   };
+
+  const pageSelectorOptions = useMemo(
+    () => sortedPageNumbers.map((pageNumber) => ({
+      page_number: pageNumber,
+      meta: pageMapByNumber.get(pageNumber) || null,
+    })),
+    [sortedPageNumbers, pageMapByNumber]
+  );
 
   if (loading) {
     return (
@@ -1886,8 +1943,10 @@ export default function PlanViewer() {
   };
 
   const pageSelectorWidthCh = (() => {
-    const longest = pages.reduce((max, page) => {
-      const labelLength = getPageLabel(page).length;
+    const longest = pageSelectorOptions.reduce((max, pageOption) => {
+      const labelLength = pageOption.meta
+        ? getPageLabel(pageOption.meta)
+        : `Page ${pageOption.page_number}`.length;
       return Math.max(max, labelLength);
     }, 0);
 
@@ -1933,7 +1992,7 @@ export default function PlanViewer() {
                   : "Analyzing plan..."}
               </div>
             )}
-            {pages.length > 0 && (
+            {pageSelectorOptions.length > 0 && (
               <div className="flex items-center gap-1.5">
                 <Button
                   variant="outline"
@@ -1964,9 +2023,9 @@ export default function PlanViewer() {
                     <SelectValue />
                   </SelectTrigger>
                     <SelectContent className="bg-background z-50">
-                    {pages.map((page) => (
-                      <SelectItem key={page.id} value={page.page_number.toString()}>
-                        {getPageLabel(page)}
+                    {pageSelectorOptions.map(({ page_number, meta }) => (
+                      <SelectItem key={`page-${page_number}`} value={page_number.toString()}>
+                        {meta ? getPageLabel(meta) : `Page ${page_number}`}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -2047,12 +2106,12 @@ export default function PlanViewer() {
                 <SinglePagePdfViewer
                   url={plan.file_url}
                   pageNumber={currentPage}
-                  totalPages={pages.length}
+                  totalPages={pdfTotalPages || pageSelectorOptions.length || pages.length}
                   zoomLevel={zoomLevel}
                   onPageRectChange={setPdfPageRect}
                   onTotalPagesChange={(total) => {
-                    // Intentionally do not auto-analyze on open.
-                    // Plan analysis should only run when explicitly requested by the user.
+                    setPdfTotalPages(total);
+                    void ensurePlanPagePlaceholders(total);
                   }}
                   onZoomChange={(newZoom) => {
                     setZoomLevel(Math.round(newZoom * 100) / 100);

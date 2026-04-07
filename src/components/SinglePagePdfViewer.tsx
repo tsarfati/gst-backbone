@@ -39,12 +39,16 @@ export default function SinglePagePdfViewer({
   // Keep latest values for native event listeners (avoid re-binding on every render).
   const zoomRef = useRef(zoomLevel);
   const onZoomChangeRef = useRef(onZoomChange);
+  const onTotalPagesChangeRef = useRef(onTotalPagesChange);
   useEffect(() => {
     zoomRef.current = zoomLevel;
   }, [zoomLevel]);
   useEffect(() => {
     onZoomChangeRef.current = onZoomChange;
   }, [onZoomChange]);
+  useEffect(() => {
+    onTotalPagesChangeRef.current = onTotalPagesChange;
+  }, [onTotalPagesChange]);
 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -364,7 +368,7 @@ export default function SinglePagePdfViewer({
         }
 
         setPdfDoc(pdf);
-        onTotalPagesChange?.(pdf.numPages);
+        onTotalPagesChangeRef.current?.(pdf.numPages);
       } catch (err: any) {
         console.error("PDF load error:", err);
         if (!cancelled) {
@@ -379,7 +383,7 @@ export default function SinglePagePdfViewer({
     return () => {
       cancelled = true;
     };
-  }, [url, onTotalPagesChange]);
+  }, [url]);
 
   const requestRender = useCallback(
     async ({ page, zoom, reason }: { page: number; zoom: number; reason: RenderReason }) => {
@@ -442,14 +446,13 @@ export default function SinglePagePdfViewer({
         ctx.drawImage(offscreen, 0, 0);
         emitPageRect();
 
-        if (reason === "page") {
-          setLoading(false);
-        }
       } catch (err: any) {
         console.error("Page render error:", err);
         setError("Failed to render page");
-        setLoading(false);
       } finally {
+        if (reason === "page") {
+          setLoading(false);
+        }
         isRenderingRef.current = false;
 
         const pending = pendingRenderRef.current;
