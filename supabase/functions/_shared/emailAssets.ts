@@ -23,6 +23,13 @@ const getSupabaseStorageBaseUrl = (): string => {
   return supabaseUrl ? `${supabaseUrl}${STORAGE_PUBLIC_PATH}` : STORAGE_PUBLIC_PATH;
 };
 
+const getSupabaseStorageImageRenderBaseUrl = (): string => {
+  const supabaseUrl = trimTrailingSlashes(Deno.env.get("SUPABASE_URL") || "");
+  return supabaseUrl
+    ? `${supabaseUrl}/storage/v1/render/image/public/`
+    : "/storage/v1/render/image/public/";
+};
+
 const parseSupabaseStorageUrl = (
   rawUrl: string,
 ): { bucket: string; objectPath: string } | null => {
@@ -55,6 +62,29 @@ export const resolveEmailAssetUrl = (bucket: string, objectPath: string): string
   return `${getSupabaseStorageBaseUrl()}${safeBucket}/${encodedObjectPath}`;
 };
 
+export const resolveEmailImageAssetUrl = (
+  bucket: string,
+  objectPath: string,
+  options: { width?: number; quality?: number } = {},
+): string => {
+  const safeBucket = trimLeadingSlashes(trimTrailingSlashes(bucket));
+  const safeObjectPath = trimLeadingSlashes(objectPath);
+  const encodedObjectPath = encodeObjectPath(safeObjectPath);
+  const assetBaseUrl = getConfiguredAssetBaseUrl();
+
+  if (assetBaseUrl) {
+    return `${assetBaseUrl}/${safeBucket}/${encodedObjectPath}`;
+  }
+
+  const params = new URLSearchParams({
+    width: String(options.width || 320),
+    quality: String(options.quality || 70),
+    resize: "contain",
+  });
+
+  return `${getSupabaseStorageImageRenderBaseUrl()}${safeBucket}/${encodedObjectPath}?${params.toString()}`;
+};
+
 export const resolveCompanyLogoEmailUrl = (logoUrl?: string | null): string | null => {
   if (!logoUrl) return null;
   const trimmed = String(logoUrl).trim();
@@ -63,15 +93,15 @@ export const resolveCompanyLogoEmailUrl = (logoUrl?: string | null): string | nu
   if (/^https?:\/\//i.test(trimmed)) {
     const storageAsset = parseSupabaseStorageUrl(trimmed);
     return storageAsset
-      ? resolveEmailAssetUrl(storageAsset.bucket, storageAsset.objectPath)
+      ? resolveEmailImageAssetUrl(storageAsset.bucket, storageAsset.objectPath)
       : trimmed;
   }
 
   const cleaned = trimmed.replace(/^company-logos\//, "").replace(/^\/+/, "");
-  return resolveEmailAssetUrl("company-logos", cleaned);
+  return resolveEmailImageAssetUrl("company-logos", cleaned);
 };
 
 // Use a stable public asset URL for the BuilderLYNK brand header so transactional
 // emails do not depend on a mutable storage object path.
 export const BUILDERLYNK_EMAIL_LOGO_URL =
-  "https://raw.githubusercontent.com/tsarfati/gst-backbone/main/src/assets/builderlynk-email-logo.png";
+  "https://raw.githubusercontent.com/tsarfati/gst-backbone/main/src/assets/builderlynk-email-logo-compact.png";
