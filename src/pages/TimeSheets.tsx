@@ -762,7 +762,7 @@ export default function TimeSheets() {
             currentView={currentView}
             onViewChange={viewPreference.setCurrentView}
             onSetDefault={viewPreference.setDefaultView}
-            isDefault={viewPreference.isDefault}
+            defaultView={viewPreference.defaultView}
           />
           <Button variant="outline" className="h-11">
             <Download className="h-4 w-4 mr-2" />
@@ -1289,9 +1289,23 @@ export default function TimeSheets() {
           open={showEditDialog}
           onOpenChange={setShowEditDialog}
           timeCardId={selectedTimeCardId}
-          onSave={() => {
-            setShowEditDialog(false);
-            loadTimeCards();
+          onSave={async (updatedTimeCard) => {
+            if (updatedTimeCard?.id) {
+              setTimeCards((prev) =>
+                prev.map((timeCard) =>
+                  timeCard.id === updatedTimeCard.id
+                    ? {
+                        ...timeCard,
+                        ...updatedTimeCard,
+                        jobs: updatedTimeCard.jobs ?? timeCard.jobs,
+                        cost_codes: updatedTimeCard.cost_codes ?? null,
+                      } as TimeCard
+                    : timeCard,
+                ),
+              );
+            }
+            await loadTimeCards();
+            setSelectedTimeCardId('');
           }}
         />
       )}

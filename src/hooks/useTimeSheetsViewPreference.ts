@@ -31,10 +31,10 @@ export function useTimeSheetsViewPreference(storageKey: string, initialView: Tim
     setViewPreference(prev => ({ ...prev, currentView: view }));
   };
 
-  const setDefaultView = () => {
+  const setDefaultView = (view?: TimeSheetsViewType) => {
     setViewPreference(prev => ({ 
       ...prev, 
-      defaultView: prev.currentView 
+      defaultView: view || prev.currentView 
     }));
   };
 

@@ -12,6 +12,10 @@ export interface InvoiceCodingInput {
   amount?: number | null;
   job_id?: string | null;
   cost_code_id?: string | null;
+  cost_codes?: {
+    job_id?: string | null;
+    jobs?: { id?: string | null } | null;
+  } | null;
   distributions?: InvoiceCodingDistribution[];
 }
 
@@ -46,7 +50,8 @@ export function evaluateInvoiceCoding(input: InvoiceCodingInput): InvoiceCodingR
 
     const missingJob = distributions.some((line) => {
       const resolvedJobId = line.job_id || line.cost_codes?.job_id || line.cost_codes?.jobs?.id || null;
-      return !resolvedJobId;
+      const hasCostCodeMetadata = !!line.cost_codes;
+      return !resolvedJobId && !hasCostCodeMetadata;
     });
     if (missingJob) {
       issues.push("Every distribution line must be assigned to a job.");
@@ -65,11 +70,13 @@ export function evaluateInvoiceCoding(input: InvoiceCodingInput): InvoiceCodingR
     };
   }
 
-  if (!input.job_id) {
-    issues.push("A job is required before approval.");
-  }
   if (!input.cost_code_id) {
     issues.push("A cost code is required before approval.");
+  }
+  const resolvedCostCodeJobId = input.cost_codes?.job_id || input.cost_codes?.jobs?.id || null;
+  const hasCostCodeMetadata = !!input.cost_codes;
+  if (!input.job_id && !resolvedCostCodeJobId && !hasCostCodeMetadata) {
+    issues.push("A job is required before approval.");
   }
 
   return {
@@ -79,4 +86,3 @@ export function evaluateInvoiceCoding(input: InvoiceCodingInput): InvoiceCodingR
     hasDistributionLines: false,
   };
 }
-

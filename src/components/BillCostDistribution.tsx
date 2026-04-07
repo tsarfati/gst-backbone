@@ -106,16 +106,23 @@ export default function BillCostDistribution({
           return q.order('name');
         })(),
         supabase
-          .from('chart_of_accounts')
-          .select('id, account_number, account_name')
+          .from('cost_codes')
+          .select('id, code, description, chart_account_number')
           .eq('company_id', companyId)
-          .in('account_type', ['expense', 'cost_of_goods_sold', 'asset', 'other_expense'])
+          .is('job_id', null)
           .eq('is_active', true)
-          .order('account_number')
+          .eq('is_dynamic_group', false)
+          .order('code')
       ]);
 
       if (jobsResult.data) setJobs(jobsResult.data);
-      if (expenseResult.data) setExpenseAccounts(expenseResult.data);
+      if (expenseResult.data) {
+        setExpenseAccounts((expenseResult.data as any[]).map((accountCode) => ({
+          id: accountCode.id,
+          account_number: accountCode.chart_account_number || accountCode.code,
+          account_name: accountCode.description,
+        })));
+      }
     } finally {
       setLoading(false);
     }
@@ -280,8 +287,12 @@ export default function BillCostDistribution({
                       {dist.job_id ? (
                         (() => {
                           const job = jobs.find(j => j.id === dist.job_id);
-                          const expense = expenseAccounts.find(e => e.id === dist.job_id);
-                          return job?.name || (expense ? `${expense.account_number} - ${expense.account_name}` : 'Select...');
+                          return job?.name || 'Select...';
+                        })()
+                      ) : dist.cost_code_id ? (
+                        (() => {
+                          const expense = expenseAccounts.find(e => e.id === dist.cost_code_id);
+                          return expense ? `${expense.account_number} - ${expense.account_name}` : 'Select...';
                         })()
                       ) : (
                         "Select job or expense..."
@@ -325,15 +336,15 @@ export default function BillCostDistribution({
                                 key={account.id}
                                 value={`expense-${account.account_number}-${account.account_name}`}
                                 onSelect={() => {
-                                  updateDistribution(dist.id, 'job_id', account.id);
-                                  updateDistribution(dist.id, 'cost_code_id', '');
+                                  updateDistribution(dist.id, 'job_id', '');
+                                  updateDistribution(dist.id, 'cost_code_id', account.id);
                                   setOpenPopover(prev => ({ ...prev, [`job-${dist.id}`]: false }));
                                 }}
                               >
                                 <Check
                                   className={cn(
                                     "mr-2 h-4 w-4",
-                                    dist.job_id === account.id ? "opacity-100" : "opacity-0"
+                                    !dist.job_id && dist.cost_code_id === account.id ? "opacity-100" : "opacity-0"
                                   )}
                                 />
                                 {account.account_number} - {account.account_name}

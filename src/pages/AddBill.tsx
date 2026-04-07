@@ -186,7 +186,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
           .eq('is_active', true)
           .order('account_number'),
         supabase.from('cost_codes')
-          .select('id, code, type, require_attachment')
+          .select('id, code, description, type, require_attachment, chart_account_id, chart_account_number, job_id')
           .eq('company_id', companyId)
           .is('job_id', null)
           .eq('is_active', true)
@@ -432,15 +432,27 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     }, 0);
   };
 
+  const getExpenseAccountCostCodeId = (expenseAccountId?: string) => {
+    if (!expenseAccountId) return "";
+    const account = expenseAccounts.find((item: any) => item.id === expenseAccountId);
+    if (!account) return "";
+    const accountNumber = String(account.account_number || "").replace(/\D/g, "");
+    const matchingCode = companyCostCodes.find((code: any) => {
+      const codeNumber = String(code.chart_account_number || code.code || "").replace(/\D/g, "");
+      return code.chart_account_id === account.id || (!!accountNumber && codeNumber === accountNumber);
+    });
+    return matchingCode?.id || "";
+  };
+
   const isDistributionValid = () => {
     const billAmount = parseFloat(formData.amount) || 0;
     const distributionTotal = getDistributionTotal();
     
     // Check if all line items have job/control and amount
     const allItemsValid = distributionItems.every(item => {
-      const hasJob = !!item.job_id; // job is required by DB schema
+      const hasJobOrExpenseCode = (!!item.job_id && !!item.cost_code_id) || !!getExpenseAccountCostCodeId(item.expense_account_id);
       const hasAmount = item.amount && parseFloat(item.amount) > 0;
-      return hasJob && hasAmount;
+      return hasJobOrExpenseCode && hasAmount;
     });
     
     return allItemsValid && Math.abs(billAmount - distributionTotal) < 0.01;
@@ -1160,11 +1172,11 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
 
       // Validate distribution items only when not requesting PM help
       if (billType === "non_commitment" && !shouldPendCoding) {
-        const missingJob = distributionItems.some(di => !di.job_id);
-        if (missingJob) {
+        const missingControl = distributionItems.some(di => !(di.job_id && di.cost_code_id) && !getExpenseAccountCostCodeId(di.expense_account_id));
+        if (missingControl) {
           toast({
-            title: "Job required",
-            description: "Each distribution line must have a job selected. Expense-only lines aren’t supported on this page.",
+            title: "Coding required",
+            description: "Each distribution line must have a job/cost code or expense account selected.",
             variant: "destructive"
           });
           return;
@@ -1243,7 +1255,12 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             }
           }
         } else {
-          const validItems = distributionItems.filter(item => item.job_id && item.amount && isFinite(parseFloat(item.amount)) && parseFloat(item.amount) > 0);
+          const validItems = distributionItems
+            .map((item) => ({
+              ...item,
+              resolved_cost_code_id: item.cost_code_id || getExpenseAccountCostCodeId(item.expense_account_id),
+            }))
+            .filter(item => item.resolved_cost_code_id && item.amount && isFinite(parseFloat(item.amount)) && parseFloat(item.amount) > 0);
           if (validItems.length === 0 || !isDistributionValid()) {
             toast({
               title: "Fix distribution",
@@ -1258,9 +1275,9 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
           
           const { data: inserted, error } = await supabase
             .from('invoices')
-            .insert({
-              vendor_id: formData.vendor_id,
-              job_id: validItems[0].job_id, // Use first job as primary
+              .insert({
+                vendor_id: formData.vendor_id,
+              job_id: validItems.find(item => item.job_id)?.job_id || null,
               cost_code_id: null, // Will be distributed via invoice_cost_distributions
               amount: totalAmount,
               invoice_number: formData.invoice_number || null,
@@ -1288,7 +1305,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             // Create distribution records
             const distributions = validItems.map(item => ({
               invoice_id: inserted.id,
-              cost_code_id: item.cost_code_id || null,
+              cost_code_id: item.resolved_cost_code_id,
               amount: parseFloat(item.amount),
               percentage: (parseFloat(item.amount) / totalAmount) * 100
             }));

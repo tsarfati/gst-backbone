@@ -118,7 +118,7 @@ export default function BillCommunications({ billId, vendorId, jobId }: BillComm
           "A teammate",
         content: newIntercompanyMessage.trim(),
         contextLabel: "Bill Communications",
-        targetPath: `/invoices/${billId}`,
+        targetPath: `/invoices/${billId}?company=${currentCompany.id}`,
         jobId,
       });
 

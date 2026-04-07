@@ -42,7 +42,7 @@ interface EditTimeCardDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   timeCardId: string;
-  onSave: () => void;
+  onSave: (updatedTimeCard?: Partial<TimeCardData>) => void | Promise<void>;
 }
 
 export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onSave }: EditTimeCardDialogProps) {
@@ -279,6 +279,35 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
 
       if (error) throw error;
 
+      const punchWindowStart = new Date(punchInDate.getTime() - 60_000).toISOString();
+      const punchWindowEnd = new Date(punchOutDate.getTime() + 60_000).toISOString();
+      await supabase
+        .from('punch_records')
+        .update({
+          job_id: selectedJobId || null,
+          cost_code_id: selectedCostCodeId || null,
+        })
+        .eq('user_id', timeCard.user_id)
+        .gte('punch_time', punchWindowStart)
+        .lte('punch_time', punchWindowEnd);
+
+      const [updatedJobRes, updatedCostCodeRes] = await Promise.all([
+        selectedJobId
+          ? supabase
+              .from('jobs')
+              .select('name')
+              .eq('id', selectedJobId)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+        selectedCostCodeId
+          ? supabase
+              .from('cost_codes')
+              .select('code, description, type')
+              .eq('id', selectedCostCodeId)
+              .maybeSingle()
+          : Promise.resolve({ data: null }),
+      ]);
+
       toast({
         title: 'Success',
         description: shouldFlag 
@@ -286,7 +315,28 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
           : 'Time card updated successfully.',
       });
 
-      onSave();
+      await onSave({
+        id: timeCardId,
+        job_id: selectedJobId || null,
+        cost_code_id: selectedCostCodeId || null,
+        punch_in_time: punchInDate.toISOString(),
+        punch_out_time: punchOutDate.toISOString(),
+        total_hours: totalHours,
+        overtime_hours: overtimeHours,
+        break_minutes: breakMins,
+        notes: notes.trim() || undefined,
+        correction_reason: correctionReason.trim() || undefined,
+        status: newStatus,
+        requires_approval: shouldFlag,
+        jobs: updatedJobRes.data ? { name: updatedJobRes.data.name } : undefined,
+        cost_codes: updatedCostCodeRes.data
+          ? {
+              code: updatedCostCodeRes.data.code,
+              description: updatedCostCodeRes.data.description,
+              type: updatedCostCodeRes.data.type,
+            }
+          : undefined,
+      } as any);
       onOpenChange(false);
     } catch (error) {
       console.error('Error updating time card:', error);
@@ -319,7 +369,7 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
       });
 
       setShowDeleteDialog(false);
-      onSave();
+      await onSave();
       onOpenChange(false);
     } catch (error) {
       console.error('Error deleting time card:', error);
@@ -401,6 +451,29 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
             {timeCard.profiles?.display_name} - {format(new Date(timeCard.punch_in_time), 'PPPP')}
           </DialogDescription>
         </DialogHeader>
+
+        <div className="flex flex-col gap-2 border-b pb-4 sm:flex-row sm:items-center sm:justify-between">
+          <Button
+            variant="destructive"
+            onClick={() => setShowDeleteDialog(true)}
+            disabled={saving || deleting}
+            className="sm:order-1"
+          >
+            <Trash2 className="h-4 w-4 mr-2" />
+            Delete Time Card
+          </Button>
+
+          <div className="flex gap-2 sm:order-2">
+            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || deleting}>
+              <X className="h-4 w-4 mr-2" />
+              Cancel
+            </Button>
+            <Button onClick={handleSave} disabled={saving || deleting}>
+              <Save className="h-4 w-4 mr-2" />
+              {saving ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </div>
+        </div>
 
         <div className="space-y-6">
           {/* Job Information (Read-only) */}
@@ -549,28 +622,6 @@ export default function EditTimeCardDialog({ open, onOpenChange, timeCardId, onS
                 Your changes will be automatically approved
               </p>
             )}
-          </div>
-        </div>
-
-        <div className="flex justify-between gap-2 pt-4 border-t">
-          <Button 
-            variant="destructive" 
-            onClick={() => setShowDeleteDialog(true)} 
-            disabled={saving || deleting}
-          >
-            <Trash2 className="h-4 w-4 mr-2" />
-            Delete Time Card
-          </Button>
-          
-          <div className="flex gap-2">
-            <Button variant="outline" onClick={() => onOpenChange(false)} disabled={saving || deleting}>
-              <X className="h-4 w-4 mr-2" />
-              Cancel
-            </Button>
-            <Button onClick={handleSave} disabled={saving || deleting}>
-              <Save className="h-4 w-4 mr-2" />
-              {saving ? 'Saving...' : 'Save Changes'}
-            </Button>
           </div>
         </div>
       </DialogContent>

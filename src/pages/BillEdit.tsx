@@ -128,8 +128,9 @@ export default function BillEdit() {
       // Load bill data and documents
       const { data: billData, error: billError } = await supabase
         .from('invoices')
-        .select('*, vendors!inner(company_id, vendor_type), purchase_orders(id, po_number)')
+        .select('*, vendors!inner(company_id, vendor_type), cost_codes(id, job_id), purchase_orders(id, po_number)')
         .eq('id', id)
+        .eq('vendors.company_id', companyId)
         .maybeSingle();
 
       // Load existing documents
@@ -144,6 +145,16 @@ export default function BillEdit() {
       }
 
       if (billError) throw billError;
+
+      if (!billData) {
+        toast({
+          title: "Bill not available in this company",
+          description: "This bill does not belong to the currently selected company.",
+          variant: "destructive",
+        });
+        navigate("/invoices");
+        return;
+      }
 
       // Ensure billData has the correct type with is_reimbursement field
       const typedBillData = billData as typeof billData & { is_reimbursement?: boolean };
@@ -284,6 +295,7 @@ export default function BillEdit() {
             cost_code_id: d.cost_code_id || '',
             amount: Number(d.amount) || 0,
             percentage: Number(d.percentage) || 0,
+            cost_codes: costCode ? { job_id: costCode.job_id || null } : null,
           };
         });
 
@@ -597,11 +609,20 @@ export default function BillEdit() {
   const activePreviewUrl = selectedExistingDocument?.file_url || selectedNewFileUrl || bill?.file_url || null;
   const activePreviewName = selectedExistingDocument?.file_name || selectedNewFile?.name || 'Bill Document';
 
+  const codedBillDistributions = billDistribution.map((dist) => {
+    if (dist.cost_codes) return dist;
+    const costCode = allCostCodes.find((code) => code.id === dist.cost_code_id);
+    return costCode
+      ? { ...dist, cost_codes: { job_id: costCode.job_id || null } }
+      : dist;
+  });
+
   const codingValidation = evaluateInvoiceCoding({
     amount: parseFloat(formData.amount) || 0,
     job_id: formData.job_id || bill?.job_id || null,
     cost_code_id: formData.cost_code_id || bill?.cost_code_id || null,
-    distributions: billDistribution as any[],
+    cost_codes: bill?.cost_codes || null,
+    distributions: codedBillDistributions as any[],
   });
 
   useEffect(() => {

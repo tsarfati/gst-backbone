@@ -1,110 +1,68 @@
 import { Button } from "@/components/ui/button";
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
-import { List, LayoutGrid, Menu, Table, Settings, Check } from "lucide-react";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import { List, LayoutGrid, Menu, Table, ChevronDown, Star } from "lucide-react";
 
 export type TimeSheetsViewType = 'list' | 'compact' | 'super-compact' | 'table';
 
 interface TimeSheetsViewSelectorProps {
   currentView: TimeSheetsViewType;
   onViewChange: (view: TimeSheetsViewType) => void;
-  onSetDefault: () => void;
-  isDefault: boolean;
+  onSetDefault: (view: TimeSheetsViewType) => void;
+  defaultView?: TimeSheetsViewType;
 }
+
+const views: Array<{ type: TimeSheetsViewType; label: string; icon: typeof List }> = [
+  { type: 'list', label: 'List View', icon: List },
+  { type: 'compact', label: 'Compact', icon: LayoutGrid },
+  { type: 'super-compact', label: 'Super Compact', icon: Menu },
+  { type: 'table', label: 'Table View', icon: Table },
+];
 
 export default function TimeSheetsViewSelector({ 
   currentView, 
   onViewChange, 
   onSetDefault,
-  isDefault 
+  defaultView,
 }: TimeSheetsViewSelectorProps) {
-  const getViewIcon = (view: TimeSheetsViewType) => {
-    switch (view) {
-      case 'list': return <List className="h-4 w-4" />;
-      case 'compact': return <LayoutGrid className="h-4 w-4" />;
-      case 'super-compact': return <Menu className="h-4 w-4" />;
-      case 'table': return <Table className="h-4 w-4" />;
-      default: return <List className="h-4 w-4" />;
-    }
-  };
-
-  const getViewLabel = (view: TimeSheetsViewType) => {
-    switch (view) {
-      case 'list': return 'List View';
-      case 'compact': return 'Compact';
-      case 'super-compact': return 'Super Compact';
-      case 'table': return 'Table View';
-      default: return 'List View';
-    }
-  };
+  const currentViewConfig = views.find(view => view.type === currentView) || views[0];
+  const CurrentIcon = currentViewConfig.icon;
 
   return (
-    <div className="flex items-center gap-1 border border-border rounded-md p-1">
-      <Button
-        variant={currentView === "list" ? "secondary" : "ghost"}
-        size="sm"
-        onClick={() => onViewChange("list")}
-        className="h-8 w-8 p-0"
-      >
-        <List className="h-4 w-4" />
-      </Button>
-      <Button
-        variant={currentView === "compact" ? "secondary" : "ghost"}
-        size="sm"
-        onClick={() => onViewChange("compact")}
-        className="h-8 w-8 p-0"
-      >
-        <LayoutGrid className="h-4 w-4" />
-      </Button>
-      <Button
-        variant={currentView === "super-compact" ? "secondary" : "ghost"}
-        size="sm"
-        onClick={() => onViewChange("super-compact")}
-        className="h-8 w-8 p-0"
-      >
-        <Menu className="h-4 w-4" />
-      </Button>
-      <Button
-        variant={currentView === "table" ? "secondary" : "ghost"}
-        size="sm"
-        onClick={() => onViewChange("table")}
-        className="h-8 w-8 p-0"
-      >
-        <Table className="h-4 w-4" />
-      </Button>
-      
+    <div>
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button variant="ghost" size="sm" className="h-8 w-8 p-0">
-            <Settings className="h-4 w-4" />
+          <Button variant="outline" size="sm" className="h-11 gap-2">
+            <CurrentIcon className="h-4 w-4" />
+            {currentViewConfig.label}
+            <ChevronDown className="h-4 w-4 text-muted-foreground" />
           </Button>
         </DropdownMenuTrigger>
-        <DropdownMenuContent align="end">
-          <DropdownMenuItem onClick={() => onViewChange("list")}>
-            <List className="mr-2 h-4 w-4" />
-            List View
-            {currentView === "list" && <Check className="ml-auto h-4 w-4" />}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onViewChange("compact")}>
-            <LayoutGrid className="mr-2 h-4 w-4" />
-            Compact
-            {currentView === "compact" && <Check className="ml-auto h-4 w-4" />}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onViewChange("super-compact")}>
-            <Menu className="mr-2 h-4 w-4" />
-            Super Compact
-            {currentView === "super-compact" && <Check className="ml-auto h-4 w-4" />}
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={() => onViewChange("table")}>
-            <Table className="mr-2 h-4 w-4" />
-            Table View
-            {currentView === "table" && <Check className="ml-auto h-4 w-4" />}
-          </DropdownMenuItem>
-          <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onSetDefault}>
-            <Settings className="mr-2 h-4 w-4" />
-            Set as Default {!isDefault && "(Current: " + getViewLabel(currentView) + ")"}
-            {isDefault && <Check className="ml-auto h-4 w-4" />}
-          </DropdownMenuItem>
+        <DropdownMenuContent align="end" className="w-56">
+          {views.map((view) => {
+            const Icon = view.icon;
+            return (
+              <DropdownMenuItem
+                key={view.type}
+                onClick={() => onViewChange(view.type)}
+                className={currentView === view.type ? 'bg-accent' : ''}
+              >
+                <Icon className="mr-2 h-4 w-4" />
+                <span>{view.label}</span>
+                <button
+                  type="button"
+                  className="ml-auto inline-flex items-center"
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    onSetDefault(view.type);
+                  }}
+                  title={defaultView === view.type ? 'Default view' : 'Set as default view'}
+                >
+                  <Star className={`h-4 w-4 ${defaultView === view.type ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground'}`} />
+                </button>
+              </DropdownMenuItem>
+            );
+          })}
         </DropdownMenuContent>
       </DropdownMenu>
     </div>

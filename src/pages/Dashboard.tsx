@@ -41,6 +41,8 @@ interface NotificationEntityContext {
   bids: Set<string>;
   rfps: Set<string>;
   jobs: Set<string>;
+  invoices: Set<string>;
+  companies: Set<string>;
 }
 
 interface Message {
@@ -197,7 +199,7 @@ function ActiveJobsList() {
 export default function Dashboard() {
   const { user, profile } = useAuth();
   const { settings } = useSettings();
-  const { currentCompany } = useCompany();
+  const { currentCompany, switchCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
   const permissions = useActionPermissions();
@@ -280,7 +282,19 @@ export default function Dashboard() {
       bids: new Set<string>(),
       rfps: new Set<string>(),
       jobs: new Set<string>(),
+      invoices: new Set<string>(),
+      companies: new Set<string>(),
     };
+
+    if (targetPath) {
+      try {
+        const targetUrl = new URL(targetPath, window.location.origin);
+        const companyId = targetUrl.searchParams.get('company');
+        if (companyId) context.companies.add(companyId);
+      } catch {
+        // Notification targets can be legacy type strings; ignore URL parsing failures.
+      }
+    }
 
     if (rawType.startsWith('bid:new:')) {
       const bidId = rawType.split(':')[2];
@@ -296,6 +310,9 @@ export default function Dashboard() {
 
     const jobMatch = cleanedPath.match(/^\/jobs\/([^/]+)/);
     if (jobMatch?.[1]) context.jobs.add(jobMatch[1]);
+
+    const invoiceMatch = cleanedPath.match(/^\/(?:invoices|bills)\/([^/]+)/);
+    if (invoiceMatch?.[1]) context.invoices.add(invoiceMatch[1]);
 
     return context;
   };
@@ -463,8 +480,11 @@ export default function Dashboard() {
       const jobIds = Array.from(new Set(
         notificationContexts.flatMap(({ context }) => Array.from(context.jobs))
       ));
+      const invoiceIds = Array.from(new Set(
+        notificationContexts.flatMap(({ context }) => Array.from(context.invoices))
+      ));
 
-      const [bidsRes, rfpsRes, jobsRes] = await Promise.all([
+      const [bidsRes, rfpsRes, jobsRes, invoicesRes] = await Promise.all([
         bidIds.length > 0
           ? supabase
               .from('bids')
@@ -483,11 +503,18 @@ export default function Dashboard() {
               .select('id, company_id')
               .in('id', jobIds)
           : Promise.resolve({ data: [], error: null }),
+        invoiceIds.length > 0
+          ? supabase
+              .from('invoices')
+              .select('id, company_id, job_id')
+              .in('id', invoiceIds)
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       if ((bidsRes as any).error) throw (bidsRes as any).error;
       if ((rfpsRes as any).error) throw (rfpsRes as any).error;
       if ((jobsRes as any).error) throw (jobsRes as any).error;
+      if ((invoicesRes as any).error) throw (invoicesRes as any).error;
 
       const bidMap = new Map<string, { company_id: string; job_id: string | null }>(
         (((bidsRes as any).data) || []).map((row: any) => [
@@ -513,11 +540,24 @@ export default function Dashboard() {
           { company_id: String(row.company_id) },
         ]),
       );
+      const invoiceMap = new Map<string, { company_id: string; job_id: string | null }>(
+        (((invoicesRes as any).data) || []).map((row: any) => [
+          String(row.id),
+          {
+            company_id: String(row.company_id),
+            job_id: row?.job_id ? String(row.job_id) : null,
+          },
+        ]),
+      );
 
       const jobTeamJobIdSet = new Set(teamJobIdsOverride ?? jobTeamJobIds);
       const companyScopedNotifications = notificationContexts.filter(({ notification, context }) => {
         const hasScopedEntity =
-          context.bids.size > 0 || context.rfps.size > 0 || context.jobs.size > 0;
+          context.bids.size > 0 ||
+          context.rfps.size > 0 ||
+          context.jobs.size > 0 ||
+          context.invoices.size > 0 ||
+          context.companies.size > 0;
 
         if (!hasScopedEntity) {
           return true;
@@ -529,8 +569,13 @@ export default function Dashboard() {
           company_id: jobMap.get(jobId)?.company_id,
           job_id: jobId,
         })).filter((entry) => Boolean(entry.company_id));
+        const invoiceEntries = Array.from(context.invoices).map((invoiceId) => invoiceMap.get(invoiceId)).filter(Boolean);
+        const companyEntries = Array.from(context.companies).map((companyId) => ({
+          company_id: companyId,
+          job_id: null,
+        }));
 
-        const scopedEntries = [...bidEntries, ...rfpEntries, ...jobEntries] as Array<{ company_id: string; job_id: string | null | undefined }>;
+        const scopedEntries = [...bidEntries, ...rfpEntries, ...jobEntries, ...invoiceEntries, ...companyEntries] as Array<{ company_id: string; job_id: string | null | undefined }>;
 
         if (scopedEntries.length === 0) {
           return false;
@@ -1126,6 +1171,15 @@ export default function Dashboard() {
     }
     const targetPath = getNotificationPath(notification);
     if (targetPath) {
+      try {
+        const targetUrl = new URL(targetPath, window.location.origin);
+        const targetCompanyId = targetUrl.searchParams.get('company');
+        if (targetCompanyId && targetCompanyId !== currentCompany?.id) {
+          await switchCompany(targetCompanyId);
+        }
+      } catch {
+        // Relative paths without query context can navigate normally.
+      }
       navigate(targetPath);
     }
   };

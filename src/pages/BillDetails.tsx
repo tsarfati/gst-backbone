@@ -1,4 +1,4 @@
-import { useParams, useNavigate } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams } from "react-router-dom";
 import { useEffect, useState } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -27,6 +27,7 @@ import { Label } from "@/components/ui/label";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { useCompany } from "@/contexts/CompanyContext";
 import { canAccessJobIds } from "@/utils/jobAccess";
 import { resolveStorageUrl } from "@/utils/storageUtils";
 import VendorAvatar from "@/components/VendorAvatar";
@@ -74,8 +75,11 @@ const getStatusIcon = (status: string) => {
 export default function BillDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
+  const companyParam = searchParams.get("company");
   const { toast } = useToast();
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
+  const { currentCompany, switchCompany } = useCompany();
   
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -112,10 +116,10 @@ export default function BillDetails() {
   };
 
   useEffect(() => {
-    if (id && !websiteJobAccessLoading) {
+    if (id && !websiteJobAccessLoading && currentCompany?.id) {
       fetchBillDetails();
     }
-  }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+  }, [id, websiteJobAccessLoading, currentCompany?.id, companyParam, isPrivileged, allowedJobIds.join(",")]);
 
   useEffect(() => {
     if (selectedPreviewKey === 'bill' && bill?.file_url) return;
@@ -137,12 +141,19 @@ export default function BillDetails() {
 
   const fetchBillDetails = async () => {
     if (websiteJobAccessLoading) return;
+    const companyId = currentCompany?.id;
+    if (!companyId) return;
+    const targetCompanyId = companyParam;
+    if (targetCompanyId && targetCompanyId !== companyId) {
+      await switchCompany(targetCompanyId);
+      return;
+    }
     try {
       const { data, error } = await supabase
         .from('invoices')
         .select(`
           *,
-          vendors (name, logo_url),
+          vendors!inner (name, logo_url, company_id),
           jobs (
             id,
             name
@@ -150,7 +161,8 @@ export default function BillDetails() {
           cost_codes (
             id,
             code,
-            description
+            description,
+            job_id
           ),
           subcontracts (
             id,
@@ -163,21 +175,31 @@ export default function BillDetails() {
           )
         `)
         .eq('id', id)
+        .eq('vendors.company_id', companyId)
         .maybeSingle();
 
       if (error) {
         console.error('Error fetching bill:', error);
         setBill(null);
+      } else if (!data) {
+        setBill(null);
+        setDistributions([]);
+        toast({
+          title: "Bill not available in this company",
+          description: "This bill does not belong to the currently selected company.",
+          variant: "destructive",
+        });
+        navigate("/invoices");
       } else {
         const directJobId = data?.job_id || data?.jobs?.id || null;
         let distributionJobIds: string[] = [];
         let requiresDistributionBeforeApproval = true;
 
-        if ((data as any)?.company_id) {
+        if (companyId) {
           const { data: payablesSettings } = await supabase
             .from('payables_settings')
             .select('require_bill_distribution_before_approval')
-            .eq('company_id', (data as any).company_id)
+            .eq('company_id', companyId)
             .maybeSingle();
 
           requiresDistributionBeforeApproval =
@@ -427,6 +449,7 @@ export default function BillDetails() {
       amount: bill?.amount,
       job_id: bill?.job_id,
       cost_code_id: bill?.cost_code_id,
+      cost_codes: bill?.cost_codes || null,
       distributions: distributions as any[],
     });
     if (requireBillDistributionBeforeApproval && !codingValidation.isComplete) {
@@ -628,6 +651,7 @@ export default function BillDetails() {
     amount: bill?.amount,
     job_id: bill?.job_id,
     cost_code_id: bill?.cost_code_id,
+    cost_codes: bill?.cost_codes || null,
     distributions: distributions as any[],
   });
   const approvalBlockedByCoding = requireBillDistributionBeforeApproval && !codingValidation.isComplete;
