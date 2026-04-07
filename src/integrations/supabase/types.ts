@@ -3708,6 +3708,7 @@ export type Database = {
           default_cost_code_id: string | null
           default_job_id: string | null
           enforce_punch_in_distance: boolean
+          hourly_rate: number | null
           id: string
           lunch_duration_minutes: number | null
           max_daily_hours: number | null
@@ -3732,6 +3733,7 @@ export type Database = {
           default_cost_code_id?: string | null
           default_job_id?: string | null
           enforce_punch_in_distance?: boolean
+          hourly_rate?: number | null
           id?: string
           lunch_duration_minutes?: number | null
           max_daily_hours?: number | null
@@ -3756,6 +3758,7 @@ export type Database = {
           default_cost_code_id?: string | null
           default_job_id?: string | null
           enforce_punch_in_distance?: boolean
+          hourly_rate?: number | null
           id?: string
           lunch_duration_minutes?: number | null
           max_daily_hours?: number | null

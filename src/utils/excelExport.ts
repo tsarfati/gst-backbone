@@ -12,6 +12,7 @@ export interface ExcelReportData {
     regularHours: number;
     overtimeHours: number;
     totalHours: number;
+    laborCost?: number;
   };
 }
 
@@ -43,6 +44,8 @@ export const exportTimecardToExcel = async (
     "Punch In": record.punch_in_time ? formatCompanyDateTime(record.punch_in_time, timeZone) : "-",
     "Punch Out": record.punch_out_time ? formatCompanyDateTime(record.punch_out_time, timeZone) : "-",
     Hours: record.total_hours?.toFixed(2) || "0.00",
+    Rate: record.hourly_rate ? Number(record.hourly_rate).toFixed(2) : "",
+    "Labor Cost": record.labor_cost ? Number(record.labor_cost).toFixed(2) : "0.00",
   }));
 
   // Prepare summary rows
@@ -53,6 +56,7 @@ export const exportTimecardToExcel = async (
     ["Regular Hours", reportData.summary.regularHours.toFixed(2)],
     ["Overtime Hours", reportData.summary.overtimeHours.toFixed(2)],
     ["Total Hours", reportData.summary.totalHours.toFixed(2)],
+    ["Labor Cost", (reportData.summary.laborCost || 0).toFixed(2)],
   ];
 
   // Combine all data

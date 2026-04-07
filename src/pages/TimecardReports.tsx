@@ -44,7 +44,10 @@ interface TimeCardRecord {
   punch_in_time: string;
   punch_out_time: string;
   total_hours: number;
+  regular_hours: number;
   overtime_hours: number;
+  hourly_rate?: number | null;
+  labor_cost: number;
   break_minutes: number;
   status: string;
   notes?: string;
@@ -501,10 +504,17 @@ export default function TimecardReports() {
       const costCodeIds = [...new Set(filteredData.map((r: any) => r.cost_code_id).filter(Boolean))];
       const userIds = [...new Set(filteredData.map((r: any) => r.user_id))];
 
-      const [jobsData, costCodesData, profilesData] = await Promise.all([
+      const [jobsData, costCodesData, profilesData, employeeSettingsData] = await Promise.all([
         jobIds.length > 0 ? supabase.from('jobs').select('id, name').in('id', jobIds).eq('company_id', currentCompany.id) : { data: [], error: null },
         costCodeIds.length > 0 ? supabase.from('cost_codes').select('id, code, description').in('id', costCodeIds).eq('company_id', currentCompany.id) : { data: [], error: null },
         userIds.length > 0 ? supabase.from('profiles').select('user_id, display_name, first_name, last_name').in('user_id', userIds) : { data: [], error: null },
+        userIds.length > 0
+          ? supabase
+              .from('employee_timecard_settings')
+              .select('user_id, hourly_rate')
+              .eq('company_id', currentCompany.id)
+              .in('user_id', userIds)
+          : { data: [], error: null },
       ]);
 
       console.log('Cost Code IDs:', costCodeIds);
@@ -514,6 +524,12 @@ export default function TimecardReports() {
       const jobsMap = new Map((jobsData.data || []).map(job => [job.id, job]));
       const costCodesMap = new Map((costCodesData.data || []).map(code => [code.id, code]));
       const profilesMap = new Map((profilesData.data || []).map(profile => [profile.user_id, profile]));
+      const hourlyRateMap = new Map(
+        (employeeSettingsData.data || []).map((setting: any) => [
+          setting.user_id,
+          Number(setting.hourly_rate || 0),
+        ]),
+      );
 
       // Transform the data with recalculated hours and flagging
       const transformedRecords: TimeCardRecord[] = filteredData.map((record: any) => {
@@ -536,6 +552,10 @@ export default function TimecardReports() {
           // If overtime calculation is disabled, don't show any overtime
           overtimeHours = 0;
         }
+
+        const regularHours = Math.max(0, totalHours - overtimeHours);
+        const hourlyRate = hourlyRateMap.get(record.user_id) || 0;
+        const laborCost = totalHours * hourlyRate;
         
         // Check if time card should be flagged
         const over24 = flagOver24 && totalHours > 24;
@@ -558,7 +578,10 @@ export default function TimecardReports() {
           punch_in_time: record.punch_in_time,
           punch_out_time: record.punch_out_time,
           total_hours: totalHours,
+          regular_hours: regularHours,
           overtime_hours: overtimeHours,
+          hourly_rate: hourlyRate,
+          labor_cost: laborCost,
           break_minutes: record.break_minutes || 0,
           status: statusWithFlag,
           notes: record.notes,
@@ -978,7 +1001,8 @@ export default function TimecardReports() {
           totalRecords: data.length,
           totalHours: summary.totalHours,
           overtimeHours: summary.totalOvertimeHours,
-          regularHours: summary.totalRegularHours
+          regularHours: summary.totalRegularHours,
+          laborCost: summary.totalLaborCost
         }
       };
 
@@ -1003,7 +1027,8 @@ export default function TimecardReports() {
     totalRecords: records.length,
     totalHours: records.reduce((sum, record) => sum + record.total_hours, 0),
     totalOvertimeHours: records.reduce((sum, record) => sum + record.overtime_hours, 0),
-    totalRegularHours: records.reduce((sum, record) => sum + (record.total_hours - record.overtime_hours), 0),
+    totalRegularHours: records.reduce((sum, record) => sum + record.regular_hours, 0),
+    totalLaborCost: records.reduce((sum, record) => sum + record.labor_cost, 0),
     uniqueEmployees: new Set(records.map(r => r.user_id)).size,
     uniqueJobs: new Set(records.map(r => r.job_name)).size,
     averageHoursPerDay: records.length > 0 ? records.reduce((sum, record) => sum + record.total_hours, 0) / records.length : 0
