@@ -21,6 +21,7 @@ import QuickAddVendor from "@/components/QuickAddVendor";
 import { generateSubcontractPDF } from "@/utils/subcontractPdfGenerator";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import { ensureSubcontractVendorJobAccess } from "@/utils/vendorJobAccess";
 
 export default function AddSubcontract() {
   const navigate = useNavigate();
@@ -480,6 +481,11 @@ export default function AddSubcontract() {
 
       if (error) throw error;
 
+      await ensureSubcontractVendorJobAccess(formData.vendor_id, {
+        jobId: formData.job_id,
+        createdBy: user.id,
+      });
+
       toast({
         title: "Success",
         description: "Subcontract created successfully",
@@ -549,6 +555,11 @@ export default function AddSubcontract() {
         .single();
 
       if (error) throw error;
+
+      await ensureSubcontractVendorJobAccess(formData.vendor_id, {
+        jobId: formData.job_id,
+        createdBy: user.id,
+      });
 
       // Generate PDF
       await generateSubcontractPDF(newSubcontract.id, selectedTemplate);

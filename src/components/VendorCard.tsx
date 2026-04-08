@@ -41,8 +41,9 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
             <VendorAvatar 
               name={vendor.name}
               logoUrl={vendor.logo_url}
-              size="sm"
-              className="mr-2"
+              size="lg"
+              shape="square"
+              className="mr-3"
             />
             {vendor.name}
           </CardTitle>

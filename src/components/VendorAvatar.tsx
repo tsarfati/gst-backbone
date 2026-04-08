@@ -7,14 +7,17 @@ interface VendorAvatarProps {
   name: string;
   logoUrl?: string | null;
   size?: "sm" | "md" | "lg";
+  shape?: "circle" | "square";
   className?: string;
 }
 
-export default function VendorAvatar({ name, logoUrl, size = "md", className = "" }: VendorAvatarProps) {
+export default function VendorAvatar({ name, logoUrl, size = "md", shape = "circle", className = "" }: VendorAvatarProps) {
   const [resolvedLogoUrl, setResolvedLogoUrl] = useState<string | null>(null);
+  const [logoFailed, setLogoFailed] = useState(false);
 
   useEffect(() => {
     let active = true;
+    setLogoFailed(false);
 
     const resolveLogo = async () => {
       if (!logoUrl) {
@@ -39,6 +42,8 @@ export default function VendorAvatar({ name, logoUrl, size = "md", className = "
     lg: "h-12 w-12"
   };
 
+  const roundedClass = shape === "square" ? "rounded-md" : "rounded-full";
+
   const iconSizes = {
     sm: "h-3 w-3",
     md: "h-4 w-4",
@@ -55,19 +60,20 @@ export default function VendorAvatar({ name, logoUrl, size = "md", className = "
   };
 
   return (
-    <Avatar className={`${sizeClasses[size]} ${className}`}>
-      {resolvedLogoUrl ? (
+    <Avatar className={`${sizeClasses[size]} ${roundedClass} border bg-muted ${className}`}>
+      {resolvedLogoUrl && !logoFailed ? (
         <AvatarImage 
           src={resolvedLogoUrl} 
           alt={`${name} logo`}
+          className="object-cover"
           onError={(e) => {
-            // Hide the image if it fails to load
             e.currentTarget.style.display = 'none';
+            setLogoFailed(true);
           }}
         />
       ) : null}
-      <AvatarFallback className="bg-muted">
-        {resolvedLogoUrl ? (
+      <AvatarFallback className={`bg-muted ${roundedClass}`}>
+        {resolvedLogoUrl && logoFailed ? (
           <Building className={iconSizes[size]} />
         ) : (
           <span className="text-xs font-medium">

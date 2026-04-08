@@ -56,7 +56,8 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
                   <VendorAvatar 
                     name={vendor.name}
                     logoUrl={vendor.logo_url}
-                    size="sm"
+                    size="lg"
+                    shape="square"
                   />
                   <span className="font-medium group-hover:text-primary transition-colors">{vendor.name}</span>
                 </div>

@@ -26,9 +26,6 @@ type VendorJobAccessRow = {
   can_access_messages?: boolean | null;
   can_access_filing_cabinet?: boolean | null;
   can_upload_compliance_docs?: boolean | null;
-  can_negotiate_contracts?: boolean | null;
-  can_submit_sov_proposals?: boolean | null;
-  can_upload_signed_contracts?: boolean | null;
 };
 
 type VendorRoleCaps = {
@@ -281,10 +278,7 @@ export function useVendorPortalAccess(jobId?: string) {
           can_view_subcontracts,
           can_access_messages,
           can_access_filing_cabinet,
-          can_upload_compliance_docs,
-          can_negotiate_contracts,
-          can_submit_sov_proposals,
-          can_upload_signed_contracts
+          can_upload_compliance_docs
         `)
         .eq("vendor_id", profile.vendor_id)
         .eq("job_id", jobId)
@@ -324,9 +318,9 @@ export function useVendorPortalAccess(jobId?: string) {
       canAccessMessages: roleCaps.canAccessMessages && !!assignment.can_access_messages,
       canAccessFilingCabinet: roleCaps.canAccessFilingCabinet && !!assignment.can_access_filing_cabinet,
       canUploadComplianceDocs: roleCaps.canUploadComplianceDocs && !!assignment.can_upload_compliance_docs,
-      canNegotiateContracts: roleCaps.canNegotiateContracts && !!assignment.can_negotiate_contracts,
-      canSubmitSovProposals: roleCaps.canSubmitSovProposals && !!assignment.can_submit_sov_proposals,
-      canUploadSignedContracts: roleCaps.canUploadSignedContracts && !!assignment.can_upload_signed_contracts,
+      canNegotiateContracts: false,
+      canSubmitSovProposals: false,
+      canUploadSignedContracts: false,
     };
   }, [jobAccess, roleCaps]);
 

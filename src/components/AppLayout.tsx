@@ -342,7 +342,7 @@ export function AppSidebar() {
       ? 'vendor'
       : 'construction';
   const isDesignProfessionalRoute = location.pathname.startsWith('/design-professional');
-  const isVendorRoute = location.pathname.startsWith('/vendor');
+  const isVendorRoute = location.pathname === '/vendor' || location.pathname.startsWith('/vendor/');
   const isDesignProfessionalWorkspace =
     isDesignProfessionalRoute ||
     companyType === 'design_professional' ||

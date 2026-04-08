@@ -1,8 +1,9 @@
 import { Card, CardContent } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Building, Phone, Mail, Receipt, AlertTriangle } from "lucide-react";
+import { Phone, Mail, Receipt, AlertTriangle } from "lucide-react";
 import { useComplianceWarnings } from "@/hooks/useComplianceWarnings";
+import VendorAvatar from "@/components/VendorAvatar";
 
 interface Vendor {
   id: string;
@@ -36,14 +37,15 @@ export default function VendorCompactView({ vendors, onVendorClick }: VendorComp
     <div className="space-y-1">
       {vendors.map((vendor) => (
         <Card key={vendor.id} className="hover-lift cursor-pointer animate-fade-in" onClick={() => onVendorClick(vendor)}>
-          <CardContent className="px-3 py-1.5">
+          <CardContent className="px-3 py-2">
             <div className="flex items-center justify-between gap-2">
-              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden whitespace-nowrap">
-                {vendor.logo_url ? (
-                  <img src={vendor.logo_url} alt={vendor.name} className="h-6 w-6 rounded object-cover flex-shrink-0" />
-                ) : (
-                  <Building className="h-4 w-4 text-primary flex-shrink-0" />
-                )}
+              <div className="flex items-center gap-2 min-w-0 flex-1 overflow-hidden">
+                <VendorAvatar
+                  name={vendor.name}
+                  logoUrl={vendor.logo_url}
+                  size="md"
+                  shape="square"
+                />
                 <span className="font-medium truncate max-w-[220px]">{vendor.name}</span>
                 <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]} className="text-xs">
                   {vendor.category}
@@ -54,12 +56,12 @@ export default function VendorCompactView({ vendors, onVendorClick }: VendorComp
                     {warnings[vendor.id]} Missing
                   </Badge>
                 )}
-                <div className="flex items-center gap-3 text-xs text-muted-foreground min-w-0">
-                  <div className="flex items-center gap-1">
+                <div className="flex min-w-0 items-center gap-3 overflow-hidden text-xs text-muted-foreground">
+                  <div className="flex min-w-0 items-center gap-1">
                     <Phone className="h-3 w-3" />
                     <span className="truncate">{vendor.phone}</span>
                   </div>
-                  <div className="flex items-center gap-1">
+                  <div className="flex min-w-0 items-center gap-1">
                     <Mail className="h-3 w-3" />
                     <span className="truncate max-w-[220px]">{vendor.email}</span>
                   </div>

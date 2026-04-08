@@ -23,6 +23,7 @@ import {
 } from "@/components/ui/dialog";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
+import { ensureSubcontractVendorJobAccess } from "@/utils/vendorJobAccess";
 
 type VendorAccessPresetKey =
   | "billing_only"
@@ -56,9 +57,6 @@ const VENDOR_ACCESS_PRESETS: Record<
       can_submit_bids: false,
       can_view_subcontracts: false,
       can_access_messages: true,
-      can_negotiate_contracts: false,
-      can_submit_sov_proposals: false,
-      can_upload_signed_contracts: false,
       can_access_filing_cabinet: false,
       filing_cabinet_access_level: "view_only",
       can_download_filing_cabinet_files: true,
@@ -82,9 +80,6 @@ const VENDOR_ACCESS_PRESETS: Record<
       can_submit_bids: false,
       can_view_subcontracts: true,
       can_access_messages: true,
-      can_negotiate_contracts: true,
-      can_submit_sov_proposals: true,
-      can_upload_signed_contracts: true,
       can_access_filing_cabinet: true,
       filing_cabinet_access_level: "view_only",
       can_download_filing_cabinet_files: true,
@@ -108,9 +103,6 @@ const VENDOR_ACCESS_PRESETS: Record<
       can_submit_bids: true,
       can_view_subcontracts: false,
       can_access_messages: true,
-      can_negotiate_contracts: false,
-      can_submit_sov_proposals: false,
-      can_upload_signed_contracts: false,
       can_access_filing_cabinet: true,
       filing_cabinet_access_level: "view_only",
       can_download_filing_cabinet_files: true,
@@ -134,9 +126,6 @@ const VENDOR_ACCESS_PRESETS: Record<
       can_submit_bids: true,
       can_view_subcontracts: true,
       can_access_messages: true,
-      can_negotiate_contracts: true,
-      can_submit_sov_proposals: true,
-      can_upload_signed_contracts: true,
       can_access_filing_cabinet: true,
       filing_cabinet_access_level: "read_write",
       can_download_filing_cabinet_files: true,
@@ -380,6 +369,8 @@ export default function VendorDetails() {
 
     const fetchVendorJobAccess = async (vendorId: string) => {
       try {
+        await ensureSubcontractVendorJobAccess(vendorId, { createdBy: user?.id });
+
         const { data, error } = await supabase
           .from('vendor_job_access' as any)
           .select(`
@@ -400,9 +391,6 @@ export default function VendorDetails() {
             can_submit_bids,
             can_view_subcontracts,
             can_access_messages,
-            can_negotiate_contracts,
-            can_submit_sov_proposals,
-            can_upload_signed_contracts,
             can_access_filing_cabinet,
             filing_cabinet_access_level,
             can_download_filing_cabinet_files,
@@ -499,9 +487,6 @@ export default function VendorDetails() {
           can_submit_bids,
           can_view_subcontracts,
           can_access_messages,
-          can_negotiate_contracts,
-          can_submit_sov_proposals,
-          can_upload_signed_contracts,
           can_access_filing_cabinet,
           filing_cabinet_access_level,
           can_download_filing_cabinet_files,
@@ -800,14 +785,12 @@ export default function VendorDetails() {
             <div>
               <h1 className="text-2xl font-bold text-foreground">{vendor.name}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2">
-                {vendorPortalLinked ? (
+                {vendorPortalLinked && (
                   <Badge variant="default">Vendor Portal Linked</Badge>
-                ) : pendingInvite ? (
-                  <Badge variant="secondary">Vendor Portal Invite Pending</Badge>
-                ) : (
-                  <Badge variant="outline">No Vendor Portal Linked</Badge>
                 )}
-                <Badge variant="outline">Builder-Side Vendor Record</Badge>
+                {!vendorPortalLinked && pendingInvite && (
+                  <Badge variant="secondary">Vendor Portal Invite Pending</Badge>
+                )}
               </div>
             </div>
           </div>
@@ -869,20 +852,22 @@ export default function VendorDetails() {
 
       {/* Single Scrollable Content */}
       <div className="space-y-8">
-        <Card className="border-dashed">
-          <CardContent className="flex flex-col gap-3 pt-6 md:flex-row md:items-center md:justify-between">
-            <div>
-              <p className="font-medium text-foreground">Vendor portal sync status</p>
-              <p className="text-sm text-muted-foreground">
-                Company info, payment settings, W-9, insurance, and logo sync from the vendor&apos;s portal into this builder-side vendor record.
-              </p>
-            </div>
-            <div className="flex flex-wrap gap-2">
-              <Badge variant="default">Synced From Vendor Portal</Badge>
-              <Badge variant="secondary">Builder Managed: Job Access</Badge>
-            </div>
-          </CardContent>
-        </Card>
+        {vendorPortalLinked && (
+          <Card className="border-dashed">
+            <CardContent className="flex flex-col gap-3 pt-6 md:flex-row md:items-center md:justify-between">
+              <div>
+                <p className="font-medium text-foreground">Vendor portal sync status</p>
+                <p className="text-sm text-muted-foreground">
+                  Company info, payment settings, W-9, insurance, and logo sync from the vendor&apos;s portal into this builder-side vendor record.
+                </p>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Badge variant="default">Synced From Vendor Portal</Badge>
+                <Badge variant="secondary">Builder Managed: Job Access</Badge>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Overview Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
@@ -892,11 +877,13 @@ export default function VendorDetails() {
               <CardHeader className="pb-2">
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <CardTitle className="text-lg">Vendor Overview</CardTitle>
-                  <Badge variant="default">Synced From Vendor Portal</Badge>
+                  {vendorPortalLinked && <Badge variant="default">Synced From Vendor Portal</Badge>}
                 </div>
-                <p className="text-sm text-muted-foreground">
-                  These company details are maintained by the vendor inside their own BuilderLYNK vendor portal.
-                </p>
+                {vendorPortalLinked && (
+                  <p className="text-sm text-muted-foreground">
+                    These company details are maintained by the vendor inside their own BuilderLYNK vendor portal.
+                  </p>
+                )}
               </CardHeader>
               <CardContent className="space-y-4">
                 {vendor.contact_person && (
@@ -1002,10 +989,7 @@ export default function VendorDetails() {
             {/* Quick Actions */}
             <Card>
               <CardHeader>
-                <div className="flex flex-wrap items-center justify-between gap-2">
-                  <CardTitle className="text-lg">Quick Actions</CardTitle>
-                  <Badge variant="outline">Builder Managed</Badge>
-                </div>
+                <CardTitle className="text-lg">Quick Actions</CardTitle>
               </CardHeader>
               <CardContent className="space-y-2">
                 <Button 
@@ -1048,12 +1032,18 @@ export default function VendorDetails() {
                       <CreditCard className="h-5 w-5" />
                       Payment Methods
                     </CardTitle>
-                    <Badge variant="default" className="text-xs">Synced From Vendor Portal</Badge>
-                    <Badge variant="outline" className="text-xs">View Only</Badge>
+                    {vendorPortalLinked && (
+                      <>
+                        <Badge variant="default" className="text-xs">Synced From Vendor Portal</Badge>
+                        <Badge variant="outline" className="text-xs">View Only</Badge>
+                      </>
+                    )}
                   </div>
-                  <p className="text-sm text-muted-foreground">
-                    Payment details are controlled by the vendor in their portal and mirrored here for builder review.
-                  </p>
+                  {vendorPortalLinked && (
+                    <p className="text-sm text-muted-foreground">
+                      Payment details are controlled by the vendor in their portal and mirrored here for builder review.
+                    </p>
+                  )}
                 </div>
               </CardHeader>
               <CardContent>
@@ -1187,25 +1177,34 @@ export default function VendorDetails() {
 
         {/* Compliance Documents Section */}
         <div id="compliance-documents">
-          <Card>
-            <CardHeader>
-              <div className="flex flex-wrap items-center gap-2">
-                <CardTitle>Compliance Documents</CardTitle>
-                <Badge variant="default">Synced From Vendor Portal</Badge>
-              </div>
-              <p className="text-sm text-muted-foreground">
-                W-9 and insurance certificates sync from the vendor portal. Job-specific and company-specific insurance documents appear here too.
-              </p>
-            </CardHeader>
-            <CardContent>
-              <ComplianceDocumentManager
-                vendorId={vendor.id}
-                documents={complianceDocuments}
-                onDocumentsChange={setComplianceDocuments}
-                isEditMode={false}
-              />
-            </CardContent>
-          </Card>
+          {vendorPortalLinked ? (
+            <Card>
+              <CardHeader>
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle>Compliance Documents</CardTitle>
+                  <Badge variant="default">Synced From Vendor Portal</Badge>
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  W-9 and insurance certificates sync from the vendor portal. Job-specific and company-specific insurance documents appear here too.
+                </p>
+              </CardHeader>
+              <CardContent>
+                <ComplianceDocumentManager
+                  vendorId={vendor.id}
+                  documents={complianceDocuments}
+                  onDocumentsChange={setComplianceDocuments}
+                  isEditMode={false}
+                />
+              </CardContent>
+            </Card>
+          ) : (
+            <ComplianceDocumentManager
+              vendorId={vendor.id}
+              documents={complianceDocuments}
+              onDocumentsChange={setComplianceDocuments}
+              isEditMode={false}
+            />
+          )}
         </div>
 
         {/* Jobs Section */}
@@ -1217,7 +1216,7 @@ export default function VendorDetails() {
                   <Briefcase className="h-5 w-5" />
                   Vendor Job Assignments & Access
                 </CardTitle>
-                <Badge variant="secondary">Builder Managed</Badge>
+                {vendorPortalLinked && <Badge variant="secondary">Builder Managed</Badge>}
               </div>
               <p className="text-sm text-muted-foreground">
                 Job visibility and collaboration permissions are controlled here by your BuilderLYNK team.
@@ -1408,27 +1407,6 @@ export default function VendorDetails() {
                         <div>
                           <p className="text-sm font-medium text-foreground">Contracts & Filing Cabinet</p>
                           <div className="mt-2 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                            <div className="flex items-center justify-between rounded border p-2">
-                              <Label>Contract Negotiation</Label>
-                              <Switch
-                                checked={!!assignment.can_negotiate_contracts}
-                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_negotiate_contracts', checked)}
-                              />
-                            </div>
-                            <div className="flex items-center justify-between rounded border p-2">
-                              <Label>SOV Proposals</Label>
-                              <Switch
-                                checked={!!assignment.can_submit_sov_proposals}
-                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_sov_proposals', checked)}
-                              />
-                            </div>
-                            <div className="flex items-center justify-between rounded border p-2">
-                              <Label>Upload Signed Contracts</Label>
-                              <Switch
-                                checked={!!assignment.can_upload_signed_contracts}
-                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_upload_signed_contracts', checked)}
-                              />
-                            </div>
                             <div className="flex items-center justify-between rounded border p-2">
                               <Label>Filing Cabinet Access</Label>
                               <Switch

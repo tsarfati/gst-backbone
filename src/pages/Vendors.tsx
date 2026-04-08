@@ -111,7 +111,7 @@ export default function Vendors() {
   };
 
   return (
-    <div className="p-4 md:p-6">
+    <div className="min-w-0 overflow-x-hidden p-4 md:p-6">
       <div className="flex items-center justify-between mb-6">
         <div>
           <h1 className="text-2xl font-bold text-foreground">Vendors</h1>

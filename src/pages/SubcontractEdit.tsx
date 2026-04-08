@@ -14,6 +14,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import SubcontractCostDistribution from "@/components/SubcontractCostDistribution";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { ensureSubcontractVendorJobAccess } from "@/utils/vendorJobAccess";
 import {
   AlertDialog,
   AlertDialogAction,
@@ -387,6 +388,11 @@ export default function SubcontractEdit() {
         .eq('id', id);
 
       if (error) throw error;
+
+      await ensureSubcontractVendorJobAccess(formData.vendor_id, {
+        jobId: formData.job_id,
+        createdBy: user?.id,
+      });
 
       toast({
         title: "Success",
