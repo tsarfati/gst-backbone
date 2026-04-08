@@ -26,6 +26,8 @@ interface Employee {
   last_name: string;
   display_name: string;
   role: string;
+  custom_role_id?: string | null;
+  custom_role_name?: string | null;
   avatar_url?: string;
   created_at: string;
   has_pin: boolean;
@@ -68,17 +70,32 @@ export default function AllEmployees() {
     if (!currentCompany?.id) return;
 
     try {
-      // Get all users with employee role for this company
+      // Get all internal users for this company. "All Employees" is the company roster,
+      // not only rows whose company role is literally "employee".
       const { data: accessData, error: accessError } = await supabase
         .from('user_company_access')
-        .select('user_id, role')
+        .select('user_id, role, is_active')
         .eq('company_id', currentCompany.id)
-        .eq('is_active', true)
-        .eq('role', 'employee');
+        .or('is_active.eq.true,is_active.is.null')
+        .not('role', 'in', '("vendor","design_professional")');
 
       if (accessError) throw accessError;
 
-      const userIds = (accessData || []).map(a => a.user_id);
+      const userIds = Array.from(new Set((accessData || []).map(a => a.user_id).filter(Boolean)));
+
+      const { data: companyProfilesFallback, error: companyProfilesError } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, display_name, avatar_url, role, custom_role_id, pin_code, phone, punch_clock_access, pm_lynk_access, created_at')
+        .eq('current_company_id', currentCompany.id)
+        .not('role', 'in', '("vendor","design_professional")');
+
+      if (companyProfilesError) throw companyProfilesError;
+
+      for (const profile of companyProfilesFallback || []) {
+        if (profile.user_id && !userIds.includes(profile.user_id)) {
+          userIds.push(profile.user_id);
+        }
+      }
 
       if (userIds.length === 0) {
         setEmployees([]);
@@ -89,10 +106,24 @@ export default function AllEmployees() {
       // Fetch profiles for these users
       const { data: profilesData, error: profilesError } = await supabase
         .from('profiles')
-        .select('user_id, first_name, last_name, display_name, avatar_url, role, pin_code, phone, punch_clock_access, pm_lynk_access, created_at')
+        .select('user_id, first_name, last_name, display_name, avatar_url, role, custom_role_id, pin_code, phone, punch_clock_access, pm_lynk_access, created_at')
         .in('user_id', userIds);
 
       if (profilesError) throw profilesError;
+
+      const customRoleIds = Array.from(new Set((profilesData || []).map((p: any) => p.custom_role_id).filter(Boolean)));
+      const { data: customRolesData, error: customRolesError } = customRoleIds.length > 0
+        ? await supabase
+            .from('custom_roles')
+            .select('id, role_name')
+            .in('id', customRoleIds)
+        : { data: [], error: null };
+
+      if (customRolesError) throw customRolesError;
+
+      const customRoleNameById = new Map(
+        ((customRolesData || []) as any[]).map((role) => [String(role.id), String(role.role_name)])
+      );
 
       // Fetch job assignments
       const { data: jobAccessData } = await supabase
@@ -107,13 +138,23 @@ export default function AllEmployees() {
         jobsMap.set(ja.user_id, existing);
       });
 
-      const allEmployees: Employee[] = (profilesData || []).map((p: any) => ({
+      const accessByUserId = new Map((accessData || []).map((access) => [String(access.user_id), access]));
+
+      const allEmployees: Employee[] = (profilesData || []).map((p: any) => {
+        const access = accessByUserId.get(String(p.user_id));
+        const role = p.custom_role_id
+          ? customRoleNameById.get(String(p.custom_role_id)) || access?.role || p.role || 'employee'
+          : access?.role || p.role || 'employee';
+
+        return ({
         id: p.user_id,
         user_id: p.user_id,
         first_name: p.first_name || '',
         last_name: p.last_name || '',
         display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
-        role: 'employee',
+        role,
+        custom_role_id: p.custom_role_id || null,
+        custom_role_name: p.custom_role_id ? customRoleNameById.get(String(p.custom_role_id)) || null : null,
         avatar_url: p.avatar_url,
         created_at: p.created_at,
         has_pin: !!p.pin_code,
@@ -122,7 +163,8 @@ export default function AllEmployees() {
         punch_clock_access: p.punch_clock_access,
         pm_lynk_access: p.pm_lynk_access,
         assigned_jobs: jobsMap.get(p.user_id) || []
-      }));
+        });
+      });
 
       // Sort by last name
       allEmployees.sort((a, b) => a.last_name.localeCompare(b.last_name));

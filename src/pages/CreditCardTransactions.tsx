@@ -21,7 +21,7 @@ import { CurrencyInput } from "@/components/ui/currency-input";
 import { CreditCardTransactionModal } from "@/components/CreditCardTransactionModal";
 import { formatCurrency } from "@/utils/formatNumber";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
-import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import { canAccessJobIds } from "@/utils/jobAccess";
 
 export default function CreditCardTransactions() {
   const { id } = useParams();
@@ -149,7 +149,7 @@ export default function CreditCardTransactions() {
           const distributionJobIds = distRowsForTransaction
             .map((row: any) => row.job_id)
             .filter((jobId: any): jobId is string => !!jobId);
-          return canAccessAssignedJobOnly([transaction.job_id, ...distributionJobIds], isPrivileged, allowedJobIds);
+          return canAccessJobIds([transaction.job_id, ...distributionJobIds], isPrivileged, allowedJobIds);
         });
         const filteredTransactionIds = new Set(filteredTransactions.map((t: any) => t.id));
         const filteredDistMap: Record<string, any[]> = {};
@@ -161,7 +161,7 @@ export default function CreditCardTransactions() {
         setTransactions(filteredTransactions);
         setDistsByTx(filteredDistMap);
       } else {
-        setTransactions(allTransactions.filter((transaction: any) => canAccessAssignedJobOnly([transaction.job_id], isPrivileged, allowedJobIds)));
+        setTransactions(allTransactions.filter((transaction: any) => canAccessJobIds([transaction.job_id], isPrivileged, allowedJobIds)));
         setDistsByTx({});
       }
 

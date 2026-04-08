@@ -56,6 +56,7 @@ interface TimecardReportViewsProps {
   onExportPDF: (reportType: string, data: any) => void;
   onExportExcel?: (reportType: string, data: any) => void;
   showNotes?: boolean;
+  showLaborCost?: boolean;
 }
 
 export default function TimecardReportViews({
@@ -64,7 +65,8 @@ export default function TimecardReportViews({
   loading,
   onExportPDF,
   onExportExcel,
-  showNotes = false
+  showNotes = false,
+  showLaborCost = true
 }: TimecardReportViewsProps) {
   const { settings } = useSettings();
   const companyTimeZone = settings.timeZone;
@@ -248,14 +250,16 @@ export default function TimecardReportViews({
             <div className="text-2xl font-bold">{formatDuration(summary.totalOvertimeHours)}</div>
           </CardContent>
         </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-muted-foreground">Labor Cost</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">{formatCurrency(summary.totalLaborCost || 0)}</div>
-          </CardContent>
-        </Card>
+        {showLaborCost && (
+          <Card>
+            <CardHeader className="pb-2">
+              <CardTitle className="text-sm font-medium text-muted-foreground">Labor Cost</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-2xl font-bold">{formatCurrency(summary.totalLaborCost || 0)}</div>
+            </CardContent>
+          </Card>
+        )}
       </div>
 
       {/* Report Views */}
@@ -320,8 +324,7 @@ export default function TimecardReportViews({
                       <TableHead>Break</TableHead>
                       <TableHead>Hours</TableHead>
                       <TableHead>Overtime</TableHead>
-                      <TableHead>Rate</TableHead>
-                      <TableHead>Labor Cost</TableHead>
+                      {showLaborCost && <TableHead>Labor Cost</TableHead>}
                       <TableHead>Status</TableHead>
                       {showNotes && <TableHead>Notes</TableHead>}
                     </TableRow>
@@ -373,8 +376,7 @@ export default function TimecardReportViews({
                         <TableCell className="text-orange-600">
                           {record.overtime_hours > 0 ? formatDuration(record.overtime_hours) : "-"}
                         </TableCell>
-                        <TableCell>{record.hourly_rate ? formatCurrency(record.hourly_rate) : "-"}</TableCell>
-                        <TableCell className="font-medium">{formatCurrency(record.labor_cost || 0)}</TableCell>
+                        {showLaborCost && <TableCell className="font-medium">{formatCurrency(record.labor_cost || 0)}</TableCell>}
                         <TableCell>
                           <Badge className={getStatusColor(record.status)}>
                             {record.status}
@@ -402,7 +404,7 @@ export default function TimecardReportViews({
                       <TableHead>Records</TableHead>
                       <TableHead>Total Hours</TableHead>
                       <TableHead>Overtime Hours</TableHead>
-                      <TableHead>Labor Cost</TableHead>
+                      {showLaborCost && <TableHead>Labor Cost</TableHead>}
                       <TableHead>Average Hours</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -415,7 +417,7 @@ export default function TimecardReportViews({
                         <TableCell className="text-orange-600">
                           {emp.overtime_hours > 0 ? formatDuration(emp.overtime_hours) : "-"}
                         </TableCell>
-                        <TableCell className="font-medium">{formatCurrency(emp.total_labor_cost || 0)}</TableCell>
+                        {showLaborCost && <TableCell className="font-medium">{formatCurrency(emp.total_labor_cost || 0)}</TableCell>}
                         <TableCell>{formatDuration(emp.total_hours / emp.total_records)}</TableCell>
                       </TableRow>
                     ))}
@@ -434,7 +436,7 @@ export default function TimecardReportViews({
                       <TableHead>Records</TableHead>
                       <TableHead>Total Hours</TableHead>
                       <TableHead>Overtime Hours</TableHead>
-                      <TableHead>Labor Cost</TableHead>
+                      {showLaborCost && <TableHead>Labor Cost</TableHead>}
                       <TableHead>Average Hours</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -447,7 +449,7 @@ export default function TimecardReportViews({
                         <TableCell className="text-orange-600">
                           {job.overtime_hours > 0 ? formatDuration(job.overtime_hours) : "-"}
                         </TableCell>
-                        <TableCell className="font-medium">{formatCurrency(job.total_labor_cost || 0)}</TableCell>
+                        {showLaborCost && <TableCell className="font-medium">{formatCurrency(job.total_labor_cost || 0)}</TableCell>}
                         <TableCell>{formatDuration(job.total_hours / job.total_records)}</TableCell>
                       </TableRow>
                     ))}
@@ -468,7 +470,7 @@ export default function TimecardReportViews({
                         <div className="flex items-center gap-4 text-sm text-muted-foreground">
                           <span>{job.total_records} records</span>
                           <span className="font-medium text-foreground">{formatDuration(job.total_hours)}</span>
-                          <span className="font-medium text-foreground">{formatCurrency(job.total_labor_cost || 0)}</span>
+                          {showLaborCost && <span className="font-medium text-foreground">{formatCurrency(job.total_labor_cost || 0)}</span>}
                         </div>
                       </div>
                       <Table>
@@ -478,7 +480,7 @@ export default function TimecardReportViews({
                             <TableHead>Records</TableHead>
                             <TableHead>Total Hours</TableHead>
                             <TableHead>Overtime Hours</TableHead>
-                            <TableHead>Labor Cost</TableHead>
+                            {showLaborCost && <TableHead>Labor Cost</TableHead>}
                             <TableHead>Average Hours</TableHead>
                           </TableRow>
                         </TableHeader>
@@ -493,7 +495,7 @@ export default function TimecardReportViews({
                                 <TableCell className="text-orange-600">
                                   {cc.overtime_hours > 0 ? formatDuration(cc.overtime_hours) : "-"}
                                 </TableCell>
-                                <TableCell className="font-medium">{formatCurrency(cc.total_labor_cost || 0)}</TableCell>
+                                {showLaborCost && <TableCell className="font-medium">{formatCurrency(cc.total_labor_cost || 0)}</TableCell>}
                                 <TableCell>{formatDuration(cc.total_hours / cc.total_records)}</TableCell>
                               </TableRow>
                             ))}
@@ -514,7 +516,7 @@ export default function TimecardReportViews({
                       <TableHead>Records</TableHead>
                       <TableHead>Total Hours</TableHead>
                       <TableHead>Overtime Hours</TableHead>
-                      <TableHead>Labor Cost</TableHead>
+                      {showLaborCost && <TableHead>Labor Cost</TableHead>}
                       <TableHead>Average Hours</TableHead>
                     </TableRow>
                   </TableHeader>
@@ -531,7 +533,7 @@ export default function TimecardReportViews({
                           <TableCell className="text-orange-600">
                             {day.overtime_hours > 0 ? formatDuration(day.overtime_hours) : "-"}
                           </TableCell>
-                          <TableCell className="font-medium">{formatCurrency(day.total_labor_cost || 0)}</TableCell>
+                          {showLaborCost && <TableCell className="font-medium">{formatCurrency(day.total_labor_cost || 0)}</TableCell>}
                           <TableCell>{formatDuration(day.total_hours / day.total_records)}</TableCell>
                         </TableRow>
                       ))}

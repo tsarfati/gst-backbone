@@ -81,6 +81,7 @@ interface FilterState {
   status: string[];
   showDeleted: boolean;
   showNotes: boolean;
+  showLaborCost: boolean;
 }
 
 export default function TimecardReports() {
@@ -110,7 +111,8 @@ export default function TimecardReports() {
     hasOvertime: false,
     status: [],
     showDeleted: false,
-    showNotes: false
+    showNotes: false,
+    showLaborCost: true
   });
   const preselectedUserId = searchParams.get('userId');
 
@@ -634,7 +636,8 @@ export default function TimecardReports() {
       hasOvertime: false,
       status: [],
       showDeleted: false,
-      showNotes: false
+      showNotes: false,
+      showLaborCost: true
     });
     // Reload after clearing
     Promise.all([loadEmployees(), loadTimecardRecords(), loadPunchRecords()]);
@@ -902,6 +905,7 @@ export default function TimecardReports() {
         hasOvertime: filters.hasOvertime || undefined,
         showDeleted: filters.showDeleted || undefined,
         showNotes: filters.showNotes || undefined,
+        showLaborCost: filters.showLaborCost,
       };
 
       // Ensure export respects deleted filter
@@ -914,31 +918,36 @@ export default function TimecardReports() {
         const costCodeTotals = (dataForExport || []).reduce((acc: any, job: any) => {
           acc.totalRecords += job.total_records || 0;
           acc.totalHours += job.total_hours || 0;
+          acc.laborCost += job.total_labor_cost || 0;
           const costCodes = Object.values(job.cost_codes || {}) as any[];
           costCodes.forEach((cc: any) => {
             acc.overtimeHours += cc.overtime_hours || 0;
           });
           return acc;
-        }, { totalRecords: 0, totalHours: 0, overtimeHours: 0 });
+        }, { totalRecords: 0, totalHours: 0, overtimeHours: 0, laborCost: 0 });
         exportSummary = {
           totalRecords: costCodeTotals.totalRecords,
           totalHours: costCodeTotals.totalHours,
           overtimeHours: costCodeTotals.overtimeHours,
           regularHours: costCodeTotals.totalHours - costCodeTotals.overtimeHours,
+          laborCost: costCodeTotals.laborCost,
         };
       } else {
         const exportTotals = (dataForExport || []).reduce((acc: any, r: any) => {
           const th = Number(r.total_hours || 0);
           const oh = Number(r.overtime_hours || 0);
+          const laborCost = Number(r.labor_cost ?? r.total_labor_cost ?? 0);
           acc.totalHours += th;
           acc.overtimeHours += oh;
+          acc.laborCost += laborCost;
           return acc;
-        }, { totalHours: 0, overtimeHours: 0 });
+        }, { totalHours: 0, overtimeHours: 0, laborCost: 0 });
         exportSummary = {
           totalRecords: dataForExport.length,
           totalHours: exportTotals.totalHours,
           overtimeHours: exportTotals.overtimeHours,
           regularHours: exportTotals.totalHours - exportTotals.overtimeHours,
+          laborCost: exportTotals.laborCost,
         };
       }
 
@@ -997,12 +1006,17 @@ export default function TimecardReports() {
           ? employees.find(e => e.user_id === getEffectiveEmployeeFilter()[0])?.display_name 
           : undefined,
         data,
+        showLaborCost: filters.showLaborCost,
         summary: {
           totalRecords: data.length,
-          totalHours: summary.totalHours,
-          overtimeHours: summary.totalOvertimeHours,
-          regularHours: summary.totalRegularHours,
-          laborCost: summary.totalLaborCost
+          totalHours: data.reduce((sum: number, record: any) => sum + Number(record.total_hours || 0), 0),
+          overtimeHours: data.reduce((sum: number, record: any) => sum + Number(record.overtime_hours || 0), 0),
+          regularHours: data.reduce((sum: number, record: any) => {
+            const totalHours = Number(record.total_hours || 0);
+            const overtimeHours = Number(record.overtime_hours || 0);
+            return sum + Math.max(0, totalHours - overtimeHours);
+          }, 0),
+          laborCost: data.reduce((sum: number, record: any) => sum + Number(record.labor_cost ?? record.total_labor_cost ?? 0), 0),
         }
       };
 
@@ -1087,6 +1101,7 @@ export default function TimecardReports() {
               onExportPDF={handleExportPDF}
               onExportExcel={handleExportExcel}
               showNotes={filters.showNotes}
+              showLaborCost={filters.showLaborCost}
             />
           </TabsContent>
           <TabsContent value="punches">

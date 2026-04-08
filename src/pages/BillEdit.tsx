@@ -96,6 +96,7 @@ export default function BillEdit() {
   const [formData, setFormData] = useState({
     vendor_id: '',
     job_id: '',
+    expense_account_id: '',
     cost_code_id: '',
     invoice_number: '',
     amount: '',
@@ -128,7 +129,7 @@ export default function BillEdit() {
       // Load bill data and documents
       const { data: billData, error: billError } = await supabase
         .from('invoices')
-        .select('*, vendors!inner(company_id, vendor_type), cost_codes(id, job_id), purchase_orders(id, po_number)')
+        .select('*, vendors!inner(company_id, vendor_type), cost_codes(id, job_id, code, chart_account_id, chart_account_number), purchase_orders(id, po_number)')
         .eq('id', id)
         .eq('vendors.company_id', companyId)
         .maybeSingle();
@@ -253,7 +254,7 @@ export default function BillEdit() {
           .order('account_number'),
         supabase
           .from('cost_codes')
-          .select('id, code, description, job_id, type, is_dynamic_group, require_attachment')
+          .select('id, code, description, job_id, type, is_dynamic_group, require_attachment, chart_account_id, chart_account_number')
           .eq('company_id', companyId)
           .eq('is_active', true)
           .eq('is_dynamic_group', false)
@@ -286,12 +287,19 @@ export default function BillEdit() {
         .select('*')
         .eq('invoice_id', id);
       if (existingDist && existingDist.length > 0) {
-        // invoice_cost_distributions only stores cost_code_id; derive job_id from the cost code
+        // invoice_cost_distributions only stores cost_code_id; derive job/control from the backing cost code.
         const normalized = existingDist.map((d: any) => {
           const costCode = allCostCodesData.data?.find(cc => cc.id === d.cost_code_id);
+          const expenseAccount = !costCode?.job_id
+            ? expenseAccountsData.data?.find((account: any) =>
+                account.id === (costCode as any)?.chart_account_id ||
+                String(account.account_number || '').replace(/\D/g, '') === String((costCode as any)?.chart_account_number || costCode?.code || '').replace(/\D/g, '')
+              )
+            : null;
           return {
             id: d.id,
             job_id: costCode?.job_id || '',
+            expense_account_id: expenseAccount?.id || '',
             cost_code_id: d.cost_code_id || '',
             amount: Number(d.amount) || 0,
             percentage: Number(d.percentage) || 0,
@@ -337,9 +345,17 @@ export default function BillEdit() {
       }
       
       // Populate form data AFTER possible auto-population
+      const selectedControlAccount = !typedBillData.job_id && typedBillData.cost_code_id
+        ? expenseAccountsData.data?.find((account: any) =>
+            account.id === (typedBillData.cost_codes as any)?.chart_account_id ||
+            String(account.account_number || '').replace(/\D/g, '') === String((typedBillData.cost_codes as any)?.chart_account_number || (typedBillData.cost_codes as any)?.code || '').replace(/\D/g, '')
+          )
+        : null;
+
       setFormData({
         vendor_id: typedBillData.vendor_id || '',
         job_id: typedBillData.job_id || '',
+        expense_account_id: selectedControlAccount?.id || '',
         cost_code_id: typedBillData.cost_code_id || '',
         invoice_number: typedBillData.invoice_number || '',
         amount: typedBillData.amount?.toString() || '',
@@ -621,6 +637,7 @@ export default function BillEdit() {
     amount: parseFloat(formData.amount) || 0,
     job_id: formData.job_id || bill?.job_id || null,
     cost_code_id: formData.cost_code_id || bill?.cost_code_id || null,
+    expense_account_id: formData.expense_account_id || (billDistribution.length === 1 ? (billDistribution[0] as any).expense_account_id || null : null),
     cost_codes: bill?.cost_codes || null,
     distributions: codedBillDistributions as any[],
   });
@@ -650,10 +667,10 @@ export default function BillEdit() {
 
   const handleSave = async (overrideStatus?: string, processDistribution: boolean = false) => {
     try {
-      if ((overrideStatus === 'pending_payment' || overrideStatus === 'approved') && !codingValidation.isComplete) {
+      if ((overrideStatus === 'pending_payment' || overrideStatus === 'approved' || processDistribution) && !codingValidation.isComplete) {
         toast({
           title: "Bill is not fully coded",
-          description: codingValidation.issues[0] || "Complete job/cost coding and 100% distribution before approval.",
+          description: codingValidation.issues[0] || "Complete job/cost coding or select a control before approval.",
           variant: "destructive",
         });
         return;
@@ -714,7 +731,7 @@ export default function BillEdit() {
         clearPendingCoding = true;
       }
       // If bill is pending_coding and now has job + cost code, move to pending_approval
-      else if (!overrideStatus && bill?.status === 'pending_coding' && formData.job_id && formData.cost_code_id) {
+      else if (!overrideStatus && bill?.status === 'pending_coding' && codingValidation.isComplete) {
         newStatus = 'pending_approval';
         clearPendingCoding = true;
       }
@@ -1279,15 +1296,25 @@ export default function BillEdit() {
             initialDistribution={billDistribution.length > 0 ? billDistribution : (formData.job_id || formData.cost_code_id ? [{
               id: crypto.randomUUID(),
               job_id: formData.job_id,
+              expense_account_id: formData.expense_account_id,
               cost_code_id: formData.cost_code_id,
               amount: parseFloat(formData.amount) || 0,
               percentage: 100
             }] : [])}
             onChange={(dist) => {
               setBillDistribution(dist);
-              // When using multi-distribution, clear the single job/cost code selection
-              if (dist.length > 0) {
-                setFormData(prev => ({ ...prev, job_id: '', cost_code_id: '' }));
+              // Keep simple one-line coding in the invoice fields so the edit form,
+              // validation, communications, and save path all agree on the selected job/code.
+              if (dist.length === 1) {
+                const [line] = dist;
+                setFormData(prev => ({
+                  ...prev,
+                  job_id: line.job_id || '',
+                  expense_account_id: (line as any).expense_account_id || '',
+                  cost_code_id: line.cost_code_id || '',
+                }));
+              } else if (dist.length > 1) {
+                setFormData(prev => ({ ...prev, job_id: '', expense_account_id: '', cost_code_id: '' }));
               }
             }}
             disabled={saving}

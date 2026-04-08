@@ -7,6 +7,7 @@ export interface ExcelReportData {
   dateRange: string;
   employee?: string;
   data: any[];
+  showLaborCost?: boolean;
   summary: {
     totalRecords: number;
     regularHours: number;
@@ -16,11 +17,16 @@ export interface ExcelReportData {
   };
 }
 
+const formatMoney = (value: unknown) => Number(value || 0).toFixed(2);
+const formatHours = (value: unknown) => Number(value || 0).toFixed(2);
+
 export const exportTimecardToExcel = async (
   reportData: ExcelReportData,
   companyName: string,
   timeZone?: string,
 ) => {
+  const includeLaborCost = reportData.showLaborCost !== false;
+
   // Prepare header rows
   const headerRows: ExcelCell[][] = [
     [companyName],
@@ -36,17 +42,43 @@ export const exportTimecardToExcel = async (
     headerRows.push([]);
   }
 
-  // Prepare data rows
-  const dataRows = reportData.data.map((record) => ({
-    Employee: record.employee_name || "-",
-    Job: record.job_name || "-",
-    "Cost Code": record.cost_code || "-",
-    "Punch In": record.punch_in_time ? formatCompanyDateTime(record.punch_in_time, timeZone) : "-",
-    "Punch Out": record.punch_out_time ? formatCompanyDateTime(record.punch_out_time, timeZone) : "-",
-    Hours: record.total_hours?.toFixed(2) || "0.00",
-    Rate: record.hourly_rate ? Number(record.hourly_rate).toFixed(2) : "",
-    "Labor Cost": record.labor_cost ? Number(record.labor_cost).toFixed(2) : "0.00",
-  }));
+  // Prepare data rows. Timecard exports can be detailed rows or grouped summary rows.
+  const dataRows = reportData.data.flatMap((record) => {
+    if (record.cost_codes) {
+      return Object.values(record.cost_codes || {}).map((costCode: any) => ({
+        Job: record.job_name || "-",
+        "Cost Code": costCode.cost_code || "-",
+        Records: costCode.total_records || 0,
+        "Total Hours": formatHours(costCode.total_hours),
+        "Overtime Hours": formatHours(costCode.overtime_hours),
+        ...(includeLaborCost ? { "Labor Cost": formatMoney(costCode.total_labor_cost) } : {}),
+      }));
+    }
+
+    if (typeof record.total_labor_cost !== "undefined" && typeof record.punch_in_time === "undefined") {
+      return [{
+        Employee: record.employee_name || undefined,
+        Job: record.job_name || undefined,
+        Date: record.date || undefined,
+        Records: record.total_records || 0,
+        "Total Hours": formatHours(record.total_hours),
+        "Overtime Hours": formatHours(record.overtime_hours),
+        ...(includeLaborCost ? { "Labor Cost": formatMoney(record.total_labor_cost) } : {}),
+      }];
+    }
+
+    return [{
+      Employee: record.employee_name || "-",
+      Job: record.job_name || "-",
+      "Cost Code": record.cost_code || "-",
+      "Punch In": record.punch_in_time ? formatCompanyDateTime(record.punch_in_time, timeZone) : "-",
+      "Punch Out": record.punch_out_time ? formatCompanyDateTime(record.punch_out_time, timeZone) : "-",
+      Hours: formatHours(record.total_hours),
+      ...(includeLaborCost ? { "Labor Cost": formatMoney(record.labor_cost) } : {}),
+    }];
+  }).map((row) => (
+    Object.fromEntries(Object.entries(row).filter(([, value]) => typeof value !== "undefined"))
+  ));
 
   // Prepare summary rows
   const summaryRows: ExcelCell[][] = [
@@ -56,7 +88,7 @@ export const exportTimecardToExcel = async (
     ["Regular Hours", reportData.summary.regularHours.toFixed(2)],
     ["Overtime Hours", reportData.summary.overtimeHours.toFixed(2)],
     ["Total Hours", reportData.summary.totalHours.toFixed(2)],
-    ["Labor Cost", (reportData.summary.laborCost || 0).toFixed(2)],
+    ...(includeLaborCost ? [["Labor Cost", formatMoney(reportData.summary.laborCost)] as ExcelCell[]] : []),
   ];
 
   // Combine all data

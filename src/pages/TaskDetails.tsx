@@ -333,6 +333,7 @@ export default function TaskDetails() {
         .from('tasks')
         .select('*, jobs(name)')
         .eq('id', id)
+        .eq('company_id', currentCompany.id)
         .single();
 
       if (taskError) throw taskError;

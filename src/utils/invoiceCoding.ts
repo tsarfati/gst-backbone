@@ -1,6 +1,7 @@
 export interface InvoiceCodingDistribution {
   amount?: number | null;
   cost_code_id?: string | null;
+  expense_account_id?: string | null;
   job_id?: string | null;
   cost_codes?: {
     job_id?: string | null;
@@ -12,6 +13,7 @@ export interface InvoiceCodingInput {
   amount?: number | null;
   job_id?: string | null;
   cost_code_id?: string | null;
+  expense_account_id?: string | null;
   cost_codes?: {
     job_id?: string | null;
     jobs?: { id?: string | null } | null;
@@ -43,18 +45,19 @@ export function evaluateInvoiceCoding(input: InvoiceCodingInput): InvoiceCodingR
   }
 
   if (distributions.length > 0) {
-    const missingCostCode = distributions.some((line) => !line.cost_code_id);
+    const missingCostCode = distributions.some((line) => !line.cost_code_id && !line.expense_account_id);
     if (missingCostCode) {
-      issues.push("Every distribution line must have a cost code.");
+      issues.push("Every distribution line must have a cost code or control.");
     }
 
-    const missingJob = distributions.some((line) => {
+    const missingCodingTarget = distributions.some((line) => {
       const resolvedJobId = line.job_id || line.cost_codes?.job_id || line.cost_codes?.jobs?.id || null;
       const hasCostCodeMetadata = !!line.cost_codes;
-      return !resolvedJobId && !hasCostCodeMetadata;
+      const hasControlAccount = !!line.expense_account_id || (hasCostCodeMetadata && !resolvedJobId);
+      return !resolvedJobId && !hasControlAccount;
     });
-    if (missingJob) {
-      issues.push("Every distribution line must be assigned to a job.");
+    if (missingCodingTarget) {
+      issues.push("Every distribution line must be assigned to a job/cost code or a control.");
     }
 
     const totalDistributed = distributions.reduce((sum, line) => sum + normalizeNumber(line.amount), 0);
@@ -70,13 +73,14 @@ export function evaluateInvoiceCoding(input: InvoiceCodingInput): InvoiceCodingR
     };
   }
 
-  if (!input.cost_code_id) {
-    issues.push("A cost code is required before approval.");
+  if (!input.cost_code_id && !input.expense_account_id) {
+    issues.push("A cost code or control is required before approval.");
   }
   const resolvedCostCodeJobId = input.cost_codes?.job_id || input.cost_codes?.jobs?.id || null;
   const hasCostCodeMetadata = !!input.cost_codes;
-  if (!input.job_id && !resolvedCostCodeJobId && !hasCostCodeMetadata) {
-    issues.push("A job is required before approval.");
+  const hasControlAccount = !!input.expense_account_id || (hasCostCodeMetadata && !resolvedCostCodeJobId);
+  if (!input.job_id && !resolvedCostCodeJobId && !hasControlAccount) {
+    issues.push("A job/cost code or control is required before approval.");
   }
 
   return {

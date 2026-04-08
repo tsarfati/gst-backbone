@@ -26,6 +26,7 @@ export interface ReportData {
     regularHours: number;
     overtimeHours: number;
     totalHours: number;
+    laborCost?: number;
   };
   filters?: {
     employeeNames?: string[];
@@ -37,6 +38,7 @@ export interface ReportData {
     hasOvertime?: boolean;
     showDeleted?: boolean;
     showNotes?: boolean;
+    showLaborCost?: boolean;
   };
 }
 
@@ -58,6 +60,9 @@ interface PdfTemplate {
     height: number;
   }>;
 }
+
+const formatMoney = (value: unknown) => `$${Number(value || 0).toFixed(2)}`;
+const formatHours = (value: unknown) => Number(value || 0).toFixed(2);
 
 export class PDFExporter {
   private company: CompanyBranding;
@@ -272,6 +277,7 @@ export class PDFExporter {
 
     // Prepare table data - exclude ID columns and format properly
     const includeNotes = !!reportData.filters?.showNotes;
+    const includeLaborCost = reportData.filters?.showLaborCost !== false;
     const tableData = reportData.data.map(record => {
       const base = [
         record.employee_name || '-',
@@ -280,8 +286,11 @@ export class PDFExporter {
         record.punch_in_time ? formatCompanyDateTime(record.punch_in_time, this.timeZone) : '-',
         record.punch_out_time ? formatCompanyDateTime(record.punch_out_time, this.timeZone) : '-',
         (record.break_minutes ?? 0).toString(),
-        record.total_hours?.toFixed(2) || '0.00'
+        formatHours(record.total_hours),
       ];
+      if (includeLaborCost) {
+        base.push(formatMoney(record.labor_cost));
+      }
       if (includeNotes) {
         base.push(record.notes || '-');
       }
@@ -294,9 +303,9 @@ export class PDFExporter {
     const stripeColor = this.hexToRgb(this.template?.table_stripe_color || '#f8fafc');
 
     // Table configuration with template styling
-    const headRow = reportData.filters?.showNotes
-      ? ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours', 'Notes']
-      : ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours'];
+    const headRow = ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours'];
+    if (includeLaborCost) headRow.push('Labor Cost');
+    if (includeNotes) headRow.push('Notes');
     const tableConfig: any = {
       startY: yPos,
       head: [headRow],
@@ -350,7 +359,10 @@ export class PDFExporter {
       4: { cellWidth: 'auto' },
       5: { cellWidth: 'auto', halign: 'right' },
       6: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' },
-      ...(reportData.filters?.showNotes ? { 7: { cellWidth: 'auto', halign: 'left' } } : {})
+      ...(includeLaborCost ? {
+        7: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' },
+      } : {}),
+      ...(includeNotes ? { [includeLaborCost ? 8 : 7]: { cellWidth: 'auto', halign: 'left' } } : {})
     };
 
     autoTable(doc, tableConfig);
@@ -372,6 +384,9 @@ export class PDFExporter {
     doc.text(`Total Records: ${reportData.summary.totalRecords}`, 36, finalY + 38);
     doc.text(`Regular Hours: ${reportData.summary.regularHours.toFixed(2)}`, 240, finalY + 38);
     doc.text(`Overtime Hours: ${reportData.summary.overtimeHours.toFixed(2)}`, 440, finalY + 38);
+    if (includeLaborCost) {
+      doc.text(`Labor Cost: ${formatMoney(reportData.summary.laborCost)}`, 600, finalY + 38);
+    }
     
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
@@ -563,6 +578,7 @@ export class PDFExporter {
       yPos += 40;
 
       const includeNotes = !!reportData.filters?.showNotes;
+      const includeLaborCost = reportData.filters?.showLaborCost !== false;
       const tableData = rows.map((record: any) => {
         const base = [
           record.employee_name || '-',
@@ -571,8 +587,11 @@ export class PDFExporter {
           record.punch_in_time ? formatCompanyDateTime(record.punch_in_time, this.timeZone) : '-',
           record.punch_out_time ? formatCompanyDateTime(record.punch_out_time, this.timeZone) : '-',
           (record.break_minutes ?? 0).toString(),
-          record.total_hours?.toFixed(2) || '0.00'
+          formatHours(record.total_hours),
         ];
+        if (includeLaborCost) {
+          base.push(formatMoney(record.labor_cost));
+        }
         if (includeNotes) {
           base.push(record.notes || '-');
         }
@@ -583,9 +602,9 @@ export class PDFExporter {
       const borderColor = this.hexToRgb(this.template?.table_border_color || '#e2e8f0');
       const stripeColor = this.hexToRgb(this.template?.table_stripe_color || '#f8fafc');
 
-      const headRowGrouped = reportData.filters?.showNotes
-        ? ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours', 'Notes']
-        : ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours'];
+      const headRowGrouped = ['Employee', 'Job', 'Cost Code', 'Punch In', 'Punch Out', 'Break (min)', 'Hours'];
+      if (includeLaborCost) headRowGrouped.push('Labor Cost');
+      if (includeNotes) headRowGrouped.push('Notes');
 
       const tableConfig: any = {
         startY: yPos,
@@ -653,7 +672,10 @@ export class PDFExporter {
         4: { cellWidth: 'auto' },
         5: { cellWidth: 'auto', halign: 'right' },
         6: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' },
-        ...(reportData.filters?.showNotes ? { 7: { cellWidth: 'auto', halign: 'left' } } : {})
+        ...(includeLaborCost ? {
+          7: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' },
+        } : {}),
+        ...(includeNotes ? { [includeLaborCost ? 8 : 7]: { cellWidth: 'auto', halign: 'left' } } : {})
       };
 
       autoTable(doc, tableConfig);
@@ -664,8 +686,9 @@ export class PDFExporter {
         acc.totalHours += r.total_hours || 0;
         acc.overtimeHours += r.overtime_hours || 0;
         acc.regularHours += (r.total_hours || 0) - (r.overtime_hours || 0);
+        acc.laborCost += r.labor_cost || 0;
         return acc;
-      }, { totalRecords: 0, totalHours: 0, overtimeHours: 0, regularHours: 0 });
+      }, { totalRecords: 0, totalHours: 0, overtimeHours: 0, regularHours: 0, laborCost: 0 });
 
       // Check if summary will fit on current page, if not add a new page
       if (finalY + 70 > pageHeight) {
@@ -683,6 +706,9 @@ export class PDFExporter {
         doc.text(`Total Records: ${totals.totalRecords}`, 36, summaryY + 38);
         doc.text(`Regular Hours: ${totals.regularHours.toFixed(2)}`, 240, summaryY + 38);
         doc.text(`Overtime Hours: ${totals.overtimeHours.toFixed(2)}`, 440, summaryY + 38);
+        if (includeLaborCost) {
+          doc.text(`Labor Cost: ${formatMoney(totals.laborCost)}`, 600, summaryY + 38);
+        }
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(15, 23, 42);
         const totalText = `Total Hours: ${totals.totalHours.toFixed(2)}`;
@@ -700,6 +726,9 @@ export class PDFExporter {
         doc.text(`Total Records: ${totals.totalRecords}`, 36, finalY + 38);
         doc.text(`Regular Hours: ${totals.regularHours.toFixed(2)}`, 240, finalY + 38);
         doc.text(`Overtime Hours: ${totals.overtimeHours.toFixed(2)}`, 440, finalY + 38);
+        if (includeLaborCost) {
+          doc.text(`Labor Cost: ${formatMoney(totals.laborCost)}`, 600, finalY + 38);
+        }
         doc.setFont('helvetica', 'bold');
         doc.setTextColor(15, 23, 42);
         const totalText = `Total Hours: ${totals.totalHours.toFixed(2)}`;
@@ -867,29 +896,35 @@ export class PDFExporter {
     const stripeColor = this.hexToRgb(this.template?.table_stripe_color || '#f8fafc');
 
     // Determine column headers based on summary type
+    const includeLaborCost = reportData.filters?.showLaborCost !== false;
     let headRow: string[];
     let tableData: any[][];
     
     if (summaryType === 'employee') {
       headRow = ['Employee', 'Records', 'Total Hours', 'Overtime Hours', 'Avg Hours/Day'];
+      if (includeLaborCost) headRow.push('Labor Cost');
       tableData = (reportData.data || []).map((row: any) => [
         row.employee_name || '-',
         (row.total_records || 0).toString(),
-        (row.total_hours || 0).toFixed(2),
-        (row.overtime_hours || 0).toFixed(2),
-        row.total_records > 0 ? ((row.total_hours || 0) / row.total_records).toFixed(2) : '0.00'
+        formatHours(row.total_hours),
+        formatHours(row.overtime_hours),
+        row.total_records > 0 ? formatHours((row.total_hours || 0) / row.total_records) : '0.00',
+        ...(includeLaborCost ? [formatMoney(row.total_labor_cost)] : []),
       ]);
     } else if (summaryType === 'job') {
       headRow = ['Job', 'Records', 'Total Hours', 'Overtime Hours', 'Avg Hours/Day'];
+      if (includeLaborCost) headRow.push('Labor Cost');
       tableData = (reportData.data || []).map((row: any) => [
         row.job_name || '-',
         (row.total_records || 0).toString(),
-        (row.total_hours || 0).toFixed(2),
-        (row.overtime_hours || 0).toFixed(2),
-        row.total_records > 0 ? ((row.total_hours || 0) / row.total_records).toFixed(2) : '0.00'
+        formatHours(row.total_hours),
+        formatHours(row.overtime_hours),
+        row.total_records > 0 ? formatHours((row.total_hours || 0) / row.total_records) : '0.00',
+        ...(includeLaborCost ? [formatMoney(row.total_labor_cost)] : []),
       ]);
     } else {
       headRow = ['Date', 'Records', 'Total Hours', 'Overtime Hours', 'Avg Hours/Record'];
+      if (includeLaborCost) headRow.push('Labor Cost');
       tableData = (reportData.data || []).map((row: any) => [
         row.date ? formatCompanyDate(row.date, this.timeZone, {
           weekday: 'long',
@@ -898,9 +933,10 @@ export class PDFExporter {
           year: 'numeric',
         }) : '-',
         (row.total_records || 0).toString(),
-        (row.total_hours || 0).toFixed(2),
-        (row.overtime_hours || 0).toFixed(2),
-        row.total_records > 0 ? ((row.total_hours || 0) / row.total_records).toFixed(2) : '0.00'
+        formatHours(row.total_hours),
+        formatHours(row.overtime_hours),
+        row.total_records > 0 ? formatHours((row.total_hours || 0) / row.total_records) : '0.00',
+        ...(includeLaborCost ? [formatMoney(row.total_labor_cost)] : []),
       ]);
     }
 
@@ -937,7 +973,8 @@ export class PDFExporter {
         1: { cellWidth: 'auto', halign: 'right' },
         2: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' },
         3: { cellWidth: 'auto', halign: 'right' },
-        4: { cellWidth: 'auto', halign: 'right' }
+        4: { cellWidth: 'auto', halign: 'right' },
+        ...(includeLaborCost ? { 5: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' } } : {})
       },
       didDrawPage: () => {
         doc.setFontSize(8);
@@ -970,6 +1007,9 @@ export class PDFExporter {
     doc.text(`Total Records: ${reportData.summary.totalRecords}`, 36, finalY + 38);
     doc.text(`Regular Hours: ${reportData.summary.regularHours.toFixed(2)}`, 240, finalY + 38);
     doc.text(`Overtime Hours: ${reportData.summary.overtimeHours.toFixed(2)}`, 440, finalY + 38);
+    if (includeLaborCost) {
+      doc.text(`Labor Cost: ${formatMoney(reportData.summary.laborCost)}`, 600, finalY + 38);
+    }
     
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);
@@ -1264,10 +1304,12 @@ export class PDFExporter {
 
     // Data is an array of job objects with nested cost_codes
     const jobData = (reportData.data || []).sort((a: any, b: any) => (b.total_hours || 0) - (a.total_hours || 0));
+    const includeLaborCost = reportData.filters?.showLaborCost !== false;
 
     let grandTotalHours = 0;
     let grandTotalOT = 0;
     let grandTotalRecords = 0;
+    let grandTotalLaborCost = 0;
 
     for (const job of jobData) {
       const jobName = job.job_name || 'Unassigned';
@@ -1288,7 +1330,7 @@ export class PDFExporter {
       doc.setFont('helvetica', 'bold');
       doc.text(jobName, 32, yPos + 18);
 
-      const jobSummaryText = `${job.total_records || 0} records  •  ${(job.total_hours || 0).toFixed(2)} hrs`;
+      const jobSummaryText = `${job.total_records || 0} records  •  ${formatHours(job.total_hours)} hrs${includeLaborCost ? `  •  ${formatMoney(job.total_labor_cost)}` : ''}`;
       doc.setFontSize(9);
       doc.setFont('helvetica', 'normal');
       doc.setTextColor(71, 85, 105);
@@ -1298,17 +1340,22 @@ export class PDFExporter {
 
       grandTotalHours += job.total_hours || 0;
       grandTotalRecords += job.total_records || 0;
+      if (includeLaborCost) {
+        grandTotalLaborCost += job.total_labor_cost || 0;
+      }
 
       // Cost code table for this job
       const headRow = ['Cost Code', 'Records', 'Total Hours', 'Overtime Hours', 'Avg Hours/Record'];
+      if (includeLaborCost) headRow.push('Labor Cost');
       const tableData = costCodes.map((cc: any) => {
         grandTotalOT += cc.overtime_hours || 0;
         return [
           cc.cost_code || '-',
           (cc.total_records || 0).toString(),
-          (cc.total_hours || 0).toFixed(2),
-          (cc.overtime_hours || 0).toFixed(2),
-          cc.total_records > 0 ? ((cc.total_hours || 0) / cc.total_records).toFixed(2) : '0.00'
+          formatHours(cc.total_hours),
+          formatHours(cc.overtime_hours),
+          cc.total_records > 0 ? formatHours((cc.total_hours || 0) / cc.total_records) : '0.00',
+          ...(includeLaborCost ? [formatMoney(cc.total_labor_cost)] : []),
         ];
       });
 
@@ -1344,7 +1391,8 @@ export class PDFExporter {
           1: { cellWidth: 'auto', halign: 'right' },
           2: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' },
           3: { cellWidth: 'auto', halign: 'right' },
-          4: { cellWidth: 'auto', halign: 'right' }
+          4: { cellWidth: 'auto', halign: 'right' },
+          ...(includeLaborCost ? { 5: { cellWidth: 'auto', halign: 'right', fontStyle: 'bold' } } : {})
         },
         didDrawPage: () => {
           doc.setFontSize(8);
@@ -1381,6 +1429,9 @@ export class PDFExporter {
     doc.text(`Total Records: ${grandTotalRecords}`, 36, yPos + 38);
     doc.text(`Regular Hours: ${(grandTotalHours - grandTotalOT).toFixed(2)}`, 240, yPos + 38);
     doc.text(`Overtime Hours: ${grandTotalOT.toFixed(2)}`, 440, yPos + 38);
+    if (includeLaborCost) {
+      doc.text(`Labor Cost: ${formatMoney(grandTotalLaborCost)}`, 600, yPos + 38);
+    }
 
     doc.setFont('helvetica', 'bold');
     doc.setTextColor(15, 23, 42);

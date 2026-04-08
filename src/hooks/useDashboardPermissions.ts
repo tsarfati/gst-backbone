@@ -3,6 +3,7 @@ import { useEffect, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useTenant } from '@/contexts/TenantContext';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
+import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 
 interface DashboardPermissions {
   [key: string]: boolean;
@@ -12,6 +13,7 @@ export function useDashboardPermissions() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
   const activeCompanyRole = useActiveCompanyRole();
+  const { hasAccess: hasMenuAccess, loading: menuPermissionsLoading } = useMenuPermissions();
   const [permissions, setPermissions] = useState<DashboardPermissions>({});
   const [loading, setLoading] = useState(true);
   const effectiveCustomRoleId = activeCompanyRole === 'employee' ? profile?.custom_role_id ?? null : null;
@@ -109,12 +111,35 @@ export function useDashboardPermissions() {
   const canViewSection = (section: string): boolean => {
     if (isSuperAdmin) return true;
     if (!effectiveCustomRoleId && (activeCompanyRole === 'admin' || profile?.role === 'admin')) return true;
-    return permissions[`dashboard.${section}`] || false;
+
+    const explicitPermission = permissions[`dashboard.${section}`];
+    if (typeof explicitPermission === 'boolean') return explicitPermission;
+
+    const menuFallbacks: Record<string, string[]> = {
+      stats: ['dashboard', 'receipts', 'jobs', 'bills'],
+      notifications: ['dashboard'],
+      messages: ['messaging'],
+      active_jobs: ['jobs'],
+      bills_overview: ['bills', 'bills-view', 'payables-dashboard'],
+      credit_card_coding: ['banking-credit-cards', 'credit-cards-transactions', 'credit-cards-code'],
+      payment_status: ['make-payment', 'payment-history', 'payables-dashboard', 'bills'],
+      invoice_summary: ['receivables', 'ar-invoices', 'ar-invoices-view'],
+      budget_tracking: ['jobs', 'job-cost-management', 'job-cost-budget'],
+      punch_clock: ['punch-clock-dashboard'],
+      timesheet_approval: ['time-sheets', 'timesheets', 'timesheets-approve'],
+      overtime_alerts: ['timecard-reports', 'timecard-reports-view'],
+      employee_attendance: ['punch-clock-dashboard', 'employees'],
+      project_progress: ['jobs', 'construction-reports-view'],
+      task_deadlines: ['tasks'],
+      resource_allocation: ['jobs', 'employees'],
+    };
+
+    return (menuFallbacks[section] || []).some((permission) => hasMenuAccess(permission));
   };
 
   return {
     permissions,
-    loading,
+    loading: loading || menuPermissionsLoading,
     canViewSection,
   };
 }

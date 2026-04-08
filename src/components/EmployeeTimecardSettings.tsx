@@ -32,7 +32,6 @@ interface EmployeeTimecardSettings {
   require_location: boolean;
   require_photo: boolean;
   auto_lunch_deduction: boolean;
-  hourly_rate?: number | null;
   enforce_punch_in_distance?: boolean | null;
   punch_in_distance_limit_meters?: number | null;
   notes?: string;
@@ -150,7 +149,6 @@ export default function EmployeeTimecardSettings({
           require_location: data.require_location ?? true,
           require_photo: data.require_photo ?? true,
           auto_lunch_deduction: data.auto_lunch_deduction ?? true,
-          hourly_rate: (data as any).hourly_rate ?? null,
           enforce_punch_in_distance: (data as any).enforce_punch_in_distance ?? false,
           punch_in_distance_limit_meters: allowedPunchInDistanceMeters.includes((data as any).punch_in_distance_limit_meters)
             ? (data as any).punch_in_distance_limit_meters
@@ -166,7 +164,6 @@ export default function EmployeeTimecardSettings({
           require_location: true,
           require_photo: true,
           auto_lunch_deduction: true,
-          hourly_rate: null,
           enforce_punch_in_distance: false,
           punch_in_distance_limit_meters: 50,
         });
@@ -194,7 +191,6 @@ export default function EmployeeTimecardSettings({
         require_location: settings.require_location,
         require_photo: settings.require_photo,
         auto_lunch_deduction: settings.auto_lunch_deduction,
-        hourly_rate: settings.hourly_rate ?? null,
         enforce_punch_in_distance: !!settings.enforce_punch_in_distance,
         punch_in_distance_limit_meters: settings.enforce_punch_in_distance
           ? (allowedPunchInDistanceMeters.includes((settings.punch_in_distance_limit_meters ?? 50) as any)
@@ -355,29 +351,6 @@ export default function EmployeeTimecardSettings({
                   checked={settings.auto_lunch_deduction}
                   onCheckedChange={(checked) => updateSettings({ auto_lunch_deduction: checked })}
                 />
-              </div>
-
-              <div className="space-y-2 border-t pt-4">
-                <Label htmlFor="employee-hourly-rate">Hourly Rate</Label>
-                <div className="relative max-w-xs">
-                  <span className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-sm text-muted-foreground">$</span>
-                  <Input
-                    id="employee-hourly-rate"
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    className="pl-7"
-                    value={settings.hourly_rate ?? ''}
-                    onChange={(event) => {
-                      const value = event.target.value;
-                      updateSettings({ hourly_rate: value === '' ? null : Number(value) });
-                    }}
-                    placeholder="0.00"
-                  />
-                </div>
-                <p className="text-xs text-muted-foreground">
-                  Used to calculate labor cost in timecard reports by employee, job, and cost code.
-                </p>
               </div>
 
               <div className="border-t pt-4 space-y-3">

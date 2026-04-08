@@ -17,7 +17,7 @@ import { useNavigate } from "react-router-dom";
 import { exportCreditCardTransactionReport } from "@/utils/pdfExport";
 import * as XLSX from "xlsx";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
-import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import { canAccessJobIds } from "@/utils/jobAccess";
 
 interface CreditCard {
   id: string;
@@ -148,7 +148,7 @@ export default function CreditCardTransactionReport() {
         const distJobIds = distGroup
           .map((row: any) => row.job_id)
           .filter((jobId: any): jobId is string => !!jobId);
-        return canAccessAssignedJobOnly([txn.job_id, ...distJobIds], isPrivileged, allowedJobIds);
+        return canAccessJobIds([txn.job_id, ...distJobIds], isPrivileged, allowedJobIds);
       });
 
       const formattedData: TransactionData[] = visibleTransactions.map((txn: any) => {

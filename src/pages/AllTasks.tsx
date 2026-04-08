@@ -15,6 +15,7 @@ import { AddTaskDialog } from "@/components/AddTaskDialog";
 import TaskCard, { type TaskCardData } from "@/components/TaskCard";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { format } from "date-fns";
+import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 
 type TaskListView = "list" | "compact" | "super-compact";
 type TaskSortColumn = "title" | "project" | "priority" | "due" | "completion" | "status";
@@ -102,6 +103,7 @@ export default function AllTasks() {
   const navigate = useNavigate();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const { loading: jobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const [tasks, setTasks] = useState<TaskCardData[]>([]);
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState("");
@@ -121,11 +123,11 @@ export default function AllTasks() {
   const [sortDirection, setSortDirection] = useState<TaskSortDirection>("asc");
 
   useEffect(() => {
-    if (currentCompany) {
+    if (currentCompany && !jobAccessLoading) {
       void loadTasks();
       void loadProjects();
     }
-  }, [currentCompany?.id, user?.id]);
+  }, [currentCompany?.id, user?.id, jobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
   const loadTasks = async () => {
     if (!currentCompany || !user?.id) {
@@ -134,24 +136,11 @@ export default function AllTasks() {
     }
     setLoading(true);
     try {
-      const { data: sharedJobAccessRows, error: sharedJobAccessError } = await supabase
-        .from("user_job_access")
-        .select("job_id")
-        .eq("user_id", user.id);
-      if (sharedJobAccessError) throw sharedJobAccessError;
-
-      const sharedJobIds = Array.from(new Set((sharedJobAccessRows || []).map((row: any) => String(row.job_id || "")).filter(Boolean)));
-
-      const baseTaskQuery = supabase
+      const { data: taskRows, error: taskError } = await supabase
         .from("tasks")
         .select("id, title, description, status, priority, due_date, is_due_asap, completion_percentage, job_id, created_by, leader_user_id, company_id, jobs(name)")
+        .eq("company_id", currentCompany.id)
         .order("created_at", { ascending: false });
-
-      const taskQuery = sharedJobIds.length > 0
-        ? baseTaskQuery.or(`company_id.eq.${currentCompany.id},job_id.in.(${sharedJobIds.join(",")})`)
-        : baseTaskQuery.eq("company_id", currentCompany.id);
-
-      const { data: taskRows, error: taskError } = await taskQuery;
       if (taskError) throw taskError;
 
       const companyVisibleTasks = (taskRows || []) as TaskRow[];
@@ -170,11 +159,14 @@ export default function AllTasks() {
           .map((row) => String(row.task_id || "")),
       );
 
-      const visibleTasks = companyVisibleTasks.filter((task) =>
-        task.created_by === user.id ||
-        task.leader_user_id === user.id ||
-        involvedTaskIds.has(task.id),
-      );
+      const visibleTasks = isPrivileged
+        ? companyVisibleTasks
+        : companyVisibleTasks.filter((task) =>
+            task.created_by === user.id ||
+            task.leader_user_id === user.id ||
+            involvedTaskIds.has(task.id) ||
+            Boolean(task.job_id && allowedJobIds.includes(task.job_id)),
+          );
 
       const userIds = Array.from(
         new Set(((assigneeRows || []) as any[]).map((row) => String(row.user_id || "")).filter(Boolean)),
@@ -229,22 +221,23 @@ export default function AllTasks() {
 
   const loadProjects = async () => {
     if (!currentCompany) return;
-    const { data: sharedJobAccessRows } = await supabase
-      .from("user_job_access")
-      .select("job_id")
-      .eq("user_id", user?.id || "");
-
-    const sharedJobIds = Array.from(new Set((sharedJobAccessRows || []).map((row: any) => String(row.job_id || "")).filter(Boolean)));
-
     const baseJobsQuery = supabase
       .from("jobs")
       .select("id, name")
+      .eq("company_id", currentCompany.id)
       .eq("is_active", true)
       .order("name");
 
-    const jobsQuery = sharedJobIds.length > 0
-      ? baseJobsQuery.or(`company_id.eq.${currentCompany.id},id.in.(${sharedJobIds.join(",")})`)
-      : baseJobsQuery.eq("company_id", currentCompany.id);
+    const jobsQuery = isPrivileged
+      ? baseJobsQuery
+      : allowedJobIds.length > 0
+        ? baseJobsQuery.in("id", allowedJobIds)
+        : null;
+
+    if (!jobsQuery) {
+      setProjects([]);
+      return;
+    }
 
     const { data } = await jobsQuery;
     setProjects(data || []);

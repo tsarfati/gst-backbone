@@ -13,6 +13,7 @@ import { Clock, MapPin, Camera, User, AlertTriangle, CheckCircle, X, Calendar, F
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useTenant } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
 import { format } from 'date-fns';
 import mapboxgl from 'mapbox-gl';
@@ -67,6 +68,7 @@ interface TimeCardDetail {
 
 export default function TimeCardDetailView({ open, onOpenChange, timeCardId, onTimeCardUpdated }: TimeCardDetailViewProps) {
   const { user, profile } = useAuth();
+  const { isSuperAdmin } = useTenant();
   const { currentCompany, userCompanies } = useCompany();
   const { settings: appSettings } = useSettings();
   const { toast } = useToast();
@@ -98,9 +100,13 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId, onT
 
   // Get user's role for the current company
   const currentUserRole = userCompanies.find(uc => uc.company_id === currentCompany?.id)?.role;
-  const isManager = currentUserRole === 'admin' || currentUserRole === 'controller' || currentUserRole === 'project_manager';
+  const normalizedCompanyRole = String(currentUserRole || '').toLowerCase();
+  const normalizedProfileRole = String(profile?.role || '').toLowerCase();
+  const isManager = isSuperAdmin
+    || ['admin', 'controller', 'project_manager', 'company_admin', 'owner'].includes(normalizedCompanyRole)
+    || ['admin', 'controller', 'project_manager', 'company_admin', 'owner', 'super_admin'].includes(normalizedProfileRole);
   // canEdit: admins/controllers can edit, or user can edit their own time card
-  const canEdit = currentUserRole === 'admin' || currentUserRole === 'controller' || (user?.id && timeCard?.user_id === user.id);
+  const canEdit = isManager || (user?.id && timeCard?.user_id === user.id);
   
   // Extract nested data for easier use
   const job = timeCard?.jobs;
@@ -695,6 +701,30 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId, onT
     return formatCompanyDate(dateString, companyTimeZone);
   };
 
+  const getApprovalReasons = () => {
+    if (!timeCard) return [];
+
+    const reasons: string[] = [];
+    if (pendingChangeRequest) {
+      reasons.push('Change request submitted.');
+    } else if (timeCard.status === 'submitted' || timeCard.status === 'pending' || timeCard.requires_approval) {
+      reasons.push('Needs manager review.');
+    }
+    if (timeCard.distance_warning) {
+      reasons.push('Location distance warning.');
+    }
+    if (timeCard.low_location_confidence) {
+      reasons.push('Low GPS confidence.');
+    }
+    if (timeCard.correction_reason) {
+      reasons.push(`Note: ${timeCard.correction_reason}`);
+    }
+
+    return reasons.length > 0 ? reasons : ['Review before approving.'];
+  };
+
+  const approvalReasons = getApprovalReasons();
+
   const handleApproveChangeRequest = async () => {
     if (!pendingChangeRequest || !isManager) return;
 
@@ -1074,35 +1104,42 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId, onT
         </DialogHeader>
 
         {/* Time Card Approval Section - Top Priority */}
-        {isManager && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited' && timeCard.status !== 'rejected' && (
-          <Card className="border-primary bg-primary/5">
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-primary">
-                <Shield className="h-5 w-5" />
+        {isManager && timeCard.status !== 'approved' && timeCard.status !== 'approved-edited' && timeCard.status !== 'rejected' && !pendingChangeRequest && (
+          <Card className="border-amber-200 bg-amber-50/60 dark:border-amber-900 dark:bg-amber-950/20">
+            <CardContent className="p-3">
+              <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
+                <div className="min-w-0 space-y-1">
+                  <CardTitle className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100">
+                    <Shield className="h-4 w-4" />
                 Time Card Approval Required
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <div className="flex gap-2">
+                  </CardTitle>
+                  <div className="space-y-0.5 text-xs text-amber-800/90 dark:text-amber-100/80">
+                    {approvalReasons.map((reason) => (
+                      <p key={reason}>{reason}</p>
+                    ))}
+                  </div>
+                </div>
+                <div className="flex gap-2 md:shrink-0">
                 <Button 
                   onClick={handleApproveTimeCard}
                   disabled={approving || denying}
-                  className="flex-1 gap-2"
-                  size="lg"
+                    className="gap-2"
+                  size="sm"
                 >
                   <CheckCircle className="h-4 w-4" />
-                  {approving ? 'Approving...' : 'Approve Time Card'}
+                  {approving ? 'Approving...' : 'Approve'}
                 </Button>
                 <Button 
                   onClick={handleDenyTimeCard}
                   disabled={approving || denying}
                   variant="destructive"
-                  className="flex-1 gap-2"
-                  size="lg"
+                    className="gap-2"
+                  size="sm"
                 >
                   <X className="h-4 w-4" />
-                  {denying ? 'Denying...' : 'Deny Time Card'}
+                  {denying ? 'Denying...' : 'Deny'}
                 </Button>
+                </div>
               </div>
             </CardContent>
           </Card>

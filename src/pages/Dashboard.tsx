@@ -42,6 +42,7 @@ interface NotificationEntityContext {
   rfps: Set<string>;
   jobs: Set<string>;
   invoices: Set<string>;
+  tasks: Set<string>;
   companies: Set<string>;
 }
 
@@ -239,6 +240,12 @@ export default function Dashboard() {
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
   const [pendingBillsTotal, setPendingBillsTotal] = useState(0);
+  const [billPaymentSummary, setBillPaymentSummary] = useState({
+    dueCount: 0,
+    dueTotal: 0,
+    overdueCount: 0,
+    overdueTotal: 0,
+  });
 
   const isNonDirectMessageRead = (message: Pick<Message, "message_source" | "source_record_id" | "id">) => {
     if (!message.message_source || message.message_source === "direct") return false;
@@ -283,6 +290,7 @@ export default function Dashboard() {
       rfps: new Set<string>(),
       jobs: new Set<string>(),
       invoices: new Set<string>(),
+      tasks: new Set<string>(),
       companies: new Set<string>(),
     };
 
@@ -313,6 +321,9 @@ export default function Dashboard() {
 
     const invoiceMatch = cleanedPath.match(/^\/(?:invoices|bills)\/([^/]+)/);
     if (invoiceMatch?.[1]) context.invoices.add(invoiceMatch[1]);
+
+    const taskMatch = cleanedPath.match(/^\/tasks\/([^/]+)/);
+    if (taskMatch?.[1]) context.tasks.add(taskMatch[1]);
 
     return context;
   };
@@ -447,6 +458,60 @@ export default function Dashboard() {
         const total = visibleBills.reduce((sum, bill) => sum + (bill.amount || 0), 0);
         setPendingBillsTotal(total);
       }
+
+      const { data: payableBills, error: payableBillsError } = await supabase
+        .from('invoices')
+        .select('id, amount, due_date, job_id, vendors!inner(company_id)')
+        .eq('vendors.company_id', currentCompany.id)
+        .in('status', ['approved', 'pending_payment']);
+
+      if (!payableBillsError && payableBills) {
+        const visiblePayableBills = payableBills.filter((bill: any) =>
+          canAccessAssignedJobOnly([bill.job_id], isPrivileged, allowedJobIds),
+        );
+        const invoiceIds = visiblePayableBills.map((bill: any) => String(bill.id)).filter(Boolean);
+
+        const { data: paymentLines, error: paymentLinesError } = invoiceIds.length > 0
+          ? await supabase
+              .from('payment_invoice_lines')
+              .select('invoice_id, amount_paid')
+              .in('invoice_id', invoiceIds)
+          : { data: [] as any[], error: null };
+
+        if (paymentLinesError) throw paymentLinesError;
+
+        const paidByInvoiceId = new Map<string, number>();
+        ((paymentLines || []) as any[]).forEach((line) => {
+          const invoiceId = String(line.invoice_id || '');
+          if (!invoiceId) return;
+          paidByInvoiceId.set(invoiceId, (paidByInvoiceId.get(invoiceId) || 0) + Number(line.amount_paid || 0));
+        });
+
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const nextSummary = visiblePayableBills.reduce(
+          (summary, bill: any) => {
+            const amount = Number(bill.amount || 0);
+            const balance = Math.max(0, amount - (paidByInvoiceId.get(String(bill.id)) || 0));
+            if (balance <= 0.01) return summary;
+
+            const dueDate = bill.due_date ? new Date(`${bill.due_date}T00:00:00`) : null;
+            const isOverdue = Boolean(dueDate && dueDate < today);
+
+            if (isOverdue) {
+              summary.overdueCount += 1;
+              summary.overdueTotal += balance;
+            } else {
+              summary.dueCount += 1;
+              summary.dueTotal += balance;
+            }
+
+            return summary;
+          },
+          { dueCount: 0, dueTotal: 0, overdueCount: 0, overdueTotal: 0 },
+        );
+        setBillPaymentSummary(nextSummary);
+      }
     } catch (error) {
       console.error('Error fetching dashboard stats:', error);
     }
@@ -483,8 +548,11 @@ export default function Dashboard() {
       const invoiceIds = Array.from(new Set(
         notificationContexts.flatMap(({ context }) => Array.from(context.invoices))
       ));
+      const taskIds = Array.from(new Set(
+        notificationContexts.flatMap(({ context }) => Array.from(context.tasks))
+      ));
 
-      const [bidsRes, rfpsRes, jobsRes, invoicesRes] = await Promise.all([
+      const [bidsRes, rfpsRes, jobsRes, invoicesRes, tasksRes] = await Promise.all([
         bidIds.length > 0
           ? supabase
               .from('bids')
@@ -509,12 +577,19 @@ export default function Dashboard() {
               .select('id, company_id, job_id')
               .in('id', invoiceIds)
           : Promise.resolve({ data: [], error: null }),
+        taskIds.length > 0
+          ? supabase
+              .from('tasks')
+              .select('id, company_id, job_id')
+              .in('id', taskIds)
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       if ((bidsRes as any).error) throw (bidsRes as any).error;
       if ((rfpsRes as any).error) throw (rfpsRes as any).error;
       if ((jobsRes as any).error) throw (jobsRes as any).error;
       if ((invoicesRes as any).error) throw (invoicesRes as any).error;
+      if ((tasksRes as any).error) throw (tasksRes as any).error;
 
       const bidMap = new Map<string, { company_id: string; job_id: string | null }>(
         (((bidsRes as any).data) || []).map((row: any) => [
@@ -549,6 +624,15 @@ export default function Dashboard() {
           },
         ]),
       );
+      const taskMap = new Map<string, { company_id: string; job_id: string | null }>(
+        (((tasksRes as any).data) || []).map((row: any) => [
+          String(row.id),
+          {
+            company_id: String(row.company_id),
+            job_id: row?.job_id ? String(row.job_id) : null,
+          },
+        ]),
+      );
 
       const jobTeamJobIdSet = new Set(teamJobIdsOverride ?? jobTeamJobIds);
       const companyScopedNotifications = notificationContexts.filter(({ notification, context }) => {
@@ -557,6 +641,7 @@ export default function Dashboard() {
           context.rfps.size > 0 ||
           context.jobs.size > 0 ||
           context.invoices.size > 0 ||
+          context.tasks.size > 0 ||
           context.companies.size > 0;
 
         if (!hasScopedEntity) {
@@ -570,12 +655,13 @@ export default function Dashboard() {
           job_id: jobId,
         })).filter((entry) => Boolean(entry.company_id));
         const invoiceEntries = Array.from(context.invoices).map((invoiceId) => invoiceMap.get(invoiceId)).filter(Boolean);
+        const taskEntries = Array.from(context.tasks).map((taskId) => taskMap.get(taskId)).filter(Boolean);
         const companyEntries = Array.from(context.companies).map((companyId) => ({
           company_id: companyId,
           job_id: null,
         }));
 
-        const scopedEntries = [...bidEntries, ...rfpEntries, ...jobEntries, ...invoiceEntries, ...companyEntries] as Array<{ company_id: string; job_id: string | null | undefined }>;
+        const scopedEntries = [...bidEntries, ...rfpEntries, ...jobEntries, ...invoiceEntries, ...taskEntries, ...companyEntries] as Array<{ company_id: string; job_id: string | null | undefined }>;
 
         if (scopedEntries.length === 0) {
           return false;
@@ -588,6 +674,10 @@ export default function Dashboard() {
 
         const requiresJobTeam = scopedEntries.some((entry) => entry.job_id);
         if (!requiresJobTeam) {
+          return true;
+        }
+
+        if (isPrivileged) {
           return true;
         }
 
@@ -1540,8 +1630,7 @@ export default function Dashboard() {
       />
 
       {/* Bills Needing Approval or Coding - Show based on permissions */}
-      {((dashboardPermissions.canViewSection('bills_overview') || dashboardPermissions.canViewSection('credit_card_coding')) && 
-        (profile?.role === 'project_manager' || profile?.role === 'admin' || profile?.role === 'controller')) && (
+      {(dashboardPermissions.canViewSection('bills_overview') || dashboardPermissions.canViewSection('credit_card_coding')) && (
         <div className="mb-8 space-y-4">
           {dashboardPermissions.canViewSection('bills_overview') && <BillsNeedingCoding limit={5} />}
           {dashboardPermissions.canViewSection('credit_card_coding') && <CreditCardCodingRequests />}
@@ -1559,18 +1648,54 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">No bill data to display</p>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  className="text-left rounded-lg border bg-card p-4 transition-all hover:border-primary hover:bg-primary/5 hover:shadow-sm"
+                  onClick={() => navigate('/invoices')}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Due for Payment</p>
+                      <p className="mt-1 text-2xl font-bold">
+                        ${billPaymentSummary.dueTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {billPaymentSummary.dueCount} bill{billPaymentSummary.dueCount === 1 ? '' : 's'} awaiting payment
+                      </p>
+                    </div>
+                    <DollarSign className="h-5 w-5 text-primary" />
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className="text-left rounded-lg border bg-card p-4 transition-all hover:border-destructive hover:bg-destructive/5 hover:shadow-sm"
+                  onClick={() => navigate('/invoices')}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Overdue Bills</p>
+                      <p className="mt-1 text-2xl font-bold text-destructive">
+                        ${billPaymentSummary.overdueTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {billPaymentSummary.overdueCount} overdue bill{billPaymentSummary.overdueCount === 1 ? '' : 's'} awaiting payment
+                      </p>
+                    </div>
+                    <AlertTriangle className="h-5 w-5 text-destructive" />
+                  </div>
+                </button>
               </div>
 
               <div className="flex gap-2 mt-4 pt-4 border-t">
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => navigate('/invoices')}>
                   View All Bills
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => navigate('/invoices/add')}>
                   Create Bill
                 </Button>
-                <Button variant="outline" size="sm">
+                <Button variant="outline" size="sm" onClick={() => navigate('/invoices')}>
                   <AlertTriangle className="h-4 w-4 mr-2" />
                   Follow Up Overdue
                 </Button>

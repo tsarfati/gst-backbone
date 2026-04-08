@@ -4,7 +4,7 @@ import { Button } from "@/components/ui/button";
 import { CurrencyInput } from "@/components/ui/currency-input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
-import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Plus, Trash2, Calculator, Check, ChevronsUpDown, AlertCircle, Loader2, CheckCircle } from "lucide-react";
@@ -15,6 +15,7 @@ import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 interface CostDistribution {
   id: string;
   job_id: string;
+  expense_account_id?: string;
   cost_code_id: string;
   amount: number;
   percentage: number;
@@ -40,15 +41,18 @@ interface CostCode {
   id: string;
   code: string;
   description: string;
-  type: string;
+  type?: string | null;
   is_dynamic_group: boolean | null;
   parent_cost_code_id: string | null;
+  chart_account_id?: string | null;
+  chart_account_number?: string | null;
 }
 
 interface ExpenseAccount {
   id: string;
   account_number: string;
   account_name: string;
+  require_attachment?: boolean | null;
 }
 
 export default function BillCostDistribution({ 
@@ -68,6 +72,7 @@ export default function BillCostDistribution({
   );
   const [jobs, setJobs] = useState<Job[]>([]);
   const [expenseAccounts, setExpenseAccounts] = useState<ExpenseAccount[]>([]);
+  const [controlCostCodes, setControlCostCodes] = useState<CostCode[]>([]);
   const [costCodesByJob, setCostCodesByJob] = useState<Record<string, CostCode[]>>({});
   const [loading, setLoading] = useState(true);
   const [openPopover, setOpenPopover] = useState<Record<string, boolean>>({});
@@ -94,7 +99,7 @@ export default function BillCostDistribution({
 
     try {
       setLoading(true);
-      const [jobsResult, expenseResult] = await Promise.all([
+      const [jobsResult, expenseResult, controlCodesResult] = await Promise.all([
         (() => {
           let q = supabase
             .from('jobs')
@@ -106,23 +111,25 @@ export default function BillCostDistribution({
           return q.order('name');
         })(),
         supabase
+          .from('chart_of_accounts')
+          .select('id, account_number, account_name, require_attachment')
+          .eq('company_id', companyId)
+          .in('account_type', ['expense', 'cost_of_goods_sold', 'asset', 'other_expense'])
+          .eq('is_active', true)
+          .order('account_number'),
+        supabase
           .from('cost_codes')
-          .select('id, code, description, chart_account_number')
+          .select('id, code, description, type, is_dynamic_group, parent_cost_code_id, chart_account_id, chart_account_number')
           .eq('company_id', companyId)
           .is('job_id', null)
           .eq('is_active', true)
           .eq('is_dynamic_group', false)
-          .order('code')
+          .order('code'),
       ]);
 
       if (jobsResult.data) setJobs(jobsResult.data);
-      if (expenseResult.data) {
-        setExpenseAccounts((expenseResult.data as any[]).map((accountCode) => ({
-          id: accountCode.id,
-          account_number: accountCode.chart_account_number || accountCode.code,
-          account_name: accountCode.description,
-        })));
-      }
+      if (expenseResult.data) setExpenseAccounts(expenseResult.data as ExpenseAccount[]);
+      if (controlCodesResult.data) setControlCostCodes(controlCodesResult.data as CostCode[]);
     } finally {
       setLoading(false);
     }
@@ -151,6 +158,92 @@ export default function BillCostDistribution({
     return costCodesByJob[jobId] || [];
   };
 
+  const normalizeAccountNumber = (value?: string | null) => String(value || '').replace(/\D/g, '');
+
+  const getControlCostCode = (account: ExpenseAccount) => {
+    const accountNumber = normalizeAccountNumber(account.account_number);
+    return controlCostCodes.find((code) => {
+      const codeNumber = normalizeAccountNumber(code.chart_account_number || code.code);
+      return code.chart_account_id === account.id || (!!accountNumber && accountNumber === codeNumber);
+    });
+  };
+
+  const getControlCostCodeId = (account: ExpenseAccount) => {
+    return getControlCostCode(account)?.id || '';
+  };
+
+  const ensureControlCostCode = async (account: ExpenseAccount) => {
+    const existingCode = getControlCostCode(account);
+    if (existingCode?.id) return existingCode.id;
+
+    const { data, error } = await supabase
+      .from('cost_codes')
+      .insert({
+        company_id: companyId,
+        job_id: null,
+        code: account.account_number,
+        description: account.account_name,
+        type: 'other',
+        is_active: true,
+        is_dynamic_group: false,
+        chart_account_id: account.id,
+        chart_account_number: account.account_number,
+        require_attachment: account.require_attachment ?? true,
+      } as any)
+      .select('id, code, description, type, is_dynamic_group, parent_cost_code_id, chart_account_id, chart_account_number')
+      .single();
+
+    if (error) {
+      console.error('Error creating control cost code:', error);
+      return '';
+    }
+
+    const createdCode = data as CostCode;
+    setControlCostCodes((prev) => [...prev, createdCode]);
+    return createdCode.id;
+  };
+
+  const getControlLabel = (dist: CostDistribution) => {
+    if (dist.expense_account_id) {
+      const account = expenseAccounts.find(e => e.id === dist.expense_account_id);
+      if (account) return `${account.account_number} - ${account.account_name}`;
+    }
+
+    if (dist.cost_code_id) {
+      const controlCode = controlCostCodes.find(code => code.id === dist.cost_code_id);
+      const account = controlCode
+        ? expenseAccounts.find(e =>
+            e.id === controlCode.chart_account_id ||
+            normalizeAccountNumber(e.account_number) === normalizeAccountNumber(controlCode.chart_account_number || controlCode.code)
+          )
+        : null;
+      if (account) return `${account.account_number} - ${account.account_name}`;
+    }
+
+    return 'Select...';
+  };
+
+  const updateDistributionFields = (id: string, patch: Partial<CostDistribution>) => {
+    setDistribution(prev => prev.map(d => {
+      if (d.id !== id) return d;
+      const updated = { ...d, ...patch };
+
+      if (patch.job_id) {
+        loadCostCodesForJob(patch.job_id);
+      }
+
+      if (patch.amount !== undefined && totalAmount > 0) {
+        updated.percentage = (Number(patch.amount) / totalAmount) * 100;
+      }
+
+      if (patch.percentage !== undefined && totalAmount > 0) {
+        updated.amount = (Number(patch.percentage) / 100) * totalAmount;
+      }
+
+      return updated;
+    }));
+  };
+
   const addDistribution = () => {
     setDistribution(prev => [
       ...prev,
@@ -172,6 +265,7 @@ export default function BillCostDistribution({
       if (field === 'job_id' && value) {
         loadCostCodesForJob(value);
         updated.cost_code_id = ''; // Reset cost code when job changes
+        updated.expense_account_id = '';
       }
       
       // Recalculate percentage when amount changes
@@ -289,25 +383,21 @@ export default function BillCostDistribution({
                           const job = jobs.find(j => j.id === dist.job_id);
                           return job?.name || 'Select...';
                         })()
-                      ) : dist.cost_code_id ? (
-                        (() => {
-                          const expense = expenseAccounts.find(e => e.id === dist.cost_code_id);
-                          return expense ? `${expense.account_number} - ${expense.account_name}` : 'Select...';
-                        })()
+                      ) : dist.expense_account_id || dist.cost_code_id ? (
+                        getControlLabel(dist)
                       ) : (
                         "Select job or expense..."
                       )}
                       <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                     </Button>
                   </PopoverTrigger>
-                  <PopoverContent className="w-[400px] p-0" align="start">
+                  <PopoverContent className="w-[400px] p-0 bg-background z-50" align="start">
                     <Command>
                       <CommandInput placeholder="Search jobs or expenses..." />
                       <CommandEmpty>No results found.</CommandEmpty>
                       <CommandList>
                         {jobs.length > 0 && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground">Jobs</div>
+                          <CommandGroup heading="Jobs">
                             {jobs.map(job => (
                               <CommandItem
                                 key={job.id}
@@ -326,31 +416,37 @@ export default function BillCostDistribution({
                                 {job.name}
                               </CommandItem>
                             ))}
-                          </>
+                          </CommandGroup>
                         )}
                         {expenseAccounts.length > 0 && (
-                          <>
-                            <div className="px-2 py-1.5 text-xs font-semibold text-muted-foreground border-t mt-1">Expense Accounts</div>
+                          <CommandGroup heading="Controls">
                             {expenseAccounts.map(account => (
                               <CommandItem
                                 key={account.id}
                                 value={`expense-${account.account_number}-${account.account_name}`}
-                                onSelect={() => {
-                                  updateDistribution(dist.id, 'job_id', '');
-                                  updateDistribution(dist.id, 'cost_code_id', account.id);
+                                onSelect={async () => {
+                                  const costCodeId = await ensureControlCostCode(account);
+                                  updateDistributionFields(dist.id, {
+                                    job_id: '',
+                                    expense_account_id: account.id,
+                                    cost_code_id: costCodeId,
+                                  });
                                   setOpenPopover(prev => ({ ...prev, [`job-${dist.id}`]: false }));
                                 }}
                               >
                                 <Check
                                   className={cn(
                                     "mr-2 h-4 w-4",
-                                    !dist.job_id && dist.cost_code_id === account.id ? "opacity-100" : "opacity-0"
+                                    !dist.job_id && (
+                                      dist.expense_account_id === account.id ||
+                                      (!!dist.cost_code_id && dist.cost_code_id === getControlCostCodeId(account))
+                                    ) ? "opacity-100" : "opacity-0"
                                   )}
                                 />
                                 {account.account_number} - {account.account_name}
                               </CommandItem>
                             ))}
-                          </>
+                          </CommandGroup>
                         )}
                       </CommandList>
                     </Command>
@@ -395,7 +491,7 @@ export default function BillCostDistribution({
                         <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                       </Button>
                     </PopoverTrigger>
-                    <PopoverContent className="w-[400px] p-0" align="start">
+                    <PopoverContent className="w-[400px] p-0 bg-background z-50" align="start">
                       <Command>
                         <CommandInput placeholder="Search cost codes..." />
                         <CommandEmpty>No cost codes found.</CommandEmpty>

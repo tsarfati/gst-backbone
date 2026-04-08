@@ -96,6 +96,10 @@ interface PendingDesignInvite {
   business_name?: string | null;
   display_name?: string;
   email?: string | null;
+  first_name?: string | null;
+  last_name?: string | null;
+  project_role_id?: string | null;
+  project_role_name?: string | null;
 }
 
 interface ConnectedVendorOption {
@@ -116,6 +120,31 @@ const isMissingRelationError = (error: unknown, relationName: string): boolean =
     message.includes('schema cache') ||
     message.includes('does not exist') ||
     message.includes('relation')
+  );
+};
+
+const dedupePendingDesignInvites = (invites: PendingDesignInvite[]): PendingDesignInvite[] => {
+  const latestByKey = new Map<string, PendingDesignInvite>();
+
+  invites.forEach((invite) => {
+    const key = String(invite.email || invite.display_name || invite.user_id || invite.id).trim().toLowerCase();
+    const existing = latestByKey.get(key);
+
+    if (!existing) {
+      latestByKey.set(key, invite);
+      return;
+    }
+
+    const existingTime = new Date(existing.requested_at || 0).getTime();
+    const nextTime = new Date(invite.requested_at || 0).getTime();
+
+    if (nextTime >= existingTime) {
+      latestByKey.set(key, invite);
+    }
+  });
+
+  return Array.from(latestByKey.values()).sort(
+    (a, b) => new Date(b.requested_at || 0).getTime() - new Date(a.requested_at || 0).getTime()
   );
 };
 
@@ -147,6 +176,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
   const [designProfessionalSearchLoading, setDesignProfessionalSearchLoading] = useState(false);
   const [designProfessionalSearchResults, setDesignProfessionalSearchResults] = useState<DesignProfessionalAccountSearchResult[]>([]);
   const [pendingDesignInvites, setPendingDesignInvites] = useState<PendingDesignInvite[]>([]);
+  const [resendingInviteId, setResendingInviteId] = useState<string | null>(null);
   const [connectedVendors, setConnectedVendors] = useState<ConnectedVendorOption[]>([]);
   const [vendorInviteDialogOpen, setVendorInviteDialogOpen] = useState(false);
   const [sendingVendorInvite, setSendingVendorInvite] = useState(false);
@@ -352,7 +382,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
       let nextPendingDesignInvites: PendingDesignInvite[] = [];
       const { data: inviteRows, error: inviteRowsError } = await supabase
         .from('design_professional_job_invites')
-        .select('id, accepted_by_user_id, company_id, job_id, email, first_name, last_name, invited_by, created_at, status')
+        .select('id, accepted_by_user_id, company_id, job_id, email, first_name, last_name, invited_by, created_at, status, notes')
         .eq('company_id', companyScopeId)
         .eq('job_id', jobId)
         .eq('status', 'pending')
@@ -365,6 +395,10 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
           requested_at: row.created_at,
           display_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || 'Pending user',
           email: row.email || null,
+          first_name: row.first_name || null,
+          last_name: row.last_name || null,
+          project_role_id: row.notes?.projectRoleId || null,
+          project_role_name: row.notes?.projectRoleName || null,
         }));
       } else if (!isMissingRelationError(inviteRowsError, 'design_professional_job_invites')) {
         throw inviteRowsError;
@@ -419,7 +453,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
         });
       }
 
-      setPendingDesignInvites(nextPendingDesignInvites);
+      setPendingDesignInvites(dedupePendingDesignInvites(nextPendingDesignInvites));
       setConnectedVendors((connectedVendorsRes.data || []) as ConnectedVendorOption[]);
 
       const { data: accessRows, error: accessError } = await supabase
@@ -816,6 +850,46 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
       });
     } finally {
       setInviteSubmitting(false);
+    }
+  };
+
+  const resendDesignProfessionalInvite = async (invite: PendingDesignInvite) => {
+    if (!companyScopeId || !invite.email) {
+      toast({
+        title: 'Email unavailable',
+        description: 'This pending invite does not have an email address available to resend.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setResendingInviteId(invite.id);
+      await sendDesignProfessionalJobInvite({
+        companyId: companyScopeId,
+        jobId,
+        email: invite.email.trim().toLowerCase(),
+        firstName: invite.first_name || null,
+        lastName: invite.last_name || null,
+        projectRoleId: invite.project_role_id || null,
+        projectRoleName: invite.project_role_name || null,
+      });
+
+      toast({
+        title: 'Invite resent',
+        description: `Resent design professional invite to ${invite.email}.`,
+      });
+
+      await loadData();
+    } catch (error: any) {
+      console.error('Error resending design professional invite:', error);
+      toast({
+        title: 'Resend failed',
+        description: error?.message || 'Failed to resend design professional invitation.',
+        variant: 'destructive',
+      });
+    } finally {
+      setResendingInviteId(null);
     }
   };
 
@@ -1716,11 +1790,31 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
             </div>
             {pendingDesignInvites.slice(0, 5).map((invite) => (
               <div key={invite.id} className="flex items-center justify-between text-sm">
-                <div>
+                <div className="min-w-0">
                   <span className="font-medium">{invite.display_name || 'Pending user'}</span>
                   {invite.business_name ? <span className="text-muted-foreground"> • {invite.business_name}</span> : null}
+                  {invite.email ? <span className="block text-xs text-muted-foreground">{invite.email}</span> : null}
                 </div>
-                <span className="text-muted-foreground">{new Date(invite.requested_at).toLocaleDateString()}</span>
+                <div className="flex items-center gap-2 pl-3">
+                  <span className="text-muted-foreground">{new Date(invite.requested_at).toLocaleDateString()}</span>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="h-7 px-2 text-xs"
+                    disabled={!invite.email || resendingInviteId === invite.id}
+                    onClick={() => resendDesignProfessionalInvite(invite)}
+                  >
+                    {resendingInviteId === invite.id ? (
+                      <>
+                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                        Sending
+                      </>
+                    ) : (
+                      'Resend'
+                    )}
+                  </Button>
+                </div>
               </div>
             ))}
             <p className="text-xs text-muted-foreground">

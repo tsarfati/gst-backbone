@@ -3,9 +3,11 @@ import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useActiveCompanyRole } from "@/hooks/useActiveCompanyRole";
+import { useTenant } from "@/contexts/TenantContext";
 
 export function useWebsiteJobAccess() {
   const { user, profile } = useAuth();
+  const { isSuperAdmin } = useTenant();
   const { currentCompany } = useCompany();
   const activeCompanyRole = useActiveCompanyRole();
   const [loading, setLoading] = useState(true);
@@ -25,14 +27,19 @@ export function useWebsiteJobAccess() {
     const role = (activeCompanyRole || "").toLowerCase();
     const profileRole = String(profile?.role || "").toLowerCase();
     return (
+      isSuperAdmin ||
       role === "admin" ||
       role === "company_admin" ||
       role === "controller" ||
       role === "owner" ||
       role === "super_admin" ||
+      profileRole === "admin" ||
+      profileRole === "company_admin" ||
+      profileRole === "controller" ||
+      profileRole === "owner" ||
       profileRole === "super_admin"
     );
-  }, [activeCompanyRole, profile?.role]);
+  }, [activeCompanyRole, isSuperAdmin, profile?.role]);
   const isPrivileged = isPrivilegedRole && !isExternalSharedUser;
 
   useEffect(() => {

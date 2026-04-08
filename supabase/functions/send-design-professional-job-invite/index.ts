@@ -137,39 +137,71 @@ const handler = async (req: Request): Promise<Response> => {
     if (companyError || !companyRow) throw companyError || new Error("Company not found");
     if (jobError || !jobRow || jobRow.company_id !== companyId) throw jobError || new Error("Job not found");
 
-    const inviteToken = crypto.randomUUID();
     const invitedAt = new Date().toISOString();
     const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
 
     let inviteTableAvailable = true;
-    const { error: upsertError } = await admin
+    let inviteToken = crypto.randomUUID();
+    const inviteNotes = {
+      role: "design_professional",
+      projectRoleId: projectRoleId || null,
+      projectRoleName: projectRoleName || null,
+    };
+
+    const { data: existingPendingInvite, error: existingPendingInviteError } = await admin
       .from("design_professional_job_invites")
-      .upsert(
-        {
-          company_id: companyId,
-          job_id: jobId,
-          email: normalizedEmail,
-          first_name: firstName || null,
-          last_name: lastName || null,
-          invited_by: authData.user.id,
-          invite_token: inviteToken,
-          status: "pending",
-          accepted_by_user_id: null,
-          accepted_at: null,
-          expires_at: expiresAt,
-          notes: {
-            role: "design_professional",
-            projectRoleId: projectRoleId || null,
-            projectRoleName: projectRoleName || null,
-          },
-        },
-        { onConflict: "invite_token" },
-      );
-    if (upsertError) {
-      if (isMissingRelationError(upsertError, "design_professional_job_invites")) {
+      .select("id, invite_token")
+      .eq("company_id", companyId)
+      .eq("job_id", jobId)
+      .eq("email", normalizedEmail)
+      .eq("status", "pending")
+      .order("created_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (existingPendingInviteError) {
+      if (isMissingRelationError(existingPendingInviteError, "design_professional_job_invites")) {
         inviteTableAvailable = false;
       } else {
-        throw upsertError;
+        throw existingPendingInviteError;
+      }
+    }
+
+    if (inviteTableAvailable) {
+      if (existingPendingInvite?.invite_token) {
+        inviteToken = existingPendingInvite.invite_token;
+      }
+
+      const invitePayload = {
+        company_id: companyId,
+        job_id: jobId,
+        email: normalizedEmail,
+        first_name: firstName || null,
+        last_name: lastName || null,
+        invited_by: authData.user.id,
+        invite_token: inviteToken,
+        status: "pending",
+        accepted_by_user_id: null,
+        accepted_at: null,
+        expires_at: expiresAt,
+        notes: inviteNotes,
+      };
+
+      const inviteWriteResult = existingPendingInvite?.id
+        ? await admin
+            .from("design_professional_job_invites")
+            .update(invitePayload)
+            .eq("id", existingPendingInvite.id)
+        : await admin
+            .from("design_professional_job_invites")
+            .insert(invitePayload);
+
+      if (inviteWriteResult.error) {
+        if (isMissingRelationError(inviteWriteResult.error, "design_professional_job_invites")) {
+          inviteTableAvailable = false;
+        } else {
+          throw inviteWriteResult.error;
+        }
       }
     }
 

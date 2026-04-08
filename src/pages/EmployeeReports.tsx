@@ -11,6 +11,7 @@ export default function EmployeeReports() {
       to: "/punch-clock/reports",
       isBuilt: true,
       requiredPermissions: ["timecard-reports-view"],
+      fallbackPermissions: ["timecard-reports", "employees-reports", "employees"],
     },
     {
       key: "employee-qr-cards",
@@ -20,6 +21,7 @@ export default function EmployeeReports() {
       to: "/employees/reports/qr-cards",
       isBuilt: true,
       requiredPermissions: ["employees-reports-view"],
+      fallbackPermissions: ["employees-reports", "employees"],
     },
     {
       key: "pin-employee-list",
@@ -29,6 +31,7 @@ export default function EmployeeReports() {
       to: "/employees/reports/pin-list",
       isBuilt: true,
       requiredPermissions: ["employees-reports-view"],
+      fallbackPermissions: ["employees-reports", "employees"],
     },
     {
       key: "punch-clock-attempt-audit",
@@ -38,6 +41,7 @@ export default function EmployeeReports() {
       to: "/employees/reports/punch-clock-attempt-audit",
       isBuilt: true,
       requiredPermissions: ["employees-reports-view"],
+      fallbackPermissions: ["employees-reports", "employees"],
     },
     {
       key: "employee-performance",
@@ -47,6 +51,7 @@ export default function EmployeeReports() {
       to: "/employees/performance",
       isBuilt: true,
       requiredPermissions: ["employees-reports-view"],
+      fallbackPermissions: ["employees-reports", "employees"],
     },
   ];
 

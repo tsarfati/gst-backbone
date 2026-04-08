@@ -1142,10 +1142,6 @@ export default function UserDetails() {
                     <Calendar className="h-4 w-4" />
                     <span>Linked {new Date(user.created_at).toLocaleDateString()}</span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    <User className="h-4 w-4" />
-                    <span className="text-xs font-mono break-all">ID: {user.user_id}</span>
-                  </div>
                   {isVendorUser && associatedVendor && (
                     <div className="flex items-center gap-2">
                       <Store className="h-4 w-4" />
@@ -1607,10 +1603,6 @@ export default function UserDetails() {
                     <div className="flex items-center gap-2 text-muted-foreground">
                       <Calendar className="h-4 w-4" />
                       <span>Joined {new Date(user.created_at).toLocaleDateString()}</span>
-                    </div>
-                    <div className="flex items-center gap-2 text-muted-foreground">
-                      <User className="h-4 w-4" />
-                      <span className="text-xs font-mono break-all">ID: {user.user_id}</span>
                     </div>
                   </div>
                 </>

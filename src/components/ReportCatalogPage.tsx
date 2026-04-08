@@ -23,6 +23,7 @@ export interface ReportCatalogItem {
   to: string;
   isBuilt?: boolean;
   requiredPermissions?: string[];
+  fallbackPermissions?: string[];
 }
 
 type SortKey = "title" | "built" | "favorite";
@@ -58,7 +59,9 @@ export default function ReportCatalogPage({
     return reports.filter((report) => {
       if (!report.requiredPermissions || report.requiredPermissions.length === 0) return true;
       if (permissionsLoading) return false;
-      return report.requiredPermissions.every((permission) => hasAccess(permission));
+      const hasRequiredAccess = report.requiredPermissions.every((permission) => hasAccess(permission));
+      if (hasRequiredAccess) return true;
+      return (report.fallbackPermissions || []).some((permission) => hasAccess(permission));
     });
   }, [reports, hasAccess, permissionsLoading]);
 

@@ -50,6 +50,7 @@ interface FilterState {
   status: string[];
   showDeleted: boolean;
   showNotes: boolean;
+  showLaborCost: boolean;
 }
 
 interface TimecardReportFiltersProps {
@@ -261,6 +262,7 @@ export default function TimecardReportFilters({
     if (filters.hasOvertime) count++;
     if (filters.status.length > 0) count++;
     if (filters.showDeleted) count++;
+    if (!filters.showLaborCost) count++;
     return count;
   };
 
@@ -503,6 +505,14 @@ export default function TimecardReportFilters({
                   onCheckedChange={(checked) => updateFilters({ showNotes: !!checked })}
                 />
                 <Label htmlFor="show-notes" className="text-sm">Show notes column in reports</Label>
+              </div>
+              <div className="flex items-center space-x-2">
+                <Checkbox
+                  id="show-labor-cost"
+                  checked={filters.showLaborCost}
+                  onCheckedChange={(checked) => updateFilters({ showLaborCost: !!checked })}
+                />
+                <Label htmlFor="show-labor-cost" className="text-sm">Show labor cost in reports</Label>
               </div>
             </div>
           </div>
