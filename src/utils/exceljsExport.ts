@@ -51,6 +51,18 @@ export async function exportAoAToXlsx(options: {
 }) {
   const { data, fileName, sheetName = "Sheet1", autoFit = true } = options;
 
+  const blob = await createAoAXlsxBlob({ data, sheetName, autoFit });
+  const buffer = await blob.arrayBuffer();
+  downloadArrayBuffer(buffer, fileName);
+}
+
+export async function createAoAXlsxBlob(options: {
+  data: ExcelCell[][];
+  sheetName?: string;
+  autoFit?: boolean;
+}) {
+  const { data, sheetName = "Sheet1", autoFit = true } = options;
+
   const workbook = new ExcelJS.Workbook();
   const worksheet = workbook.addWorksheet(safeSheetName(sheetName));
 
@@ -64,7 +76,9 @@ export async function exportAoAToXlsx(options: {
   }
 
   const buffer = (await workbook.xlsx.writeBuffer()) as ArrayBuffer;
-  downloadArrayBuffer(buffer, fileName);
+  return new Blob([buffer], {
+    type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
 }
 
 export async function exportJsonToXlsx(options: {

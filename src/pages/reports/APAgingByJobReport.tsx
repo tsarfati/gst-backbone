@@ -9,8 +9,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
-import { exportAoAToXlsx } from "@/utils/exceljsExport";
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from "@/components/ui/dropdown-menu";
+import ReportEmailModal from "@/components/ReportEmailModal";
+import { ArrowLeft, ChevronDown, Download, FileSpreadsheet, Mail } from "lucide-react";
+import jsPDF from "jspdf";
+import autoTable from "jspdf-autotable";
+import { createAoAXlsxBlob, exportAoAToXlsx } from "@/utils/exceljsExport";
 import { formatNumber } from "@/utils/formatNumber";
 import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
 import { format } from "date-fns";
@@ -78,6 +82,8 @@ export default function APAgingByJobReport() {
   const [selectedJob, setSelectedJob] = useState<string>("all");
   const [loading, setLoading] = useState(true);
   const [invoiceRows, setInvoiceRows] = useState<AgingInvoiceRow[]>([]);
+  const [emailModalOpen, setEmailModalOpen] = useState(false);
+  const [emailAttachmentType, setEmailAttachmentType] = useState<"pdf" | "excel">("pdf");
 
   useEffect(() => {
     if (currentCompany?.id && !websiteJobAccessLoading) {
@@ -334,14 +340,16 @@ export default function APAgingByJobReport() {
     );
   }, [summaryRows]);
 
-  const exportToExcel = async () => {
-    const worksheetData = [
+  const reportFileDate = format(new Date(), "yyyy-MM-dd");
+  const reportJobLabel = selectedJob !== "all"
+    ? jobs.find((job) => job.id === selectedJob)?.name || ""
+    : "All Accessible Jobs";
+
+  const buildWorksheetData = () => [
       ["AP Aging By Job Report"],
       [`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`],
       [`Company: ${currentCompany?.name || ""}`],
-      selectedJob !== "all"
-        ? [`Job: ${jobs.find((job) => job.id === selectedJob)?.name || ""}`]
-        : ["Job: All Accessible Jobs"],
+      [`Job: ${reportJobLabel}`],
       [],
       ["Job Summary"],
       ["Job", "Invoices", "Current", "1-30", "31-60", "61-90", "91+", "Total Outstanding"],
@@ -373,13 +381,126 @@ export default function APAgingByJobReport() {
       ]),
     ];
 
+  const buildPdfDoc = () => {
+    const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let y = 36;
+
+    doc.setFontSize(18);
+    doc.setFont("helvetica", "bold");
+    doc.text("AP Aging By Job Report", 36, y);
+
+    doc.setFontSize(9);
+    doc.setFont("helvetica", "normal");
+    doc.text(`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`, 36, y + 18);
+    doc.text(`Company: ${currentCompany?.name || ""}`, 36, y + 32);
+    doc.text(`Job: ${reportJobLabel}`, 36, y + 46);
+
+    doc.setFont("helvetica", "bold");
+    doc.text(`Total Outstanding: ${formatCurrency(totals.total)}`, pageWidth - 220, y + 18);
+    doc.text(`Open Invoices: ${totals.invoice_count}`, pageWidth - 220, y + 32);
+
+    y = 104;
+
+    autoTable(doc, {
+      startY: y,
+      head: [["Job", "Invoices", "Current", "1-30", "31-60", "61-90", "91+", "Total"]],
+      body: summaryRows.map((row) => [
+        row.job_name,
+        row.invoice_count,
+        formatCurrency(row.current),
+        formatCurrency(row.bucket_1_30),
+        formatCurrency(row.bucket_31_60),
+        formatCurrency(row.bucket_61_90),
+        formatCurrency(row.bucket_91_plus),
+        formatCurrency(row.total),
+      ]),
+      foot: [[
+        "Totals",
+        totals.invoice_count,
+        formatCurrency(totals.current),
+        formatCurrency(totals.bucket_1_30),
+        formatCurrency(totals.bucket_31_60),
+        formatCurrency(totals.bucket_61_90),
+        formatCurrency(totals.bucket_91_plus),
+        formatCurrency(totals.total),
+      ]],
+      theme: "grid",
+      headStyles: { fillColor: [71, 85, 105], fontSize: 8 },
+      bodyStyles: { fontSize: 7 },
+      footStyles: { fillColor: [241, 245, 249], textColor: [15, 23, 42], fontStyle: "bold" },
+      columnStyles: {
+        0: { cellWidth: 170 },
+        1: { halign: "right" },
+        2: { halign: "right" },
+        3: { halign: "right" },
+        4: { halign: "right" },
+        5: { halign: "right" },
+        6: { halign: "right" },
+        7: { halign: "right" },
+      },
+    });
+
+    autoTable(doc, {
+      startY: (doc as any).lastAutoTable.finalY + 28,
+      head: [["Job", "Vendor", "Invoice #", "Due Date", "Status", "Days", "Original", "Paid", "Outstanding", "Bucket"]],
+      body: invoiceRows.map((row) => [
+        row.job_name,
+        row.vendor_name,
+        row.invoice_number,
+        row.due_date ? format(new Date(row.due_date), "MM/dd/yyyy") : "-",
+        row.status.replace(/_/g, " "),
+        row.days_past_due,
+        formatCurrency(row.original_amount),
+        formatCurrency(row.amount_paid),
+        formatCurrency(row.outstanding_amount),
+        row.aging_bucket,
+      ]),
+      theme: "grid",
+      headStyles: { fillColor: [71, 85, 105], fontSize: 7 },
+      bodyStyles: { fontSize: 6.5 },
+      columnStyles: {
+        0: { cellWidth: 120 },
+        1: { cellWidth: 120 },
+        2: { cellWidth: 70 },
+        5: { halign: "right" },
+        6: { halign: "right" },
+        7: { halign: "right" },
+        8: { halign: "right" },
+      },
+    });
+
+    return doc;
+  };
+
+  const exportToPDF = () => {
+    const doc = buildPdfDoc();
+    doc.save(`ap-aging-by-job-${reportFileDate}.pdf`);
+    toast({ title: "Success", description: "PDF exported successfully" });
+  };
+
+  const exportToExcel = async () => {
     await exportAoAToXlsx({
-      fileName: `ap-aging-by-job-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
+      fileName: `ap-aging-by-job-${reportFileDate}.xlsx`,
       sheetName: "AP Aging By Job",
-      data: worksheetData,
+      data: buildWorksheetData(),
     });
 
     toast({ title: "Success", description: "Excel exported successfully" });
+  };
+
+  const generateExcelAttachment = async () => ({
+    blob: await createAoAXlsxBlob({
+      sheetName: "AP Aging By Job",
+      data: buildWorksheetData(),
+    }),
+    filename: `ap-aging-by-job-${reportFileDate}.xlsx`,
+    contentType: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+  });
+
+  const openEmailModal = (attachmentType: "pdf" | "excel") => {
+    setEmailAttachmentType(attachmentType);
+    setEmailModalOpen(true);
   };
 
   return (
@@ -410,10 +531,35 @@ export default function APAgingByJobReport() {
             </SelectContent>
           </Select>
 
+          <Button variant="outline" onClick={exportToPDF} disabled={loading || invoiceRows.length === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            Export PDF
+          </Button>
+
           <Button variant="outline" onClick={exportToExcel} disabled={loading || invoiceRows.length === 0}>
             <FileSpreadsheet className="mr-2 h-4 w-4" />
             Export Excel
           </Button>
+
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" disabled={loading || invoiceRows.length === 0}>
+                <Mail className="mr-2 h-4 w-4" />
+                Share
+                <ChevronDown className="ml-2 h-4 w-4" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem onClick={() => openEmailModal("pdf")}>
+                <Download className="mr-2 h-4 w-4" />
+                Email PDF attachment
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => openEmailModal("excel")}>
+                <FileSpreadsheet className="mr-2 h-4 w-4" />
+                Email Excel attachment
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
       </div>
 
@@ -548,6 +694,15 @@ export default function APAgingByJobReport() {
           </Table>
         </CardContent>
       </Card>
+
+      <ReportEmailModal
+        open={emailModalOpen}
+        onOpenChange={setEmailModalOpen}
+        generatePdf={emailAttachmentType === "pdf" ? buildPdfDoc : undefined}
+        generateAttachment={emailAttachmentType === "excel" ? generateExcelAttachment : undefined}
+        reportName="AP Aging By Job"
+        fileName={`ap-aging-by-job-${reportFileDate}.${emailAttachmentType === "pdf" ? "pdf" : "xlsx"}`}
+      />
     </div>
   );
 }
