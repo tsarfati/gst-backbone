@@ -556,6 +556,15 @@ export default function PaymentReports() {
             <Button
               variant="outline"
               className="h-auto flex-col p-4"
+              onClick={() => navigate("/construction/reports/ap-aging-by-job")}
+            >
+              <FileText className="h-6 w-6 mb-2" />
+              <span className="font-medium">AP Aging By Job</span>
+              <span className="text-xs text-muted-foreground">Who is owed by job and aging bucket</span>
+            </Button>
+            <Button
+              variant="outline"
+              className="h-auto flex-col p-4"
               onClick={() => navigate("/bills/credit-card-transaction-report")}
             >
               <CreditCard className="h-6 w-6 mb-2" />

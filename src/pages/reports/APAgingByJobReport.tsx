@@ -12,6 +12,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, Download, FileSpreadsheet } from "lucide-react";
 import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { formatNumber } from "@/utils/formatNumber";
+import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
 import { format } from "date-fns";
 
 interface JobOption {
@@ -47,7 +48,7 @@ interface JobAgingSummaryRow {
   invoice_count: number;
 }
 
-const OPEN_AP_STATUSES = ["pending", "pending_approval", "pending_coding", "approved", "pending_payment", "overdue"];
+const AP_AGING_CANDIDATE_STATUSES = ["pending", "pending_approval", "pending_coding", "approved", "pending_payment", "overdue", "paid"];
 
 const getDaysPastDue = (dueDate?: string | null) => {
   if (!dueDate) return 0;
@@ -145,21 +146,13 @@ export default function APAgingByJobReport() {
         return;
       }
 
-      let invoiceQuery = supabase
+      const invoiceQuery = supabase
         .from("invoices")
-        .select("id, vendor_id, job_id, invoice_number, issue_date, due_date, amount, status")
+        .select("id, vendor_id, job_id, invoice_number, issue_date, due_date, amount, status, jobs(id, name)")
         .in("vendor_id", vendorIds)
-        .in("status", OPEN_AP_STATUSES);
-
-      if (selectedJob !== "all") {
-        invoiceQuery = invoiceQuery.eq("job_id", selectedJob);
-      } else if (!isPrivileged) {
-        if (allowedJobIds.length === 0) {
-          setInvoiceRows([]);
-          return;
-        }
-        invoiceQuery = invoiceQuery.in("job_id", allowedJobIds);
-      }
+        // Include paid rows here because some partially paid bills were previously
+        // marked as paid. We filter true zero-balance bills after payment lines load.
+        .in("status", AP_AGING_CANDIDATE_STATUSES);
 
       const { data: invoiceData, error: invoiceError } = await invoiceQuery.order("due_date", { ascending: true });
       if (invoiceError) throw invoiceError;
@@ -170,54 +163,103 @@ export default function APAgingByJobReport() {
       }
 
       const invoiceIds = invoiceData.map((invoice: any) => invoice.id);
-      const jobIds = Array.from(new Set(invoiceData.map((invoice: any) => invoice.job_id).filter(Boolean)));
 
-      const [{ data: paymentLineRows, error: paymentLineError }, { data: jobRows, error: jobError }] = await Promise.all([
+      const [
+        { data: paymentLineRows, error: paymentLineError },
+        { data: distributionRows, error: distributionError },
+      ] = await Promise.all([
         supabase
           .from("payment_invoice_lines")
-          .select("invoice_id, amount_paid")
+          .select("invoice_id, payment_id, amount_paid, payments(amount)")
           .in("invoice_id", invoiceIds),
-        jobIds.length
-          ? supabase.from("jobs").select("id, name").in("id", jobIds as string[])
-          : Promise.resolve({ data: [], error: null }),
+        supabase
+          .from("invoice_cost_distributions")
+          .select(`
+            invoice_id,
+            amount,
+            cost_codes (
+              job_id,
+              jobs (id, name)
+            )
+          `)
+          .in("invoice_id", invoiceIds),
       ]);
 
       if (paymentLineError) throw paymentLineError;
-      if (jobError) throw jobError;
+      if (distributionError) throw distributionError;
 
-      const jobNameById = new Map<string, string>((jobRows || []).map((job: any) => [job.id, job.name]));
-      const amountPaidByInvoiceId = new Map<string, number>();
-      (paymentLineRows || []).forEach((line: any) => {
-        amountPaidByInvoiceId.set(
-          line.invoice_id,
-          (amountPaidByInvoiceId.get(line.invoice_id) || 0) + Number(line.amount_paid || 0)
-        );
+      const amountPaidByInvoiceId = getEffectivePaidByInvoice((paymentLineRows || []) as any[]);
+
+      const distributionsByInvoiceId = new Map<string, Array<{ job_id: string | null; job_name: string; amount: number }>>();
+      (distributionRows || []).forEach((distribution: any) => {
+        const invoiceId = distribution.invoice_id;
+        if (!invoiceId) return;
+        const job = distribution.cost_codes?.jobs;
+        const rows = distributionsByInvoiceId.get(invoiceId) || [];
+        rows.push({
+          job_id: job?.id || distribution.cost_codes?.job_id || null,
+          job_name: job?.name || "No Job",
+          amount: Number(distribution.amount || 0),
+        });
+        distributionsByInvoiceId.set(invoiceId, rows);
       });
 
       const rows: AgingInvoiceRow[] = (invoiceData || [])
-        .map((invoice: any) => {
+        .flatMap((invoice: any) => {
           const originalAmount = Number(invoice.amount || 0);
           const amountPaid = amountPaidByInvoiceId.get(invoice.id) || 0;
           const outstandingAmount = Math.max(0, originalAmount - amountPaid);
           const daysPastDue = getDaysPastDue(invoice.due_date || invoice.issue_date);
+          const agingBucket = getAgingBucket(daysPastDue);
+          const groupedJobAmounts = new Map<string, { job_name: string; amount: number }>();
 
-          return {
-            id: invoice.id,
-            job_id: invoice.job_id || null,
-            job_name: jobNameById.get(invoice.job_id) || "No Job",
-            vendor_name: vendorNameById.get(invoice.vendor_id) || "Unknown Vendor",
-            invoice_number: invoice.invoice_number || "(No invoice #)",
-            issue_date: invoice.issue_date || null,
-            due_date: invoice.due_date || null,
-            status: invoice.status || "unknown",
-            original_amount: originalAmount,
-            amount_paid: amountPaid,
-            outstanding_amount: outstandingAmount,
-            aging_bucket: getAgingBucket(daysPastDue),
-            days_past_due: daysPastDue,
-          };
+          (distributionsByInvoiceId.get(invoice.id) || [])
+            .filter((distribution) => distribution.job_id)
+            .forEach((distribution) => {
+              const jobId = distribution.job_id!;
+              const existing = groupedJobAmounts.get(jobId) || { job_name: distribution.job_name, amount: 0 };
+              existing.amount += distribution.amount;
+              groupedJobAmounts.set(jobId, existing);
+            });
+
+          const allocations = groupedJobAmounts.size > 0
+            ? Array.from(groupedJobAmounts.entries()).map(([jobId, value]) => ({
+                job_id: jobId,
+                job_name: value.job_name,
+                amount: value.amount,
+              }))
+            : [{
+                job_id: invoice.job_id || null,
+                job_name: invoice.jobs?.name || (invoice.job_id ? "Unknown Job" : "No Job"),
+                amount: originalAmount,
+              }];
+          const allocationTotal = allocations.reduce((sum, allocation) => sum + Number(allocation.amount || 0), 0) || originalAmount || 1;
+
+          return allocations.map((allocation) => {
+            const allocationRatio = Number(allocation.amount || 0) / allocationTotal;
+            return {
+              id: `${invoice.id}-${allocation.job_id || "no-job"}`,
+              job_id: allocation.job_id || null,
+              job_name: allocation.job_name,
+              vendor_name: vendorNameById.get(invoice.vendor_id) || "Unknown Vendor",
+              invoice_number: invoice.invoice_number || "(No invoice #)",
+              issue_date: invoice.issue_date || null,
+              due_date: invoice.due_date || null,
+              status: invoice.status || "unknown",
+              original_amount: originalAmount * allocationRatio,
+              amount_paid: amountPaid * allocationRatio,
+              outstanding_amount: outstandingAmount * allocationRatio,
+              aging_bucket: agingBucket,
+              days_past_due: daysPastDue,
+            };
+          });
         })
         .filter((row) => row.outstanding_amount > 0.009)
+        .filter((row) => {
+          if (selectedJob !== "all") return row.job_id === selectedJob;
+          if (isPrivileged) return true;
+          return !!row.job_id && allowedJobIds.includes(row.job_id);
+        })
         .sort((a, b) => {
           if (a.job_name !== b.job_name) return a.job_name.localeCompare(b.job_name);
           return (a.due_date || "").localeCompare(b.due_date || "");
@@ -332,7 +374,7 @@ export default function APAgingByJobReport() {
     ];
 
     await exportAoAToXlsx({
-      filename: `ap-aging-by-job-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
+      fileName: `ap-aging-by-job-${format(new Date(), "yyyy-MM-dd")}.xlsx`,
       sheetName: "AP Aging By Job",
       data: worksheetData,
     });

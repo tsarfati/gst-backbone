@@ -35,6 +35,7 @@ import DragDropUpload from "@/components/DragDropUpload";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
+import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
 
 interface Vendor {
   id: string;
@@ -252,7 +253,7 @@ export default function MakePayment() {
             name
           )
         `)
-        .in('status', ['approved', 'pending_payment'])
+        .in('status', ['approved', 'pending_payment', 'paid'])
         .eq('vendors.company_id', currentCompany.id)
         .order('due_date');
 
@@ -262,7 +263,7 @@ export default function MakePayment() {
       const invoiceIds = (invoicesData || []).map(inv => inv.id);
       const { data: paymentLinesData } = await supabase
         .from('payment_invoice_lines')
-        .select('invoice_id, amount_paid')
+        .select('invoice_id, payment_id, amount_paid, payments(amount)')
         .in('invoice_id', invoiceIds);
       
       // Fetch distributions with job info for invoices that might not have direct job_id
@@ -291,10 +292,7 @@ export default function MakePayment() {
       });
       
       // Calculate amount paid per invoice
-      const paidByInvoice: Record<string, number> = {};
-      (paymentLinesData || []).forEach(pl => {
-        paidByInvoice[pl.invoice_id] = (paidByInvoice[pl.invoice_id] || 0) + Number(pl.amount_paid || 0);
-      });
+      const paidByInvoice = getEffectivePaidByInvoice((paymentLinesData || []) as any[]);
       
       const formattedInvoices = (invoicesData || [])
       .filter((invoice: any) => {
@@ -303,7 +301,7 @@ export default function MakePayment() {
         return canAccessAssignedJobOnly([directJobId, ...distJobIds], isPrivileged, allowedJobIds);
       })
       .map(invoice => {
-        const amountPaid = paidByInvoice[invoice.id] || 0;
+        const amountPaid = paidByInvoice.get(invoice.id) || 0;
         const balanceDue = Number(invoice.amount) - amountPaid;
         
         // Use direct job if available, otherwise get from distributions
@@ -1235,7 +1233,7 @@ export default function MakePayment() {
                     if (!checked && selectedInvoices.length > 0) {
                       const totalAmount = selectedInvoices.reduce((sum, id) => {
                         const invoice = invoices.find(inv => inv.id === id);
-                        return sum + (invoice?.amount || 0);
+                        return sum + Number(invoice?.balance_due ?? invoice?.amount ?? 0);
                       }, 0);
                       setPayment(prev => ({ ...prev, amount: totalAmount }));
                     }

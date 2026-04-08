@@ -278,10 +278,12 @@ function PMLynkFeatureRoute({ children }: { children: React.ReactNode }) {
 
 function MenuPermissionRoute({
   menuKey,
+  fallbackMenuKeys = [],
   children,
   redirectTo = '/',
 }: {
   menuKey: string;
+  fallbackMenuKeys?: string[];
   children: React.ReactNode;
   redirectTo?: string;
 }) {
@@ -291,7 +293,7 @@ function MenuPermissionRoute({
     return <PremiumLoadingScreen />;
   }
 
-  if (!hasAccess(menuKey)) {
+  if (!hasAccess(menuKey) && !fallbackMenuKeys.some((key) => hasAccess(key))) {
     return <Navigate to={redirectTo} replace />;
   }
 
@@ -659,7 +661,7 @@ function AuthenticatedRoutes() {
                 } />
                 <Route path="punch-clock/reports" element={
                   <PunchClockFeatureRoute>
-                    <MenuPermissionRoute menuKey="timecard-reports">
+                    <MenuPermissionRoute menuKey="timecard-reports" fallbackMenuKeys={["timecard-reports-view", "employees-reports", "employees"]}>
                       <TimecardReports />
                     </MenuPermissionRoute>
                   </PunchClockFeatureRoute>
@@ -685,14 +687,14 @@ function AuthenticatedRoutes() {
                 <Route path="bills" element={<Navigate to="/invoices" replace />} />
                 <Route path="bills/add" element={<Navigate to="/invoices/add" replace />} />
                 <Route path="bills/:id" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <MenuPermissionRoute menuKey="bills-view" fallbackMenuKeys={['bills']}>
                     <BillDetails />
-                  </RoleGuard>
+                  </MenuPermissionRoute>
                 } />
                 <Route path="bills/:id/edit" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <MenuPermissionRoute menuKey="bills-edit" fallbackMenuKeys={['bills-approve', 'bills']}>
                     <BillEdit />
-                  </RoleGuard>
+                  </MenuPermissionRoute>
                 } />
                 <Route path="payables-dashboard" element={<PayablesDashboard />} />
                 <Route path="payables/make-payment" element={<MakePayment />} />
@@ -725,14 +727,14 @@ function AuthenticatedRoutes() {
                 <Route path="invoices" element={<Bills />} />
                 <Route path="invoices/add" element={<AddBill />} />
                 <Route path="invoices/:id" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <MenuPermissionRoute menuKey="bills-view" fallbackMenuKeys={['bills']}>
                     <BillDetails />
-                  </RoleGuard>
+                  </MenuPermissionRoute>
                 } />
                 <Route path="invoices/:id/edit" element={
-                  <RoleGuard allowedRoles={['admin', 'controller', 'project_manager', 'manager']}>
+                  <MenuPermissionRoute menuKey="bills-edit" fallbackMenuKeys={['bills-approve', 'bills']}>
                     <BillEdit />
-                  </RoleGuard>
+                  </MenuPermissionRoute>
                 } />
                 <Route path="invoices/payments" element={<PaymentHistory />} />
                 <Route path="invoices/payment-reports" element={<PaymentReports />} />

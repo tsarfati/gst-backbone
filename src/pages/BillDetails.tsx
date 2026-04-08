@@ -39,6 +39,7 @@ import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import BillInternalNotes from "@/components/BillInternalNotes";
 import FileShareModal from "@/components/FileShareModal";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
+import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -263,14 +264,15 @@ export default function BillDetails() {
                 payment_number,
                 payment_date,
                 payment_method,
-                status
+                status,
+                amount
               )
             `)
             .eq('invoice_id', data.id);
           
           if (paymentLines && paymentLines.length > 0) {
              setPaymentsReceived(paymentLines);
-             const paid = paymentLines.reduce((sum, pl) => sum + (Number(pl.amount_paid) || 0), 0);
+             const paid = getEffectivePaidByInvoice(paymentLines as any[]).get(data.id) || 0;
              setTotalPaid(paid);
              const remaining = Number(data.amount || 0) - paid;
              setBalanceDue(remaining);
@@ -282,6 +284,12 @@ export default function BillDetails() {
                  .update({ status: 'paid' })
                  .eq('id', data.id);
                setBill(prev => prev ? { ...prev, status: 'paid' } : null);
+             } else if (paid > 0 && remaining > 0.01 && data.status === 'paid') {
+               await supabase
+                 .from('invoices')
+                 .update({ status: 'pending_payment' })
+                 .eq('id', data.id);
+               setBill(prev => prev ? { ...prev, status: 'pending_payment' } : null);
              }
            } else {
              setPaymentsReceived([]);
@@ -948,26 +956,26 @@ export default function BillDetails() {
             {/* Vendor Section */}
             <div>
               <h4 className="font-medium mb-3 text-sm text-muted-foreground">Vendor</h4>
-              <div className="flex items-center gap-3">
+              <div className="flex items-start gap-3 min-w-0">
                 <VendorAvatar 
                   name={bill?.vendors?.name || 'Unknown Vendor'}
                   logoUrl={bill?.vendors?.logo_url}
                   size="md"
                 />
-                <div className="flex-1">
-                  <div className="flex items-center gap-2">
+                <div className="flex-1 min-w-0">
+                  <div className="flex min-w-0 flex-wrap items-center gap-2">
                     <Button
                       variant="link"
-                      className="p-0 h-auto font-medium text-left"
+                      className="min-w-0 max-w-full p-0 h-auto font-medium text-left"
                       onClick={() => navigate(`/vendors/${bill?.vendor_id}`)}
                     >
-                      {bill?.vendors?.name}
-                      <ExternalLink className="h-3 w-3 ml-1" />
+                      <span className="truncate">{bill?.vendors?.name}</span>
+                      <ExternalLink className="h-3 w-3 ml-1 shrink-0" />
                     </Button>
                     {vendorHasWarnings && (
-                      <Badge variant="destructive" className="flex items-center gap-1">
-                        <AlertTriangle className="h-3 w-3" />
-                        Compliance Warning
+                      <Badge variant="destructive" className="max-w-full shrink-0 gap-1 px-2 py-0.5 text-[10px] leading-tight">
+                        <AlertTriangle className="h-3 w-3 shrink-0" />
+                        <span className="whitespace-nowrap">Compliance Warning</span>
                       </Badge>
                     )}
                   </div>

@@ -20,6 +20,7 @@ import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
+import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
 
 type SortColumn = 'vendor_name' | 'job_name' | 'amount' | 'issue_date' | 'due_date' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -30,6 +31,8 @@ interface Bill {
   vendor_name: string;
   vendor_logo_url: string | null;
   amount: number;
+  amount_paid?: number;
+  balance_due?: number;
   status: string;
   issue_date: string;
   due_date: string;
@@ -98,6 +101,10 @@ const getStatusDisplayName = (status: string) => {
 };
 
 const getJobColor = (jobName: string) => {
+  if (jobName.startsWith('Control -')) {
+    return 'bg-slate-500';
+  }
+
   // Generate consistent color based on job name
   let hash = 0;
   for (let i = 0; i < jobName.length; i++) {
@@ -184,7 +191,7 @@ export default function Bills() {
           payment_terms,
           vendors!inner(name, logo_url, company_id),
           jobs(id, name),
-          cost_codes(description)
+          cost_codes(description, job_id, code, chart_account_number, chart_account_id)
         `)
         .eq('vendors.company_id', currentCompany.id)
         .order('created_at', { ascending: false });
@@ -199,14 +206,21 @@ export default function Bills() {
         .from('invoice_cost_distributions')
         .select(`
           invoice_id,
-          cost_codes(job_id, jobs(id, name))
+          cost_codes(job_id, code, chart_account_number, chart_account_id, jobs(id, name))
         `)
         .in('invoice_id', invoiceIds);
 
-      // Build a map of invoice_id -> job names from distributions
+      const formatControlLabel = (costCode: any) => {
+        const controlNumber = costCode?.chart_account_number || costCode?.code;
+        return controlNumber ? `Control - ${controlNumber}` : 'Control';
+      };
+
+      // Build maps of invoice_id -> job/control labels from distributions
       const distributionJobMap = new Map<string, { id: string; name: string }[]>();
+      const distributionControlMap = new Map<string, string[]>();
       distributions?.forEach((dist: any) => {
         const invoiceId = dist.invoice_id;
+        const costCode = dist.cost_codes;
         const job = dist.cost_codes?.jobs;
         if (job?.id && job?.name) {
           if (!distributionJobMap.has(invoiceId)) {
@@ -215,6 +229,13 @@ export default function Bills() {
           const existing = distributionJobMap.get(invoiceId)!;
           if (!existing.find((j) => j.id === job.id)) {
             existing.push({ id: job.id, name: job.name });
+          }
+        } else if (costCode) {
+          const label = formatControlLabel(costCode);
+          const existing = distributionControlMap.get(invoiceId) || [];
+          if (!existing.includes(label)) {
+            existing.push(label);
+            distributionControlMap.set(invoiceId, existing);
           }
         }
       });
@@ -236,6 +257,11 @@ export default function Bills() {
           const distJobs = distributionJobMap.get(bill.id);
           if (distJobs && distJobs.length > 0) {
             jobName = distJobs.length === 1 ? distJobs[0].name : `${distJobs[0].name} (+${distJobs.length - 1})`;
+          } else if ((bill.cost_codes as any)?.job_id === null && bill.cost_codes) {
+            jobName = formatControlLabel(bill.cost_codes);
+          } else if (distributionControlMap.get(bill.id)?.length) {
+            const controls = distributionControlMap.get(bill.id)!;
+            jobName = controls.length === 1 ? controls[0] : `${controls[0]} (+${controls.length - 1})`;
           } else {
             jobName = 'No Job';
           }
@@ -247,6 +273,8 @@ export default function Bills() {
           vendor_name: (bill.vendors as any)?.name || 'Unknown Vendor',
           vendor_logo_url: (bill.vendors as any)?.logo_url || null,
           amount: bill.amount,
+          amount_paid: 0,
+          balance_due: bill.amount,
           status: bill.status,
           issue_date: bill.issue_date,
           due_date: bill.due_date,
@@ -264,20 +292,12 @@ export default function Bills() {
         if (invoiceIds.length > 0) {
           const { data: paymentLines, error: paymentLinesError } = await supabase
             .from('payment_invoice_lines')
-            .select('invoice_id, amount_paid')
+            .select('invoice_id, payment_id, amount_paid, payments(amount)')
             .in('invoice_id', invoiceIds);
 
           if (paymentLinesError) throw paymentLinesError;
 
-          const totalPaidByInvoiceId = new Map<string, number>();
-          (paymentLines || []).forEach((line: any) => {
-            const invoiceId = String(line.invoice_id || '');
-            if (!invoiceId) return;
-            totalPaidByInvoiceId.set(
-              invoiceId,
-              (totalPaidByInvoiceId.get(invoiceId) || 0) + Number(line.amount_paid || 0),
-            );
-          });
+          const totalPaidByInvoiceId = getEffectivePaidByInvoice((paymentLines || []) as any[]);
 
           const idsFullyPaid: string[] = [];
           const idsPartiallyPaid: string[] = [];
@@ -288,12 +308,17 @@ export default function Bills() {
 
             if (totalPaid > 0 && remainingBalance <= 0.01) {
               idsFullyPaid.push(bill.id);
-              return { ...bill, status: 'paid' };
+              return { ...bill, amount_paid: totalPaid, balance_due: 0, status: 'paid' };
             }
 
             if (totalPaid > 0) {
               idsPartiallyPaid.push(bill.id);
-              return { ...bill, status: 'pending_payment' };
+              return {
+                ...bill,
+                amount_paid: totalPaid,
+                balance_due: Math.max(0, remainingBalance),
+                status: 'pending_payment',
+              };
             }
 
             return bill;
@@ -424,8 +449,12 @@ export default function Bills() {
 
   const totalPendingCoding = pendingCodingBills.reduce((sum, bill) => sum + bill.amount, 0);
   const totalPendingApproval = pendingApprovalBills.reduce((sum, bill) => sum + bill.amount, 0);
-  const totalAwaitingPayment = awaitingPaymentBills.reduce((sum, bill) => sum + bill.amount, 0);
-  const totalOverdue = overdueBills.reduce((sum, bill) => sum + bill.amount, 0);
+  const getOpenBillAmount = (bill: Bill) => bill.status === 'pending_payment'
+    ? Number(bill.balance_due ?? bill.amount)
+    : Number(bill.amount || 0);
+  const formatBillDisplayAmount = (bill: Bill) => getOpenBillAmount(bill).toLocaleString();
+  const totalAwaitingPayment = awaitingPaymentBills.reduce((sum, bill) => sum + getOpenBillAmount(bill), 0);
+  const totalOverdue = overdueBills.reduce((sum, bill) => sum + getOpenBillAmount(bill), 0);
 
   const handleSelectAll = () => {
     if (selectedBills.length === sortedBills.length) {
@@ -899,7 +928,7 @@ export default function Bills() {
                            {bill.job_name}
                          </Badge>
                        </TableCell>
-                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">${bill.amount.toLocaleString()}</TableCell>
+                         <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 font-semibold border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">${formatBillDisplayAmount(bill)}</TableCell>
                           <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
                           <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.due_date).toLocaleDateString()}</TableCell>
                           <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
@@ -959,7 +988,7 @@ export default function Bills() {
                       </div>
                     </div>
                     <div className="text-right flex flex-col items-end gap-0.5">
-                      <p className="font-semibold text-foreground">${bill.amount.toLocaleString()}</p>
+                      <p className="font-semibold text-foreground">${formatBillDisplayAmount(bill)}</p>
                       <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
                         {bill.job_name}
                       </Badge>
@@ -1010,7 +1039,7 @@ export default function Bills() {
                     </div>
                     <div className="flex flex-col items-end gap-0.5">
                       <span className="font-semibold text-foreground whitespace-nowrap">
-                        ${bill.amount.toLocaleString()}
+                        ${formatBillDisplayAmount(bill)}
                       </span>
                       {billIsOverdue && (
                         <Badge variant="destructive" className="animate-pulse text-xs">
