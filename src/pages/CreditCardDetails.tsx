@@ -202,6 +202,7 @@ export default function CreditCardDetails() {
           t,
         ]),
       );
+      const seenKeys = new Set(existingMap.keys());
 
       let duplicateCount = 0;
       const transactionsToInsert: any[] = [];
@@ -236,7 +237,7 @@ export default function CreditCardDetails() {
             : (type === 'Fee' ? 'fee' : (type === 'Adjustment' ? 'adjustment' : 'purchase'));
 
           const key = `${formattedDate}-${amount}-${description}-${desiredType}`;
-          if (existingMap.has(key)) {
+          if (seenKeys.has(key)) {
             duplicateCount++;
             continue;
           }
@@ -259,6 +260,7 @@ export default function CreditCardDetails() {
           };
           
           transactionsToInsert.push(parsedTransaction);
+          seenKeys.add(key);
         } else {
           const dateCol = transaction.Date || transaction.date;
           const descCol = transaction.Description || transaction.description;
@@ -296,7 +298,7 @@ export default function CreditCardDetails() {
           }
           
           const key = `${transactionDate}-${amount}-${description}-${transactionType}`;
-          if (existingMap.has(key)) {
+          if (seenKeys.has(key)) {
             duplicateCount++;
             continue;
           }
@@ -317,6 +319,7 @@ export default function CreditCardDetails() {
           };
           
           transactionsToInsert.push(parsedTransaction);
+          seenKeys.add(key);
         }
       }
 
