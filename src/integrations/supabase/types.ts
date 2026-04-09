@@ -3456,6 +3456,10 @@ export type Database = {
           company_id: string
           created_at: string
           email: string
+          email_bounced_at: string | null
+          email_delivered_at: string | null
+          email_opened_at: string | null
+          email_status: string | null
           expires_at: string
           first_name: string | null
           id: string
@@ -3464,6 +3468,7 @@ export type Database = {
           job_id: string
           last_name: string | null
           notes: Json
+          resend_message_id: string | null
           status: string
           updated_at: string
         }
@@ -3473,6 +3478,10 @@ export type Database = {
           company_id: string
           created_at?: string
           email: string
+          email_bounced_at?: string | null
+          email_delivered_at?: string | null
+          email_opened_at?: string | null
+          email_status?: string | null
           expires_at: string
           first_name?: string | null
           id?: string
@@ -3481,6 +3490,7 @@ export type Database = {
           job_id: string
           last_name?: string | null
           notes?: Json
+          resend_message_id?: string | null
           status?: string
           updated_at?: string
         }
@@ -3490,6 +3500,10 @@ export type Database = {
           company_id?: string
           created_at?: string
           email?: string
+          email_bounced_at?: string | null
+          email_delivered_at?: string | null
+          email_opened_at?: string | null
+          email_status?: string | null
           expires_at?: string
           first_name?: string | null
           id?: string
@@ -3498,6 +3512,7 @@ export type Database = {
           job_id?: string
           last_name?: string | null
           notes?: Json
+          resend_message_id?: string | null
           status?: string
           updated_at?: string
         }

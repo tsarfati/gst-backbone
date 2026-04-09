@@ -312,7 +312,7 @@ const handler = async (req: Request): Promise<Response> => {
       : `${baseUrl}/design-professional-signup?company=${encodeURIComponent(companyId)}&jobInvite=${encodeURIComponent(inviteToken)}`;
 
     if (resend) {
-      await sendTransactionalEmailWithFallback({
+      const emailResponse = await sendTransactionalEmailWithFallback({
         supabaseUrl,
         serviceRoleKey: supabaseServiceKey,
         resend,
@@ -345,6 +345,29 @@ const handler = async (req: Request): Promise<Response> => {
 </body></html>`,
         context: "send-design-professional-job-invite",
       });
+
+      if (inviteTableAvailable) {
+        const resendMessageId = emailResponse?.providerMessageId || null;
+        const resetTrackingPayload = {
+          email_status: null,
+          email_delivered_at: null,
+          email_opened_at: null,
+          email_bounced_at: null,
+          resend_message_id: resendMessageId,
+        };
+
+        const { error: trackingUpdateError } = await admin
+          .from("design_professional_job_invites")
+          .update(resetTrackingPayload)
+          .eq("company_id", companyId)
+          .eq("job_id", jobId)
+          .eq("email", normalizedEmail)
+          .eq("status", "pending");
+
+        if (trackingUpdateError && !isMissingRelationError(trackingUpdateError, "design_professional_job_invites")) {
+          throw trackingUpdateError;
+        }
+      }
     }
 
     return new Response(JSON.stringify({ success: true, inviteToken, inviteTableAvailable }), {

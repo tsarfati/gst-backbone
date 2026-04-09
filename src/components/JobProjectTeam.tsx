@@ -9,7 +9,7 @@ import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
-import { Plus, Trash2, Edit, Users, Mail, Phone, Building2, Star, UserCheck, Search, Loader2 } from 'lucide-react';
+import { Plus, Trash2, Edit, Users, Mail, MailCheck, MailOpen, MailX, Phone, Building2, Star, UserCheck, Search, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -100,6 +100,10 @@ interface PendingDesignInvite {
   last_name?: string | null;
   project_role_id?: string | null;
   project_role_name?: string | null;
+  email_status?: string | null;
+  email_delivered_at?: string | null;
+  email_opened_at?: string | null;
+  email_bounced_at?: string | null;
 }
 
 interface ConnectedVendorOption {
@@ -382,7 +386,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
       let nextPendingDesignInvites: PendingDesignInvite[] = [];
       const { data: inviteRows, error: inviteRowsError } = await supabase
         .from('design_professional_job_invites')
-        .select('id, accepted_by_user_id, company_id, job_id, email, first_name, last_name, invited_by, created_at, status, notes')
+        .select('id, accepted_by_user_id, company_id, job_id, email, first_name, last_name, invited_by, created_at, status, notes, email_status, email_delivered_at, email_opened_at, email_bounced_at')
         .eq('company_id', companyScopeId)
         .eq('job_id', jobId)
         .eq('status', 'pending')
@@ -399,6 +403,10 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
           last_name: row.last_name || null,
           project_role_id: row.notes?.projectRoleId || null,
           project_role_name: row.notes?.projectRoleName || null,
+          email_status: row.email_status || null,
+          email_delivered_at: row.email_delivered_at || null,
+          email_opened_at: row.email_opened_at || null,
+          email_bounced_at: row.email_bounced_at || null,
         }));
       } else if (!isMissingRelationError(inviteRowsError, 'design_professional_job_invites')) {
         throw inviteRowsError;
@@ -891,6 +899,42 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
     } finally {
       setResendingInviteId(null);
     }
+  };
+
+  const renderInviteEmailStatusBadge = (invite: PendingDesignInvite) => {
+    if (invite.email_bounced_at) {
+      return (
+        <Badge variant="destructive" className="flex items-center gap-1">
+          <MailX className="h-3 w-3" />
+          Bounced
+        </Badge>
+      );
+    }
+
+    if (invite.email_opened_at) {
+      return (
+        <Badge variant="info" className="flex items-center gap-1">
+          <MailOpen className="h-3 w-3" />
+          Opened
+        </Badge>
+      );
+    }
+
+    if (invite.email_delivered_at || invite.email_status === 'delivered') {
+      return (
+        <Badge variant="secondary" className="flex items-center gap-1">
+          <MailCheck className="h-3 w-3" />
+          Received
+        </Badge>
+      );
+    }
+
+    return (
+      <Badge variant="outline" className="flex items-center gap-1">
+        <Mail className="h-3 w-3" />
+        Sent
+      </Badge>
+    );
   };
 
   const selectDesignProfessionalSearchResult = (result: DesignProfessionalAccountSearchResult) => {
@@ -1793,7 +1837,10 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
                 <div className="min-w-0">
                   <span className="font-medium">{invite.display_name || 'Pending user'}</span>
                   {invite.business_name ? <span className="text-muted-foreground"> • {invite.business_name}</span> : null}
-                  {invite.email ? <span className="block text-xs text-muted-foreground">{invite.email}</span> : null}
+                  <div className="mt-1 flex flex-wrap items-center gap-2">
+                    {invite.email ? <span className="text-xs text-muted-foreground">{invite.email}</span> : null}
+                    {renderInviteEmailStatusBadge(invite)}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2 pl-3">
                   <span className="text-muted-foreground">{new Date(invite.requested_at).toLocaleDateString()}</span>

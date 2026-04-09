@@ -209,12 +209,27 @@ serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  const { data: designInviteData, error: designInviteError } = await supabase
+    .from("design_professional_job_invites")
+    .update(updatePayload)
+    .eq("resend_message_id", messageId)
+    .select("id");
+
+  if (designInviteError) {
+    console.error("Failed updating design_professional_job_invites from webhook:", designInviteError);
+    return new Response(JSON.stringify({ error: designInviteError.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...responseCorsHeaders },
+    });
+  }
+
   return new Response(
     JSON.stringify({
       success: true,
       eventType,
       messageId,
       matchedInvitations: data?.length || 0,
+      matchedDesignProfessionalInvites: designInviteData?.length || 0,
     }),
     {
       status: 200,
