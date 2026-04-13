@@ -105,14 +105,16 @@ interface RoleGroup {
   roles: string[];
 }
 
+const INTERNAL_COMPANY_ROLES = ['admin', 'company_admin', 'owner', 'controller', 'project_manager', 'employee', 'view_only'] as const;
+const isInternalCompanyRole = (role?: string | null) =>
+  INTERNAL_COMPANY_ROLES.includes(String(role || '').toLowerCase() as typeof INTERNAL_COMPANY_ROLES[number]);
+
 const roleGroups: RoleGroup[] = [
   { key: 'admins', label: 'Administrators', icon: <Shield className="h-5 w-5" />, badgeClass: 'bg-red-500 text-white', roles: ['admin', 'company_admin', 'owner'] },
   { key: 'controllers', label: 'Controllers', icon: <Briefcase className="h-5 w-5" />, badgeClass: 'bg-blue-500 text-white', roles: ['controller'] },
   { key: 'project_managers', label: 'Project Managers', icon: <HardHat className="h-5 w-5" />, badgeClass: 'bg-green-500 text-white', roles: ['project_manager'] },
-  { key: 'design_professionals', label: 'Design Professionals', icon: <HardHat className="h-5 w-5" />, badgeClass: 'bg-cyan-500 text-white', roles: ['design_professional'] },
   { key: 'employees', label: 'Employees', icon: <Users className="h-5 w-5" />, badgeClass: 'bg-gray-500 text-white', roles: ['employee'] },
   { key: 'view_only', label: 'View Only', icon: <User className="h-5 w-5" />, badgeClass: 'bg-gray-400 text-white', roles: ['view_only'] },
-  { key: 'vendors', label: 'Vendors', icon: <User className="h-5 w-5" />, badgeClass: 'bg-purple-500 text-white', roles: ['vendor'] },
 ];
 
 export default function UserManagement() {
@@ -221,12 +223,20 @@ export default function UserManagement() {
           ...profile,
           role: access?.role || profile.role,
         };
-      });
+      }).filter((profile) => isInternalCompanyRole(profile.role));
 
       setUsers(allUsers);
 
       const pendingRequests = (pendingRequestsResult.data || [])
-        .filter((request: any) => !isProjectDesignProfessionalInvite(request.notes || null));
+        .filter((request: any) => {
+          if (isProjectDesignProfessionalInvite(request.notes || null)) return false;
+          try {
+            const parsed = request?.notes ? JSON.parse(request.notes) : {};
+            return isInternalCompanyRole(parsed?.requestedRole || 'employee');
+          } catch {
+            return true;
+          }
+        });
 
       const pendingMap: Record<string, PendingSignupMeta> = {};
       (pendingRequests || []).forEach((request: any) => {

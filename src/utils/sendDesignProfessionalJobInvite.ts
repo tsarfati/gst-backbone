@@ -9,6 +9,8 @@ type SendDesignProfessionalJobInviteInput = {
   email: string;
   firstName?: string | null;
   lastName?: string | null;
+  businessName?: string | null;
+  vendorId?: string | null;
   projectRoleId?: string | null;
   projectRoleName?: string | null;
 };

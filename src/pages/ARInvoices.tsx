@@ -98,6 +98,8 @@ export default function ARInvoices() {
 
   const getStatusColor = (status: string) => {
     switch (status) {
+      case "sent_for_review": return "bg-amber-100 text-amber-800";
+      case "approved": return "bg-emerald-100 text-emerald-800";
       case "paid": return "bg-green-100 text-green-800";
       case "sent": return "bg-blue-100 text-blue-800";
       case "overdue": return "bg-red-100 text-red-800";
@@ -105,6 +107,12 @@ export default function ARInvoices() {
       default: return "bg-gray-100 text-gray-800";
     }
   };
+
+  const getStatusLabel = (status: string) =>
+    status
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
 
   return (
     <div className="p-4 md:p-6 space-y-6">
@@ -178,6 +186,8 @@ export default function ARInvoices() {
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="draft">Draft</SelectItem>
+                  <SelectItem value="sent_for_review">Sent for Review</SelectItem>
+                  <SelectItem value="approved">Approved</SelectItem>
                   <SelectItem value="sent">Sent</SelectItem>
                   <SelectItem value="partial">Partial</SelectItem>
                   <SelectItem value="paid">Paid</SelectItem>
@@ -228,7 +238,7 @@ export default function ARInvoices() {
                       {invoice.due_date ? format(new Date(invoice.due_date), "MM/dd/yyyy") : "-"}
                     </TableCell>
                     <TableCell>
-                      <Badge className={getStatusColor(invoice.status)}>{invoice.status}</Badge>
+                      <Badge className={getStatusColor(invoice.status)}>{getStatusLabel(invoice.status)}</Badge>
                     </TableCell>
                     <TableCell className="text-right">${formatNumber(invoice.total_amount)}</TableCell>
                     <TableCell className={`text-right font-medium ${invoice.balance_due > 0 ? "text-amber-600" : "text-green-600"}`}>

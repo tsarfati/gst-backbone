@@ -402,7 +402,6 @@ serve(async (req: Request): Promise<Response> => {
     const homeCompanyId = String(homeCompany.id);
 
     const externalAccessNeedsApproval = false;
-    const externalAccessAutoApprove = Boolean(externalCompanyId) && !externalAccessNeedsApproval;
 
     let vendorRecordId: string | null = null;
     if (requestedRole === "vendor") {
@@ -529,38 +528,6 @@ serve(async (req: Request): Promise<Response> => {
     };
 
     if (externalCompanyId && externalCompanyId !== homeCompanyId) {
-      const { data: existingExternalAccessRows, error: existingExternalAccessError } = await supabase
-        .from("user_company_access")
-        .select("user_id")
-        .eq("user_id", userId)
-        .eq("company_id", externalCompanyId)
-        .limit(1);
-      if (existingExternalAccessError) throw existingExternalAccessError;
-
-      if ((existingExternalAccessRows || []).length > 0) {
-        const { error: updateExternalAccessError } = await supabase
-          .from("user_company_access")
-          .update({
-            role: requestedRole,
-            is_active: externalAccessAutoApprove,
-            granted_by: externalAccessAutoApprove ? userId : null,
-          })
-          .eq("user_id", userId)
-          .eq("company_id", externalCompanyId);
-        if (updateExternalAccessError) throw updateExternalAccessError;
-      } else {
-        const { error: insertExternalAccessError } = await supabase
-          .from("user_company_access")
-          .insert({
-            user_id: userId,
-            company_id: externalCompanyId,
-            role: requestedRole,
-            is_active: externalAccessAutoApprove,
-            granted_by: externalAccessAutoApprove ? userId : null,
-          });
-        if (insertExternalAccessError) throw insertExternalAccessError;
-      }
-
       const approvedOrPendingStatus = externalAccessNeedsApproval ? "pending" : "approved";
       const reviewedAt = externalAccessNeedsApproval ? null : new Date().toISOString();
       const reviewedBy = externalAccessNeedsApproval ? null : userId;
@@ -757,7 +724,6 @@ serve(async (req: Request): Promise<Response> => {
         linkedCompanyId: externalCompanyId || null,
         linkedCompanyName: externalCompany?.display_name || externalCompany?.name || null,
         externalApprovalRequired: externalAccessNeedsApproval,
-        externalAccessAutoApproved: externalAccessAutoApprove,
         requestedRole,
         requiresEmailConfirmation: Boolean(confirmationUrl),
       }),

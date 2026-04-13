@@ -585,41 +585,28 @@ useEffect(() => {
       // Fetch suggested matches (bills and receipts)
       await fetchSuggestedMatches(transData);
 
-      // Set attachment preview (normalize storage paths and validate company)
+      // Resolve private attachment URLs for preview without rewriting the stored DB path.
       if (transData.attachment_url) {
-        const toPublicUrl = (raw: string): string => {
+        const resolveAttachmentPath = (raw: string): string => {
           try {
-            if (!raw) return raw;
-            // Already a public URL
-            if (raw.includes('/storage/v1/object/public/')) return raw;
-            // Pattern: bucket/path
-            if (!raw.startsWith('http') && raw.includes('/')) {
-              const [bucket, ...rest] = raw.split('/');
-              const filePath = rest.join('/');
-              const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-              return data.publicUrl || raw;
+            if (!raw.startsWith('http')) {
+              const bucketPrefix = 'credit-card-attachments/';
+              return raw.startsWith(bucketPrefix) ? raw.slice(bucketPrefix.length) : raw;
             }
-            // Pattern: signed URL
-            const m = raw.match(/storage\/v1\/object\/(?:sign|auth\/signed)\/([^/]+)\/(.+?)(?:\?|$)/);
-            if (m) {
-              const bucket = m[1];
-              const filePath = decodeURIComponent(m[2]);
-              const { data } = supabase.storage.from(bucket).getPublicUrl(filePath);
-              return data.publicUrl || raw;
+            const signedMatch = raw.match(/storage\/v1\/object\/(?:sign|public)\/credit-card-attachments\/(.+?)(?:\?|$)/);
+            if (signedMatch?.[1]) {
+              return decodeURIComponent(signedMatch[1]);
             }
             return raw;
           } catch {
             return raw;
           }
         };
-        
-        const normalized = toPublicUrl(transData.attachment_url as string);
-        
-        // Validate company ID in attachment path
-        const validateCompanyAttachment = (url: string): boolean => {
+
+        const validateCompanyAttachment = (pathOrUrl: string): boolean => {
           try {
-            // Extract path from public URL
-            const match = url.match(/credit-card-attachments\/([^/]+)\//);
+            const path = resolveAttachmentPath(pathOrUrl);
+            const match = path.match(/^([^/]+)\//);
             if (match) {
               const attachmentCompanyId = match[1];
               return attachmentCompanyId === currentCompany?.id;
@@ -630,16 +617,9 @@ useEffect(() => {
           }
         };
         
-        if (validateCompanyAttachment(normalized)) {
-          setAttachmentPreview(normalized);
-          if (normalized !== transData.attachment_url) {
-            // persist normalized URL for consistency
-            await supabase
-              .from('credit_card_transactions')
-              .update({ attachment_url: normalized })
-              .eq('id', transactionId);
-            setTransaction((prev: any) => ({ ...prev, attachment_url: normalized }));
-          }
+        if (validateCompanyAttachment(transData.attachment_url as string)) {
+          const resolvedAttachmentUrl = await resolveStorageUrl('credit-card-attachments', transData.attachment_url as string);
+          setAttachmentPreview(resolvedAttachmentUrl);
         } else {
           // Attachment belongs to another company - remove it
           await supabase

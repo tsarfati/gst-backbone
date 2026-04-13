@@ -26,6 +26,8 @@ type InvitePayload = {
   email: string;
   firstName?: string;
   lastName?: string;
+  businessName?: string | null;
+  vendorId?: string | null;
   projectRoleId?: string | null;
   projectRoleName?: string | null;
 };
@@ -39,6 +41,8 @@ type PendingJobInviteNote = {
   email: string;
   firstName?: string | null;
   lastName?: string | null;
+  businessName?: string | null;
+  vendorId?: string | null;
   projectRoleId?: string | null;
   projectRoleName?: string | null;
 };
@@ -103,8 +107,10 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { companyId, jobId, email, firstName, lastName, projectRoleId, projectRoleName }: InvitePayload = await req.json();
+    const { companyId, jobId, email, firstName, lastName, businessName, vendorId, projectRoleId, projectRoleName }: InvitePayload = await req.json();
     const normalizedEmail = String(email || "").trim().toLowerCase();
+    const normalizedBusinessName = String(businessName || "").trim() || null;
+    const normalizedVendorId = String(vendorId || "").trim() || null;
     if (!companyId || !jobId || !normalizedEmail) {
       return new Response(JSON.stringify({ error: "companyId, jobId, and email are required" }), {
         status: 400,
@@ -144,6 +150,8 @@ const handler = async (req: Request): Promise<Response> => {
     let inviteToken = crypto.randomUUID();
     const inviteNotes = {
       role: "design_professional",
+      businessName: normalizedBusinessName,
+      vendorId: normalizedVendorId,
       projectRoleId: projectRoleId || null,
       projectRoleName: projectRoleName || null,
     };
@@ -252,6 +260,8 @@ const handler = async (req: Request): Promise<Response> => {
           email: normalizedEmail,
           firstName: firstName || null,
           lastName: lastName || null,
+          businessName: normalizedBusinessName,
+          vendorId: normalizedVendorId,
           projectRoleId: projectRoleId || null,
           projectRoleName: projectRoleName || null,
         } satisfies PendingJobInviteNote,
@@ -262,6 +272,8 @@ const handler = async (req: Request): Promise<Response> => {
         requestType: "design_professional_job_invite",
         requestedRole: "design_professional",
         email: normalizedEmail,
+        businessName: normalizedBusinessName,
+        vendorId: normalizedVendorId,
         invitedJobId: jobId,
         jobInviteToken: inviteToken,
         projectRoleId: projectRoleId || null,

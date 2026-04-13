@@ -107,6 +107,10 @@ interface Job {
   name: string;
 }
 
+interface UserAccessJob extends Job {
+  sources: Array<'project_team' | 'job_access'>;
+}
+
 interface VendorJob {
   id: string;
   name: string;
@@ -185,7 +189,7 @@ export default function UserDetails() {
   const [user, setUser] = useState<UserProfile | null>(null);
   const [userEmail, setUserEmail] = useState<string | null>(null);
   const [lastSignInAt, setLastSignInAt] = useState<string | null>(null);
-  const [userJobs, setUserJobs] = useState<Job[]>([]);
+  const [userJobs, setUserJobs] = useState<UserAccessJob[]>([]);
   const [vendorJobs, setVendorJobs] = useState<VendorJob[]>([]);
   const [loginAudit, setLoginAudit] = useState<LoginAudit[]>([]);
   const [associatedVendor, setAssociatedVendor] = useState<Vendor | null>(null);
@@ -480,24 +484,75 @@ export default function UserDetails() {
 
         if (externalJobsError) throw externalJobsError;
 
-        const mappedJobs = (externalJobRows || []).map((item: any) => item.jobs).filter(Boolean);
-        const uniqueJobs = Array.from(new Map(mappedJobs.map((job: any) => [job.id, job])).values());
+        const mappedJobs = (externalJobRows || [])
+          .map((item: any) => item.jobs)
+          .filter(Boolean)
+          .map((job: any) => ({
+            id: String(job.id),
+            name: String(job.name),
+            sources: ['project_team'] as Array<'project_team' | 'job_access'>,
+          }));
+        const uniqueJobs = Array.from(new Map(mappedJobs.map((job) => [job.id, job])).values());
         setUserJobs(uniqueJobs);
         return;
       }
 
-      const { data: userJobsData } = await supabase.from('user_job_access').select('job_id, jobs(id, name)').eq('user_id', userId);
-      if (userJobsData && userJobsData.length > 0) {
-        setUserJobs(userJobsData.map((item: any) => item.jobs).filter(Boolean));
-        return;
-      }
-      const { data: tcSettings } = await supabase.from('employee_timecard_settings').select('assigned_jobs').eq('user_id', userId).eq('company_id', currentCompany.id).maybeSingle();
-      if (tcSettings?.assigned_jobs?.length > 0) {
-        const { data: jobsData } = await supabase.from('jobs').select('id, name').in('id', tcSettings.assigned_jobs);
-        if (jobsData) setUserJobs(jobsData);
-      }
+      const [userJobAccessRes, projectDirectoryRes] = await Promise.all([
+        supabase
+          .from('user_job_access')
+          .select('job_id, jobs!inner(id, name, company_id)')
+          .eq('user_id', userId)
+          .eq('jobs.company_id', currentCompany.id),
+        supabase
+          .from('job_project_directory')
+          .select('job_id, jobs!inner(id, name)')
+          .eq('linked_user_id', userId)
+          .eq('company_id', currentCompany.id)
+          .eq('is_project_team_member', true)
+          .eq('is_active', true),
+      ]);
+
+      if (userJobAccessRes.error) throw userJobAccessRes.error;
+      if (projectDirectoryRes.error) throw projectDirectoryRes.error;
+
+      const mergedById = new Map<string, UserAccessJob>();
+
+      (userJobAccessRes.data || []).forEach((item: any) => {
+        const job = item.jobs;
+        if (!job?.id || !job?.name) return;
+        const id = String(job.id);
+        const existing = mergedById.get(id);
+        if (existing) {
+          if (!existing.sources.includes('job_access')) existing.sources.push('job_access');
+          return;
+        }
+        mergedById.set(id, {
+          id,
+          name: String(job.name),
+          sources: ['job_access'],
+        });
+      });
+
+      (projectDirectoryRes.data || []).forEach((item: any) => {
+        const job = item.jobs;
+        if (!job?.id || !job?.name) return;
+        const id = String(job.id);
+        const existing = mergedById.get(id);
+        if (existing) {
+          if (!existing.sources.includes('project_team')) existing.sources.push('project_team');
+          return;
+        }
+        mergedById.set(id, {
+          id,
+          name: String(job.name),
+          sources: ['project_team'],
+        });
+      });
+
+      setUserJobs(Array.from(mergedById.values()).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
       console.error('Error fetching user jobs:', error);
+      setUserJobs([]);
     }
   };
 
@@ -1080,6 +1135,8 @@ export default function UserDetails() {
   const isVendorUser = user.role === 'vendor';
   const isDesignProfessionalUser = user.role === 'design_professional';
   const isExternalAccessUser = isVendorUser || isDesignProfessionalUser;
+  const isEmployeeLikeRole = ['employee'].includes(String(user.role || '').toLowerCase());
+  const shouldShowWebsiteJobAccess = !isVendorUser && !isEmployeeLikeRole;
   const assignedCustomRole = user.custom_role_id ? customRoles.find((r) => r.id === user.custom_role_id) : null;
 
   const getAppLabel = (source?: string) => {
@@ -1164,7 +1221,7 @@ export default function UserDetails() {
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Briefcase className="h-5 w-5" />
-              Job Access
+              {isDesignProfessionalUser ? 'Project Team Jobs' : 'Job Access'}
             </CardTitle>
           </CardHeader>
           <CardContent>
@@ -1189,7 +1246,7 @@ export default function UserDetails() {
               )
             ) : userJobs.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                This design professional does not currently have any assigned jobs.
+                This design professional is not currently attached to any project teams on this company.
               </p>
             ) : (
               <div className="space-y-2">
@@ -1798,6 +1855,45 @@ export default function UserDetails() {
       )}
 
       {!isVendorUser && (
+        shouldShowWebsiteJobAccess && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Briefcase className="h-5 w-5" />
+                Website / PM Job Access
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              {userJobs.length === 0 ? (
+                <p className="text-sm text-muted-foreground">
+                  This user does not currently have any BuilderLink website or PM job access.
+                </p>
+              ) : (
+                <div className="space-y-2">
+                  {userJobs.map((job) => (
+                    <div key={job.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
+                      <span className="font-medium">{job.name}</span>
+                      <div className="flex items-center gap-2">
+                        {job.sources.includes('project_team') && (
+                          <Badge variant="outline">Project Team</Badge>
+                        )}
+                        {job.sources.includes('job_access') && (
+                          <Badge variant="outline">Job Access</Badge>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+              <p className="text-xs text-muted-foreground mt-3">
+                This is view-only and reflects BuilderLink website / PM access. Punch Clock assignments are managed separately below.
+              </p>
+            </CardContent>
+          </Card>
+        )
+      )}
+
+      {!isVendorUser && (
         <div id="job-access-section">
           <UserJobAccess
             userId={userId!}
@@ -1991,6 +2087,11 @@ export default function UserDetails() {
                   </div>
                 ))}
               </div>
+            )}
+            {isDesignProfessionalUser && userJobs.length > 0 && (
+              <p className="text-xs text-muted-foreground mt-3">
+                These jobs reflect project team membership on this builder company.
+              </p>
             )}
           </CardContent>
         </Card>

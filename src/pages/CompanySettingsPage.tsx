@@ -225,6 +225,7 @@ export default function CompanySettingsPage() {
         .select('id,user_id,company_id,role,is_active,granted_at')
         .eq('company_id', currentCompany.id)
         .eq('is_active', true)
+        .not('role', 'in', '("vendor","design_professional")')
         .order('granted_at', { ascending: false });
       if (accessError) throw accessError;
 
@@ -304,13 +305,15 @@ export default function CompanySettingsPage() {
 
       const { data: accessRows, error: accessError } = await supabase
         .from('user_company_access')
-        .select('user_id,company_id,is_active')
+        .select('user_id,company_id,is_active,role')
         .in('company_id', orgCompanyIds)
         .eq('is_active', true);
       if (accessError) throw accessError;
 
       const byUser = new Map<string, Set<string>>();
       (accessRows || []).forEach((row: any) => {
+        const normalizedRole = String(row.role || '').toLowerCase();
+        if (normalizedRole === 'vendor' || normalizedRole === 'design_professional') return;
         const current = byUser.get(row.user_id) || new Set<string>();
         current.add(row.company_id);
         byUser.set(row.user_id, current);

@@ -11,12 +11,40 @@ export interface SearchIndexItem {
   id: string;
   title: string;
   description: string;
-  type: 'receipt' | 'job' | 'vendor' | 'employee' | 'announcement' | 'page' | 'action' | 'report' | 'task';
+  type: 'receipt' | 'job' | 'vendor' | 'employee' | 'announcement' | 'page' | 'action' | 'report' | 'task' | 'bill' | 'ar_invoice' | 'customer' | 'payment' | 'credit_card_transaction' | 'subcontract' | 'purchase_order';
   path: string;
   content?: string;
   tags?: string[];
   updatedAt: string;
 }
+
+const formatCurrencyVariants = (value: number | string | null | undefined) => {
+  const numeric = Number(value || 0);
+  if (!Number.isFinite(numeric)) return [] as string[];
+
+  const fixed = numeric.toFixed(2);
+  const whole = Math.round(numeric).toString();
+  const localized = numeric.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+  const localizedWhole = numeric.toLocaleString('en-US', { maximumFractionDigits: 0 });
+
+  return Array.from(new Set([
+    fixed,
+    whole,
+    localized,
+    localizedWhole,
+    `$${fixed}`,
+    `$${localized}`,
+  ]));
+};
+
+const normalizeSearchValue = (value: string) =>
+  value
+    .toLowerCase()
+    .replace(/\$/g, '')
+    .replace(/,/g, '')
+    .replace(/[^a-z0-9.\s_-]/g, ' ')
+    .replace(/\s+/g, ' ')
+    .trim();
 
 export function useSearchIndex() {
   const [isIndexing, setIsIndexing] = useState(false);
@@ -135,6 +163,302 @@ export function useSearchIndex() {
               updatedAt: vendor.updated_at
             });
           });
+        }
+      }
+
+      if (hasAccess('bills')) {
+        const { data: bills, error: billsError } = await supabase
+          .from('invoices')
+          .select('id, invoice_number, amount, due_date, status, job_id, vendor_id, vendors(name)')
+          .eq('company_id', currentCompany.id)
+          .order('created_at', { ascending: false })
+          .limit(500);
+
+        if (billsError) {
+          console.error('Error fetching bills for search:', billsError);
+        } else {
+          ((bills || []) as any[])
+            .filter((bill) => !hasScopedJobAccess || allowedJobIds.has(String(bill.job_id || '')))
+            .forEach((bill) => {
+              const amountTokens = formatCurrencyVariants(bill.amount);
+              const vendorName = String((bill.vendors as any)?.name || '').trim();
+              newIndex.push({
+                id: `bill-${bill.id}`,
+                title: bill.invoice_number || `Bill ${bill.id}`,
+                description: [vendorName, bill.status ? `• ${String(bill.status).replace(/_/g, ' ')}` : '', amountTokens[amountTokens.length - 1] ? `• ${amountTokens[amountTokens.length - 1]}` : '']
+                  .filter(Boolean)
+                  .join(' '),
+                type: 'bill',
+                path: `/invoices/${bill.id}`,
+                content: [
+                  bill.invoice_number,
+                  vendorName,
+                  bill.status,
+                  bill.due_date,
+                  ...amountTokens,
+                ].filter(Boolean).join(' '),
+                tags: ['bill', 'invoice', 'payable', ...(vendorName ? ['vendor'] : [])],
+                updatedAt: bill.due_date || new Date().toISOString(),
+              });
+            });
+        }
+      }
+
+      if (hasAccess('receivables')) {
+        const { data: customers, error: customersError } = await supabase
+          .from('customers')
+          .select('id, name, contact_person, email, phone, city, state, updated_at')
+          .eq('company_id', currentCompany.id)
+          .order('name');
+
+        if (customersError) {
+          console.error('Error fetching customers for search:', customersError);
+        } else {
+          ((customers || []) as any[]).forEach((customer) => {
+            newIndex.push({
+              id: `customer-${customer.id}`,
+              title: customer.name,
+              description: [customer.contact_person ? `Contact: ${customer.contact_person}` : '', customer.city ? `• ${customer.city}` : '', customer.state ? `, ${customer.state}` : '']
+                .join(' ')
+                .trim(),
+              type: 'customer',
+              path: `/receivables/customers/${customer.id}`,
+              content: [
+                customer.name,
+                customer.contact_person,
+                customer.email,
+                customer.phone,
+                customer.city,
+                customer.state,
+              ].filter(Boolean).join(' '),
+              tags: ['customer', 'receivables'],
+              updatedAt: customer.updated_at || new Date().toISOString(),
+            });
+          });
+        }
+
+        const { data: arInvoices, error: arInvoicesError } = await supabase
+          .from('ar_invoices')
+          .select('id, invoice_number, total_amount, balance_due, status, due_date, issue_date, job_id, customer:customers(name)')
+          .eq('company_id', currentCompany.id)
+          .order('issue_date', { ascending: false })
+          .limit(500);
+
+        if (arInvoicesError) {
+          console.error('Error fetching AR invoices for search:', arInvoicesError);
+        } else {
+          ((arInvoices || []) as any[])
+            .filter((invoice) => !hasScopedJobAccess || allowedJobIds.has(String(invoice.job_id || '')))
+            .forEach((invoice) => {
+              const totalTokens = formatCurrencyVariants(invoice.total_amount);
+              const balanceTokens = formatCurrencyVariants(invoice.balance_due);
+              const customerName = String((invoice.customer as any)?.name || '').trim();
+              newIndex.push({
+                id: `ar-invoice-${invoice.id}`,
+                title: invoice.invoice_number || `AR Invoice ${invoice.id}`,
+                description: [customerName, invoice.status ? `• ${String(invoice.status).replace(/_/g, ' ')}` : '', totalTokens[totalTokens.length - 1] ? `• ${totalTokens[totalTokens.length - 1]}` : '']
+                  .filter(Boolean)
+                  .join(' '),
+                type: 'ar_invoice',
+                path: `/receivables/invoices/${invoice.id}`,
+                content: [
+                  invoice.invoice_number,
+                  customerName,
+                  invoice.status,
+                  invoice.due_date,
+                  invoice.issue_date,
+                  ...totalTokens,
+                  ...balanceTokens.map((token) => `balance ${token}`),
+                ].filter(Boolean).join(' '),
+                tags: ['receivables', 'invoice', 'ar', ...(customerName ? ['customer'] : [])],
+                updatedAt: invoice.issue_date || new Date().toISOString(),
+              });
+            });
+        }
+      }
+
+      if (hasAccess('payment-history')) {
+        const { data: vendorRows, error: vendorRowsError } = await supabase
+          .from('vendors')
+          .select('id, name')
+          .eq('company_id', currentCompany.id);
+
+        if (vendorRowsError) {
+          console.error('Error fetching vendors for payment search:', vendorRowsError);
+        }
+
+        const vendorNameById = new Map<string, string>(
+          ((vendorRows || []) as any[]).map((vendor) => [String(vendor.id), String(vendor.name || '')]),
+        );
+        const vendorIds = Array.from(vendorNameById.keys());
+
+        if (vendorIds.length > 0) {
+          const { data: paymentRows, error: paymentRowsError } = await supabase
+            .from('payments')
+            .select('id, payment_number, amount, payment_date, payment_method, status, memo, reference_number, vendor_id')
+            .in('vendor_id', vendorIds)
+            .order('payment_date', { ascending: false })
+            .limit(500);
+
+          if (paymentRowsError) {
+            console.error('Error fetching payments for search:', paymentRowsError);
+          } else {
+            ((paymentRows || []) as any[]).forEach((payment) => {
+              const amountTokens = formatCurrencyVariants(payment.amount);
+              const vendorName = vendorNameById.get(String(payment.vendor_id || '')) || '';
+              newIndex.push({
+                id: `payment-${payment.id}`,
+                title: payment.payment_number || payment.reference_number || `Payment ${payment.id}`,
+                description: [vendorName, payment.status ? `• ${String(payment.status).replace(/_/g, ' ')}` : '', amountTokens[amountTokens.length - 1] ? `• ${amountTokens[amountTokens.length - 1]}` : '']
+                  .filter(Boolean)
+                  .join(' '),
+                type: 'payment',
+                path: `/receivables/payments/${payment.id}`,
+                content: [
+                  payment.payment_number,
+                  payment.reference_number,
+                  payment.memo,
+                  payment.payment_method,
+                  payment.status,
+                  payment.payment_date,
+                  vendorName,
+                  ...amountTokens,
+                ].filter(Boolean).join(' '),
+                tags: ['payment', 'receivables', 'cash'],
+                updatedAt: payment.payment_date || new Date().toISOString(),
+              });
+            });
+          }
+        }
+      }
+
+      if (hasAccess('banking-credit-cards')) {
+        const { data: cardRows, error: cardRowsError } = await supabase
+          .from('credit_cards')
+          .select('id, card_name, company_id')
+          .eq('company_id', currentCompany.id);
+
+        if (cardRowsError) {
+          console.error('Error fetching credit cards for search:', cardRowsError);
+        }
+
+        const cardNameById = new Map<string, string>(
+          ((cardRows || []) as any[]).map((card) => [String(card.id), String(card.card_name || '')]),
+        );
+        const cardIds = Array.from(cardNameById.keys());
+
+        if (cardIds.length > 0) {
+          const { data: ccRows, error: ccRowsError } = await supabase
+            .from('credit_card_transactions')
+            .select('id, credit_card_id, transaction_date, description, merchant_name, amount, status, reference_number, job_id')
+            .in('credit_card_id', cardIds)
+            .order('transaction_date', { ascending: false })
+            .limit(500);
+
+          if (ccRowsError) {
+            console.error('Error fetching credit card transactions for search:', ccRowsError);
+          } else {
+            ((ccRows || []) as any[])
+              .filter((transaction) => !hasScopedJobAccess || !transaction.job_id || allowedJobIds.has(String(transaction.job_id)))
+              .forEach((transaction) => {
+                const amountTokens = formatCurrencyVariants(transaction.amount);
+                const cardName = cardNameById.get(String(transaction.credit_card_id || '')) || '';
+                newIndex.push({
+                  id: `credit-card-transaction-${transaction.id}`,
+                  title: transaction.merchant_name || transaction.description || `Transaction ${transaction.id}`,
+                  description: [cardName, transaction.status ? `• ${String(transaction.status).replace(/_/g, ' ')}` : '', amountTokens[amountTokens.length - 1] ? `• ${amountTokens[amountTokens.length - 1]}` : '']
+                    .filter(Boolean)
+                    .join(' '),
+                  type: 'credit_card_transaction',
+                  path: `/payables/credit-cards/${transaction.credit_card_id}/transactions?transactionId=${encodeURIComponent(String(transaction.id))}`,
+                  content: [
+                    transaction.description,
+                    transaction.merchant_name,
+                    transaction.reference_number,
+                    transaction.status,
+                    transaction.transaction_date,
+                    cardName,
+                    ...amountTokens,
+                  ].filter(Boolean).join(' '),
+                  tags: ['credit card', 'transaction', 'expense'],
+                  updatedAt: transaction.transaction_date || new Date().toISOString(),
+                });
+              });
+          }
+        }
+      }
+
+      if (hasAccess('vendors')) {
+        const { data: subcontracts, error: subcontractsError } = await supabase
+          .from('subcontracts')
+          .select('id, subcontract_number, title, contract_amount, status, vendor_id, job_id, vendors(name)')
+          .eq('company_id', currentCompany.id)
+          .order('created_at', { ascending: false })
+          .limit(500);
+
+        if (subcontractsError) {
+          console.error('Error fetching subcontracts for search:', subcontractsError);
+        } else {
+          ((subcontracts || []) as any[])
+            .filter((subcontract) => !hasScopedJobAccess || !subcontract.job_id || allowedJobIds.has(String(subcontract.job_id)))
+            .forEach((subcontract) => {
+              const amountTokens = formatCurrencyVariants(subcontract.contract_amount);
+              const vendorName = String((subcontract.vendors as any)?.name || '').trim();
+              newIndex.push({
+                id: `subcontract-${subcontract.id}`,
+                title: subcontract.subcontract_number || subcontract.title || `Subcontract ${subcontract.id}`,
+                description: [vendorName, subcontract.status ? `• ${String(subcontract.status).replace(/_/g, ' ')}` : '', amountTokens[amountTokens.length - 1] ? `• ${amountTokens[amountTokens.length - 1]}` : '']
+                  .filter(Boolean)
+                  .join(' '),
+                type: 'subcontract',
+                path: `/subcontracts/${subcontract.id}`,
+                content: [
+                  subcontract.subcontract_number,
+                  subcontract.title,
+                  subcontract.status,
+                  vendorName,
+                  ...amountTokens,
+                ].filter(Boolean).join(' '),
+                tags: ['subcontract', 'contract', 'committed cost'],
+                updatedAt: new Date().toISOString(),
+              });
+            });
+        }
+
+        const { data: poRows, error: poRowsError } = await supabase
+          .from('purchase_orders')
+          .select('id, po_number, title, total_amount, status, vendor_id, job_id, vendors(name)')
+          .eq('company_id', currentCompany.id)
+          .order('created_at', { ascending: false })
+          .limit(500);
+
+        if (poRowsError) {
+          console.error('Error fetching purchase orders for search:', poRowsError);
+        } else {
+          ((poRows || []) as any[])
+            .filter((po) => !hasScopedJobAccess || !po.job_id || allowedJobIds.has(String(po.job_id)))
+            .forEach((po) => {
+              const amountTokens = formatCurrencyVariants(po.total_amount);
+              const vendorName = String((po.vendors as any)?.name || '').trim();
+              newIndex.push({
+                id: `purchase-order-${po.id}`,
+                title: po.po_number || po.title || `Purchase Order ${po.id}`,
+                description: [vendorName, po.status ? `• ${String(po.status).replace(/_/g, ' ')}` : '', amountTokens[amountTokens.length - 1] ? `• ${amountTokens[amountTokens.length - 1]}` : '']
+                  .filter(Boolean)
+                  .join(' '),
+                type: 'purchase_order',
+                path: `/purchase-orders/${po.id}`,
+                content: [
+                  po.po_number,
+                  po.title,
+                  po.status,
+                  vendorName,
+                  ...amountTokens,
+                ].filter(Boolean).join(' '),
+                tags: ['purchase order', 'po', 'committed cost'],
+                updatedAt: new Date().toISOString(),
+              });
+            });
         }
       }
 
@@ -353,12 +677,19 @@ export function useSearchIndex() {
     if (!query.trim()) return [];
     
     const normalizedQuery = query.toLowerCase();
+    const normalizedLooseQuery = normalizeSearchValue(query);
     return indexedItems
       .filter(item => 
         item.title.toLowerCase().includes(normalizedQuery) ||
         item.description.toLowerCase().includes(normalizedQuery) ||
         item.content?.toLowerCase().includes(normalizedQuery) ||
-        item.tags?.some(tag => tag.toLowerCase().includes(normalizedQuery))
+        item.tags?.some(tag => tag.toLowerCase().includes(normalizedQuery)) ||
+        (normalizedLooseQuery.length > 0 && (
+          normalizeSearchValue(item.title).includes(normalizedLooseQuery) ||
+          normalizeSearchValue(item.description).includes(normalizedLooseQuery) ||
+          normalizeSearchValue(item.content || '').includes(normalizedLooseQuery) ||
+          item.tags?.some(tag => normalizeSearchValue(tag).includes(normalizedLooseQuery))
+        ))
       )
       .sort((a, b) => {
         // Prioritize title matches

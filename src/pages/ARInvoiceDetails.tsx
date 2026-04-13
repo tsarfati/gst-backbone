@@ -72,6 +72,7 @@ export default function ARInvoiceDetails() {
   const [lineItems, setLineItems] = useState<LineItem[]>([]);
   const [loading, setLoading] = useState(true);
   const [exporting, setExporting] = useState(false);
+  const [statusUpdating, setStatusUpdating] = useState<string | null>(null);
 
   useEffect(() => {
     if (id && currentCompany?.id) {
@@ -124,16 +125,52 @@ export default function ARInvoiceDetails() {
   const getStatusBadge = (status: string) => {
     const variants: Record<string, string> = {
       draft: "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300",
+      sent_for_review: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300",
+      approved: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-300",
       sent: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300",
       paid: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300",
       partial: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300",
       overdue: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300",
     };
+    const label = status
+      .split("_")
+      .map((part) => part.charAt(0).toUpperCase() + part.slice(1))
+      .join(" ");
     return (
       <Badge className={variants[status] || variants.draft}>
-        {status.charAt(0).toUpperCase() + status.slice(1)}
+        {label}
       </Badge>
     );
+  };
+
+  const updateInvoiceStatus = async (nextStatus: string, successTitle: string, successDescription: string) => {
+    if (!invoice || !currentCompany?.id) return;
+
+    try {
+      setStatusUpdating(nextStatus);
+      const { error } = await supabase
+        .from("ar_invoices")
+        .update({ status: nextStatus })
+        .eq("id", invoice.id)
+        .eq("company_id", currentCompany.id);
+
+      if (error) throw error;
+
+      setInvoice((prev) => (prev ? { ...prev, status: nextStatus } : prev));
+      toast({
+        title: successTitle,
+        description: successDescription,
+      });
+    } catch (error) {
+      console.error("Error updating invoice status:", error);
+      toast({
+        title: "Error",
+        description: "Failed to update invoice status",
+        variant: "destructive",
+      });
+    } finally {
+      setStatusUpdating(null);
+    }
   };
 
   const exportToPDF = async () => {
@@ -283,6 +320,12 @@ export default function ARInvoiceDetails() {
     );
   }
 
+  const invoiceStatus = String(invoice.status || "").toLowerCase();
+  const canEditDraft = invoiceStatus === "draft";
+  const canApproveReview = invoiceStatus === "sent_for_review";
+  const canReturnToDraft = invoiceStatus === "sent_for_review" || invoiceStatus === "approved";
+  const canFinalizeSend = invoiceStatus === "approved";
+
   return (
     <div className="p-4 md:p-6 space-y-6">
       {/* Header */}
@@ -311,7 +354,42 @@ export default function ARInvoiceDetails() {
             )}
             {exporting ? 'Exporting...' : 'Export'}
           </Button>
-          {invoice.status === "draft" && (
+          {canReturnToDraft && (
+            <Button
+              variant="outline"
+              disabled={statusUpdating !== null}
+              onClick={() => void updateInvoiceStatus("draft", "Returned to Draft", "Draw has been returned to draft for further edits.")}
+            >
+              {statusUpdating === "draft" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Return to Draft
+            </Button>
+          )}
+          {canApproveReview && (
+            <Button
+              variant="secondary"
+              disabled={statusUpdating !== null}
+              onClick={() => void updateInvoiceStatus("approved", "Draw Approved", "Draw review is complete and ready to finalize/send.")}
+            >
+              {statusUpdating === "approved" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Approve Draw
+            </Button>
+          )}
+          {canFinalizeSend && (
+            <Button
+              disabled={statusUpdating !== null}
+              onClick={() => void updateInvoiceStatus("sent", "Invoice Finalized", "Draw has been finalized and marked as sent.")}
+            >
+              {statusUpdating === "sent" ? (
+                <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+              ) : null}
+              Finalize / Mark Sent
+            </Button>
+          )}
+          {canEditDraft && (
             <Button onClick={() => navigate(`/receivables/invoices/${id}/edit`)}>
               <Edit className="h-4 w-4 mr-2" />
               Edit Invoice
@@ -321,6 +399,25 @@ export default function ARInvoiceDetails() {
       </div>
 
       {/* Summary Cards */}
+      {invoiceStatus === "sent_for_review" && (
+        <Card className="border-amber-300 bg-amber-50/60 dark:bg-amber-950/20">
+          <CardContent className="pt-6">
+            <p className="text-sm text-amber-900 dark:text-amber-200">
+              This draw has been sent for review and is currently locked. Approve it to continue, or return it to draft for revisions.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+      {invoiceStatus === "approved" && (
+        <Card className="border-emerald-300 bg-emerald-50/60 dark:bg-emerald-950/20">
+          <CardContent className="pt-6">
+            <p className="text-sm text-emerald-900 dark:text-emerald-200">
+              This draw has been approved. Finalize it to move it into the sent invoices workflow, or return it to draft if changes are needed.
+            </p>
+          </CardContent>
+        </Card>
+      )}
+
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="pb-2">

@@ -172,6 +172,7 @@ import VendorPortalSettings from "./pages/VendorPortalSettings";
 import DesignProfessionalDashboard from "./pages/DesignProfessionalDashboard";
 import DesignProfessionalJobs from "./pages/DesignProfessionalJobs";
 import DesignProfessionalCompanySettings from "./pages/DesignProfessionalCompanySettings";
+import DesignProfessionalProjectAccess from "./pages/DesignProfessionalProjectAccess";
 import DesignProfessionalRFIs from "./pages/DesignProfessionalRFIs";
 import DesignProfessionalSubmittals from "./pages/DesignProfessionalSubmittals";
 import DesignProfessionalPermitting from "./pages/DesignProfessionalPermitting";
@@ -535,7 +536,7 @@ function AuthenticatedRoutes() {
               } />
               <Route path="design-professional/settings/users" element={
                 <RoleGuard allowedRoles={['design_professional']}>
-                  <UserSettings />
+                  <DesignProfessionalProjectAccess />
                 </RoleGuard>
               } />
               <Route path="design-professional/subscription" element={

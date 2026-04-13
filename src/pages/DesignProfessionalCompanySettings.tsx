@@ -384,14 +384,14 @@ export default function DesignProfessionalCompanySettings() {
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Manage Users</CardTitle>
+                <CardTitle>Project Access</CardTitle>
                 <CardDescription>
-                  Manage your Design Pro team members and their workspace access.
+                  Manage who can work on each project from the project itself. Company settings stay here, but project access is invite-based.
                 </CardDescription>
               </div>
               <Button onClick={() => navigate("/design-professional/settings/users")}>
                 <Users className="h-4 w-4 mr-2" />
-                Open User Management
+                Open Project Access
               </Button>
             </CardHeader>
           </Card>

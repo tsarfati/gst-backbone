@@ -77,6 +77,9 @@ const isProjectDesignProfessionalInvite = (notes?: string): boolean => {
   }
 };
 
+const INTERNAL_COMPANY_ROLES = new Set(['admin', 'company_admin', 'owner', 'controller', 'project_manager', 'employee', 'view_only']);
+const isInternalCompanyRole = (role?: string | null) => INTERNAL_COMPANY_ROLES.has(String(role || '').toLowerCase());
+
 export default function CompanyAccessApproval() {
   const { user } = useAuth();
   const { currentCompany, loading: companyLoading } = useCompany();
@@ -106,7 +109,10 @@ export default function CompanyAccessApproval() {
       if (requestsError) throw requestsError;
 
         // Then get user profiles for each request
-      const relevantRequests = (requestsData || []).filter((request: any) => !isProjectDesignProfessionalInvite(request.notes || undefined));
+      const relevantRequests = (requestsData || []).filter((request: any) => {
+        if (isProjectDesignProfessionalInvite(request.notes || undefined)) return false;
+        return isInternalCompanyRole(parseRequestedRole(request.notes || undefined));
+      });
 
       const requestsWithProfiles = await Promise.all(
           relevantRequests.map(async (request) => {
@@ -165,7 +171,7 @@ export default function CompanyAccessApproval() {
 
       if (requestError) throw requestError;
 
-      // If approved, grant company access
+      // If approved, grant company access only for internal company roles.
       if (action === 'approved') {
         const targetRequest = requests.find((r) => r.id === requestId);
         const customRoleId = targetRequest?.custom_role_id || null;
@@ -178,33 +184,35 @@ export default function CompanyAccessApproval() {
             approved_by: user.id,
             role: requestedRole as any,
             custom_role_id: customRoleId,
-          })
-          .eq('user_id', userId);
+        })
+        .eq('user_id', userId);
         if (profileError) throw profileError;
 
-        const { error: accessError } = await supabase
-          .from('user_company_access')
-          .insert({
-            user_id: userId,
-            company_id: currentCompany.id,
-            role: requestedRole as any,
-            is_active: true,
-            granted_by: user.id
-          } as any);
-
-        if (accessError) {
-          // If access already exists, try to update it
-          const { error: updateError } = await supabase
+        if (isInternalCompanyRole(requestedRole)) {
+          const { error: accessError } = await supabase
             .from('user_company_access')
-            .update({
+            .insert({
+              user_id: userId,
+              company_id: currentCompany.id,
+              role: requestedRole as any,
               is_active: true,
               granted_by: user.id
-            })
-            .eq('user_id', userId)
-            .eq('company_id', currentCompany.id);
+            } as any);
 
-          if (updateError) {
-            console.warn('Error granting access:', updateError);
+          if (accessError) {
+            // If access already exists, try to update it
+            const { error: updateError } = await supabase
+              .from('user_company_access')
+              .update({
+                is_active: true,
+                granted_by: user.id
+              })
+              .eq('user_id', userId)
+              .eq('company_id', currentCompany.id);
+
+            if (updateError) {
+              console.warn('Error granting access:', updateError);
+            }
           }
         }
       } else {

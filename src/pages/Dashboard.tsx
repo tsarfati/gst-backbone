@@ -521,218 +521,186 @@ export default function Dashboard() {
     if (!user || !currentCompany) return;
     
     try {
-      const { data, error } = await supabase
-        .from('notifications')
-        .select('*')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false })
-        .limit(30);
+      const approverRole = String(activeCompanyRole || profile?.role || '').toLowerCase();
+      const canApproveIntake = isPrivileged
+        || ['admin', 'company_admin', 'owner', 'controller', 'super_admin'].includes(approverRole)
+        || String(profile?.role || '').toLowerCase() === 'super_admin';
+      let baseNotifications: Notification[] = [];
 
-      if (error) throw error;
+      try {
+        const { data, error } = await supabase
+          .from('notifications')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(30);
 
-      const rawNotifications = (data || []) as Notification[];
-      const notificationContexts = rawNotifications.map((notification) => ({
-        notification,
-        context: extractNotificationEntityContext(notification),
-      }));
+        if (error) throw error;
 
-      const bidIds = Array.from(new Set(
-        notificationContexts.flatMap(({ context }) => Array.from(context.bids))
-      ));
-      const rfpIds = Array.from(new Set(
-        notificationContexts.flatMap(({ context }) => Array.from(context.rfps))
-      ));
-      const jobIds = Array.from(new Set(
-        notificationContexts.flatMap(({ context }) => Array.from(context.jobs))
-      ));
-      const invoiceIds = Array.from(new Set(
-        notificationContexts.flatMap(({ context }) => Array.from(context.invoices))
-      ));
-      const taskIds = Array.from(new Set(
-        notificationContexts.flatMap(({ context }) => Array.from(context.tasks))
-      ));
-
-      const [bidsRes, rfpsRes, jobsRes, invoicesRes, tasksRes] = await Promise.all([
-        bidIds.length > 0
-          ? supabase
-              .from('bids')
-              .select('id, company_id, rfp:rfps!inner(job_id)')
-              .in('id', bidIds)
-          : Promise.resolve({ data: [], error: null }),
-        rfpIds.length > 0
-          ? supabase
-              .from('rfps')
-              .select('id, company_id, job_id')
-              .in('id', rfpIds)
-          : Promise.resolve({ data: [], error: null }),
-        jobIds.length > 0
-          ? supabase
-              .from('jobs')
-              .select('id, company_id')
-              .in('id', jobIds)
-          : Promise.resolve({ data: [], error: null }),
-        invoiceIds.length > 0
-          ? supabase
-              .from('invoices')
-              .select('id, company_id, job_id')
-              .in('id', invoiceIds)
-          : Promise.resolve({ data: [], error: null }),
-        taskIds.length > 0
-          ? supabase
-              .from('tasks')
-              .select('id, company_id, job_id')
-              .in('id', taskIds)
-          : Promise.resolve({ data: [], error: null }),
-      ]);
-
-      if ((bidsRes as any).error) throw (bidsRes as any).error;
-      if ((rfpsRes as any).error) throw (rfpsRes as any).error;
-      if ((jobsRes as any).error) throw (jobsRes as any).error;
-      if ((invoicesRes as any).error) throw (invoicesRes as any).error;
-      if ((tasksRes as any).error) throw (tasksRes as any).error;
-
-      const bidMap = new Map<string, { company_id: string; job_id: string | null }>(
-        (((bidsRes as any).data) || []).map((row: any) => [
-          String(row.id),
-          {
-            company_id: String(row.company_id),
-            job_id: row?.rfp?.job_id ? String(row.rfp.job_id) : null,
-          },
-        ]),
-      );
-      const rfpMap = new Map<string, { company_id: string; job_id: string | null }>(
-        (((rfpsRes as any).data) || []).map((row: any) => [
-          String(row.id),
-          {
-            company_id: String(row.company_id),
-            job_id: row?.job_id ? String(row.job_id) : null,
-          },
-        ]),
-      );
-      const jobMap = new Map<string, { company_id: string }>(
-        (((jobsRes as any).data) || []).map((row: any) => [
-          String(row.id),
-          { company_id: String(row.company_id) },
-        ]),
-      );
-      const invoiceMap = new Map<string, { company_id: string; job_id: string | null }>(
-        (((invoicesRes as any).data) || []).map((row: any) => [
-          String(row.id),
-          {
-            company_id: String(row.company_id),
-            job_id: row?.job_id ? String(row.job_id) : null,
-          },
-        ]),
-      );
-      const taskMap = new Map<string, { company_id: string; job_id: string | null }>(
-        (((tasksRes as any).data) || []).map((row: any) => [
-          String(row.id),
-          {
-            company_id: String(row.company_id),
-            job_id: row?.job_id ? String(row.job_id) : null,
-          },
-        ]),
-      );
-
-      const jobTeamJobIdSet = new Set(teamJobIdsOverride ?? jobTeamJobIds);
-      const companyScopedNotifications = notificationContexts.filter(({ notification, context }) => {
-        const hasScopedEntity =
-          context.bids.size > 0 ||
-          context.rfps.size > 0 ||
-          context.jobs.size > 0 ||
-          context.invoices.size > 0 ||
-          context.tasks.size > 0 ||
-          context.companies.size > 0;
-
-        if (!hasScopedEntity) {
-          return true;
-        }
-
-        const bidEntries = Array.from(context.bids).map((bidId) => bidMap.get(bidId)).filter(Boolean);
-        const rfpEntries = Array.from(context.rfps).map((rfpId) => rfpMap.get(rfpId)).filter(Boolean);
-        const jobEntries = Array.from(context.jobs).map((jobId) => ({
-          company_id: jobMap.get(jobId)?.company_id,
-          job_id: jobId,
-        })).filter((entry) => Boolean(entry.company_id));
-        const invoiceEntries = Array.from(context.invoices).map((invoiceId) => invoiceMap.get(invoiceId)).filter(Boolean);
-        const taskEntries = Array.from(context.tasks).map((taskId) => taskMap.get(taskId)).filter(Boolean);
-        const companyEntries = Array.from(context.companies).map((companyId) => ({
-          company_id: companyId,
-          job_id: null,
+        const rawNotifications = (data || []) as Notification[];
+        const notificationContexts = rawNotifications.map((notification) => ({
+          notification,
+          context: extractNotificationEntityContext(notification),
         }));
 
-        const scopedEntries = [...bidEntries, ...rfpEntries, ...jobEntries, ...invoiceEntries, ...taskEntries, ...companyEntries] as Array<{ company_id: string; job_id: string | null | undefined }>;
-
-        if (scopedEntries.length === 0) {
-          return false;
-        }
-
-        const inCurrentCompany = scopedEntries.some((entry) => entry.company_id === currentCompany.id);
-        if (!inCurrentCompany) {
-          return false;
-        }
-
-        const requiresJobTeam = scopedEntries.some((entry) => entry.job_id);
-        if (!requiresJobTeam) {
-          return true;
-        }
-
-        if (isPrivileged) {
-          return true;
-        }
-
-        return scopedEntries.some((entry) => entry.job_id && jobTeamJobIdSet.has(String(entry.job_id)));
-      }).map(({ notification }) => notification);
-
-      const approverRole = String(activeCompanyRole || profile?.role || '').toLowerCase();
-      const canApproveIntake = ['admin', 'company_admin', 'owner', 'controller', 'super_admin'].includes(approverRole);
-      // Legacy intake notifications are noisy/stale; rely on live intake summary instead.
-      let baseNotifications = companyScopedNotifications.filter((notification) => {
-        const rawType = String(notification.type || '').trim().toLowerCase();
-        return rawType !== 'intake_queue' && rawType !== 'intake_queue_summary';
-      });
-
-      // Hide stale intake notifications for users who are no longer pending approval.
-      if (currentCompany) {
-        const intakeUserIds = Array.from(new Set(
-          baseNotifications
-            .map((notification) => {
-              const type = String(notification.type || '');
-              if (!type.startsWith('intake_queue:')) return null;
-              const [, pendingUserId] = type.split(':');
-              return pendingUserId || null;
-            })
-            .filter(Boolean) as string[],
+        const bidIds = Array.from(new Set(
+          notificationContexts.flatMap(({ context }) => Array.from(context.bids))
+        ));
+        const rfpIds = Array.from(new Set(
+          notificationContexts.flatMap(({ context }) => Array.from(context.rfps))
+        ));
+        const jobIds = Array.from(new Set(
+          notificationContexts.flatMap(({ context }) => Array.from(context.jobs))
+        ));
+        const invoiceIds = Array.from(new Set(
+          notificationContexts.flatMap(({ context }) => Array.from(context.invoices))
+        ));
+        const taskIds = Array.from(new Set(
+          notificationContexts.flatMap(({ context }) => Array.from(context.tasks))
         ));
 
-        if (intakeUserIds.length > 0) {
-          const { data: pendingRequests } = await supabase
-            .from('company_access_requests')
-            .select('user_id')
-            .eq('company_id', currentCompany.id)
-            .eq('status', 'pending')
-            .in('user_id', intakeUserIds);
+        const [bidsRes, rfpsRes, jobsRes, invoicesRes, tasksRes] = await Promise.all([
+          bidIds.length > 0
+            ? supabase
+                .from('bids')
+                .select('id, company_id, rfp:rfps!inner(job_id)')
+                .in('id', bidIds)
+            : Promise.resolve({ data: [], error: null }),
+          rfpIds.length > 0
+            ? supabase
+                .from('rfps')
+                .select('id, company_id, job_id')
+                .in('id', rfpIds)
+            : Promise.resolve({ data: [], error: null }),
+          jobIds.length > 0
+            ? supabase
+                .from('jobs')
+                .select('id, company_id')
+                .in('id', jobIds)
+            : Promise.resolve({ data: [], error: null }),
+          invoiceIds.length > 0
+            ? supabase
+                .from('invoices')
+                .select('id, company_id, job_id')
+                .in('id', invoiceIds)
+            : Promise.resolve({ data: [], error: null }),
+          taskIds.length > 0
+            ? supabase
+                .from('tasks')
+                .select('id, company_id, job_id')
+                .in('id', taskIds)
+            : Promise.resolve({ data: [], error: null }),
+        ]);
 
-          const requestPendingSet = new Set((pendingRequests || []).map((row: any) => row.user_id));
-          const requestPendingIds = Array.from(requestPendingSet);
+        if ((bidsRes as any).error) throw (bidsRes as any).error;
+        if ((rfpsRes as any).error) throw (rfpsRes as any).error;
+        if ((jobsRes as any).error) throw (jobsRes as any).error;
+        if ((invoicesRes as any).error) throw (invoicesRes as any).error;
+        if ((tasksRes as any).error) throw (tasksRes as any).error;
 
-          let pendingUserIdSet = requestPendingSet;
-          if (requestPendingIds.length > 0) {
-            const { data: pendingProfiles } = await supabase
-              .from('profiles')
-              .select('user_id')
-              .eq('status', 'pending')
-              .in('user_id', requestPendingIds);
-            pendingUserIdSet = new Set((pendingProfiles || []).map((row: any) => row.user_id));
+        const bidMap = new Map<string, { company_id: string; job_id: string | null }>(
+          (((bidsRes as any).data) || []).map((row: any) => [
+            String(row.id),
+            {
+              company_id: String(row.company_id),
+              job_id: row?.rfp?.job_id ? String(row.rfp.job_id) : null,
+            },
+          ]),
+        );
+        const rfpMap = new Map<string, { company_id: string; job_id: string | null }>(
+          (((rfpsRes as any).data) || []).map((row: any) => [
+            String(row.id),
+            {
+              company_id: String(row.company_id),
+              job_id: row?.job_id ? String(row.job_id) : null,
+            },
+          ]),
+        );
+        const jobMap = new Map<string, { company_id: string }>(
+          (((jobsRes as any).data) || []).map((row: any) => [
+            String(row.id),
+            { company_id: String(row.company_id) },
+          ]),
+        );
+        const invoiceMap = new Map<string, { company_id: string; job_id: string | null }>(
+          (((invoicesRes as any).data) || []).map((row: any) => [
+            String(row.id),
+            {
+              company_id: String(row.company_id),
+              job_id: row?.job_id ? String(row.job_id) : null,
+            },
+          ]),
+        );
+        const taskMap = new Map<string, { company_id: string; job_id: string | null }>(
+          (((tasksRes as any).data) || []).map((row: any) => [
+            String(row.id),
+            {
+              company_id: String(row.company_id),
+              job_id: row?.job_id ? String(row.job_id) : null,
+            },
+          ]),
+        );
+
+        const jobTeamJobIdSet = new Set(teamJobIdsOverride ?? jobTeamJobIds);
+        const companyScopedNotifications = notificationContexts.filter(({ notification, context }) => {
+          const hasScopedEntity =
+            context.bids.size > 0 ||
+            context.rfps.size > 0 ||
+            context.jobs.size > 0 ||
+            context.invoices.size > 0 ||
+            context.tasks.size > 0 ||
+            context.companies.size > 0;
+
+          if (!hasScopedEntity) {
+            return true;
           }
 
-          baseNotifications = baseNotifications.filter((notification) => {
-            const type = String(notification.type || '');
-            if (!type.startsWith('intake_queue:')) return true;
-            const [, pendingUserId] = type.split(':');
-            return !!pendingUserId && pendingUserIdSet.has(pendingUserId);
-          });
-        }
+          const bidEntries = Array.from(context.bids).map((bidId) => bidMap.get(bidId)).filter(Boolean);
+          const rfpEntries = Array.from(context.rfps).map((rfpId) => rfpMap.get(rfpId)).filter(Boolean);
+          const jobEntries = Array.from(context.jobs).map((jobId) => ({
+            company_id: jobMap.get(jobId)?.company_id,
+            job_id: jobId,
+          })).filter((entry) => Boolean(entry.company_id));
+          const invoiceEntries = Array.from(context.invoices).map((invoiceId) => invoiceMap.get(invoiceId)).filter(Boolean);
+          const taskEntries = Array.from(context.tasks).map((taskId) => taskMap.get(taskId)).filter(Boolean);
+          const companyEntries = Array.from(context.companies).map((companyId) => ({
+            company_id: companyId,
+            job_id: null,
+          }));
+
+          const scopedEntries = [...bidEntries, ...rfpEntries, ...jobEntries, ...invoiceEntries, ...taskEntries, ...companyEntries] as Array<{ company_id: string; job_id: string | null | undefined }>;
+
+          if (scopedEntries.length === 0) {
+            return false;
+          }
+
+          const inCurrentCompany = scopedEntries.some((entry) => entry.company_id === currentCompany.id);
+          if (!inCurrentCompany) {
+            return false;
+          }
+
+          const requiresJobTeam = scopedEntries.some((entry) => entry.job_id);
+          if (!requiresJobTeam) {
+            return true;
+          }
+
+          if (isPrivileged) {
+            return true;
+          }
+
+          return scopedEntries.some((entry) => entry.job_id && jobTeamJobIdSet.has(String(entry.job_id)));
+        }).map(({ notification }) => notification);
+
+        // Legacy intake notifications are noisy/stale; rely on live intake notifications instead.
+        baseNotifications = companyScopedNotifications.filter((notification) => {
+          const rawType = String(notification.type || '').trim().toLowerCase();
+          return rawType !== 'intake_queue'
+            && rawType !== 'intake_queue_summary'
+            && !rawType.startsWith('intake_queue:');
+        });
+      } catch (notificationError) {
+        console.error('Error fetching stored notifications:', notificationError);
+        baseNotifications = [];
       }
 
       if (!currentCompany || !canApproveIntake) {
@@ -740,12 +708,16 @@ export default function Dashboard() {
         return;
       }
 
-      const { data: settingsRow } = await supabase
+      const { data: settingsRow, error: settingsError } = await supabase
         .from('notification_settings')
         .select('in_app_enabled, intake_queue_requests')
         .eq('user_id', user.id)
         .eq('company_id', currentCompany.id)
         .maybeSingle();
+
+      if (settingsError) {
+        console.error('Error fetching intake notification settings:', settingsError);
+      }
 
       const inAppEnabled = (settingsRow as any)?.in_app_enabled !== false;
       const intakeEnabled = (settingsRow as any)?.intake_queue_requests !== false;
@@ -757,43 +729,83 @@ export default function Dashboard() {
 
       const { data: pendingRows, error: pendingRowsError } = await supabase
         .from('company_access_requests')
-        .select('id, user_id')
+        .select('id, user_id, requested_at')
         .eq('company_id', currentCompany.id)
         .eq('status', 'pending');
 
       if (pendingRowsError) throw pendingRowsError;
 
-      const pendingUserIds = Array.from(new Set((pendingRows || []).map((r: any) => r.user_id).filter(Boolean)));
-      let pendingCount = 0;
+      const requestedUserIds = Array.from(
+        new Set((pendingRows || []).map((row: any) => String(row.user_id || '')).filter(Boolean)),
+      );
 
-      if (pendingUserIds.length > 0) {
-        const { data: pendingProfiles, error: pendingProfilesError } = await supabase
-          .from('profiles')
-          .select('user_id')
-          .eq('status', 'pending')
-          .in('user_id', pendingUserIds);
+      const { data: pendingAccessRows, error: pendingAccessError } = await supabase
+        .from('user_company_access')
+        .select('user_id, role, granted_at')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
 
-        if (pendingProfilesError) throw pendingProfilesError;
-        const pendingProfileSet = new Set((pendingProfiles || []).map((p: any) => p.user_id));
-        pendingCount = (pendingRows || []).filter((row: any) => pendingProfileSet.has(row.user_id)).length;
-      }
+      if (pendingAccessError) throw pendingAccessError;
 
-      const hasPendingIntake = pendingCount > 0;
-      if (!hasPendingIntake) {
+      const fallbackUserIds = Array.from(
+        new Set((pendingAccessRows || []).map((row: any) => String(row.user_id || '')).filter(Boolean)),
+      );
+
+      const pendingUserIds = Array.from(new Set([...requestedUserIds, ...fallbackUserIds]));
+      if (requestedUserIds.length === 0 && fallbackUserIds.length === 0) {
         setNotifications(baseNotifications.slice(0, 5));
         return;
       }
 
-      const summaryNotification: Notification = {
-        id: 'intake-queue-summary',
-        title: 'Intake Queue Pending',
-        message: `${pendingCount} user${pendingCount === 1 ? '' : 's'} waiting for approval in Intake Queue.`,
-        type: 'intake_queue_summary',
-        read: false,
-        created_at: new Date().toISOString(),
-      };
+      const { data: pendingProfiles, error: pendingProfilesError } = await supabase
+        .from('profiles')
+        .select('user_id, first_name, last_name, display_name, status, created_at')
+        .in('user_id', pendingUserIds)
+        .eq('status', 'pending');
 
-      setNotifications([summaryNotification, ...baseNotifications].slice(0, 5));
+      if (pendingProfilesError) throw pendingProfilesError;
+
+      const pendingProfilesByUserId = new Map(
+        (pendingProfiles || []).map((profile: any) => [String(profile.user_id), profile]),
+      );
+      const explicitRequestUserIdSet = new Set(requestedUserIds);
+
+      const intakeCandidates = [
+        ...(pendingRows || []).map((row: any) => ({
+          user_id: String(row.user_id),
+          requested_at: String(row.requested_at || new Date().toISOString()),
+        })),
+        ...(pendingAccessRows || [])
+          .filter((row: any) => !explicitRequestUserIdSet.has(String(row.user_id || '')))
+          .map((row: any) => ({
+            user_id: String(row.user_id),
+            requested_at: String(row.granted_at || pendingProfilesByUserId.get(String(row.user_id || ''))?.created_at || new Date().toISOString()),
+          })),
+      ].filter((row) => explicitRequestUserIdSet.has(row.user_id) || pendingProfilesByUserId.has(row.user_id));
+
+      const intakeNotifications: Notification[] = intakeCandidates
+        .map((row) => {
+          const profile = pendingProfilesByUserId.get(row.user_id);
+          const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim();
+          const displayName = String(profile?.display_name || fullName || 'A new user').trim();
+
+          return {
+            id: `intake-queue:${row.user_id}`,
+            title: 'User Approval Pending',
+            message: `${displayName} is waiting for approval.`,
+            type: `intake_queue:${row.user_id}`,
+            read: false,
+            created_at: row.requested_at,
+          };
+        })
+        .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
+
+      if (intakeNotifications.length === 0) {
+        setNotifications(baseNotifications.slice(0, 5));
+        return;
+      }
+
+      setNotifications([...intakeNotifications, ...baseNotifications].slice(0, 5));
     } catch (error) {
       console.error('Error fetching notifications:', error);
     }
@@ -1191,8 +1203,7 @@ export default function Dashboard() {
   };
 
   const markNotificationAsRead = async (notificationId: string) => {
-    if (notificationId === 'intake-queue-summary') {
-      navigate('/settings/users');
+    if (notificationId === 'intake-queue-summary' || notificationId.startsWith('intake-queue:')) {
       return;
     }
     try {

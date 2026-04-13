@@ -31,6 +31,10 @@ interface UserProfile {
   last_name: string;
   display_name: string;
   avatar_url?: string | null;
+  company_name?: string | null;
+  company_logo_url?: string | null;
+  vendor_id?: string | null;
+  current_company_id?: string | null;
   role: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
   created_at: string;
   pin_code?: string;
@@ -43,6 +47,8 @@ interface UserProfile {
   punch_clock_access?: boolean;
   pm_lynk_access?: boolean;
   custom_role_id?: string | null;
+  external_access_state?: 'active' | 'pending';
+  external_pending_jobs?: { id: string; name: string }[];
 }
 
 interface CustomRole {
@@ -118,6 +124,43 @@ const parseRequestedRoleFromNotes = (notes?: string | null): string | null => {
     return null;
   }
 };
+
+const parseBusinessNameFromNotes = (notes?: string | null): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const businessName = String(parsed?.businessName || '').trim();
+    return businessName || null;
+  } catch {
+    return null;
+  }
+};
+
+const parseEmailFromNotes = (notes?: string | null): string | null => {
+  if (!notes) return null;
+  try {
+    const parsed = JSON.parse(notes);
+    const email = String(parsed?.email || '').trim().toLowerCase();
+    return email || null;
+  } catch {
+    return null;
+  }
+};
+
+const parsePendingJobIdsFromNotes = (notes?: string | null): string[] => {
+  if (!notes) return [];
+  try {
+    const parsed = JSON.parse(notes);
+    const inviteRows = Array.isArray(parsed?.pendingJobInvites) ? parsed.pendingJobInvites : [];
+    return inviteRows
+      .map((invite: any) => String(invite?.jobId || '').trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+};
+
+const normalizeCompanyKey = (value?: string | null) => String(value || '').trim().toLowerCase();
 
 export default function UserSettings() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -402,13 +445,28 @@ export default function UserSettings() {
       if (approvedExternalRequestsError) throw approvedExternalRequestsError;
 
       const requestedUserIds = new Set<string>();
+      const requestBusinessNameByUserId = new Map<string, string>();
+      const requestEmailByUserId = new Map<string, string>();
+      const requestPendingJobIdsByUserId = new Map<string, string[]>();
       for (const request of approvedExternalRequests || []) {
         if (request.user_id) {
           requestedUserIds.add(request.user_id);
         }
         const requestedRole = parseRequestedRoleFromNotes(request.notes);
+        const requestBusinessName = parseBusinessNameFromNotes(request.notes);
+        const requestEmail = parseEmailFromNotes(request.notes);
+        const pendingJobIds = parsePendingJobIdsFromNotes(request.notes);
         if (requestedRole && EXTERNAL_ACCESS_ROLES.includes(requestedRole as typeof EXTERNAL_ACCESS_ROLES[number])) {
           roleMap.set(request.user_id, requestedRole as UserProfile['role']);
+        }
+        if (request.user_id && requestBusinessName) {
+          requestBusinessNameByUserId.set(String(request.user_id), requestBusinessName);
+        }
+        if (request.user_id && requestEmail) {
+          requestEmailByUserId.set(String(request.user_id), requestEmail);
+        }
+        if (request.user_id && pendingJobIds.length > 0) {
+          requestPendingJobIdsByUserId.set(String(request.user_id), pendingJobIds);
         }
       }
 
@@ -417,11 +475,122 @@ export default function UserSettings() {
       // Fetch regular users
       const { data: regularUsers, error: profilesError } = await supabase
         .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role')
+        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role, vendor_id, current_company_id')
         .in('user_id', userIds)
         .order('created_at', { ascending: false });
 
       if (profilesError) throw profilesError;
+
+      const vendorIds = Array.from(
+        new Set(
+          (regularUsers || [])
+            .map((user: any) => String(user.vendor_id || '').trim())
+            .filter(Boolean)
+        )
+      );
+      const companyIds = Array.from(
+        new Set(
+          (regularUsers || [])
+            .map((user: any) => String(user.current_company_id || '').trim())
+            .filter(Boolean)
+        )
+      );
+
+      const [{ data: vendorRows, error: vendorsError }, { data: companyRows, error: companiesError }] = await Promise.all([
+        vendorIds.length > 0
+          ? supabase
+              .from('vendors')
+              .select('id, name, logo_url')
+              .in('id', vendorIds)
+          : Promise.resolve({ data: [], error: null }),
+        companyIds.length > 0
+          ? supabase
+              .from('companies')
+              .select('id, name, display_name, logo_url')
+              .in('id', companyIds)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (vendorsError) throw vendorsError;
+      if (companiesError) throw companiesError;
+
+      const vendorById = new Map(
+        ((vendorRows || []) as any[]).map((vendor) => [String(vendor.id), vendor]),
+      );
+      const companyById = new Map(
+        ((companyRows || []) as any[]).map((company) => [String(company.id), company]),
+      );
+
+      const externalUserIds = (regularUsers || [])
+        .map((user: any) => {
+          const profileRole = String(user.role || '').trim().toLowerCase();
+          const resolvedRole = roleMap.get(user.user_id)
+            || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : null);
+          return resolvedRole && EXTERNAL_ACCESS_ROLES.includes(resolvedRole as typeof EXTERNAL_ACCESS_ROLES[number])
+            ? String(user.user_id)
+            : null;
+        })
+        .filter(Boolean) as string[];
+
+      const pendingJobIds = Array.from(
+        new Set(
+          Array.from(requestPendingJobIdsByUserId.values()).flat().filter(Boolean),
+        ),
+      );
+
+      const [externalJobAccessRes, externalProjectDirectoryRes, pendingJobsRes] = await Promise.all([
+        externalUserIds.length > 0
+          ? supabase
+              .from('user_job_access')
+              .select('user_id, job_id, jobs!inner(id, name, company_id)')
+              .in('user_id', externalUserIds)
+              .eq('jobs.company_id', currentCompany.id)
+          : Promise.resolve({ data: [], error: null }),
+        externalUserIds.length > 0
+          ? supabase
+              .from('job_project_directory')
+              .select('linked_user_id, job_id, jobs!inner(id, name)')
+              .in('linked_user_id', externalUserIds)
+              .eq('company_id', currentCompany.id)
+              .eq('is_project_team_member', true)
+              .eq('is_active', true)
+          : Promise.resolve({ data: [], error: null }),
+        pendingJobIds.length > 0
+          ? supabase
+              .from('jobs')
+              .select('id, name')
+              .in('id', pendingJobIds)
+              .eq('company_id', currentCompany.id)
+          : Promise.resolve({ data: [], error: null }),
+      ]);
+
+      if (externalJobAccessRes.error) throw externalJobAccessRes.error;
+      if (externalProjectDirectoryRes.error) throw externalProjectDirectoryRes.error;
+      if (pendingJobsRes.error) throw pendingJobsRes.error;
+
+      const activeJobsByExternalUserId = new Map<string, { id: string; name: string }[]>();
+      const pushActiveJob = (targetUserId: string, job: { id: string; name: string } | null | undefined) => {
+        if (!targetUserId || !job?.id || !job?.name) return;
+        const existing = activeJobsByExternalUserId.get(targetUserId) || [];
+        if (!existing.some((entry) => entry.id === job.id)) {
+          existing.push(job);
+        }
+        activeJobsByExternalUserId.set(targetUserId, existing);
+      };
+
+      ((externalJobAccessRes.data || []) as any[]).forEach((row) => {
+        const job = row.jobs;
+        pushActiveJob(String(row.user_id), job ? { id: String(job.id), name: String(job.name) } : null);
+      });
+
+      ((externalProjectDirectoryRes.data || []) as any[]).forEach((row) => {
+        const job = row.jobs;
+        pushActiveJob(String(row.linked_user_id), job ? { id: String(job.id), name: String(job.name) } : null);
+      });
+
+      const pendingJobNameById = new Map(
+        ((pendingJobsRes.data || []) as any[]).map((job) => [String(job.id), String(job.name || 'Unnamed Job')]),
+      );
 
       // Fetch jobs for regular users and determine PIN status
       // Also fetch latest punch selfie as avatar fallback for users without avatars
@@ -430,6 +599,26 @@ export default function UserSettings() {
         const userRole = roleMap.get(user.user_id)
           || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : 'employee');
         const hasPin = !!user.pin_code;
+        const vendorRecord = user.vendor_id ? vendorById.get(String(user.vendor_id)) : null;
+        const companyRecord = user.current_company_id ? companyById.get(String(user.current_company_id)) : null;
+        const resolvedCompanyName =
+          String(companyRecord?.display_name || companyRecord?.name || '').trim()
+          || String(vendorRecord?.name || '').trim()
+          || requestBusinessNameByUserId.get(String(user.user_id))
+          || null;
+        const resolvedCompanyLogo =
+          resolveCompanyLogoUrl(companyRecord?.logo_url || vendorRecord?.logo_url || null);
+        const activeExternalJobs = (activeJobsByExternalUserId.get(String(user.user_id)) || [])
+          .sort((a, b) => a.name.localeCompare(b.name));
+        const pendingExternalJobs = Array.from(
+          new Set(requestPendingJobIdsByUserId.get(String(user.user_id)) || []),
+        )
+          .filter((jobId) => !activeExternalJobs.some((job) => job.id === jobId))
+          .map((jobId) => ({
+            id: jobId,
+            name: pendingJobNameById.get(jobId) || 'Pending Job',
+          }))
+          .sort((a, b) => a.name.localeCompare(b.name));
 
         // If no avatar, fetch latest punch selfie as fallback
         let effectiveAvatarUrl = user.avatar_url;
@@ -452,8 +641,32 @@ export default function UserSettings() {
           }
         }
         
+        if (EXTERNAL_ACCESS_ROLES.includes(userRole as typeof EXTERNAL_ACCESS_ROLES[number])) {
+          const requestEmail = requestEmailByUserId.get(String(user.user_id));
+          return {
+            ...user,
+            email: user.email || requestEmail || undefined,
+            avatar_url: effectiveAvatarUrl,
+            role: userRole,
+            jobs: activeExternalJobs,
+            has_pin: hasPin,
+            company_name: resolvedCompanyName,
+            company_logo_url: resolvedCompanyLogo,
+            external_access_state: activeExternalJobs.length > 0 ? 'active' : 'pending',
+            external_pending_jobs: pendingExternalJobs,
+          };
+        }
+
         if (user.has_global_job_access) {
-          return { ...user, avatar_url: effectiveAvatarUrl, role: userRole, jobs: [], has_pin: hasPin };
+          return {
+            ...user,
+            avatar_url: effectiveAvatarUrl,
+            role: userRole,
+            jobs: [],
+            has_pin: hasPin,
+            company_name: resolvedCompanyName,
+            company_logo_url: resolvedCompanyLogo,
+          };
         }
         
         const { data: userJobs } = await supabase
@@ -462,7 +675,15 @@ export default function UserSettings() {
           .eq('user_id', user.user_id);
         
         const jobs = userJobs?.map((item: any) => item.jobs).filter(Boolean) || [];
-        return { ...user, avatar_url: effectiveAvatarUrl, role: userRole, jobs, has_pin: hasPin };
+        return {
+          ...user,
+          avatar_url: effectiveAvatarUrl,
+          role: userRole,
+          jobs,
+          has_pin: hasPin,
+          company_name: resolvedCompanyName,
+          company_logo_url: resolvedCompanyLogo,
+        };
       }));
 
       // Sort by name
@@ -536,7 +757,48 @@ export default function UserSettings() {
   };
 
   const getExternalUsers = (role: typeof EXTERNAL_ACCESS_ROLES[number]) =>
-    users.filter((u) => u.role === role);
+    users.filter((u) => u.role === role && u.external_access_state !== 'pending');
+
+  const getPendingExternalUsers = (role: typeof EXTERNAL_ACCESS_ROLES[number]) =>
+    users.filter((u) => u.role === role && u.external_access_state === 'pending');
+
+  const groupUsersByCompany = (sourceUsers: UserProfile[]) => {
+    const groups = new Map<string, { companyName: string; companyLogoUrl: string | null; users: UserProfile[] }>();
+
+    sourceUsers.forEach((user) => {
+      const companyName = String(user.company_name || 'Unassigned Company').trim() || 'Unassigned Company';
+      const key = normalizeCompanyKey(companyName) || user.user_id;
+      const existing = groups.get(key);
+
+      if (existing) {
+        existing.users.push(user);
+        if (!existing.companyLogoUrl && user.company_logo_url) {
+          existing.companyLogoUrl = user.company_logo_url;
+        }
+        return;
+      }
+
+      groups.set(key, {
+        companyName,
+        companyLogoUrl: user.company_logo_url || null,
+        users: [user],
+      });
+    });
+
+    return Array.from(groups.values())
+      .map((group) => ({
+        ...group,
+        users: [...group.users].sort((a, b) => {
+          const nameA = a.display_name || `${a.first_name} ${a.last_name}`.trim() || 'Unnamed User';
+          const nameB = b.display_name || `${b.first_name} ${b.last_name}`.trim() || 'Unnamed User';
+          return nameA.localeCompare(nameB);
+        }),
+      }))
+      .sort((a, b) => a.companyName.localeCompare(b.companyName));
+  };
+
+  const getExternalUsersGroupedByCompany = (role: typeof EXTERNAL_ACCESS_ROLES[number]) =>
+    groupUsersByCompany(getExternalUsers(role));
 
   const getInvitationRoleBadge = (invitation: Invitation) => {
     if (invitation.custom_role_id) {
@@ -867,17 +1129,73 @@ export default function UserSettings() {
                 {getExternalUsers('vendor').length === 0 ? (
                   <p className="text-sm text-muted-foreground">No vendor users are currently linked to this company.</p>
                 ) : (
-                  getExternalUsers('vendor').map((user) => (
-                    <div
-                      key={user.user_id}
-                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
-                      className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
-                    >
-                      <div>
-                        <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
-                        <p className="text-sm text-muted-foreground">{user.phone || 'No phone on file'}</p>
+                  getExternalUsersGroupedByCompany('vendor').map((group) => (
+                    <div key={group.companyName} className="rounded-xl border bg-card/50">
+                      <div className="flex items-center gap-3 border-b px-4 py-3">
+                        {group.companyLogoUrl ? (
+                          <img
+                            src={group.companyLogoUrl}
+                            alt={group.companyName}
+                            className="h-10 w-10 rounded-md border object-contain bg-background p-1 shrink-0"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted text-xs font-semibold text-muted-foreground">
+                            {group.companyName.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-semibold">{group.companyName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {group.users.length} user{group.users.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
                       </div>
-                      <Badge variant="secondary">Vendor</Badge>
+                      <div className="space-y-2 p-3">
+                        {group.users.map((user) => (
+                          <div
+                            key={user.user_id}
+                            onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                            className="flex items-center justify-between rounded-lg border bg-background p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="relative h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                {user.avatar_url ? (
+                                  <img
+                                    src={user.avatar_url}
+                                    alt={user.display_name || user.first_name || ''}
+                                    className="h-full w-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                      (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                    }}
+                                  />
+                                ) : null}
+                                <span className={`text-sm font-semibold text-primary ${user.avatar_url ? 'hidden' : ''}`}>
+                                  {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
+                                </span>
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
+                                  {group.companyLogoUrl ? (
+                                    <img
+                                      src={group.companyLogoUrl}
+                                      alt={group.companyName}
+                                      className="h-5 w-5 rounded-sm border object-contain bg-background p-0.5 shrink-0"
+                                    />
+                                  ) : null}
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  {group.companyName}
+                                  {user.phone ? ` • ${user.phone}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="secondary">Vendor</Badge>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))
                 )}
@@ -902,19 +1220,161 @@ export default function UserSettings() {
                 {getExternalUsers('design_professional').length === 0 ? (
                   <p className="text-sm text-muted-foreground">No design professional users are currently linked to this company.</p>
                 ) : (
-                  getExternalUsers('design_professional').map((user) => (
-                    <div
-                      key={user.user_id}
-                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
-                      className="flex items-center justify-between rounded-lg border p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
-                    >
-                      <div>
-                        <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
-                        <p className="text-sm text-muted-foreground">{user.phone || 'No phone on file'}</p>
+                  getExternalUsersGroupedByCompany('design_professional').map((group) => (
+                    <div key={group.companyName} className="rounded-xl border bg-card/50">
+                      <div className="flex items-center gap-3 border-b px-4 py-3">
+                        {group.companyLogoUrl ? (
+                          <img
+                            src={group.companyLogoUrl}
+                            alt={group.companyName}
+                            className="h-10 w-10 rounded-md border object-contain bg-background p-1 shrink-0"
+                          />
+                        ) : (
+                          <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted text-xs font-semibold text-muted-foreground">
+                            {group.companyName.slice(0, 2).toUpperCase()}
+                          </div>
+                        )}
+                        <div className="min-w-0">
+                          <p className="font-semibold">{group.companyName}</p>
+                          <p className="text-sm text-muted-foreground">
+                            {group.users.length} user{group.users.length !== 1 ? 's' : ''}
+                          </p>
+                        </div>
                       </div>
-                      <Badge variant="secondary">Design Professional</Badge>
+                      <div className="space-y-2 p-3">
+                        {group.users.map((user) => (
+                          <div
+                            key={user.user_id}
+                            onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                            className="flex items-center justify-between rounded-lg border bg-background p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
+                          >
+                            <div className="flex min-w-0 items-center gap-3">
+                              <div className="relative h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                {user.avatar_url ? (
+                                  <img
+                                    src={user.avatar_url}
+                                    alt={user.display_name || user.first_name || ''}
+                                    className="h-full w-full object-cover"
+                                    referrerPolicy="no-referrer"
+                                    onError={(e) => {
+                                      (e.target as HTMLImageElement).style.display = 'none';
+                                      (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                    }}
+                                  />
+                                ) : null}
+                                <span className={`text-sm font-semibold text-primary ${user.avatar_url ? 'hidden' : ''}`}>
+                                  {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
+                                </span>
+                              </div>
+                              <div className="min-w-0">
+                                <div className="flex items-center gap-2 flex-wrap">
+                                  <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
+                                  {group.companyLogoUrl ? (
+                                    <img
+                                      src={group.companyLogoUrl}
+                                      alt={group.companyName}
+                                      className="h-5 w-5 rounded-sm border object-contain bg-background p-0.5 shrink-0"
+                                    />
+                                  ) : null}
+                                </div>
+                                <p className="text-sm text-muted-foreground">
+                                  {group.companyName}
+                                  {user.phone ? ` • ${user.phone}` : ''}
+                                </p>
+                              </div>
+                            </div>
+                            <Badge variant="secondary">Design Professional</Badge>
+                          </div>
+                        ))}
+                      </div>
                     </div>
                   ))
+                )}
+              </CardContent>
+            </Card>
+            <Card>
+              <CardHeader>
+                <CardTitle>Awaiting Design Professional Acceptance ({getPendingExternalUsers('design_professional').length})</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                {getPendingExternalUsers('design_professional').length === 0 ? (
+                  <p className="text-sm text-muted-foreground">
+                    No design professional users are currently awaiting activation.
+                  </p>
+                ) : (
+                  <div className="space-y-3">
+                    {groupUsersByCompany(getPendingExternalUsers('design_professional')).map((group) => (
+                        <div key={group.companyName} className="rounded-xl border bg-card/50">
+                          <div className="flex items-center gap-3 border-b px-4 py-3">
+                            {group.companyLogoUrl ? (
+                              <img
+                                src={group.companyLogoUrl}
+                                alt={group.companyName}
+                                className="h-10 w-10 rounded-md border object-contain bg-background p-1 shrink-0"
+                              />
+                            ) : (
+                              <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted text-xs font-semibold text-muted-foreground">
+                                {group.companyName.slice(0, 2).toUpperCase()}
+                              </div>
+                            )}
+                            <div className="min-w-0">
+                              <p className="font-semibold">{group.companyName}</p>
+                              <p className="text-sm text-muted-foreground">
+                                {group.users.length} pending user{group.users.length !== 1 ? 's' : ''}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="space-y-2 p-3">
+                            {group.users.map((user) => (
+                              <div
+                                key={user.user_id}
+                                className="flex items-center justify-between rounded-lg border bg-background p-3"
+                              >
+                                <div className="flex min-w-0 items-center gap-3">
+                                  <div className="relative h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                                    {user.avatar_url ? (
+                                      <img
+                                        src={user.avatar_url}
+                                        alt={user.display_name || user.first_name || ''}
+                                        className="h-full w-full object-cover"
+                                        referrerPolicy="no-referrer"
+                                        onError={(e) => {
+                                          (e.target as HTMLImageElement).style.display = 'none';
+                                          (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                                        }}
+                                      />
+                                    ) : null}
+                                    <span className={`text-sm font-semibold text-primary ${user.avatar_url ? 'hidden' : ''}`}>
+                                      {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
+                                    </span>
+                                  </div>
+                                  <div className="min-w-0">
+                                    <div className="flex items-center gap-2 flex-wrap">
+                                      <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
+                                      <Badge variant="outline">Awaiting Acceptance</Badge>
+                                    </div>
+                                    <p className="text-sm text-muted-foreground">
+                                      {group.companyName}
+                                      {user.phone ? ` • ${user.phone}` : ''}
+                                    </p>
+                                    {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Pending jobs: {user.external_pending_jobs.map((job) => job.name).join(', ')}
+                                      </p>
+                                    ) : (
+                                      <p className="text-xs text-muted-foreground mt-1">
+                                        Waiting on email confirmation or project invite acceptance.
+                                      </p>
+                                    )}
+                                  </div>
+                                </div>
+                                <Badge variant="secondary">Design Professional</Badge>
+                              </div>
+                            ))}
+                          </div>
+                        </div>
+                      ))}
+                  </div>
                 )}
               </CardContent>
             </Card>

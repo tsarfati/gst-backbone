@@ -128,29 +128,16 @@ serve(async (req: Request) => {
     });
 
     if (!matchingInvite) {
-      const [{ data: existingCompanyAccess, error: existingCompanyAccessError }, { data: existingJobAccess, error: existingJobAccessError }] = await Promise.all([
-        admin
-          .from("user_company_access")
-          .select("user_id, role, is_active")
-          .eq("user_id", authData.user.id)
-          .eq("company_id", companyId)
-          .maybeSingle(),
-        admin
-          .from("user_job_access")
-          .select("id")
-          .eq("user_id", authData.user.id)
-          .eq("job_id", jobId)
-          .maybeSingle(),
-      ]);
+      const { data: existingJobAccess, error: existingJobAccessError } = await admin
+        .from("user_job_access")
+        .select("id")
+        .eq("user_id", authData.user.id)
+        .eq("job_id", jobId)
+        .maybeSingle();
 
-      if (existingCompanyAccessError) throw existingCompanyAccessError;
       if (existingJobAccessError) throw existingJobAccessError;
 
-      const alreadyProvisioned =
-        existingCompanyAccess?.user_id &&
-        existingCompanyAccess?.is_active === true &&
-        String(existingCompanyAccess?.role || "").toLowerCase() === "design_professional" &&
-        existingJobAccess?.id;
+      const alreadyProvisioned = Boolean(existingJobAccess?.id);
 
       if (alreadyProvisioned) {
         await admin
@@ -173,38 +160,6 @@ serve(async (req: Request) => {
 
     const grantedBy = String(matchingInvite?.invitedBy || authData.user.id);
     const normalizedEmail = String(authData.user.email || matchingInvite?.email || "").trim().toLowerCase();
-
-    const { data: existingCompanyAccess, error: existingCompanyAccessError } = await admin
-      .from("user_company_access")
-      .select("user_id")
-      .eq("user_id", authData.user.id)
-      .eq("company_id", companyId)
-      .maybeSingle();
-    if (existingCompanyAccessError) throw existingCompanyAccessError;
-
-    if (existingCompanyAccess?.user_id) {
-      const { error: updateCompanyAccessError } = await admin
-        .from("user_company_access")
-        .update({
-          role: "design_professional",
-          is_active: true,
-          granted_by: grantedBy,
-        })
-        .eq("user_id", authData.user.id)
-        .eq("company_id", companyId);
-      if (updateCompanyAccessError) throw updateCompanyAccessError;
-    } else {
-      const { error: insertCompanyAccessError } = await admin
-        .from("user_company_access")
-        .insert({
-          user_id: authData.user.id,
-          company_id: companyId,
-          role: "design_professional",
-          is_active: true,
-          granted_by: grantedBy,
-        });
-      if (insertCompanyAccessError) throw insertCompanyAccessError;
-    }
 
     const { data: existingJobAccess, error: existingJobAccessError } = await admin
       .from("user_job_access")
@@ -244,11 +199,13 @@ serve(async (req: Request) => {
     }
 
     const memberName = formatDisplayName(profileRow, normalizedEmail, matchingInvite);
+    const resolvedCompanyName = designCompanyName || String(matchingInvite?.businessName || "").trim() || null;
+
     const memberPayload = {
       name: memberName,
       email: normalizedEmail || null,
       phone: profileRow?.phone || null,
-      company_name: designCompanyName,
+      company_name: resolvedCompanyName,
       linked_user_id: authData.user.id,
       is_project_team_member: true,
       project_role_id: matchingInvite?.projectRoleId || null,

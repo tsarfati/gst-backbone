@@ -7,7 +7,6 @@ import { Switch } from '@/components/ui/switch';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
-import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Plus, Trash2, Edit, Users, Mail, MailCheck, MailOpen, MailX, Phone, Building2, Star, UserCheck, Search, Loader2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
@@ -93,6 +92,7 @@ interface PendingDesignInvite {
   id: string;
   user_id: string;
   requested_at: string;
+  updated_at?: string | null;
   business_name?: string | null;
   display_name?: string;
   email?: string | null;
@@ -125,6 +125,16 @@ const isMissingRelationError = (error: unknown, relationName: string): boolean =
     message.includes('does not exist') ||
     message.includes('relation')
   );
+};
+
+const safeParseInviteNotes = (value: unknown): Record<string, any> => {
+  if (!value) return {};
+  if (typeof value === 'object') return value as Record<string, any>;
+  try {
+    return JSON.parse(String(value));
+  } catch {
+    return {};
+  }
 };
 
 const dedupePendingDesignInvites = (invites: PendingDesignInvite[]): PendingDesignInvite[] => {
@@ -188,6 +198,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
     firstName: '',
     lastName: '',
     email: '',
+    vendorId: '',
   });
   const [inviteProjectRoleId, setInviteProjectRoleId] = useState('');
   const companyScopeId = companyIdOverride || currentCompany?.id || null;
@@ -284,9 +295,6 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
     if (hasCustomRole) {
       return normalizedProfileRole || normalizedAccessRole;
     }
-    if (normalizedAccessRole === 'employee' && normalizedProfileRole && normalizedProfileRole !== 'employee') {
-      return normalizedProfileRole;
-    }
     return normalizedAccessRole || normalizedProfileRole;
   };
 
@@ -377,37 +385,44 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
       if (connectedVendorsRes.error) throw connectedVendorsRes.error;
       if (empSettingsRes.error) throw empSettingsRes.error;
 
-      const allMembers = (allMembersRes.data || []).map(m => ({ ...m, avatar_url: null, source: 'directory' as const }));
-      const directoryTeamMembers = allMembers.filter(m => m.is_project_team_member);
-      const directoryAvailable = allMembers.filter(m => !m.is_project_team_member);
+      const rawDirectoryMembers = (allMembersRes.data || []).map((member) => ({
+        ...member,
+        avatar_url: null,
+        source: 'directory' as const,
+      }));
       
       setRoles(rolesRes.data || []);
 
       let nextPendingDesignInvites: PendingDesignInvite[] = [];
       const { data: inviteRows, error: inviteRowsError } = await supabase
         .from('design_professional_job_invites')
-        .select('id, accepted_by_user_id, company_id, job_id, email, first_name, last_name, invited_by, created_at, status, notes, email_status, email_delivered_at, email_opened_at, email_bounced_at')
+        .select('id, accepted_by_user_id, company_id, job_id, email, first_name, last_name, invited_by, created_at, updated_at, status, notes, email_status, email_delivered_at, email_opened_at, email_bounced_at')
         .eq('company_id', companyScopeId)
         .eq('job_id', jobId)
         .eq('status', 'pending')
-        .order('created_at', { ascending: false });
+        .order('updated_at', { ascending: false });
 
       if (!inviteRowsError) {
-        nextPendingDesignInvites = (inviteRows || []).map((row: any) => ({
-          id: row.id,
-          user_id: row.accepted_by_user_id || row.email || row.id,
-          requested_at: row.created_at,
-          display_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || 'Pending user',
-          email: row.email || null,
-          first_name: row.first_name || null,
-          last_name: row.last_name || null,
-          project_role_id: row.notes?.projectRoleId || null,
-          project_role_name: row.notes?.projectRoleName || null,
-          email_status: row.email_status || null,
-          email_delivered_at: row.email_delivered_at || null,
-          email_opened_at: row.email_opened_at || null,
-          email_bounced_at: row.email_bounced_at || null,
-        }));
+        nextPendingDesignInvites = (inviteRows || []).map((row: any) => {
+          const parsedNotes = safeParseInviteNotes(row.notes);
+          return {
+            id: row.id,
+            user_id: row.accepted_by_user_id || row.email || row.id,
+            requested_at: row.updated_at || row.created_at,
+            updated_at: row.updated_at || null,
+            display_name: [row.first_name, row.last_name].filter(Boolean).join(' ') || row.email || 'Pending user',
+            email: row.email || null,
+            first_name: row.first_name || null,
+            last_name: row.last_name || null,
+            business_name: parsedNotes.businessName ? String(parsedNotes.businessName) : null,
+            project_role_id: parsedNotes.projectRoleId ? String(parsedNotes.projectRoleId) : null,
+            project_role_name: parsedNotes.projectRoleName ? String(parsedNotes.projectRoleName) : null,
+            email_status: row.email_status || null,
+            email_delivered_at: row.email_delivered_at || null,
+            email_opened_at: row.email_opened_at || null,
+            email_bounced_at: row.email_bounced_at || null,
+          };
+        });
       } else if (!isMissingRelationError(inviteRowsError, 'design_professional_job_invites')) {
         throw inviteRowsError;
       } else {
@@ -764,6 +779,28 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
         }
       }
 
+      const internalCompanyUserIds = new Set(companyUserOptions.map((companyUser) => companyUser.user_id));
+
+      const allMembers = rawDirectoryMembers.map((member) => {
+        const linkedUserId = String(member.linked_user_id || '');
+        if (!linkedUserId || !internalCompanyUserIds.has(linkedUserId)) {
+          return member;
+        }
+
+        const linkedCompanyUser = availableCompanyUserById.get(linkedUserId)
+          || companyUserOptions.find((companyUser) => companyUser.user_id === linkedUserId);
+
+        return {
+          ...member,
+          source: 'company-user' as const,
+          company_name: primaryGroupCompanyName,
+          avatar_url: linkedCompanyUser?.avatar_url || member.avatar_url || null,
+        };
+      });
+
+      const directoryTeamMembers = allMembers.filter((member) => member.is_project_team_member);
+      const directoryAvailable = allMembers.filter((member) => !member.is_project_team_member);
+
       // Combine auto-populated and directory team members (remove duplicates by name)
       const existingNames = new Set(directoryTeamMembers.map(m => m.name.toLowerCase()));
       const uniqueAutoMembers = autoMembers.filter(m => !existingNames.has(m.name.toLowerCase()));
@@ -829,6 +866,16 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
       return;
     }
 
+    const selectedVendor = connectedVendors.find((vendor) => vendor.id === inviteForm.vendorId);
+    if (!selectedVendor?.name) {
+      toast({
+        title: "Company required",
+        description: "Choose the design professional company for this invite.",
+        variant: "destructive",
+      });
+      return;
+    }
+
     try {
       setInviteSubmitting(true);
       await sendDesignProfessionalJobInvite({
@@ -837,6 +884,8 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
         email: inviteForm.email.trim().toLowerCase(),
         firstName: inviteForm.firstName.trim() || null,
         lastName: inviteForm.lastName.trim() || null,
+        businessName: selectedVendor.name,
+        vendorId: selectedVendor.id,
         projectRoleId: inviteProjectRoleId || null,
         projectRoleName: roles.find((role) => role.id === inviteProjectRoleId)?.name || null,
       });
@@ -846,7 +895,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
         description: "Design professional invitation email sent.",
       });
       setInviteDialogOpen(false);
-      setInviteForm({ firstName: '', lastName: '', email: '' });
+      setInviteForm({ firstName: '', lastName: '', email: '', vendorId: '' });
       setInviteProjectRoleId('');
       loadData();
     } catch (error: any) {
@@ -879,6 +928,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
         email: invite.email.trim().toLowerCase(),
         firstName: invite.first_name || null,
         lastName: invite.last_name || null,
+        businessName: invite.business_name || null,
         projectRoleId: invite.project_role_id || null,
         projectRoleName: invite.project_role_name || null,
       });
@@ -887,6 +937,23 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
         title: 'Invite resent',
         description: `Resent design professional invite to ${invite.email}.`,
       });
+
+      setPendingDesignInvites((prev) =>
+        dedupePendingDesignInvites(
+          prev.map((item) =>
+            item.id === invite.id
+              ? {
+                  ...item,
+                  requested_at: new Date().toISOString(),
+                  email_status: 'sent',
+                  email_delivered_at: null,
+                  email_opened_at: null,
+                  email_bounced_at: null,
+                }
+              : item,
+          ),
+        ),
+      );
 
       await loadData();
     } catch (error: any) {
@@ -938,10 +1005,17 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
   };
 
   const selectDesignProfessionalSearchResult = (result: DesignProfessionalAccountSearchResult) => {
+    const matchedVendor = connectedVendors.find((vendor) => {
+      const vendorName = String(vendor.name || '').trim().toLowerCase();
+      const resultCompanyName = String(result.companyName || '').trim().toLowerCase();
+      return Boolean(vendorName && resultCompanyName && vendorName === resultCompanyName);
+    });
+
     setInviteForm({
       firstName: result.firstName || '',
       lastName: result.lastName || '',
       email: result.email || '',
+      vendorId: matchedVendor?.id || '',
     });
     setDesignProfessionalSearch(result.email || result.displayName || result.companyName || '');
     setDesignProfessionalSearchResults([]);
@@ -966,7 +1040,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
 
   const openEditDialog = (member: DirectoryMember) => {
     // Don't allow editing auto-populated members
-    if (member.source && member.source !== 'directory') {
+    if (member.source && !['directory', 'company-user'].includes(member.source)) {
       toast({
         title: "Cannot edit",
         description: "This team member is auto-populated from job settings. Edit in Job Settings instead.",
@@ -1167,29 +1241,50 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
   };
 
   const removeMember = async (member: DirectoryMember) => {
-    // Don't allow removing auto-populated members
-    if (member.source && member.source !== 'directory') {
-      toast({
-        title: "Cannot remove",
-        description: "This team member is auto-populated. Remove their job assignment in Job Settings instead.",
-        variant: "default",
-      });
-      return;
-    }
-
     if (!confirm(`Remove "${member.name}" from the project team?`)) return;
 
     try {
-      const { error } = await supabase
-        .from('job_project_directory')
-        .update({ 
-          is_project_team_member: false,
-          project_role_id: null,
-          is_primary_contact: false,
-        })
-        .eq('id', member.id);
+      if (member.source === 'pm') {
+        const memberUserId = getMemberUserId(member);
+        if (!memberUserId) throw new Error('Missing project manager user id');
 
-      if (error) throw error;
+        const { error } = await supabase
+          .from('jobs')
+          .update({ project_manager_user_id: null })
+          .eq('id', jobId)
+          .eq('project_manager_user_id', memberUserId);
+
+        if (error) throw error;
+      } else if (member.source === 'assistant_pm') {
+        const memberUserId = getMemberUserId(member);
+        if (!memberUserId) throw new Error('Missing assistant project manager user id');
+
+        const { error } = await supabase
+          .from('job_assistant_managers')
+          .delete()
+          .eq('job_id', jobId)
+          .eq('user_id', memberUserId);
+
+        if (error) throw error;
+      } else if (member.source && !['directory', 'company-user'].includes(member.source)) {
+        toast({
+          title: "Cannot remove",
+          description: "This team member is auto-populated from another assignment source.",
+          variant: "default",
+        });
+        return;
+      } else {
+        const { error } = await supabase
+          .from('job_project_directory')
+          .update({ 
+            is_project_team_member: false,
+            project_role_id: null,
+            is_primary_contact: false,
+          })
+          .eq('id', member.id);
+
+        if (error) throw error;
+      }
 
       toast({ title: "Removed from project team" });
       loadData();
@@ -1310,6 +1405,11 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
   };
 
   const getResolvedMemberCompanyName = (member: DirectoryMember) => {
+    const externalType = getExternalMemberType(member);
+    if (!externalType) {
+      return primaryGroupCompanyName;
+    }
+
     const linkedUserId = String(member.linked_user_id || '');
     if (linkedUserId) {
       const linkedCompanyUser = availableCompanyUserById.get(linkedUserId);
@@ -1320,45 +1420,12 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
     return member.company_name || 'External Company';
   };
 
-  const groupedTeamMembers = useMemo(() => {
-    const primaryCompanyName = primaryGroupCompanyName;
-
-    const internalLeadershipMembers = teamMembers.filter((member) => {
-      if (member.source === 'employee') return false;
-      if (getExternalMemberType(member)) return false;
-      return true;
+  const sortedTeamMembers = useMemo(() => {
+    return [...teamMembers].sort((a, b) => {
+      const companyCompare = getResolvedMemberCompanyName(a).localeCompare(getResolvedMemberCompanyName(b));
+      if (companyCompare !== 0) return companyCompare;
+      return a.name.localeCompare(b.name);
     });
-
-    const employeeMembers = teamMembers.filter((member) => member.source === 'employee');
-    const externalMembers = teamMembers.filter((member) => !!getExternalMemberType(member));
-
-    const externalGroups = externalMembers.reduce<Array<{
-      key: string;
-      title: string;
-      members: DirectoryMember[];
-      badgeClasses: string;
-    }>>((groups, member) => {
-      const groupName = String(getResolvedMemberCompanyName(member));
-      const key = `company-${groupName.toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
-      const existing = groups.find((group) => group.key === key);
-      if (existing) {
-        existing.members.push(member);
-      } else {
-        groups.push({
-          key,
-          title: groupName,
-          members: [member],
-          badgeClasses: 'border-zinc-200 bg-zinc-50 text-zinc-900',
-        });
-      }
-      return groups;
-    }, []);
-
-    return [
-      { key: 'inner-company', title: primaryCompanyName, members: internalLeadershipMembers, badgeClasses: 'border-sky-200 bg-sky-50 text-sky-900' },
-      { key: 'employees', title: `${primaryCompanyName} Employees`, members: employeeMembers, badgeClasses: 'border-slate-200 bg-slate-50 text-slate-800' },
-      ...externalGroups,
-    ].filter((group) => group.members.length > 0);
   }, [teamMembers, availableCompanyUserById, designProfessionalVendors, subcontractorVendors, primaryGroupCompanyName]);
 
   if (loading) {
@@ -1768,6 +1835,27 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
                     />
                   </div>
                   <div className="space-y-1">
+                    <Label>Company *</Label>
+                    <Select
+                      value={inviteForm.vendorId}
+                      onValueChange={(value) => setInviteForm((prev) => ({ ...prev, vendorId: value }))}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select a vendor company..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {connectedVendors.map((vendor) => (
+                          <SelectItem key={vendor.id} value={vendor.id}>
+                            {vendor.name}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground">
+                      This company name is used to group invited design professionals together on the BuilderLYNK side.
+                    </p>
+                  </div>
+                  <div className="space-y-1">
                     <Label>Project Role</Label>
                     <Select value={inviteProjectRoleId} onValueChange={setInviteProjectRoleId}>
                       <SelectTrigger>
@@ -1785,7 +1873,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
                 </div>
                 <DialogFooter>
                   <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>Cancel</Button>
-                  <Button onClick={sendDesignProfessionalInvite} disabled={inviteSubmitting || !inviteForm.email.trim()}>
+                  <Button onClick={sendDesignProfessionalInvite} disabled={inviteSubmitting || !inviteForm.email.trim() || !inviteForm.vendorId}>
                     {inviteSubmitting ? 'Sending...' : 'Send Invite'}
                   </Button>
                 </DialogFooter>
@@ -1826,7 +1914,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
         </div>
       </CardHeader>
       <CardContent>
-        {!readOnly && pendingDesignInvites.length > 0 && (
+        {pendingDesignInvites.length > 0 && (
           <div className="mb-4 rounded-lg bg-primary/5 p-3 space-y-2">
             <div className="flex items-center justify-between">
               <p className="text-sm font-semibold">Awaiting Design Professional Acceptance</p>
@@ -1844,23 +1932,25 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
                 </div>
                 <div className="flex items-center gap-2 pl-3">
                   <span className="text-muted-foreground">{new Date(invite.requested_at).toLocaleDateString()}</span>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    size="sm"
-                    className="h-7 px-2 text-xs"
-                    disabled={!invite.email || resendingInviteId === invite.id}
-                    onClick={() => resendDesignProfessionalInvite(invite)}
-                  >
-                    {resendingInviteId === invite.id ? (
-                      <>
-                        <Loader2 className="mr-1 h-3 w-3 animate-spin" />
-                        Sending
-                      </>
-                    ) : (
-                      'Resend'
-                    )}
-                  </Button>
+                  {!readOnly && (
+                    <Button
+                      type="button"
+                      variant="outline"
+                      size="sm"
+                      className="h-7 px-2 text-xs"
+                      disabled={!invite.email || resendingInviteId === invite.id}
+                      onClick={() => resendDesignProfessionalInvite(invite)}
+                    >
+                      {resendingInviteId === invite.id ? (
+                        <>
+                          <Loader2 className="mr-1 h-3 w-3 animate-spin" />
+                          Sending
+                        </>
+                      ) : (
+                        'Resend'
+                      )}
+                    </Button>
+                  )}
                 </div>
               </div>
             ))}
@@ -1886,7 +1976,7 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
               const renderMemberRow = (member: DirectoryMember) => (
                 <div
                   key={member.id}
-                  className="group flex items-start gap-2.5 py-2.5 hover:bg-muted/20 px-2 rounded transition-colors"
+                  className="group flex items-start gap-2.5 py-2 hover:bg-muted/20 px-2 rounded transition-colors"
                 >
                   {(() => {
                     const linkedUserId = getMemberUserId(member);
@@ -1905,58 +1995,76 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
                   })()}
 
                   <div className="flex-1 min-w-0">
-                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                      <span className="font-medium leading-tight truncate">{member.name}</span>
-                      {member.is_primary_contact && (
-                        <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" fill="currentColor" />
-                      )}
-                      {getSourceBadge(member.source)}
-                      {member.project_role?.name && (
-                        <Badge variant="outline" className={`text-[10px] h-5 px-1.5 border ${getRoleBadgeClasses(member.project_role.name, member.source)}`}>
-                          {member.project_role.name}
-                        </Badge>
-                      )}
-                    </div>
-                    <div className="mt-0.5 grid grid-cols-1 lg:grid-cols-3 gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
-                      <div className="truncate flex items-center gap-1">
-                        <Building2 className="h-3 w-3 shrink-0" />
-                        <span className="truncate">{getResolvedMemberCompanyName(member)}</span>
+                    <div className="flex items-center justify-between gap-3 min-w-0">
+                      <div className="min-w-0">
+                        <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
+                          <span className="font-medium leading-tight truncate">{member.name}</span>
+                          {member.is_primary_contact && (
+                            <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" fill="currentColor" />
+                          )}
+                        </div>
+                        <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground truncate">
+                          <Building2 className="h-3 w-3 shrink-0" />
+                          <span className="truncate">{getResolvedMemberCompanyName(member)}</span>
+                        </div>
                       </div>
-                      <div className="truncate">
-                        {member.email ? (
-                          <a href={`mailto:${member.email}`} className="hover:text-primary flex items-center gap-1">
-                            <Mail className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{member.email}</span>
-                          </a>
-                        ) : (
-                          <span className="inline-flex items-center gap-1">
-                            <Mail className="h-3 w-3 shrink-0" />
-                            No email
-                          </span>
+                      <div className="hidden lg:flex items-center justify-end gap-2 shrink-0 min-w-[180px]">
+                        {getSourceBadge(member.source)}
+                        {member.project_role?.name && (
+                          <Badge variant="outline" className={`text-[10px] h-5 px-1.5 border ${getRoleBadgeClasses(member.project_role.name, member.source)}`}>
+                            {member.project_role.name}
+                          </Badge>
                         )}
                       </div>
-                      <div className="truncate">
-                        {member.phone ? (
-                          <a href={`tel:${member.phone}`} className="hover:text-primary flex items-center gap-1">
-                            <Phone className="h-3 w-3 shrink-0" />
-                            <span className="truncate">{member.phone}</span>
-                          </a>
-                        ) : (
-                          <span className="inline-flex items-center gap-1">
-                            <Phone className="h-3 w-3 shrink-0" />
-                            No phone
-                          </span>
+                    </div>
+                    <div className="mt-0.5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_180px] gap-x-3 gap-y-1 text-xs text-muted-foreground">
+                      <div className="min-w-0 flex flex-wrap items-center gap-x-3 gap-y-0.5">
+                        <div className="truncate">
+                          {member.email ? (
+                            <a href={`mailto:${member.email}`} className="hover:text-primary flex items-center gap-1">
+                              <Mail className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{member.email}</span>
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              <Mail className="h-3 w-3 shrink-0" />
+                              No email
+                            </span>
+                          )}
+                        </div>
+                        <div className="truncate">
+                          {member.phone ? (
+                            <a href={`tel:${member.phone}`} className="hover:text-primary flex items-center gap-1">
+                              <Phone className="h-3 w-3 shrink-0" />
+                              <span className="truncate">{member.phone}</span>
+                            </a>
+                          ) : (
+                            <span className="inline-flex items-center gap-1">
+                              <Phone className="h-3 w-3 shrink-0" />
+                              No phone
+                            </span>
+                          )}
+                        </div>
+                      </div>
+                      <div className="flex lg:hidden items-center gap-2 flex-wrap">
+                        {getSourceBadge(member.source)}
+                        {member.project_role?.name && (
+                          <Badge variant="outline" className={`text-[10px] h-5 px-1.5 border ${getRoleBadgeClasses(member.project_role.name, member.source)}`}>
+                            {member.project_role.name}
+                          </Badge>
                         )}
                       </div>
                     </div>
                   </div>
 
                   <div className="flex items-center gap-1 shrink-0">
-                    {!readOnly && (!member.source || member.source === 'directory') ? (
+                    {!readOnly && (!member.source || ['directory', 'company-user', 'pm', 'assistant_pm'].includes(member.source)) ? (
                       <div className="flex items-center gap-1 opacity-0 transition-opacity group-hover:opacity-100 focus-within:opacity-100">
-                        <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(member)}>
-                          <Edit className="h-3.5 w-3.5" />
-                        </Button>
+                        {(!member.source || ['directory', 'company-user'].includes(member.source)) && (
+                          <Button variant="ghost" size="icon" className="h-7 w-7" onClick={() => openEditDialog(member)}>
+                            <Edit className="h-3.5 w-3.5" />
+                          </Button>
+                        )}
                         <Button variant="ghost" size="icon" className="h-7 w-7 hover:text-destructive" onClick={() => removeMember(member)}>
                           <Trash2 className="h-3.5 w-3.5" />
                         </Button>
@@ -1969,27 +2077,9 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
               );
 
               return (
-                <Accordion
-                  type="multiple"
-                  defaultValue={groupedTeamMembers.map(group => group.key)}
-                  className="w-full"
-                >
-                  {groupedTeamMembers.map(group => (
-                    <AccordionItem key={group.key} value={group.key} className="px-0 mb-2 last:mb-0">
-                      <AccordionTrigger className="px-3 py-2 hover:no-underline">
-                        <div className="flex items-center gap-2 text-left">
-                          <Badge variant="outline" className={`text-xs border ${group.badgeClasses}`}>{group.title}</Badge>
-                          <span className="text-xs text-muted-foreground">{group.members.length}</span>
-                        </div>
-                      </AccordionTrigger>
-                      <AccordionContent className="px-2 pb-2 pt-0">
-                        <div className="divide-y bg-background/20">
-                          {group.members.map(renderMemberRow)}
-                        </div>
-                      </AccordionContent>
-                    </AccordionItem>
-                  ))}
-                </Accordion>
+                <div className="w-full rounded-lg border bg-background/40 px-2 py-1 divide-y">
+                  {sortedTeamMembers.map(renderMemberRow)}
+                </div>
               );
             })()}
           </div>

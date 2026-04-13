@@ -1193,7 +1193,12 @@ export default function JobDetails() {
                     companyNameOverride={String(job.company?.display_name || job.company?.name || '') || null}
                   />
                 ) : (
-                  <JobProjectTeam jobId={id!} />
+                  <JobProjectTeam
+                    jobId={id!}
+                    readOnly
+                    companyIdOverride={job.company_id || null}
+                    companyNameOverride={String(job.company?.display_name || job.company?.name || '') || null}
+                  />
                 )}
                 <JobLocationMap address={job.address} />
               </div>

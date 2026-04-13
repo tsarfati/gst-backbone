@@ -171,7 +171,8 @@ export default function CompanyManagement() {
       .from('user_company_access')
       .select('user_id')
       .eq('company_id', companyId)
-      .eq('is_active', true);
+      .eq('is_active', true)
+      .not('role', 'in', '("vendor","design_professional")');
     
     if (error) {
       console.error('Error fetching company user IDs:', error);
@@ -192,7 +193,8 @@ export default function CompanyManagement() {
         .from('user_company_access')
         .select('*')
         .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
+        .eq('is_active', true)
+        .not('role', 'in', '("vendor","design_professional")');
 
       console.log('User access data:', userAccessData, 'error:', accessError);
 

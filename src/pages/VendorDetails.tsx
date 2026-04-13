@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,8 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { useActionPermissions } from "@/hooks/useActionPermissions";
 import ComplianceDocumentManager from "@/components/ComplianceDocumentManager";
 import VendorAvatar from "@/components/VendorAvatar";
+import UserAvatar from "@/components/UserAvatar";
+import { useUserAvatars } from "@/hooks/useUserAvatar";
 import {
   Dialog,
   DialogContent,
@@ -134,6 +136,29 @@ const VENDOR_ACCESS_PRESETS: Record<
 };
 
 export default function VendorDetails() {
+  interface LinkedDesignCompany {
+    id: string;
+    name: string | null;
+    display_name: string | null;
+    logo_url?: string | null;
+  }
+
+  interface DesignProfessionalMember {
+    user_id: string;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    avatar_url: string | null;
+  }
+
+  interface DerivedProjectTeamAssignment {
+    job_id: string;
+    job_name: string;
+    job_status: string | null;
+    member_user_ids: string[];
+    member_names: string[];
+  }
+
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -164,6 +189,62 @@ export default function VendorDetails() {
   const [scopeJobFiles, setScopeJobFiles] = useState<any[]>([]);
   const [scopeSelectedFolderIds, setScopeSelectedFolderIds] = useState<Set<string>>(new Set());
   const [scopeSelectedFileIds, setScopeSelectedFileIds] = useState<Set<string>>(new Set());
+  const [linkedDesignCompany, setLinkedDesignCompany] = useState<LinkedDesignCompany | null>(null);
+  const [designProfessionalMembers, setDesignProfessionalMembers] = useState<DesignProfessionalMember[]>([]);
+  const [derivedProjectTeamAssignments, setDerivedProjectTeamAssignments] = useState<DerivedProjectTeamAssignment[]>([]);
+  const designProfessionalMemberIds = useMemo(
+    () => designProfessionalMembers.map((member) => member.user_id).filter(Boolean),
+    [designProfessionalMembers]
+  );
+  const { avatarMap: designProfessionalAvatarMap } = useUserAvatars(designProfessionalMemberIds);
+  const combinedJobAssignments = useMemo(() => {
+    const derivedByJobId = new Map(derivedProjectTeamAssignments.map((assignment) => [assignment.job_id, assignment]));
+
+    const explicitAssignments = vendorJobAccess.map((assignment) => ({
+      ...assignment,
+      derivedProjectTeam: derivedByJobId.get(String(assignment.job_id)),
+      assignmentSource: derivedByJobId.has(String(assignment.job_id)) ? 'both' : 'vendor_access',
+    }));
+
+    const explicitJobIds = new Set(vendorJobAccess.map((assignment) => String(assignment.job_id)));
+    const derivedOnlyAssignments = derivedProjectTeamAssignments
+      .filter((assignment) => !explicitJobIds.has(String(assignment.job_id)))
+      .map((assignment) => ({
+        id: `derived-project-team:${assignment.job_id}`,
+        vendor_id: vendor?.id || null,
+        job_id: assignment.job_id,
+        jobs: {
+          id: assignment.job_id,
+          name: assignment.job_name,
+          status: assignment.job_status,
+        },
+        can_view_job_details: true,
+        can_submit_bills: false,
+        can_view_plans: false,
+        can_view_rfis: false,
+        can_submit_rfis: false,
+        can_view_submittals: false,
+        can_submit_submittals: false,
+        can_view_team_directory: true,
+        can_upload_compliance_docs: false,
+        can_view_photos: false,
+        can_view_rfps: false,
+        can_submit_bids: false,
+        can_view_subcontracts: false,
+        can_access_messages: false,
+        can_access_filing_cabinet: false,
+        filing_cabinet_access_level: null,
+        can_download_filing_cabinet_files: false,
+        allowed_filing_cabinet_folder_ids: null,
+        allowed_filing_cabinet_file_ids: null,
+        derivedProjectTeam: assignment,
+        assignmentSource: 'project_team',
+      }));
+
+    return [...explicitAssignments, ...derivedOnlyAssignments].sort((a, b) =>
+      String(a.jobs?.name || '').localeCompare(String(b.jobs?.name || ''))
+    );
+  }, [derivedProjectTeamAssignments, vendorJobAccess, vendor?.id]);
 
   useEffect(() => {
     const fetchVendor = async () => {
@@ -206,7 +287,8 @@ export default function VendorDetails() {
             fetchComplianceDocuments(data.id);
             fetchSubcontracts(data.id);
             fetchPendingInvite(data.id);
-            fetchVendorPortalLinkStatus(data.id);
+            fetchDesignProfessionalCompanyContext(data);
+            fetchVendorPortalLinkStatus(data);
           }
         }
       } catch (err) {
@@ -428,12 +510,17 @@ export default function VendorDetails() {
       }
     };
 
-    const fetchVendorPortalLinkStatus = async (vendorId: string) => {
+    const fetchVendorPortalLinkStatus = async (vendorRecord: any) => {
       try {
+        if (String(vendorRecord?.vendor_type || '').toLowerCase() === 'design_professional') {
+          setVendorPortalLinked(designProfessionalMembers.length > 0 || !!linkedDesignCompany);
+          return;
+        }
+
         const { data, error } = await supabase
           .from("profiles")
           .select("user_id")
-          .eq("vendor_id", vendorId)
+          .eq("vendor_id", vendorRecord.id)
           .eq("role", "vendor")
           .limit(1)
           .maybeSingle();
@@ -446,8 +533,150 @@ export default function VendorDetails() {
       }
     };
 
+    const fetchDesignProfessionalCompanyContext = async (vendorRecord: any) => {
+      const isDesignProfessionalVendor = String(vendorRecord?.vendor_type || '').toLowerCase() === 'design_professional';
+      if (!isDesignProfessionalVendor) {
+        setLinkedDesignCompany(null);
+        setDesignProfessionalMembers([]);
+        setDerivedProjectTeamAssignments([]);
+        return;
+      }
+
+      try {
+        let matchedCompany: LinkedDesignCompany | null = null;
+
+        if (vendorRecord?.email) {
+          const { data: matchingProfile } = await supabase
+            .from('profiles')
+            .select('current_company_id')
+            .eq('role', 'design_professional')
+            .ilike('email', String(vendorRecord.email))
+            .not('current_company_id', 'is', null)
+            .limit(1)
+            .maybeSingle();
+
+          const matchedCompanyId = String((matchingProfile as any)?.current_company_id || '').trim();
+          if (matchedCompanyId) {
+            const { data: companyRow } = await supabase
+              .from('companies')
+              .select('id,name,display_name,logo_url')
+              .eq('id', matchedCompanyId)
+              .eq('company_type', 'design_professional')
+              .maybeSingle();
+
+            if (companyRow) {
+              matchedCompany = companyRow as LinkedDesignCompany;
+            }
+          }
+        }
+
+        if (!matchedCompany) {
+          const { data: companyRows, error: companyError } = await supabase
+            .from('companies')
+            .select('id,name,display_name,logo_url')
+            .eq('company_type', 'design_professional')
+            .eq('is_active', true)
+            .limit(500);
+
+          if (companyError) throw companyError;
+
+          const vendorName = String(vendorRecord?.name || '').trim().toLowerCase();
+          const exactMatch = (companyRows || []).find((company: any) => {
+            const displayName = String(company.display_name || '').trim().toLowerCase();
+            const companyName = String(company.name || '').trim().toLowerCase();
+            return vendorName && (displayName === vendorName || companyName === vendorName);
+          });
+          matchedCompany = (exactMatch || null) as LinkedDesignCompany | null;
+        }
+
+        setLinkedDesignCompany(matchedCompany);
+
+        if (!matchedCompany?.id) {
+          setDesignProfessionalMembers([]);
+          setDerivedProjectTeamAssignments([]);
+          return;
+        }
+
+        const { data: memberRows, error: memberError } = await supabase
+          .from('profiles')
+          .select('user_id,display_name,first_name,last_name,avatar_url,email,phone')
+          .eq('current_company_id', matchedCompany.id)
+          .order('last_name', { ascending: true });
+
+        if (memberError) throw memberError;
+
+        const normalizedMembers = ((memberRows || []) as any[]).map((member) => ({
+          user_id: String(member.user_id),
+          name:
+            String(member.display_name || '').trim()
+            || [member.first_name, member.last_name].filter(Boolean).join(' ')
+            || 'Unnamed Member',
+          email: member.email || null,
+          phone: member.phone || null,
+          avatar_url: member.avatar_url || null,
+        }));
+        setDesignProfessionalMembers(normalizedMembers);
+
+        const memberIds = normalizedMembers.map((member) => member.user_id).filter(Boolean);
+        if (memberIds.length === 0) {
+          setDerivedProjectTeamAssignments([]);
+          return;
+        }
+
+        const { data: projectTeamRows, error: projectTeamError } = await supabase
+          .from('job_project_directory')
+          .select(`
+            job_id,
+            linked_user_id,
+            jobs:job_id(id, name, status)
+          `)
+          .eq('company_id', vendorRecord.company_id)
+          .eq('is_active', true)
+          .eq('is_project_team_member', true)
+          .in('linked_user_id', memberIds);
+
+        if (projectTeamError) throw projectTeamError;
+
+        const assignmentMap = new Map<string, DerivedProjectTeamAssignment>();
+        ((projectTeamRows || []) as any[]).forEach((row) => {
+          const jobId = String(row.job_id || '');
+          const linkedUserId = String(row.linked_user_id || '');
+          if (!jobId || !linkedUserId) return;
+
+          const memberName = normalizedMembers.find((member) => member.user_id === linkedUserId)?.name || 'Unknown Member';
+          const existing = assignmentMap.get(jobId);
+          if (existing) {
+            if (!existing.member_user_ids.includes(linkedUserId)) existing.member_user_ids.push(linkedUserId);
+            if (!existing.member_names.includes(memberName)) existing.member_names.push(memberName);
+            return;
+          }
+
+          assignmentMap.set(jobId, {
+            job_id: jobId,
+            job_name: String((row.jobs as any)?.name || 'Unknown Job'),
+            job_status: ((row.jobs as any)?.status as string | null) || null,
+            member_user_ids: [linkedUserId],
+            member_names: [memberName],
+          });
+        });
+
+        setDerivedProjectTeamAssignments(Array.from(assignmentMap.values()));
+      } catch (error) {
+        console.error('Error loading design professional company context:', error);
+        setLinkedDesignCompany(null);
+        setDesignProfessionalMembers([]);
+        setDerivedProjectTeamAssignments([]);
+      }
+    };
+
     fetchVendor();
   }, [id, toast, currentCompany?.id, navigate]);
+
+  useEffect(() => {
+    if (!vendor) return;
+    if (String(vendor.vendor_type || '').toLowerCase() !== 'design_professional') return;
+    setVendorPortalLinked(designProfessionalMembers.length > 0 || !!linkedDesignCompany);
+  }, [vendor, designProfessionalMembers.length, linkedDesignCompany]);
 
   const handleAssignJob = async () => {
     if (!vendor?.id || !selectedAssignJobId || !user?.id) return;
@@ -786,10 +1015,19 @@ export default function VendorDetails() {
               <h1 className="text-2xl font-bold text-foreground">{vendor.name}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 {vendorPortalLinked && (
-                  <Badge variant="default">Vendor Portal Linked</Badge>
+                  <Badge variant="default">
+                    {String(vendor.vendor_type || '').toLowerCase() === 'design_professional'
+                      ? 'DesignProLYNK Linked'
+                      : 'Vendor Portal Linked'}
+                  </Badge>
                 )}
                 {!vendorPortalLinked && pendingInvite && (
                   <Badge variant="secondary">Vendor Portal Invite Pending</Badge>
+                )}
+                {linkedDesignCompany && String(vendor.vendor_type || '').toLowerCase() === 'design_professional' && (
+                  <Badge variant="outline">
+                    Linked Company: {linkedDesignCompany.display_name || linkedDesignCompany.name}
+                  </Badge>
                 )}
               </div>
             </div>
@@ -1207,6 +1445,59 @@ export default function VendorDetails() {
           )}
         </div>
 
+        {String(vendor.vendor_type || '').toLowerCase() === 'design_professional' && (
+          <Card>
+            <CardHeader>
+              <div className="space-y-1">
+                <div className="flex flex-wrap items-center gap-2">
+                  <CardTitle>Design Professional Members</CardTitle>
+                  {linkedDesignCompany && <Badge variant="default">Synced From DesignProLYNK</Badge>}
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Members from the linked design professional company workspace. These are the people who can be attached to jobs and project teams.
+                </p>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {designProfessionalMembers.length === 0 ? (
+                <div className="text-center py-8">
+                  <Building className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
+                  <h3 className="text-lg font-medium mb-1">No linked members found</h3>
+                  <p className="text-sm text-muted-foreground">
+                    {linkedDesignCompany
+                      ? 'This linked design professional company does not have any visible members yet.'
+                      : 'We could not match this design professional vendor to a DesignProLYNK company yet.'}
+                  </p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {designProfessionalMembers.map((member) => (
+                    <div key={member.user_id} className="flex items-center justify-between rounded-lg border p-3">
+                      <div className="flex min-w-0 items-center gap-3">
+                        <UserAvatar
+                          src={designProfessionalAvatarMap[member.user_id] ?? member.avatar_url}
+                          name={member.name}
+                          className="h-10 w-10"
+                        />
+                        <div className="min-w-0">
+                          <p className="truncate font-medium">{member.name}</p>
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                            {member.email && <span className="truncate">{member.email}</span>}
+                            {member.phone && <span>{member.phone}</span>}
+                          </div>
+                        </div>
+                      </div>
+                      <div className="shrink-0 text-right text-sm text-muted-foreground">
+                        {combinedJobAssignments.filter((assignment) => assignment.derivedProjectTeam?.member_user_ids?.includes(member.user_id)).length} jobs
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        )}
+
         {/* Jobs Section */}
         <Card>
           <CardHeader>
@@ -1259,7 +1550,7 @@ export default function VendorDetails() {
               {" "} - {VENDOR_ACCESS_PRESETS[selectedAssignPreset].description}
             </p>
 
-            {vendorJobAccess.length === 0 ? (
+            {combinedJobAssignments.length === 0 ? (
               <div className="text-center py-8">
                 <Briefcase className="h-12 w-12 mx-auto mb-3 text-muted-foreground opacity-50" />
                 <h3 className="text-lg font-medium mb-1">No Assigned Jobs</h3>
@@ -1269,7 +1560,7 @@ export default function VendorDetails() {
               </div>
             ) : (
               <div className="space-y-3">
-                {vendorJobAccess.map((assignment) => (
+                {combinedJobAssignments.map((assignment) => (
                   <Card key={assignment.id} className="border-dashed">
                     <CardContent className="pt-4 space-y-3">
                       <div className="flex items-center justify-between">
@@ -1278,6 +1569,8 @@ export default function VendorDetails() {
                           <p className="text-xs text-muted-foreground">Job-level vendor portal access</p>
                         </div>
                         <div className="flex items-center gap-2">
+                          {assignment.assignmentSource === 'project_team' && <Badge variant="secondary">Project Team</Badge>}
+                          {assignment.assignmentSource === 'both' && <Badge variant="secondary">Project Team + Access</Badge>}
                           {assignment.can_submit_bills && <Badge variant="secondary">Billing</Badge>}
                           {assignment.can_view_subcontracts && <Badge variant="secondary">Subcontractor</Badge>}
                           {assignment.can_view_rfps && <Badge variant="secondary">Bidder</Badge>}
@@ -1288,11 +1581,26 @@ export default function VendorDetails() {
                             <ExternalLink className="h-3 w-3 mr-1" />
                             Open Job
                           </Button>
-                          <Button variant="destructive" size="sm" onClick={() => handleRemoveVendorJobAccess(assignment.id)}>
-                            Remove
-                          </Button>
+                          {assignment.assignmentSource !== 'project_team' && (
+                            <Button variant="destructive" size="sm" onClick={() => handleRemoveVendorJobAccess(assignment.id)}>
+                              Remove
+                            </Button>
+                          )}
                         </div>
                       </div>
+                      {assignment.derivedProjectTeam?.member_names?.length > 0 && (
+                        <div className="rounded border bg-muted/30 p-3">
+                          <p className="text-sm font-medium">Project Team Members on This Job</p>
+                          <p className="mt-1 text-sm text-muted-foreground">
+                            {assignment.derivedProjectTeam.member_names.join(', ')}
+                          </p>
+                        </div>
+                      )}
+                      {assignment.assignmentSource === 'project_team' ? (
+                        <div className="rounded border border-dashed bg-muted/20 p-3 text-sm text-muted-foreground">
+                          This job is connected through project team membership. Assign explicit vendor job access if this design professional should also have portal permissions for plans, RFIs, submittals, files, or messaging on this job.
+                        </div>
+                      ) : (
                       <div className="space-y-3 border-t pt-3">
                         <div>
                           <p className="text-sm font-medium text-foreground">Core Access</p>
@@ -1455,6 +1763,7 @@ export default function VendorDetails() {
                           </div>
                         </div>
                       </div>
+                      )}
                     </CardContent>
                   </Card>
                 ))}

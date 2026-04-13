@@ -257,7 +257,6 @@ const designProfessionalNavigationCategories = [
     companyTypes: ['design_professional'] as CompanyType[],
     items: [
       { name: "Company Settings", href: "/design-professional/settings/company", menuKey: "company-settings" },
-      { name: "User Management", href: "/design-professional/settings/users", menuKey: "user-settings" },
       { name: "Subscription", href: "/design-professional/subscription", menuKey: "subscription-settings", ownerOnly: true },
     ],
     collapsible: true,
