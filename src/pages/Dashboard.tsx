@@ -729,7 +729,7 @@ export default function Dashboard() {
 
       const { data: pendingRows, error: pendingRowsError } = await supabase
         .from('company_access_requests')
-        .select('id, user_id, requested_at')
+        .select('id, user_id, requested_at, notes')
         .eq('company_id', currentCompany.id)
         .eq('status', 'pending');
 
@@ -774,12 +774,14 @@ export default function Dashboard() {
         ...(pendingRows || []).map((row: any) => ({
           user_id: String(row.user_id),
           requested_at: String(row.requested_at || new Date().toISOString()),
+          notes: typeof row.notes === 'string' ? row.notes : null,
         })),
         ...(pendingAccessRows || [])
           .filter((row: any) => !explicitRequestUserIdSet.has(String(row.user_id || '')))
           .map((row: any) => ({
             user_id: String(row.user_id),
             requested_at: String(row.granted_at || pendingProfilesByUserId.get(String(row.user_id || ''))?.created_at || new Date().toISOString()),
+            notes: null,
           })),
       ].filter((row) => explicitRequestUserIdSet.has(row.user_id) || pendingProfilesByUserId.has(row.user_id));
 
@@ -788,11 +790,32 @@ export default function Dashboard() {
           const profile = pendingProfilesByUserId.get(row.user_id);
           const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim();
           const displayName = String(profile?.display_name || fullName || 'A new user').trim();
+          let requestedRole = 'employee';
+          try {
+            const parsed = row.notes ? JSON.parse(row.notes) : {};
+            requestedRole = String(parsed?.requestedRole || 'employee').trim().toLowerCase() || 'employee';
+          } catch {
+            requestedRole = 'employee';
+          }
+
+          const title =
+            requestedRole === 'vendor'
+              ? 'Vendor Approval Pending'
+              : requestedRole === 'design_professional'
+                ? 'Design Professional Approval Pending'
+                : 'User Approval Pending';
+
+          const message =
+            requestedRole === 'vendor'
+              ? `${displayName} is waiting for vendor approval.`
+              : requestedRole === 'design_professional'
+                ? `${displayName} is waiting for design professional approval.`
+                : `${displayName} is waiting for approval.`;
 
           return {
             id: `intake-queue:${row.user_id}`,
-            title: 'User Approval Pending',
-            message: `${displayName} is waiting for approval.`,
+            title,
+            message,
             type: `intake_queue:${row.user_id}`,
             read: false,
             created_at: row.requested_at,
@@ -1234,8 +1257,8 @@ export default function Dashboard() {
       return '/settings/users?tab=intake-queue';
     }
     if (rawType.startsWith('intake_queue:')) {
-      const [, pendingUserId] = rawType.split(':');
-      if (pendingUserId) return `/settings/users/${pendingUserId}`;
+      if (combined.includes('vendor')) return '/settings/users?tab=intake-queue&role=vendor';
+      if (combined.includes('design professional')) return '/settings/users?tab=intake-queue&role=design_professional';
       return '/settings/users?tab=intake-queue';
     }
     if (rawType.startsWith('mention:')) {

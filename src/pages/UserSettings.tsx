@@ -177,6 +177,11 @@ export default function UserSettings() {
    const { settings } = useSettings();
   const urlParams = new URLSearchParams(window.location.search);
   const initialTab = urlParams.get('tab') || 'users';
+  const initialIntakeRoleFilter = (() => {
+    const role = String(urlParams.get('role') || '').trim().toLowerCase();
+    if (role === 'vendor' || role === 'design_professional') return role;
+    return 'all';
+  })();
   const [activeTab, setActiveTab] = useState(initialTab);
   const [openGroups, setOpenGroups] = useState<Record<string, boolean>>({});
   const [showAddUserDialog, setShowAddUserDialog] = useState(false);
@@ -185,7 +190,7 @@ export default function UserSettings() {
    const [resendingId, setResendingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
-  const [intakeRoleFilter, setIntakeRoleFilter] = useState<'all' | 'vendor' | 'design_professional'>('all');
+  const [intakeRoleFilter, setIntakeRoleFilter] = useState<'all' | 'vendor' | 'design_professional'>(initialIntakeRoleFilter);
   const [intakePendingOnly, setIntakePendingOnly] = useState(true);
 
   // Use company-specific role, fallback to profile role

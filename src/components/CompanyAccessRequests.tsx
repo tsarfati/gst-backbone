@@ -39,6 +39,49 @@ interface AccessRequest {
   source?: 'request' | 'fallback_profile';
 }
 
+interface ParsedRequestNotes {
+  requestType: string | null;
+  requestedRole: string | null;
+  businessName: string | null;
+  invitedJobId: string | null;
+  pendingJobInvites: Array<{ jobId?: string | null; companyId?: string | null }>;
+  email: string | null;
+}
+
+const parseRequestNotes = (notes?: string): ParsedRequestNotes => {
+  if (!notes) {
+    return {
+      requestType: null,
+      requestedRole: null,
+      businessName: null,
+      invitedJobId: null,
+      pendingJobInvites: [],
+      email: null,
+    };
+  }
+
+  try {
+    const parsed = JSON.parse(notes);
+    return {
+      requestType: typeof parsed?.requestType === 'string' ? parsed.requestType : null,
+      requestedRole: typeof parsed?.requestedRole === 'string' ? parsed.requestedRole : null,
+      businessName: typeof parsed?.businessName === 'string' ? parsed.businessName : null,
+      invitedJobId: typeof parsed?.invitedJobId === 'string' ? parsed.invitedJobId : null,
+      pendingJobInvites: Array.isArray(parsed?.pendingJobInvites) ? parsed.pendingJobInvites : [],
+      email: typeof parsed?.email === 'string' ? parsed.email : null,
+    };
+  } catch {
+    return {
+      requestType: null,
+      requestedRole: null,
+      businessName: null,
+      invitedJobId: null,
+      pendingJobInvites: [],
+      email: null,
+    };
+  }
+};
+
 const parseRequestedRole = (notes?: string): string => {
   if (!notes) return 'employee';
   try {
@@ -104,6 +147,83 @@ const isProjectDesignProfessionalInvite = (notes?: string): boolean => {
   } catch {
     return false;
   }
+};
+
+const getRequestDetails = (request: AccessRequest): string => {
+  const parsedNotes = parseRequestNotes(request.notes);
+  const role = String(request.requested_role || parsedNotes.requestedRole || 'employee').toLowerCase();
+  const pendingJobInviteCount = parsedNotes.pendingJobInvites.length;
+
+  if (request.source === 'fallback_profile' || parsedNotes.requestType === 'fallback_pending_profile') {
+    return 'Pending profile record awaiting final approval.';
+  }
+
+  if (role === 'vendor') {
+    if (pendingJobInviteCount > 0) {
+      return `Vendor portal access request with ${pendingJobInviteCount} pending job invite${pendingJobInviteCount === 1 ? '' : 's'}.`;
+    }
+    return 'Vendor portal access request. This does not create employee access.';
+  }
+
+  if (role === 'design_professional') {
+    if (pendingJobInviteCount > 0) {
+      return `Design professional access request with ${pendingJobInviteCount} pending project invite${pendingJobInviteCount === 1 ? '' : 's'}.`;
+    }
+    return 'Design professional portal access request.';
+  }
+
+  if (parsedNotes.requestType === 'external_access_signup') {
+    return 'External access request awaiting approval.';
+  }
+
+  return 'Company access request awaiting approval.';
+};
+
+const getApprovalDescription = (request?: AccessRequest | null, action?: 'approve' | 'reject' | null): string => {
+  if (!request || !action) return '';
+
+  const role = String(request.requested_role || 'employee').toLowerCase();
+  if (action === 'reject') {
+    if (role === 'vendor') {
+      return 'This vendor connection request will be denied. The vendor can request access again later.';
+    }
+    if (role === 'design_professional') {
+      return 'This design professional access request will be denied. They can request access again later.';
+    }
+    return 'This user will be denied access to your company. They can submit a new request later.';
+  }
+
+  if (role === 'vendor') {
+    return 'This approves the vendor connection for your company. The vendor keeps their own BuilderLYNK account and will only see the jobs, RFPs, and invoices you share with them.';
+  }
+
+  if (role === 'design_professional') {
+    return 'This approves design professional access for your company. They keep their own BuilderLYNK account and will only see the projects you share with them.';
+  }
+
+  return 'This user will be granted company access. You can adjust their role later from company management.';
+};
+
+const getRequestEntityLabel = (request?: AccessRequest | null): string => {
+  const role = String(request?.requested_role || 'employee').toLowerCase();
+  if (role === 'vendor') return 'Vendor Access';
+  if (role === 'design_professional') return 'Design Professional Access';
+  return 'Access Request';
+};
+
+const getActionLabel = (request?: AccessRequest | null, action?: 'approve' | 'reject' | null): string => {
+  if (!action) return '';
+  const role = String(request?.requested_role || 'employee').toLowerCase();
+
+  if (action === 'approve') {
+    if (role === 'vendor') return 'Grant Vendor Access';
+    if (role === 'design_professional') return 'Grant Design Professional Access';
+    return 'Approve';
+  }
+
+  if (role === 'vendor') return 'Deny Vendor Access';
+  if (role === 'design_professional') return 'Deny Design Professional Access';
+  return 'Reject';
 };
 
 type RequestedRole = 'employee' | 'vendor' | 'design_professional';
@@ -272,6 +392,8 @@ export default function CompanyAccessRequests({
     try {
       const { id, action } = requestToProcess;
       const isFallbackRequest = id.startsWith(`fallback:${currentCompany.id}:`);
+      const request = requests.find(r => r.id === id);
+      if (!request) throw new Error("Request not found");
       
       if (!isFallbackRequest) {
         // Update the request status
@@ -287,9 +409,6 @@ export default function CompanyAccessRequests({
         if (updateError) throw updateError;
       }
 
-      const request = requests.find(r => r.id === id);
-      if (!request) throw new Error("Request not found");
-
       if (action === 'approve') {
         const requestedRole = String(request.requested_role || 'employee').toLowerCase();
         const allowedBaseRoles = new Set([
@@ -304,49 +423,50 @@ export default function CompanyAccessRequests({
         ]);
         const targetRole = allowedBaseRoles.has(requestedRole) ? requestedRole : 'employee';
 
-        // Keep profile and company access role in sync with requested role.
-        const { error: profileError } = await supabase
-          .from('profiles')
-          .update({
-            role: targetRole as any,
-            custom_role_id: request.custom_role_id || null,
-            status: 'approved',
-            approved_by: currentUser?.id || null,
-            approved_at: new Date().toISOString(),
-          })
-          .eq('user_id', request.user_id);
-        if (profileError) throw profileError;
-
-        const { data: existingAccess, error: existingAccessError } = await supabase
-          .from('user_company_access')
-          .select('id')
-          .eq('user_id', request.user_id)
-          .eq('company_id', currentCompany.id)
-          .limit(1);
-        if (existingAccessError) throw existingAccessError;
-
-        if ((existingAccess || []).length > 0) {
-          const { error: accessUpdateError } = await supabase
-            .from('user_company_access')
+        if (isFallbackRequest) {
+          const { error: profileError } = await supabase
+            .from('profiles')
             .update({
               role: targetRole as any,
-              granted_by: currentUser?.id || null,
-              is_active: true,
+              custom_role_id: request.custom_role_id || null,
+              status: 'approved',
+              approved_by: currentUser?.id || null,
+              approved_at: new Date().toISOString(),
             })
-            .eq('user_id', request.user_id)
-            .eq('company_id', currentCompany.id);
-          if (accessUpdateError) throw accessUpdateError;
-        } else {
-          const { error: accessInsertError } = await supabase
+            .eq('user_id', request.user_id);
+          if (profileError) throw profileError;
+
+          const { data: existingAccess, error: existingAccessError } = await supabase
             .from('user_company_access')
-            .insert({
-              user_id: request.user_id,
-              company_id: currentCompany.id,
-              role: targetRole as any,
-              granted_by: currentUser?.id || null,
-              is_active: true
-            });
-          if (accessInsertError) throw accessInsertError;
+            .select('id')
+            .eq('user_id', request.user_id)
+            .eq('company_id', currentCompany.id)
+            .limit(1);
+          if (existingAccessError) throw existingAccessError;
+
+          if ((existingAccess || []).length > 0) {
+            const { error: accessUpdateError } = await supabase
+              .from('user_company_access')
+              .update({
+                role: targetRole as any,
+                granted_by: currentUser?.id || null,
+                is_active: true,
+              })
+              .eq('user_id', request.user_id)
+              .eq('company_id', currentCompany.id);
+            if (accessUpdateError) throw accessUpdateError;
+          } else {
+            const { error: accessInsertError } = await supabase
+              .from('user_company_access')
+              .insert({
+                user_id: request.user_id,
+                company_id: currentCompany.id,
+                role: targetRole as any,
+                granted_by: currentUser?.id || null,
+                is_active: true
+              });
+            if (accessInsertError) throw accessInsertError;
+          }
         }
 
         if (targetRole === 'design_professional' && request.invited_job_id) {
@@ -445,12 +565,15 @@ export default function CompanyAccessRequests({
                   <TableHead>Role</TableHead>
                   <TableHead>Business / Organization</TableHead>
                   <TableHead>Requested</TableHead>
-                  <TableHead>Notes</TableHead>
+                  <TableHead>Details</TableHead>
                   <TableHead className="text-right">Actions</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {pendingRequests.map((request) => (
+                {pendingRequests.map((request) => {
+                  const approveLabel = getActionLabel(request, 'approve');
+                  const rejectLabel = getActionLabel(request, 'reject');
+                  return (
                   <TableRow key={request.id}>
                     <TableCell className="font-medium">
                       {request.profiles?.display_name || 
@@ -469,7 +592,7 @@ export default function CompanyAccessRequests({
                       {new Date(request.requested_at).toLocaleDateString()}
                     </TableCell>
                     <TableCell className="text-muted-foreground max-w-xs truncate">
-                      {request.notes || '-'}
+                      {getRequestDetails(request)}
                     </TableCell>
                     <TableCell className="text-right">
                       <div className="flex items-center justify-end gap-2">
@@ -479,7 +602,7 @@ export default function CompanyAccessRequests({
                           className="bg-green-500 hover:bg-green-600"
                         >
                           <Check className="h-4 w-4 mr-1" />
-                          Approve
+                          {approveLabel}
                         </Button>
                         <Button
                           size="sm"
@@ -487,12 +610,12 @@ export default function CompanyAccessRequests({
                           onClick={() => setRequestToProcess({ id: request.id, action: 'reject' })}
                         >
                           <X className="h-4 w-4 mr-1" />
-                          Reject
+                          {rejectLabel}
                         </Button>
                       </div>
                     </TableCell>
                   </TableRow>
-                ))}
+                )})}
               </TableBody>
             </Table>
           </CardContent>
@@ -517,7 +640,7 @@ export default function CompanyAccessRequests({
                   <TableHead>Business / Organization</TableHead>
                   <TableHead>Requested</TableHead>
                   <TableHead>Status</TableHead>
-                  <TableHead>Notes</TableHead>
+                  <TableHead>Details</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
@@ -543,7 +666,7 @@ export default function CompanyAccessRequests({
                       {getStatusBadge(request.status)}
                     </TableCell>
                     <TableCell className="text-muted-foreground max-w-xs truncate">
-                      {request.notes || '-'}
+                      {getRequestDetails(request)}
                     </TableCell>
                   </TableRow>
                 ))}
@@ -568,18 +691,26 @@ export default function CompanyAccessRequests({
         <AlertDialogContent>
           <AlertDialogHeader>
             <AlertDialogTitle>
-              {requestToProcess?.action === 'approve' ? 'Approve' : 'Reject'} Access Request
+              {requestToProcess
+                ? `${requestToProcess.action === 'approve' ? 'Approve' : 'Reject'} ${getRequestEntityLabel(
+                    requests.find((request) => request.id === requestToProcess.id),
+                  )}`
+                : 'Access Request'}
             </AlertDialogTitle>
             <AlertDialogDescription>
-              {requestToProcess?.action === 'approve' 
-                ? 'This user will be granted employee-level access to your company. You can change their role later from company management.'
-                : 'This user will be denied access to your company. They can submit a new request later.'}
+              {getApprovalDescription(
+                requestToProcess ? requests.find((request) => request.id === requestToProcess.id) : null,
+                requestToProcess?.action || null,
+              )}
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel>Cancel</AlertDialogCancel>
             <AlertDialogAction onClick={handleProcessRequest}>
-              {requestToProcess?.action === 'approve' ? 'Approve' : 'Reject'}
+              {getActionLabel(
+                requestToProcess ? requests.find((request) => request.id === requestToProcess.id) : null,
+                requestToProcess?.action || null,
+              )}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>
