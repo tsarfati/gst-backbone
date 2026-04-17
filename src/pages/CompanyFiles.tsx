@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useLocation } from "react-router-dom";
+import { useLocation, useNavigate } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
-import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Loader2, Mail, Share2, ChevronDown, ChevronRight, Lock, ArrowUpDown, GripVertical } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Loader2, Mail, Share2, ChevronDown, ChevronRight, Lock, ArrowUpDown, GripVertical, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { resolveStorageUrl, uploadFileWithProgress } from "@/utils/storageUtils";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -90,6 +91,32 @@ interface PreviewState {
   url: string | null;
 }
 
+interface RfpAttachmentTarget {
+  id: string;
+  rfp_number: string;
+  title: string;
+  job_id: string | null;
+  status: string;
+}
+
+interface RfpAttachmentReference {
+  rfp_id: string;
+  rfp_number: string;
+  title: string;
+  status: string;
+  job_id: string | null;
+  job_name?: string | null;
+}
+
+interface RfpAttachableFile {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
+  file_type?: string | null;
+  source_job_id?: string | null;
+}
+
 interface JobCabinetState {
   loading: boolean;
   folders: JobCabinetFolder[];
@@ -167,11 +194,26 @@ const getErrorMessage = (error: unknown, fallback: string): string => {
   return fallback;
 };
 
+const getRfpStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+  switch (String(status || "").toLowerCase()) {
+    case "issued":
+    case "awarded":
+      return "default";
+    case "cancelled":
+      return "destructive";
+    case "closed":
+      return "outline";
+    default:
+      return "secondary";
+  }
+};
+
 export default function CompanyFiles() {
   const { currentCompany } = useCompany();
   const { user, profile } = useAuth();
   const { toast } = useToast();
   const location = useLocation();
+  const navigate = useNavigate();
   const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
 
   const [loading, setLoading] = useState(true);
@@ -194,6 +236,15 @@ export default function CompanyFiles() {
   const [selectedJobFileKeys, setSelectedJobFileKeys] = useState<Set<string>>(new Set());
   const [selectedJobFolderKeys, setSelectedJobFolderKeys] = useState<Set<string>>(new Set());
   const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
+  const [rfpAttachDialogOpen, setRfpAttachDialogOpen] = useState(false);
+  const [rfpTargets, setRfpTargets] = useState<RfpAttachmentTarget[]>([]);
+  const [selectedRfpId, setSelectedRfpId] = useState<string>("");
+  const [rfpAttachFiles, setRfpAttachFiles] = useState<RfpAttachableFile[]>([]);
+  const [attachingToRfp, setAttachingToRfp] = useState(false);
+  const [rfpAttachmentRefsByUrl, setRfpAttachmentRefsByUrl] = useState<Record<string, RfpAttachmentReference[]>>({});
+  const [rfpLinksDialogOpen, setRfpLinksDialogOpen] = useState(false);
+  const [rfpLinksDialogTitle, setRfpLinksDialogTitle] = useState("");
+  const [rfpLinksDialogRefs, setRfpLinksDialogRefs] = useState<RfpAttachmentReference[]>([]);
   const [previewState, setPreviewState] = useState<PreviewState>({ open: false, title: "", url: null });
   const [jobs, setJobs] = useState<JobEntry[]>([]);
   const [jobFileStatsByJobId, setJobFileStatsByJobId] = useState<Record<string, JobFileStats>>({});
@@ -261,7 +312,21 @@ export default function CompanyFiles() {
     file_name: file.file_name,
     file_url: parseStoragePathFromPublicUrl(file.file_url) || file.file_url,
     file_size: file.file_size ?? null,
+    file_type: file.file_type ?? null,
+    source_job_id: null,
   });
+
+  const getJobFolderFilesRecursive = useCallback((jobId: string, folderId: string): JobCabinetFile[] => {
+    const cabinet = jobCabinetByJobId[jobId];
+    if (!cabinet) return [];
+
+    const directFiles = cabinet.filesByFolderId[folderId] || [];
+    const childFolders = cabinet.folders.filter((folder) => folder.parent_folder_id === folderId);
+    return [
+      ...directFiles,
+      ...childFolders.flatMap((childFolder) => getJobFolderFilesRecursive(jobId, childFolder.id)),
+    ];
+  }, [jobCabinetByJobId]);
 
   const selectedFiles = useMemo(() => {
     const map = new Map<string, { id: string; file_name: string; file_url: string; file_size: number | null }>();
@@ -285,30 +350,227 @@ export default function CompanyFiles() {
         file_name: found.file_name,
         file_url: found.file_url,
         file_size: found.file_size ?? null,
+        file_type: found.file_type ?? null,
+        source_job_id: jobId,
       });
     });
 
     selectedJobFolderKeys.forEach((key) => {
       const [jobId, folderId] = key.split("::");
-      const cabinet = jobCabinetByJobId[jobId];
-      if (!cabinet) return;
-      (cabinet.filesByFolderId[folderId] || []).forEach((f) => {
+      getJobFolderFilesRecursive(jobId, folderId).forEach((f) => {
         map.set(`job-${jobId}-${f.id}`, {
           id: `job-${jobId}-${f.id}`,
           file_name: f.file_name,
           file_url: f.file_url,
           file_size: f.file_size ?? null,
+          file_type: f.file_type ?? null,
+          source_job_id: jobId,
         });
       });
     });
 
     return Array.from(map.values());
-  }, [files, selectedFileIds, selectedCompanyFolderIds, filesByFolderId, selectedJobFileKeys, selectedJobFolderKeys, jobCabinetByJobId]);
+  }, [files, selectedFileIds, selectedCompanyFolderIds, filesByFolderId, selectedJobFileKeys, selectedJobFolderKeys, jobCabinetByJobId, getJobFolderFilesRecursive]);
   const hasAnySelection =
     selectedFileIds.size > 0 ||
     selectedCompanyFolderIds.size > 0 ||
     selectedJobFileKeys.size > 0 ||
     selectedJobFolderKeys.size > 0;
+
+  const sortedRfpTargets = useMemo(() => {
+    const suggestedJobIds = Array.from(
+      new Set(
+        rfpAttachFiles
+          .map((file) => file.source_job_id || null)
+          .filter((value): value is string => Boolean(value)),
+      ),
+    );
+    const preferredJobId = suggestedJobIds.length === 1 ? suggestedJobIds[0] : null;
+
+    return [...rfpTargets].sort((a, b) => {
+      const aMatch = preferredJobId ? a.job_id === preferredJobId : false;
+      const bMatch = preferredJobId ? b.job_id === preferredJobId : false;
+      if (aMatch !== bMatch) return aMatch ? -1 : 1;
+      return `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`);
+    });
+  }, [rfpAttachFiles, rfpTargets]);
+
+  useEffect(() => {
+    if (!companyId) {
+      setRfpTargets([]);
+      return;
+    }
+
+    const loadRfpTargets = async () => {
+      const { data, error } = await supabase
+        .from("rfps")
+        .select("id, rfp_number, title, job_id, status")
+        .eq("company_id", companyId)
+        .order("created_at", { ascending: false });
+
+      if (error) {
+        console.error("Error loading RFP targets:", error);
+        return;
+      }
+
+      setRfpTargets((data || []) as RfpAttachmentTarget[]);
+    };
+
+    void loadRfpTargets();
+  }, [companyId]);
+
+  useEffect(() => {
+    if (!companyId) {
+      setRfpAttachmentRefsByUrl({});
+      return;
+    }
+
+    const loadAttachmentRefs = async () => {
+      const { data, error } = await supabase
+        .from("rfp_attachments")
+        .select("file_url, rfp_id, rfps!inner(id, rfp_number, title, status, job_id, jobs(name))")
+        .eq("company_id", companyId);
+
+      if (error) {
+        console.error("Error loading RFP attachment refs:", error);
+        return;
+      }
+
+      const refsByUrl: Record<string, RfpAttachmentReference[]> = {};
+      (data || []).forEach((row: any) => {
+        const rawUrl = String(row.file_url || "");
+        if (!rawUrl) return;
+        const ref: RfpAttachmentReference = {
+          rfp_id: String(row.rfp_id || ""),
+          rfp_number: String(row.rfps?.rfp_number || ""),
+          title: String(row.rfps?.title || ""),
+          status: String(row.rfps?.status || ""),
+          job_id: row.rfps?.job_id || null,
+          job_name: row.rfps?.jobs?.name || null,
+        };
+        [rawUrl, parseStoragePathFromPublicUrl(rawUrl)].filter((value): value is string => Boolean(value)).forEach((key) => {
+          const current = refsByUrl[key] || [];
+          if (current.some((entry) => entry.rfp_id === ref.rfp_id)) return;
+          refsByUrl[key] = [...current, ref].sort((a, b) => `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`));
+        });
+      });
+      setRfpAttachmentRefsByUrl(refsByUrl);
+    };
+
+    void loadAttachmentRefs();
+  }, [companyId]);
+
+  const getRfpAttachmentCountForUrl = useCallback((fileUrl: string) => {
+    const normalizedPath = parseStoragePathFromPublicUrl(fileUrl);
+    return rfpAttachmentRefsByUrl[fileUrl]?.length || (normalizedPath ? rfpAttachmentRefsByUrl[normalizedPath]?.length || 0 : 0);
+  }, [rfpAttachmentRefsByUrl]);
+
+  const getRfpAttachmentRefsForUrl = useCallback((fileUrl: string) => {
+    const normalizedPath = parseStoragePathFromPublicUrl(fileUrl);
+    return rfpAttachmentRefsByUrl[fileUrl] || (normalizedPath ? rfpAttachmentRefsByUrl[normalizedPath] || [] : []);
+  }, [rfpAttachmentRefsByUrl]);
+
+  const openRfpLinksDialog = useCallback((title: string, refs: RfpAttachmentReference[]) => {
+    if (refs.length === 0) return;
+    setRfpLinksDialogTitle(title);
+    setRfpLinksDialogRefs(refs);
+    setRfpLinksDialogOpen(true);
+  }, []);
+
+  const openAttachToRfpDialog = (filesToAttach: RfpAttachableFile[]) => {
+    if (!filesToAttach.length) return;
+    setRfpAttachFiles(filesToAttach);
+    setSelectedRfpId("");
+    setRfpAttachDialogOpen(true);
+  };
+
+  const attachFilesToRfp = async () => {
+    if (!companyId || !selectedRfpId || rfpAttachFiles.length === 0) return;
+
+    try {
+      setAttachingToRfp(true);
+      const uniqueFiles = Array.from(new Map(rfpAttachFiles.map((file) => [file.file_url, file])).values());
+      const { data: existingRows, error: existingError } = await supabase
+        .from("rfp_attachments")
+        .select("file_url")
+        .eq("rfp_id", selectedRfpId)
+        .in("file_url", uniqueFiles.map((file) => file.file_url));
+      if (existingError) throw existingError;
+
+      const existingUrls = new Set((existingRows || []).map((row: any) => String(row.file_url || "")));
+      const filesToInsert = uniqueFiles.filter((file) => !existingUrls.has(file.file_url));
+      if (filesToInsert.length === 0) {
+        toast({
+          title: "Already attached",
+          description: "Those files are already linked to the selected RFP.",
+        });
+        setRfpAttachDialogOpen(false);
+        setRfpAttachFiles([]);
+        setSelectedRfpId("");
+        return;
+      }
+
+      const rows = filesToInsert.map((file) => ({
+        rfp_id: selectedRfpId,
+        company_id: companyId,
+        file_name: file.file_name,
+        file_url: file.file_url,
+        file_size: file.file_size ?? null,
+        file_type: file.file_type ?? null,
+        uploaded_by: userId,
+      }));
+
+      const { error } = await supabase.from("rfp_attachments").insert(rows);
+      if (error) throw error;
+
+      const target = rfpTargets.find((rfp) => rfp.id === selectedRfpId);
+      const skippedCount = uniqueFiles.length - filesToInsert.length;
+
+      toast({
+        title: "Attached to RFP",
+        description:
+          skippedCount > 0
+            ? `${filesToInsert.length} file${filesToInsert.length === 1 ? "" : "s"} attached. ${skippedCount} already linked.`
+            : `${filesToInsert.length} file${filesToInsert.length === 1 ? "" : "s"} attached to the selected RFP.`,
+      });
+
+      setRfpAttachmentRefsByUrl((prev) => {
+        const next = { ...prev };
+        if (target) {
+          const addedRef: RfpAttachmentReference = {
+            rfp_id: target.id,
+            rfp_number: target.rfp_number,
+            title: target.title,
+            status: target.status,
+            job_id: target.job_id,
+            job_name: null,
+          };
+          filesToInsert.forEach((file) => {
+            [file.file_url, parseStoragePathFromPublicUrl(file.file_url)].filter((value): value is string => Boolean(value)).forEach((key) => {
+              const current = next[key] || [];
+              if (current.some((entry) => entry.rfp_id === addedRef.rfp_id)) return;
+              next[key] = [...current, addedRef].sort((a, b) => `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`));
+            });
+          });
+        }
+        return next;
+      });
+
+      setRfpAttachDialogOpen(false);
+      setRfpAttachFiles([]);
+      setSelectedRfpId("");
+    } catch (error) {
+      toast({ title: "Error", description: getErrorMessage(error, "Failed to attach files to RFP"), variant: "destructive" });
+    } finally {
+      setAttachingToRfp(false);
+    }
+  };
+
+  const getUniqueRfpAttachmentCountForFiles = useCallback((inputFiles: Array<{ file_url: string }>) => {
+    return new Set(
+      inputFiles.flatMap((file) => getRfpAttachmentRefsForUrl(file.file_url).map((ref) => ref.rfp_id)),
+    ).size;
+  }, [getRfpAttachmentRefsForUrl]);
 
   const ownerIds = useMemo(() => {
     const ids = new Set<string>();
@@ -1523,6 +1785,20 @@ export default function CompanyFiles() {
                 {file.file_name}
               </button>
             )}
+          {getRfpAttachmentCountForUrl(file.file_url) > 0 ? (
+            <button
+              type="button"
+              className="ml-2"
+              onClick={(e) => {
+                e.stopPropagation();
+                openRfpLinksDialog(`${file.file_name} linked RFPs`, getRfpAttachmentRefsForUrl(file.file_url));
+              }}
+            >
+              <Badge variant="secondary">
+                {getRfpAttachmentCountForUrl(file.file_url)} RFP
+              </Badge>
+            </button>
+          ) : null}
           </div>
         {renderRowColumns({
           created: file.created_at,
@@ -1545,6 +1821,23 @@ export default function CompanyFiles() {
                   <Share2 className="h-3.5 w-3.5" />
                 </Button>
               )}
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-7 w-7"
+                onClick={(e) => {
+                  e.stopPropagation();
+                  openAttachToRfpDialog([{
+                    id: `job-${jobId}-${file.id}`,
+                    file_name: file.file_name,
+                    file_url: file.file_url,
+                    file_size: file.file_size ?? null,
+                    file_type: file.file_type ?? null,
+                  }]);
+                }}
+              >
+                <Link2 className="h-3.5 w-3.5" />
+              </Button>
               {canDownloadJobCabinet && (
                 <Button
                   variant="ghost"
@@ -1589,8 +1882,10 @@ export default function CompanyFiles() {
       const folderKey = `${jobId}:${folder.id}`;
       const isExpanded = expandedJobFolderKeys.has(folderKey);
       const childCount = cabinet.folders.filter((f) => f.parent_folder_id === folder.id).length;
-      const fileCount = (cabinet.filesByFolderId[folder.id] || []).length;
-      const folderSize = (cabinet.filesByFolderId[folder.id] || []).reduce((sum, file) => sum + Number(file.file_size || 0), 0);
+      const recursiveFolderFiles = getJobFolderFilesRecursive(jobId, folder.id);
+      const fileCount = recursiveFolderFiles.length;
+      const folderSize = recursiveFolderFiles.reduce((sum, file) => sum + Number(file.file_size || 0), 0);
+      const folderRfpAttachCount = getUniqueRfpAttachmentCountForFiles(recursiveFolderFiles);
       return [
         <div
           key={folderKey}
@@ -1665,6 +1960,23 @@ export default function CompanyFiles() {
                 >
                   {folder.name}
                 </button>
+                {folderRfpAttachCount > 0 ? (
+                  <button
+                    type="button"
+                    className="ml-2"
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      const refs = Array.from(new Map(
+                        recursiveFolderFiles.flatMap((file) => getRfpAttachmentRefsForUrl(file.file_url)).map((ref) => [ref.rfp_id, ref]),
+                      ).values());
+                      openRfpLinksDialog(`${folder.name} linked RFPs`, refs);
+                    }}
+                  >
+                    <Badge variant="secondary">
+                      {folderRfpAttachCount} RFP link{folderRfpAttachCount === 1 ? "" : "s"}
+                    </Badge>
+                  </button>
+                ) : null}
               </span>
             )}
           </div>
@@ -1695,6 +2007,27 @@ export default function CompanyFiles() {
                     <Share2 className="h-3.5 w-3.5" />
                   </Button>
                 )}
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-7 w-7"
+                  disabled={recursiveFolderFiles.length === 0}
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    openAttachToRfpDialog(
+                      recursiveFolderFiles.map((f) => ({
+                        id: `job-${jobId}-${f.id}`,
+                        file_name: f.file_name,
+                        file_url: f.file_url,
+                        file_size: f.file_size ?? null,
+                        file_type: f.file_type ?? null,
+                        source_job_id: jobId,
+                      })),
+                    );
+                  }}
+                >
+                  <Link2 className="h-3.5 w-3.5" />
+                </Button>
                 {canDownloadJobCabinet && (
                   <Button
                     variant="ghost"
@@ -1749,6 +2082,10 @@ export default function CompanyFiles() {
           {hasAnySelection && (
             <>
               <Badge variant="secondary">{selectedFiles.length} selected</Badge>
+              <Button size="sm" variant="outline" disabled={selectedFiles.length === 0} onClick={() => openAttachToRfpDialog(selectedFiles)}>
+                <Link2 className="h-4 w-4 mr-1.5" />
+                Attach Selected to RFP
+              </Button>
               {canShareCompanyFiles && (
                 <Button size="sm" variant="outline" disabled={selectedFiles.length === 0} onClick={() => setShareFiles(selectedFiles)}>
                   <Mail className="h-4 w-4 mr-1.5" />
@@ -1877,6 +2214,7 @@ export default function CompanyFiles() {
             </div>
             {sortedVisibleFolders.map((folder) => {
               const folderFiles = filesByFolderId[folder.id] || [];
+              const folderRfpAttachCount = getUniqueRfpAttachmentCountForFiles(folderFiles);
               const isExpanded = expandedFolderIds.has(folder.id);
               const isJobsSystemFolder = folder.name.trim().toLowerCase() === "jobs";
               const folderBadgeCount = isJobsSystemFolder ? jobs.length : folderFiles.length;
@@ -1946,6 +2284,23 @@ export default function CompanyFiles() {
                         >
                           {folder.name}
                         </button>
+                        {folderRfpAttachCount > 0 ? (
+                          <button
+                            type="button"
+                            className="ml-2"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              const refs = Array.from(new Map(
+                                folderFiles.flatMap((file) => getRfpAttachmentRefsForUrl(file.file_url)).map((ref) => [ref.rfp_id, ref]),
+                              ).values());
+                              openRfpLinksDialog(`${folder.name} linked RFPs`, refs);
+                            }}
+                          >
+                            <Badge variant="secondary">
+                              {folderRfpAttachCount} RFP link{folderRfpAttachCount === 1 ? "" : "s"}
+                            </Badge>
+                          </button>
+                        ) : null}
                       </span>
                     )}
                     {renderRowColumns({
@@ -1972,10 +2327,22 @@ export default function CompanyFiles() {
                                 e.stopPropagation();
                                 setShareFiles(folderFiles.map(getShareableFile));
                               }}
-                            >
-                              <Share2 className="h-4 w-4" />
-                            </Button>
-                          )}
+                              >
+                                <Share2 className="h-4 w-4" />
+                              </Button>
+                            )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            disabled={folderFiles.length === 0}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              openAttachToRfpDialog(folderFiles.map(getShareableFile));
+                            }}
+                          >
+                            <Link2 className="h-4 w-4" />
+                          </Button>
                           {canDownloadCompanyFiles && (
                             <Button
                               variant="ghost"
@@ -2154,6 +2521,20 @@ export default function CompanyFiles() {
                                 {file.file_name}
                               </button>
                             )}
+                            {getRfpAttachmentCountForUrl(file.file_url) > 0 ? (
+                              <button
+                                type="button"
+                                className="ml-2"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  openRfpLinksDialog(`${file.file_name} linked RFPs`, getRfpAttachmentRefsForUrl(file.file_url));
+                                }}
+                              >
+                                <Badge variant="secondary">
+                                  {getRfpAttachmentCountForUrl(file.file_url)} RFP
+                                </Badge>
+                              </button>
+                            ) : null}
                             {renderRowColumns({
                               created: file.created_at,
                               modified: file.updated_at || file.created_at,
@@ -2175,6 +2556,17 @@ export default function CompanyFiles() {
                                       <Share2 className="h-4 w-4" />
                                     </Button>
                                   )}
+                                  <Button
+                                    variant="ghost"
+                                    size="icon"
+                                    className="h-7 w-7"
+                                    onClick={(e) => {
+                                      e.stopPropagation();
+                                      openAttachToRfpDialog([getShareableFile(file)]);
+                                    }}
+                                  >
+                                    <Link2 className="h-4 w-4" />
+                                  </Button>
                                   {canDownloadCompanyFiles && (
                                     <Button
                                       variant="ghost"
@@ -2224,6 +2616,104 @@ export default function CompanyFiles() {
             <Button onClick={() => void handleCreateFolder()} disabled={creatingFolder || !newFolderName.trim()}>
               {creatingFolder ? "Creating..." : "Create"}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={rfpAttachDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRfpAttachDialogOpen(false);
+            setSelectedRfpId("");
+            setRfpAttachFiles([]);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Attach to RFP</DialogTitle>
+            <DialogDescription>
+              Attach {rfpAttachFiles.length} file{rfpAttachFiles.length === 1 ? "" : "s"} to an existing RFP.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <div className="text-sm font-medium">Selected files</div>
+              <div className="rounded-md border max-h-40 overflow-auto">
+                {rfpAttachFiles.map((file) => (
+                  <div key={file.id} className="px-3 py-2 text-sm border-b last:border-b-0 truncate">
+                    {file.file_name}
+                  </div>
+                ))}
+              </div>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="attach-rfp-id">RFP</Label>
+              <Select value={selectedRfpId} onValueChange={setSelectedRfpId}>
+                <SelectTrigger id="attach-rfp-id">
+                  <SelectValue placeholder="Select an RFP" />
+                </SelectTrigger>
+                <SelectContent>
+                  {sortedRfpTargets.map((rfp) => (
+                    <SelectItem key={rfp.id} value={rfp.id}>
+                      {rfp.rfp_number} - {rfp.title}
+                      {rfpAttachFiles.some((file) => file.source_job_id && file.source_job_id === rfp.job_id) ? " • Matching job" : ""}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRfpAttachDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => void attachFilesToRfp()} disabled={!selectedRfpId || attachingToRfp || rfpAttachFiles.length === 0}>
+              {attachingToRfp ? "Attaching..." : "Attach to RFP"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={rfpLinksDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRfpLinksDialogOpen(false);
+            setRfpLinksDialogTitle("");
+            setRfpLinksDialogRefs([]);
+          }
+        }}
+      >
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{rfpLinksDialogTitle || "Linked RFPs"}</DialogTitle>
+            <DialogDescription>
+              These RFPs already reference this item.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-72 space-y-2 overflow-auto">
+            {rfpLinksDialogRefs.map((ref) => (
+              <button
+                key={ref.rfp_id}
+                type="button"
+                className="w-full rounded-md border px-3 py-2 text-left hover:bg-muted/40"
+                onClick={() => {
+                  setRfpLinksDialogOpen(false);
+                  navigate(`/construction/rfps/${ref.rfp_id}`);
+                }}
+              >
+                <div className="font-medium">{ref.rfp_number} - {ref.title}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  {ref.job_name ? <span className="text-xs text-muted-foreground">{ref.job_name}</span> : null}
+                  <Badge variant={getRfpStatusBadgeVariant(ref.status)} className="capitalize">
+                    {ref.status.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRfpLinksDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

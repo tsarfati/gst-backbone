@@ -207,31 +207,20 @@ export default function SinglePagePdfViewer({
     };
 
     const handleWheel = (e: WheelEvent) => {
-      // Only intercept when the gesture originates within the PDF viewer.
+      // Only intercept when the pointer is actually over the PDF viewer.
+      // Avoid relying on the last pointer-enter state so nearby dropdowns/popovers
+      // can still use wheel scrolling normally.
       const isInside =
         containsTarget(e.target) ||
-        activeRef.current ||
         containsPoint(e.clientX, e.clientY);
       if (!isInside) return;
 
-      // Option/Alt+wheel should not scroll the surrounding page while hovering the plan.
-      if (e.altKey) {
-        try {
-          e.preventDefault();
-        } catch {
-          // ignore
-        }
-        try {
-          (e as any).stopImmediatePropagation?.();
-        } catch {
-          // ignore
-        }
-        e.stopPropagation();
+      // Default wheel behavior inside the PDF viewer should scroll vertically/horizontally,
+      // not zoom. Only Alt/Option + wheel should zoom the preview.
+      if (!e.altKey) {
         return;
       }
 
-      // Own wheel behavior inside the plan viewer so the surrounding page never starts
-      // scrolling once zoom hits its clamp. We still cancel browser page-zoom for ctrl/cmd.
       try {
         e.preventDefault();
       } catch {
@@ -243,16 +232,12 @@ export default function SinglePagePdfViewer({
         // ignore
       }
       e.stopPropagation();
+
       const prevZoom = zoomRef.current;
       const deltaScale = e.deltaMode === WheelEvent.DOM_DELTA_LINE ? 0.05 : 0.01;
       const delta = -e.deltaY * deltaScale;
       const nextZoom = clampZoom(Math.round((prevZoom + delta) * 100) / 100);
-
-      // Even if we are already clamped, keep consuming the wheel event so the page behind
-      // the viewer does not begin scrolling.
-      if (nextZoom === prevZoom) {
-        return;
-      }
+      if (nextZoom === prevZoom) return;
 
       const rect = container.getBoundingClientRect();
       const focusX = Math.min(Math.max(e.clientX - rect.left, 0), rect.width);

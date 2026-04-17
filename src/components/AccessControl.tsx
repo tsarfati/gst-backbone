@@ -169,8 +169,9 @@ export function AccessControl({ children }: AccessControlProps) {
 
       const role = String(profile?.role || '').toLowerCase();
       const isExternalRole = role === 'vendor' || role === 'design_professional';
+      const hasHomeWorkspaceLink = !!profile?.current_company_id || !!(profile as any)?.default_company_id;
 
-      if (isExternalRole && userCompanies.length === 0) {
+      if (isExternalRole && userCompanies.length === 0 && !hasHomeWorkspaceLink) {
         setPendingExternalAccess(true);
         setPendingExternalAccessLoading(false);
         return;
@@ -200,14 +201,25 @@ export function AccessControl({ children }: AccessControlProps) {
         }
 
         let requestedRole = '';
+        let homeCompanyId = '';
         try {
           const parsed = row.notes ? JSON.parse(row.notes) : null;
           requestedRole = String(parsed?.requestedRole || '').toLowerCase();
+          homeCompanyId = String(parsed?.homeCompanyId || '').trim();
         } catch {
           requestedRole = '';
+          homeCompanyId = '';
         }
 
         const isPendingExternal = requestedRole === 'vendor' || requestedRole === 'design_professional';
+        // Self-serve vendor/design users can have a valid independent home workspace
+        // while additional builder/company relationships are still pending.
+        // Do not block their portal just because an external company link is pending.
+        if (isPendingExternal && (hasHomeWorkspaceLink || !!homeCompanyId)) {
+          setPendingExternalAccess(false);
+          return;
+        }
+
         setPendingExternalAccess(isPendingExternal);
       } finally {
         if (!cancelled) setPendingExternalAccessLoading(false);
@@ -219,7 +231,7 @@ export function AccessControl({ children }: AccessControlProps) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, profile?.role, userCompanies.length]);
+  }, [user?.id, profile?.role, profile?.current_company_id, (profile as any)?.default_company_id, userCompanies.length]);
 
   useEffect(() => {
     if (authLoading || companyLoading || tenantLoading || settingsLoading) {
@@ -373,11 +385,17 @@ export function AccessControl({ children }: AccessControlProps) {
     return <AccountStatusScreen status={profile.status as 'pending' | 'suspended'} />;
   }
 
-  if (!isInviteAuthRoute && !hasTenantAccess && userCompanies.length === 0 && (!!profile?.current_company_id || !!(profile as any)?.default_company_id)) {
+  if (
+    !isInviteAuthRoute &&
+    !isExternalUser &&
+    !hasTenantAccess &&
+    userCompanies.length === 0 &&
+    (!!profile?.current_company_id || !!(profile as any)?.default_company_id)
+  ) {
     return <AccountStatusScreen status="pending" />;
   }
 
-  if (!isInviteAuthRoute && pendingExternalAccess && userCompanies.length === 0) {
+  if (!isInviteAuthRoute && pendingExternalAccess && userCompanies.length === 0 && !isExternalUser) {
     return <AccountStatusScreen status="pending" />;
   }
 

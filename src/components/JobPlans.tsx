@@ -5,15 +5,16 @@ import { useCompany } from "@/contexts/CompanyContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Checkbox } from "@/components/ui/checkbox";
-import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Progress } from "@/components/ui/progress";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { FileText, Pencil, Stamp, ArrowUp, ArrowDown, ArrowUpDown, Zap, Droplets, Wind, Flame, Building2, HardHat, Wrench, Info, Trash2 } from "lucide-react";
+import { FileText, Pencil, Stamp, ArrowUp, ArrowDown, ArrowUpDown, Zap, Droplets, Wind, Flame, Building2, HardHat, Wrench, Info, Trash2, Link2 } from "lucide-react";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import DragDropUpload from "@/components/DragDropUpload";
@@ -47,6 +48,23 @@ interface JobPlan {
 interface PlanCabinetFile {
   id: string;
   file_url: string;
+}
+
+interface RfpAttachmentTarget {
+  id: string;
+  rfp_number: string;
+  title: string;
+  job_id: string | null;
+  status: string;
+}
+
+interface RfpAttachmentReference {
+  rfp_id: string;
+  rfp_number: string;
+  title: string;
+  status: string;
+  job_id: string | null;
+  job_name?: string | null;
 }
 
 type PlanSortKey = "plan_name" | "plan_number" | "revision" | "architect" | "revision_date" | "uploaded_at";
@@ -95,6 +113,20 @@ function generatePlanUuid() {
 
   return "00000000-0000-4000-8000-000000000000";
 }
+
+const getRfpStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+  switch (String(status || "").toLowerCase()) {
+    case "issued":
+    case "awarded":
+      return "default";
+    case "cancelled":
+      return "destructive";
+    case "closed":
+      return "outline";
+    default:
+      return "secondary";
+  }
+};
 
 function parsePlanMetadataFromFileName(fileName: string) {
   const baseName = fileName.replace(/\.[^.]+$/, "");
@@ -219,6 +251,15 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
   const [deletingPlan, setDeletingPlan] = useState(false);
   const [sortKey, setSortKey] = useState<PlanSortKey>("uploaded_at");
   const [sortDirection, setSortDirection] = useState<SortDirection>("desc");
+  const [rfpAttachDialogOpen, setRfpAttachDialogOpen] = useState(false);
+  const [rfpTargets, setRfpTargets] = useState<RfpAttachmentTarget[]>([]);
+  const [selectedRfpId, setSelectedRfpId] = useState("");
+  const [attachingPlan, setAttachingPlan] = useState<JobPlan | null>(null);
+  const [attachingToRfp, setAttachingToRfp] = useState(false);
+  const [rfpAttachmentRefsByUrl, setRfpAttachmentRefsByUrl] = useState<Record<string, RfpAttachmentReference[]>>({});
+  const [rfpLinksDialogOpen, setRfpLinksDialogOpen] = useState(false);
+  const [rfpLinksDialogTitle, setRfpLinksDialogTitle] = useState("");
+  const [rfpLinksDialogRefs, setRfpLinksDialogRefs] = useState<RfpAttachmentReference[]>([]);
   const { currentView, defaultView, setCurrentView, setDefaultView } = useUnifiedViewPreference("job-plans-view", "icons");
 
   const [formData, setFormData] = useState(INITIAL_PLAN_FORM);
@@ -364,6 +405,55 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       fetchPlans();
     }
   }, [jobId, currentCompany?.id]);
+
+  useEffect(() => {
+    if (!currentCompany?.id) return;
+    const loadRfps = async () => {
+      const { data, error } = await supabase
+        .from("rfps")
+        .select("id, rfp_number, title, job_id, status")
+        .eq("company_id", currentCompany.id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        console.error("Error loading RFP targets:", error);
+        return;
+      }
+      setRfpTargets((data || []) as RfpAttachmentTarget[]);
+    };
+    void loadRfps();
+  }, [currentCompany?.id]);
+
+  useEffect(() => {
+    if (!currentCompany?.id) return;
+    const loadAttachmentCounts = async () => {
+      const { data, error } = await supabase
+        .from("rfp_attachments")
+        .select("file_url, rfp_id, rfps!inner(id, rfp_number, title, status, job_id, jobs(name))")
+        .eq("company_id", currentCompany.id);
+      if (error) {
+        console.error("Error loading plan RFP attachment counts:", error);
+        return;
+      }
+      const refsByUrl: Record<string, RfpAttachmentReference[]> = {};
+      (data || []).forEach((row: any) => {
+        const key = String(row.file_url || "");
+        if (!key) return;
+        const ref: RfpAttachmentReference = {
+          rfp_id: String(row.rfp_id || ""),
+          rfp_number: String(row.rfps?.rfp_number || ""),
+          title: String(row.rfps?.title || ""),
+          status: String(row.rfps?.status || ""),
+          job_id: row.rfps?.job_id || null,
+          job_name: row.rfps?.jobs?.name || null,
+        };
+        const current = refsByUrl[key] || [];
+        if (current.some((entry) => entry.rfp_id === ref.rfp_id)) return;
+        refsByUrl[key] = [...current, ref].sort((a, b) => `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`));
+      });
+      setRfpAttachmentRefsByUrl(refsByUrl);
+    };
+    void loadAttachmentCounts();
+  }, [currentCompany?.id]);
 
   const fetchPlans = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
@@ -745,6 +835,75 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
     navigate(`/plans/${plan.id}`);
   };
 
+  const sortedRfpTargets = [...rfpTargets].sort((a, b) => {
+    const aMatch = a.job_id === jobId;
+    const bMatch = b.job_id === jobId;
+    if (aMatch !== bMatch) return aMatch ? -1 : 1;
+    return `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`);
+  });
+
+  const attachPlanToRfp = async () => {
+    if (!currentCompany?.id || !user?.id || !selectedRfpId || !attachingPlan) return;
+    try {
+      setAttachingToRfp(true);
+      const { data: existingRows, error: existingError } = await supabase
+        .from("rfp_attachments")
+        .select("id")
+        .eq("rfp_id", selectedRfpId)
+        .eq("file_url", attachingPlan.file_url)
+        .limit(1);
+      if (existingError) throw existingError;
+      if ((existingRows || []).length > 0) {
+        toast.success("This plan set is already attached to that RFP");
+        setRfpAttachDialogOpen(false);
+        setSelectedRfpId("");
+        setAttachingPlan(null);
+        return;
+      }
+
+      const { error } = await supabase.from("rfp_attachments").insert({
+        rfp_id: selectedRfpId,
+        company_id: currentCompany.id,
+        file_name: attachingPlan.file_name,
+        file_url: attachingPlan.file_url,
+        file_size: attachingPlan.file_size ?? null,
+        file_type: "application/pdf",
+        uploaded_by: user.id,
+      });
+      if (error) throw error;
+      toast.success("Plan set attached to RFP");
+      const target = rfpTargets.find((rfp) => rfp.id === selectedRfpId);
+      if (target) {
+        setRfpAttachmentRefsByUrl((prev) => {
+          const current = prev[attachingPlan.file_url] || [];
+          if (current.some((entry) => entry.rfp_id === target.id)) return prev;
+          return {
+            ...prev,
+            [attachingPlan.file_url]: [
+              ...current,
+              {
+                rfp_id: target.id,
+                rfp_number: target.rfp_number,
+                title: target.title,
+                status: target.status,
+                job_id: target.job_id,
+                job_name: null,
+              },
+            ].sort((a, b) => `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`)),
+          };
+        });
+      }
+      setRfpAttachDialogOpen(false);
+      setSelectedRfpId("");
+      setAttachingPlan(null);
+    } catch (error: any) {
+      console.error("Error attaching plan to RFP:", error);
+      toast.error(error.message || "Failed to attach plan set to RFP");
+    } finally {
+      setAttachingToRfp(false);
+    }
+  };
+
   const handleSort = (key: PlanSortKey) => {
     setSortKey((prev) => {
       if (prev === key) {
@@ -754,6 +913,16 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       setSortDirection("asc");
       return key;
     });
+  };
+
+  const getRfpAttachmentRefsForUrl = (fileUrl: string) => rfpAttachmentRefsByUrl[fileUrl] || [];
+  const getRfpAttachmentCountForUrl = (fileUrl: string) => getRfpAttachmentRefsForUrl(fileUrl).length;
+
+  const openRfpLinksDialog = (title: string, refs: RfpAttachmentReference[]) => {
+    if (refs.length === 0) return;
+    setRfpLinksDialogTitle(title);
+    setRfpLinksDialogRefs(refs);
+    setRfpLinksDialogOpen(true);
   };
 
   const sortedPlans = [...plans].sort((a, b) => {
@@ -834,6 +1003,21 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
                   />
                   <div className="min-w-0">
                     <div className={`font-medium truncate ${compact ? "text-sm leading-tight" : ""}`}>{plan.plan_name}</div>
+                    {getRfpAttachmentCountForUrl(plan.file_url) > 0 ? (
+                      <div className="mt-1">
+                        <button
+                          type="button"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openRfpLinksDialog(`${plan.plan_name} linked RFPs`, getRfpAttachmentRefsForUrl(plan.file_url));
+                          }}
+                        >
+                          <span className="inline-flex rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                            {getRfpAttachmentCountForUrl(plan.file_url)} RFP link{getRfpAttachmentCountForUrl(plan.file_url) === 1 ? "" : "s"}
+                          </span>
+                        </button>
+                      </div>
+                    ) : null}
                     {compact ? (
                       <div className="text-xs text-muted-foreground truncate leading-tight mt-0.5">
                         {[
@@ -862,18 +1046,34 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
                 {format(new Date(plan.uploaded_at), compact ? "M/d/yy" : "MMM d, yyyy")}
               </TableCell>
               <TableCell className={`text-right ${compact ? "align-top" : ""}`}>
-                <Button
-                  size="sm"
-                  variant="ghost"
-                  className={compact ? "h-7 w-7 p-0" : undefined}
-                  onClick={(e) => {
-                    e.stopPropagation();
-                    openInfoModal(plan);
-                  }}
-                  title="Plan Information"
-                >
-                  <Info className="h-4 w-4" />
-                </Button>
+                <div className="flex justify-end gap-1">
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={compact ? "h-7 w-7 p-0" : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      setAttachingPlan(plan);
+                      setSelectedRfpId("");
+                      setRfpAttachDialogOpen(true);
+                    }}
+                    title="Attach to RFP"
+                  >
+                    <Link2 className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className={compact ? "h-7 w-7 p-0" : undefined}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      openInfoModal(plan);
+                    }}
+                    title="Plan Information"
+                  >
+                    <Info className="h-4 w-4" />
+                  </Button>
+                </div>
               </TableCell>
             </TableRow>
           ))}
@@ -942,19 +1142,49 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
               <CardContent className="p-4">
                 <div className="flex items-start justify-between mb-2">
                   <PlanDisciplineIcon plan={plan} className="h-8 w-8 flex-shrink-0" />
-                  <Button
-                    size="sm"
-                    variant="ghost"
-                    onClick={(e) => {
-                      e.stopPropagation();
-                      openInfoModal(plan);
-                    }}
-                    title="Plan Set Information"
-                  >
-                    <Info className="h-4 w-4" />
-                  </Button>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        setAttachingPlan(plan);
+                        setSelectedRfpId("");
+                        setRfpAttachDialogOpen(true);
+                      }}
+                      title="Attach to RFP"
+                    >
+                      <Link2 className="h-4 w-4" />
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="ghost"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openInfoModal(plan);
+                      }}
+                      title="Plan Set Information"
+                    >
+                      <Info className="h-4 w-4" />
+                    </Button>
+                  </div>
                 </div>
                 <h3 className="font-semibold text-sm mb-1">{plan.plan_name}</h3>
+                {getRfpAttachmentCountForUrl(plan.file_url) > 0 ? (
+                  <div className="mb-1">
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        openRfpLinksDialog(`${plan.plan_name} linked RFPs`, getRfpAttachmentRefsForUrl(plan.file_url));
+                      }}
+                    >
+                      <span className="inline-flex rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                        {getRfpAttachmentCountForUrl(plan.file_url)} RFP link{getRfpAttachmentCountForUrl(plan.file_url) === 1 ? "" : "s"}
+                      </span>
+                    </button>
+                  </div>
+                ) : null}
                 {plan.plan_number && (
                   <p className="text-xs text-muted-foreground">Plan Set #: {plan.plan_number}</p>
                 )}
@@ -1141,6 +1371,91 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
           </div>
           </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={rfpAttachDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRfpAttachDialogOpen(false);
+            setSelectedRfpId("");
+            setAttachingPlan(null);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Attach Plan Set to RFP</DialogTitle>
+            <DialogDescription>
+              {attachingPlan ? `Attach ${attachingPlan.file_name} to an existing RFP.` : "Attach this plan set to an existing RFP."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="job-plans-rfp-id">RFP</Label>
+            <Select value={selectedRfpId} onValueChange={setSelectedRfpId}>
+              <SelectTrigger id="job-plans-rfp-id">
+                <SelectValue placeholder="Select an RFP" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortedRfpTargets.map((rfp) => (
+                  <SelectItem key={rfp.id} value={rfp.id}>
+                    {rfp.rfp_number} - {rfp.title}{rfp.job_id === jobId ? " • Matching job" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRfpAttachDialogOpen(false)}>Cancel</Button>
+            <Button onClick={() => void attachPlanToRfp()} disabled={!selectedRfpId || !attachingPlan || attachingToRfp}>
+              {attachingToRfp ? "Attaching..." : "Attach to RFP"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={rfpLinksDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRfpLinksDialogOpen(false);
+            setRfpLinksDialogTitle("");
+            setRfpLinksDialogRefs([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{rfpLinksDialogTitle || "Linked RFPs"}</DialogTitle>
+            <DialogDescription>
+              These RFPs already reference this plan set.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-72 space-y-2 overflow-auto">
+            {rfpLinksDialogRefs.map((ref) => (
+              <button
+                key={ref.rfp_id}
+                type="button"
+                className="w-full rounded-md border px-3 py-2 text-left hover:bg-muted/40"
+                onClick={() => {
+                  setRfpLinksDialogOpen(false);
+                  navigate(`/construction/rfps/${ref.rfp_id}`);
+                }}
+              >
+                <div className="font-medium">{ref.rfp_number} - {ref.title}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  {ref.job_name ? <span className="text-xs text-muted-foreground">{ref.job_name}</span> : null}
+                  <Badge variant={getRfpStatusBadgeVariant(ref.status)} className="capitalize">
+                    {ref.status.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRfpLinksDialogOpen(false)}>Close</Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 

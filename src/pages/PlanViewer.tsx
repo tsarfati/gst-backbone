@@ -12,12 +12,13 @@ import { Sidebar, SidebarContent, SidebarProvider, SidebarTrigger, useSidebar } 
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
-import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler, ZoomIn, ZoomOut, Maximize2, Move, Sparkles, ThumbsDown, ThumbsUp } from "lucide-react";
+import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler, ZoomIn, ZoomOut, Maximize2, Move, Sparkles, ThumbsDown, ThumbsUp, Link2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import SinglePagePdfViewer from "@/components/SinglePagePdfViewer";
 import { format } from "date-fns";
 import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
+import { buildPlanPageRecord, extractPlanSheetMetadataFromPdfText, isPlaceholderPlanLabel } from "@/utils/planSheetMetadata";
 
 // Bundle worker locally (avoids relying on external CDNs that may be blocked)
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -83,6 +84,23 @@ interface PlanPageRevision {
   is_current: boolean | null;
 }
 
+interface RfpAttachmentTarget {
+  id: string;
+  rfp_number: string;
+  title: string;
+  job_id: string | null;
+  status: string;
+}
+
+interface RfpAttachmentReference {
+  rfp_id: string;
+  rfp_number: string;
+  title: string;
+  status: string;
+  job_id: string | null;
+  job_name?: string | null;
+}
+
 type DetectedLinkCandidate = {
   source_page_number: number;
   ref_text: string;
@@ -126,6 +144,20 @@ type NormalizedRect = {
 const SHEET_REF_PATTERN = /\b(?:\d+\s*\/\s*)?([A-Z]{1,4}\s*[-.]?\s*\d{1,3}(?:\.\d{1,3})?)\b/g;
 const SYMBOL_CODE_PATTERN = /^[A-Z]{1,4}$/;
 const SYMBOL_NUM_PATTERN = /^\d{1,3}[A-Z]?$/i;
+
+const getRfpStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+  switch (String(status || "").toLowerCase()) {
+    case "issued":
+    case "awarded":
+      return "default";
+    case "cancelled":
+      return "destructive";
+    case "closed":
+      return "outline";
+    default:
+      return "secondary";
+  }
+};
 
 const normalizeSheetRef = (value: string | null | undefined) =>
   (value || "")
@@ -383,6 +415,13 @@ export default function PlanViewer() {
     description: "",
     is_permit_set: false,
   });
+  const [rfpAttachDialogOpen, setRfpAttachDialogOpen] = useState(false);
+  const [rfpTargets, setRfpTargets] = useState<RfpAttachmentTarget[]>([]);
+  const [selectedRfpId, setSelectedRfpId] = useState("");
+  const [attachingToRfp, setAttachingToRfp] = useState(false);
+  const [rfpAttachmentCount, setRfpAttachmentCount] = useState(0);
+  const [rfpAttachmentRefs, setRfpAttachmentRefs] = useState<RfpAttachmentReference[]>([]);
+  const [rfpLinksDialogOpen, setRfpLinksDialogOpen] = useState(false);
   
 
   const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -390,6 +429,7 @@ export default function PlanViewer() {
   const pdfContainerRef = useRef<HTMLDivElement>(null);
   const aiSelectionStartRef = useRef<{ x: number; y: number } | null>(null);
   const ensuredPagePlaceholderKeyRef = useRef<string>("");
+  const repairedPageLabelKeyRef = useRef<string>("");
   const planAiEnabled = !featureLoading && hasFeature("ai_plan_qa_v1");
   
 
@@ -399,6 +439,53 @@ export default function PlanViewer() {
       fetchPlanData();
     }
   }, [planId]);
+
+  useEffect(() => {
+    if (!plan?.company_id) return;
+    const loadRfps = async () => {
+      const { data, error } = await supabase
+        .from("rfps")
+        .select("id, rfp_number, title, job_id, status")
+        .eq("company_id", plan.company_id)
+        .order("created_at", { ascending: false });
+      if (error) {
+        console.error("Error loading RFP targets:", error);
+        return;
+      }
+      setRfpTargets((data || []) as RfpAttachmentTarget[]);
+    };
+    void loadRfps();
+  }, [plan?.company_id]);
+
+  useEffect(() => {
+    if (!plan?.company_id || !plan?.file_url) {
+      setRfpAttachmentCount(0);
+      setRfpAttachmentRefs([]);
+      return;
+    }
+    const loadAttachmentCount = async () => {
+      const { data, error } = await supabase
+        .from("rfp_attachments")
+        .select("rfp_id, rfps!inner(id, rfp_number, title, status, job_id, jobs(name))")
+        .eq("company_id", plan.company_id)
+        .eq("file_url", plan.file_url);
+      if (error) {
+        console.error("Error loading plan attachment count:", error);
+        return;
+      }
+      const refs = (data || []).map((row: any) => ({
+        rfp_id: String(row.rfp_id || ""),
+        rfp_number: String(row.rfps?.rfp_number || ""),
+        title: String(row.rfps?.title || ""),
+        status: String(row.rfps?.status || ""),
+        job_id: row.rfps?.job_id || null,
+        job_name: row.rfps?.jobs?.name || null,
+      }));
+      setRfpAttachmentRefs(refs);
+      setRfpAttachmentCount(refs.length);
+    };
+    void loadAttachmentCount();
+  }, [plan?.company_id, plan?.file_url]);
 
   useEffect(() => {
     const pageParam = searchParams.get("page");
@@ -411,6 +498,87 @@ export default function PlanViewer() {
     if (!planId) return;
     fetchMarkups();
   }, [planId, currentPage]);
+
+  useEffect(() => {
+    if (!planId || !plan?.file_url || pages.length === 0 || analyzing) return;
+
+    const placeholderPages = pages.filter((page) =>
+      isPlaceholderPlanLabel(page.sheet_number, page.page_number)
+    );
+    if (placeholderPages.length === 0) return;
+
+    const repairKey = `${planId}:${placeholderPages.map((page) => page.page_number).join(",")}`;
+    if (repairedPageLabelKeyRef.current === repairKey) return;
+    repairedPageLabelKeyRef.current = repairKey;
+
+    const repairPlaceholderPlanLabels = async () => {
+      try {
+        const pdfjs: any = await import("pdfjs-dist");
+        pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+        const resp = await fetch(plan.file_url);
+        if (!resp.ok) throw new Error(`Failed to fetch PDF: ${resp.status}`);
+        const buf = await resp.arrayBuffer();
+        const loadingTask = pdfjs.getDocument({ data: buf });
+        const pdf = await loadingTask.promise;
+
+        const updates: any[] = [];
+
+        for (const pageMeta of placeholderPages) {
+          try {
+            const page = await pdf.getPage(pageMeta.page_number);
+            const baseViewport = page.getViewport({ scale: 1 });
+            const textContent = await page.getTextContent();
+            const pdfTextResult = extractPlanSheetMetadataFromPdfText({
+              textItems: (textContent?.items || []) as any[],
+              viewportWidth: baseViewport.width,
+              viewportHeight: baseViewport.height,
+            });
+
+            const nextPageRecord = buildPlanPageRecord({
+              planId,
+              pageNumber: pageMeta.page_number,
+              pdfTextResult,
+            });
+
+            if (!isPlaceholderPlanLabel(nextPageRecord.sheet_number as string | null, pageMeta.page_number)) {
+              updates.push({
+                id: pageMeta.id,
+                ...nextPageRecord,
+              });
+            }
+          } catch (repairError) {
+            console.warn(`Failed repairing placeholder label for page ${pageMeta.page_number}:`, repairError);
+          }
+        }
+
+        try {
+          await pdf.cleanup?.();
+        } catch {
+          // ignore cleanup errors
+        }
+        try {
+          await pdf.destroy?.();
+        } catch {
+          // ignore destroy errors
+        }
+
+        if (updates.length === 0) return;
+
+        const { error: upsertError } = await supabase
+          .from("plan_pages" as any)
+          .upsert(updates, { onConflict: "plan_id,page_number" });
+
+        if (upsertError) throw upsertError;
+        await fetchPlanData();
+      } catch (repairError) {
+        console.warn("Plan page placeholder repair failed:", repairError);
+        repairedPageLabelKeyRef.current = "";
+      }
+    };
+
+    void repairPlaceholderPlanLabels();
+  }, [planId, plan?.file_url, pages, analyzing]);
 
   useEffect(() => {
     setAiSelectionNorm(null);
@@ -1075,6 +1243,13 @@ export default function PlanViewer() {
           console.log(`Processing page ${pageNum}/${numPages} with OCR...`);
           const page = await pdf.getPage(pageNum);
           const baseViewport = page.getViewport({ scale: 1 });
+          let textItems: any[] = [];
+          try {
+            const textContent = await page.getTextContent();
+            textItems = (textContent?.items || []) as any[];
+          } catch (textErr) {
+            console.warn(`Text extraction bootstrap failed for page ${pageNum}:`, textErr);
+          }
           
           // Render page to canvas for OCR
           const viewport = page.getViewport({ scale: 1.5 });
@@ -1111,22 +1286,19 @@ export default function PlanViewer() {
           const result = ocrData?.data || {};
           console.log(`Page ${pageNum} OCR result:`, result);
 
-          pageData = {
-            plan_id: planId,
-            page_number: pageNum,
-            sheet_number: result.sheet_number || null,
-            page_title: result.sheet_number && result.sheet_title
-              ? `${result.sheet_number} - ${result.sheet_title}`
-              : (result.sheet_title || `Sheet ${pageNum}`),
-            discipline: result.discipline || 'General',
-            page_description: result.sheet_title 
-              ? `${result.discipline || 'General'} - ${result.sheet_title}`
-              : `Page ${pageNum}`,
-          };
+          const pdfTextResult = extractPlanSheetMetadataFromPdfText({
+            textItems,
+            viewportWidth: baseViewport.width,
+            viewportHeight: baseViewport.height,
+          });
+          pageData = buildPlanPageRecord({
+            planId,
+            pageNumber: pageNum,
+            ocrResult: result,
+            pdfTextResult,
+          });
 
           try {
-            const textContent = await page.getTextContent();
-            const textItems = (textContent?.items || []) as any[];
             const candidates = extractSheetRefCandidates({
               pageNumber: pageNum,
               textItems,
@@ -1160,15 +1332,27 @@ export default function PlanViewer() {
           }
         } catch (pageError) {
           console.error(`Error processing page ${pageNum}:`, pageError);
-          // Fallback to basic page info
-          pageData = {
-            plan_id: planId,
-            page_number: pageNum,
-            sheet_number: `Page ${pageNum}`,
-            page_title: `Sheet ${pageNum}`,
-            discipline: 'General',
-            page_description: `Page ${pageNum}`,
-          };
+          try {
+            const page = await pdf.getPage(pageNum);
+            const baseViewport = page.getViewport({ scale: 1 });
+            const textContent = await page.getTextContent();
+            const pdfTextResult = extractPlanSheetMetadataFromPdfText({
+              textItems: (textContent?.items || []) as any[],
+              viewportWidth: baseViewport.width,
+              viewportHeight: baseViewport.height,
+            });
+            pageData = buildPlanPageRecord({
+              planId,
+              pageNumber: pageNum,
+              pdfTextResult,
+            });
+          } catch (textFallbackError) {
+            console.warn(`Text-only fallback failed for page ${pageNum}:`, textFallbackError);
+            pageData = buildPlanPageRecord({
+              planId,
+              pageNumber: pageNum,
+            });
+          }
         }
 
         collectedPageRows.push(pageData);
@@ -1962,6 +2146,73 @@ export default function PlanViewer() {
     }
   };
 
+  const sortedRfpTargets = [...rfpTargets].sort((a, b) => {
+    const aMatch = a.job_id && a.job_id === plan?.job_id;
+    const bMatch = b.job_id && b.job_id === plan?.job_id;
+    if (aMatch !== bMatch) return aMatch ? -1 : 1;
+    return `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`);
+  });
+
+  const attachCurrentPlanToRfp = async () => {
+    if (!plan?.company_id || !plan?.file_url || !plan?.file_name || !user?.id || !selectedRfpId) return;
+    try {
+      setAttachingToRfp(true);
+      const { data: existingRows, error: existingError } = await supabase
+        .from("rfp_attachments")
+        .select("id")
+        .eq("rfp_id", selectedRfpId)
+        .eq("file_url", plan.file_url)
+        .limit(1);
+      if (existingError) throw existingError;
+      if ((existingRows || []).length > 0) {
+        toast.success("This plan is already attached to that RFP");
+        setRfpAttachDialogOpen(false);
+        setSelectedRfpId("");
+        return;
+      }
+
+      const { error } = await supabase.from("rfp_attachments").insert({
+        rfp_id: selectedRfpId,
+        company_id: plan.company_id,
+        file_name: plan.file_name,
+        file_url: plan.file_url,
+        file_size: plan.file_size ?? null,
+        file_type: "application/pdf",
+        uploaded_by: user.id,
+      });
+      if (error) throw error;
+      toast.success("Plan attached to RFP");
+      const target = rfpTargets.find((rfp) => rfp.id === selectedRfpId);
+      if (target) {
+        setRfpAttachmentRefs((prev) => {
+          if (prev.some((entry) => entry.rfp_id === target.id)) return prev;
+          const next = [
+            ...prev,
+              {
+                rfp_id: target.id,
+                rfp_number: target.rfp_number,
+                title: target.title,
+                status: target.status,
+                job_id: target.job_id,
+                job_name: null,
+              },
+          ].sort((a, b) => `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`));
+          setRfpAttachmentCount(next.length);
+          return next;
+        });
+      } else {
+        setRfpAttachmentCount((prev) => prev + 1);
+      }
+      setRfpAttachDialogOpen(false);
+      setSelectedRfpId("");
+    } catch (error: any) {
+      console.error("Error attaching plan to RFP:", error);
+      toast.error(error?.message || "Failed to attach plan to RFP");
+    } finally {
+      setAttachingToRfp(false);
+    }
+  };
+
   return (
     <SidebarProvider defaultOpen={true}>
       <div className="flex flex-col h-screen bg-background w-full overflow-hidden">
@@ -1979,11 +2230,31 @@ export default function PlanViewer() {
               {plan.plan_number && (
                 <p className="truncate text-sm text-muted-foreground">Plan Set #: {plan.plan_number}</p>
               )}
+              {rfpAttachmentCount > 0 && (
+                <div className="mt-1">
+                  <button type="button" onClick={() => setRfpLinksDialogOpen(true)}>
+                    <span className="inline-flex rounded-full bg-secondary px-2 py-0.5 text-[10px] font-medium text-secondary-foreground">
+                      {rfpAttachmentCount} RFP link{rfpAttachmentCount === 1 ? "" : "s"}
+                    </span>
+                  </button>
+                </div>
+              )}
             </div>
           </div>
 
           {/* Page Navigation + Tools */}
           <div className="flex items-center gap-1.5 shrink-0 pl-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => {
+                setSelectedRfpId("");
+                setRfpAttachDialogOpen(true);
+              }}
+            >
+              <Link2 className="h-4 w-4 mr-2" />
+              Attach to RFP
+            </Button>
             {analyzing && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground mr-1">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -1993,31 +2264,35 @@ export default function PlanViewer() {
               </div>
             )}
             {pageSelectorOptions.length > 0 && (
-              <div className="flex items-center gap-1.5">
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => prevPageNumber && navigateToPage(prevPageNumber)}
-                  disabled={!prevPageNumber}
-                  title="Previous Page"
-                >
-                  <ChevronLeft className="h-4 w-4" />
-                </Button>
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => nextPageNumber && navigateToPage(nextPageNumber)}
-                  disabled={!nextPageNumber}
-                  title="Next Page"
-                >
-                  <ChevronRight className="h-4 w-4" />
-                </Button>
+              <div className="flex items-center gap-2 shrink-0">
+                <div className="flex items-center gap-1.5 shrink-0">
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => prevPageNumber && navigateToPage(prevPageNumber)}
+                    disabled={!prevPageNumber}
+                    title="Previous Page"
+                    className="shrink-0"
+                  >
+                    <ChevronLeft className="h-4 w-4" />
+                  </Button>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    onClick={() => nextPageNumber && navigateToPage(nextPageNumber)}
+                    disabled={!nextPageNumber}
+                    title="Next Page"
+                    className="shrink-0"
+                  >
+                    <ChevronRight className="h-4 w-4" />
+                  </Button>
+                </div>
                 <Select
                   value={currentPage.toString()}
                   onValueChange={(value) => navigateToPage(parseInt(value))}
                 >
                   <SelectTrigger
-                    className="bg-background z-50 max-w-[42rem]"
+                    className="bg-background z-50 max-w-[42rem] justify-start text-left shrink-0"
                     style={{ width: `${pageSelectorWidthCh}ch` }}
                   >
                     <SelectValue />
@@ -3209,6 +3484,77 @@ export default function PlanViewer() {
             <Button onClick={handleSetScale} disabled={measurePoints.length !== 2 || !scaleFormData.knownDistance}>
               Set Scale
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={rfpAttachDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRfpAttachDialogOpen(false);
+            setSelectedRfpId("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Attach Plan to RFP</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="plan-viewer-rfp-id">RFP</Label>
+            <Select value={selectedRfpId} onValueChange={setSelectedRfpId}>
+              <SelectTrigger id="plan-viewer-rfp-id">
+                <SelectValue placeholder="Select an RFP" />
+              </SelectTrigger>
+              <SelectContent>
+                {sortedRfpTargets.map((rfp) => (
+                  <SelectItem key={rfp.id} value={rfp.id}>
+                    {rfp.rfp_number} - {rfp.title}{rfp.job_id && rfp.job_id === plan?.job_id ? " • Matching job" : ""}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRfpAttachDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={() => void attachCurrentPlanToRfp()} disabled={!selectedRfpId || attachingToRfp}>
+              {attachingToRfp ? "Attaching..." : "Attach to RFP"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={rfpLinksDialogOpen} onOpenChange={setRfpLinksDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Linked RFPs</DialogTitle>
+          </DialogHeader>
+          <div className="max-h-72 space-y-2 overflow-auto">
+            {rfpAttachmentRefs.map((ref) => (
+              <button
+                key={ref.rfp_id}
+                type="button"
+                className="w-full rounded-md border px-3 py-2 text-left hover:bg-muted/40"
+                onClick={() => {
+                  setRfpLinksDialogOpen(false);
+                  navigate(`/construction/rfps/${ref.rfp_id}`);
+                }}
+              >
+                <div className="font-medium">{ref.rfp_number} - {ref.title}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  {ref.job_name ? <span className="text-xs text-muted-foreground">{ref.job_name}</span> : null}
+                  <Badge variant={getRfpStatusBadgeVariant(ref.status)} className="capitalize">
+                    {ref.status.replace(/_/g, " ")}
+                  </Badge>
+                </div>
+              </button>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRfpLinksDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -38,6 +38,9 @@ import { useToast } from '@/components/ui/use-toast';
 import { format, differenceInDays, isPast } from 'date-fns';
 import { resolveStorageUrl, uploadFileWithProgress } from '@/utils/storageUtils';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
+import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
+import { downloadRfpPlanPagesPdf } from '@/utils/rfpPlanPagesPdf';
+import RfpPlanPageNoteViewer, { type RfpPlanPageNoteViewerNote } from '@/components/RfpPlanPageNoteViewer';
 
 interface ComplianceDocument {
   id: string;
@@ -133,6 +136,7 @@ interface VendorRFP {
   job?: { id: string; name: string } | null;
   response_status: string | null;
   invited_at: string;
+  last_viewed_at: string | null;
   attachments: Array<{
     id: string;
     file_name: string;
@@ -140,6 +144,32 @@ interface VendorRFP {
     file_type: string | null;
     file_size: number | null;
   }>;
+  plan_pages: Array<{
+    id: string;
+    plan_id: string;
+    plan_name: string;
+    plan_number: string | null;
+    plan_file_url: string | null;
+    page_number: number;
+    sheet_number: string | null;
+    page_title: string | null;
+    discipline: string | null;
+    thumbnail_url: string | null;
+    is_primary: boolean;
+    note: string | null;
+    callouts: RfpPlanPageNoteViewerNote[];
+  }>;
+  issued_package: {
+    id: string;
+    name: string;
+    description: string | null;
+    plans: Array<{
+      plan_id: string;
+      plan_name: string;
+      plan_number: string | null;
+      file_url: string | null;
+    }>;
+  } | null;
   my_bid: {
     id: string;
     bid_amount: number;
@@ -149,6 +179,28 @@ interface VendorRFP {
     submitted_at: string;
   } | null;
 }
+
+interface RfpAttachmentReference {
+  rfp_id: string;
+  rfp_number: string;
+  title: string;
+  status: string;
+  job_name?: string | null;
+}
+
+const getRfpStatusBadgeVariant = (status: string): 'default' | 'secondary' | 'destructive' | 'outline' => {
+  switch (String(status || '').toLowerCase()) {
+    case 'issued':
+    case 'awarded':
+      return 'default';
+    case 'cancelled':
+      return 'destructive';
+    case 'closed':
+      return 'outline';
+    default:
+      return 'secondary';
+  }
+};
 
 export default function VendorDashboard() {
   const navigate = useNavigate();
@@ -206,6 +258,10 @@ export default function VendorDashboard() {
   const [bidDialogOpen, setBidDialogOpen] = useState(false);
   const [selectedRfpForBid, setSelectedRfpForBid] = useState<VendorRFP | null>(null);
   const [submittingBid, setSubmittingBid] = useState(false);
+  const [previewPlanPage, setPreviewPlanPage] = useState<VendorRFP['plan_pages'][number] | null>(null);
+  const [rfpLinksDialogOpen, setRfpLinksDialogOpen] = useState(false);
+  const [rfpLinksDialogTitle, setRfpLinksDialogTitle] = useState('');
+  const [rfpLinksDialogRefs, setRfpLinksDialogRefs] = useState<RfpAttachmentReference[]>([]);
   const [bidForm, setBidForm] = useState({
     bid_amount: '',
     proposed_timeline: '',
@@ -253,6 +309,37 @@ export default function VendorDashboard() {
   const w9InputRef = useRef<HTMLInputElement | null>(null);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
 
+  const rfpAttachmentRefsByUrl = useMemo(() => {
+    const next: Record<string, RfpAttachmentReference[]> = {};
+    rfps.forEach((rfp) => {
+      rfp.attachments.forEach((attachment) => {
+        const key = String(attachment.file_url || '');
+        if (!key) return;
+        const ref: RfpAttachmentReference = {
+          rfp_id: rfp.id,
+          rfp_number: rfp.rfp_number,
+          title: rfp.title,
+          status: rfp.status,
+          job_name: rfp.job?.name || null,
+        };
+        const current = next[key] || [];
+        if (current.some((entry) => entry.rfp_id === ref.rfp_id)) return;
+        next[key] = [...current, ref].sort((a, b) => `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`));
+      });
+    });
+    return next;
+  }, [rfps]);
+
+  const getRfpAttachmentRefsForUrl = (fileUrl: string) => rfpAttachmentRefsByUrl[fileUrl] || [];
+  const getRfpAttachmentCountForUrl = (fileUrl: string) => getRfpAttachmentRefsForUrl(fileUrl).length;
+
+  const openRfpLinksDialog = (title: string, refs: RfpAttachmentReference[]) => {
+    if (refs.length === 0) return;
+    setRfpLinksDialogTitle(title);
+    setRfpLinksDialogRefs(refs);
+    setRfpLinksDialogOpen(true);
+  };
+
   useEffect(() => {
     if (profile?.vendor_id) {
       fetchVendorData();
@@ -270,6 +357,18 @@ export default function VendorDashboard() {
       setActiveTab(String(vendorInfo?.vendor_type || '').toLowerCase() === 'design_professional' ? 'rfis' : 'invoices');
     }
   }, [location.pathname, vendorInfo?.vendor_type]);
+
+  useEffect(() => {
+    if (activeTab !== 'rfps') return;
+    const rfpIds = rfps.map((rfp) => rfp.id).filter(Boolean);
+    if (rfpIds.length === 0) return;
+
+    void supabase.rpc('mark_vendor_rfps_viewed', { p_rfp_ids: rfpIds }).then(({ error }) => {
+      if (error) {
+        console.error('Error marking vendor RFPs viewed:', error);
+      }
+    });
+  }, [activeTab, rfps]);
 
   useEffect(() => {
     if (!user?.id || loading) return;
@@ -292,6 +391,31 @@ export default function VendorDashboard() {
       tax_id: vendorInfo?.tax_id || '',
     });
   }, [vendorInfo]);
+
+  const handleDownloadRfpPlanPagesPdf = async (rfp: VendorRFP) => {
+    if (!rfp.plan_pages.length) return;
+
+    try {
+      await downloadRfpPlanPagesPdf({
+        fileName: `${rfp.rfp_number || 'RFP'}_attached_plan_pages.pdf`,
+        pages: rfp.plan_pages.map((page) => ({
+          plan_id: page.plan_id,
+          plan_name: page.plan_name,
+          plan_file_url: page.plan_file_url,
+          page_number: page.page_number,
+          sheet_number: page.sheet_number,
+          page_title: page.page_title,
+        })),
+      });
+    } catch (error: any) {
+      console.error('Error downloading attached plan pages PDF:', error);
+      toast({
+        title: 'Download failed',
+        description: error?.message || 'Unable to build the attached plan pages PDF.',
+        variant: 'destructive',
+      });
+    }
+  };
 
   const fetchVendorData = async () => {
     if (!profile?.vendor_id) return;
@@ -381,6 +505,7 @@ export default function VendorDashboard() {
           company_id,
           rfp_id,
           invited_at,
+          last_viewed_at,
           response_status,
           rfp:rfps(
             id,
@@ -428,6 +553,113 @@ export default function VendorDashboard() {
           }
         }
 
+        let planPagesByRfp = new Map<string, any[]>();
+        if (rfpIds.length > 0) {
+          const { data: rfpPlanPagesData, error: rfpPlanPagesError } = await supabase
+            .from('rfp_plan_pages' as any)
+            .select(`
+              id,
+              rfp_id,
+              is_primary,
+              note,
+              sort_order,
+              plan_page:plan_pages(page_number, sheet_number, page_title, discipline, thumbnail_url),
+              plan:job_plans(id, plan_name, plan_number, file_url)
+            `)
+            .in('rfp_id', rfpIds)
+            .order('sort_order', { ascending: true });
+          if (rfpPlanPagesError) {
+            console.error('Error loading RFP plan pages:', rfpPlanPagesError);
+          } else {
+            planPagesByRfp = new Map<string, any[]>();
+            (rfpPlanPagesData || []).forEach((row: any) => {
+              const list = planPagesByRfp.get(String(row.rfp_id)) || [];
+              list.push(row);
+              planPagesByRfp.set(String(row.rfp_id), list);
+            });
+          }
+        }
+
+        const planPageRowIds = Array.from(planPagesByRfp.values()).flat().map((row: any) => String(row.id));
+        let calloutsByPlanPageRowId = new Map<string, RfpPlanPageNoteViewerNote[]>();
+        if (planPageRowIds.length > 0) {
+          const { data: noteRows, error: noteError } = await supabase
+            .from('rfp_plan_page_notes' as any)
+            .select('id, rfp_plan_page_id, shape_type, x, y, width, height, note_text, sort_order')
+            .in('rfp_plan_page_id', planPageRowIds)
+            .order('sort_order', { ascending: true });
+
+          if (noteError) {
+            console.error('Error loading RFP plan page notes:', noteError);
+          } else {
+            calloutsByPlanPageRowId = new Map<string, RfpPlanPageNoteViewerNote[]>();
+            ((noteRows || []) as any[]).forEach((row) => {
+              const key = String(row.rfp_plan_page_id);
+              const list = calloutsByPlanPageRowId.get(key) || [];
+              list.push({
+                id: String(row.id),
+                shape_type: row.shape_type === 'ellipse' ? 'ellipse' : 'rect',
+                x: Number(row.x || 0),
+                y: Number(row.y || 0),
+                width: Number(row.width || 0),
+                height: Number(row.height || 0),
+                note_text: row.note_text || '',
+              });
+              calloutsByPlanPageRowId.set(key, list);
+            });
+          }
+        }
+
+        let issuedPackageByRfp = new Map<string, VendorRFP['issued_package']>();
+        if (rfpIds.length > 0) {
+          const { data: packageRows, error: packageError } = await supabase
+            .from('rfp_issue_packages' as any)
+            .select('id, rfp_id, name, description')
+            .in('rfp_id', rfpIds);
+
+          if (packageError) {
+            console.error('Error loading RFP issue packages:', packageError);
+          } else {
+            const packageIds = (packageRows || [])
+              .map((row: any) => String(row.id))
+              .filter(Boolean);
+
+            const itemsByPackageId = new Map<string, any[]>();
+            if (packageIds.length > 0) {
+              const { data: packageItems, error: packageItemsError } = await supabase
+                .from('rfp_issue_package_items' as any)
+                .select('package_id, sort_order, plan:job_plans(id, plan_name, plan_number, file_url)')
+                .in('package_id', packageIds)
+                .order('sort_order', { ascending: true });
+
+              if (packageItemsError) {
+                console.error('Error loading RFP issue package items:', packageItemsError);
+              } else {
+                (packageItems || []).forEach((row: any) => {
+                  const key = String(row.package_id);
+                  const list = itemsByPackageId.get(key) || [];
+                  list.push(row);
+                  itemsByPackageId.set(key, list);
+                });
+              }
+            }
+
+            (packageRows || []).forEach((row: any) => {
+              issuedPackageByRfp.set(String(row.rfp_id), {
+                id: String(row.id),
+                name: String(row.name || 'Issued Package'),
+                description: row.description || null,
+                plans: (itemsByPackageId.get(String(row.id)) || []).map((item: any) => ({
+                  plan_id: String(item.plan?.id || ''),
+                  plan_name: String(item.plan?.plan_name || 'Plan Set'),
+                  plan_number: item.plan?.plan_number || null,
+                  file_url: item.plan?.file_url || null,
+                })),
+              });
+            });
+          }
+        }
+
         let bidByRfp = new Map<string, any>();
         if (rfpIds.length > 0) {
           const { data: myBidsData, error: myBidsError } = await supabase
@@ -459,6 +691,7 @@ export default function VendorDashboard() {
               job: baseRfp.job || null,
               response_status: row.response_status || null,
               invited_at: row.invited_at,
+              last_viewed_at: row.last_viewed_at || null,
               attachments: (attachmentsByRfp.get(baseRfp.id) || []).map((item: any) => ({
                 id: item.id,
                 file_name: item.file_name,
@@ -466,6 +699,22 @@ export default function VendorDashboard() {
                 file_type: item.file_type || null,
                 file_size: item.file_size || null,
               })),
+              plan_pages: (planPagesByRfp.get(baseRfp.id) || []).map((item: any) => ({
+                id: String(item.id),
+                plan_id: String(item.plan?.id || ''),
+                plan_name: String(item.plan?.plan_name || 'Plan Set'),
+                plan_number: item.plan?.plan_number || null,
+                plan_file_url: item.plan?.file_url || null,
+                page_number: Number(item.plan_page?.page_number || 0),
+                sheet_number: item.plan_page?.sheet_number || null,
+                page_title: item.plan_page?.page_title || null,
+                discipline: item.plan_page?.discipline || null,
+                thumbnail_url: item.plan_page?.thumbnail_url || null,
+                is_primary: !!item.is_primary,
+                note: item.note || null,
+                callouts: calloutsByPlanPageRowId.get(String(item.id)) || [],
+              })),
+              issued_package: issuedPackageByRfp.get(baseRfp.id) || null,
               my_bid: bidByRfp.get(baseRfp.id) || null,
             } as VendorRFP;
           })
@@ -2244,23 +2493,192 @@ export default function VendorDashboard() {
                             ) : (
                               <div className="space-y-1">
                                 {rfp.attachments.map((attachment) => (
-                                  <a
+                                  <div
                                     key={attachment.id}
-                                    href="#"
-                                    onClick={async (e) => { e.preventDefault(); const url = await resolveStorageUrl('rfp-attachments', attachment.file_url); window.open(url, '_blank'); }}
-                                    target="_blank"
-                                    rel="noreferrer"
                                     className="flex items-center justify-between rounded-sm px-2 py-1 text-xs hover:bg-background/70"
                                   >
-                                    <span className="truncate pr-2">{attachment.file_name}</span>
-                                    <span className="text-muted-foreground shrink-0">
-                                      {attachment.file_size ? `${Math.max(1, Math.round(attachment.file_size / 1024))} KB` : ''}
-                                    </span>
-                                  </a>
+                                    <button
+                                      type="button"
+                                      className="min-w-0 truncate pr-2 text-left"
+                                      onClick={async () => {
+                                        const url = await resolveStorageUrl('rfp-attachments', attachment.file_url);
+                                        window.open(url, '_blank');
+                                      }}
+                                    >
+                                      {attachment.file_name}
+                                    </button>
+                                    <div className="flex shrink-0 items-center gap-2">
+                                      {getRfpAttachmentCountForUrl(attachment.file_url) > 0 ? (
+                                        <button
+                                          type="button"
+                                          onClick={(e) => {
+                                            e.stopPropagation();
+                                            openRfpLinksDialog(`${attachment.file_name} linked RFPs`, getRfpAttachmentRefsForUrl(attachment.file_url));
+                                          }}
+                                        >
+                                          <Badge variant="secondary" className="text-[10px]">
+                                            {getRfpAttachmentCountForUrl(attachment.file_url)} RFP link{getRfpAttachmentCountForUrl(attachment.file_url) === 1 ? '' : 's'}
+                                          </Badge>
+                                        </button>
+                                      ) : null}
+                                      <span className="text-muted-foreground">
+                                        {attachment.file_size ? `${Math.max(1, Math.round(attachment.file_size / 1024))} KB` : ''}
+                                      </span>
+                                    </div>
+                                  </div>
                                 ))}
                               </div>
                             )}
                           </div>
+
+                          <div className="rounded-md border bg-muted/20 p-2">
+                            <div className="mb-2 flex items-center justify-between gap-3">
+                              <p className="text-xs font-medium">Plan Pages</p>
+                              {rfp.plan_pages.length > 0 ? (
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  className="h-7 px-2 text-[11px]"
+                                  onClick={() => handleDownloadRfpPlanPagesPdf(rfp)}
+                                >
+                                  Download Attached Pages PDF
+                                </Button>
+                              ) : null}
+                            </div>
+                            {rfp.plan_pages.length === 0 ? (
+                              <p className="text-xs text-muted-foreground">No plan pages attached</p>
+                            ) : (
+                              <div className="space-y-1">
+                                {rfp.plan_pages.map((page) => (
+                                  <div
+                                    key={page.id}
+                                    className="rounded-sm px-2 py-2 text-xs hover:bg-background/50"
+                                  >
+                                    <div className="flex items-start justify-between gap-3">
+                                      <div className="min-w-0 pr-2 flex items-start gap-3">
+                                        {page.thumbnail_url ? (
+                                          <img
+                                            src={page.thumbnail_url}
+                                            alt={page.sheet_number || `Page ${page.page_number}`}
+                                            className="h-16 w-12 rounded border object-cover shrink-0 bg-background"
+                                          />
+                                        ) : (
+                                          <div className="flex h-16 w-12 shrink-0 items-center justify-center rounded border bg-background text-[10px] text-muted-foreground">
+                                            Pg {page.page_number}
+                                          </div>
+                                        )}
+                                        <div className="min-w-0">
+                                          <div className="flex items-center gap-2 flex-wrap">
+                                            <span className="font-medium">
+                                              {page.sheet_number || `Page ${page.page_number}`}
+                                            </span>
+                                            {page.is_primary ? <Badge className="h-5 px-1.5 text-[10px]">Primary</Badge> : null}
+                                            {page.callouts.length > 0 ? (
+                                              <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                                {page.callouts.length} note{page.callouts.length === 1 ? '' : 's'}
+                                              </Badge>
+                                            ) : null}
+                                          </div>
+                                          <div className="text-muted-foreground truncate">
+                                            {page.plan_name}
+                                            {page.plan_number ? ` #${page.plan_number}` : ''}
+                                            {page.page_title ? ` • ${page.page_title}` : ''}
+                                          </div>
+                                          {page.note ? (
+                                            <div className="text-muted-foreground whitespace-pre-wrap mt-1">
+                                              {page.note}
+                                            </div>
+                                          ) : null}
+                                          {page.callouts.length > 0 ? (
+                                            <div className="mt-2 flex flex-wrap gap-2">
+                                              {page.callouts.map((callout, index) => (
+                                                <Button
+                                                  key={callout.id}
+                                                  size="sm"
+                                                  variant="outline"
+                                                  className="h-7 px-2 text-[11px]"
+                                                  onClick={() => setPreviewPlanPage(page)}
+                                                >
+                                                  See Note {index + 1}
+                                                </Button>
+                                              ))}
+                                            </div>
+                                          ) : null}
+                                        </div>
+                                      </div>
+                                      <div className="shrink-0 flex items-center gap-2">
+                                        {page.plan_file_url ? (
+                                          <>
+                                            <Button
+                                              size="sm"
+                                              variant="outline"
+                                              onClick={() => setPreviewPlanPage(page)}
+                                            >
+                                              Preview
+                                            </Button>
+                                            <Button
+                                              size="sm"
+                                              onClick={() => window.open(page.plan_file_url || '', '_blank', 'noopener,noreferrer')}
+                                            >
+                                              Open Set
+                                            </Button>
+                                          </>
+                                        ) : (
+                                          <span className="text-muted-foreground">
+                                            {page.discipline || `Page ${page.page_number}`}
+                                          </span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  </div>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+
+                          {rfp.issued_package ? (
+                            <div className="rounded-md border bg-muted/20 p-2">
+                              <div className="mb-2">
+                                <p className="text-xs font-medium">{rfp.issued_package.name}</p>
+                                {rfp.issued_package.description ? (
+                                  <p className="text-xs text-muted-foreground mt-1">
+                                    {rfp.issued_package.description}
+                                  </p>
+                                ) : null}
+                              </div>
+                              {rfp.issued_package.plans.length === 0 ? (
+                                <p className="text-xs text-muted-foreground">No full plan sets attached</p>
+                              ) : (
+                                <div className="space-y-1">
+                                  {rfp.issued_package.plans.map((plan) => (
+                                    <div
+                                      key={`${rfp.issued_package?.id}-${plan.plan_id}`}
+                                      className="flex items-center justify-between rounded-sm px-2 py-2 text-xs hover:bg-background/50"
+                                    >
+                                      <div className="min-w-0 pr-3">
+                                        <div className="font-medium truncate">{plan.plan_name}</div>
+                                        <div className="text-muted-foreground">
+                                          {plan.plan_number ? `Plan #${plan.plan_number}` : 'Full set'}
+                                        </div>
+                                      </div>
+                                      <div className="shrink-0">
+                                        {plan.file_url ? (
+                                          <Button
+                                            size="sm"
+                                            onClick={() => window.open(plan.file_url || '', '_blank', 'noopener,noreferrer')}
+                                          >
+                                            Open Set
+                                          </Button>
+                                        ) : (
+                                          <span className="text-muted-foreground">Unavailable</span>
+                                        )}
+                                      </div>
+                                    </div>
+                                  ))}
+                                </div>
+                              )}
+                            </div>
+                          ) : null}
 
                           {rfp.my_bid && (
                             <div className="rounded-md border bg-green-500/5 p-2 text-xs">
@@ -2822,6 +3240,63 @@ export default function VendorDashboard() {
             <Button onClick={submitVendorBid} disabled={submittingBid}>
               {submittingBid ? 'Saving...' : selectedRfpForBid?.my_bid ? 'Update Bid' : 'Submit Bid'}
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={!!previewPlanPage}
+        onOpenChange={(open) => {
+          if (!open) setPreviewPlanPage(null);
+        }}
+      >
+        <DialogContent className="max-w-6xl h-[90vh] p-0">
+          {previewPlanPage ? (
+            <RfpPlanPageNoteViewer
+              fileUrl={previewPlanPage.plan_file_url}
+              pageNumber={previewPlanPage.page_number}
+              sheetNumber={previewPlanPage.sheet_number}
+              pageTitle={previewPlanPage.page_title}
+              planName={previewPlanPage.plan_name}
+              planNumber={previewPlanPage.plan_number}
+              notes={previewPlanPage.callouts}
+            />
+          ) : null}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={rfpLinksDialogOpen}
+        onOpenChange={(open) => {
+          if (!open) {
+            setRfpLinksDialogOpen(false);
+            setRfpLinksDialogTitle('');
+            setRfpLinksDialogRefs([]);
+          }
+        }}
+      >
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>{rfpLinksDialogTitle || 'Linked RFPs'}</DialogTitle>
+            <DialogDescription>
+              These invited RFPs also reference this attachment.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-72 space-y-2 overflow-auto">
+            {rfpLinksDialogRefs.map((ref) => (
+              <div key={ref.rfp_id} className="rounded-md border px-3 py-2">
+                <div className="font-medium">{ref.rfp_number} - {ref.title}</div>
+                <div className="mt-1 flex items-center gap-2">
+                  {ref.job_name ? <span className="text-xs text-muted-foreground">{ref.job_name}</span> : null}
+                  <Badge variant={getRfpStatusBadgeVariant(ref.status)} className="capitalize">
+                    {ref.status.replace(/_/g, ' ')}
+                  </Badge>
+                </div>
+              </div>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRfpLinksDialogOpen(false)}>Close</Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

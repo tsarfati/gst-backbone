@@ -1,5 +1,6 @@
 import { supabase } from "@/integrations/supabase/client";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
+import { buildPlanPageRecord, extractPlanSheetMetadataFromPdfText } from "@/utils/planSheetMetadata";
 
 type IndexPlanPagesParams = {
   planId: string;
@@ -60,9 +61,18 @@ export async function indexPlanPagesOnce({
       let pageData: Record<string, unknown>;
       try {
         const page = await pdf.getPage(pageNumber);
+        const baseViewport = page.getViewport({ scale: 1 });
         const viewport = page.getViewport({ scale: 1.5 });
         const canvas = document.createElement("canvas");
         const context = canvas.getContext("2d");
+
+        let textItems: any[] = [];
+        try {
+          const textContent = await page.getTextContent();
+          textItems = (textContent?.items || []) as any[];
+        } catch (textError) {
+          console.warn(`Plan page text extraction fallback failed for page ${pageNumber}:`, textError);
+        }
 
         canvas.width = viewport.width;
         canvas.height = viewport.height;
@@ -89,29 +99,40 @@ export async function indexPlanPagesOnce({
         }
 
         const result = ocrData?.data || {};
-        pageData = {
-          plan_id: planId,
-          page_number: pageNumber,
-          sheet_number: result.sheet_number || null,
-          page_title:
-            result.sheet_number && result.sheet_title
-              ? `${result.sheet_number} - ${result.sheet_title}`
-              : result.sheet_title || `Sheet ${pageNumber}`,
-          discipline: result.discipline || "General",
-          page_description: result.sheet_title
-            ? `${result.discipline || "General"} - ${result.sheet_title}`
-            : `Page ${pageNumber}`,
-        };
+        const pdfTextResult = extractPlanSheetMetadataFromPdfText({
+          textItems,
+          viewportWidth: baseViewport.width,
+          viewportHeight: baseViewport.height,
+        });
+        pageData = buildPlanPageRecord({
+          planId,
+          pageNumber,
+          ocrResult: result,
+          pdfTextResult,
+        });
       } catch (error) {
         console.warn(`Plan page indexing fallback for page ${pageNumber}:`, error);
-        pageData = {
-          plan_id: planId,
-          page_number: pageNumber,
-          sheet_number: `Page ${pageNumber}`,
-          page_title: `Sheet ${pageNumber}`,
-          discipline: "General",
-          page_description: `Page ${pageNumber}`,
-        };
+        try {
+          const page = await pdf.getPage(pageNumber);
+          const baseViewport = page.getViewport({ scale: 1 });
+          const textContent = await page.getTextContent();
+          const pdfTextResult = extractPlanSheetMetadataFromPdfText({
+            textItems: (textContent?.items || []) as any[],
+            viewportWidth: baseViewport.width,
+            viewportHeight: baseViewport.height,
+          });
+          pageData = buildPlanPageRecord({
+            planId,
+            pageNumber,
+            pdfTextResult,
+          });
+        } catch (textFallbackError) {
+          console.warn(`Plan page indexing text-only fallback failed for page ${pageNumber}:`, textFallbackError);
+          pageData = buildPlanPageRecord({
+            planId,
+            pageNumber,
+          });
+        }
       }
 
       const { error: upsertError } = await supabase

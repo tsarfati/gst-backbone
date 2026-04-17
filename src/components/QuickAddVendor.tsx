@@ -134,7 +134,7 @@ export default function QuickAddVendor({
           type="button" 
           variant={variant} 
           size="sm" 
-          className={className}
+          className={`shrink-0 whitespace-nowrap ${className}`}
         >
           <Plus className="h-4 w-4 mr-2" />
           Quick Add Vendor

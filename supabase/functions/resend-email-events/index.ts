@@ -223,6 +223,25 @@ serve(async (req: Request): Promise<Response> => {
     });
   }
 
+  const { data: rfpInviteData, error: rfpInviteError } = await supabase
+    .from("rfp_invited_vendors")
+    .update({
+      email_status: updatePayload.email_status,
+      email_delivered_at: updatePayload.email_delivered_at,
+      email_opened_at: updatePayload.email_opened_at,
+      email_bounced_at: updatePayload.email_bounced_at,
+    })
+    .eq("resend_message_id", messageId)
+    .select("id");
+
+  if (rfpInviteError) {
+    console.error("Failed updating rfp_invited_vendors from webhook:", rfpInviteError);
+    return new Response(JSON.stringify({ error: rfpInviteError.message }), {
+      status: 500,
+      headers: { "Content-Type": "application/json", ...responseCorsHeaders },
+    });
+  }
+
   return new Response(
     JSON.stringify({
       success: true,
@@ -230,6 +249,7 @@ serve(async (req: Request): Promise<Response> => {
       messageId,
       matchedInvitations: data?.length || 0,
       matchedDesignProfessionalInvites: designInviteData?.length || 0,
+      matchedRfpInvites: rfpInviteData?.length || 0,
     }),
     {
       status: 200,

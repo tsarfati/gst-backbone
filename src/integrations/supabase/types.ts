@@ -8420,24 +8420,45 @@ export type Database = {
       rfp_invited_vendors: {
         Row: {
           company_id: string
+          email_bounced_at: string | null
+          email_delivered_at: string | null
+          email_opened_at: string | null
+          email_sent_at: string | null
+          email_status: string | null
           id: string
           invited_at: string
+          last_viewed_at: string | null
+          resend_message_id: string | null
           response_status: string | null
           rfp_id: string
           vendor_id: string
         }
         Insert: {
           company_id: string
+          email_bounced_at?: string | null
+          email_delivered_at?: string | null
+          email_opened_at?: string | null
+          email_sent_at?: string | null
+          email_status?: string | null
           id?: string
           invited_at?: string
+          last_viewed_at?: string | null
+          resend_message_id?: string | null
           response_status?: string | null
           rfp_id: string
           vendor_id: string
         }
         Update: {
           company_id?: string
+          email_bounced_at?: string | null
+          email_delivered_at?: string | null
+          email_opened_at?: string | null
+          email_sent_at?: string | null
+          email_status?: string | null
           id?: string
           invited_at?: string
+          last_viewed_at?: string | null
+          resend_message_id?: string | null
           response_status?: string | null
           rfp_id?: string
           vendor_id?: string
@@ -11604,6 +11625,10 @@ export type Database = {
         Returns: boolean
       }
       is_vendor_user: { Args: { _user_id: string }; Returns: boolean }
+      mark_vendor_rfps_viewed: {
+        Args: { p_rfp_ids: string[] }
+        Returns: undefined
+      }
       mark_message_read: {
         Args: { p_message_id: string; p_user_id: string }
         Returns: undefined
