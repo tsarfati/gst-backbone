@@ -2,11 +2,12 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { ArrowDown, ArrowLeft, ArrowUp, Layers3, Mail, Save, Upload, X } from 'lucide-react';
+import { ArrowDown, ArrowLeft, ArrowRight, ArrowUp, FolderOpen, Layers3, Mail, Paperclip, Save, Upload, X } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -20,6 +21,7 @@ import RfpPlanPagePicker, {
   type RfpSelectedPlanPage as PickerSelectedPlanPage,
 } from '@/components/RfpPlanPagePicker';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 
 interface Job {
   id: string;
@@ -39,6 +41,14 @@ interface AvailableJobFile {
   file_url: string;
   file_size: number | null;
   file_type: string | null;
+  folder_id: string | null;
+}
+
+interface JobFolder {
+  id: string;
+  name: string;
+  parent_folder_id: string | null;
+  is_system_folder: boolean;
 }
 
 interface SelectedRfpPlanPage extends RfpPlanPageOption {
@@ -81,10 +91,14 @@ export default function AddRFP() {
   const [availablePlanSets, setAvailablePlanSets] = useState<AvailablePlanSet[]>([]);
   const [availablePlanPages, setAvailablePlanPages] = useState<RfpPlanPageOption[]>([]);
   const [availableJobFiles, setAvailableJobFiles] = useState<AvailableJobFile[]>([]);
+  const [availableJobFolders, setAvailableJobFolders] = useState<JobFolder[]>([]);
   const [selectedPlanPages, setSelectedPlanPages] = useState<SelectedRfpPlanPage[]>([]);
   const [selectedFullPlanSetIds, setSelectedFullPlanSetIds] = useState<string[]>([]);
   const [selectedJobFileIds, setSelectedJobFileIds] = useState<string[]>([]);
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
+  const [planSetPickerOpen, setPlanSetPickerOpen] = useState(false);
+  const [jobFilePickerOpen, setJobFilePickerOpen] = useState(false);
+  const [expandedJobFolderIds, setExpandedJobFolderIds] = useState<string[]>([]);
   const attachmentsInputRef = useRef<HTMLInputElement | null>(null);
   const [isAttachmentsDragOver, setIsAttachmentsDragOver] = useState(false);
   
@@ -117,6 +131,7 @@ export default function AddRFP() {
       setAvailablePlanSets([]);
       setAvailablePlanPages([]);
       setAvailableJobFiles([]);
+      setAvailableJobFolders([]);
       setSelectedPlanPages((prev) => prev.filter((page) => !page.plan_id));
       setSelectedFullPlanSetIds([]);
       setSelectedJobFileIds([]);
@@ -228,6 +243,7 @@ export default function AddRFP() {
       if (planIds.length === 0) {
         setAvailablePlanPages([]);
         setAvailableJobFiles([]);
+        setAvailableJobFolders([]);
         setSelectedPlanPages((prev) => prev.filter((page) => planIds.includes(page.plan_id)));
         setSelectedFullPlanSetIds([]);
         setSelectedJobFileIds([]);
@@ -262,11 +278,19 @@ export default function AddRFP() {
       setAvailablePlanPages(nextOptions);
       const { data: jobFileRows, error: jobFilesError } = await supabase
         .from('job_files')
-        .select('id, file_name, file_url, file_size, file_type')
+        .select('id, file_name, file_url, file_size, file_type, folder_id')
         .eq('job_id', jobId)
         .order('created_at', { ascending: false });
 
       if (jobFilesError) throw jobFilesError;
+
+      const { data: folderRows, error: folderError } = await supabase
+        .from('job_folders')
+        .select('id, name, parent_folder_id, is_system_folder')
+        .eq('job_id', jobId)
+        .order('sort_order', { ascending: true });
+
+      if (folderError) throw folderError;
 
       setAvailableJobFiles(
         ((jobFileRows || []) as any[]).map((file) => ({
@@ -275,7 +299,21 @@ export default function AddRFP() {
           file_url: String(file.file_url || ''),
           file_size: file.file_size || null,
           file_type: file.file_type || null,
+          folder_id: file.folder_id || null,
         })),
+      );
+      setAvailableJobFolders(
+        ((folderRows || []) as any[]).map((folder) => ({
+          id: String(folder.id),
+          name: String(folder.name || 'Folder'),
+          parent_folder_id: folder.parent_folder_id || null,
+          is_system_folder: !!folder.is_system_folder,
+        })),
+      );
+      setExpandedJobFolderIds(
+        ((folderRows || []) as any[])
+          .filter((folder) => !folder.parent_folder_id)
+          .map((folder) => String(folder.id)),
       );
       setSelectedPlanPages((prev) =>
         prev.filter((page) => nextOptions.some((option) => option.plan_page_id === page.plan_page_id)),
@@ -286,6 +324,7 @@ export default function AddRFP() {
       console.error('Error loading available plan pages:', error);
       setAvailablePlanPages([]);
       setAvailableJobFiles([]);
+      setAvailableJobFolders([]);
     }
   };
 
@@ -506,6 +545,123 @@ export default function AddRFP() {
     const nextFiles = Array.from(files || []);
     if (!nextFiles.length) return;
     setSelectedDrawings(prev => [...prev, ...nextFiles]);
+  };
+
+  const selectedPlanSetRecords = availablePlanSets.filter((plan) => selectedFullPlanSetIds.includes(plan.id));
+  const selectedJobFileRecords = availableJobFiles.filter((file) => selectedJobFileIds.includes(file.id));
+  const folderChildrenByParent = availableJobFolders.reduce<Record<string, JobFolder[]>>((acc, folder) => {
+    const key = folder.parent_folder_id || '__root__';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(folder);
+    return acc;
+  }, {});
+  const filesByFolderId = availableJobFiles.reduce<Record<string, AvailableJobFile[]>>((acc, file) => {
+    const key = file.folder_id || '__root__';
+    if (!acc[key]) acc[key] = [];
+    acc[key].push(file);
+    return acc;
+  }, {});
+
+  const getDescendantFileIds = (folderId: string): string[] => {
+    const directFiles = filesByFolderId[folderId] || [];
+    const childFolders = folderChildrenByParent[folderId] || [];
+    return [
+      ...directFiles.map((file) => file.id),
+      ...childFolders.flatMap((folder) => getDescendantFileIds(folder.id)),
+    ];
+  };
+
+  const getFolderSelectionState = (folderId: string): boolean | 'indeterminate' => {
+    const fileIds = getDescendantFileIds(folderId);
+    if (fileIds.length === 0) return false;
+    const selectedCount = fileIds.filter((fileId) => selectedJobFileIds.includes(fileId)).length;
+    if (selectedCount === 0) return false;
+    if (selectedCount === fileIds.length) return true;
+    return 'indeterminate';
+  };
+
+  const toggleFolderSelection = (folderId: string, checked: boolean) => {
+    const fileIds = getDescendantFileIds(folderId);
+    setSelectedJobFileIds((prev) => {
+      const next = new Set(prev);
+      if (checked) fileIds.forEach((fileId) => next.add(fileId));
+      else fileIds.forEach((fileId) => next.delete(fileId));
+      return Array.from(next);
+    });
+  };
+
+  const toggleFolderExpanded = (folderId: string) => {
+    setExpandedJobFolderIds((prev) =>
+      prev.includes(folderId) ? prev.filter((id) => id !== folderId) : [...prev, folderId],
+    );
+  };
+
+  const renderJobFolderTree = (parentFolderId: string | null = null, depth = 0): React.ReactNode[] => {
+    const key = parentFolderId || '__root__';
+    const childFolders = [...(folderChildrenByParent[key] || [])].sort((a, b) => {
+      if (a.is_system_folder !== b.is_system_folder) return a.is_system_folder ? -1 : 1;
+      return a.name.localeCompare(b.name);
+    });
+    const directFiles = [...(filesByFolderId[key] || [])].sort((a, b) => a.file_name.localeCompare(b.file_name));
+
+    return [
+      ...childFolders.flatMap((folder) => {
+        const isExpanded = expandedJobFolderIds.includes(folder.id);
+        const selectionState = getFolderSelectionState(folder.id);
+        const hasChildren =
+          (folderChildrenByParent[folder.id] || []).length > 0 ||
+          (filesByFolderId[folder.id] || []).length > 0;
+
+        return [
+          <div
+            key={`folder-${folder.id}`}
+            className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/40"
+            style={{ paddingLeft: `${depth * 20 + 8}px` }}
+          >
+            <button
+              type="button"
+              className="flex h-6 w-6 items-center justify-center rounded hover:bg-muted"
+              onClick={() => hasChildren && toggleFolderExpanded(folder.id)}
+            >
+              {hasChildren ? <ArrowRight className={`h-4 w-4 transition-transform ${isExpanded ? 'rotate-90' : ''}`} /> : <span className="h-4 w-4" />}
+            </button>
+            <Checkbox
+              checked={selectionState === 'indeterminate' ? 'indeterminate' : selectionState}
+              onCheckedChange={(checked) => toggleFolderSelection(folder.id, checked === true)}
+            />
+            <FolderOpen className="h-4 w-4 text-muted-foreground" />
+            <div className="min-w-0 flex-1">
+              <div className="font-medium">{folder.name}</div>
+            </div>
+          </div>,
+          ...(isExpanded ? renderJobFolderTree(folder.id, depth + 1) : []),
+        ];
+      }),
+      ...directFiles.map((file) => (
+        <label
+          key={`file-${file.id}`}
+          className="flex items-center gap-3 rounded-md px-2 py-2 hover:bg-muted/40"
+          style={{ paddingLeft: `${depth * 20 + 40}px` }}
+        >
+          <Checkbox
+            checked={selectedJobFileIds.includes(file.id)}
+            onCheckedChange={(checked) =>
+              setSelectedJobFileIds((prev) =>
+                checked === true ? [...new Set([...prev, file.id])] : prev.filter((id) => id !== file.id),
+              )
+            }
+          />
+          <Paperclip className="h-4 w-4 text-muted-foreground" />
+          <div className="min-w-0 flex-1">
+            <div className="truncate text-sm font-medium">{file.file_name}</div>
+            <div className="text-xs text-muted-foreground">
+              {file.file_type || 'File'}
+              {typeof file.file_size === 'number' ? ` • ${Math.max(1, Math.round(file.file_size / 1024))} KB` : ''}
+            </div>
+          </div>
+        </label>
+      )),
+    ];
   };
 
   const moveSelectedPlanPage = (fromIndex: number, toIndex: number) => {
@@ -759,58 +915,6 @@ export default function AddRFP() {
               />
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="attachments_upload">Attached Files Upload</Label>
-              <input
-                ref={attachmentsInputRef}
-                id="attachments_upload"
-                type="file"
-                multiple
-                onChange={(e) => {
-                  addDrawingFiles(e.target.files || []);
-                  e.target.value = '';
-                }}
-                accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
-                className="hidden"
-              />
-              <div
-                className={`rounded-md border-2 border-dashed px-4 py-3 text-center text-sm transition-colors ${
-                  isAttachmentsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-                }`}
-                onDragOver={(e) => {
-                  e.preventDefault();
-                  setIsAttachmentsDragOver(true);
-                }}
-                onDragLeave={(e) => {
-                  e.preventDefault();
-                  setIsAttachmentsDragOver(false);
-                }}
-                onDrop={(e) => {
-                  e.preventDefault();
-                  setIsAttachmentsDragOver(false);
-                  const droppedFiles = Array.from(e.dataTransfer.files || []);
-                  if (droppedFiles.length > 0) addDrawingFiles(droppedFiles);
-                }}
-                onClick={() => attachmentsInputRef.current?.click()}
-              >
-                <div className="flex items-center justify-center gap-3">
-                  <span>{isAttachmentsDragOver ? 'Drop Files Here' : 'Drag Files Here'}</span>
-                  <span className="text-muted-foreground">or</span>
-                  <Button type="button" variant="outline" size="sm" onClick={(e) => {
-                    e.stopPropagation();
-                    attachmentsInputRef.current?.click();
-                  }}>
-                    Choose Files to Add
-                  </Button>
-                </div>
-              </div>
-              {selectedDrawings.length > 0 && (
-                <p className="text-sm text-muted-foreground">
-                  {selectedDrawings.length} file{selectedDrawings.length === 1 ? '' : 's'} selected for upload on save
-                </p>
-              )}
-            </div>
-
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="issue_date">Issue Date</Label>
@@ -851,10 +955,16 @@ export default function AddRFP() {
                       ? 'No plan pages attached yet.'
                       : `${selectedPlanPages.length} plan page${selectedPlanPages.length !== 1 ? 's' : ''} attached`}
                   </div>
-                  <Button type="button" variant="outline" onClick={() => setPlanPickerOpen(true)}>
-                    <Layers3 className="h-4 w-4 mr-2" />
-                    Add Plan Pages
-                  </Button>
+                  <div className="flex items-center gap-2">
+                    <Button type="button" variant="outline" onClick={() => setPlanSetPickerOpen(true)}>
+                      <Layers3 className="h-4 w-4 mr-2" />
+                      Add Plan Sets
+                    </Button>
+                    <Button type="button" variant="outline" onClick={() => setPlanPickerOpen(true)}>
+                      <Layers3 className="h-4 w-4 mr-2" />
+                      Add Plan Pages
+                    </Button>
+                  </div>
                 </div>
 
                 {selectedPlanPages.length > 0 && (
@@ -959,33 +1069,37 @@ export default function AddRFP() {
                 )}
 
                 <div className="space-y-2">
-                  <div className="text-sm font-medium">Include Full Plan Sets</div>
+                  <div className="flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium">Selected Plan Sets</div>
+                    {selectedPlanSetRecords.length > 0 ? (
+                      <div className="text-xs text-muted-foreground">
+                        {selectedPlanSetRecords.length} plan set{selectedPlanSetRecords.length === 1 ? '' : 's'} selected
+                      </div>
+                    ) : null}
+                  </div>
                   <div className="rounded-md border divide-y">
-                    {availablePlanSets.length === 0 ? (
+                    {selectedPlanSetRecords.length === 0 ? (
                       <div className="px-3 py-4 text-sm text-muted-foreground">
-                        No plan sets are available on this job yet.
+                        No full plan sets selected yet.
                       </div>
                     ) : (
-                      availablePlanSets.map((plan) => (
-                        <label key={plan.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
+                      selectedPlanSetRecords.map((plan) => (
+                        <div key={plan.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
                           <div className="min-w-0">
                             <div className="font-medium">{plan.plan_name}</div>
                             <div className="text-muted-foreground">
                               {plan.plan_number ? `#${plan.plan_number}` : 'No plan set number'}
                             </div>
                           </div>
-                          <input
-                            type="checkbox"
-                            checked={selectedFullPlanSetIds.includes(plan.id)}
-                            onChange={(e) =>
-                              setSelectedFullPlanSetIds((prev) =>
-                                e.target.checked
-                                  ? [...prev, plan.id]
-                                  : prev.filter((id) => id !== plan.id),
-                              )
-                            }
-                          />
-                        </label>
+                          <Button
+                            type="button"
+                            size="icon"
+                            variant="ghost"
+                            onClick={() => setSelectedFullPlanSetIds((prev) => prev.filter((id) => id !== plan.id))}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
                       ))
                     )}
                   </div>
@@ -1005,35 +1119,93 @@ export default function AddRFP() {
                 Select a job first to attach files from the job filing cabinet.
               </p>
             ) : (
-              <div className="rounded-md border divide-y">
-                {availableJobFiles.length === 0 ? (
-                  <div className="px-3 py-4 text-sm text-muted-foreground">
-                    No job filing cabinet files are available on this job yet.
+              <div className="space-y-4">
+                <div className="flex items-center gap-2">
+                  <Button type="button" variant="outline" onClick={() => setJobFilePickerOpen(true)}>
+                    <FolderOpen className="h-4 w-4 mr-2" />
+                    Attach from Job Filing Cabinet
+                  </Button>
+                </div>
+
+                <div className="space-y-2">
+                  <Label htmlFor="attachments_upload">Upload Files</Label>
+                  <input
+                    ref={attachmentsInputRef}
+                    id="attachments_upload"
+                    type="file"
+                    multiple
+                    onChange={(e) => {
+                      addDrawingFiles(e.target.files || []);
+                      e.target.value = '';
+                    }}
+                    accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
+                    className="hidden"
+                  />
+                  <div
+                    className={`rounded-md border-2 border-dashed px-4 py-3 text-center text-sm transition-colors ${
+                      isAttachmentsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                    }`}
+                    onDragOver={(e) => {
+                      e.preventDefault();
+                      setIsAttachmentsDragOver(true);
+                    }}
+                    onDragLeave={(e) => {
+                      e.preventDefault();
+                      setIsAttachmentsDragOver(false);
+                    }}
+                    onDrop={(e) => {
+                      e.preventDefault();
+                      setIsAttachmentsDragOver(false);
+                      const droppedFiles = Array.from(e.dataTransfer.files || []);
+                      if (droppedFiles.length > 0) addDrawingFiles(droppedFiles);
+                    }}
+                    onClick={() => attachmentsInputRef.current?.click()}
+                  >
+                    <div className="flex items-center justify-center gap-3">
+                      <span>{isAttachmentsDragOver ? 'Drop Files Here' : 'Drag Files Here'}</span>
+                      <span className="text-muted-foreground">or</span>
+                      <Button type="button" variant="outline" size="sm" onClick={(e) => {
+                        e.stopPropagation();
+                        attachmentsInputRef.current?.click();
+                      }}>
+                        Choose Files to Add
+                      </Button>
+                    </div>
                   </div>
-                ) : (
-                  availableJobFiles.map((file) => (
-                    <label key={file.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
-                      <div className="min-w-0">
-                        <div className="font-medium truncate">{file.file_name}</div>
-                        <div className="text-muted-foreground">
-                          {file.file_type || 'File'}
-                          {typeof file.file_size === 'number' ? ` • ${Math.max(1, Math.round(file.file_size / 1024))} KB` : ''}
+                  {selectedDrawings.length > 0 && (
+                    <p className="text-sm text-muted-foreground">
+                      {selectedDrawings.length} file{selectedDrawings.length === 1 ? '' : 's'} selected for upload on save
+                    </p>
+                  )}
+                </div>
+
+                <div className="rounded-md border divide-y">
+                  {selectedJobFileRecords.length === 0 ? (
+                    <div className="px-3 py-4 text-sm text-muted-foreground">
+                      No filing cabinet files selected yet.
+                    </div>
+                  ) : (
+                    selectedJobFileRecords.map((file) => (
+                      <div key={file.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
+                        <div className="min-w-0">
+                          <div className="font-medium truncate">{file.file_name}</div>
+                          <div className="text-muted-foreground">
+                            {file.file_type || 'File'}
+                            {typeof file.file_size === 'number' ? ` • ${Math.max(1, Math.round(file.file_size / 1024))} KB` : ''}
+                          </div>
                         </div>
+                        <Button
+                          type="button"
+                          size="icon"
+                          variant="ghost"
+                          onClick={() => setSelectedJobFileIds((prev) => prev.filter((id) => id !== file.id))}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
                       </div>
-                      <input
-                        type="checkbox"
-                        checked={selectedJobFileIds.includes(file.id)}
-                        onChange={(e) =>
-                          setSelectedJobFileIds((prev) =>
-                            e.target.checked
-                              ? [...prev, file.id]
-                              : prev.filter((id) => id !== file.id),
-                          )
-                        }
-                      />
-                    </label>
-                  ))
-                )}
+                    ))
+                  )}
+                </div>
               </div>
             )}
           </CardContent>
@@ -1049,6 +1221,75 @@ export default function AddRFP() {
         selectedPages={selectedPlanPages}
         onApply={applySelectedPlanPages}
       />
+
+      <Dialog open={planSetPickerOpen} onOpenChange={setPlanSetPickerOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Select Plan Sets</DialogTitle>
+            <DialogDescription>
+              Choose the full plan sets you want to include with this RFP.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[60vh] overflow-auto rounded-md border divide-y">
+            {availablePlanSets.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-muted-foreground">
+                No plan sets are available on this job yet.
+              </div>
+            ) : (
+              availablePlanSets.map((plan) => (
+                <label key={plan.id} className="flex items-center justify-between gap-3 px-4 py-3 text-sm">
+                  <div className="min-w-0">
+                    <div className="font-medium">{plan.plan_name}</div>
+                    <div className="text-muted-foreground">
+                      {plan.plan_number ? `#${plan.plan_number}` : 'No plan set number'}
+                    </div>
+                  </div>
+                  <Checkbox
+                    checked={selectedFullPlanSetIds.includes(plan.id)}
+                    onCheckedChange={(checked) =>
+                      setSelectedFullPlanSetIds((prev) =>
+                        checked === true
+                          ? [...new Set([...prev, plan.id])]
+                          : prev.filter((id) => id !== plan.id),
+                      )
+                    }
+                  />
+                </label>
+              ))
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setPlanSetPickerOpen(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={jobFilePickerOpen} onOpenChange={setJobFilePickerOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Attach Files from Job Filing Cabinet</DialogTitle>
+            <DialogDescription>
+              Expand folders and select the files you want to share with this RFP.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-[65vh] overflow-auto rounded-md border p-2">
+            {availableJobFolders.length === 0 && availableJobFiles.length === 0 ? (
+              <div className="px-4 py-8 text-sm text-muted-foreground">
+                No job filing cabinet files are available on this job yet.
+              </div>
+            ) : (
+              renderJobFolderTree(null, 0)
+            )}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setJobFilePickerOpen(false)}>
+              Done
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
