@@ -840,7 +840,7 @@ export default function UserEdit() {
                       ))}
                       {(user.role === 'vendor' || user.role === 'design_professional') && (
                         <SelectItem value={user.role} disabled>
-                          {roleLabels[user.role]} (External Access)
+                          {roleLabels[user.role]} ({user.role === 'vendor' ? 'Vendor Portal' : 'Design Professional Portal'})
                         </SelectItem>
                       )}
                     </SelectContent>

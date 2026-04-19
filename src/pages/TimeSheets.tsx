@@ -137,7 +137,7 @@ export default function TimeSheets() {
     if (!user || !currentCompany?.id) return;
 
     try {
-      // Get all employees for this company
+      // Only punch clock employees should appear in the timesheet selector.
       const { data: companyUsers } = await supabase
         .from('user_company_access')
         .select('user_id')
@@ -153,7 +153,10 @@ export default function TimeSheets() {
       const { data: profilesData } = await supabase
         .from('profiles')
         .select('user_id, display_name, first_name, last_name')
-        .in('user_id', userIds);
+        .in('user_id', userIds)
+        .eq('role', 'employee')
+        .eq('status', 'approved')
+        .eq('punch_clock_access', true);
 
       const list: Array<{id: string, name: string}> = [];
 

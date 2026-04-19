@@ -21,6 +21,7 @@ import { Label } from "@/components/ui/label";
   AlertTriangle,
   Loader2,
   ExternalLink,
+  MessageSquare,
   XCircle,
   History
 } from "lucide-react";
@@ -38,6 +39,7 @@ import CommitmentInfo from "@/components/CommitmentInfo";
 import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 import BillInternalNotes from "@/components/BillInternalNotes";
 import FileShareModal from "@/components/FileShareModal";
+import BillVendorThread from "@/components/BillVendorThread";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
 import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
 
@@ -48,6 +50,8 @@ import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
         return 'default';
       case 'pending_approval':
         return 'secondary'; // Orange-like variant
+      case 'revision_requested':
+        return 'secondary';
       case 'pending':
         return 'outline';
       case 'rejected':
@@ -63,6 +67,7 @@ const getStatusIcon = (status: string) => {
     case "paid":
       return CheckCircle;
     case "pending_approval":
+    case "revision_requested":
       return AlertTriangle;
     case "pending":
       return Clock;
@@ -72,6 +77,30 @@ const getStatusIcon = (status: string) => {
       return FileText;
   }
 };
+
+const getVendorPortalSubmissionMetadata = (internalNotes: any): {
+  paymentMethod: string | null;
+  lineItems: Array<{ description?: string; amount?: number }>;
+} | null => {
+  if (!internalNotes || typeof internalNotes !== "object" || Array.isArray(internalNotes)) {
+    return null;
+  }
+  if (internalNotes.generated_by_vendor_portal !== true) {
+    return null;
+  }
+  return {
+    paymentMethod: typeof internalNotes.payment_method === "string" ? internalNotes.payment_method : null,
+    lineItems: Array.isArray(internalNotes.line_items) ? internalNotes.line_items : [],
+  };
+};
+
+const getBillVendorThreadSubject = (invoiceId: string, invoiceNumber?: string | null) =>
+  `Bill ${invoiceNumber || invoiceId.slice(0, 8)} Conversation`;
+
+const formatBillTimelineLabel = (value: string) =>
+  value
+    .replace(/_/g, " ")
+    .replace(/\b\w/g, (char) => char.toUpperCase());
 
 export default function BillDetails() {
   const { id } = useParams();
@@ -85,8 +114,11 @@ export default function BillDetails() {
   const [bill, setBill] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [approvalDialogOpen, setApprovalDialogOpen] = useState(false);
+  const [revisionDialogOpen, setRevisionDialogOpen] = useState(false);
   const [approvalNotes, setApprovalNotes] = useState("");
+  const [revisionNotes, setRevisionNotes] = useState("");
   const [approvingBill, setApprovingBill] = useState(false);
+  const [sendingRevisionRequest, setSendingRevisionRequest] = useState(false);
   const [vendorHasWarnings, setVendorHasWarnings] = useState(false);
   const [commitmentTotals, setCommitmentTotals] = useState<any>(null);
   const [payNumber, setPayNumber] = useState<number>(0);
@@ -100,6 +132,13 @@ export default function BillDetails() {
   const [selectedPreviewKey, setSelectedPreviewKey] = useState<string | null>(null);
   const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string | null>(null);
   const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
+  const [linkedVendorPortalUser, setLinkedVendorPortalUser] = useState<{ user_id: string; name: string } | null>(null);
+  const [latestVendorConversationReply, setLatestVendorConversationReply] = useState<{
+    content: string;
+    created_at: string;
+    attachment_url?: string | null;
+  } | null>(null);
+  const vendorPortalSubmission = getVendorPortalSubmissionMetadata(bill?.internal_notes);
   
   const calculateDaysOverdue = (dueDate: string): number => {
     const due = new Date(dueDate);
@@ -364,6 +403,58 @@ export default function BillDetails() {
         if (data?.subcontract_id) {
           await fetchCommitmentTotals(data.subcontract_id, data.id);
         }
+
+        if (data?.vendor_id) {
+          const { data: vendorProfileRows, error: vendorProfileError } = await supabase
+            .from('profiles')
+            .select('user_id, display_name, first_name, last_name, role')
+            .eq('vendor_id', data.vendor_id)
+            .eq('role', 'vendor')
+            .limit(1);
+
+          if (!vendorProfileError && vendorProfileRows && vendorProfileRows.length > 0) {
+            const vendorProfile = vendorProfileRows[0] as any;
+            setLinkedVendorPortalUser({
+              user_id: String(vendorProfile.user_id),
+              name: String(
+                vendorProfile.display_name ||
+                `${vendorProfile.first_name || ''} ${vendorProfile.last_name || ''}`.trim() ||
+                'Vendor User'
+              ),
+            });
+          } else {
+            setLinkedVendorPortalUser(null);
+          }
+
+          const { data: vendorReplyRows, error: vendorReplyError } = await supabase
+            .from('messages')
+            .select('content, created_at, attachment_url, from_user_id')
+            .eq('thread_id', data.id)
+            .eq('attachment_type', 'bill_vendor_thread')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+          if (!vendorReplyError && vendorReplyRows) {
+            const vendorUserIds = new Set(
+              (vendorProfileRows || []).map((row: any) => String(row.user_id || '')).filter(Boolean),
+            );
+            const latestVendorReply = (vendorReplyRows as any[]).find((row) => vendorUserIds.has(String(row.from_user_id || '')));
+            setLatestVendorConversationReply(
+              latestVendorReply
+                ? {
+                    content: String(latestVendorReply.content || ''),
+                    created_at: String(latestVendorReply.created_at),
+                    attachment_url: latestVendorReply.attachment_url || null,
+                  }
+                : null,
+            );
+          } else {
+            setLatestVendorConversationReply(null);
+          }
+        } else {
+          setLinkedVendorPortalUser(null);
+          setLatestVendorConversationReply(null);
+        }
         
         // Check vendor compliance warnings if vendor exists
         if (data?.vendor_id) {
@@ -471,6 +562,7 @@ export default function BillDetails() {
     
     setApprovingBill(true);
     try {
+      const priorStatus = bill?.status || 'pending';
       const { error } = await supabase
         .from('invoices')
         .update({ status: 'approved' })
@@ -485,15 +577,22 @@ export default function BillDetails() {
           invoice_id: id,
           change_type: 'status_change',
           field_name: 'status',
-          old_value: bill?.status || 'pending',
+          old_value: priorStatus,
           new_value: 'approved',
-          reason: approvalNotes || 'Bill approved',
+          reason:
+            approvalNotes ||
+            (latestVendorConversationReply && priorStatus === 'pending_approval'
+              ? 'Bill approved after vendor resubmission'
+              : 'Bill approved'),
           changed_by: (await supabase.auth.getUser()).data.user?.id || ''
         });
 
       toast({
-        title: "Success",
-        description: "Bill has been approved successfully",
+        title: latestVendorConversationReply && priorStatus === 'pending_approval' ? "Resubmission approved" : "Bill approved",
+        description:
+          latestVendorConversationReply && priorStatus === 'pending_approval'
+            ? "The vendor resubmission has been approved successfully."
+            : "Bill has been approved successfully",
       });
 
       setApprovalDialogOpen(false);
@@ -535,6 +634,70 @@ export default function BillDetails() {
         description: "Failed to reject bill",
         variant: "destructive",
       });
+    }
+  };
+
+  const handleRequestRevision = async () => {
+    if (!id || !linkedVendorPortalUser?.user_id || !revisionNotes.trim()) return;
+
+    setSendingRevisionRequest(true);
+    try {
+      const authUser = await supabase.auth.getUser();
+      const currentUserId = authUser.data.user?.id;
+      if (!currentUserId) throw new Error("Not authenticated");
+
+      const invoiceLabel = bill?.invoice_number || `INV-${String(id).slice(0, 8)}`;
+      const vendorName = bill?.vendors?.name || "vendor";
+      const messageBody = [
+        `A revision was requested for bill ${invoiceLabel}${bill?.job_id && bill?.jobs?.name ? ` on ${bill.jobs.name}` : ""}.`,
+        "",
+        revisionNotes.trim(),
+      ].join("\n");
+
+      const { error: messageError } = await supabase.rpc('send_message', {
+        p_from_user_id: currentUserId,
+        p_to_user_id: linkedVendorPortalUser.user_id,
+        p_company_id: currentCompany?.id || '',
+        p_subject: getBillVendorThreadSubject(id, bill?.invoice_number),
+        p_content: messageBody,
+        p_thread_id: id,
+        p_attachment_type: 'bill_vendor_thread',
+      });
+
+      if (messageError) throw messageError;
+
+      await supabase
+        .from('invoices')
+        .update({ status: 'revision_requested' })
+        .eq('id', id);
+
+      await supabase.from('invoice_audit_trail').insert({
+        invoice_id: id,
+        change_type: 'comment',
+        field_name: 'vendor_revision_request',
+        old_value: null,
+        new_value: revisionNotes.trim(),
+        reason: `Revision requested from ${vendorName} via vendor portal message`,
+        changed_by: currentUserId,
+      });
+
+      toast({
+        title: "Revision request sent",
+        description: `The request was sent to ${linkedVendorPortalUser.name} in the vendor portal inbox.`,
+      });
+
+      setRevisionDialogOpen(false);
+      setRevisionNotes("");
+      await fetchBillDetails();
+    } catch (error: any) {
+      console.error('Error requesting vendor revision:', error);
+      toast({
+        title: "Could not send revision request",
+        description: error?.message || "The vendor revision request could not be sent.",
+        variant: "destructive",
+      });
+    } finally {
+      setSendingRevisionRequest(false);
     }
   };
 
@@ -663,6 +826,33 @@ export default function BillDetails() {
     distributions: distributions as any[],
   });
   const approvalBlockedByCoding = requireBillDistributionBeforeApproval && !codingValidation.isComplete;
+  const billTimeline = [
+    { key: "submitted", label: "Submitted", active: true, variant: "outline" as const },
+    {
+      key: "revision_requested",
+      label: "Revision Requested",
+      active: bill?.status === "revision_requested" || !!latestVendorConversationReply,
+      variant: bill?.status === "revision_requested" ? "secondary" as const : "outline" as const,
+    },
+    {
+      key: "vendor_replied",
+      label: latestVendorConversationReply
+        ? bill?.status === "pending_approval"
+          ? "Vendor Replied"
+          : "Vendor Updated"
+        : "Vendor Response",
+      active: !!latestVendorConversationReply,
+      variant: latestVendorConversationReply ? "secondary" as const : "outline" as const,
+    },
+    {
+      key: "current_status",
+      label: formatBillTimelineLabel(
+        bill?.status === "pending_approval" ? "back_in_review" : String(bill?.status || "pending"),
+      ),
+      active: true,
+      variant: getStatusVariant(bill?.status || "pending"),
+    },
+  ];
 
   return (
     <div className="p-4 md:p-6">
@@ -697,6 +887,17 @@ export default function BillDetails() {
           </Button>
           <div>
             <h1 className="text-2xl font-bold text-foreground">Bill Details</h1>
+            <div className="mt-2 flex flex-wrap items-center gap-2">
+              {billTimeline.map((item) => (
+                <Badge
+                  key={item.key}
+                  variant={item.variant}
+                  className={item.active ? "" : "opacity-60"}
+                >
+                  {item.label}
+                </Badge>
+              ))}
+            </div>
           </div>
         </div>
         <div className="flex gap-2">
@@ -730,8 +931,63 @@ export default function BillDetails() {
             </Button>
           )}
           
-          {(bill?.status === 'pending_approval' || bill?.status === 'pending') && (
+          {(bill?.status === 'pending_approval' || bill?.status === 'pending' || bill?.status === 'revision_requested') && (
             <>
+              {vendorPortalSubmission && linkedVendorPortalUser ? (
+                <Dialog open={revisionDialogOpen} onOpenChange={setRevisionDialogOpen}>
+                  <DialogTrigger asChild>
+                    <Button variant="outline">
+                      <MessageSquare className="h-4 w-4 mr-2" />
+                      Request Revision
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Request Vendor Revision</DialogTitle>
+                      <DialogDescription>
+                        Send a revision request to {linkedVendorPortalUser.name} in the vendor portal for this bill.
+                      </DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4">
+                      <div>
+                        <Label htmlFor="revision-request-notes">Revision Request</Label>
+                        <Textarea
+                          id="revision-request-notes"
+                          placeholder="Describe what needs to be corrected, clarified, or re-submitted."
+                          value={revisionNotes}
+                          onChange={(e) => setRevisionNotes(e.target.value)}
+                          className="mt-2 min-h-[140px]"
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button
+                        variant="outline"
+                        onClick={() => setRevisionDialogOpen(false)}
+                        disabled={sendingRevisionRequest}
+                      >
+                        Cancel
+                      </Button>
+                      <Button
+                        onClick={handleRequestRevision}
+                        disabled={sendingRevisionRequest || !revisionNotes.trim()}
+                      >
+                        {sendingRevisionRequest ? (
+                          <>
+                            <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <MessageSquare className="h-4 w-4 mr-2" />
+                            Send Request
+                          </>
+                        )}
+                      </Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              ) : null}
               {approvalBlockedByCoding ? (
                 <Button variant="default" onClick={() => navigate(`/bills/${id}/edit`)}>
                   <Edit className="h-4 w-4 mr-2" />
@@ -941,6 +1197,18 @@ export default function BillDetails() {
               jobId={bill?.job_id || null}
             />
           </div>
+
+          {vendorPortalSubmission ? (
+            <div className="mt-6">
+              <BillVendorThread
+                billId={bill.id}
+                subject={getBillVendorThreadSubject(bill.id, bill.invoice_number)}
+                defaultRecipientId={linkedVendorPortalUser?.user_id || null}
+                title="Vendor Portal Conversation"
+                emptyMessage="No builder-to-vendor conversation has started on this bill yet."
+              />
+            </div>
+          ) : null}
         </div>
 
         <div className="xl:col-span-1 space-y-6">
@@ -1108,6 +1376,17 @@ export default function BillDetails() {
                     {bill?.updated_at ? new Date(bill.updated_at).toLocaleDateString() : 'N/A'}
                   </p>
                 </div>
+                {vendorPortalSubmission ? (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Submission Source</p>
+                    <div className="mt-1 flex flex-wrap items-center gap-2">
+                      <Badge variant="secondary">Vendor Portal</Badge>
+                      {vendorPortalSubmission.paymentMethod ? (
+                        <Badge variant="outline">Pay by {vendorPortalSubmission.paymentMethod.toUpperCase()}</Badge>
+                      ) : null}
+                    </div>
+                  </div>
+                ) : null}
               </div>
               
             </div>
@@ -1127,6 +1406,90 @@ export default function BillDetails() {
                 </div>
               </>
             )}
+
+            {vendorPortalSubmission ? (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="font-medium mb-3 text-sm text-muted-foreground">Vendor Submission</h4>
+                  <div className="space-y-3">
+                    <div className="rounded-lg border p-3">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Badge variant="secondary">Submitted From Vendor Portal</Badge>
+                        {vendorPortalSubmission.paymentMethod ? (
+                          <Badge variant="outline">Requested payment: {vendorPortalSubmission.paymentMethod.toUpperCase()}</Badge>
+                        ) : null}
+                      </div>
+                      <p className="mt-2 text-sm text-muted-foreground">
+                        This bill was submitted directly by the vendor and should be reviewed with the attached backup and line items below.
+                      </p>
+                    </div>
+                    {vendorPortalSubmission.lineItems.length > 0 ? (
+                      <div className="space-y-2">
+                        {vendorPortalSubmission.lineItems.map((item, index) => (
+                          <div key={`${item.description || "line"}-${index}`} className="flex items-start justify-between gap-3 rounded-lg border bg-muted/20 p-3">
+                            <div>
+                              <p className="text-sm font-medium text-foreground">{item.description || `Line ${index + 1}`}</p>
+                            </div>
+                            <p className="text-sm font-semibold text-foreground">
+                              ${Number(item.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                            </p>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+                  </div>
+                </div>
+              </>
+            ) : null}
+
+            {latestVendorConversationReply ? (
+              <>
+                <Separator />
+                <div>
+                  <h4 className="font-medium mb-3 text-sm text-muted-foreground">Latest Vendor Response</h4>
+                  <div className="rounded-lg border border-emerald-500/30 bg-emerald-500/5 p-4 space-y-2">
+                    <div className="flex flex-wrap items-center gap-2">
+                      <Badge variant="outline">Vendor Replied</Badge>
+                      {bill?.status === 'pending_approval' ? <Badge variant="secondary">Resubmitted For Review</Badge> : null}
+                      <p className="text-xs text-muted-foreground">{new Date(latestVendorConversationReply.created_at).toLocaleString()}</p>
+                    </div>
+                    <p className="whitespace-pre-wrap text-sm text-foreground">
+                      {latestVendorConversationReply.content || "Vendor sent an update in the bill conversation."}
+                    </p>
+                    {latestVendorConversationReply.attachment_url ? (
+                      <div>
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => void downloadDocument(latestVendorConversationReply.attachment_url || '', 'Vendor Attachment')}
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Open Attached Revision
+                        </Button>
+                      </div>
+                    ) : null}
+                    <div className="flex flex-wrap items-center gap-2 pt-2">
+                      {approvalBlockedByCoding ? (
+                        <Button variant="default" size="sm" onClick={() => navigate(`/bills/${id}/edit`)}>
+                          <Edit className="h-4 w-4 mr-2" />
+                          Code Before Approval
+                        </Button>
+                      ) : (
+                        <Button size="sm" onClick={() => setApprovalDialogOpen(true)}>
+                          <CheckCircle className="h-4 w-4 mr-2" />
+                          Approve Resubmission
+                        </Button>
+                      )}
+                      <Button variant="outline" size="sm" onClick={() => setRevisionDialogOpen(true)}>
+                        <MessageSquare className="h-4 w-4 mr-2" />
+                        Still Needs Changes
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              </>
+            ) : null}
 
             {/* Payment History */}
             {paymentsReceived.length > 0 && (
@@ -1251,7 +1614,11 @@ export default function BillDetails() {
           <div className="space-y-2">
             <Label>Internal Notes</Label>
             <div className="text-sm bg-muted/50 p-3 rounded-md min-h-[72px] whitespace-pre-wrap">
-              {bill?.internal_notes || "No internal notes"}
+              {typeof bill?.internal_notes === "string"
+                ? bill.internal_notes
+                : vendorPortalSubmission
+                  ? "Vendor portal submission metadata is shown above."
+                  : "No internal notes"}
             </div>
           </div>
         </CardContent>

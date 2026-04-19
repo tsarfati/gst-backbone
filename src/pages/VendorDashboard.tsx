@@ -205,6 +205,7 @@ const getRfpStatusBadgeVariant = (status: string): 'default' | 'secondary' | 'de
 export default function VendorDashboard() {
   const navigate = useNavigate();
   const location = useLocation();
+  const searchParams = useMemo(() => new URLSearchParams(location.search), [location.search]);
   const { profile, user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
@@ -349,6 +350,11 @@ export default function VendorDashboard() {
   }, [profile?.vendor_id, currentCompany?.id]);
 
   useEffect(() => {
+    const requestedTab = searchParams.get('tab');
+    if (requestedTab && ['rfps', 'documents', 'invoices', 'messages', 'rfis', 'submittals', 'photos', 'settings', 'help'].includes(requestedTab)) {
+      setActiveTab(requestedTab);
+      return;
+    }
     if (location.pathname.includes('/vendor/compliance')) {
       setActiveTab('documents');
       return;
@@ -356,7 +362,7 @@ export default function VendorDashboard() {
     if (location.pathname.includes('/vendor/dashboard') || location.pathname.includes('/design-professional/dashboard')) {
       setActiveTab(String(vendorInfo?.vendor_type || '').toLowerCase() === 'design_professional' ? 'rfis' : 'invoices');
     }
-  }, [location.pathname, vendorInfo?.vendor_type]);
+  }, [location.pathname, searchParams, vendorInfo?.vendor_type]);
 
   useEffect(() => {
     if (activeTab !== 'rfps') return;
@@ -705,7 +711,7 @@ export default function VendorDashboard() {
                 plan_name: String(item.plan?.plan_name || 'Plan Set'),
                 plan_number: item.plan?.plan_number || null,
                 plan_file_url: item.plan?.file_url || null,
-                page_number: Number(item.plan_page?.page_number || 0),
+                page_number: Math.max(1, Number(item.plan_page?.page_number || 1)),
                 sheet_number: item.plan_page?.sheet_number || null,
                 page_title: item.plan_page?.page_title || null,
                 discipline: item.plan_page?.discipline || null,
@@ -3250,9 +3256,10 @@ export default function VendorDashboard() {
           if (!open) setPreviewPlanPage(null);
         }}
       >
-        <DialogContent className="max-w-6xl h-[90vh] p-0">
+        <DialogContent className="max-w-[92vw] w-[1600px] h-[92vh] p-0">
           {previewPlanPage ? (
             <RfpPlanPageNoteViewer
+              planId={previewPlanPage.plan_id}
               fileUrl={previewPlanPage.plan_file_url}
               pageNumber={previewPlanPage.page_number}
               sheetNumber={previewPlanPage.sheet_number}

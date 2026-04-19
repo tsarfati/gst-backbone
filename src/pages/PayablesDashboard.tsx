@@ -33,6 +33,7 @@ interface PayableMetrics {
   totalOutstanding: number;
   overdueBills: number;
   pendingApproval: number;
+  revisionRequested: number;
   paidThisMonth: number;
   avgPaymentDays: number;
   totalVendors: number;
@@ -56,6 +57,7 @@ export default function PayablesDashboard() {
     totalOutstanding: 0,
     overdueBills: 0, 
     pendingApproval: 0,
+    revisionRequested: 0,
     paidThisMonth: 0,
     avgPaymentDays: 0,
     totalVendors: 0
@@ -211,6 +213,9 @@ export default function PayablesDashboard() {
       const pendingApproval = visibleInvoices
         .filter(inv => inv.status === 'pending').length;
 
+      const revisionRequested = visibleInvoices
+        .filter(inv => inv.status === 'revision_requested').length;
+
       const currentMonth = new Date();
       const paidThisMonth = visibleInvoices
         .filter(inv => {
@@ -225,6 +230,7 @@ export default function PayablesDashboard() {
         totalOutstanding,
         overdueBills,
         pendingApproval,
+        revisionRequested,
         paidThisMonth,
         avgPaymentDays: 15, // Placeholder
         totalVendors: (vendorsData || []).length
@@ -269,6 +275,14 @@ export default function PayablesDashboard() {
       variant: "destructive" as const,
       description: "Past due payments",
       onClick: () => navigate('/invoices?status=overdue')
+    },
+    {
+      title: "Revision Requested",
+      value: metrics.revisionRequested.toString(),
+      icon: AlertTriangle,
+      variant: "warning" as const,
+      description: "Waiting on vendor updates",
+      onClick: () => navigate('/invoices?status=revision_requested')
     },
     {
       title: "Paid This Month",

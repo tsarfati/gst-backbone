@@ -1,9 +1,9 @@
 import { useState, useEffect, useMemo } from "react";
-import { useNavigate, useLocation } from "react-router-dom";
+import { useNavigate, useLocation, useSearchParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter, Trash2, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { Plus, Receipt, Building, CreditCard, FileText, DollarSign, Calendar, Filter, Trash2, CheckCircle, ArrowUpDown, ArrowUp, ArrowDown, AlertTriangle, MessageSquare } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -28,6 +28,7 @@ type SortDirection = 'asc' | 'desc';
 interface Bill {
   id: string;
   invoice_number: string | null;
+  vendor_id?: string | null;
   vendor_name: string;
   vendor_logo_url: string | null;
   amount: number;
@@ -40,7 +41,17 @@ interface Bill {
   cost_code_description: string;
   description: string;
   payment_terms: string | null;
+  submitted_from_vendor_portal?: boolean;
+  latest_vendor_response_at?: string | null;
+  latest_vendor_response_preview?: string | null;
 }
+
+const wasSubmittedFromVendorPortal = (internalNotes: any): boolean => {
+  if (!internalNotes || typeof internalNotes !== "object" || Array.isArray(internalNotes)) {
+    return false;
+  }
+  return internalNotes.generated_by_vendor_portal === true;
+};
 
 const calculateDaysOverdue = (dueDate: string): number => {
   const due = new Date(dueDate);
@@ -53,7 +64,7 @@ const calculateDaysOverdue = (dueDate: string): number => {
 const isOverdue = (bill: Bill): boolean => {
   const dueDate = new Date(bill.due_date);
   const today = new Date();
-  return (bill.status === 'pending' || bill.status === 'pending_approval' || bill.status === 'approved' || bill.status === 'pending_payment') && dueDate < today;
+  return (bill.status === 'pending' || bill.status === 'pending_approval' || bill.status === 'revision_requested' || bill.status === 'approved' || bill.status === 'pending_payment') && dueDate < today;
 };
 
 const getStatusVariant = (status: string) => {
@@ -63,6 +74,8 @@ const getStatusVariant = (status: string) => {
     case "pending":
     case "pending_approval":
       return "warning";
+    case "revision_requested":
+      return "secondary";
     case "pending_coding":
       return "secondary";
     case "approved":
@@ -83,6 +96,8 @@ const getStatusDisplayName = (status: string) => {
       return "Pending Approval";
     case "pending_approval":
       return "Pending Approval";
+    case "revision_requested":
+      return "Revision Requested";
     case "pending_coding":
       return "Pending Coding";
     case "approved":
@@ -98,6 +113,21 @@ const getStatusDisplayName = (status: string) => {
     default:
       return status;
   }
+};
+
+const formatResponsePreview = (value?: string | null) => {
+  if (!value) return null;
+  const normalized = value.replace(/\s+/g, " ").trim();
+  if (!normalized) return null;
+  return normalized.length > 88 ? `${normalized.slice(0, 88).trimEnd()}...` : normalized;
+};
+
+const formatTimelineLabel = (status: string, hasVendorResponse: boolean) => {
+  if (status === "pending_approval" && hasVendorResponse) return "Back In Review";
+  if (status === "revision_requested") return "Revision Requested";
+  if (status === "pending") return "Pending Approval";
+  if (status === "pending_payment") return "Awaiting Payment";
+  return getStatusDisplayName(status);
 };
 
 const getJobColor = (jobName: string) => {
@@ -132,6 +162,7 @@ const getJobColor = (jobName: string) => {
 export default function Bills() {
   const navigate = useNavigate();
   const location = useLocation();
+  const [searchParams] = useSearchParams();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const { canCreate, canDelete, canEdit, canViewJoblessFinancials } = useActionPermissions();
@@ -155,6 +186,33 @@ export default function Bills() {
   const { currentView, setCurrentView, setAsDefault, isDefault } = usePayablesViewPreference('bills');
   const [sortColumn, setSortColumn] = useState<SortColumn>('due_date');
   const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
+
+  useEffect(() => {
+    const requestedStatus = searchParams.get("status");
+    if (!requestedStatus) return;
+
+    if (requestedStatus === "pending") {
+      setStatusFilter("pending_approval");
+      return;
+    }
+    if (requestedStatus === "outstanding") {
+      setStatusFilter("all");
+      setShowPaidBills(false);
+      return;
+    }
+    if (requestedStatus === "overdue") {
+      setStatusFilter("overdue");
+      return;
+    }
+    if (requestedStatus === "revision_requested") {
+      setStatusFilter("revision_requested");
+      return;
+    }
+    if (requestedStatus === "back_in_review") {
+      setStatusFilter("back_in_review");
+      return;
+    }
+  }, [searchParams]);
 
   useEffect(() => {
     if (currentCompany && !websiteJobAccessLoading) {
@@ -184,10 +242,12 @@ export default function Bills() {
           invoice_number,
           amount,
           status,
+          vendor_id,
           job_id,
           issue_date,
           due_date,
           description,
+          internal_notes,
           payment_terms,
           vendors!inner(name, logo_url, company_id),
           jobs(id, name),
@@ -200,6 +260,7 @@ export default function Bills() {
 
       // Get all invoice IDs to fetch distributions for bills without direct job assignment
       const invoiceIds = data?.map(b => b.id) || [];
+      const vendorIds = Array.from(new Set((data || []).map((bill: any) => bill.vendor_id).filter(Boolean)));
       
       // Fetch distributions with job info for bills that might not have direct job_id
       const { data: distributions } = await supabase
@@ -240,6 +301,47 @@ export default function Bills() {
         }
       });
 
+      const vendorUserIdsByVendorId = new Map<string, Set<string>>();
+      if (vendorIds.length > 0) {
+        const { data: vendorProfiles } = await supabase
+          .from('profiles')
+          .select('vendor_id, user_id')
+          .in('vendor_id', vendorIds)
+          .eq('role', 'vendor');
+
+        (vendorProfiles || []).forEach((profile: any) => {
+          const vendorId = String(profile.vendor_id || '');
+          const userId = String(profile.user_id || '');
+          if (!vendorId || !userId) return;
+          const existing = vendorUserIdsByVendorId.get(vendorId) || new Set<string>();
+          existing.add(userId);
+          vendorUserIdsByVendorId.set(vendorId, existing);
+        });
+      }
+
+      const latestVendorResponseByInvoiceId = new Map<string, { created_at: string; content: string | null }>();
+      if (invoiceIds.length > 0) {
+        const { data: messageRows } = await supabase
+          .from('messages')
+          .select('thread_id, from_user_id, content, created_at')
+          .in('thread_id', invoiceIds)
+          .eq('attachment_type', 'bill_vendor_thread')
+          .order('created_at', { ascending: false });
+
+        (messageRows || []).forEach((message: any) => {
+          const invoiceId = String(message.thread_id || '');
+          if (!invoiceId || latestVendorResponseByInvoiceId.has(invoiceId)) return;
+          const parentBill = (data || []).find((bill: any) => bill.id === invoiceId);
+          const vendorId = String(parentBill?.vendor_id || '');
+          const vendorUserIds = vendorUserIdsByVendorId.get(vendorId);
+          if (!vendorUserIds?.has(String(message.from_user_id || ''))) return;
+          latestVendorResponseByInvoiceId.set(invoiceId, {
+            created_at: String(message.created_at),
+            content: typeof message.content === 'string' ? message.content : null,
+          });
+        });
+      }
+
       const formattedBills: Bill[] = (data || [])
       .filter((bill: any) => {
         const directJobId = bill.jobs?.id || bill.job_id || null;
@@ -270,6 +372,7 @@ export default function Bills() {
         return {
           id: bill.id,
           invoice_number: bill.invoice_number,
+          vendor_id: bill.vendor_id || null,
           vendor_name: (bill.vendors as any)?.name || 'Unknown Vendor',
           vendor_logo_url: (bill.vendors as any)?.logo_url || null,
           amount: bill.amount,
@@ -281,7 +384,10 @@ export default function Bills() {
           job_name: jobName,
           cost_code_description: (bill.cost_codes as any)?.description || 'No Cost Code',
           description: bill.description || '',
-          payment_terms: bill.payment_terms
+          payment_terms: bill.payment_terms,
+          submitted_from_vendor_portal: wasSubmittedFromVendorPortal(bill.internal_notes),
+          latest_vendor_response_at: latestVendorResponseByInvoiceId.get(bill.id)?.created_at || null,
+          latest_vendor_response_preview: latestVendorResponseByInvoiceId.get(bill.id)?.content || null,
         };
       });
 
@@ -350,20 +456,28 @@ export default function Bills() {
   };
 
   const pendingCodingBills = bills.filter(bill => bill.status === 'pending_coding');
+  const revisionRequestedBills = bills.filter(bill => bill.status === 'revision_requested');
+  const backInReviewBills = bills.filter(
+    (bill) => bill.status === 'pending_approval' && Boolean(bill.latest_vendor_response_at),
+  );
   const pendingApprovalBills = bills.filter(bill => bill.status === 'pending' || bill.status === 'pending_approval');
   const awaitingPaymentBills = bills.filter(bill => bill.status === 'approved' || bill.status === 'pending_payment');
   const overdueBills = bills.filter(bill => {
     const dueDate = new Date(bill.due_date);
     const today = new Date();
-    return (bill.status === 'pending' || bill.status === 'pending_approval' || bill.status === 'approved' || bill.status === 'pending_payment' || bill.status === 'pending_coding') && dueDate < today;
+    return (bill.status === 'pending' || bill.status === 'pending_approval' || bill.status === 'revision_requested' || bill.status === 'approved' || bill.status === 'pending_payment' || bill.status === 'pending_coding') && dueDate < today;
   });
 
   // Apply status filter
   let statusFilteredBills = bills;
   if (statusFilter === "pending_coding") {
     statusFilteredBills = pendingCodingBills;
+  } else if (statusFilter === "back_in_review") {
+    statusFilteredBills = backInReviewBills;
   } else if (statusFilter === "pending_approval") {
     statusFilteredBills = pendingApprovalBills;
+  } else if (statusFilter === "revision_requested") {
+    statusFilteredBills = revisionRequestedBills;
   } else if (statusFilter === "awaiting_payment") {
     statusFilteredBills = awaitingPaymentBills;
   } else if (statusFilter === "overdue") {
@@ -449,6 +563,8 @@ export default function Bills() {
 
   const totalPendingCoding = pendingCodingBills.reduce((sum, bill) => sum + bill.amount, 0);
   const totalPendingApproval = pendingApprovalBills.reduce((sum, bill) => sum + bill.amount, 0);
+  const totalRevisionRequested = revisionRequestedBills.reduce((sum, bill) => sum + bill.amount, 0);
+  const totalBackInReview = backInReviewBills.reduce((sum, bill) => sum + bill.amount, 0);
   const getOpenBillAmount = (bill: Bill) => bill.status === 'pending_payment'
     ? Number(bill.balance_due ?? bill.amount)
     : Number(bill.amount || 0);
@@ -524,12 +640,32 @@ export default function Bills() {
       }
 
       const approvedBillIds = [...selectedBills];
+      const billsBeingApproved = bills.filter((bill) => selectedBills.includes(bill.id));
+      const currentUser = await supabase.auth.getUser();
+      const changedBy = currentUser.data.user?.id || '';
       const { error } = await supabase
         .from('invoices')
         .update({ status: 'pending_payment' })
         .in('id', selectedBills);
 
       if (error) throw error;
+
+      if (changedBy && billsBeingApproved.length > 0) {
+        await supabase.from('invoice_audit_trail').insert(
+          billsBeingApproved.map((bill) => ({
+            invoice_id: bill.id,
+            change_type: 'status_change',
+            field_name: 'status',
+            old_value: bill.status,
+            new_value: 'pending_payment',
+            reason:
+              bill.latest_vendor_response_at && bill.status === 'pending_approval'
+                ? 'Bill approved after vendor resubmission'
+                : 'Bill approved from bills list',
+            changed_by: changedBy,
+          })),
+        );
+      }
 
       toast({
         title: "Bills approved",
@@ -611,7 +747,7 @@ export default function Bills() {
         </div>
 
         {/* Status Filter Counters */}
-        <div className="grid grid-cols-1 md:grid-cols-5 gap-4 mb-6">
+        <div className="grid grid-cols-1 md:grid-cols-7 gap-4 mb-6">
           <Card 
             className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'all' ? 'ring-2 ring-primary' : ''}`}
             onClick={() => setStatusFilter('all')}
@@ -660,6 +796,38 @@ export default function Bills() {
           </Card>
 
           <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'back_in_review' ? 'ring-2 ring-primary' : ''}`}
+            onClick={() => setStatusFilter('back_in_review')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Back In Review</p>
+                  <p className="text-2xl font-bold">{backInReviewBills.length}</p>
+                  <p className="text-xs text-muted-foreground">${totalBackInReview.toLocaleString()}</p>
+                </div>
+                <MessageSquare className="h-8 w-8 text-primary" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
+            className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'revision_requested' ? 'ring-2 ring-amber-500' : ''}`}
+            onClick={() => setStatusFilter('revision_requested')}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Revision Requested</p>
+                  <p className="text-2xl font-bold">{revisionRequestedBills.length}</p>
+                  <p className="text-xs text-muted-foreground">${totalRevisionRequested.toLocaleString()}</p>
+                </div>
+                <AlertTriangle className="h-8 w-8 text-amber-500" />
+              </div>
+            </CardContent>
+          </Card>
+
+          <Card 
             className={`cursor-pointer transition-all hover:shadow-md ${statusFilter === 'awaiting_payment' ? 'ring-2 ring-secondary' : ''}`}
             onClick={() => setStatusFilter('awaiting_payment')}
           >
@@ -695,7 +863,7 @@ export default function Bills() {
         {/* Bulk Actions */}
         {selectedBills.length > 0 && (canEdit('bills') || canDelete('bills')) && (() => {
           const selectedBillsData = bills.filter(b => selectedBills.includes(b.id));
-          const hasUnapprovedBills = selectedBillsData.some(b => b.status === 'pending' || b.status === 'pending_approval');
+          const hasUnapprovedBills = selectedBillsData.some(b => b.status === 'pending' || b.status === 'pending_approval' || b.status === 'revision_requested');
           
           return (
           <div className="flex items-center justify-between mb-4">
@@ -900,6 +1068,8 @@ export default function Bills() {
                   sortedBills.map((bill) => {
                     const billIsOverdue = isOverdue(bill);
                     const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
+                    const hasVendorResponse = Boolean(bill.latest_vendor_response_at);
+                    const responsePreview = formatResponsePreview(bill.latest_vendor_response_preview);
                     
                     return (
                     <TableRow 
@@ -920,7 +1090,25 @@ export default function Bills() {
                               logoUrl={bill.vendor_logo_url}
                               size="sm"
                             />
-                        <span className="font-medium group-hover:text-primary transition-colors">{bill.vendor_name}</span>
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <span className="font-medium group-hover:text-primary transition-colors">{bill.vendor_name}</span>
+                            {bill.submitted_from_vendor_portal ? (
+                              <Badge variant="secondary" className="text-[10px]">Vendor Portal</Badge>
+                            ) : null}
+                            {hasVendorResponse ? (
+                              <Badge variant="outline" className="text-[10px]">Vendor Replied</Badge>
+                            ) : null}
+                          </div>
+                          {bill.invoice_number ? (
+                            <p className="truncate text-xs text-muted-foreground">{bill.invoice_number}</p>
+                          ) : null}
+                          {responsePreview ? (
+                            <p className="truncate text-xs text-muted-foreground">
+                              {responsePreview}
+                            </p>
+                          ) : null}
+                        </div>
                         </div>
                        </TableCell>
                        <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
@@ -932,10 +1120,16 @@ export default function Bills() {
                           <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.issue_date).toLocaleDateString()}</TableCell>
                           <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">{new Date(bill.due_date).toLocaleDateString()}</TableCell>
                           <TableCell onClick={() => navigate(`/bills/${bill.id}`)} className="py-0 border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">
-                           <div className="flex items-center gap-1.5">
+                          <div className="flex items-center gap-1.5">
                              <Badge variant={getStatusVariant(bill.status)}>
-                               {getStatusDisplayName(bill.status)}
+                               {formatTimelineLabel(bill.status, hasVendorResponse)}
                             </Badge>
+                            {hasVendorResponse ? (
+                              <Badge variant="outline">
+                                <MessageSquare className="mr-1 h-3 w-3" />
+                                {new Date(bill.latest_vendor_response_at || "").toLocaleDateString()}
+                              </Badge>
+                            ) : null}
                             {billIsOverdue && (
                               <Badge variant="destructive" className="animate-pulse">
                                 {daysOverdue} {daysOverdue === 1 ? 'day' : 'days'} overdue
@@ -962,6 +1156,8 @@ export default function Bills() {
                 sortedBills.map((bill) => {
                   const billIsOverdue = isOverdue(bill);
                   const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
+                  const hasVendorResponse = Boolean(bill.latest_vendor_response_at);
+                  const responsePreview = formatResponsePreview(bill.latest_vendor_response_preview);
                   
                   return (
                   <div 
@@ -981,16 +1177,28 @@ export default function Bills() {
                       </div>
                       <Receipt className="h-6 w-6 text-muted-foreground" />
                       <div className="flex-1">
-                        <p className="font-semibold text-foreground">{bill.invoice_number || 'No Invoice #'}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {bill.vendor_name}
-                        </p>
+                        <div className="flex flex-wrap items-center gap-2">
+                          <p className="font-semibold text-foreground">{bill.invoice_number || 'No Invoice #'}</p>
+                          {bill.submitted_from_vendor_portal ? (
+                            <Badge variant="secondary" className="text-[10px]">Vendor Portal</Badge>
+                          ) : null}
+                          {hasVendorResponse ? (
+                            <Badge variant="outline" className="text-[10px]">Vendor Replied</Badge>
+                          ) : null}
+                        </div>
+                        <p className="text-sm text-muted-foreground">{bill.vendor_name}</p>
+                        {responsePreview ? (
+                          <p className="text-xs text-muted-foreground">{responsePreview}</p>
+                        ) : null}
                       </div>
                     </div>
                     <div className="text-right flex flex-col items-end gap-0.5">
                       <p className="font-semibold text-foreground">${formatBillDisplayAmount(bill)}</p>
                       <Badge className={`${getJobColor(bill.job_name)} text-white text-xs`}>
                         {bill.job_name}
+                      </Badge>
+                      <Badge variant={getStatusVariant(bill.status)}>
+                        {formatTimelineLabel(bill.status, hasVendorResponse)}
                       </Badge>
                       {billIsOverdue && (
                         <Badge variant="destructive" className="animate-pulse">
@@ -1016,6 +1224,7 @@ export default function Bills() {
                 sortedBills.map((bill) => {
                   const billIsOverdue = isOverdue(bill);
                   const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
+                  const hasVendorResponse = Boolean(bill.latest_vendor_response_at);
                   
                   return (
                   <div 
@@ -1036,11 +1245,20 @@ export default function Bills() {
                       </Badge>
                       <span className="font-medium text-foreground truncate">{bill.invoice_number || 'No Invoice #'}</span>
                       <span className="text-sm text-muted-foreground truncate">{bill.vendor_name}</span>
+                      {bill.submitted_from_vendor_portal ? (
+                        <Badge variant="secondary" className="text-[10px]">Portal</Badge>
+                      ) : null}
+                      {hasVendorResponse ? (
+                        <Badge variant="outline" className="text-[10px]">Replied</Badge>
+                      ) : null}
                     </div>
                     <div className="flex flex-col items-end gap-0.5">
                       <span className="font-semibold text-foreground whitespace-nowrap">
                         ${formatBillDisplayAmount(bill)}
                       </span>
+                      <Badge variant={getStatusVariant(bill.status)} className="text-[10px]">
+                        {formatTimelineLabel(bill.status, hasVendorResponse)}
+                      </Badge>
                       {billIsOverdue && (
                         <Badge variant="destructive" className="animate-pulse text-xs">
                           {daysOverdue}d overdue

@@ -340,6 +340,8 @@ const toDateInputValue = (value: string | null | undefined) => {
 };
 
 const clamp01 = (n: number) => Math.max(0, Math.min(1, n));
+const PLAN_PAGE_PLACEHOLDER_INSERT_BATCH_SIZE = 50;
+const PLAN_PAGE_REPAIR_BATCH_SIZE = 8;
 
 const rectsOverlap = (a: NormalizedRect, b: NormalizedRect) =>
   a.x < b.x + b.w &&
@@ -430,6 +432,7 @@ export default function PlanViewer() {
   const aiSelectionStartRef = useRef<{ x: number; y: number } | null>(null);
   const ensuredPagePlaceholderKeyRef = useRef<string>("");
   const repairedPageLabelKeyRef = useRef<string>("");
+  const placeholderRepairRunRef = useRef(0);
   const planAiEnabled = !featureLoading && hasFeature("ai_plan_qa_v1");
   
 
@@ -515,40 +518,81 @@ export default function PlanViewer() {
       try {
         const pdfjs: any = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
-
-        const resp = await fetch(plan.file_url);
-        if (!resp.ok) throw new Error(`Failed to fetch PDF: ${resp.status}`);
-        const buf = await resp.arrayBuffer();
-        const loadingTask = pdfjs.getDocument({ data: buf });
+        const loadingTask = pdfjs.getDocument({
+          url: plan.file_url,
+          withCredentials: false,
+          disableAutoFetch: false,
+          disableStream: false,
+          rangeChunkSize: 1024 * 1024,
+        });
         const pdf = await loadingTask.promise;
+        const runId = ++placeholderRepairRunRef.current;
+        const sortedPlaceholderPages = [...placeholderPages].sort((a, b) => {
+          const score = (pageNumber: number) => {
+            if (pageNumber === currentPage) return -1000;
+            if (pageNumber === currentPage + 1) return -900;
+            if (pageNumber === 1) return -800;
+            if (pageNumber === 2) return -700;
+            return Math.abs(pageNumber - currentPage);
+          };
+          return score(a.page_number) - score(b.page_number);
+        });
 
-        const updates: any[] = [];
+        for (let start = 0; start < sortedPlaceholderPages.length; start += PLAN_PAGE_REPAIR_BATCH_SIZE) {
+          if (placeholderRepairRunRef.current !== runId) break;
 
-        for (const pageMeta of placeholderPages) {
-          try {
-            const page = await pdf.getPage(pageMeta.page_number);
-            const baseViewport = page.getViewport({ scale: 1 });
-            const textContent = await page.getTextContent();
-            const pdfTextResult = extractPlanSheetMetadataFromPdfText({
-              textItems: (textContent?.items || []) as any[],
-              viewportWidth: baseViewport.width,
-              viewportHeight: baseViewport.height,
-            });
+          const batch = sortedPlaceholderPages.slice(start, start + PLAN_PAGE_REPAIR_BATCH_SIZE);
+          const updates: any[] = [];
 
-            const nextPageRecord = buildPlanPageRecord({
-              planId,
-              pageNumber: pageMeta.page_number,
-              pdfTextResult,
-            });
-
-            if (!isPlaceholderPlanLabel(nextPageRecord.sheet_number as string | null, pageMeta.page_number)) {
-              updates.push({
-                id: pageMeta.id,
-                ...nextPageRecord,
+          for (const pageMeta of batch) {
+            try {
+              const page = await pdf.getPage(pageMeta.page_number);
+              const baseViewport = page.getViewport({ scale: 1 });
+              const textContent = await page.getTextContent();
+              const pdfTextResult = extractPlanSheetMetadataFromPdfText({
+                textItems: (textContent?.items || []) as any[],
+                viewportWidth: baseViewport.width,
+                viewportHeight: baseViewport.height,
               });
+
+              const nextPageRecord = buildPlanPageRecord({
+                planId,
+                pageNumber: pageMeta.page_number,
+                pdfTextResult,
+              });
+
+              if (!isPlaceholderPlanLabel(nextPageRecord.sheet_number as string | null, pageMeta.page_number)) {
+                updates.push({
+                  id: pageMeta.id,
+                  ...nextPageRecord,
+                });
+              }
+            } catch (repairError) {
+              console.warn(`Failed repairing placeholder label for page ${pageMeta.page_number}:`, repairError);
             }
-          } catch (repairError) {
-            console.warn(`Failed repairing placeholder label for page ${pageMeta.page_number}:`, repairError);
+          }
+
+          if (updates.length > 0) {
+            const { error: upsertError } = await supabase
+              .from("plan_pages" as any)
+              .upsert(updates, { onConflict: "plan_id,page_number" });
+
+            if (upsertError) throw upsertError;
+
+            setPages((prev) => {
+              const pageMap = new Map(prev.map((page) => [page.page_number, page]));
+              updates.forEach((update) => {
+                const existing = pageMap.get(update.page_number);
+                if (existing) {
+                  pageMap.set(update.page_number, { ...existing, ...update });
+                }
+              });
+              return Array.from(pageMap.values()).sort((a, b) => a.page_number - b.page_number);
+            });
+          }
+
+          if (start + PLAN_PAGE_REPAIR_BATCH_SIZE < sortedPlaceholderPages.length) {
+            await new Promise((resolve) => setTimeout(resolve, 0));
           }
         }
 
@@ -562,15 +606,6 @@ export default function PlanViewer() {
         } catch {
           // ignore destroy errors
         }
-
-        if (updates.length === 0) return;
-
-        const { error: upsertError } = await supabase
-          .from("plan_pages" as any)
-          .upsert(updates, { onConflict: "plan_id,page_number" });
-
-        if (upsertError) throw upsertError;
-        await fetchPlanData();
       } catch (repairError) {
         console.warn("Plan page placeholder repair failed:", repairError);
         repairedPageLabelKeyRef.current = "";
@@ -578,7 +613,7 @@ export default function PlanViewer() {
     };
 
     void repairPlaceholderPlanLabels();
-  }, [planId, plan?.file_url, pages, analyzing]);
+  }, [planId, plan?.file_url, pages, analyzing, currentPage]);
 
   useEffect(() => {
     setAiSelectionNorm(null);
@@ -1042,12 +1077,24 @@ export default function PlanViewer() {
 
       if (missingRows.length === 0) return;
 
-      const { error: insertError } = await supabase
-        .from("plan_pages" as any)
-        .insert(missingRows);
+      for (let start = 0; start < missingRows.length; start += PLAN_PAGE_PLACEHOLDER_INSERT_BATCH_SIZE) {
+        const batch = missingRows.slice(start, start + PLAN_PAGE_PLACEHOLDER_INSERT_BATCH_SIZE);
+        const { error: insertError } = await supabase
+          .from("plan_pages" as any)
+          .insert(batch);
 
-      if (insertError) throw insertError;
-      await fetchPlanData();
+        if (insertError) throw insertError;
+
+        setPages((prev) => {
+          const next = [...prev, ...(batch as PlanPage[])];
+          const pageMap = new Map(next.map((page) => [page.page_number, page]));
+          return Array.from(pageMap.values()).sort((a, b) => a.page_number - b.page_number);
+        });
+
+        if (start + PLAN_PAGE_PLACEHOLDER_INSERT_BATCH_SIZE < missingRows.length) {
+          await new Promise((resolve) => setTimeout(resolve, 0));
+        }
+      }
     } catch (error) {
       console.warn("Failed to create missing plan page placeholders:", error);
       ensuredPagePlaceholderKeyRef.current = "";
@@ -2244,17 +2291,6 @@ export default function PlanViewer() {
 
           {/* Page Navigation + Tools */}
           <div className="flex items-center gap-1.5 shrink-0 pl-2">
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => {
-                setSelectedRfpId("");
-                setRfpAttachDialogOpen(true);
-              }}
-            >
-              <Link2 className="h-4 w-4 mr-2" />
-              Attach to RFP
-            </Button>
             {analyzing && (
               <div className="flex items-center gap-2 text-sm text-muted-foreground mr-1">
                 <Loader2 className="h-4 w-4 animate-spin" />
@@ -2676,6 +2712,17 @@ export default function PlanViewer() {
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setManagePagesOpen(true)}>
                       Update Plan Pages
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => {
+                        setSelectedRfpId("");
+                        setRfpAttachDialogOpen(true);
+                      }}
+                    >
+                      <Link2 className="h-4 w-4 mr-2" />
+                      Attach to RFP
                     </Button>
                     <Button size="sm" onClick={handleUpdatePlanInfo} disabled={planInfoSaving}>
                       {planInfoSaving ? "Saving..." : "Save Plan Set Info"}

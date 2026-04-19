@@ -43,6 +43,13 @@ export function AccessControl({ children }: AccessControlProps) {
   const [autoAcceptRetryTick, setAutoAcceptRetryTick] = useState(0);
   const [pendingExternalAccess, setPendingExternalAccess] = useState<boolean>(false);
   const [pendingExternalAccessLoading, setPendingExternalAccessLoading] = useState<boolean>(false);
+  const [externalPortalContext, setExternalPortalContext] = useState<{
+    requestedRole: 'vendor' | 'design_professional' | null;
+    homeCompanyId: string | null;
+  }>({
+    requestedRole: null,
+    homeCompanyId: null,
+  });
   const lastAutoAcceptAttemptAtRef = useRef<number>(0);
   const autoAcceptAttemptCountRef = useRef(0);
   const isInviteAuthRoute = location.pathname === '/auth' && new URLSearchParams(location.search).has('invite');
@@ -50,7 +57,91 @@ export function AccessControl({ children }: AccessControlProps) {
     ? window.sessionStorage.getItem('pending_invite_auto_accept') === '1'
     : false;
   const role = String(profile?.role || '').toLowerCase();
-  const isExternalUser = role === 'vendor' || role === 'design_professional';
+  const vendorPortalRole = String((profile as any)?.vendor_portal_role || '').toLowerCase();
+  const hasVendorIdentity = !!(profile as any)?.vendor_id || ['owner', 'admin', 'basic_user'].includes(vendorPortalRole);
+  const externalRequestedRole = externalPortalContext.requestedRole;
+  const effectiveExternalRole =
+    role === 'vendor' || role === 'design_professional'
+      ? role
+      : externalRequestedRole;
+  const isExternalUser = role === 'vendor' || role === 'design_professional' || hasVendorIdentity || !!externalRequestedRole;
+  const hasCompanyLinkContext =
+    !!profile?.current_company_id ||
+    !!(profile as any)?.default_company_id ||
+    hasVendorIdentity ||
+    !!externalPortalContext.homeCompanyId;
+  const shouldBypassPendingStatusSplash =
+    !!profile &&
+    hasCompanyLinkContext &&
+    !hasTenantAccess &&
+    userCompanies.length === 0;
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadExternalPortalContext = async () => {
+      if (!user?.id) {
+        setExternalPortalContext({ requestedRole: null, homeCompanyId: null });
+        return;
+      }
+
+      try {
+        const { data, error } = await supabase
+          .from('company_access_requests')
+          .select('status, notes, requested_at')
+          .eq('user_id', user.id)
+          .order('requested_at', { ascending: false })
+          .limit(10);
+
+        if (cancelled) return;
+        if (error) {
+          console.warn('Failed to query external portal context:', error);
+          setExternalPortalContext({ requestedRole: null, homeCompanyId: null });
+          return;
+        }
+
+        const matchedRow = (data || []).find((row: any) => {
+          try {
+            const parsed = row?.notes ? JSON.parse(row.notes) : null;
+            return String(parsed?.requestType || '').toLowerCase() === 'external_access_signup';
+          } catch {
+            return false;
+          }
+        }) as { notes?: string | null } | undefined;
+
+        if (!matchedRow?.notes) {
+          setExternalPortalContext({ requestedRole: null, homeCompanyId: null });
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(matchedRow.notes);
+          const requestedRole = String(parsed?.requestedRole || '').toLowerCase();
+          const homeCompanyId = String(parsed?.homeCompanyId || '').trim();
+          setExternalPortalContext({
+            requestedRole:
+              requestedRole === 'vendor' || requestedRole === 'design_professional'
+                ? requestedRole
+                : null,
+            homeCompanyId: homeCompanyId || null,
+          });
+        } catch {
+          setExternalPortalContext({ requestedRole: null, homeCompanyId: null });
+        }
+      } catch (error) {
+        if (!cancelled) {
+          console.warn('Failed loading external portal context:', error);
+          setExternalPortalContext({ requestedRole: null, homeCompanyId: null });
+        }
+      }
+    };
+
+    loadExternalPortalContext();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id]);
 
   useEffect(() => {
     const maxAutoAcceptAttempts = 8;
@@ -215,7 +306,7 @@ export function AccessControl({ children }: AccessControlProps) {
         // Self-serve vendor/design users can have a valid independent home workspace
         // while additional builder/company relationships are still pending.
         // Do not block their portal just because an external company link is pending.
-        if (isPendingExternal && (hasHomeWorkspaceLink || !!homeCompanyId)) {
+        if (isPendingExternal && (hasHomeWorkspaceLink || !!homeCompanyId || !!externalPortalContext.homeCompanyId)) {
           setPendingExternalAccess(false);
           return;
         }
@@ -231,7 +322,7 @@ export function AccessControl({ children }: AccessControlProps) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, profile?.role, profile?.current_company_id, (profile as any)?.default_company_id, userCompanies.length]);
+  }, [user?.id, profile?.role, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, userCompanies.length, externalPortalContext.homeCompanyId]);
 
   useEffect(() => {
     if (authLoading || companyLoading || tenantLoading || settingsLoading) {
@@ -282,19 +373,22 @@ export function AccessControl({ children }: AccessControlProps) {
         location.pathname.startsWith('/vendor/') ||
         location.pathname.startsWith('/design-professional/');
       if (!allowExternal) {
-        navigate(role === 'design_professional' ? '/design-professional/dashboard' : '/vendor/dashboard', { replace: true });
+        navigate(effectiveExternalRole === 'design_professional' ? '/design-professional/dashboard' : '/vendor/dashboard', { replace: true });
         return;
       }
     }
 
-    // Check account status - block pending and suspended users
-    if (profile && (profile.status === 'pending' || profile.status === 'suspended')) {
+    // Check account status - block pending and suspended users unless this is a
+    // self-serve external/home-workspace flow that has company linkage but no tenant linkage.
+    if (
+      profile &&
+      (profile.status === 'pending' || profile.status === 'suspended') &&
+      !shouldBypassPendingStatusSplash
+    ) {
       setChecking(false);
       if (!initialized) setInitialized(true);
       return;
     }
-
-    const hasCompanyLinkContext = !!profile?.current_company_id || !!(profile as any)?.default_company_id;
 
     // External vendor/design-professional users with pending company approval should never be sent
     // to tenant/company creation flows.
@@ -370,7 +464,7 @@ export function AccessControl({ children }: AccessControlProps) {
     if (!initialized) {
       setInitialized(true);
     }
-  }, [user?.id, profile?.profile_completed, profile?.current_company_id, profile?.status, profile?.role, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute, pendingExternalAccess]);
+  }, [user?.id, profile?.profile_completed, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, profile?.status, profile?.role, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute, pendingExternalAccess, shouldBypassPendingStatusSplash, effectiveExternalRole, isExternalUser]);
 
   // Show account status splash screens
   if (autoAcceptingInvite) {
@@ -381,7 +475,12 @@ export function AccessControl({ children }: AccessControlProps) {
     return <PremiumLoadingScreen text="Loading your workspace..." />;
   }
 
-  if (!isInviteAuthRoute && profile && (profile.status === 'pending' || profile.status === 'suspended')) {
+  if (
+    !isInviteAuthRoute &&
+    profile &&
+    (profile.status === 'pending' || profile.status === 'suspended') &&
+    !shouldBypassPendingStatusSplash
+  ) {
     return <AccountStatusScreen status={profile.status as 'pending' | 'suspended'} />;
   }
 

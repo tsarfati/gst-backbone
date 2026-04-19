@@ -9,8 +9,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import { useToast } from "@/hooks/use-toast";
 import { useVendorPortalData } from "@/hooks/useVendorPortalData";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function VendorPortalCompliance() {
+  const navigate = useNavigate();
   const { toast } = useToast();
   const { loading, complianceDocs, jobs, uploadComplianceDocument } = useVendorPortalData();
   const [savingType, setSavingType] = useState<string | null>(null);
@@ -85,6 +88,10 @@ export default function VendorPortalCompliance() {
   return (
     <div className="p-6 space-y-6">
       <div className="space-y-1">
+        <Button variant="ghost" className="px-0" onClick={() => navigate("/vendor/dashboard")}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
         <h1 className="text-2xl font-bold text-foreground">Compliance</h1>
       </div>
 

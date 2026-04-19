@@ -1353,16 +1353,19 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
 
   const { avatarMap } = useUserAvatars(teamUserIds);
 
-  const getSourceBadge = (source?: string) => {
-    switch (source) {
+  const getResolvedMemberRoleName = (member: DirectoryMember) => {
+    const explicitRoleName = String(member.project_role?.name || '').trim();
+    if (explicitRoleName) return explicitRoleName;
+
+    switch (member.source) {
       case 'pm':
-        return <Badge variant="secondary" className="text-xs">PM</Badge>;
+        return 'Project Manager';
       case 'assistant_pm':
-        return <Badge variant="secondary" className="text-xs">Asst PM</Badge>;
+        return 'Assistant Project Manager';
       case 'employee':
-        return <Badge variant="outline" className="text-xs">Employee</Badge>;
+        return 'Employee';
       default:
-        return null;
+        return 'Team Member';
     }
   };
 
@@ -1420,12 +1423,51 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
     return member.company_name || 'External Company';
   };
 
-  const sortedTeamMembers = useMemo(() => {
-    return [...teamMembers].sort((a, b) => {
-      const companyCompare = getResolvedMemberCompanyName(a).localeCompare(getResolvedMemberCompanyName(b));
-      if (companyCompare !== 0) return companyCompare;
-      return a.name.localeCompare(b.name);
-    });
+  const groupedTeamMembers = useMemo(() => {
+    const companyMap = new Map<
+      string,
+      {
+        companyName: string;
+        roleGroups: Map<string, DirectoryMember[]>;
+      }
+    >();
+
+    [...teamMembers]
+      .sort((a, b) => {
+        const companyCompare = getResolvedMemberCompanyName(a).localeCompare(getResolvedMemberCompanyName(b));
+        if (companyCompare !== 0) return companyCompare;
+
+        const roleCompare = getResolvedMemberRoleName(a).localeCompare(getResolvedMemberRoleName(b));
+        if (roleCompare !== 0) return roleCompare;
+
+        return a.name.localeCompare(b.name);
+      })
+      .forEach((member) => {
+        const companyName = getResolvedMemberCompanyName(member);
+        const roleName = getResolvedMemberRoleName(member);
+
+        if (!companyMap.has(companyName)) {
+          companyMap.set(companyName, {
+            companyName,
+            roleGroups: new Map<string, DirectoryMember[]>(),
+          });
+        }
+
+        const companyGroup = companyMap.get(companyName)!;
+        if (!companyGroup.roleGroups.has(roleName)) {
+          companyGroup.roleGroups.set(roleName, []);
+        }
+
+        companyGroup.roleGroups.get(roleName)!.push(member);
+      });
+
+    return Array.from(companyMap.values()).map((companyGroup) => ({
+      companyName: companyGroup.companyName,
+      roleGroups: Array.from(companyGroup.roleGroups.entries()).map(([roleName, members]) => ({
+        roleName,
+        members,
+      })),
+    }));
   }, [teamMembers, availableCompanyUserById, designProfessionalVendors, subcontractorVendors, primaryGroupCompanyName]);
 
   if (loading) {
@@ -1996,64 +2038,58 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-3 min-w-0">
-                      <div className="min-w-0">
+                      <div className="min-w-0 flex-1">
                         <div className="flex items-center gap-x-2 gap-y-1 flex-wrap">
                           <span className="font-medium leading-tight truncate">{member.name}</span>
                           {member.is_primary_contact && (
                             <Star className="h-3.5 w-3.5 text-amber-500 shrink-0" fill="currentColor" />
                           )}
                         </div>
-                        <div className="mt-0.5 flex items-center gap-1 text-xs text-muted-foreground truncate">
-                          <Building2 className="h-3 w-3 shrink-0" />
-                          <span className="truncate">{getResolvedMemberCompanyName(member)}</span>
+                        <div className="mt-0.5 flex flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-muted-foreground">
+                          <div className="truncate min-w-0">
+                            {member.email ? (
+                              <a href={`mailto:${member.email}`} className="hover:text-primary inline-flex items-center gap-1">
+                                <Mail className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{member.email}</span>
+                              </a>
+                            ) : (
+                              <span className="inline-flex items-center gap-1">
+                                <Mail className="h-3 w-3 shrink-0" />
+                                No email
+                              </span>
+                            )}
+                          </div>
+                          <div className="truncate min-w-0">
+                            {member.phone ? (
+                              <a href={`tel:${member.phone}`} className="hover:text-primary inline-flex items-center gap-1">
+                                <Phone className="h-3 w-3 shrink-0" />
+                                <span className="truncate">{member.phone}</span>
+                              </a>
+                            ) : (
+                              <span className="inline-flex items-center gap-1">
+                                <Phone className="h-3 w-3 shrink-0" />
+                                No phone
+                              </span>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="hidden lg:flex items-center justify-end gap-2 shrink-0 min-w-[180px]">
-                        {getSourceBadge(member.source)}
-                        {member.project_role?.name && (
-                          <Badge variant="outline" className={`text-[10px] h-5 px-1.5 border ${getRoleBadgeClasses(member.project_role.name, member.source)}`}>
-                            {member.project_role.name}
-                          </Badge>
-                        )}
+                      <div className="hidden md:flex items-center justify-end gap-2 shrink-0 min-w-[220px]">
+                        <Badge variant="outline" className="text-[10px] h-5 px-1.5 border">
+                          {getResolvedMemberCompanyName(member)}
+                        </Badge>
+                        <Badge variant="outline" className={`text-[10px] h-5 px-1.5 border ${getRoleBadgeClasses(getResolvedMemberRoleName(member), member.source)}`}>
+                          {getResolvedMemberRoleName(member)}
+                        </Badge>
                       </div>
                     </div>
-                    <div className="mt-0.5 grid grid-cols-1 lg:grid-cols-[minmax(0,1fr)_180px] gap-x-3 gap-y-1 text-xs text-muted-foreground">
-                      <div className="min-w-0 flex flex-wrap items-center gap-x-3 gap-y-0.5">
-                        <div className="truncate">
-                          {member.email ? (
-                            <a href={`mailto:${member.email}`} className="hover:text-primary flex items-center gap-1">
-                              <Mail className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{member.email}</span>
-                            </a>
-                          ) : (
-                            <span className="inline-flex items-center gap-1">
-                              <Mail className="h-3 w-3 shrink-0" />
-                              No email
-                            </span>
-                          )}
-                        </div>
-                        <div className="truncate">
-                          {member.phone ? (
-                            <a href={`tel:${member.phone}`} className="hover:text-primary flex items-center gap-1">
-                              <Phone className="h-3 w-3 shrink-0" />
-                              <span className="truncate">{member.phone}</span>
-                            </a>
-                          ) : (
-                            <span className="inline-flex items-center gap-1">
-                              <Phone className="h-3 w-3 shrink-0" />
-                              No phone
-                            </span>
-                          )}
-                        </div>
-                      </div>
-                      <div className="flex lg:hidden items-center gap-2 flex-wrap">
-                        {getSourceBadge(member.source)}
-                        {member.project_role?.name && (
-                          <Badge variant="outline" className={`text-[10px] h-5 px-1.5 border ${getRoleBadgeClasses(member.project_role.name, member.source)}`}>
-                            {member.project_role.name}
-                          </Badge>
-                        )}
-                      </div>
+                    <div className="mt-1 flex md:hidden items-center gap-2 flex-wrap">
+                      <Badge variant="outline" className="text-[10px] h-5 px-1.5 border">
+                        {getResolvedMemberCompanyName(member)}
+                      </Badge>
+                      <Badge variant="outline" className={`text-[10px] h-5 px-1.5 border ${getRoleBadgeClasses(getResolvedMemberRoleName(member), member.source)}`}>
+                        {getResolvedMemberRoleName(member)}
+                      </Badge>
                     </div>
                   </div>
 
@@ -2077,8 +2113,25 @@ export default function JobProjectTeam({ jobId, readOnly = false, companyIdOverr
               );
 
               return (
-                <div className="w-full rounded-lg border bg-background/40 px-2 py-1 divide-y">
-                  {sortedTeamMembers.map(renderMemberRow)}
+                <div className="w-full space-y-3">
+                  {groupedTeamMembers.map((companyGroup) => (
+                    <div key={companyGroup.companyName} className="rounded-lg border bg-background/40">
+                      <div className="flex items-center gap-2 border-b px-3 py-2">
+                        <Building2 className="h-4 w-4 text-muted-foreground" />
+                        <span className="font-medium">{companyGroup.companyName}</span>
+                      </div>
+                      <div className="px-2 py-1">
+                        {companyGroup.roleGroups.map((roleGroup) => (
+                          <div key={`${companyGroup.companyName}-${roleGroup.roleName}`} className="divide-y">
+                            <div className="px-2 py-2 text-[11px] font-semibold uppercase tracking-wide text-muted-foreground">
+                              {roleGroup.roleName}
+                            </div>
+                            {roleGroup.members.map(renderMemberRow)}
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
                 </div>
               );
             })()}

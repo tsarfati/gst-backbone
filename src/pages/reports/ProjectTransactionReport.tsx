@@ -15,6 +15,7 @@ import autoTable from "jspdf-autotable";
 import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { format } from "date-fns";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { addCompanyLogoToPdf } from "@/utils/reportPdfBranding";
 
 interface Transaction {
   id: string;
@@ -210,16 +211,17 @@ export default function ProjectTransactionReport() {
 
   const buildPdfDoc = async () => {
     const doc = new jsPDF();
+    await addCompanyLogoToPdf(doc, currentCompany?.logo_url);
     
     doc.setFontSize(18);
-    doc.text("Project Transaction Report", 14, 20);
+    doc.text("Project Transaction Report", 145, 20);
     
     doc.setFontSize(10);
-    doc.text(`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`, 14, 28);
-    doc.text(`Company: ${currentCompany?.name || ""}`, 14, 34);
+    doc.text(`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`, 145, 30);
+    doc.text(`Company: ${currentCompany?.name || ""}`, 145, 42);
     if (selectedJob !== "all") {
       const job = jobs.find(j => j.id === selectedJob);
-      doc.text(`Project: ${job?.name || ""}`, 14, 40);
+      doc.text(`Project: ${job?.name || ""}`, 145, 54);
     }
     
     const tableData = transactions.map(t => [
@@ -233,7 +235,7 @@ export default function ProjectTransactionReport() {
     ]);
     
     autoTable(doc, {
-      startY: selectedJob !== "all" ? 46 : 40,
+      startY: selectedJob !== "all" ? 66 : 52,
       head: [["Date", "Type", "Reference", "Vendor", "Project", "Cost Code", "Amount"]],
       body: tableData,
       foot: [["", "", "", "", "", "Total:", `$${formatNumber(totalAmount)}`]],

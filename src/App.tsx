@@ -167,8 +167,11 @@ import VendorDashboard from "./pages/VendorDashboard";
 import VendorPortalDashboard from "./pages/VendorPortalDashboard";
 import VendorPortalJobs from "./pages/VendorPortalJobs";
 import VendorPortalBills from "./pages/VendorPortalBills";
+import VendorPortalInvoiceDetails from "./pages/VendorPortalInvoiceDetails";
+import VendorPortalRfps from "./pages/VendorPortalRfps";
 import VendorPortalCompliance from "./pages/VendorPortalCompliance";
 import VendorPortalSettings from "./pages/VendorPortalSettings";
+import VendorPortalMessages from "./pages/VendorPortalMessages";
 import DesignProfessionalDashboard from "./pages/DesignProfessionalDashboard";
 import DesignProfessionalJobs from "./pages/DesignProfessionalJobs";
 import DesignProfessionalCompanySettings from "./pages/DesignProfessionalCompanySettings";
@@ -182,6 +185,7 @@ import DesignProfessionalSignup from "./pages/DesignProfessionalSignup";
 import SubscriptionPortal from "./pages/SubscriptionPortal";
 import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
+import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 
@@ -203,13 +207,127 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 }
 
 function DashboardEntryRoute() {
-  const { profile } = useAuth();
+  const { user, profile } = useAuth();
+  const { currentCompany, userCompanies, loading: companyLoading } = useCompany();
+  const [resolvedExternalRole, setResolvedExternalRole] = React.useState<'vendor' | 'design_professional' | null>(null);
+  const [resolvingExternalRole, setResolvingExternalRole] = React.useState(false);
   const role = String(profile?.role || '').toLowerCase();
+  const authMetadata = (user?.user_metadata || {}) as Record<string, any>;
+  const currentCompanyType = String(currentCompany?.company_type || '').toLowerCase();
+  const hasVendorIdentity =
+    !!(profile as any)?.vendor_id ||
+    !!authMetadata.vendor_id ||
+    authMetadata.is_vendor === true ||
+    authMetadata.is_vendor === 'true';
+  const companyAccessRole = userCompanies.length === 1 ? String(userCompanies[0]?.role || '').toLowerCase() : '';
 
-  if (role === 'design_professional') {
+  React.useEffect(() => {
+    let cancelled = false;
+
+    const resolveExternalRole = async () => {
+      if (!user?.id) {
+        setResolvedExternalRole(null);
+        setResolvingExternalRole(false);
+        return;
+      }
+
+      const directRole =
+        role === 'vendor' || role === 'design_professional'
+          ? (role as 'vendor' | 'design_professional')
+          : null;
+      if (directRole) {
+        setResolvedExternalRole(directRole);
+        setResolvingExternalRole(false);
+        return;
+      }
+
+      if (currentCompanyType === 'vendor') {
+        setResolvedExternalRole('vendor');
+        setResolvingExternalRole(false);
+        return;
+      }
+
+      if (currentCompanyType === 'design_professional') {
+        setResolvedExternalRole('design_professional');
+        setResolvingExternalRole(false);
+        return;
+      }
+
+      if (companyAccessRole === 'vendor' || companyAccessRole === 'design_professional') {
+        setResolvedExternalRole(companyAccessRole as 'vendor' | 'design_professional');
+        setResolvingExternalRole(false);
+        return;
+      }
+
+      if (hasVendorIdentity) {
+        setResolvedExternalRole('vendor');
+        setResolvingExternalRole(false);
+        return;
+      }
+
+      setResolvingExternalRole(true);
+      try {
+        const { data, error } = await supabase
+          .from('company_access_requests')
+          .select('notes, requested_at')
+          .eq('user_id', user.id)
+          .order('requested_at', { ascending: false })
+          .limit(10);
+
+        if (cancelled) return;
+        if (error) {
+          console.warn('DashboardEntryRoute external role lookup failed:', error);
+          setResolvedExternalRole(null);
+          return;
+        }
+
+        const matchedRow = (data || []).find((row: any) => {
+          try {
+            const parsed = row?.notes ? JSON.parse(row.notes) : null;
+            return String(parsed?.requestType || '').toLowerCase() === 'external_access_signup';
+          } catch {
+            return false;
+          }
+        }) as { notes?: string | null } | undefined;
+
+        if (!matchedRow?.notes) {
+          setResolvedExternalRole(null);
+          return;
+        }
+
+        try {
+          const parsed = JSON.parse(matchedRow.notes);
+          const requestedRole = String(parsed?.requestedRole || '').toLowerCase();
+          setResolvedExternalRole(
+            requestedRole === 'vendor' || requestedRole === 'design_professional'
+              ? requestedRole
+              : null,
+          );
+        } catch {
+          setResolvedExternalRole(null);
+        }
+      } finally {
+        if (!cancelled) {
+          setResolvingExternalRole(false);
+        }
+      }
+    };
+
+    resolveExternalRole();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [user?.id, role, currentCompanyType, companyAccessRole, hasVendorIdentity]);
+
+  if (companyLoading || resolvingExternalRole) {
+    return <PremiumLoadingScreen text="Loading your workspace..." />;
+  }
+
+  if (resolvedExternalRole === 'design_professional') {
     return <Navigate to="/design-professional/dashboard" replace />;
   }
-  if (role === 'vendor') {
+  if (resolvedExternalRole === 'vendor') {
     return <Navigate to="/vendor/dashboard" replace />;
   }
 
@@ -444,9 +562,34 @@ function AuthenticatedRoutes() {
                   <VendorPortalBills />
                 </RoleGuard>
               } />
+              <Route path="vendor/bills/:id" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalInvoiceDetails />
+                </RoleGuard>
+              } />
+              <Route path="vendor/rfps" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalRfps />
+                </RoleGuard>
+              } />
+              <Route path="vendor/rfps/:id" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalRfps />
+                </RoleGuard>
+              } />
+              <Route path="vendor/rfps/:id/sheets/:sheetId" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalRfps />
+                </RoleGuard>
+              } />
               <Route path="vendor/compliance" element={
                 <RoleGuard allowedRoles={['vendor']}>
                   <VendorPortalCompliance />
+                </RoleGuard>
+              } />
+              <Route path="vendor/messages" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalMessages />
                 </RoleGuard>
               } />
               <Route path="vendor/settings" element={

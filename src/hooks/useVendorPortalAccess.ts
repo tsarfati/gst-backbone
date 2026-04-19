@@ -239,8 +239,18 @@ const normalizeVendorRole = (value: unknown): VendorPortalRole => {
 };
 
 export function useVendorPortalAccess(jobId?: string) {
-  const { profile } = useAuth();
-  const [loading, setLoading] = useState(Boolean(jobId && profile?.vendor_id));
+  const { user, profile } = useAuth();
+  const authMetadata = (user?.user_metadata || {}) as Record<string, any>;
+  const effectiveVendorId = useMemo(
+    () =>
+      String(
+        profile?.vendor_id ||
+        authMetadata.vendor_id ||
+        "",
+      ).trim() || null,
+    [profile?.vendor_id, authMetadata.vendor_id],
+  );
+  const [loading, setLoading] = useState(Boolean(jobId && effectiveVendorId));
   const [jobAccess, setJobAccess] = useState<VendorJobAccessRow | null>(null);
 
   const internalRole = useMemo<VendorPortalRole>(() => {
@@ -255,7 +265,7 @@ export function useVendorPortalAccess(jobId?: string) {
     let ignore = false;
 
     async function loadJobAccess() {
-      if (!jobId || !profile?.vendor_id) {
+      if (!jobId || !effectiveVendorId) {
         setJobAccess(null);
         setLoading(false);
         return;
@@ -280,7 +290,7 @@ export function useVendorPortalAccess(jobId?: string) {
           can_access_filing_cabinet,
           can_upload_compliance_docs
         `)
-        .eq("vendor_id", profile.vendor_id)
+        .eq("vendor_id", effectiveVendorId)
         .eq("job_id", jobId)
         .maybeSingle();
 
@@ -299,7 +309,7 @@ export function useVendorPortalAccess(jobId?: string) {
     return () => {
       ignore = true;
     };
-  }, [jobId, profile?.vendor_id]);
+  }, [effectiveVendorId, jobId]);
 
   const effectiveJobAccess = useMemo(() => {
     const assignment = jobAccess || {};

@@ -114,6 +114,7 @@ interface UserAccessJob extends Job {
 interface VendorJob {
   id: string;
   name: string;
+  sources: Array<'vendor_job_access' | 'rfp_invite'>;
 }
 
 interface CustomRole {
@@ -449,19 +450,59 @@ export default function UserDetails() {
   const fetchVendorJobs = async (vendorId: string) => {
     if (!currentCompany) return;
     try {
-      const { data, error } = await (supabase
-        .from('vendor_job_access') as any)
-        .select('jobs(id, name)')
-        .eq('vendor_id', vendorId)
-        .eq('company_id', currentCompany.id)
-        .order('created_at', { ascending: false });
-      if (error) throw error;
+      const [jobAccessRes, invitedRfpsRes] = await Promise.all([
+        (supabase
+          .from('vendor_job_access') as any)
+          .select('jobs(id, name)')
+          .eq('vendor_id', vendorId)
+          .eq('company_id', currentCompany.id)
+          .order('created_at', { ascending: false }),
+        (supabase
+          .from('rfp_invited_vendors') as any)
+          .select('rfp:rfps(job:jobs(id, name, company_id))')
+          .eq('vendor_id', vendorId)
+          .eq('company_id', currentCompany.id)
+          .order('invited_at', { ascending: false }),
+      ]);
 
-      const mapped = (data || [])
-        .map((row: any) => row.jobs)
-        .filter(Boolean) as VendorJob[];
-      const unique = Array.from(new Map(mapped.map((j) => [j.id, j])).values());
-      setVendorJobs(unique);
+      if (jobAccessRes.error) throw jobAccessRes.error;
+      if (invitedRfpsRes.error) throw invitedRfpsRes.error;
+
+      const mergedById = new Map<string, VendorJob>();
+
+      ((jobAccessRes.data || []) as any[]).forEach((row: any) => {
+        const job = row?.jobs;
+        if (!job?.id || !job?.name) return;
+        const id = String(job.id);
+        const existing = mergedById.get(id);
+        if (existing) {
+          if (!existing.sources.includes('vendor_job_access')) existing.sources.push('vendor_job_access');
+          return;
+        }
+        mergedById.set(id, {
+          id,
+          name: String(job.name),
+          sources: ['vendor_job_access'],
+        });
+      });
+
+      ((invitedRfpsRes.data || []) as any[]).forEach((row: any) => {
+        const job = row?.rfp?.job;
+        if (!job?.id || !job?.name) return;
+        const id = String(job.id);
+        const existing = mergedById.get(id);
+        if (existing) {
+          if (!existing.sources.includes('rfp_invite')) existing.sources.push('rfp_invite');
+          return;
+        }
+        mergedById.set(id, {
+          id,
+          name: String(job.name),
+          sources: ['rfp_invite'],
+        });
+      });
+
+      setVendorJobs(Array.from(mergedById.values()).sort((a, b) => a.name.localeCompare(b.name)));
     } catch (error) {
       console.error('Error fetching vendor jobs:', error);
       setVendorJobs([]);
@@ -1126,6 +1167,76 @@ export default function UserDetails() {
     }
   };
 
+  const handleExternalStatusUpdate = async (nextStatus: 'approved' | 'rejected') => {
+    if (!currentCompany || !user) return;
+
+    try {
+      setSaving(true);
+
+      const { error: profileError } = await supabase
+        .from('profiles')
+        .update({
+          status: nextStatus,
+          approved_by: nextStatus === 'approved' ? profile?.user_id || null : null,
+          approved_at: nextStatus === 'approved' ? new Date().toISOString() : null,
+        })
+        .eq('user_id', user.user_id);
+
+      if (profileError) throw profileError;
+
+      const { error: requestSyncError } = await supabase
+        .from('company_access_requests')
+        .update({
+          status: nextStatus as any,
+          reviewed_by: profile?.user_id || null,
+          reviewed_at: new Date().toISOString(),
+        })
+        .eq('company_id', currentCompany.id)
+        .eq('user_id', user.user_id)
+        .eq('status', 'pending');
+
+      if (requestSyncError) {
+        console.warn('Failed to sync company access request status:', requestSyncError);
+      }
+
+      if (nextStatus === 'approved') {
+        const { error: notifyError } = await supabase.functions.invoke('notify-user-approved', {
+          body: {
+            userId: user.user_id,
+            companyId: currentCompany.id,
+          },
+        });
+        if (notifyError) {
+          console.warn('User approval email notification failed:', notifyError);
+        }
+      }
+
+      setUser((prev) => (prev ? {
+        ...prev,
+        status: nextStatus,
+        approved_by: nextStatus === 'approved' ? profile?.user_id || undefined : undefined,
+        approved_at: nextStatus === 'approved' ? new Date().toISOString() : undefined,
+      } : null));
+
+      toast({
+        title: nextStatus === 'approved' ? 'Access granted' : 'Access denied',
+        description:
+          nextStatus === 'approved'
+            ? `${displayName} can now access this company.`
+            : `${displayName}'s company access was denied.`,
+      });
+    } catch (error) {
+      console.error('Error updating external user status:', error);
+      toast({
+        title: 'Error',
+        description: `Failed to ${nextStatus === 'approved' ? 'approve' : 'reject'} access.`,
+        variant: 'destructive',
+      });
+    } finally {
+      setSaving(false);
+    }
+  };
+
   if (loading) return <div className="p-6 text-center"><span className="loading-dots">Loading user details</span></div>;
   if (!user) return <div className="p-6 text-center">User not found</div>;
 
@@ -1163,6 +1274,25 @@ export default function UserDetails() {
             <ArrowLeft className="h-4 w-4" />
             Back to {isDesignProfessionalUser ? 'Design Professional Access' : 'Vendor Access'}
           </Button>
+          {canManage && !isSelf && user.status === 'pending' && (
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                disabled={saving}
+                onClick={() => void handleExternalStatusUpdate('rejected')}
+              >
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <XCircle className="mr-2 h-4 w-4" />}
+                Deny Access
+              </Button>
+              <Button
+                disabled={saving}
+                onClick={() => void handleExternalStatusUpdate('approved')}
+              >
+                {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <CheckCircle className="mr-2 h-4 w-4" />}
+                Grant Access
+              </Button>
+            </div>
+          )}
         </div>
 
         <Card>
@@ -1193,29 +1323,58 @@ export default function UserDetails() {
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-muted-foreground">
                   <div className="flex items-center gap-2">
                     <Building2 className="h-4 w-4" />
-                    <span>External access user</span>
+                    <span>{isDesignProfessionalUser ? 'Design professional portal account' : 'Vendor portal account'}</span>
                   </div>
                   <div className="flex items-center gap-2">
                     <Calendar className="h-4 w-4" />
-                    <span>Linked {new Date(user.created_at).toLocaleDateString()}</span>
+                    <span>Added {new Date(user.created_at).toLocaleDateString()}</span>
                   </div>
                   {isVendorUser && associatedVendor && (
                     <div className="flex items-center gap-2">
                       <Store className="h-4 w-4" />
-                      <span>Linked Vendor: {associatedVendor.name}</span>
+                      <span>Vendor Account: {associatedVendor.name}</span>
                     </div>
                   )}
                 </div>
 
                 <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
                   {isDesignProfessionalUser
-                    ? 'This user belongs to an external design professional company. Their profile, login access, and contact details are managed from their own company account. From the GC side, this page only shows which jobs they currently have access to.'
-                    : 'This user belongs to an external vendor company. Their profile, login access, and contact details are managed from their own company account. From the builder side, this page only shows which jobs they currently have access to.'}
+                    ? 'This design professional uses their own BuilderLYNK account. From your side, you can review their status here and see which jobs they are attached to through the project team.'
+                    : 'This vendor user signs in through their own BuilderLYNK vendor account. From your side, you can review their status here and see which jobs and RFPs are shared with this vendor account.'}
                 </div>
               </div>
             </div>
           </CardContent>
         </Card>
+
+        <div className="grid gap-4 md:grid-cols-3">
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Account Status</p>
+              <p className="mt-1 text-sm font-semibold">{user.status || 'pending'}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                {isDesignProfessionalUser ? 'Attached Jobs' : 'Shared Jobs'}
+              </p>
+              <p className="mt-1 text-2xl font-bold">{isVendorUser ? vendorJobs.length : userJobs.length}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Portal Relationship</p>
+              <p className="mt-1 text-sm font-semibold">
+                {isDesignProfessionalUser
+                  ? 'Independent design account'
+                  : associatedVendor
+                    ? `Linked to ${associatedVendor.name}`
+                    : 'No vendor account linked'}
+              </p>
+            </CardContent>
+          </Card>
+        </div>
 
         <Card>
           <CardHeader>
@@ -1228,18 +1387,24 @@ export default function UserDetails() {
             {isVendorUser ? (
               !associatedVendor ? (
                 <p className="text-sm text-muted-foreground">
-                  No vendor account linked. Link this user to a vendor account from the vendor profile flow.
+                  No vendor account is assigned to this user yet.
                 </p>
               ) : vendorJobs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No jobs currently assigned on the linked vendor profile.
+                  No jobs or RFP-backed jobs are currently assigned to this vendor account.
                 </p>
               ) : (
                 <div className="space-y-2">
                   {vendorJobs.map((job) => (
                     <div key={job.id} className="flex items-center justify-between rounded-md border p-3">
                       <span className="font-medium">{job.name}</span>
-                      <Badge variant="outline">Managed from Vendor / Job Access</Badge>
+                      <Badge variant="outline">
+                        {job.sources.includes('vendor_job_access') && job.sources.includes('rfp_invite')
+                          ? 'Vendor Access + RFP'
+                          : job.sources.includes('rfp_invite')
+                            ? 'Shared Through RFP'
+                            : 'Managed from Vendor / Job Access'}
+                      </Badge>
                     </div>
                   ))}
                 </div>
@@ -1543,7 +1708,7 @@ export default function UserDetails() {
                           ))}
                           {editForm.role === 'vendor' && (
                             <SelectItem value={editForm.role} disabled>
-                              {roleLabels[editForm.role]} (External Access)
+                              {roleLabels[editForm.role]} (Vendor Portal)
                             </SelectItem>
                           )}
                           {customRoles.length > 0 && (
@@ -1593,7 +1758,7 @@ export default function UserDetails() {
                   </div>
                   {editForm.role === 'vendor' && (
                     <div>
-                      <Label>Link To Vendor</Label>
+                      <Label>Vendor Account</Label>
                       <Select
                         value={selectedVendorId || '__none__'}
                         onValueChange={(value) => setSelectedVendorId(value === '__none__' ? null : value)}
@@ -1611,7 +1776,7 @@ export default function UserDetails() {
                         </SelectContent>
                       </Select>
                       <p className="text-xs text-muted-foreground mt-1">
-                        This vendor user will inherit access from the linked vendor profile.
+                        This vendor user will inherit access from this vendor account.
                       </p>
                     </div>
                   )}
@@ -1654,7 +1819,7 @@ export default function UserDetails() {
                     {associatedVendor && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Store className="h-4 w-4" />
-                        <span>Linked Vendor: {associatedVendor.name}</span>
+                        <span>Vendor Account: {associatedVendor.name}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-muted-foreground">
@@ -1915,24 +2080,30 @@ export default function UserDetails() {
           <CardContent>
             {!associatedVendor ? (
               <p className="text-sm text-muted-foreground">
-                No vendor account linked. Link this user to a vendor account in edit mode.
+                No vendor account is assigned to this user yet.
               </p>
             ) : vendorJobs.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No jobs currently assigned on the linked vendor profile.
+                No jobs or RFP-backed jobs are currently assigned to this vendor account.
               </p>
             ) : (
               <div className="space-y-2">
                 {vendorJobs.map((job) => (
                   <div key={job.id} className="flex items-center justify-between rounded-md border p-3">
                     <span className="font-medium">{job.name}</span>
-                    <Badge variant="outline">View Only</Badge>
+                    <Badge variant="outline">
+                      {job.sources.includes('vendor_job_access') && job.sources.includes('rfp_invite')
+                        ? 'Vendor Access + RFP'
+                        : job.sources.includes('rfp_invite')
+                          ? 'RFP Access'
+                          : 'View Only'}
+                    </Badge>
                   </div>
                 ))}
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-3">
-              Job access for vendor users is managed from the linked vendor profile.
+              Job and RFP access for vendor users is managed from the vendor account.
             </p>
           </CardContent>
         </Card>

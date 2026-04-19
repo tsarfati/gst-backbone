@@ -1107,6 +1107,35 @@ export default function VendorDetails() {
           </Card>
         )}
 
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Portal Status</p>
+              <p className="mt-1 text-sm font-semibold">
+                {vendorPortalLinked ? 'Linked to vendor portal' : pendingInvite ? 'Invitation pending' : 'Not linked'}
+              </p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Shared Jobs</p>
+              <p className="mt-1 text-2xl font-bold">{combinedJobAssignments.length}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Compliance Docs</p>
+              <p className="mt-1 text-2xl font-bold">{complianceDocuments.length}</p>
+            </CardContent>
+          </Card>
+          <Card>
+            <CardContent className="p-4">
+              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Payment Methods</p>
+              <p className="mt-1 text-2xl font-bold">{paymentMethods.length}</p>
+            </CardContent>
+          </Card>
+        </div>
+
         {/* Overview Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
           {/* Main Info */}

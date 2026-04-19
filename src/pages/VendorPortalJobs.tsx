@@ -2,11 +2,12 @@ import { useMemo } from "react";
 import { useNavigate } from "react-router-dom";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import { useVendorPortalData } from "@/hooks/useVendorPortalData";
 import { useState } from "react";
-import { Building2, CalendarDays } from "lucide-react";
+import { ArrowLeft, Building2, CalendarDays } from "lucide-react";
 
 export default function VendorPortalJobs() {
   const navigate = useNavigate();
@@ -30,6 +31,10 @@ export default function VendorPortalJobs() {
   return (
     <div className="p-6 space-y-6">
       <div className="space-y-3">
+        <Button variant="ghost" className="px-0" onClick={() => navigate("/vendor/dashboard")}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
         <h1 className="text-2xl font-bold text-foreground">All Jobs</h1>
         <Input
           value={query}

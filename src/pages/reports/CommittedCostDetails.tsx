@@ -16,6 +16,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { exportAoAToXlsx } from "@/utils/exceljsExport";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
+import { addCompanyLogoToPdf } from "@/utils/reportPdfBranding";
 
 interface CommittedItem {
   id: string;
@@ -301,18 +302,19 @@ export default function CommittedCostDetails() {
 
   const [emailModalOpen, setEmailModalOpen] = useState(false);
 
-  const buildPdfDoc = () => {
+  const buildPdfDoc = async () => {
     const doc = new jsPDF();
+    await addCompanyLogoToPdf(doc, currentCompany?.logo_url);
     
     doc.setFontSize(16);
-    doc.text("Committed Cost Details", 14, 15);
+    doc.text("Committed Cost Details", 145, 20);
     
     doc.setFontSize(10);
-    doc.text(`Job: ${getSelectedJobName()}`, 14, 25);
+    doc.text(`Job: ${getSelectedJobName()}`, 145, 30);
     if (selectedCostCodeId) {
-      doc.text(`Cost Code: ${getSelectedCostCodeDescription()}`, 14, 30);
+      doc.text(`Cost Code: ${getSelectedCostCodeDescription()}`, 145, 44);
     }
-    doc.text(`Total Committed: $${formatNumber(totalAmount)}`, 14, selectedCostCodeId ? 35 : 30);
+    doc.text(`Total Committed: $${formatNumber(totalAmount)}`, 145, selectedCostCodeId ? 58 : 44);
     
     const tableData = filteredItems.map(item => {
       const costCodeDisplay = item.cost_code 
@@ -330,7 +332,7 @@ export default function CommittedCostDetails() {
     });
     
     autoTable(doc, {
-      startY: selectedCostCodeId ? 40 : 35,
+      startY: selectedCostCodeId ? 68 : 54,
       head: [["Date", "Type", "Name", "Vendor", "Cost Code", "Status", "Amount"]],
       body: tableData,
       foot: [["", "", "", "", "", "Total:", `$${formatNumber(totalAmount)}`]],
@@ -342,8 +344,8 @@ export default function CommittedCostDetails() {
     return doc;
   };
 
-  const exportToPDF = () => {
-    const doc = buildPdfDoc();
+  const exportToPDF = async () => {
+    const doc = await buildPdfDoc();
     doc.save(`committed-cost-details-${new Date().toISOString().split("T")[0]}.pdf`);
     toast({ title: "Success", description: "PDF exported successfully" });
   };

@@ -17,6 +17,8 @@ interface SinglePagePdfViewerProps {
 
 type RenderReason = "page" | "zoom";
 
+const pdfDocumentPromiseCache = new Map<string, Promise<any>>();
+
 /**
  * Single-page PDF renderer.
  * - Trackpad pinch and touch pinch are handled without zooming the whole page.
@@ -32,6 +34,7 @@ export default function SinglePagePdfViewer({
   onZoomChange,
   onPageRectChange,
 }: SinglePagePdfViewerProps) {
+  const safePageNumber = Math.max(1, Number.isFinite(pageNumber) ? pageNumber : 1);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const contentRef = useRef<HTMLDivElement>(null);
@@ -332,6 +335,7 @@ export default function SinglePagePdfViewer({
   // Load PDF document once per URL
   useEffect(() => {
     let cancelled = false;
+    let loadingTask: any = null;
 
     async function loadPdf() {
       try {
@@ -342,13 +346,25 @@ export default function SinglePagePdfViewer({
         const pdfjs = await import("pdfjs-dist");
         (pdfjs as any).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-        const response = await fetch(url);
-        const arrayBuffer = await response.arrayBuffer();
-        const loadingTask = (pdfjs as any).getDocument({ data: arrayBuffer });
-        const pdf = await loadingTask.promise;
+        let pdfPromise = pdfDocumentPromiseCache.get(url);
+        if (!pdfPromise) {
+          loadingTask = (pdfjs as any).getDocument({
+            url,
+            withCredentials: false,
+            disableAutoFetch: false,
+            disableStream: false,
+            rangeChunkSize: 1024 * 1024,
+          });
+          pdfPromise = loadingTask.promise.catch((error: any) => {
+            pdfDocumentPromiseCache.delete(url);
+            throw error;
+          });
+          pdfDocumentPromiseCache.set(url, pdfPromise);
+        }
+
+        const pdf = await pdfPromise;
 
         if (cancelled) {
-          await pdf.destroy();
           return;
         }
 
@@ -367,8 +383,24 @@ export default function SinglePagePdfViewer({
 
     return () => {
       cancelled = true;
+      try {
+        loadingTask?.destroy?.();
+      } catch {
+        // ignore cleanup errors
+      }
     };
   }, [url]);
+
+  useEffect(() => {
+    if (!pdfDoc) return;
+
+    const nextPageNumber = safePageNumber + 1;
+    if (nextPageNumber > totalPages) return;
+
+    void pdfDoc.getPage(nextPageNumber).catch(() => {
+      // Best-effort warmup only; the current page should still render normally.
+    });
+  }, [pdfDoc, safePageNumber, totalPages]);
 
   const requestRender = useCallback(
     async ({ page, zoom, reason }: { page: number; zoom: number; reason: RenderReason }) => {
@@ -387,7 +419,8 @@ export default function SinglePagePdfViewer({
         }
         setError(null);
 
-        const pdfPage = await pdfDoc.getPage(page);
+        const safePage = Math.max(1, page);
+        const pdfPage = await pdfDoc.getPage(safePage);
         const container = containerRef.current;
         const displayCanvas = canvasRef.current;
         if (!container || !displayCanvas) return;
@@ -457,8 +490,8 @@ export default function SinglePagePdfViewer({
   // Render on page changes immediately (not on every zoom tick)
   useEffect(() => {
     if (!pdfDoc) return;
-    void requestRender({ page: pageNumber, zoom: zoomLevel, reason: "page" });
-  }, [pdfDoc, pageNumber, requestRender]);
+    void requestRender({ page: safePageNumber, zoom: zoomLevel, reason: "page" });
+  }, [pdfDoc, safePageNumber, requestRender]);
 
   // Zoom: resize immediately, then re-render at high-res after user stops zooming
   useEffect(() => {
@@ -480,7 +513,7 @@ export default function SinglePagePdfViewer({
         clearTimeout(zoomRenderTimeoutRef.current);
       }
     };
-  }, [zoomLevel, pageNumber, pdfDoc, requestRender, updateCanvasCssSize, emitPageRect]);
+  }, [zoomLevel, safePageNumber, pdfDoc, requestRender, updateCanvasCssSize, emitPageRect]);
 
   useEffect(() => {
     if (!onPageRectChange) return;

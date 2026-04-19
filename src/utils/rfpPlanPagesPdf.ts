@@ -1,4 +1,5 @@
 import { PDFDocument } from 'pdf-lib';
+import { resolveStorageUrl } from './storageUtils';
 
 export interface DownloadableRfpPlanPage {
   plan_id: string;
@@ -30,7 +31,12 @@ export async function downloadRfpPlanPagesPdf(params: {
   }
 
   for (const [planFileUrl, groupedPages] of pagesByPlan.entries()) {
-    const response = await fetch(planFileUrl);
+    const resolvedPlanFileUrl = await resolveStorageUrl('company-files', planFileUrl);
+    if (!resolvedPlanFileUrl) {
+      throw new Error('Failed to resolve plan PDF URL.');
+    }
+
+    const response = await fetch(resolvedPlanFileUrl);
     if (!response.ok) {
       throw new Error(`Failed to fetch plan PDF: ${response.status}`);
     }
@@ -61,4 +67,24 @@ export async function downloadRfpPlanPagesPdf(params: {
   document.body.removeChild(link);
 
   window.setTimeout(() => URL.revokeObjectURL(objectUrl), 1000);
+}
+
+export async function downloadSingleRfpPlanPagePdf(params: {
+  page: DownloadableRfpPlanPage;
+  fileName?: string;
+}) {
+  const { page, fileName } = params;
+  if (!page.plan_file_url) {
+    throw new Error('No plan file URL is available for this page.');
+  }
+
+  const safeLabel =
+    (page.sheet_number || page.page_title || `Page-${page.page_number}`)
+      .replace(/[^\w.-]+/g, '_')
+      .replace(/^_+|_+$/g, '') || `Page-${page.page_number}`;
+
+  await downloadRfpPlanPagesPdf({
+    fileName: fileName || `${safeLabel}.pdf`,
+    pages: [page],
+  });
 }

@@ -11,7 +11,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from "@/components/ui/command";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Upload, ArrowLeft, FileText, AlertCircle, Plus, X, AlertTriangle, Receipt, Search, Check, Download } from "lucide-react";
 import { useNavigate } from "react-router-dom";
@@ -78,6 +78,8 @@ export default function AddBill() {
   const [costCodeOpen, setCostCodeOpen] = useState<Record<string, boolean>>({});
   const [vendorOpen, setVendorOpen] = useState(false);
   const [vendorSearch, setVendorSearch] = useState("");
+  const [activePreview, setActivePreview] = useState<{ type: 'receipt' } | { type: 'file'; index: number } | null>(null);
+  const [fileDisplayNames, setFileDisplayNames] = useState<Record<number, string>>({});
   
   const [billFiles, setBillFiles] = useState<File[]>([]);
   const [isDragOver, setIsDragOver] = useState(false);
@@ -863,11 +865,34 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       }
       return true;
     });
-    setBillFiles(prev => [...prev, ...validFiles]);
+    setBillFiles(prev => {
+      const next = [...prev, ...validFiles];
+      setActivePreview(current => current ?? (next.length > 0 ? { type: 'file', index: 0 } : null));
+      return next;
+    });
   };
 
   const removeFile = (index: number) => {
-    setBillFiles(prev => prev.filter((_, i) => i !== index));
+    setBillFiles(prev => {
+      const next = prev.filter((_, i) => i !== index);
+      setFileDisplayNames((current) => {
+        const renamed: Record<number, string> = {};
+        Object.entries(current).forEach(([key, value]) => {
+          const numericKey = Number(key);
+          if (numericKey < index) renamed[numericKey] = value;
+          if (numericKey > index) renamed[numericKey - 1] = value;
+        });
+        return renamed;
+      });
+      setActivePreview((current) => {
+        if (!next.length) return attachedReceipt ? { type: 'receipt' } : null;
+        if (!current || current.type === 'receipt') return { type: 'file', index: 0 };
+        if (current.index === index) return { type: 'file', index: Math.min(index, next.length - 1) };
+        if (current.index > index) return { type: 'file', index: current.index - 1 };
+        return current;
+      });
+      return next;
+    });
   };
 
   const handleDragOver = (e: React.DragEvent) => {
@@ -901,6 +926,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     try {
       // Set attached receipt for display
       setAttachedReceipt(receipt);
+      setActivePreview({ type: 'receipt' });
       
       // Fetch the receipt's cost distribution
       const { data: costDistData, error } = await supabase
@@ -1457,11 +1483,11 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
 
       // Upload bill files and create invoice_documents records
       if (billFiles.length > 0 && insertedInvoiceIds.length > 0) {
-        for (const file of billFiles) {
+        for (const [index, file] of billFiles.entries()) {
           const fileExt = file.name.split('.').pop();
           
           // Apply naming pattern if available
-          let displayName = file.name;
+          let displayName = getBillFileLabel(file, index);
           if (namingSettings?.bill_naming_pattern) {
             const vendor = vendors.find(v => v.id === formData.vendor_id);
             const job = jobs.find(j => j.id === formData.job_id);
@@ -1612,6 +1638,18 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
     return <div className="p-4 md:p-6 text-center"><span className="loading-dots">Loading</span></div>;
   }
 
+  const getBillFileLabel = (file: File, index: number) => fileDisplayNames[index]?.trim() || file.name;
+  const previewingReceipt = activePreview?.type === 'receipt' && attachedReceipt;
+  const previewFile =
+    activePreview?.type === 'file' && billFiles[activePreview.index]
+      ? { file: billFiles[activePreview.index], index: activePreview.index }
+      : (!previewingReceipt && billFiles.length > 0 ? { file: billFiles[0], index: 0 } : null);
+  const previewTitle = previewingReceipt
+    ? attachedReceipt?.filename || 'Attached Receipt'
+    : previewFile
+    ? getBillFileLabel(previewFile.file, previewFile.index)
+    : null;
+
   return (
     <div className="p-4 md:p-6">
       {/* Header */}
@@ -1628,70 +1666,25 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
         <div className="grid gap-6 xl:grid-cols-[minmax(0,1.1fr)_minmax(0,0.9fr)] xl:items-start">
           <div className="xl:sticky xl:top-6">
             <Card className="overflow-hidden">
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileText className="h-5 w-5" />
-                  Bill Document
-                  {attachmentRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
-                </CardTitle>
-              </CardHeader>
               <CardContent className="space-y-4">
-                <div
-                  className={`border-2 border-dashed rounded-lg p-8 text-center transition-colors ${
-                    isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-                  }`}
-                  onDragOver={handleDragOver}
-                  onDragLeave={handleDragLeave}
-                  onDrop={handleDrop}
-                >
-                  {billFiles.length > 0 ? (
-                    <div className="space-y-3">
-                      <div className="flex items-center justify-center w-16 h-16 mx-auto bg-success/10 rounded-full">
-                        <FileText className="h-8 w-8 text-success" />
-                      </div>
-                      <p className="font-medium">{billFiles.length} file{billFiles.length > 1 ? 's' : ''} selected</p>
-                    </div>
-                  ) : (
-                    <div className="flex flex-col items-center justify-center gap-3 rounded-lg border-2 border-dashed border-muted-foreground/25 px-4 py-4 sm:flex-row">
-                      <Upload className="h-4 w-4 text-muted-foreground" />
-                      <p className="text-sm font-medium">
-                        {isDragOver ? "Drop Files Here" : "Drag Files Here"}
-                      </p>
-                      <p className="text-sm text-muted-foreground">or</p>
-                      <div>
-                        <input
-                          type="file"
-                          multiple
-                          accept=".pdf,.jpg,.jpeg,.png,.webp"
-                          onChange={handleFileInputChange}
-                          className="hidden"
-                          id="bill-file-upload"
-                        />
-                        <Button type="button" asChild size="sm">
-                          <label htmlFor="bill-file-upload" className="cursor-pointer">
-                            Choose Files to Add
-                          </label>
-                        </Button>
-                      </div>
-                    </div>
-                  )}
-                </div>
-
                 {(billFiles.length > 0 || attachedReceipt) ? (
                   <div className="space-y-3">
-                    <Label className="text-base font-semibold">Document Preview</Label>
-
-                    {attachedReceipt && (
-                      <div className="border rounded-lg overflow-hidden">
-                        <div className="flex items-center justify-between p-3 bg-amber-50 border-b">
-                          <div className="flex items-center gap-2">
+                    <div className="border rounded-lg overflow-hidden">
+                      <div className={`flex items-center justify-between gap-3 border-b p-3 ${previewingReceipt ? 'bg-amber-50' : 'bg-muted/40'}`}>
+                        <div className="flex min-w-0 items-center gap-2">
+                          {previewingReceipt ? (
                             <Receipt className="h-4 w-4 text-amber-600" />
-                            <span className="font-medium text-sm">Attached Receipt: {attachedReceipt.filename}</span>
-                            <Badge variant="secondary" className="text-xs">
-                              From Receipt System
-                            </Badge>
-                          </div>
-                          <div className="flex items-center gap-2">
+                          ) : (
+                            <FileText className="h-4 w-4" />
+                          )}
+                          <span className="truncate font-medium text-sm">{previewTitle}</span>
+                          {previewingReceipt ? (
+                            <Badge variant="secondary" className="text-xs">Attached Receipt</Badge>
+                          ) : null}
+                          {attachmentRequired && <Badge variant="destructive" className="text-xs">Required</Badge>}
+                        </div>
+                        <div className="flex items-center gap-2">
+                          {previewingReceipt && attachedReceipt?.file_url ? (
                             <Button
                               type="button"
                               variant="outline"
@@ -1708,24 +1701,30 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                             >
                               <Download className="h-4 w-4" />
                             </Button>
+                          ) : previewFile ? (
                             <Button
                               type="button"
-                              variant="ghost"
+                              variant="outline"
                               size="sm"
                               onClick={() => {
-                                setAttachedReceipt(null);
-                                toast({
-                                  title: "Receipt detached",
-                                  description: "Receipt has been removed from this bill"
-                                });
+                                const url = URL.createObjectURL(previewFile.file);
+                                const link = document.createElement('a');
+                                link.href = url;
+                                link.download = getBillFileLabel(previewFile.file, previewFile.index);
+                                document.body.appendChild(link);
+                                link.click();
+                                document.body.removeChild(link);
+                                URL.revokeObjectURL(url);
                               }}
                             >
-                              <X className="h-4 w-4" />
+                              <Download className="h-4 w-4" />
                             </Button>
-                          </div>
+                          ) : null}
                         </div>
-                        <div className="h-[70vh] overflow-auto bg-gray-50">
-                          {(attachedReceipt.file_name?.toLowerCase().endsWith('.pdf') || attachedReceipt.type === 'pdf') && attachedReceipt.file_url ? (
+                      </div>
+                      <div className="h-[70vh] overflow-auto bg-gray-50">
+                        {previewingReceipt && attachedReceipt ? (
+                          (attachedReceipt.file_name?.toLowerCase().endsWith('.pdf') || attachedReceipt.type === 'pdf') && attachedReceipt.file_url ? (
                             <UrlPdfInlinePreview url={attachedReceipt.file_url} className="w-full" />
                           ) : attachedReceipt.file_url ? (
                             <img
@@ -1738,61 +1737,129 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                               <FileText className="h-12 w-12 mx-auto mb-2" />
                               <p>Receipt preview not available</p>
                             </div>
-                          )}
-                        </div>
-                      </div>
-                    )}
-
-                    {billFiles.map((file, index) => (
-                      <div key={index} className="border rounded-lg overflow-hidden">
-                        <div className="flex items-center justify-between p-3 bg-muted">
-                          <div className="flex items-center gap-2">
-                            <FileText className="h-4 w-4" />
-                            <span className="font-medium text-sm">{file.name}</span>
-                          </div>
-                          <div className="flex items-center gap-2">
-                            <Button
-                              type="button"
-                              variant="outline"
-                              size="sm"
-                              onClick={() => {
-                                const url = URL.createObjectURL(file);
-                                const link = document.createElement('a');
-                                link.href = url;
-                                link.download = file.name;
-                                document.body.appendChild(link);
-                                link.click();
-                                document.body.removeChild(link);
-                                URL.revokeObjectURL(url);
-                              }}
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => removeFile(index)}
-                            >
-                              <X className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </div>
-                        {file.type === 'application/pdf' ? (
-                          <div className="h-[70vh] overflow-auto bg-gray-50">
-                            <PdfInlinePreview file={file} className="w-full" />
-                          </div>
-                        ) : (
-                          <div className="h-[70vh] overflow-auto bg-gray-50">
+                          )
+                        ) : previewFile ? (
+                          previewFile.file.type === 'application/pdf' ? (
+                            <PdfInlinePreview file={previewFile.file} className="w-full" />
+                          ) : (
                             <img
-                              src={URL.createObjectURL(file)}
+                              src={URL.createObjectURL(previewFile.file)}
                               alt="Bill preview"
                               className="w-full h-auto"
                             />
-                          </div>
-                        )}
+                          )
+                        ) : null}
                       </div>
-                    ))}
+                    </div>
+
+                    <div className="rounded-lg border">
+                      <div className="border-b px-4 py-2 text-sm font-medium">File List</div>
+                      <div className="divide-y">
+                        {attachedReceipt ? (
+                          <div className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center">
+                            <button
+                              type="button"
+                              className="min-w-0 flex-1 text-left"
+                              onClick={() => setActivePreview({ type: 'receipt' })}
+                            >
+                              <div className="flex items-center gap-2">
+                                <Receipt className="h-4 w-4 text-amber-600" />
+                                <span className="truncate font-medium">{attachedReceipt.filename}</span>
+                                <Badge variant="secondary" className="text-xs">Receipt</Badge>
+                              </div>
+                            </button>
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const link = document.createElement('a');
+                                  link.href = attachedReceipt.file_url;
+                                  link.download = attachedReceipt.filename || 'receipt';
+                                  link.target = '_blank';
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                }}
+                              >
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => {
+                                  setAttachedReceipt(null);
+                                  setActivePreview((current) => current?.type === 'receipt'
+                                    ? (billFiles.length > 0 ? { type: 'file', index: 0 } : null)
+                                    : current
+                                  );
+                                  toast({
+                                    title: "Receipt detached",
+                                    description: "Receipt has been removed from this bill"
+                                  });
+                                }}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                        ) : null}
+
+                        {billFiles.map((file, index) => (
+                          <div key={`${file.name}-${index}`} className="flex flex-col gap-3 px-4 py-3 lg:flex-row lg:items-center">
+                            <button
+                              type="button"
+                              className="min-w-0 flex-1 text-left"
+                              onClick={() => setActivePreview({ type: 'file', index })}
+                            >
+                              <div className="flex items-center gap-2">
+                                <FileText className="h-4 w-4" />
+                                <span className="truncate font-medium">{getBillFileLabel(file, index)}</span>
+                              </div>
+                            </button>
+                            <Input
+                              value={getBillFileLabel(file, index)}
+                              onChange={(event) => setFileDisplayNames((current) => ({
+                                ...current,
+                                [index]: event.target.value,
+                              }))}
+                              className="lg:max-w-[260px]"
+                            />
+                            <div className="flex items-center gap-2">
+                              <Button
+                                type="button"
+                                variant="outline"
+                                size="sm"
+                                onClick={() => {
+                                  const url = URL.createObjectURL(file);
+                                  const link = document.createElement('a');
+                                  link.href = url;
+                                  link.download = getBillFileLabel(file, index);
+                                  document.body.appendChild(link);
+                                  link.click();
+                                  document.body.removeChild(link);
+                                  URL.revokeObjectURL(url);
+                                }}
+                              >
+                                <Download className="mr-2 h-4 w-4" />
+                                Download
+                              </Button>
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                onClick={() => removeFile(index)}
+                              >
+                                Delete
+                              </Button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
 
                     <div
                       className={`border-2 border-dashed rounded-lg px-4 py-3 text-center transition-colors ${
@@ -1827,12 +1894,45 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                     </div>
                   </div>
                 ) : (
-                  attachmentRequired ? (
-                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                      <AlertCircle className="h-4 w-4" />
-                      <span>Bill document or receipt attachment is required before saving</span>
+                  <>
+                    <div
+                      className={`border-2 border-dashed rounded-lg px-4 py-6 text-center transition-colors ${
+                        isDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                      }`}
+                      onDragOver={handleDragOver}
+                      onDragLeave={handleDragLeave}
+                      onDrop={handleDrop}
+                    >
+                      <div className="flex flex-col items-center justify-center gap-3 sm:flex-row">
+                        <Upload className="h-4 w-4 text-muted-foreground" />
+                        <p className="text-sm font-medium">
+                          {isDragOver ? "Drop Files Here" : "Drag Files Here"}
+                        </p>
+                        <p className="text-sm text-muted-foreground">or</p>
+                        <div>
+                          <input
+                            type="file"
+                            multiple
+                            accept=".pdf,.jpg,.jpeg,.png,.webp"
+                            onChange={handleFileInputChange}
+                            className="hidden"
+                            id="bill-file-upload"
+                          />
+                          <Button type="button" asChild size="sm">
+                            <label htmlFor="bill-file-upload" className="cursor-pointer">
+                              Choose Files to Add
+                            </label>
+                          </Button>
+                        </div>
+                      </div>
                     </div>
-                  ) : null
+                    {attachmentRequired ? (
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <AlertCircle className="h-4 w-4" />
+                        <span>Bill document or receipt attachment is required before saving</span>
+                      </div>
+                    ) : null}
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -1887,6 +1987,28 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                             onValueChange={setVendorSearch}
                           />
                           <CommandList>
+                            <div className="p-2">
+                              <QuickAddVendor 
+                                className="w-full justify-start"
+                                onVendorAdded={(vendorId) => {
+                                  handleInputChange("vendor_id", vendorId);
+                                  setVendorOpen(false);
+                                  setVendorSearch("");
+                                  // Refresh vendors list
+                                  const fetchVendors = async () => {
+                                    const { data } = await supabase
+                                      .from('vendors')
+                                      .select('*')
+                                      .eq('company_id', currentCompany?.id)
+                                      .eq('is_active', true)
+                                      .order('name');
+                                    if (data) setVendors(data);
+                                  };
+                                  fetchVendors();
+                                }}
+                              />
+                            </div>
+                            <CommandSeparator />
                             <CommandEmpty>No vendor found.</CommandEmpty>
                             <CommandGroup>
                               {vendors
@@ -1910,28 +2032,6 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                                   </CommandItem>
                                 ))}
                             </CommandGroup>
-                            <CommandSeparator />
-                            <div className="p-2">
-                              <QuickAddVendor 
-                                className="w-full justify-start"
-                                onVendorAdded={(vendorId) => {
-                                  handleInputChange("vendor_id", vendorId);
-                                  setVendorOpen(false);
-                                  setVendorSearch("");
-                                  // Refresh vendors list
-                                  const fetchVendors = async () => {
-                                    const { data } = await supabase
-                                      .from('vendors')
-                                      .select('*')
-                                      .eq('company_id', currentCompany?.id)
-                                      .eq('is_active', true)
-                                      .order('name');
-                                    if (data) setVendors(data);
-                                  };
-                                  fetchVendors();
-                                }}
-                              />
-                            </div>
                           </CommandList>
                         </Command>
                       </PopoverContent>
@@ -2300,6 +2400,28 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                               onValueChange={setVendorSearch}
                             />
                             <CommandList>
+                              <div className="p-2">
+                                <QuickAddVendor
+                                  className="w-full justify-start"
+                                  onVendorAdded={(vendorId) => {
+                                    handleInputChange("vendor_id", vendorId);
+                                    setVendorOpen(false);
+                                    setVendorSearch("");
+                                    // Refresh vendors list
+                                    const fetchVendors = async () => {
+                                      const { data } = await supabase
+                                        .from('vendors')
+                                        .select('*')
+                                        .eq('company_id', currentCompany?.id)
+                                        .eq('is_active', true)
+                                        .order('name');
+                                      if (data) setVendors(data);
+                                    };
+                                    fetchVendors();
+                                  }}
+                                />
+                              </div>
+                              <CommandSeparator />
                               <CommandEmpty>No vendor found.</CommandEmpty>
                               <CommandGroup>
                                 {getFilteredVendors()
@@ -2328,28 +2450,6 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                                     </CommandItem>
                                   ))}
                               </CommandGroup>
-                              <CommandSeparator />
-                              <div className="p-2">
-                                <QuickAddVendor
-                                  className="w-full justify-start"
-                                  onVendorAdded={(vendorId) => {
-                                    handleInputChange("vendor_id", vendorId);
-                                    setVendorOpen(false);
-                                    setVendorSearch("");
-                                    // Refresh vendors list
-                                    const fetchVendors = async () => {
-                                      const { data } = await supabase
-                                        .from('vendors')
-                                        .select('*')
-                                        .eq('company_id', currentCompany?.id)
-                                        .eq('is_active', true)
-                                        .order('name');
-                                      if (data) setVendors(data);
-                                    };
-                                    fetchVendors();
-                                  }}
-                                />
-                              </div>
                             </CommandList>
                           </Command>
                         </PopoverContent>

@@ -17,6 +17,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useTierNavigationSettings } from '@/hooks/useTierNavigationSettings';
 import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 import { useVendorPortalAccess } from '@/hooks/useVendorPortalAccess';
+import { useVendorPortalData } from '@/hooks/useVendorPortalData';
 import { supabase } from '@/integrations/supabase/client';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import builderLynkIcon from '@/assets/builderlynk-icon-shield.png';
@@ -274,20 +275,29 @@ const vendorNavigationCategories = [
     collapsible: false,
   },
   {
-    title: "All Jobs",
-    icon: Briefcase,
+    title: "Billing",
+    icon: DollarSign,
     companyTypes: ['vendor'] as CompanyType[],
     items: [
-      { name: "All Jobs", href: "/vendor/jobs", menuKey: "jobs" },
+      { name: "Billing", href: "/vendor/bills", menuKey: "bills" },
     ],
     collapsible: false,
   },
   {
-    title: "Bills",
-    icon: DollarSign,
+    title: "RFPs",
+    icon: FileText,
     companyTypes: ['vendor'] as CompanyType[],
     items: [
-      { name: "Bills", href: "/vendor/bills", menuKey: "bills" },
+      { name: "RFPs", href: "/vendor/rfps", menuKey: "jobs" },
+    ],
+    collapsible: false,
+  },
+  {
+    title: "Jobs",
+    icon: Briefcase,
+    companyTypes: ['vendor'] as CompanyType[],
+    items: [
+      { name: "Jobs", href: "/vendor/jobs", menuKey: "jobs" },
     ],
     collapsible: false,
   },
@@ -301,8 +311,17 @@ const vendorNavigationCategories = [
     collapsible: false,
   },
   {
+    title: "Messages",
+    icon: MessageSquare,
+    companyTypes: ['vendor'] as CompanyType[],
+    items: [
+      { name: "Messages", href: "/vendor/messages", menuKey: "messages" },
+    ],
+    collapsible: false,
+  },
+  {
     title: "Settings",
-    icon: Settings,
+    icon: UserCog,
     companyTypes: ['vendor'] as CompanyType[],
     items: [
       { name: "Settings", href: "/vendor/settings", menuKey: "company-settings" },
@@ -310,6 +329,25 @@ const vendorNavigationCategories = [
     collapsible: false,
   },
 ];
+
+const vendorNavigationItems = [
+  { name: "Dashboard", href: "/vendor/dashboard", icon: LayoutDashboard },
+  { name: "Billing", href: "/vendor/bills", icon: DollarSign },
+  { name: "RFPs", href: "/vendor/rfps", icon: FileText },
+  { name: "Jobs", href: "/vendor/jobs", icon: Briefcase },
+  { name: "Compliance", href: "/vendor/compliance", icon: Shield },
+  { name: "Messages", href: "/vendor/messages", icon: MessageSquare },
+  { name: "Settings", href: "/vendor/settings", icon: UserCog },
+] as const;
+
+const renderVendorNavBadge = (itemName: string, unreadCount: number) => {
+  if (itemName !== "Messages" || unreadCount <= 0) return null;
+  return (
+    <span className="inline-flex min-w-5 items-center justify-center rounded-full bg-primary px-1.5 py-0.5 text-[10px] font-semibold text-primary-foreground">
+      {unreadCount}
+    </span>
+  );
+};
 
 export function AppSidebar() {
   const location = useLocation();
@@ -323,6 +361,7 @@ export function AppSidebar() {
   const { toast } = useToast();
   const { showLockedMenuItems, lockedMenuUpgradeMessage } = useTierNavigationSettings();
   const { roleCaps: vendorRoleCaps } = useVendorPortalAccess();
+  const { messages: vendorMessages } = useVendorPortalData();
   const [openGroups, setOpenGroups] = useState<string[]>(["Dashboard"]);
   const [uploadingSidebarLogo, setUploadingSidebarLogo] = useState(false);
   const [workspaceLogoPath, setWorkspaceLogoPath] = useState<string | null>(null);
@@ -334,38 +373,50 @@ export function AppSidebar() {
   const profileRole = String(profile?.role || '').trim().toLowerCase();
   const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
   const isExternalUser = profileRole === 'vendor' || profileRole === 'design_professional';
-  const companyType: CompanyType =
+  const isDesignProfessionalRoute = location.pathname.startsWith('/design-professional');
+  const isVendorRoute = location.pathname === '/vendor' || location.pathname.startsWith('/vendor/');
+  const companyTypeFromCurrentCompany: CompanyType =
     currentCompany?.company_type === 'design_professional'
       ? 'design_professional'
       : currentCompany?.company_type === 'vendor'
       ? 'vendor'
       : 'construction';
-  const isDesignProfessionalRoute = location.pathname.startsWith('/design-professional');
-  const isVendorRoute = location.pathname === '/vendor' || location.pathname.startsWith('/vendor/');
   const isDesignProfessionalWorkspace =
     isDesignProfessionalRoute ||
-    companyType === 'design_professional' ||
+    companyTypeFromCurrentCompany === 'design_professional' ||
     profileRole === 'design_professional';
   const isVendorWorkspace = isVendorRoute || profileRole === 'vendor';
+  const workspaceCompanyType: CompanyType =
+    isVendorWorkspace
+      ? 'vendor'
+      : isDesignProfessionalWorkspace
+      ? 'design_professional'
+      : companyTypeFromCurrentCompany;
   const sidebarCategories = isDesignProfessionalWorkspace
     ? designProfessionalNavigationCategories
     : isVendorWorkspace
     ? vendorNavigationCategories
     : navigationCategories;
-  const vendorVisibleCategoryTitles = new Set(
-    [
-      vendorRoleCaps.canAccessDashboard && "Dashboard",
-      vendorRoleCaps.canAccessJobs && "All Jobs",
-      vendorRoleCaps.canAccessBills && "Bills",
-      vendorRoleCaps.canAccessCompliance && "Compliance",
-      vendorRoleCaps.canAccessSettings && "Settings",
-    ].filter(Boolean) as string[],
-  );
+  const vendorVisibleCategoryTitles = new Set([
+    "Dashboard",
+    "Billing",
+    "RFPs",
+    "Jobs",
+    "Compliance",
+    "Messages",
+    "Settings",
+  ]);
+  const vendorUnreadMessageCount = vendorMessages.filter((message) => !message.read).length;
   const resolvedWorkspaceLogoUrl =
     workspaceLogoPreviewUrl ||
     resolveCompanyLogoUrl(workspaceLogoPath || workspaceLogoOverridePath || currentCompany?.logo_url);
+  const workspaceTitle = isVendorWorkspace
+    ? `${currentCompany?.display_name || currentCompany?.name || 'BuilderLYNK'} Vendor Portal`
+    : isDesignProfessionalWorkspace
+    ? `${currentCompany?.display_name || currentCompany?.name || 'DesignPROLYNK'}`
+    : currentCompany?.display_name || currentCompany?.name || 'BuilderLYNK';
   const canUploadWorkspaceLogo =
-    (isDesignProfessionalWorkspace || isVendorWorkspace)
+    isDesignProfessionalWorkspace
     && !resolvedWorkspaceLogoUrl
     && ['owner', 'admin', 'company_admin'].includes(effectiveRole);
 
@@ -570,29 +621,36 @@ export function AppSidebar() {
   return (
     <Sidebar collapsible="icon" className="border-r">
       <SidebarHeader>
-        <div className="relative flex items-center justify-center p-2 min-h-[60px] w-full">
-          {resolvedWorkspaceLogoUrl ? (
-            <img 
-              src={resolvedWorkspaceLogoUrl}
-              alt="Company Logo" 
-              className="h-full w-full object-contain max-h-12" 
-              onError={(e) => {
-                console.error('Logo failed to load:', workspaceLogoPath || currentCompany?.logo_url);
-                e.currentTarget.style.display = 'none';
-                (e.currentTarget.nextElementSibling as HTMLElement | null)?.classList.remove('hidden');
-              }}
-            />
-          ) : null}
-          {!resolvedWorkspaceLogoUrl && !canUploadWorkspaceLogo && (
-            <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center">
-              <Building2 className="h-8 w-8 text-primary" />
+        <div className="relative flex min-h-[76px] w-full flex-col items-center justify-center gap-2 p-2 group-data-[collapsible=icon]:min-h-[60px]">
+          <div className="relative flex w-full items-center justify-center">
+            {resolvedWorkspaceLogoUrl ? (
+              <img 
+                src={resolvedWorkspaceLogoUrl}
+                alt="Company Logo" 
+                className="h-full w-full object-contain max-h-12" 
+                onError={(e) => {
+                  console.error('Logo failed to load:', workspaceLogoPath || currentCompany?.logo_url);
+                  e.currentTarget.style.display = 'none';
+                  (e.currentTarget.nextElementSibling as HTMLElement | null)?.classList.remove('hidden');
+                }}
+              />
+            ) : null}
+            {!resolvedWorkspaceLogoUrl && !canUploadWorkspaceLogo && (
+              <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center">
+                <Building2 className="h-8 w-8 text-primary" />
+              </div>
+            )}
+            {resolvedWorkspaceLogoUrl && (
+              <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center hidden">
+                <Building2 className="h-8 w-8 text-primary" />
+              </div>
+            )}
+          </div>
+          <div className="px-2 text-center group-data-[collapsible=icon]:hidden">
+            <div className="line-clamp-2 text-xs font-semibold leading-tight text-sidebar-foreground">
+              {workspaceTitle}
             </div>
-          )}
-          {resolvedWorkspaceLogoUrl && (
-            <div className="h-12 w-12 rounded bg-primary/10 flex items-center justify-center hidden">
-              <Building2 className="h-8 w-8 text-primary" />
-            </div>
-          )}
+          </div>
           {canUploadWorkspaceLogo && (
             <>
               <input
@@ -652,13 +710,40 @@ export function AppSidebar() {
       </SidebarHeader>
       
       <SidebarContent className="gap-0 sidebar-scroll-area">
-        {!loading && sidebarCategories.filter((category) => {
+        {isVendorWorkspace ? (
+          <SidebarGroup>
+            <SidebarGroupContent>
+              <SidebarMenu>
+                {vendorNavigationItems.map((item) => {
+                  const isActive = isItemRouteActive({ href: item.href }, item.name);
+                  return (
+                    <SidebarMenuItem key={item.name}>
+                      <SidebarMenuButton
+                        onClick={() => navigate(item.href)}
+                        isActive={isActive}
+                        tooltip={state === "collapsed" ? item.name : undefined}
+                        style={isActive ? { backgroundColor: `hsl(${settings.customColors.primary})`, color: 'white', fontWeight: 'bold' } : {}}
+                        className={isActive ? "hover:opacity-95" : "sidebar-primary-hover transition-colors duration-150"}
+                      >
+                        <item.icon className="h-4 w-4" />
+                        <span className="ml-2 flex items-center gap-2">
+                          <span>{item.name}</span>
+                          {renderVendorNavBadge(item.name, vendorUnreadMessageCount)}
+                        </span>
+                      </SidebarMenuButton>
+                    </SidebarMenuItem>
+                  );
+                })}
+              </SidebarMenu>
+            </SidebarGroupContent>
+          </SidebarGroup>
+        ) : ((!loading || isDesignProfessionalWorkspace) && sidebarCategories.filter((category) => {
           if (isDesignProfessionalWorkspace || isVendorWorkspace) return true;
           if (!isExternalUser) return true;
           return false;
         }).filter((category: any) => {
           const allowedTypes = (category.companyTypes as CompanyType[] | undefined) || ['construction', 'design_professional', 'vendor'];
-          return allowedTypes.includes(companyType);
+          return allowedTypes.includes(workspaceCompanyType);
         }).filter((category) => {
           if (!isVendorWorkspace) return true;
           return vendorVisibleCategoryTitles.has(category.title);
@@ -669,7 +754,7 @@ export function AppSidebar() {
            // Filter items based on permissions and role
            const visibleItems = category.items.flatMap((item) => {
              const itemAllowedTypes = ((item as any).companyTypes as CompanyType[] | undefined) || ['construction', 'design_professional', 'vendor'];
-             if (!itemAllowedTypes.includes(companyType)) return [];
+             if (!itemAllowedTypes.includes(workspaceCompanyType)) return [];
              const superAdminOnly = 'superAdminOnly' in item && !!(item as any).superAdminOnly;
              if (superAdminOnly && !isSuperAdmin) return [];
 
@@ -707,8 +792,17 @@ export function AppSidebar() {
                       return (
                         <SidebarMenuItem key={item.name}>
                           <SidebarMenuButton 
-                            asChild={!isLocked}
                             isActive={isActive}
+                            onClick={() => {
+                              if (isLocked) {
+                                toast({
+                                  title: 'Feature locked',
+                                  description: lockedMenuUpgradeMessage,
+                                });
+                                return;
+                              }
+                              navigate(item.href);
+                            }}
                             tooltip={state === "collapsed" ? category.title : undefined}
                             style={
                               isLocked
@@ -723,33 +817,12 @@ export function AppSidebar() {
                                 : "sidebar-primary-hover transition-colors duration-150"
                             }
                           >
-                            {isLocked ? (
-                              <button
-                                type="button"
-                                className="flex w-full items-center"
-                                onClick={() =>
-                                  toast({
-                                    title: 'Feature locked',
-                                    description: lockedMenuUpgradeMessage,
-                                  })
-                                }
-                              >
-                                <category.icon className="h-4 w-4" />
-                                <span className="flex items-center gap-1">
-                                  {category.title}
-                                  <Ban className="h-3 w-3" />
-                                </span>
-                              </button>
-                            ) : (
-                              <button
-                                type="button"
-                                className="flex w-full items-center"
-                                onClick={() => navigate(item.href)}
-                              >
-                                <category.icon className="h-4 w-4" />
-                                <span>{category.title}</span>
-                              </button>
-                            )}
+                            <category.icon className="h-4 w-4" />
+                            <span className="flex items-center gap-2">
+                              <span>{category.title}</span>
+                              {renderVendorNavBadge(item.name, vendorUnreadMessageCount)}
+                              {isLocked ? <Ban className="h-3 w-3" /> : null}
+                            </span>
                           </SidebarMenuButton>
                         </SidebarMenuItem>
                       );
@@ -799,8 +872,17 @@ export function AppSidebar() {
                                 return (
                                   <SidebarMenuItem key={item.name}>
                                     <SidebarMenuButton
-                                      asChild={!isLocked}
                                       isActive={isActive}
+                                      onClick={() => {
+                                        if (isLocked) {
+                                          toast({
+                                            title: 'Feature locked',
+                                            description: lockedMenuUpgradeMessage,
+                                          });
+                                          return;
+                                        }
+                                        navigate(item.href);
+                                      }}
                                       tooltip={state === "collapsed" ? item.name : undefined}
                                       style={
                                         isLocked
@@ -815,43 +897,16 @@ export function AppSidebar() {
                                           : "sidebar-primary-hover transition-colors duration-150"
                                       }
                                     >
-                                      {isLocked ? (
-                                        <button
-                                          type="button"
-                                          className="w-full text-left"
-                                          onClick={() =>
-                                            toast({
-                                              title: 'Feature locked',
-                                              description: lockedMenuUpgradeMessage,
-                                            })
-                                          }
-                                        >
-                                          <span className="ml-2 flex items-center gap-2">
-                                            <span>{item.name}</span>
-                                            <Ban className="h-3 w-3" />
-                                            {('mobileAppBadge' in item && (item as any).mobileAppBadge) && (
-                                              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
-                                                Mobile App
-                                              </span>
-                                            )}
+                                      <span className="ml-2 flex items-center gap-2">
+                                        <span>{item.name}</span>
+                                        {renderVendorNavBadge(item.name, vendorUnreadMessageCount)}
+                                        {isLocked ? <Ban className="h-3 w-3" /> : null}
+                                        {('mobileAppBadge' in item && (item as any).mobileAppBadge) && (
+                                          <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
+                                            Mobile App
                                           </span>
-                                        </button>
-                                      ) : (
-                                        <button
-                                          type="button"
-                                          className="w-full text-left"
-                                          onClick={() => navigate(item.href)}
-                                        >
-                                          <span className="ml-2 flex items-center gap-2">
-                                            <span>{item.name}</span>
-                                            {('mobileAppBadge' in item && (item as any).mobileAppBadge) && (
-                                              <span className="inline-flex items-center rounded-full border border-primary/30 bg-primary/10 px-1.5 py-0.5 text-[10px] font-medium uppercase tracking-wide text-primary">
-                                                Mobile App
-                                              </span>
-                                            )}
-                                          </span>
-                                        </button>
-                                      )}
+                                        )}
+                                      </span>
                                     </SidebarMenuButton>
                                   </SidebarMenuItem>
                                 );
@@ -864,7 +919,7 @@ export function AppSidebar() {
               )}
             </SidebarGroup>
           );
-        }).filter(Boolean)}
+        }).filter(Boolean))}
       </SidebarContent>
       <SidebarFooter className="border-t border-sidebar-border/60 p-2">
         <button
@@ -893,11 +948,17 @@ export default function Layout() {
   const { currentCompany } = useCompany();
   const { loading: settingsLoading } = useSettings();
   const effectiveRole = String(profile?.role || '').trim().toLowerCase();
-  const isExternalUser = effectiveRole === 'vendor' || effectiveRole === 'design_professional';
+  const isVendorRoute = location.pathname === '/vendor' || location.pathname.startsWith('/vendor/');
+  const isDesignProfessionalRoute = location.pathname.startsWith('/design-professional');
+  const isExternalUser =
+    isVendorRoute ||
+    isDesignProfessionalRoute ||
+    effectiveRole === 'vendor' ||
+    effectiveRole === 'design_professional';
   const profileSettingsHref =
-    effectiveRole === 'vendor'
+    isVendorRoute || effectiveRole === 'vendor'
       ? '/vendor/profile-settings'
-      : effectiveRole === 'design_professional'
+      : isDesignProfessionalRoute || effectiveRole === 'design_professional'
       ? '/design-professional/profile-settings'
       : '/profile-settings';
   const isPunchClockPage = location.pathname === '/time-tracking';
@@ -934,17 +995,27 @@ export default function Layout() {
             <header className="sticky top-0 z-40 flex h-12 shrink-0 items-center justify-between gap-2 border-b bg-background px-4">
               <div className="flex items-center gap-2 flex-1">
                 <SidebarTrigger className="-ml-1" />
-                <div className="flex-1 max-w-lg">
-                  <GlobalSearch />
-                </div>
+                {isExternalUser ? (
+                  <div className="min-w-0">
+                    <div className="truncate text-sm font-semibold text-foreground">
+                      {currentCompany?.display_name || currentCompany?.name || 'BuilderLYNK'}
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex-1 max-w-lg">
+                    <GlobalSearch />
+                  </div>
+                )}
               </div>
               <div className="flex items-center gap-4">
-                <Button asChild variant="outline" size="sm" className="h-8">
-                  <Link to="/settings/help" className="flex items-center gap-1.5">
-                    <CircleHelp className="h-4 w-4" />
-                    Help
-                  </Link>
-                </Button>
+                {!isExternalUser && (
+                  <Button asChild variant="outline" size="sm" className="h-8">
+                    <Link to="/settings/help" className="flex items-center gap-1.5">
+                      <CircleHelp className="h-4 w-4" />
+                      Help
+                    </Link>
+                  </Button>
+                )}
                 {!isExternalUser && <CompanySwitcher />}
                 <DateTimeDisplay />
                 <Button asChild variant="ghost" className="flex items-center gap-2 h-8 px-2">

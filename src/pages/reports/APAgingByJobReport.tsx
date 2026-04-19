@@ -17,6 +17,7 @@ import autoTable from "jspdf-autotable";
 import { createAoAXlsxBlob, exportAoAToXlsx } from "@/utils/exceljsExport";
 import { formatNumber } from "@/utils/formatNumber";
 import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
+import { addCompanyLogoToPdf } from "@/utils/reportPdfBranding";
 import { format } from "date-fns";
 
 interface JobOption {
@@ -381,20 +382,21 @@ export default function APAgingByJobReport() {
       ]),
     ];
 
-  const buildPdfDoc = () => {
+  const buildPdfDoc = async () => {
     const doc = new jsPDF({ orientation: "landscape", unit: "pt" });
     const pageWidth = doc.internal.pageSize.getWidth();
     let y = 36;
+    await addCompanyLogoToPdf(doc, currentCompany?.logo_url, { x: 36, y: 24, maxWidth: 120, maxHeight: 40 });
 
     doc.setFontSize(18);
     doc.setFont("helvetica", "bold");
-    doc.text("AP Aging By Job Report", 36, y);
+    doc.text("AP Aging By Job Report", 170, y);
 
     doc.setFontSize(9);
     doc.setFont("helvetica", "normal");
-    doc.text(`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`, 36, y + 18);
-    doc.text(`Company: ${currentCompany?.name || ""}`, 36, y + 32);
-    doc.text(`Job: ${reportJobLabel}`, 36, y + 46);
+    doc.text(`Generated: ${format(new Date(), "MMM d, yyyy h:mm a")}`, 170, y + 18);
+    doc.text(`Company: ${currentCompany?.name || ""}`, 170, y + 32);
+    doc.text(`Job: ${reportJobLabel}`, 170, y + 46);
 
     doc.setFont("helvetica", "bold");
     doc.text(`Total Outstanding: ${formatCurrency(totals.total)}`, pageWidth - 220, y + 18);
@@ -473,8 +475,8 @@ export default function APAgingByJobReport() {
     return doc;
   };
 
-  const exportToPDF = () => {
-    const doc = buildPdfDoc();
+  const exportToPDF = async () => {
+    const doc = await buildPdfDoc();
     doc.save(`ap-aging-by-job-${reportFileDate}.pdf`);
     toast({ title: "Success", description: "PDF exported successfully" });
   };

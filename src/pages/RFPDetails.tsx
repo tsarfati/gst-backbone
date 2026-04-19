@@ -25,8 +25,9 @@ import { canAccessJobIds } from '@/utils/jobAccess';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
-import { downloadRfpPlanPagesPdf } from '@/utils/rfpPlanPagesPdf';
+import { downloadRfpPlanPagesPdf, downloadSingleRfpPlanPagePdf } from '@/utils/rfpPlanPagesPdf';
 import RfpPlanPageNoteViewer, { type RfpPlanPageNoteViewerNote } from '@/components/RfpPlanPageNoteViewer';
+import PlanPageThumbnail from '@/components/PlanPageThumbnail';
 
 interface RfpPlanPage {
   id: string;
@@ -91,6 +92,18 @@ interface RfpAttachmentTarget {
   status: string;
 }
 
+async function resolveOptionalCompanyFileUrl(path: string | null | undefined) {
+  if (!path) return null;
+
+  try {
+    const resolved = await resolveStorageUrl('company-files', path);
+    return resolved || path;
+  } catch (error) {
+    console.error('RFPDetails: failed resolving company file URL', error);
+    return path;
+  }
+}
+
 interface RfpAttachmentReference {
   rfp_id: string;
   rfp_number: string;
@@ -106,6 +119,11 @@ interface OwnerProfile {
   last_name?: string | null;
   display_name?: string | null;
   avatar_url?: string | null;
+}
+
+function pickJoinedRow<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
 }
 
 interface Bid {
@@ -403,6 +421,45 @@ export default function RFPDetails() {
     if (bidSortDirection === 'desc') rows.reverse();
     return rows;
   }, [bids, bidSortBy, bidSortDirection]);
+  const planPageSets = useMemo(() => {
+    const grouped = new Map<string, {
+      id: string;
+      plan_id: string;
+      plan_name: string;
+      plan_number: string | null;
+      plan_file_url: string | null;
+      pages: RfpPlanPage[];
+      noteCount: number;
+    }>();
+
+    planPages.forEach((page) => {
+      const key = page.plan_id || page.id;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.pages.push(page);
+        existing.noteCount += page.callouts.length;
+        return;
+      }
+      grouped.set(key, {
+        id: key,
+        plan_id: page.plan_id,
+        plan_name: page.plan_name,
+        plan_number: page.plan_number,
+        plan_file_url: page.plan_file_url,
+        pages: [page],
+        noteCount: page.callouts.length,
+      });
+    });
+
+    return Array.from(grouped.values()).map((set) => ({
+      ...set,
+      pages: [...set.pages].sort((a, b) => a.page_number - b.page_number),
+    }));
+  }, [planPages]);
+  const previewPlanSet = useMemo(
+    () => (previewPlanPage ? planPageSets.find((set) => set.plan_id === previewPlanPage.plan_id) || null : null),
+    [planPageSets, previewPlanPage],
+  );
 
   const effectiveCriteria = useMemo<ScoringCriterion[]>(() => {
     if (bids.length === 0) return criteria;
@@ -965,30 +1022,34 @@ export default function RFPDetails() {
           sort_order,
           is_primary,
           note,
-          plan_page:plan_pages(id, page_number, sheet_number, page_title, discipline, thumbnail_url),
-          plan:job_plans(id, plan_name, plan_number, file_url)
+          plan_page:plan_pages!rfp_plan_pages_plan_page_id_fkey(id, page_number, sheet_number, page_title, discipline, thumbnail_url),
+          plan:job_plans!rfp_plan_pages_plan_id_fkey(id, plan_name, plan_number, file_url)
         `)
         .eq('rfp_id', id)
         .eq('company_id', currentCompany!.id)
         .order('sort_order', { ascending: true });
 
       if (error) throw error;
-      const selectedRows = ((data || []) as any[]).map((row) => ({
+      const selectedRows = ((data || []) as any[]).map((row) => {
+        const resolvedPlan = pickJoinedRow<any>(row.plan);
+        const resolvedPlanPage = pickJoinedRow<any>(row.plan_page);
+        return ({
         id: String(row.id),
         plan_id: String(row.plan_id),
         plan_page_id: String(row.plan_page_id),
         sort_order: Number(row.sort_order || 0),
         is_primary: !!row.is_primary,
         note: row.note || null,
-        plan_name: String(row.plan?.plan_name || 'Plan Set'),
-        plan_number: row.plan?.plan_number || null,
-        plan_file_url: row.plan?.file_url || null,
-        page_number: Number(row.plan_page?.page_number || 0),
-        sheet_number: row.plan_page?.sheet_number || null,
-        page_title: row.plan_page?.page_title || null,
-        discipline: row.plan_page?.discipline || null,
-        thumbnail_url: row.plan_page?.thumbnail_url || null,
-      }));
+        plan_name: String(resolvedPlan?.plan_name || 'Plan Set'),
+        plan_number: resolvedPlan?.plan_number || null,
+        plan_file_url: resolvedPlan?.file_url || null,
+        page_number: Number(resolvedPlanPage?.page_number || 0),
+        sheet_number: resolvedPlanPage?.sheet_number || null,
+        page_title: resolvedPlanPage?.page_title || null,
+        discipline: resolvedPlanPage?.discipline || null,
+        thumbnail_url: resolvedPlanPage?.thumbnail_url || null,
+      });
+      });
 
       let calloutsByPageId = new Map<string, RfpPlanPageNoteViewerNote[]>();
       if (selectedRows.length > 0) {
@@ -1002,6 +1063,11 @@ export default function RFPDetails() {
         if (noteError && !isMissingRfpPlanPageNotesTableError(noteError)) throw noteError;
 
         if (!noteError) {
+          console.info('RFPDetails: loaded plan page notes', {
+            rfpId: id,
+            rfpPlanPageIds: selectedRows.map((row) => row.id),
+            noteCount: (noteRows || []).length,
+          });
           calloutsByPageId = new Map<string, RfpPlanPageNoteViewerNote[]>();
           ((noteRows || []) as any[]).forEach((row) => {
             const key = String(row.rfp_plan_page_id);
@@ -1021,11 +1087,18 @@ export default function RFPDetails() {
       }
 
       setPlanPages(
-        selectedRows.map((row) => ({
+        await Promise.all(selectedRows.map(async (row) => ({
           ...row,
+          thumbnail_url: await resolveOptionalCompanyFileUrl(row.thumbnail_url),
           callouts: calloutsByPageId.get(row.id) || [],
-        })),
+        }))),
       );
+      console.info('RFPDetails: mapped attached plan pages', selectedRows.map((row) => ({
+        rfpPlanPageId: row.id,
+        sheet: row.sheet_number || `Page ${row.page_number}`,
+        noteCount: (calloutsByPageId.get(row.id) || []).length,
+        hasSheetNote: Boolean(row.note),
+      })));
     } catch (error) {
       console.error('Error loading RFP plan pages:', error);
       setPlanPages([]);
@@ -2156,86 +2229,65 @@ export default function RFPDetails() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Plans</CardTitle>
-              <CardDescription>
-                Key plan sheets and plan-set pages attached to this RFP.
-              </CardDescription>
+            <CardHeader className="pb-3">
+              <div className="flex items-center justify-between gap-3">
+                <CardTitle>Plan Sets</CardTitle>
+                {planPageSets.length > 0 ? (
+                  <Button variant="outline" size="sm" onClick={handleDownloadAttachedPlanPagesPdf}>
+                    Download Attached Pages PDF
+                  </Button>
+                ) : null}
+              </div>
             </CardHeader>
             <CardContent>
-              {planPages.length === 0 ? (
+              {planPageSets.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
                   No plan pages attached to this RFP yet.
                 </p>
               ) : (
-                <div className="space-y-3">
-                  <div className="flex justify-end">
-                    <Button variant="outline" size="sm" onClick={handleDownloadAttachedPlanPagesPdf}>
-                      Download Attached Pages PDF
-                    </Button>
-                  </div>
-                  {planPages.map((page) => (
-                    <div key={page.id} className="flex items-start justify-between gap-3 rounded-md border p-3">
-                      {page.thumbnail_url ? (
-                        <img
-                          src={page.thumbnail_url}
-                          alt={page.page_title || page.sheet_number || `Page ${page.page_number}`}
-                          className="h-20 w-14 rounded border object-cover shrink-0 bg-background"
+                <div className="overflow-hidden rounded-xl border bg-background/50">
+                  {planPageSets.map((planSet) => {
+                    const previewPage = planSet.pages[0];
+                    const pageCount = planSet.pages.length;
+                    return (
+                    <button
+                      key={planSet.id}
+                      type="button"
+                      onClick={() => setPreviewPlanPage(previewPage)}
+                      className="flex w-full items-start justify-between gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-muted/10 last:border-b-0"
+                    >
+                      <div className="flex min-w-0 gap-3">
+                        <PlanPageThumbnail
+                          thumbnailUrl={previewPage?.thumbnail_url}
+                          planFileUrl={previewPage?.plan_file_url}
+                          pageNumber={previewPage?.page_number || 1}
+                          alt={previewPage?.page_title || previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}
+                          className="h-16 w-16 rounded-lg border object-cover shrink-0 bg-background"
                         />
-                      ) : (
-                        <div className="h-20 w-14 rounded border shrink-0 bg-muted/30 flex items-center justify-center text-xs text-muted-foreground">
-                          P{page.page_number}
-                        </div>
-                      )}
-                      <div className="min-w-0 flex-1">
-                        <div className="flex items-center gap-2 flex-wrap">
-                          <p className="font-medium">
-                            {page.sheet_number || `Page ${page.page_number}`}
-                          </p>
-                          <Badge variant="outline">{page.plan_name}</Badge>
-                          {page.plan_number ? <Badge variant="outline">#{page.plan_number}</Badge> : null}
-                          {page.discipline ? <Badge variant="secondary">{page.discipline}</Badge> : null}
-                          {page.is_primary ? <Badge>Primary</Badge> : null}
-                        </div>
-                        <p className="text-sm text-muted-foreground truncate">
-                          {page.page_title || 'Untitled sheet'}
-                        </p>
-                        {page.note ? (
-                          <p className="text-xs text-muted-foreground mt-1 whitespace-pre-wrap">{page.note}</p>
-                        ) : null}
-                        {page.callouts.length > 0 ? (
-                          <div className="mt-2 flex flex-wrap gap-2">
-                            {page.callouts.map((callout, index) => (
-                              <Button
-                                key={callout.id}
-                                type="button"
-                                variant="outline"
-                                size="sm"
-                                className="h-7 px-2 text-[11px]"
-                                onClick={() => setPreviewPlanPage(page)}
-                              >
-                                See Note {index + 1}
-                              </Button>
-                            ))}
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap">
+                            <p className="font-medium">{planSet.plan_name}{planSet.plan_number ? ` #${planSet.plan_number}` : ''}</p>
+                            <Badge variant="outline">{pageCount} page{pageCount === 1 ? '' : 's'}</Badge>
+                            {pageCount === 1 && previewPage?.discipline ? <Badge variant="secondary">{previewPage.discipline}</Badge> : null}
+                            {pageCount === 1 && previewPage?.is_primary ? <Badge>Primary</Badge> : null}
+                            {planSet.noteCount > 0 ? (
+                              <Badge variant="secondary">
+                                {planSet.noteCount} linked note{planSet.noteCount === 1 ? '' : 's'}
+                              </Badge>
+                            ) : null}
                           </div>
-                        ) : null}
+                          <p className="text-sm text-muted-foreground truncate">
+                            {pageCount === 1
+                              ? `${previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}${previewPage?.page_title ? ` • ${previewPage.page_title}` : ''}`
+                              : `${pageCount} shared sheet${pageCount === 1 ? '' : 's'} from this set`}
+                          </p>
+                          {pageCount === 1 && previewPage?.note ? (
+                            <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{previewPage.note}</p>
+                          ) : null}
+                        </div>
                       </div>
-                      <div className="shrink-0 flex items-center gap-2">
-                        {page.callouts.length > 0 ? (
-                          <Button variant="outline" size="sm" onClick={() => setPreviewPlanPage(page)}>
-                            Preview Notes
-                          </Button>
-                        ) : null}
-                        <Button
-                          variant="outline"
-                          size="sm"
-                          onClick={() => navigate(`/construction/plans/${page.plan_id}?page=${page.page_number}`)}
-                        >
-                          Open Page
-                        </Button>
-                      </div>
-                    </div>
-                  ))}
+                    </button>
+                  )})}
                 </div>
               )}
             </CardContent>
@@ -2870,15 +2922,47 @@ export default function RFPDetails() {
       >
         <DialogContent className="max-w-7xl h-[90vh] p-0 overflow-hidden">
           {previewPlanPage ? (
-            <RfpPlanPageNoteViewer
-              fileUrl={previewPlanPage.plan_file_url}
-              pageNumber={previewPlanPage.page_number}
-              sheetNumber={previewPlanPage.sheet_number}
-              pageTitle={previewPlanPage.page_title}
-              planName={previewPlanPage.plan_name}
-              planNumber={previewPlanPage.plan_number}
-              notes={previewPlanPage.callouts}
-            />
+            <>
+              <DialogTitle className="sr-only">
+                {previewPlanPage.sheet_number || `Page ${previewPlanPage.page_number}`}
+              </DialogTitle>
+              <DialogDescription className="sr-only">
+                Preview the attached plan sheet for this RFP.
+              </DialogDescription>
+              <RfpPlanPageNoteViewer
+                planId={previewPlanPage.plan_id}
+                fileUrl={previewPlanPage.plan_file_url}
+                pageNumber={previewPlanPage.page_number}
+                sheetNumber={previewPlanPage.sheet_number}
+                pageTitle={previewPlanPage.page_title}
+                planName={previewPlanPage.plan_name}
+                planNumber={previewPlanPage.plan_number}
+                thumbnailUrl={previewPlanPage.thumbnail_url}
+                sheetNote={previewPlanPage.note}
+                notes={previewPlanPage.callouts}
+                pageOptions={previewPlanSet?.pages.map((page) => ({
+                  id: page.id,
+                  label: `${page.sheet_number || `Page ${page.page_number}`}${page.page_title ? ` • ${page.page_title}` : ''}`,
+                }))}
+                selectedPageId={previewPlanPage.id}
+                onSelectPage={(pageId) => {
+                  const nextPage = previewPlanSet?.pages.find((page) => page.id === pageId) || null;
+                  if (nextPage) setPreviewPlanPage(nextPage);
+                }}
+                onClose={() => setPreviewPlanPage(null)}
+                onDownload={() => void downloadSingleRfpPlanPagePdf({
+                  page: {
+                    plan_id: previewPlanPage.plan_id,
+                    plan_name: previewPlanPage.plan_name,
+                    plan_file_url: previewPlanPage.plan_file_url,
+                    page_number: previewPlanPage.page_number,
+                    sheet_number: previewPlanPage.sheet_number,
+                    page_title: previewPlanPage.page_title,
+                  },
+                  fileName: `${rfp?.rfp_number || 'RFP'}_${previewPlanPage.sheet_number || `Page-${previewPlanPage.page_number}`}.pdf`,
+                })}
+              />
+            </>
           ) : null}
         </DialogContent>
       </Dialog>

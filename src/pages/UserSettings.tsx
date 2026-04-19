@@ -537,13 +537,26 @@ export default function UserSettings() {
         })
         .filter(Boolean) as string[];
 
+      const externalVendorIds = Array.from(
+        new Set(
+          (regularUsers || [])
+            .map((user: any) => {
+              const profileRole = String(user.role || '').trim().toLowerCase();
+              const resolvedRole = roleMap.get(user.user_id)
+                || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : null);
+              return resolvedRole === 'vendor' ? String(user.vendor_id || '').trim() : '';
+            })
+            .filter(Boolean)
+        )
+      );
+
       const pendingJobIds = Array.from(
         new Set(
           Array.from(requestPendingJobIdsByUserId.values()).flat().filter(Boolean),
         ),
       );
 
-      const [externalJobAccessRes, externalProjectDirectoryRes, pendingJobsRes] = await Promise.all([
+      const [externalJobAccessRes, externalProjectDirectoryRes, vendorJobAccessRes, vendorRfpInvitesRes, pendingJobsRes] = await Promise.all([
         externalUserIds.length > 0
           ? supabase
               .from('user_job_access')
@@ -560,6 +573,20 @@ export default function UserSettings() {
               .eq('is_project_team_member', true)
               .eq('is_active', true)
           : Promise.resolve({ data: [], error: null }),
+        externalVendorIds.length > 0
+          ? supabase
+              .from('vendor_job_access' as any)
+              .select('vendor_id, job_id, jobs!inner(id, name, company_id)')
+              .in('vendor_id', externalVendorIds)
+              .eq('jobs.company_id', currentCompany.id)
+          : Promise.resolve({ data: [], error: null }),
+        externalVendorIds.length > 0
+          ? supabase
+              .from('rfp_invited_vendors')
+              .select('vendor_id, rfp:rfps!inner(job_id, jobs!inner(id, name, company_id))')
+              .in('vendor_id', externalVendorIds)
+              .eq('company_id', currentCompany.id)
+          : Promise.resolve({ data: [], error: null }),
         pendingJobIds.length > 0
           ? supabase
               .from('jobs')
@@ -571,9 +598,20 @@ export default function UserSettings() {
 
       if (externalJobAccessRes.error) throw externalJobAccessRes.error;
       if (externalProjectDirectoryRes.error) throw externalProjectDirectoryRes.error;
+      if (vendorJobAccessRes.error) throw vendorJobAccessRes.error;
+      if (vendorRfpInvitesRes.error) throw vendorRfpInvitesRes.error;
       if (pendingJobsRes.error) throw pendingJobsRes.error;
 
       const activeJobsByExternalUserId = new Map<string, { id: string; name: string }[]>();
+      const userIdByVendorId = new Map<string, string>();
+      (regularUsers || []).forEach((user: any) => {
+        const profileRole = String(user.role || '').trim().toLowerCase();
+        const resolvedRole = roleMap.get(user.user_id)
+          || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : null);
+        if (resolvedRole === 'vendor' && user.vendor_id) {
+          userIdByVendorId.set(String(user.vendor_id), String(user.user_id));
+        }
+      });
       const pushActiveJob = (targetUserId: string, job: { id: string; name: string } | null | undefined) => {
         if (!targetUserId || !job?.id || !job?.name) return;
         const existing = activeJobsByExternalUserId.get(targetUserId) || [];
@@ -591,6 +629,18 @@ export default function UserSettings() {
       ((externalProjectDirectoryRes.data || []) as any[]).forEach((row) => {
         const job = row.jobs;
         pushActiveJob(String(row.linked_user_id), job ? { id: String(job.id), name: String(job.name) } : null);
+      });
+
+      ((vendorJobAccessRes.data || []) as any[]).forEach((row) => {
+        const linkedUserId = userIdByVendorId.get(String(row.vendor_id || ''));
+        const job = row.jobs;
+        pushActiveJob(linkedUserId || '', job ? { id: String(job.id), name: String(job.name) } : null);
+      });
+
+      ((vendorRfpInvitesRes.data || []) as any[]).forEach((row) => {
+        const linkedUserId = userIdByVendorId.get(String(row.vendor_id || ''));
+        const job = row?.rfp?.jobs;
+        pushActiveJob(linkedUserId || '', job ? { id: String(job.id), name: String(job.name) } : null);
       });
 
       const pendingJobNameById = new Map(
@@ -1195,9 +1245,57 @@ export default function UserSettings() {
                                   {group.companyName}
                                   {user.phone ? ` • ${user.phone}` : ''}
                                 </p>
+                                <div className="mt-2 flex flex-wrap gap-2">
+                                  <Badge variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'outline'}>
+                                    {user.status || 'pending'}
+                                  </Badge>
+                                  <Badge variant={user.external_access_state === 'pending' ? 'secondary' : 'outline'}>
+                                    {user.external_access_state === 'pending' ? 'Portal Pending' : 'Portal Active'}
+                                  </Badge>
+                                  {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
+                                    <Badge variant="outline">
+                                      {user.external_pending_jobs.length} pending job{user.external_pending_jobs.length === 1 ? '' : 's'}
+                                    </Badge>
+                                  ) : null}
+                                  {user.last_sign_in_at ? (
+                                    <Badge variant="outline">
+                                      Last login {new Date(user.last_sign_in_at).toLocaleDateString()}
+                                    </Badge>
+                                  ) : (
+                                    <Badge variant="outline" className="text-muted-foreground">No login yet</Badge>
+                                  )}
+                                </div>
                               </div>
                             </div>
-                            <Badge variant="secondary">Vendor</Badge>
+                            <div className="flex items-center gap-2">
+                              {user.vendor_id ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    navigate(`/vendors/${user.vendor_id}`);
+                                  }}
+                                >
+                                  Vendor
+                                </Button>
+                              ) : null}
+                              {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={(event) => {
+                                    event.stopPropagation();
+                                    navigate(`/jobs/${user.external_pending_jobs?.[0]?.id}`);
+                                  }}
+                                >
+                                  Open Job
+                                </Button>
+                              ) : null}
+                              <Badge variant="secondary">Vendor</Badge>
+                            </div>
                           </div>
                         ))}
                       </div>
@@ -1333,7 +1431,8 @@ export default function UserSettings() {
                             {group.users.map((user) => (
                               <div
                                 key={user.user_id}
-                                className="flex items-center justify-between rounded-lg border bg-background p-3"
+                                onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                                className="flex items-center justify-between rounded-lg border bg-background p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
                               >
                                 <div className="flex min-w-0 items-center gap-3">
                                   <div className="relative h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">

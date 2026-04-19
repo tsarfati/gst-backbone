@@ -10,35 +10,16 @@ import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import { useToast } from "@/hooks/use-toast";
 import { useVendorPortalData } from "@/hooks/useVendorPortalData";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
-import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
-import { useVendorPortalAccess, type VendorPortalRole } from "@/hooks/useVendorPortalAccess";
-import { supabase } from "@/integrations/supabase/client";
-
-type VendorUserProfile = {
-  user_id: string;
-  first_name: string | null;
-  last_name: string | null;
-  display_name: string | null;
-  email: string | null;
-  vendor_portal_role: VendorPortalRole | null;
-};
-
-const VENDOR_ROLE_OPTIONS: Array<{ value: VendorPortalRole; label: string }> = [
-  { value: "owner", label: "Owner" },
-  { value: "admin", label: "Admin" },
-  { value: "accounting", label: "Accounting" },
-  { value: "project_contact", label: "Project Contact" },
-  { value: "estimator", label: "Estimator" },
-  { value: "compliance_manager", label: "Compliance Manager" },
-  { value: "basic_user", label: "Basic User" },
-];
+import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
+import { ArrowLeft } from "lucide-react";
+import { useNavigate } from "react-router-dom";
 
 export default function VendorPortalSettings() {
+  const navigate = useNavigate();
   const { toast } = useToast();
-  const { profile } = useAuth();
   const { currentCompany } = useCompany();
-  const { roleCaps } = useVendorPortalAccess();
+  useVendorPortalAccess();
   const {
     loading,
     settingsForm,
@@ -59,9 +40,6 @@ export default function VendorPortalSettings() {
   const [accountNumber, setAccountNumber] = useState(paymentMethod?.account_number || "");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState(paymentMethod?.account_number || "");
   const [voidedCheckFile, setVoidedCheckFile] = useState<File | null>(null);
-  const [vendorUsers, setVendorUsers] = useState<VendorUserProfile[]>([]);
-  const [loadingUsers, setLoadingUsers] = useState(false);
-  const [savingUserId, setSavingUserId] = useState<string | null>(null);
   const [workspaceLogoOverride, setWorkspaceLogoOverride] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadLogoProgress, setUploadLogoProgress] = useState(0);
@@ -102,79 +80,6 @@ export default function VendorPortalSettings() {
     setAccountNumber(paymentMethod?.account_number || "");
     setConfirmAccountNumber(paymentMethod?.account_number || "");
   }, [paymentMethod]);
-
-  useEffect(() => {
-    let ignore = false;
-
-    async function loadVendorUsers() {
-      if (!profile?.vendor_id || !roleCaps.canManageUsers) {
-        setVendorUsers([]);
-        return;
-      }
-
-      try {
-        setLoadingUsers(true);
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("user_id, first_name, last_name, display_name, email, vendor_portal_role")
-          .eq("vendor_id", profile.vendor_id)
-          .eq("role", "vendor")
-          .order("first_name", { ascending: true });
-
-        if (error) throw error;
-        if (!ignore) {
-          setVendorUsers((data || []) as VendorUserProfile[]);
-        }
-      } catch (error) {
-        console.error("Failed to load vendor users:", error);
-        if (!ignore) {
-          toast({
-            title: "Could not load users",
-            description: "Vendor users could not be loaded right now.",
-            variant: "destructive",
-          });
-        }
-      } finally {
-        if (!ignore) {
-          setLoadingUsers(false);
-        }
-      }
-    }
-
-    void loadVendorUsers();
-    return () => {
-      ignore = true;
-    };
-  }, [profile?.vendor_id, roleCaps.canManageUsers, toast]);
-
-  const updateVendorUserRole = async (userId: string, role: VendorPortalRole) => {
-    try {
-      setSavingUserId(userId);
-      const { error } = await supabase
-        .from("profiles")
-        .update({ vendor_portal_role: role })
-        .eq("user_id", userId);
-
-      if (error) throw error;
-
-      setVendorUsers((prev) =>
-        prev.map((user) => (user.user_id === userId ? { ...user, vendor_portal_role: role } : user)),
-      );
-      toast({
-        title: "Role updated",
-        description: "Vendor user permissions have been updated.",
-      });
-    } catch (error: any) {
-      console.error("Failed to update vendor role:", error);
-      toast({
-        title: "Update failed",
-        description: error?.message || "Could not update this vendor user role.",
-        variant: "destructive",
-      });
-    } finally {
-      setSavingUserId(null);
-    }
-  };
 
   const saveCompany = async () => {
     try {
@@ -240,15 +145,18 @@ export default function VendorPortalSettings() {
   return (
     <div className="p-6 space-y-6">
       <div className="space-y-1">
-        <h1 className="text-2xl font-bold text-foreground">Settings</h1>
+        <Button variant="ghost" className="px-0" onClick={() => navigate("/vendor/dashboard")}>
+          <ArrowLeft className="mr-2 h-4 w-4" />
+          Back to Dashboard
+        </Button>
+        <h1 className="text-2xl font-bold text-foreground">Profile</h1>
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className={`grid w-full ${roleCaps.canManageUsers ? "max-w-[680px] grid-cols-4" : "max-w-[520px] grid-cols-3"}`}>
+        <TabsList className="grid w-full max-w-[520px] grid-cols-3">
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="taxes">Taxes</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
-          {roleCaps.canManageUsers && <TabsTrigger value="users">User Management</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview" className="pt-4">
@@ -408,63 +316,6 @@ export default function VendorPortalSettings() {
           </Card>
         </TabsContent>
 
-        {roleCaps.canManageUsers && (
-          <TabsContent value="users" className="pt-4">
-            <Card>
-              <CardHeader>
-                <CardTitle>Vendor Users</CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                {loadingUsers ? (
-                  <p className="text-sm text-muted-foreground"><span className="loading-dots">Loading vendor users</span></p>
-                ) : vendorUsers.length === 0 ? (
-                  <p className="text-sm text-muted-foreground">No vendor users found yet.</p>
-                ) : (
-                  <div className="space-y-3">
-                    {vendorUsers.map((vendorUser) => {
-                      const fullName =
-                        vendorUser.display_name
-                        || `${vendorUser.first_name || ""} ${vendorUser.last_name || ""}`.trim()
-                        || vendorUser.email
-                        || "Vendor User";
-                      const selectedRole = (vendorUser.vendor_portal_role || "basic_user") as VendorPortalRole;
-
-                      return (
-                        <div key={vendorUser.user_id} className="grid gap-3 rounded-lg border p-4 md:grid-cols-[minmax(0,1fr)_220px] md:items-center">
-                          <div className="min-w-0">
-                            <div className="font-medium text-foreground">{fullName}</div>
-                            {vendorUser.email && (
-                              <div className="truncate text-sm text-muted-foreground">{vendorUser.email}</div>
-                            )}
-                          </div>
-                          <div className="space-y-2">
-                            <Label className="text-xs uppercase tracking-wide text-muted-foreground">Portal Role</Label>
-                            <Select
-                              value={selectedRole}
-                              onValueChange={(value: VendorPortalRole) => void updateVendorUserRole(vendorUser.user_id, value)}
-                              disabled={savingUserId === vendorUser.user_id}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {VENDOR_ROLE_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-              </CardContent>
-            </Card>
-          </TabsContent>
-        )}
       </Tabs>
     </div>
   );

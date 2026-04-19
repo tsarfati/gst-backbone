@@ -39,6 +39,11 @@ interface SelectedRfpPlanPage extends RfpPlanPageOption {
   callouts?: RfpPlanPageNoteDraft[];
 }
 
+function pickJoinedRow<T>(value: T | T[] | null | undefined): T | null {
+  if (Array.isArray(value)) return value[0] ?? null;
+  return value ?? null;
+}
+
 const isMissingRfpPlanPageNotesTableError = (error: any) => {
   const message = String(error?.message || '').toLowerCase();
   const details = String(error?.details || '').toLowerCase();
@@ -267,8 +272,8 @@ export default function AddRFP() {
           sort_order,
           is_primary,
           note,
-          plan_page:plan_pages(id, page_number, sheet_number, page_title, discipline, thumbnail_url),
-          plan:job_plans(id, plan_name, plan_number, file_url)
+          plan_page:plan_pages!rfp_plan_pages_plan_page_id_fkey(id, page_number, sheet_number, page_title, discipline, thumbnail_url),
+          plan:job_plans!rfp_plan_pages_plan_id_fkey(id, plan_name, plan_number, file_url)
         `)
         .eq('rfp_id', rfpId)
         .eq('company_id', currentCompany!.id)
@@ -276,21 +281,25 @@ export default function AddRFP() {
 
       if (error) throw error;
 
-      const selectedRows = ((data || []) as any[]).map((row) => ({
+      const selectedRows = ((data || []) as any[]).map((row) => {
+        const resolvedPlan = pickJoinedRow<any>(row.plan);
+        const resolvedPlanPage = pickJoinedRow<any>(row.plan_page);
+        return ({
         rfp_plan_page_id: String(row.id),
         plan_id: String(row.plan_id),
-        plan_name: String(row.plan?.plan_name || 'Plan Set'),
-        plan_number: row.plan?.plan_number || null,
-        plan_file_url: row.plan?.file_url || null,
+        plan_name: String(resolvedPlan?.plan_name || 'Plan Set'),
+        plan_number: resolvedPlan?.plan_number || null,
+        plan_file_url: resolvedPlan?.file_url || null,
         plan_page_id: String(row.plan_page_id),
-        page_number: Number(row.plan_page?.page_number || 0),
-        sheet_number: row.plan_page?.sheet_number || null,
-        page_title: row.plan_page?.page_title || null,
-        discipline: row.plan_page?.discipline || null,
-        thumbnail_url: row.plan_page?.thumbnail_url || null,
+        page_number: Number(resolvedPlanPage?.page_number || 0),
+        sheet_number: resolvedPlanPage?.sheet_number || null,
+        page_title: resolvedPlanPage?.page_title || null,
+        discipline: resolvedPlanPage?.discipline || null,
+        thumbnail_url: resolvedPlanPage?.thumbnail_url || null,
         is_primary: !!row.is_primary,
         note: row.note || null,
-      }));
+      });
+      });
 
       let calloutsByRfpPlanPageId = new Map<string, RfpPlanPageNoteDraft[]>();
       if (selectedRows.length > 0) {
