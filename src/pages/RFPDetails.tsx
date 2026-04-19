@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
@@ -47,17 +47,6 @@ interface RfpPlanPage {
   callouts: RfpPlanPageNoteViewerNote[];
 }
 
-interface RfpIssuePackage {
-  id: string;
-  name: string;
-  description: string | null;
-  plans: Array<{
-    plan_id: string;
-    plan_name: string;
-    plan_number: string | null;
-    file_url: string | null;
-  }>;
-}
 interface RFP {
   id: string;
   rfp_number: string;
@@ -82,6 +71,7 @@ interface RfpAttachment {
   file_type: string | null;
   uploaded_at: string;
   uploaded_by: string;
+  preview_url?: string | null;
 }
 
 interface RfpAttachmentTarget {
@@ -349,7 +339,6 @@ export default function RFPDetails() {
   const [criteria, setCriteria] = useState<ScoringCriterion[]>([]);
   const [attachments, setAttachments] = useState<RfpAttachment[]>([]);
   const [planPages, setPlanPages] = useState<RfpPlanPage[]>([]);
-  const [issuePackage, setIssuePackage] = useState<RfpIssuePackage | null>(null);
   const [loading, setLoading] = useState(true);
   const [uploadingDrawings, setUploadingDrawings] = useState(false);
   const [deletingAttachmentId, setDeletingAttachmentId] = useState<string | null>(null);
@@ -672,7 +661,7 @@ export default function RFPDetails() {
         return;
       }
       setRfp(data as any);
-      await Promise.all([loadBids(), loadCriteria(), loadVendors(), loadInvitedVendors(), loadAttachments(), loadPlanPages(), loadIssuePackage()]);
+      await Promise.all([loadBids(), loadCriteria(), loadVendors(), loadInvitedVendors(), loadAttachments(), loadPlanPages()]);
       await loadRfpTargets();
     } catch (error) {
       console.error('Error loading RFP:', error);
@@ -1005,7 +994,21 @@ export default function RFPDetails() {
         .eq('rfp_id', id)
         .order('uploaded_at', { ascending: false });
       if (error) throw error;
-      setAttachments((data || []) as any);
+      const resolved = await Promise.all(
+        ((data || []) as any[]).map(async (row) => {
+          const resolvedUrl = await resolveOptionalCompanyFileUrl(row.file_url);
+          const normalizedType = String(row.file_type || '').toLowerCase();
+          const normalizedName = String(row.file_name || '').toLowerCase();
+          const isImage =
+            normalizedType.startsWith('image/') ||
+            /\.(png|jpe?g|gif|webp|bmp|svg)$/.test(normalizedName);
+          return {
+            ...row,
+            preview_url: isImage ? resolvedUrl : null,
+          };
+        }),
+      );
+      setAttachments(resolved as any);
     } catch (error) {
       console.error('Error loading RFP attachments:', error);
     }
@@ -1102,46 +1105,6 @@ export default function RFPDetails() {
     } catch (error) {
       console.error('Error loading RFP plan pages:', error);
       setPlanPages([]);
-    }
-  };
-
-  const loadIssuePackage = async () => {
-    try {
-      const { data: packageRow, error: packageError } = await supabase
-        .from('rfp_issue_packages' as any)
-        .select('id, name, description')
-        .eq('rfp_id', id)
-        .eq('company_id', currentCompany!.id)
-        .maybeSingle();
-
-      if (packageError) throw packageError;
-      if (!packageRow?.id) {
-        setIssuePackage(null);
-        return;
-      }
-
-      const { data: itemRows, error: itemError } = await supabase
-        .from('rfp_issue_package_items' as any)
-        .select('plan_id, sort_order, plan:job_plans(id, plan_name, plan_number, file_url)')
-        .eq('package_id', packageRow.id)
-        .eq('company_id', currentCompany!.id)
-        .order('sort_order', { ascending: true });
-
-      if (itemError) throw itemError;
-      setIssuePackage({
-        id: String(packageRow.id),
-        name: String(packageRow.name || 'Issued Package'),
-        description: packageRow.description || null,
-        plans: ((itemRows || []) as any[]).map((row) => ({
-          plan_id: String(row.plan_id),
-          plan_name: String(row.plan?.plan_name || 'Plan Set'),
-          plan_number: row.plan?.plan_number || null,
-          file_url: row.plan?.file_url || null,
-        })),
-      });
-    } catch (error) {
-      console.error('Error loading RFP issue package:', error);
-      setIssuePackage(null);
     }
   };
 
@@ -2294,52 +2257,9 @@ export default function RFPDetails() {
           </Card>
 
           <Card>
-            <CardHeader>
-              <CardTitle>Issued Package</CardTitle>
-              <CardDescription>
-                Official plan set package attached to this RFP.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              {!issuePackage ? (
-                <p className="text-sm text-muted-foreground">
-                  No issued package is attached to this RFP yet.
-                </p>
-              ) : (
-                <div className="space-y-3">
-                  <div>
-                    <p className="font-semibold">{issuePackage.name}</p>
-                    {issuePackage.description ? (
-                      <p className="text-sm text-muted-foreground">{issuePackage.description}</p>
-                    ) : null}
-                  </div>
-                  <div className="space-y-2">
-                    {issuePackage.plans.map((plan) => (
-                      <div key={plan.plan_id} className="flex items-center justify-between rounded-md border p-3">
-                        <div className="min-w-0">
-                          <p className="font-medium">{plan.plan_name}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {plan.plan_number ? `Plan Set #${plan.plan_number}` : 'No plan set number'}
-                          </p>
-                        </div>
-                        {plan.file_url ? (
-                          <Button variant="outline" size="sm" onClick={() => window.open(plan.file_url || '', '_blank', 'noopener,noreferrer')}>
-                            Open Set
-                          </Button>
-                        ) : null}
-                      </div>
-                    ))}
-                  </div>
-                </div>
-              )}
-            </CardContent>
-          </Card>
-
-          <Card>
             <CardHeader className="flex flex-row items-center justify-between">
               <div>
-                <CardTitle>Drawings</CardTitle>
-                <CardDescription>Upload and manage plan sheets and drawing files for this RFP</CardDescription>
+                <CardTitle>Attached Files</CardTitle>
               </div>
               <input
                 ref={drawingsInputRef}
@@ -2381,7 +2301,7 @@ export default function RFPDetails() {
                   </p>
                 ) : (
                   <div className="space-y-1" onClick={(e) => e.stopPropagation()}>
-                    <div className="grid grid-cols-[minmax(220px,2fr)_170px_140px_110px_minmax(180px,1.4fr)_72px] gap-2 px-2 py-1 text-xs text-muted-foreground">
+                    <div className="grid grid-cols-[minmax(260px,2.2fr)_170px_140px_110px_minmax(180px,1.4fr)_72px] gap-2 px-2 py-1 text-xs text-muted-foreground">
                       <span>Name</span>
                       <span>Owner</span>
                       <span>Created</span>
@@ -2398,10 +2318,22 @@ export default function RFPDetails() {
                       return (
                         <div
                           key={attachment.id}
-                          className="grid grid-cols-[minmax(220px,2fr)_170px_140px_110px_minmax(180px,1.4fr)_72px] items-center gap-2 rounded-md border px-2 py-1.5 hover:bg-muted/40 cursor-pointer"
+                          className="grid grid-cols-[minmax(260px,2.2fr)_170px_140px_110px_minmax(180px,1.4fr)_72px] items-center gap-2 rounded-md border px-2 py-1.5 hover:bg-muted/40 cursor-pointer"
                           onClick={() => void openAttachmentPreview(attachment)}
                         >
-                          <div className="min-w-0">
+                          <div className="flex min-w-0 items-center gap-3">
+                            {attachment.preview_url ? (
+                              <img
+                                src={attachment.preview_url}
+                                alt={attachment.file_name}
+                                className="h-11 w-11 rounded-md border bg-muted object-cover shrink-0"
+                              />
+                            ) : (
+                              <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md border bg-muted text-muted-foreground">
+                                <FileText className="h-4 w-4" />
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1">
                             {editingAttachmentId === attachment.id ? (
                               <Input
                                 autoFocus
@@ -2444,6 +2376,7 @@ export default function RFPDetails() {
                                 </button>
                               </div>
                             ) : null}
+                            </div>
                           </div>
                           <div className="flex items-center gap-2 min-w-0">
                             <Avatar className="h-6 w-6 shrink-0">
@@ -2506,7 +2439,7 @@ export default function RFPDetails() {
                     <span className="loading-dots">Loading</span>
                   ) : (
                     <span className="inline-flex items-center gap-2">
-                      <span>Drag and drop drawings/specs here, or</span>
+                      <span>Drag and drop files here, or</span>
                       <Button
                         type="button"
                         variant="outline"
@@ -2821,10 +2754,10 @@ export default function RFPDetails() {
         <DialogContent className="max-w-6xl h-[90vh] p-0">
           <ZoomableDocumentPreview
             url={previewAttachmentUrl}
-            fileName={attachments.find((row) => row.id === previewAttachmentId)?.file_name || 'Drawing Preview'}
+            fileName={attachments.find((row) => row.id === previewAttachmentId)?.file_name || 'Attachment Preview'}
             className="h-full"
             emptyMessage="No preview available"
-            emptySubMessage="Select a drawing to preview it"
+            emptySubMessage="Select a file to preview it"
           />
         </DialogContent>
       </Dialog>
