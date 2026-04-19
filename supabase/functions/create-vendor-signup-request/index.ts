@@ -401,7 +401,11 @@ serve(async (req: Request): Promise<Response> => {
 
     const homeCompanyId = String(homeCompany.id);
 
-    const externalAccessNeedsApproval = false;
+    const externalAccessNeedsApproval = !(
+      requestedRole === "design_professional" &&
+      invitedJobId &&
+      jobInviteToken
+    );
 
     let vendorRecordId: string | null = null;
     if (requestedRole === "vendor") {
@@ -459,9 +463,9 @@ serve(async (req: Request): Promise<Response> => {
           default_company_id: homeCompanyId,
           role: requestedRole,
           vendor_id: vendorRecordId,
-          status: "approved",
-          approved_at: new Date().toISOString(),
-          approved_by: userId,
+          status: externalAccessNeedsApproval ? "pending" : "approved",
+          approved_at: externalAccessNeedsApproval ? null : new Date().toISOString(),
+          approved_by: externalAccessNeedsApproval ? null : userId,
         },
         { onConflict: "user_id" },
       );

@@ -273,6 +273,7 @@ serve(async (req: Request): Promise<Response> => {
     const baseRole = ALLOWED_BASE_ROLES.has(String(pendingInvite.role || "").toLowerCase())
       ? String(pendingInvite.role).toLowerCase()
       : "employee";
+    const isExternalInviteRole = baseRole === "vendor" || baseRole === "design_professional";
 
     const nowIso = new Date().toISOString();
 
@@ -365,10 +366,11 @@ serve(async (req: Request): Promise<Response> => {
     // Be robust to missing profile rows (can happen with invite/account race conditions).
     const profilePatch: Record<string, unknown> = {
       custom_role_id: pendingInvite.custom_role_id ?? null,
-      status: "pending",
-      approved_at: null,
-      approved_by: null,
+      status: isExternalInviteRole ? "approved" : "pending",
+      approved_at: isExternalInviteRole ? nowIso : null,
+      approved_by: isExternalInviteRole ? (pendingInvite.invited_by || userData.user.id) : null,
       current_company_id: pendingInvite.company_id,
+      default_company_id: pendingInvite.company_id,
     };
     if (pendingInvite.custom_role_id) {
       // Keep base profile role neutral and rely on company access + custom role permissions
@@ -427,150 +429,159 @@ serve(async (req: Request): Promise<Response> => {
       customRoleId: pendingInvite.custom_role_id ?? null,
       customRoleName,
     });
+    const approvedRequestStatus = isExternalInviteRole ? "approved" : "pending";
+    const approvedReviewedAt = isExternalInviteRole ? nowIso : null;
+    const approvedReviewedBy = isExternalInviteRole ? (pendingInvite.invited_by || userData.user.id) : null;
 
-    const { data: existingPendingRequest, error: existingPendingRequestError } = await supabaseAdmin
+    const { data: existingRequestRows, error: existingRequestError } = await supabaseAdmin
       .from("company_access_requests")
-      .select("id")
+      .select("id, status")
       .eq("company_id", pendingInvite.company_id)
       .eq("user_id", userData.user.id)
-      .eq("status", "pending")
+      .order("requested_at", { ascending: false })
       .limit(1);
-    if (existingPendingRequestError) throw existingPendingRequestError;
+    if (existingRequestError) throw existingRequestError;
 
-    if ((existingPendingRequest || []).length > 0) {
-      const pendingRequestId = existingPendingRequest![0].id;
-      const { error: updatePendingRequestError } = await supabaseAdmin
+    const existingRequest = (existingRequestRows || [])[0] || null;
+
+    if (existingRequest?.id) {
+      const { error: updateRequestError } = await supabaseAdmin
         .from("company_access_requests")
         .update({
           notes: intakeNotes,
           requested_at: nowIso,
-          reviewed_at: null,
-          reviewed_by: null,
+          status: approvedRequestStatus,
+          reviewed_at: approvedReviewedAt,
+          reviewed_by: approvedReviewedBy,
         })
-        .eq("id", pendingRequestId);
-      if (updatePendingRequestError) throw updatePendingRequestError;
+        .eq("id", existingRequest.id);
+      if (updateRequestError) throw updateRequestError;
     } else {
-      const { error: createPendingRequestError } = await supabaseAdmin
+      const { error: createRequestError } = await supabaseAdmin
         .from("company_access_requests")
         .insert({
           company_id: pendingInvite.company_id,
           user_id: userData.user.id,
-          status: "pending",
+          status: approvedRequestStatus,
           requested_at: nowIso,
+          reviewed_at: approvedReviewedAt,
+          reviewed_by: approvedReviewedBy,
           notes: intakeNotes,
         });
-      if (createPendingRequestError) throw createPendingRequestError;
+      if (createRequestError) throw createRequestError;
     }
 
-    // Notify invited user + company approvers that account is pending approval.
-    // Approval is handled in User Management (status transition pending -> approved).
-    try {
-      const companyDisplayName =
-        String(companyRow?.display_name || companyRow?.name || "your company").trim();
-      const companyLogoUrl = resolveCompanyLogoEmailUrl((companyRow as any)?.logo_url);
-      const appUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
+    if (!isExternalInviteRole) {
+      // Notify invited user + company approvers that account is pending approval.
+      // Approval is handled in User Management (status transition pending -> approved).
+      try {
+        const companyDisplayName =
+          String(companyRow?.display_name || companyRow?.name || "your company").trim();
+        const companyLogoUrl = resolveCompanyLogoEmailUrl((companyRow as any)?.logo_url);
+        const appUrl = Deno.env.get("PUBLIC_SITE_URL") || "https://builderlynk.com";
 
-      await sendTransactionalEmailWithFallback({
-        supabaseUrl,
-        serviceRoleKey: supabaseServiceKey,
-        resend,
-        companyId: pendingInvite.company_id,
-        defaultFrom: inviteEmailFrom,
-        to: [normalizedEmail],
-        subject: `Your ${companyDisplayName} account is pending approval`,
-        html: buildBrandedEmailHtml({
-          title: "Account Setup in Progress",
-          greeting: "Hello,",
-          companyLogoUrl,
-          paragraphs: [
-            `Your invitation for <strong>${companyDisplayName}</strong> was accepted and your account was created.`,
-            `Your account is now <strong>pending admin approval</strong>.`,
-            `You will receive another email once an administrator approves your access.`,
-          ],
-        }),
-        context: "accept-user-invite:pending-user",
-      });
-
-      const { data: approverRows, error: approverRowsError } = await supabaseAdmin
-        .from("user_company_access")
-        .select("user_id, role")
-        .eq("company_id", pendingInvite.company_id)
-        .eq("is_active", true);
-      if (approverRowsError) throw approverRowsError;
-
-      const approverIds = Array.from(
-        new Set(
-          (approverRows || [])
-            .filter((row: any) => ADMIN_ROLES.has(String(row.role || "").toLowerCase()))
-            .map((row: any) => row.user_id)
-            .filter(Boolean),
-        ),
-      );
-
-      if (approverIds.length > 0) {
-        const { data: notifRows } = await supabaseAdmin
-          .from("notification_settings")
-          .select("user_id, in_app_enabled, intake_queue_requests")
-          .eq("company_id", pendingInvite.company_id)
-          .in("user_id", approverIds as string[]);
-
-        const notifMap = new Map<string, any>((notifRows || []).map((row: any) => [String(row.user_id), row]));
-        const allowedInAppRecipients = approverIds.filter((recipientId) => {
-          const row = notifMap.get(String(recipientId));
-          if (!row) return true;
-          return row.in_app_enabled !== false && row.intake_queue_requests !== false;
-        });
-
-        if (allowedInAppRecipients.length > 0) {
-          const intakeMessage = `${normalizedEmail} completed signup and is pending approval.`;
-          await supabaseAdmin.from("notifications").insert(
-            allowedInAppRecipients.map((recipientId) => ({
-              user_id: recipientId,
-              title: "User Pending Approval",
-              message: intakeMessage,
-              type: `intake_queue:${userData.user.id}`,
-              read: false,
-            })),
-          );
-        }
-      }
-
-      const approverEmails: string[] = [];
-      for (const approverId of approverIds) {
-        const { data: approverUser, error: approverUserError } = await supabaseAdmin.auth.admin.getUserById(
-          approverId,
-        );
-        if (approverUserError) continue;
-        const email = approverUser?.user?.email?.trim().toLowerCase();
-        if (email) approverEmails.push(email);
-      }
-
-      if (approverEmails.length > 0) {
         await sendTransactionalEmailWithFallback({
           supabaseUrl,
           serviceRoleKey: supabaseServiceKey,
           resend,
           companyId: pendingInvite.company_id,
           defaultFrom: inviteEmailFrom,
-          to: approverEmails,
-          subject: `Approval needed: ${normalizedEmail} (${companyDisplayName})`,
+          to: [normalizedEmail],
+          subject: `Your ${companyDisplayName} account is pending approval`,
           html: buildBrandedEmailHtml({
-            title: "User Pending Approval",
+            title: "Account Setup in Progress",
             greeting: "Hello,",
             companyLogoUrl,
             paragraphs: [
-              `<strong>${normalizedEmail}</strong> has completed invite signup for <strong>${companyDisplayName}</strong>.`,
-              `The account is currently <strong>pending approval</strong>.`,
-              `Go to <strong>Settings → User Management</strong> and approve or reject this user.`,
+              `Your invitation for <strong>${companyDisplayName}</strong> was accepted and your account was created.`,
+              `Your account is now <strong>pending admin approval</strong>.`,
+              `You will receive another email once an administrator approves your access.`,
             ],
-            ctaLabel: "Open User Management",
-            ctaUrl: `${appUrl}/settings/users`,
           }),
-          context: "accept-user-invite:approver-notify",
+          context: "accept-user-invite:pending-user",
         });
+
+        const { data: approverRows, error: approverRowsError } = await supabaseAdmin
+          .from("user_company_access")
+          .select("user_id, role")
+          .eq("company_id", pendingInvite.company_id)
+          .eq("is_active", true);
+        if (approverRowsError) throw approverRowsError;
+
+        const approverIds = Array.from(
+          new Set(
+            (approverRows || [])
+              .filter((row: any) => ADMIN_ROLES.has(String(row.role || "").toLowerCase()))
+              .map((row: any) => row.user_id)
+              .filter(Boolean),
+          ),
+        );
+
+        if (approverIds.length > 0) {
+          const { data: notifRows } = await supabaseAdmin
+            .from("notification_settings")
+            .select("user_id, in_app_enabled, intake_queue_requests")
+            .eq("company_id", pendingInvite.company_id)
+            .in("user_id", approverIds as string[]);
+
+          const notifMap = new Map<string, any>((notifRows || []).map((row: any) => [String(row.user_id), row]));
+          const allowedInAppRecipients = approverIds.filter((recipientId) => {
+            const row = notifMap.get(String(recipientId));
+            if (!row) return true;
+            return row.in_app_enabled !== false && row.intake_queue_requests !== false;
+          });
+
+          if (allowedInAppRecipients.length > 0) {
+            const intakeMessage = `${normalizedEmail} completed signup and is pending approval.`;
+            await supabaseAdmin.from("notifications").insert(
+              allowedInAppRecipients.map((recipientId) => ({
+                user_id: recipientId,
+                title: "User Pending Approval",
+                message: intakeMessage,
+                type: `intake_queue:${userData.user.id}`,
+                read: false,
+              })),
+            );
+          }
+        }
+
+        const approverEmails: string[] = [];
+        for (const approverId of approverIds) {
+          const { data: approverUser, error: approverUserError } = await supabaseAdmin.auth.admin.getUserById(
+            approverId,
+          );
+          if (approverUserError) continue;
+          const email = approverUser?.user?.email?.trim().toLowerCase();
+          if (email) approverEmails.push(email);
+        }
+
+        if (approverEmails.length > 0) {
+          await sendTransactionalEmailWithFallback({
+            supabaseUrl,
+            serviceRoleKey: supabaseServiceKey,
+            resend,
+            companyId: pendingInvite.company_id,
+            defaultFrom: inviteEmailFrom,
+            to: approverEmails,
+            subject: `Approval needed: ${normalizedEmail} (${companyDisplayName})`,
+            html: buildBrandedEmailHtml({
+              title: "User Pending Approval",
+              greeting: "Hello,",
+              companyLogoUrl,
+              paragraphs: [
+                `<strong>${normalizedEmail}</strong> has completed invite signup for <strong>${companyDisplayName}</strong>.`,
+                `The account is currently <strong>pending approval</strong>.`,
+                `Go to <strong>Settings → User Management</strong> and approve or reject this user.`,
+              ],
+              ctaLabel: "Open User Management",
+              ctaUrl: `${appUrl}/settings/users`,
+            }),
+            context: "accept-user-invite:approver-notify",
+          });
+        }
+      } catch (notifyError) {
+        console.error("Pending approval notification error:", notifyError);
       }
-    } catch (notifyError) {
-      console.error("Pending approval notification error:", notifyError);
     }
 
     return sendJson(200, {

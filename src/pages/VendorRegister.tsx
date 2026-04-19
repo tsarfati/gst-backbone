@@ -15,6 +15,7 @@ interface Invitation {
   id: string;
   vendor_id: string;
   company_id: string;
+  invited_by?: string | null;
   email: string;
   status: string;
   expires_at: string;
@@ -27,6 +28,11 @@ interface Invitation {
     logo_url?: string | null;
   };
 }
+
+const isDesignProfessionalVendorType = (value: string | null | undefined) => {
+  const normalized = String(value || '').trim().toLowerCase();
+  return normalized === 'design_professional' || normalized === 'design professional';
+};
 
 export default function VendorRegister() {
   const [searchParams] = useSearchParams();
@@ -64,6 +70,7 @@ export default function VendorRegister() {
           id,
           vendor_id,
           company_id,
+          invited_by,
           email,
           status,
           expires_at,
@@ -144,6 +151,11 @@ export default function VendorRegister() {
       if (signUpError) throw signUpError;
 
       if (authData.user) {
+        const externalRole = isDesignProfessionalVendorType((invitation?.vendor as any)?.vendor_type)
+          ? 'design_professional'
+          : 'vendor';
+        const approvedAt = new Date().toISOString();
+
         // Update the invitation status
         await supabase
           .from('vendor_invitations')
@@ -159,21 +171,29 @@ export default function VendorRegister() {
           .from('profiles')
           .upsert({
             user_id: authData.user.id,
+            email: invitation!.email,
             first_name: formData.firstName,
             last_name: formData.lastName,
-            is_vendor_user: true,
-            vendor_id: invitation!.vendor_id
+            display_name: `${formData.firstName} ${formData.lastName}`.trim(),
+            role: externalRole,
+            current_company_id: invitation!.company_id,
+            default_company_id: invitation!.company_id,
+            status: 'approved',
+            approved_at: approvedAt,
+            approved_by: invitation!.invited_by || authData.user.id,
+            vendor_id: invitation!.vendor_id,
           });
 
         // Give them access to the company as a vendor
         await supabase
           .from('user_company_access')
-          .insert({
+          .upsert({
             user_id: authData.user.id,
             company_id: invitation!.company_id,
-            role: 'vendor',
-            granted_by: invitation!.vendor_id
-          });
+            role: externalRole,
+            is_active: true,
+            granted_by: invitation!.invited_by || authData.user.id
+          }, { onConflict: 'user_id,company_id' });
 
         setSuccess(true);
         toast({
