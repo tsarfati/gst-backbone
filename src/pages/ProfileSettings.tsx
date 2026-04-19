@@ -55,6 +55,7 @@ interface NotificationSettings {
   payment_confirmation_notifications?: boolean;
   intake_queue_requests?: boolean;
   new_bid_notifications?: boolean;
+  bill_revision_reply_notifications?: boolean;
 }
 
 export default function ProfileSettings() {
@@ -111,6 +112,7 @@ export default function ProfileSettings() {
     payment_confirmation_notifications: true,
     intake_queue_requests: true,
     new_bid_notifications: true,
+    bill_revision_reply_notifications: true,
   });
 
   const requestedTab = searchParams.get('tab') || 'profile';
@@ -170,6 +172,7 @@ export default function ProfileSettings() {
           payment_confirmation_notifications: typedData.payment_confirmation_notifications ?? true,
           intake_queue_requests: typedData.intake_queue_requests ?? true,
           new_bid_notifications: typedData.new_bid_notifications ?? true,
+          bill_revision_reply_notifications: typedData.bill_revision_reply_notifications ?? true,
         });
       }
     } catch (error) {
@@ -426,6 +429,7 @@ export default function ProfileSettings() {
         payment_confirmation_notifications: notificationSettings.payment_confirmation_notifications ?? true,
         intake_queue_requests: notificationSettings.intake_queue_requests ?? true,
         new_bid_notifications: notificationSettings.new_bid_notifications ?? true,
+        bill_revision_reply_notifications: notificationSettings.bill_revision_reply_notifications ?? true,
       };
       
       const { error } = await (supabase as any)
@@ -844,6 +848,19 @@ export default function ProfileSettings() {
                           id="bill-submission-notifications"
                           checked={notificationSettings.bill_submission_notifications !== false}
                           onCheckedChange={(checked) => updateNotificationSetting('bill_submission_notifications', checked)}
+                        />
+                      </div>
+                    )}
+                    {!isExternalUser && (
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <Label htmlFor="bill-revision-reply-notifications">Bill Revision Replies</Label>
+                          <p className="text-sm text-muted-foreground">Get notified when a vendor replies and sends a revised bill back for review</p>
+                        </div>
+                        <Switch
+                          id="bill-revision-reply-notifications"
+                          checked={notificationSettings.bill_revision_reply_notifications !== false}
+                          onCheckedChange={(checked) => updateNotificationSetting('bill_revision_reply_notifications', checked)}
                         />
                       </div>
                     )}

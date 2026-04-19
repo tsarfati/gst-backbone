@@ -6016,6 +6016,7 @@ export type Database = {
       }
       notification_settings: {
         Row: {
+          bill_revision_reply_notifications: boolean
           chat_channel_notifications: boolean | null
           chat_direct_message_notifications: boolean | null
           chat_mention_notifications: boolean | null
@@ -6041,6 +6042,7 @@ export type Database = {
           vendor_invitations: boolean
         }
         Insert: {
+          bill_revision_reply_notifications?: boolean
           chat_channel_notifications?: boolean | null
           chat_direct_message_notifications?: boolean | null
           chat_mention_notifications?: boolean | null
@@ -6066,6 +6068,7 @@ export type Database = {
           vendor_invitations?: boolean
         }
         Update: {
+          bill_revision_reply_notifications?: boolean
           chat_channel_notifications?: boolean | null
           chat_direct_message_notifications?: boolean | null
           chat_mention_notifications?: boolean | null

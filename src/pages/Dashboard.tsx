@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { formatDistanceToNow } from 'date-fns';
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -59,11 +60,14 @@ interface Message {
   message_source?:
     | 'direct'
     | 'bill_communication'
+    | 'bill_vendor_thread'
     | 'receipt_message'
     | 'credit_card_transaction_communication'
     | 'bid_intercompany_communication';
   source_record_id?: string;
   target_path?: string;
+  context_label?: string;
+  context_detail?: string;
   from_profile?: {
     display_name: string;
     avatar_url?: string | null;
@@ -240,6 +244,12 @@ export default function Dashboard() {
   const [totalReceiptsCount, setTotalReceiptsCount] = useState(0);
   const [activeJobsCount, setActiveJobsCount] = useState(0);
   const [pendingBillsTotal, setPendingBillsTotal] = useState(0);
+  const [revisionRequestedBillsCount, setRevisionRequestedBillsCount] = useState(0);
+  const [revisionRequestedBillsTotal, setRevisionRequestedBillsTotal] = useState(0);
+  const [backInReviewBillsCount, setBackInReviewBillsCount] = useState(0);
+  const [backInReviewBillsTotal, setBackInReviewBillsTotal] = useState(0);
+  const [latestBackInReviewReplyLabel, setLatestBackInReviewReplyLabel] = useState<string | null>(null);
+  const [latestBackInReviewReplyAt, setLatestBackInReviewReplyAt] = useState<string | null>(null);
   const [billPaymentSummary, setBillPaymentSummary] = useState({
     dueCount: 0,
     dueTotal: 0,
@@ -457,6 +467,105 @@ export default function Dashboard() {
         );
         const total = visibleBills.reduce((sum, bill) => sum + (bill.amount || 0), 0);
         setPendingBillsTotal(total);
+      }
+
+      const { data: revisionRequestedBills, error: revisionBillsError } = await supabase
+        .from('invoices')
+        .select('amount, job_id, vendors!inner(company_id)')
+        .eq('vendors.company_id', currentCompany.id)
+        .eq('status', 'revision_requested');
+
+      if (!revisionBillsError && revisionRequestedBills) {
+        const visibleRevisionBills = revisionRequestedBills.filter((bill: any) =>
+          canAccessAssignedJobOnly([bill.job_id], isPrivileged, allowedJobIds),
+        );
+        setRevisionRequestedBillsCount(visibleRevisionBills.length);
+        setRevisionRequestedBillsTotal(
+          visibleRevisionBills.reduce((sum, bill) => sum + Number(bill.amount || 0), 0),
+        );
+      }
+
+      const { data: backInReviewInvoices, error: backInReviewInvoicesError } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, amount, vendor_id, job_id, status, vendors!inner(company_id, name)')
+        .eq('vendors.company_id', currentCompany.id)
+        .eq('status', 'pending_approval');
+
+      if (!backInReviewInvoicesError && backInReviewInvoices) {
+        const visibleBackInReviewInvoices = backInReviewInvoices.filter((bill: any) =>
+          canAccessAssignedJobOnly([bill.job_id], isPrivileged, allowedJobIds),
+        );
+
+        const vendorIds = Array.from(
+          new Set(visibleBackInReviewInvoices.map((bill: any) => String(bill.vendor_id || '')).filter(Boolean)),
+        );
+        const vendorUserIdsByVendorId = new Map<string, Set<string>>();
+
+        if (vendorIds.length > 0) {
+          const { data: vendorProfiles } = await supabase
+            .from('profiles')
+            .select('vendor_id, user_id')
+            .in('vendor_id', vendorIds)
+            .eq('role', 'vendor');
+
+          (vendorProfiles || []).forEach((profile: any) => {
+            const vendorId = String(profile.vendor_id || '');
+            const userId = String(profile.user_id || '');
+            if (!vendorId || !userId) return;
+            const existing = vendorUserIdsByVendorId.get(vendorId) || new Set<string>();
+            existing.add(userId);
+            vendorUserIdsByVendorId.set(vendorId, existing);
+          });
+        }
+
+        const invoiceIds = visibleBackInReviewInvoices.map((bill: any) => String(bill.id));
+        const { data: vendorThreadMessages } = invoiceIds.length > 0
+          ? await supabase
+              .from('messages')
+              .select('thread_id, from_user_id, created_at')
+              .in('thread_id', invoiceIds)
+              .eq('attachment_type', 'bill_vendor_thread')
+              .order('created_at', { ascending: false })
+          : { data: [] as any[] };
+
+        const invoiceHasVendorReply = new Set<string>();
+        let latestVendorReplyMeta: { vendorName: string; invoiceNumber: string; created_at: string } | null = null;
+        (vendorThreadMessages || []).forEach((message: any) => {
+          const invoiceId = String(message.thread_id || '');
+          if (!invoiceId) return;
+          const parentInvoice = visibleBackInReviewInvoices.find((bill: any) => String(bill.id) === invoiceId);
+          const vendorUsers = vendorUserIdsByVendorId.get(String(parentInvoice?.vendor_id || ''));
+          if (!vendorUsers?.has(String(message.from_user_id || ''))) return;
+          if (!invoiceHasVendorReply.has(invoiceId)) {
+            invoiceHasVendorReply.add(invoiceId);
+          }
+          const vendorName = String((parentInvoice as any)?.vendors?.name || 'Vendor');
+          const invoiceNumber = String(parentInvoice?.invoice_number || `INV-${invoiceId.slice(0, 8)}`);
+          if (
+            !latestVendorReplyMeta ||
+            new Date(String(message.created_at)).getTime() > new Date(latestVendorReplyMeta.created_at).getTime()
+          ) {
+            latestVendorReplyMeta = {
+              vendorName,
+              invoiceNumber,
+              created_at: String(message.created_at),
+            };
+          }
+        });
+
+        const actionableBackInReview = visibleBackInReviewInvoices.filter((bill: any) =>
+          invoiceHasVendorReply.has(String(bill.id)),
+        );
+        setBackInReviewBillsCount(actionableBackInReview.length);
+        setBackInReviewBillsTotal(
+          actionableBackInReview.reduce((sum, bill: any) => sum + Number(bill.amount || 0), 0),
+        );
+        setLatestBackInReviewReplyLabel(
+          latestVendorReplyMeta
+            ? `${latestVendorReplyMeta.vendorName} replied on ${latestVendorReplyMeta.invoiceNumber}`
+            : null,
+        );
+        setLatestBackInReviewReplyAt(latestVendorReplyMeta?.created_at || null);
       }
 
       const { data: payableBills, error: payableBillsError } = await supabase
@@ -934,6 +1043,90 @@ export default function Dashboard() {
       if (bidTeamCommsError) {
         console.error('Error fetching bid team communications:', bidTeamCommsError);
       }
+
+      const { data: vendorReplyInvoices } = await supabase
+        .from('invoices')
+        .select('id, invoice_number, vendor_id, job_id, status, jobs(name), vendors!inner(company_id, name)')
+        .eq('vendors.company_id', currentCompany.id)
+        .eq('status', 'pending_approval');
+
+      const visibleVendorReplyInvoices = (vendorReplyInvoices || []).filter((bill: any) =>
+        canAccessAssignedJobOnly([bill.job_id], isPrivileged, allowedJobIds),
+      );
+      const vendorReplyVendorIds = Array.from(
+        new Set(visibleVendorReplyInvoices.map((bill: any) => String(bill.vendor_id || '')).filter(Boolean)),
+      );
+      const vendorReplyUserIdsByVendorId = new Map<string, Set<string>>();
+
+      if (vendorReplyVendorIds.length > 0) {
+        const { data: vendorProfiles } = await supabase
+          .from('profiles')
+          .select('vendor_id, user_id, display_name, first_name, last_name, avatar_url')
+          .in('vendor_id', vendorReplyVendorIds)
+          .eq('role', 'vendor');
+
+        (vendorProfiles || []).forEach((profile: any) => {
+          const vendorId = String(profile.vendor_id || '');
+          const userId = String(profile.user_id || '');
+          if (!vendorId || !userId) return;
+          const existing = vendorReplyUserIdsByVendorId.get(vendorId) || new Set<string>();
+          existing.add(userId);
+          vendorReplyUserIdsByVendorId.set(vendorId, existing);
+        });
+      }
+
+      const vendorReplyInvoiceIds = visibleVendorReplyInvoices.map((bill: any) => String(bill.id));
+      const { data: vendorThreadRows, error: vendorThreadRowsError } = vendorReplyInvoiceIds.length > 0
+        ? await supabase
+            .from('messages')
+            .select('id, thread_id, from_user_id, content, created_at, read, attachment_url')
+            .in('thread_id', vendorReplyInvoiceIds)
+            .eq('attachment_type', 'bill_vendor_thread')
+            .eq('to_user_id', user.id)
+            .order('created_at', { ascending: false })
+            .limit(10)
+        : { data: [] as any[], error: null };
+
+      if (vendorThreadRowsError) {
+        console.error('Error fetching vendor bill thread replies:', vendorThreadRowsError);
+      }
+
+      const formattedVendorThreadMessages = (vendorThreadRows || [])
+        .filter((message: any) => {
+          const parentInvoice = visibleVendorReplyInvoices.find((bill: any) => String(bill.id) === String(message.thread_id));
+          const vendorUsers = vendorReplyUserIdsByVendorId.get(String(parentInvoice?.vendor_id || ''));
+          return vendorUsers?.has(String(message.from_user_id || ''));
+        })
+        .map((message: any) => {
+          const parentInvoice = visibleVendorReplyInvoices.find((bill: any) => String(bill.id) === String(message.thread_id));
+          const vendorName = String((parentInvoice as any)?.vendors?.name || 'Vendor');
+          const invoiceNumber = String(parentInvoice?.invoice_number || `INV-${String(message.thread_id || '').slice(0, 8)}`);
+          const jobName = String((parentInvoice as any)?.jobs?.name || '');
+          const hasAttachment = Boolean(message.attachment_url);
+          return {
+            id: message.id,
+            from_user_id: message.from_user_id,
+            to_user_id: user.id,
+            subject: 'Vendor Replied To Bill Revision',
+            content: message.content || `${vendorName} replied to ${invoiceNumber} for review.`,
+            created_at: message.created_at,
+            read: Boolean(message.read),
+            is_reply: false,
+            message_source: 'bill_vendor_thread' as const,
+            source_record_id: message.id,
+            target_path: `/invoices/${message.thread_id}`,
+            context_label: invoiceNumber,
+            context_detail: [
+              vendorName,
+              jobName || null,
+              hasAttachment ? 'Attachment included' : null,
+            ].filter(Boolean).join(' • '),
+            from_profile: {
+              display_name: vendorName,
+              avatar_url: null,
+            },
+          } satisfies Message;
+        });
       
       // Fetch profiles separately for bill communications
       const billCommsWithProfiles = await Promise.all(
@@ -1123,6 +1316,7 @@ export default function Dashboard() {
       // Combine and sort by date
       const allMessages = [
         ...messagesWithProfiles,
+        ...formattedVendorThreadMessages,
         ...formattedBillComms,
         ...formattedReceiptComms,
         ...formattedCreditCardComms,
@@ -1363,11 +1557,14 @@ export default function Dashboard() {
   };
 
   const unreadMessages = messages.filter((m) => !m.read);
+  const unreadVendorReplyMessages = unreadMessages.filter((message) => message.message_source === 'bill_vendor_thread');
 
   const getMessageBadgeLabel = (message: Message): string => {
     switch (message.message_source) {
       case 'bill_communication':
         return 'Bill Discussion';
+      case 'bill_vendor_thread':
+        return 'Vendor Bill Reply';
       case 'receipt_message':
         return 'Receipt Coding';
       case 'credit_card_transaction_communication':
@@ -1378,6 +1575,11 @@ export default function Dashboard() {
       default:
         return 'Direct Message';
     }
+  };
+
+  const markAllVendorRepliesAsRead = async () => {
+    if (unreadVendorReplyMessages.length === 0) return;
+    await Promise.all(unreadVendorReplyMessages.map((message) => markLocalMessageRead(message)));
   };
 
   // Filter stats based on permissions
@@ -1411,8 +1613,24 @@ export default function Dashboard() {
       value: `$${pendingBillsTotal.toFixed(2)}`,
       icon: DollarSign,
       variant: "destructive" as const,
-      href: "/invoices",
+      href: "/invoices?status=pending",
       visible: permissions.canViewBills(),
+    },
+    {
+      title: "Revision Requested",
+      value: revisionRequestedBillsCount.toString(),
+      icon: AlertTriangle,
+      variant: "warning" as const,
+      href: "/invoices?status=revision_requested",
+      visible: permissions.canViewBills() && revisionRequestedBillsCount > 0,
+    },
+    {
+      title: "Back In Review",
+      value: backInReviewBillsCount.toString(),
+      icon: MessageSquare,
+      variant: "default" as const,
+      href: "/invoices?status=back_in_review",
+      visible: permissions.canViewBills() && backInReviewBillsCount > 0,
     },
   ];
 
@@ -1567,15 +1785,22 @@ export default function Dashboard() {
           {dashboardSettings.show_messages && dashboardPermissions.canViewSection('messages') && (
             <Card>
               <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <MessageSquare className="h-5 w-5" />
-                  Unread Messages
-                  {unreadMessages.length > 0 && (
-                    <Badge variant="destructive" className="ml-2">
-                      {unreadMessages.length}
-                    </Badge>
-                  )}
-                </CardTitle>
+                <div className="flex items-center justify-between gap-3">
+                  <CardTitle className="flex items-center gap-2">
+                    <MessageSquare className="h-5 w-5" />
+                    Unread Messages
+                    {unreadMessages.length > 0 && (
+                      <Badge variant="destructive" className="ml-2">
+                        {unreadMessages.length}
+                      </Badge>
+                    )}
+                  </CardTitle>
+                  {unreadVendorReplyMessages.length > 0 ? (
+                    <Button variant="outline" size="sm" onClick={() => void markAllVendorRepliesAsRead()}>
+                      Mark Vendor Replies Read
+                    </Button>
+                  ) : null}
+                </div>
               </CardHeader>
               <CardContent>
                 {unreadMessages.length === 0 ? (
@@ -1626,6 +1851,11 @@ export default function Dashboard() {
                                 <p className="text-sm text-muted-foreground truncate mt-0.5">
                                   {message.content}
                                 </p>
+                                {message.message_source === 'bill_vendor_thread' && (message.context_label || message.context_detail) ? (
+                                  <p className="text-[11px] text-muted-foreground/90 truncate mt-1">
+                                    {[message.context_label, message.context_detail].filter(Boolean).join(' • ')}
+                                  </p>
+                                ) : null}
                               </div>
                               <span className="text-[11px] text-muted-foreground shrink-0 pt-0.5">
                                 {new Date(message.created_at).toLocaleDateString()}
@@ -1682,7 +1912,55 @@ export default function Dashboard() {
               </CardTitle>
             </CardHeader>
             <CardContent>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                <button
+                  type="button"
+                  className="text-left rounded-lg border bg-card p-4 transition-all hover:border-amber-500 hover:bg-amber-500/5 hover:shadow-sm"
+                  onClick={() => navigate('/invoices?status=revision_requested')}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Revision Requested</p>
+                      <p className="mt-1 text-2xl font-bold text-amber-600">
+                        ${revisionRequestedBillsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {revisionRequestedBillsCount} bill{revisionRequestedBillsCount === 1 ? '' : 's'} waiting on vendor updates
+                      </p>
+                    </div>
+                    <AlertTriangle className="h-5 w-5 text-amber-500" />
+                  </div>
+                </button>
+
+                <button
+                  type="button"
+                  className="text-left rounded-lg border bg-card p-4 transition-all hover:border-primary hover:bg-primary/5 hover:shadow-sm"
+                  onClick={() => navigate('/invoices?status=back_in_review')}
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div>
+                      <p className="text-sm font-medium text-muted-foreground">Vendor Replied To Bill Revision</p>
+                      <p className="mt-1 text-2xl font-bold text-primary">
+                        ${backInReviewBillsTotal.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                      </p>
+                      <p className="mt-1 text-sm text-muted-foreground">
+                        {backInReviewBillsCount} bill{backInReviewBillsCount === 1 ? '' : 's'} back in builder review
+                      </p>
+                      {latestBackInReviewReplyLabel ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Latest: {latestBackInReviewReplyLabel}
+                        </p>
+                      ) : null}
+                      {latestBackInReviewReplyAt ? (
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          {formatDistanceToNow(new Date(latestBackInReviewReplyAt), { addSuffix: true })}
+                        </p>
+                      ) : null}
+                    </div>
+                    <MessageSquare className="h-5 w-5 text-primary" />
+                  </div>
+                </button>
+
                 <button
                   type="button"
                   className="text-left rounded-lg border bg-card p-4 transition-all hover:border-primary hover:bg-primary/5 hover:shadow-sm"
@@ -1705,7 +1983,7 @@ export default function Dashboard() {
                 <button
                   type="button"
                   className="text-left rounded-lg border bg-card p-4 transition-all hover:border-destructive hover:bg-destructive/5 hover:shadow-sm"
-                  onClick={() => navigate('/invoices')}
+                  onClick={() => navigate('/invoices?status=overdue')}
                 >
                   <div className="flex items-start justify-between gap-3">
                     <div>
