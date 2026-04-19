@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -31,6 +31,14 @@ interface AvailablePlanSet {
   plan_name: string;
   plan_number: string | null;
   file_url: string | null;
+}
+
+interface AvailableJobFile {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
+  file_type: string | null;
 }
 
 interface SelectedRfpPlanPage extends RfpPlanPageOption {
@@ -72,14 +80,13 @@ export default function AddRFP() {
   const [jobs, setJobs] = useState<Job[]>([]);
   const [availablePlanSets, setAvailablePlanSets] = useState<AvailablePlanSet[]>([]);
   const [availablePlanPages, setAvailablePlanPages] = useState<RfpPlanPageOption[]>([]);
+  const [availableJobFiles, setAvailableJobFiles] = useState<AvailableJobFile[]>([]);
   const [selectedPlanPages, setSelectedPlanPages] = useState<SelectedRfpPlanPage[]>([]);
+  const [selectedFullPlanSetIds, setSelectedFullPlanSetIds] = useState<string[]>([]);
+  const [selectedJobFileIds, setSelectedJobFileIds] = useState<string[]>([]);
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
-  const [issuePackageEnabled, setIssuePackageEnabled] = useState(false);
-  const [issuePackageName, setIssuePackageName] = useState('');
-  const [issuePackageDescription, setIssuePackageDescription] = useState('');
-  const [selectedIssuePackagePlanIds, setSelectedIssuePackagePlanIds] = useState<string[]>([]);
-  const drawingsInputRef = useRef<HTMLInputElement | null>(null);
-  const [isDrawingsDragOver, setIsDrawingsDragOver] = useState(false);
+  const attachmentsInputRef = useRef<HTMLInputElement | null>(null);
+  const [isAttachmentsDragOver, setIsAttachmentsDragOver] = useState(false);
   
   const preselectedJobId = ensureAllowedJobFilter(searchParams.get('jobId'), isPrivileged, allowedJobIds);
   
@@ -109,11 +116,10 @@ export default function AddRFP() {
     if (!currentCompany?.id || !formData.job_id) {
       setAvailablePlanSets([]);
       setAvailablePlanPages([]);
+      setAvailableJobFiles([]);
       setSelectedPlanPages((prev) => prev.filter((page) => !page.plan_id));
-      setIssuePackageEnabled(false);
-      setIssuePackageName('');
-      setIssuePackageDescription('');
-      setSelectedIssuePackagePlanIds([]);
+      setSelectedFullPlanSetIds([]);
+      setSelectedJobFileIds([]);
       return;
     }
     void loadAvailablePlanPages(formData.job_id);
@@ -187,7 +193,6 @@ export default function AddRFP() {
         due_date: rfpData?.due_date || '',
       });
       await loadSelectedPlanPages(id!);
-      await loadIssuePackage(id!);
     } catch (error) {
       console.error('Error loading RFP for edit:', error);
       toast({
@@ -222,7 +227,10 @@ export default function AddRFP() {
       const planIds = (plansData || []).map((plan: any) => String(plan.id)).filter(Boolean);
       if (planIds.length === 0) {
         setAvailablePlanPages([]);
+        setAvailableJobFiles([]);
         setSelectedPlanPages((prev) => prev.filter((page) => planIds.includes(page.plan_id)));
+        setSelectedFullPlanSetIds([]);
+        setSelectedJobFileIds([]);
         return;
       }
 
@@ -252,12 +260,32 @@ export default function AddRFP() {
       });
 
       setAvailablePlanPages(nextOptions);
+      const { data: jobFileRows, error: jobFilesError } = await supabase
+        .from('job_files')
+        .select('id, file_name, file_url, file_size, file_type')
+        .eq('job_id', jobId)
+        .order('created_at', { ascending: false });
+
+      if (jobFilesError) throw jobFilesError;
+
+      setAvailableJobFiles(
+        ((jobFileRows || []) as any[]).map((file) => ({
+          id: String(file.id),
+          file_name: String(file.file_name || 'Attachment'),
+          file_url: String(file.file_url || ''),
+          file_size: file.file_size || null,
+          file_type: file.file_type || null,
+        })),
+      );
       setSelectedPlanPages((prev) =>
         prev.filter((page) => nextOptions.some((option) => option.plan_page_id === page.plan_page_id)),
       );
+      setSelectedFullPlanSetIds((prev) => prev.filter((planId) => planIds.includes(planId)));
+      setSelectedJobFileIds((prev) => prev.filter((fileId) => (jobFileRows || []).some((file: any) => String(file.id) === fileId)));
     } catch (error) {
       console.error('Error loading available plan pages:', error);
       setAvailablePlanPages([]);
+      setAvailableJobFiles([]);
     }
   };
 
@@ -343,45 +371,6 @@ export default function AddRFP() {
     }
   };
 
-  const loadIssuePackage = async (rfpId: string) => {
-    try {
-      const { data: packageRow, error: packageError } = await supabase
-        .from('rfp_issue_packages' as any)
-        .select('id, name, description')
-        .eq('rfp_id', rfpId)
-        .eq('company_id', currentCompany!.id)
-        .maybeSingle();
-
-      if (packageError) throw packageError;
-      if (!packageRow?.id) {
-        setIssuePackageEnabled(false);
-        setIssuePackageName('');
-        setIssuePackageDescription('');
-        setSelectedIssuePackagePlanIds([]);
-        return;
-      }
-
-      const { data: itemRows, error: itemError } = await supabase
-        .from('rfp_issue_package_items' as any)
-        .select('plan_id')
-        .eq('package_id', packageRow.id)
-        .eq('company_id', currentCompany!.id)
-        .order('sort_order', { ascending: true });
-
-      if (itemError) throw itemError;
-      setIssuePackageEnabled(true);
-      setIssuePackageName(String(packageRow.name || ''));
-      setIssuePackageDescription(String(packageRow.description || ''));
-      setSelectedIssuePackagePlanIds(((itemRows || []) as any[]).map((row) => String(row.plan_id)));
-    } catch (error) {
-      console.error('Error loading RFP issue package:', error);
-      setIssuePackageEnabled(false);
-      setIssuePackageName('');
-      setIssuePackageDescription('');
-      setSelectedIssuePackagePlanIds([]);
-    }
-  };
-
   const syncRfpPlanPages = async (rfpId: string) => {
     if (!currentCompany?.id) return;
 
@@ -393,9 +382,22 @@ export default function AddRFP() {
 
     if (deleteError) throw deleteError;
 
-    if (selectedPlanPages.length === 0) return;
+    const fullPlanSetPages = availablePlanPages.filter((page) => selectedFullPlanSetIds.includes(page.plan_id));
+    const mergedPages = [...selectedPlanPages];
+    fullPlanSetPages.forEach((page) => {
+      if (!mergedPages.some((entry) => entry.plan_page_id === page.plan_page_id)) {
+        mergedPages.push({
+          ...page,
+          is_primary: false,
+          note: null,
+          callouts: [],
+        });
+      }
+    });
 
-    const rows = selectedPlanPages.map((page, index) => ({
+    if (mergedPages.length === 0) return;
+
+    const rows = mergedPages.map((page, index) => ({
       rfp_id: rfpId,
       company_id: currentCompany.id,
       plan_id: page.plan_id,
@@ -414,7 +416,7 @@ export default function AddRFP() {
     if (insertError) throw insertError;
 
     const noteRows = ((insertedRows || []) as any[]).flatMap((insertedRow: any) => {
-      const matchingPage = selectedPlanPages.find((page) => page.plan_page_id === String(insertedRow.plan_page_id));
+      const matchingPage = mergedPages.find((page) => page.plan_page_id === String(insertedRow.plan_page_id));
       return (matchingPage?.callouts || []).map((callout, index) => ({
         rfp_plan_page_id: insertedRow.id,
         company_id: currentCompany.id,
@@ -439,74 +441,6 @@ export default function AddRFP() {
     }
   };
 
-  const syncIssuePackage = async (rfpId: string) => {
-    if (!currentCompany?.id) return;
-
-    const { data: existingPackage, error: existingPackageError } = await supabase
-      .from('rfp_issue_packages' as any)
-      .select('id')
-      .eq('rfp_id', rfpId)
-      .eq('company_id', currentCompany.id)
-      .maybeSingle();
-
-    if (existingPackageError) throw existingPackageError;
-
-    if (!issuePackageEnabled || !issuePackageName.trim() || selectedIssuePackagePlanIds.length === 0) {
-      if (existingPackage?.id) {
-        const { error: deleteError } = await supabase
-          .from('rfp_issue_packages' as any)
-          .delete()
-          .eq('id', existingPackage.id);
-        if (deleteError) throw deleteError;
-      }
-      return;
-    }
-
-    let packageId = existingPackage?.id as string | undefined;
-    if (packageId) {
-      const { error: updateError } = await supabase
-        .from('rfp_issue_packages' as any)
-        .update({
-          name: issuePackageName.trim(),
-          description: issuePackageDescription.trim() || null,
-        })
-        .eq('id', packageId);
-      if (updateError) throw updateError;
-    } else {
-      const { data: insertedPackage, error: insertError } = await supabase
-        .from('rfp_issue_packages' as any)
-        .insert({
-          rfp_id: rfpId,
-          company_id: currentCompany.id,
-          name: issuePackageName.trim(),
-          description: issuePackageDescription.trim() || null,
-          created_by: user?.id || null,
-        })
-        .select('id')
-        .single();
-      if (insertError) throw insertError;
-      packageId = String(insertedPackage.id);
-    }
-
-    const { error: deleteItemsError } = await supabase
-      .from('rfp_issue_package_items' as any)
-      .delete()
-      .eq('package_id', packageId)
-      .eq('company_id', currentCompany.id);
-    if (deleteItemsError) throw deleteItemsError;
-
-    const rows = selectedIssuePackagePlanIds.map((planId, index) => ({
-      package_id: packageId,
-      company_id: currentCompany.id,
-      plan_id: planId,
-      sort_order: index,
-    }));
-    const { error: insertItemsError } = await supabase
-      .from('rfp_issue_package_items' as any)
-      .insert(rows);
-    if (insertItemsError) throw insertItemsError;
-  };
-
   const applySelectedPlanPages = (pages: PickerSelectedPlanPage[]) => {
     setSelectedPlanPages(
       pages.map((page, index) => ({
@@ -518,7 +452,7 @@ export default function AddRFP() {
     );
   };
 
-  const uploadDrawings = async (rfpId: string) => {
+  const uploadAttachments = async (rfpId: string) => {
     if (!selectedDrawings.length) return;
 
     const uploads = [];
@@ -544,6 +478,28 @@ export default function AddRFP() {
       .from('rfp_attachments')
       .insert(uploads);
     if (insertError) throw insertError;
+  };
+
+  const attachJobFiles = async (rfpId: string) => {
+    if (!selectedJobFileIds.length) return;
+
+    const filesToAttach = availableJobFiles.filter((file) => selectedJobFileIds.includes(file.id));
+    if (!filesToAttach.length) return;
+
+    const rows = filesToAttach.map((file) => ({
+      rfp_id: rfpId,
+      company_id: currentCompany!.id,
+      file_name: file.file_name,
+      file_url: file.file_url,
+      file_size: file.file_size,
+      file_type: file.file_type,
+      uploaded_by: user!.id,
+    }));
+
+    const { error } = await supabase
+      .from('rfp_attachments')
+      .insert(rows);
+    if (error) throw error;
   };
 
   const addDrawingFiles = (files: File[] | FileList) => {
@@ -639,9 +595,9 @@ export default function AddRFP() {
       }
 
       if (savedRfpId) {
-        await uploadDrawings(savedRfpId);
+        await uploadAttachments(savedRfpId);
+        await attachJobFiles(savedRfpId);
         await syncRfpPlanPages(savedRfpId);
-        await syncIssuePackage(savedRfpId);
       }
 
       toast({
@@ -726,7 +682,6 @@ export default function AddRFP() {
         <Card>
           <CardHeader>
             <CardTitle>RFP Details</CardTitle>
-            <CardDescription>Enter the basic information for this RFP</CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -805,10 +760,10 @@ export default function AddRFP() {
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="drawings_upload">Drawings Upload</Label>
+              <Label htmlFor="attachments_upload">Attached Files Upload</Label>
               <input
-                ref={drawingsInputRef}
-                id="drawings_upload"
+                ref={attachmentsInputRef}
+                id="attachments_upload"
                 type="file"
                 multiple
                 onChange={(e) => {
@@ -820,30 +775,30 @@ export default function AddRFP() {
               />
               <div
                 className={`rounded-md border-2 border-dashed px-4 py-3 text-center text-sm transition-colors ${
-                  isDrawingsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                  isAttachmentsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
                 }`}
                 onDragOver={(e) => {
                   e.preventDefault();
-                  setIsDrawingsDragOver(true);
+                  setIsAttachmentsDragOver(true);
                 }}
                 onDragLeave={(e) => {
                   e.preventDefault();
-                  setIsDrawingsDragOver(false);
+                  setIsAttachmentsDragOver(false);
                 }}
                 onDrop={(e) => {
                   e.preventDefault();
-                  setIsDrawingsDragOver(false);
+                  setIsAttachmentsDragOver(false);
                   const droppedFiles = Array.from(e.dataTransfer.files || []);
                   if (droppedFiles.length > 0) addDrawingFiles(droppedFiles);
                 }}
-                onClick={() => drawingsInputRef.current?.click()}
+                onClick={() => attachmentsInputRef.current?.click()}
               >
                 <div className="flex items-center justify-center gap-3">
-                  <span>{isDrawingsDragOver ? 'Drop Files Here' : 'Drag Files Here'}</span>
+                  <span>{isAttachmentsDragOver ? 'Drop Files Here' : 'Drag Files Here'}</span>
                   <span className="text-muted-foreground">or</span>
                   <Button type="button" variant="outline" size="sm" onClick={(e) => {
                     e.stopPropagation();
-                    drawingsInputRef.current?.click();
+                    attachmentsInputRef.current?.click();
                   }}>
                     Choose Files to Add
                   </Button>
@@ -851,7 +806,7 @@ export default function AddRFP() {
               </div>
               {selectedDrawings.length > 0 && (
                 <p className="text-sm text-muted-foreground">
-                  {selectedDrawings.length} drawing file(s) selected for upload on save
+                  {selectedDrawings.length} file{selectedDrawings.length === 1 ? '' : 's'} selected for upload on save
                 </p>
               )}
             </div>
@@ -881,10 +836,7 @@ export default function AddRFP() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Plans</CardTitle>
-            <CardDescription>
-              Attach specific sheets for this RFP, or select a full indexed plan set for bidders to reference.
-            </CardDescription>
+            <CardTitle>Plan Sets</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {!formData.job_id ? (
@@ -1005,6 +957,39 @@ export default function AddRFP() {
                     ))}
                   </div>
                 )}
+
+                <div className="space-y-2">
+                  <div className="text-sm font-medium">Include Full Plan Sets</div>
+                  <div className="rounded-md border divide-y">
+                    {availablePlanSets.length === 0 ? (
+                      <div className="px-3 py-4 text-sm text-muted-foreground">
+                        No plan sets are available on this job yet.
+                      </div>
+                    ) : (
+                      availablePlanSets.map((plan) => (
+                        <label key={plan.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
+                          <div className="min-w-0">
+                            <div className="font-medium">{plan.plan_name}</div>
+                            <div className="text-muted-foreground">
+                              {plan.plan_number ? `#${plan.plan_number}` : 'No plan set number'}
+                            </div>
+                          </div>
+                          <input
+                            type="checkbox"
+                            checked={selectedFullPlanSetIds.includes(plan.id)}
+                            onChange={(e) =>
+                              setSelectedFullPlanSetIds((prev) =>
+                                e.target.checked
+                                  ? [...prev, plan.id]
+                                  : prev.filter((id) => id !== plan.id),
+                              )
+                            }
+                          />
+                        </label>
+                      ))
+                    )}
+                  </div>
+                </div>
               </>
             )}
           </CardContent>
@@ -1012,82 +997,44 @@ export default function AddRFP() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Issued Plan Package</CardTitle>
-            <CardDescription>
-              Define the official plan package this RFP is based on. This is separate from the highlighted plan pages above.
-            </CardDescription>
+            <CardTitle>Attached Files</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
             {!formData.job_id ? (
               <p className="text-sm text-muted-foreground">
-                Select a job first to configure an issued package.
+                Select a job first to attach files from the job filing cabinet.
               </p>
             ) : (
-              <>
-                <label className="flex items-center gap-3 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={issuePackageEnabled}
-                    onChange={(e) => setIssuePackageEnabled(e.target.checked)}
-                  />
-                  <span>Attach an official issued package to this RFP</span>
-                </label>
-
-                {issuePackageEnabled && (
-                  <div className="space-y-4 rounded-md border p-4">
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Package Name</Label>
-                        <Input
-                          value={issuePackageName}
-                          onChange={(e) => setIssuePackageName(e.target.value)}
-                          placeholder="Bid Set 1"
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label>Description</Label>
-                        <Input
-                          value={issuePackageDescription}
-                          onChange={(e) => setIssuePackageDescription(e.target.value)}
-                          placeholder="Issued for pricing"
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Included Plan Sets</Label>
-                      <div className="rounded-md border divide-y">
-                        {availablePlanSets.length === 0 ? (
-                          <div className="px-3 py-4 text-sm text-muted-foreground">
-                            No plan sets are available on this job yet.
-                          </div>
-                        ) : (
-                          availablePlanSets.map((plan) => (
-                            <label key={plan.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
-                              <div className="min-w-0">
-                                <div className="font-medium">{plan.plan_name}</div>
-                                <div className="text-muted-foreground">
-                                  {plan.plan_number ? `#${plan.plan_number}` : 'No plan set number'}
-                                </div>
-                              </div>
-                              <input
-                                type="checkbox"
-                                checked={selectedIssuePackagePlanIds.includes(plan.id)}
-                                onChange={(e) =>
-                                  setSelectedIssuePackagePlanIds((prev) =>
-                                    e.target.checked
-                                      ? [...prev, plan.id]
-                                      : prev.filter((id) => id !== plan.id),
-                                  )
-                                }
-                              />
-                            </label>
-                          ))
-                        )}
-                      </div>
-                    </div>
+              <div className="rounded-md border divide-y">
+                {availableJobFiles.length === 0 ? (
+                  <div className="px-3 py-4 text-sm text-muted-foreground">
+                    No job filing cabinet files are available on this job yet.
                   </div>
+                ) : (
+                  availableJobFiles.map((file) => (
+                    <label key={file.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
+                      <div className="min-w-0">
+                        <div className="font-medium truncate">{file.file_name}</div>
+                        <div className="text-muted-foreground">
+                          {file.file_type || 'File'}
+                          {typeof file.file_size === 'number' ? ` • ${Math.max(1, Math.round(file.file_size / 1024))} KB` : ''}
+                        </div>
+                      </div>
+                      <input
+                        type="checkbox"
+                        checked={selectedJobFileIds.includes(file.id)}
+                        onChange={(e) =>
+                          setSelectedJobFileIds((prev) =>
+                            e.target.checked
+                              ? [...prev, file.id]
+                              : prev.filter((id) => id !== file.id),
+                          )
+                        }
+                      />
+                    </label>
+                  ))
                 )}
-              </>
+              </div>
             )}
           </CardContent>
         </Card>
