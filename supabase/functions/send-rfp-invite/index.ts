@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
+import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 const inviteFrom = resolveBuilderlynkFrom(
@@ -27,6 +28,7 @@ interface RFPInviteRequest {
   companyId: string;
   companyName: string;
   scopeOfWork: string | null;
+  message?: string | null;
   baseUrl?: string | null;
 }
 
@@ -67,11 +69,36 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") || "";
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY") || "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "";
     const admin =
       supabaseUrl && serviceRoleKey
         ? createClient(supabaseUrl, serviceRoleKey)
         : null;
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(
+        JSON.stringify({ error: "Missing Authorization header" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
+    const authed =
+      supabaseUrl && supabaseAnonKey
+        ? createClient(supabaseUrl, supabaseAnonKey, {
+            global: { headers: { Authorization: authHeader } },
+          })
+        : null;
+
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const { data: authData, error: authError } = await authed!.auth.getUser(token);
+    if (authError || !authData?.user?.id) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        { status: 401, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
 
     const { 
       rfpId, 
@@ -84,6 +111,7 @@ const handler = async (req: Request): Promise<Response> => {
       companyId, 
       companyName,
       scopeOfWork,
+      message,
       baseUrl,
     }: RFPInviteRequest = await req.json();
 
@@ -159,13 +187,10 @@ const handler = async (req: Request): Promise<Response> => {
     const escapedCtaHref = escapeHtml(ctaHref);
     const escapedCtaLabel = escapeHtml(ctaLabel);
     const escapedCtaSecondaryCopy = escapeHtml(ctaSecondaryCopy);
+    const trimmedMessage = String(message || "").trim();
+    const escapedCustomMessage = escapeHtml(trimmedMessage).replace(/\n/g, "<br />");
 
-    // Send the email
-    const emailResponse = await resend.emails.send({
-      from: inviteFrom,
-      to: [vendorEmail],
-      subject: `Invitation to Bid: ${rfpTitle} - ${companyName}`,
-      html: `
+    const emailHtml = `
         <!DOCTYPE html>
         <html>
         <head>
@@ -196,6 +221,13 @@ const handler = async (req: Request): Promise<Response> => {
               </div>
               ` : ''}
             </div>
+
+            ${trimmedMessage ? `
+            <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:16px 18px;margin:20px 0;">
+              <p style="margin:0 0 8px 0;font-size:13px;font-weight:700;letter-spacing:0.02em;text-transform:uppercase;color:#9a3412;">Message from ${escapedCompanyName}</p>
+              <p style="margin:0;font-size:15px;color:#7c2d12;">${escapedCustomMessage}</p>
+            </div>
+            ` : ""}
             
             <p style="font-size: 16px; margin-bottom: 20px;">
               ${escapedCtaSecondaryCopy}
@@ -219,7 +251,39 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
         </body>
         </html>
-      `,
+      `;
+
+    const emailText = [
+      `Hello ${vendorName || vendorEmail},`,
+      "",
+      `${companyName} invited you to review and bid the following RFP in BuilderLYNK:`,
+      `${rfpTitle} (${rfpNumber})`,
+      `Due Date: ${dueDateFormatted}`,
+      scopeOfWork ? "" : null,
+      scopeOfWork ? `Scope of Work: ${scopeOfWork}` : null,
+      trimmedMessage ? "" : null,
+      trimmedMessage ? `Message from ${companyName}:` : null,
+      trimmedMessage || null,
+      "",
+      ctaSecondaryCopy,
+      "",
+      `${ctaLabel}: ${ctaHref}`,
+    ]
+      .filter((line): line is string => typeof line === "string")
+      .join("\n");
+
+    const emailResponse = await sendTransactionalEmailWithFallback({
+      supabaseUrl,
+      serviceRoleKey,
+      resend,
+      senderUserId: authData.user.id,
+      companyId,
+      defaultFrom: inviteFrom,
+      to: [vendorEmail],
+      subject: `Invitation to Bid: ${rfpTitle} - ${companyName}`,
+      html: emailHtml,
+      text: emailText,
+      context: "send-rfp-invite",
     });
 
     console.log("RFP invite email sent successfully:", emailResponse);

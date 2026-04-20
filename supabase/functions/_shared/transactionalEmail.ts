@@ -11,33 +11,87 @@ export async function sendTransactionalEmailWithFallback(params: {
   supabaseUrl: string;
   serviceRoleKey: string;
   resend: ResendClient | null;
+  senderUserId?: string | null;
   companyId?: string | null;
   defaultFrom: string;
   to: string[];
   subject: string;
   html?: string;
   text?: string;
+  replyTo?: string | string[];
   context: string;
 }) {
   const {
     supabaseUrl,
     serviceRoleKey,
     resend,
+    senderUserId,
     companyId,
     defaultFrom,
     to,
     subject,
     html,
     text,
+    replyTo,
     context,
   } = params;
 
-  let usedTransport: "company_smtp" | "builderlynk_resend" = "builderlynk_resend";
+  let usedTransport: "user_smtp" | "company_smtp" | "builderlynk_resend" = "builderlynk_resend";
   let providerMessageId: string | null = null;
+  const admin = createClient(supabaseUrl, serviceRoleKey);
+
+  if (senderUserId) {
+    try {
+      const { data: userEmailSettings, error } = await (admin as any)
+        .from("user_email_settings")
+        .select("*")
+        .eq("user_id", senderUserId)
+        .maybeSingle();
+
+      if (error) {
+        console.warn(`[${context}] Could not load user_email_settings`, error);
+      } else if (
+        userEmailSettings?.is_configured &&
+        userEmailSettings?.smtp_host &&
+        userEmailSettings?.smtp_port &&
+        userEmailSettings?.smtp_username &&
+        userEmailSettings?.smtp_password_encrypted &&
+        userEmailSettings?.from_email
+      ) {
+        const sender = userEmailSettings.from_name
+          ? `${userEmailSettings.from_name} <${userEmailSettings.from_email}>`
+          : userEmailSettings.from_email;
+
+        const transporter = nodemailer.createTransport({
+          host: userEmailSettings.smtp_host,
+          port: Number(userEmailSettings.smtp_port),
+          secure: !!userEmailSettings.use_ssl,
+          auth: {
+            user: userEmailSettings.smtp_username,
+            pass: userEmailSettings.smtp_password_encrypted,
+          },
+        });
+
+        const smtpResponse = await transporter.sendMail({
+          from: sender,
+          to: to.join(", "),
+          subject,
+          html,
+          text,
+          replyTo,
+        });
+
+        usedTransport = "user_smtp";
+        providerMessageId = smtpResponse?.messageId || null;
+        return { usedTransport, providerMessageId };
+      }
+    } catch (userSmtpError) {
+      console.warn(`[${context}] User SMTP send failed; falling back`, userSmtpError);
+    }
+  }
 
   if (companyId) {
     try {
-      const admin = createClient(supabaseUrl, serviceRoleKey);
       const { data: companyEmailSettings, error } = await (admin as any)
         .from("company_email_settings")
         .select("*")
@@ -74,6 +128,7 @@ export async function sendTransactionalEmailWithFallback(params: {
           subject,
           html,
           text,
+          replyTo,
         });
 
         usedTransport = "company_smtp";
@@ -95,6 +150,7 @@ export async function sendTransactionalEmailWithFallback(params: {
     subject,
     html,
     text,
+    ...(replyTo ? { reply_to: replyTo } : {}),
   });
 
   providerMessageId = resendResponse?.data?.id || null;

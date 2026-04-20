@@ -328,6 +328,7 @@ const handler = async (req: Request): Promise<Response> => {
         supabaseUrl,
         serviceRoleKey: supabaseServiceKey,
         resend,
+        senderUserId: authData.user.id,
         companyId,
         defaultFrom: inviteEmailFrom,
         to: [normalizedEmail],

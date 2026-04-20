@@ -103,6 +103,12 @@ interface RfpAttachmentReference {
   job_name?: string | null;
 }
 
+type InviteSenderPreview = {
+  mode: 'user' | 'company' | 'builderlynk';
+  label: string;
+  description: string;
+};
+
 interface OwnerProfile {
   user_id: string;
   first_name?: string | null;
@@ -370,6 +376,12 @@ export default function RFPDetails() {
   const [quickInviteForm, setQuickInviteForm] = useState({ name: '', email: '' });
   const [creatingQuickInvite, setCreatingQuickInvite] = useState(false);
   const [quickInviteVendorType, setQuickInviteVendorType] = useState<string>('Contractor');
+  const [inviteMessage, setInviteMessage] = useState('');
+  const [inviteSenderPreview, setInviteSenderPreview] = useState<InviteSenderPreview>({
+    mode: 'builderlynk',
+    label: 'BuilderLYNK default mailer',
+    description: 'If no personal or company email settings are configured, BuilderLYNK will send the invite.',
+  });
   const drawingsInputRef = useRef<HTMLInputElement | null>(null);
   const [isDrawingsDragOver, setIsDrawingsDragOver] = useState(false);
   const [bidSortBy, setBidSortBy] = useState<'vendor' | 'bid_amount' | 'submitted_at'>('submitted_at');
@@ -393,6 +405,15 @@ export default function RFPDetails() {
   })();
 
   const commentStorageKey = `rfp-attachment-comments:${currentCompany?.id || 'default'}:${id || 'unknown'}:${user?.id || 'anon'}`;
+  const buildDefaultInviteMessage = () => {
+    const lines = [
+      `Please review ${rfp?.rfp_number || 'this RFP'}${rfp?.title ? `, ${rfp.title},` : ''} and let us know if you plan to bid.`,
+      rfp?.due_date ? `The current due date is ${format(new Date(rfp.due_date), 'MMMM d, yyyy')}.` : '',
+      'Reach out with any scope, plan, or access questions.',
+    ].filter(Boolean);
+
+    return lines.join('\n\n');
+  };
 
   const sortedBids = useMemo(() => {
     const rows = [...bids];
@@ -410,6 +431,80 @@ export default function RFPDetails() {
     if (bidSortDirection === 'desc') rows.reverse();
     return rows;
   }, [bids, bidSortBy, bidSortDirection]);
+
+  useEffect(() => {
+    if (!inviteDialogOpen) return;
+
+    setInviteMessage(buildDefaultInviteMessage());
+
+    const loadInviteSenderPreview = async () => {
+      if (!user?.id) {
+        setInviteSenderPreview({
+          mode: 'builderlynk',
+          label: 'BuilderLYNK default mailer',
+          description: 'BuilderLYNK will send the invite because no authenticated sender was found.',
+        });
+        return;
+      }
+
+      try {
+        const { data: userEmailSettings, error: userSettingsError } = await supabase
+          .from('user_email_settings')
+          .select('is_configured, from_name, from_email')
+          .eq('user_id', user.id)
+          .maybeSingle();
+
+        if (userSettingsError) throw userSettingsError;
+
+        if (userEmailSettings?.is_configured && userEmailSettings?.from_email) {
+          setInviteSenderPreview({
+            mode: 'user',
+            label: userEmailSettings.from_name
+              ? `${userEmailSettings.from_name} <${userEmailSettings.from_email}>`
+              : userEmailSettings.from_email,
+            description: 'These invites will send from your personal email settings first.',
+          });
+          return;
+        }
+
+        if (currentCompany?.id) {
+          const { data: companyEmailSettings, error: companySettingsError } = await supabase
+            .from('company_email_settings')
+            .select('is_configured, from_name, from_email')
+            .eq('company_id', currentCompany.id)
+            .maybeSingle();
+
+          if (companySettingsError) throw companySettingsError;
+
+          if (companyEmailSettings?.is_configured && companyEmailSettings?.from_email) {
+            setInviteSenderPreview({
+              mode: 'company',
+              label: companyEmailSettings.from_name
+                ? `${companyEmailSettings.from_name} <${companyEmailSettings.from_email}>`
+                : companyEmailSettings.from_email,
+              description: 'Your personal email is not configured, so BuilderLYNK will fall back to the company email server.',
+            });
+            return;
+          }
+        }
+
+        setInviteSenderPreview({
+          mode: 'builderlynk',
+          label: 'BuilderLYNK default mailer',
+          description: 'No personal or company email settings are configured, so BuilderLYNK will send the invite.',
+        });
+      } catch (error) {
+        console.error('Error loading invite sender preview:', error);
+        setInviteSenderPreview({
+          mode: 'builderlynk',
+          label: 'BuilderLYNK default mailer',
+          description: 'BuilderLYNK will send the invite if your mailbox settings are unavailable.',
+        });
+      }
+    };
+
+    void loadInviteSenderPreview();
+  }, [inviteDialogOpen, user?.id, currentCompany?.id, rfp?.rfp_number, rfp?.title, rfp?.due_date]);
   const planPageSets = useMemo(() => {
     const grouped = new Map<string, {
       id: string;
@@ -1451,6 +1546,7 @@ export default function RFPDetails() {
               companyId: currentCompany!.id,
               companyName: currentCompany!.name,
               scopeOfWork: rfp?.scope_of_work,
+              message: inviteMessage,
               baseUrl: getPublicAuthOrigin(),
             }
           });
@@ -1637,6 +1733,7 @@ export default function RFPDetails() {
             companyId: currentCompany.id,
             companyName: currentCompany.name,
             scopeOfWork: rfp?.scope_of_work,
+            message: inviteMessage,
             baseUrl: getPublicAuthOrigin(),
           }
         });
@@ -1904,160 +2001,196 @@ export default function RFPDetails() {
           setSelectedVendors([]);
           setQuickInviteForm({ name: '', email: '' });
           setQuickInviteVendorType('Contractor');
+          setInviteMessage('');
         }
       }}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-w-4xl">
           <DialogHeader>
             <DialogTitle>Invite Vendors to Bid</DialogTitle>
             <DialogDescription>
-              Select vendors to invite to submit bids for this RFP
+              Select existing vendors or add a new one, then customize the email message before sending.
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4">
-            {getAvailableVendors().length === 0 ? (
-              <div className="py-4 text-center">
-                <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
-                <p className="text-sm text-muted-foreground">
-                  {vendors.length === 0
-                    ? "No saved vendors yet. Use quick add below to invite one now."
-                    : "All saved vendors have already been invited. Use quick add below for someone new."}
-                </p>
-              </div>
-            ) : (
-              <>
-              {/* Search Input */}
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search vendors..."
-                  value={vendorSearch}
-                  onChange={(e) => {
-                    setVendorSearch(e.target.value);
-                    setActiveLetter(null); // Clear letter filter when searching
-                  }}
-                  className="pl-9"
-                />
-              </div>
+            <div className="grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
+              <div className="rounded-lg border bg-background p-4 space-y-4">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-medium">Select Saved Vendors</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Choose one or more vendors to invite to bid on this RFP.
+                  </p>
+                </div>
 
-              {/* Alphabet Filter */}
-              <div className="flex flex-wrap gap-1">
-                <Button
-                  variant={activeLetter === null ? "default" : "ghost"}
-                  size="sm"
-                  className="h-7 w-7 p-0 text-xs"
-                  onClick={() => {
-                    setActiveLetter(null);
-                    setVendorSearch('');
-                  }}
-                >
-                  All
-                </Button>
-                {alphabet.map(letter => {
-                  const availableLetters = getAvailableLetters();
-                  const hasVendors = availableLetters.includes(letter);
-                  return (
-                    <Button
-                      key={letter}
-                      variant={activeLetter === letter ? "default" : "ghost"}
-                      size="sm"
-                      className="h-7 w-7 p-0 text-xs"
-                      disabled={!hasVendors}
-                      onClick={() => {
-                        setActiveLetter(letter);
-                        setVendorSearch('');
-                      }}
-                    >
-                      {letter}
-                    </Button>
-                  );
-                })}
-              </div>
-
-              {/* Vendor List */}
-              <ScrollArea className="max-h-[250px] pr-4">
-                <div className="space-y-2">
-                  {getFilteredVendors().length === 0 ? (
-                    <div className="py-4 text-center text-muted-foreground">
-                      No vendors found matching your filters
+                {getAvailableVendors().length === 0 ? (
+                  <div className="py-10 text-center">
+                    <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
+                    <p className="text-sm text-muted-foreground">
+                      {vendors.length === 0
+                        ? "No saved vendors yet. Use Quick Add Vendor to invite one now."
+                        : "All saved vendors have already been invited. Use Quick Add Vendor for someone new."}
+                    </p>
+                  </div>
+                ) : (
+                  <>
+                    <div className="relative">
+                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                      <Input
+                        placeholder="Search vendors..."
+                        value={vendorSearch}
+                        onChange={(e) => {
+                          setVendorSearch(e.target.value);
+                          setActiveLetter(null);
+                        }}
+                        className="pl-9"
+                      />
                     </div>
-                  ) : (
-                    getFilteredVendors().map(vendor => (
-                      <div 
-                        key={vendor.id}
-                        className="flex items-center space-x-3 p-3 rounded-lg border hover:bg-muted/50 cursor-pointer"
-                        onClick={() => toggleVendorSelection(vendor.id)}
-                      >
-                        <Checkbox 
-                          checked={selectedVendors.includes(vendor.id)}
-                          onCheckedChange={() => toggleVendorSelection(vendor.id)}
-                        />
-                        <div className="flex-1 min-w-0">
-                          <p className="font-medium truncate">{vendor.name}</p>
-                          {vendor.email && (
-                            <p className="text-sm text-muted-foreground truncate">{vendor.email}</p>
-                          )}
-                        </div>
-                      </div>
-                    ))
-                  )}
-                </div>
-              </ScrollArea>
-              </>
-            )}
 
-            <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
-              <div className="space-y-1">
-                <h3 className="text-sm font-medium">Quick Add Vendor</h3>
-                <p className="text-xs text-muted-foreground">
-                  Invite a subcontractor even if they are not in your address book yet. They can create their own account from the invite.
-                </p>
+                    <div className="flex flex-wrap gap-1">
+                      <Button
+                        variant={activeLetter === null ? "default" : "ghost"}
+                        size="sm"
+                        className="h-7 w-7 p-0 text-xs"
+                        onClick={() => {
+                          setActiveLetter(null);
+                          setVendorSearch('');
+                        }}
+                      >
+                        All
+                      </Button>
+                      {alphabet.map(letter => {
+                        const availableLetters = getAvailableLetters();
+                        const hasVendors = availableLetters.includes(letter);
+                        return (
+                          <Button
+                            key={letter}
+                            variant={activeLetter === letter ? "default" : "ghost"}
+                            size="sm"
+                            className="h-7 w-7 p-0 text-xs"
+                            disabled={!hasVendors}
+                            onClick={() => {
+                              setActiveLetter(letter);
+                              setVendorSearch('');
+                            }}
+                          >
+                            {letter}
+                          </Button>
+                        );
+                      })}
+                    </div>
+
+                    <ScrollArea className="max-h-[320px] pr-4">
+                      <div className="space-y-2">
+                        {getFilteredVendors().length === 0 ? (
+                          <div className="py-4 text-center text-muted-foreground">
+                            No vendors found matching your filters
+                          </div>
+                        ) : (
+                          getFilteredVendors().map(vendor => (
+                            <div
+                              key={vendor.id}
+                              className="flex items-center space-x-3 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
+                              onClick={() => toggleVendorSelection(vendor.id)}
+                            >
+                              <Checkbox
+                                checked={selectedVendors.includes(vendor.id)}
+                                onCheckedChange={() => toggleVendorSelection(vendor.id)}
+                              />
+                              <div className="flex-1 min-w-0">
+                                <p className="font-medium truncate">{vendor.name}</p>
+                                {vendor.email && (
+                                  <p className="text-sm text-muted-foreground truncate">{vendor.email}</p>
+                                )}
+                              </div>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    </ScrollArea>
+                  </>
+                )}
               </div>
-              <div className="grid gap-3 sm:grid-cols-2">
-                <div className="space-y-2">
-                  <Label htmlFor="quick-vendor-name">Vendor Name</Label>
-                  <Input
-                    id="quick-vendor-name"
-                    placeholder="Vendor or subcontractor"
-                    value={quickInviteForm.name}
-                    onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, name: e.target.value }))}
-                  />
+
+              <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-medium">Quick Add Vendor</h3>
+                  <p className="text-xs text-muted-foreground">
+                    Add and invite a subcontractor even if they are not in your address book yet.
+                  </p>
                 </div>
-                <div className="space-y-2">
-                  <Label htmlFor="quick-vendor-email">Email</Label>
-                  <Input
-                    id="quick-vendor-email"
-                    type="email"
-                    placeholder="name@company.com"
-                    value={quickInviteForm.email}
-                    onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, email: e.target.value }))}
-                  />
+                <div className="grid gap-3">
+                  <div className="space-y-2">
+                    <Label htmlFor="quick-vendor-name">Vendor Name</Label>
+                    <Input
+                      id="quick-vendor-name"
+                      placeholder="Vendor or subcontractor"
+                      value={quickInviteForm.name}
+                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, name: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quick-vendor-email">Email</Label>
+                    <Input
+                      id="quick-vendor-email"
+                      type="email"
+                      placeholder="name@company.com"
+                      value={quickInviteForm.email}
+                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, email: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quick-vendor-type">Vendor Type</Label>
+                    <Select value={quickInviteVendorType} onValueChange={setQuickInviteVendorType}>
+                      <SelectTrigger id="quick-vendor-type">
+                        <SelectValue placeholder="Select vendor type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="Contractor">Contractor</SelectItem>
+                        <SelectItem value="Supplier">Supplier</SelectItem>
+                        <SelectItem value="Design Professional">Design Professional</SelectItem>
+                        <SelectItem value="Other">Other</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="flex justify-end pt-2">
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={handleQuickInviteVendor}
+                      disabled={creatingQuickInvite}
+                    >
+                      <Plus className="h-4 w-4 mr-2" />
+                      {creatingQuickInvite ? 'Adding & Inviting...' : 'Quick Add & Invite'}
+                    </Button>
+                  </div>
                 </div>
+              </div>
+            </div>
+
+            <div className="rounded-lg border p-4 space-y-3">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                <div className="space-y-1">
+                  <h3 className="text-sm font-medium">Invitation Message</h3>
+                  <p className="text-xs text-muted-foreground">
+                    This message will be included in the RFP email.
+                  </p>
+                </div>
+                <Badge variant={inviteSenderPreview.mode === 'user' ? 'success' : inviteSenderPreview.mode === 'company' ? 'info' : 'outline'}>
+                  Sending From: {inviteSenderPreview.label}
+                </Badge>
+              </div>
+              <div className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                {inviteSenderPreview.description}
               </div>
               <div className="space-y-2">
-                <Label htmlFor="quick-vendor-type">Vendor Type</Label>
-                <Select value={quickInviteVendorType} onValueChange={setQuickInviteVendorType}>
-                  <SelectTrigger id="quick-vendor-type">
-                    <SelectValue placeholder="Select vendor type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Contractor">Contractor</SelectItem>
-                    <SelectItem value="Supplier">Supplier</SelectItem>
-                    <SelectItem value="Design Professional">Design Professional</SelectItem>
-                    <SelectItem value="Other">Other</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex justify-end">
-                <Button
-                  type="button"
-                  variant="secondary"
-                  onClick={handleQuickInviteVendor}
-                  disabled={creatingQuickInvite}
-                >
-                  <Plus className="h-4 w-4 mr-2" />
-                  {creatingQuickInvite ? 'Adding & Inviting...' : 'Quick Add & Invite'}
-                </Button>
+                <Label htmlFor="rfp-invite-message">Message</Label>
+                <Textarea
+                  id="rfp-invite-message"
+                  value={inviteMessage}
+                  onChange={(e) => setInviteMessage(e.target.value)}
+                  rows={7}
+                  placeholder="Add any scope notes, scheduling details, or instructions for invited vendors."
+                />
               </div>
             </div>
           </div>
@@ -2191,70 +2324,129 @@ export default function RFPDetails() {
             </CardContent>
           </Card>
 
-          <Card>
-            <CardHeader className="pb-3">
-              <div className="flex items-center justify-between gap-3">
-                <CardTitle>Plan Sets</CardTitle>
+          <section className="space-y-3">
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <h2 className="text-lg font-semibold">Plan Sets</h2>
                 {planPageSets.length > 0 ? (
-                  <Button variant="outline" size="sm" onClick={handleDownloadAttachedPlanPagesPdf}>
-                    Download Shared Plan PDF
-                  </Button>
+                  <Badge variant="outline">
+                    {planPageSets.length} set{planPageSets.length === 1 ? '' : 's'}
+                  </Badge>
                 ) : null}
               </div>
-            </CardHeader>
-            <CardContent>
+              {planPageSets.length > 0 ? (
+                <Button variant="outline" size="sm" onClick={handleDownloadAttachedPlanPagesPdf}>
+                  Download Shared Plan PDF
+                </Button>
+              ) : null}
+            </div>
+
+            <div className="overflow-hidden rounded-xl border bg-background/50">
               {planPageSets.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
+                <div className="px-4 py-5 text-sm text-muted-foreground">
                   No plan sets attached to this RFP yet.
-                </p>
+                </div>
               ) : (
-                <div className="overflow-hidden rounded-xl border bg-background/50">
-                  {planPageSets.map((planSet) => {
-                    const previewPage = planSet.pages[0];
-                    const pageCount = planSet.pages.length;
-                    return (
+                planPageSets.map((planSet) => {
+                  const previewPage = planSet.pages[0];
+                  const pageCount = planSet.pages.length;
+
+                  return (
                     <button
                       key={planSet.id}
                       type="button"
                       onClick={() => setPreviewPlanPage(previewPage)}
-                      className="flex w-full items-start justify-between gap-3 border-b px-4 py-3 text-left transition-colors hover:bg-muted/10 last:border-b-0"
+                      className="w-full border-b border-transparent bg-transparent px-4 py-3 text-left transition-colors hover:border-primary/70 hover:bg-primary/5 hover:ring-1 hover:ring-primary/20 last:border-b-0"
                     >
-                      <div className="flex min-w-0 gap-3">
-                        <PlanPageThumbnail
-                          thumbnailUrl={previewPage?.thumbnail_url}
-                          planFileUrl={previewPage?.plan_file_url}
-                          pageNumber={previewPage?.page_number || 1}
-                          alt={previewPage?.page_title || previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}
-                          className="h-16 w-16 rounded-lg border object-cover shrink-0 bg-background"
-                        />
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium">{planSet.plan_name}{planSet.plan_number ? ` #${planSet.plan_number}` : ''}</p>
-                            <Badge variant="outline">{pageCount} page{pageCount === 1 ? '' : 's'}</Badge>
-                            {pageCount === 1 && previewPage?.discipline ? <Badge variant="secondary">{previewPage.discipline}</Badge> : null}
-                            {pageCount === 1 && previewPage?.is_primary ? <Badge>Primary</Badge> : null}
-                            {planSet.noteCount > 0 ? (
-                              <Badge variant="secondary">
-                                {planSet.noteCount} linked note{planSet.noteCount === 1 ? '' : 's'}
+                      <div className="flex items-start justify-between gap-3">
+                        <div className="flex min-w-0 gap-3">
+                          <PlanPageThumbnail
+                            thumbnailUrl={previewPage?.thumbnail_url}
+                            planFileUrl={previewPage?.plan_file_url}
+                            pageNumber={previewPage?.page_number || 1}
+                            alt={previewPage?.page_title || previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}
+                            className="h-16 w-16 rounded-lg border object-cover shrink-0 bg-background"
+                          />
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium">
+                                {planSet.plan_name}
+                                {planSet.plan_number ? ` #${planSet.plan_number}` : ''}
+                              </p>
+                              <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                                {pageCount} page{pageCount === 1 ? '' : 's'}
                               </Badge>
+                              {pageCount === 1 && previewPage?.discipline ? (
+                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                  {previewPage.discipline}
+                                </Badge>
+                              ) : null}
+                              {pageCount === 1 && previewPage?.is_primary ? (
+                                <Badge className="h-5 px-1.5 text-[10px]">Primary</Badge>
+                              ) : null}
+                              {planSet.noteCount > 0 ? (
+                                <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                  {planSet.noteCount} linked note{planSet.noteCount === 1 ? '' : 's'}
+                                </Badge>
+                              ) : null}
+                            </div>
+                            <p className="truncate text-xs text-muted-foreground">
+                              {pageCount === 1
+                                ? `${previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}${previewPage?.page_title ? ` • ${previewPage.page_title}` : ''}`
+                                : `${pageCount} shared sheet${pageCount === 1 ? '' : 's'} from this set`}
+                            </p>
+                            {pageCount === 1 && previewPage?.note ? (
+                              <p className="text-xs text-muted-foreground whitespace-pre-wrap">{previewPage.note}</p>
                             ) : null}
                           </div>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {pageCount === 1
-                              ? `${previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}${previewPage?.page_title ? ` • ${previewPage.page_title}` : ''}`
-                              : `${pageCount} shared sheet${pageCount === 1 ? '' : 's'} from this set`}
-                          </p>
-                          {pageCount === 1 && previewPage?.note ? (
-                            <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{previewPage.note}</p>
-                          ) : null}
+                        </div>
+
+                        <div className="shrink-0">
+                          <Button
+                            type="button"
+                            size="sm"
+                            variant="outline"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              if (pageCount === 1 && previewPage?.plan_file_url) {
+                                void downloadSingleRfpPlanPagePdf({
+                                  page: {
+                                    plan_id: previewPage.plan_id,
+                                    plan_name: previewPage.plan_name,
+                                    plan_file_url: previewPage.plan_file_url,
+                                    page_number: previewPage.page_number,
+                                    sheet_number: previewPage.sheet_number,
+                                    page_title: previewPage.page_title,
+                                  },
+                                  fileName: `${rfp?.rfp_number || 'RFP'}_${previewPage.sheet_number || `Page-${previewPage.page_number}`}.pdf`,
+                                });
+                              } else {
+                                void downloadRfpPlanPagesPdf({
+                                  fileName: `${rfp?.rfp_number || 'RFP'}_${planSet.plan_name.replace(/[^\w.-]+/g, '_')}.pdf`,
+                                  pages: planSet.pages.map((page) => ({
+                                    plan_id: page.plan_id,
+                                    plan_name: page.plan_name,
+                                    plan_file_url: page.plan_file_url,
+                                    page_number: page.page_number,
+                                    sheet_number: page.sheet_number,
+                                    page_title: page.page_title,
+                                  })),
+                                });
+                              }
+                            }}
+                          >
+                            <Download className="mr-2 h-4 w-4" />
+                            Download
+                          </Button>
                         </div>
                       </div>
                     </button>
-                  )})}
-                </div>
+                  );
+                })
               )}
-            </CardContent>
-          </Card>
+            </div>
+          </section>
 
           <Card>
             <CardHeader className="flex flex-row items-center justify-between">

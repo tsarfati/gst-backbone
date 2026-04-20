@@ -256,6 +256,7 @@ function hslToHex(hsl: string): string {
        supabaseUrl,
        serviceRoleKey: supabaseServiceKey,
        resend,
+       senderUserId: requesterUserId,
        companyId,
        defaultFrom: inviteEmailFrom,
        to: [email],

@@ -3,6 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { BUILDERLYNK_EMAIL_LOGO_URL } from "../_shared/emailAssets.ts";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
+import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
 const inviteFrom = resolveBuilderlynkFrom(
@@ -44,8 +45,29 @@ const handler = async (req: Request): Promise<Response> => {
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
+    const supabaseAnonKey = Deno.env.get("SUPABASE_ANON_KEY")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
+
+    const authHeader = req.headers.get("Authorization");
+    if (!authHeader) {
+      return new Response(JSON.stringify({ error: "Missing Authorization header" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    const authed = createClient(supabaseUrl, supabaseAnonKey, {
+      global: { headers: { Authorization: authHeader } },
+    });
+    const token = authHeader.replace(/^Bearer\s+/i, "").trim();
+    const { data: authData, error: authError } = await authed.auth.getUser(token);
+    if (authError || !authData?.user?.id) {
+      return new Response(JSON.stringify({ error: "Unauthorized" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
 
     const { vendorId, vendorName, vendorEmail, companyId, companyName, invitedBy, baseUrl }: VendorInviteRequest = await req.json();
 
@@ -108,8 +130,13 @@ const handler = async (req: Request): Promise<Response> => {
     const companyLogo = companyRow?.logo_url ? escapeHtml(companyRow.logo_url) : null;
 
     // Send the email
-    const emailResponse = await resend.emails.send({
-      from: inviteFrom,
+    const emailResponse = await sendTransactionalEmailWithFallback({
+      supabaseUrl,
+      serviceRoleKey: supabaseServiceKey,
+      resend,
+      senderUserId: authData.user.id,
+      companyId,
+      defaultFrom: inviteFrom,
       to: [vendorEmail],
       subject: `${companyName} invited you to join BuilderLYNK`,
       html: `
@@ -171,6 +198,8 @@ const handler = async (req: Request): Promise<Response> => {
         </body>
         </html>
       `,
+      text: `${companyName} invited ${vendorName || vendorEmail} to join BuilderLYNK. Accept the invitation here: ${inviteLink}`,
+      context: "send-vendor-invite",
     });
 
     console.log("Vendor invite email sent successfully:", emailResponse);
