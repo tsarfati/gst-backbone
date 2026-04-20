@@ -1770,6 +1770,59 @@ export type Database = {
           },
         ]
       }
+      company_eagle_eye_integrations: {
+        Row: {
+          account_label: string | null
+          account_region: string | null
+          company_id: string
+          connected_at: string | null
+          connection_status: string
+          created_at: string
+          eagle_eye_account_id: string | null
+          id: string
+          last_connection_error: string | null
+          provider_account_email: string | null
+          provider_portal_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_label?: string | null
+          account_region?: string | null
+          company_id: string
+          connected_at?: string | null
+          connection_status?: string
+          created_at?: string
+          eagle_eye_account_id?: string | null
+          id?: string
+          last_connection_error?: string | null
+          provider_account_email?: string | null
+          provider_portal_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_label?: string | null
+          account_region?: string | null
+          company_id?: string
+          connected_at?: string | null
+          connection_status?: string
+          created_at?: string
+          eagle_eye_account_id?: string | null
+          id?: string
+          last_connection_error?: string | null
+          provider_account_email?: string | null
+          provider_portal_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "company_eagle_eye_integrations_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       company_email_settings: {
         Row: {
           company_id: string
@@ -2005,36 +2058,6 @@ export type Database = {
           },
         ]
       }
-      company_settings: {
-        Row: {
-          company_id: string
-          created_at: string
-          id: string
-          payment_terms_options: string[]
-          require_bill_approval: boolean
-          updated_at: string
-          use_accrual_accounting: boolean
-        }
-        Insert: {
-          company_id: string
-          created_at?: string
-          id?: string
-          payment_terms_options?: string[]
-          require_bill_approval?: boolean
-          updated_at?: string
-          use_accrual_accounting?: boolean
-        }
-        Update: {
-          company_id?: string
-          created_at?: string
-          id?: string
-          payment_terms_options?: string[]
-          require_bill_approval?: boolean
-          updated_at?: string
-          use_accrual_accounting?: boolean
-        }
-        Relationships: []
-      }
       company_jobsitelynk_integrations: {
         Row: {
           company_id: string
@@ -2075,14 +2098,14 @@ export type Database = {
           id?: string
           jobsitelynk_base_url?: string
           last_connection_error?: string | null
-          shared_secret?: string
+          shared_secret?: string | null
           updated_at?: string
         }
         Relationships: [
           {
             foreignKeyName: "company_jobsitelynk_integrations_company_id_fkey"
             columns: ["company_id"]
-            isOneToOne: false
+            isOneToOne: true
             referencedRelation: "companies"
             referencedColumns: ["id"]
           },
@@ -2131,6 +2154,36 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      company_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          payment_terms_options: string[]
+          require_bill_approval: boolean
+          updated_at: string
+          use_accrual_accounting: boolean
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          payment_terms_options?: string[]
+          require_bill_approval?: boolean
+          updated_at?: string
+          use_accrual_accounting?: boolean
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          payment_terms_options?: string[]
+          require_bill_approval?: boolean
+          updated_at?: string
+          use_accrual_accounting?: boolean
+        }
+        Relationships: []
       }
       company_sms_settings: {
         Row: {
@@ -5366,6 +5419,76 @@ export type Database = {
           },
         ]
       }
+      job_security_camera_mappings: {
+        Row: {
+          access_notes: string | null
+          camera_external_id: string | null
+          camera_name: string
+          company_id: string
+          created_at: string
+          id: string
+          is_active: boolean
+          job_id: string
+          location_label: string | null
+          provider: string
+          provider_camera_url: string | null
+          stream_url: string | null
+          updated_at: string
+        }
+        Insert: {
+          access_notes?: string | null
+          camera_external_id?: string | null
+          camera_name: string
+          company_id: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          job_id: string
+          location_label?: string | null
+          provider?: string
+          provider_camera_url?: string | null
+          stream_url?: string | null
+          updated_at?: string
+        }
+        Update: {
+          access_notes?: string | null
+          camera_external_id?: string | null
+          camera_name?: string
+          company_id?: string
+          created_at?: string
+          id?: string
+          is_active?: boolean
+          job_id?: string
+          location_label?: string | null
+          provider?: string
+          provider_camera_url?: string | null
+          stream_url?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_security_camera_mappings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_security_camera_mappings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_security_camera_mappings_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_settings: {
         Row: {
           allow_status_change_roles: string[]
@@ -7699,6 +7822,7 @@ export type Database = {
       punch_records: {
         Row: {
           accuracy_meters: number | null
+          accuracyMeters: number | null
           company_id: string
           cost_code_id: string | null
           created_at: string
@@ -7717,6 +7841,7 @@ export type Database = {
         }
         Insert: {
           accuracy_meters?: number | null
+          accuracyMeters?: number | null
           company_id: string
           cost_code_id?: string | null
           created_at?: string
@@ -7735,6 +7860,7 @@ export type Database = {
         }
         Update: {
           accuracy_meters?: number | null
+          accuracyMeters?: number | null
           company_id?: string
           cost_code_id?: string | null
           created_at?: string
@@ -8493,6 +8619,231 @@ export type Database = {
             columns: ["vendor_id"]
             isOneToOne: false
             referencedRelation: "vendors_safe"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfp_issue_package_items: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          package_id: string
+          plan_id: string
+          sort_order: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          package_id: string
+          plan_id: string
+          sort_order?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          package_id?: string
+          plan_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfp_issue_package_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_issue_package_items_package_id_fkey"
+            columns: ["package_id"]
+            isOneToOne: false
+            referencedRelation: "rfp_issue_packages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_issue_package_items_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "job_plans"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfp_issue_packages: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          id: string
+          name: string
+          rfp_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name: string
+          rfp_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          id?: string
+          name?: string
+          rfp_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfp_issue_packages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_issue_packages_rfp_id_fkey"
+            columns: ["rfp_id"]
+            isOneToOne: true
+            referencedRelation: "rfps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfp_plan_page_notes: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          height: number
+          id: string
+          note_text: string | null
+          rfp_plan_page_id: string
+          shape_type: string
+          sort_order: number
+          width: number
+          x: number
+          y: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          height: number
+          id?: string
+          note_text?: string | null
+          rfp_plan_page_id: string
+          shape_type?: string
+          sort_order?: number
+          width: number
+          x: number
+          y: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          height?: number
+          id?: string
+          note_text?: string | null
+          rfp_plan_page_id?: string
+          shape_type?: string
+          sort_order?: number
+          width?: number
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfp_plan_page_notes_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_plan_page_notes_rfp_plan_page_id_fkey"
+            columns: ["rfp_plan_page_id"]
+            isOneToOne: false
+            referencedRelation: "rfp_plan_pages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      rfp_plan_pages: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string | null
+          id: string
+          is_primary: boolean
+          note: string | null
+          plan_id: string
+          plan_page_id: string
+          rfp_id: string
+          sort_order: number
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_primary?: boolean
+          note?: string | null
+          plan_id: string
+          plan_page_id: string
+          rfp_id: string
+          sort_order?: number
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          is_primary?: boolean
+          note?: string | null
+          plan_id?: string
+          plan_page_id?: string
+          rfp_id?: string
+          sort_order?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfp_plan_pages_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_plan_pages_plan_id_fkey"
+            columns: ["plan_id"]
+            isOneToOne: false
+            referencedRelation: "job_plans"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_plan_pages_plan_page_id_fkey"
+            columns: ["plan_page_id"]
+            isOneToOne: false
+            referencedRelation: "plan_pages"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_plan_pages_rfp_id_fkey"
+            columns: ["rfp_id"]
+            isOneToOne: false
+            referencedRelation: "rfps"
             referencedColumns: ["id"]
           },
         ]
@@ -11334,6 +11685,22 @@ export type Database = {
         Args: { p_request_id: string }
         Returns: undefined
       }
+      audit_company_unknown_employee_access: {
+        Args: { p_company_name: string }
+        Returns: {
+          access_role: string
+          active_company_access_count: number
+          company_id: string
+          company_name: string
+          current_company_id: string
+          display_name: string
+          first_name: string
+          job_access_count: number
+          last_name: string
+          profile_exists: boolean
+          user_id: string
+        }[]
+      }
       audit_duplicate_pin_codes: {
         Args: never
         Returns: {
@@ -11599,6 +11966,7 @@ export type Database = {
       }
       get_user_tenant_id: { Args: { _user_id: string }; Returns: string }
       get_user_vendor_id: { Args: { _user_id: string }; Returns: string }
+      get_user_vendor_ids: { Args: { _user_id: string }; Returns: string[] }
       has_company_access: {
         Args: { _company_id: string; _user_id: string }
         Returns: boolean
@@ -11628,9 +11996,14 @@ export type Database = {
         Returns: boolean
       }
       is_vendor_user: { Args: { _user_id: string }; Returns: boolean }
-      mark_vendor_rfps_viewed: {
-        Args: { p_rfp_ids: string[] }
-        Returns: undefined
+      log_user_login_event: {
+        Args: {
+          p_app_source?: string
+          p_login_method?: string
+          p_success?: boolean
+          p_user_agent?: string
+        }
+        Returns: string
       }
       mark_message_read: {
         Args: { p_message_id: string; p_user_id: string }
@@ -11638,6 +12011,10 @@ export type Database = {
       }
       mark_thread_read: {
         Args: { p_other_user_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      mark_vendor_rfps_viewed: {
+        Args: { p_rfp_ids: string[] }
         Returns: undefined
       }
       normalize_message_attachment_ref: {
@@ -11793,6 +12170,10 @@ export type Database = {
       }
       user_has_privileged_company_job_access: {
         Args: { _company: string; _user: string }
+        Returns: boolean
+      }
+      user_has_vendor_access: {
+        Args: { _user_id: string; _vendor_id: string }
         Returns: boolean
       }
       user_in_company_tenant: {

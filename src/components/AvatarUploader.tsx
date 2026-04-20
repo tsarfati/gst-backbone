@@ -38,18 +38,12 @@ export default function AvatarUploader({ value, onChange, disabled, userId }: Av
       if (pinUserStr) {
         const { pin } = JSON.parse(pinUserStr);
         const base64 = await fileToBase64(file);
-        const res = await fetch('https://watxvzoolmfjfijrgcvq.supabase.co/functions/v1/punch-clock/upload-avatar', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'apikey': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q',
-            'Authorization': 'Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6IndhdHh2em9vbG1mamZpanJnY3ZxIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTgzMzYxNzMsImV4cCI6MjA3MzkxMjE3M30.0VEGVyFVxDLkv3yNd31_tPZdeeoQQaGZVT4Jsf0eC8Q'
-          },
-          body: JSON.stringify({ pin, image: base64 })
+        const { data, error } = await supabase.functions.invoke('punch-clock/upload-avatar', {
+          body: { pin, image: base64 },
         });
-        const data = await res.json();
-        console.log('[AvatarUploader] Upload response:', res.status, data);
-        if (!res.ok) throw new Error(data?.error || 'Upload failed');
+        console.log('[AvatarUploader] Upload response:', data, error);
+        if (error) throw new Error(error.message || 'Upload failed');
+        if (!data?.publicUrl) throw new Error(data?.error || 'Upload failed');
         onChange(data.publicUrl);
         console.log('[AvatarUploader] Called onChange with:', data.publicUrl);
         toast({ title: 'Avatar updated', description: 'Your photo has been uploaded.' });

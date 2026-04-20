@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import DOMPurify from 'dompurify';
 
 interface EmailTemplate {
   id: string;
@@ -98,7 +99,10 @@ export default function EmailTemplatePreview() {
           <div className="border rounded-lg p-4 bg-background">
             <div 
               className="prose max-w-none"
-              dangerouslySetInnerHTML={{ __html: template.html_content }}
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(template.html_content, {
+                ALLOWED_TAGS: ['p','div','span','h1','h2','h3','h4','h5','h6','img','table','thead','tbody','tr','td','th','strong','em','b','i','u','br','hr','ul','ol','li','a','blockquote','pre','code','figure','figcaption'],
+                ALLOWED_ATTR: ['class','style','src','alt','href','title','width','height','align','colspan','rowspan','target','rel'],
+              }) }}
             />
           </div>
         </CardContent>
