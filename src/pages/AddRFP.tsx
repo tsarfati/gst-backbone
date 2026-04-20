@@ -548,6 +548,57 @@ export default function AddRFP() {
   };
 
   const selectedPlanSetRecords = availablePlanSets.filter((plan) => selectedFullPlanSetIds.includes(plan.id));
+  const selectedPlanSetSummaries = Array.from(
+    selectedPlanPages.reduce<Map<string, {
+      planId: string;
+      planName: string;
+      planNumber: string | null;
+      thumbnailUrl: string | null;
+      selectedPageCount: number;
+      fullSetSelected: boolean;
+      noteCount: number;
+      hasPrimary: boolean;
+      firstPageLabel: string;
+      firstPageTitle: string | null;
+    }>>((map, page) => {
+      const existing = map.get(page.plan_id);
+      if (existing) {
+        existing.selectedPageCount += 1;
+        existing.noteCount += (page.callouts || []).length;
+        existing.hasPrimary = existing.hasPrimary || !!page.is_primary;
+        return map;
+      }
+
+      map.set(page.plan_id, {
+        planId: page.plan_id,
+        planName: page.plan_name,
+        planNumber: page.plan_number || null,
+        thumbnailUrl: page.thumbnail_url || null,
+        selectedPageCount: 1,
+        fullSetSelected: selectedFullPlanSetIds.includes(page.plan_id),
+        noteCount: (page.callouts || []).length,
+        hasPrimary: !!page.is_primary,
+        firstPageLabel: page.sheet_number || `Page ${page.page_number}`,
+        firstPageTitle: page.page_title || null,
+      });
+      return map;
+    }, new Map()).values(),
+  );
+  const planSetOnlySummaries = selectedPlanSetRecords
+    .filter((plan) => !selectedPlanSetSummaries.some((summary) => summary.planId === plan.id))
+    .map((plan) => ({
+      planId: plan.id,
+      planName: plan.plan_name,
+      planNumber: plan.plan_number || null,
+      thumbnailUrl: null,
+      selectedPageCount: 0,
+      fullSetSelected: true,
+      noteCount: 0,
+      hasPrimary: false,
+      firstPageLabel: 'Full plan set',
+      firstPageTitle: null,
+    }));
+  const groupedSelectedPlanSets = [...selectedPlanSetSummaries, ...planSetOnlySummaries];
   const selectedJobFileRecords = availableJobFiles.filter((file) => selectedJobFileIds.includes(file.id));
   const folderChildrenByParent = availableJobFolders.reduce<Record<string, JobFolder[]>>((acc, folder) => {
     const key = folder.parent_folder_id || '__root__';
@@ -951,9 +1002,9 @@ export default function AddRFP() {
               <>
                 <div className="flex items-center justify-between gap-3">
                   <div className="text-sm text-muted-foreground">
-                    {selectedPlanPages.length === 0
-                      ? 'No plan pages attached yet.'
-                      : `${selectedPlanPages.length} plan page${selectedPlanPages.length !== 1 ? 's' : ''} attached`}
+                    {groupedSelectedPlanSets.length === 0
+                      ? 'No plan sets attached yet.'
+                      : `${groupedSelectedPlanSets.length} plan set${groupedSelectedPlanSets.length !== 1 ? 's' : ''} attached`}
                   </div>
                   <div className="flex items-center gap-2">
                     <Button type="button" variant="outline" onClick={() => setPlanSetPickerOpen(true)}>
@@ -967,98 +1018,52 @@ export default function AddRFP() {
                   </div>
                 </div>
 
-                {selectedPlanPages.length > 0 && (
+                {groupedSelectedPlanSets.length > 0 && (
                   <div className="rounded-md border divide-y">
-                    {selectedPlanPages.map((page, index) => (
-                      <div key={page.plan_page_id} className="flex items-start justify-between gap-3 px-4 py-3">
-                        {page.thumbnail_url ? (
+                    {groupedSelectedPlanSets.map((planSet) => (
+                      <div key={planSet.planId} className="flex items-start justify-between gap-3 px-4 py-3">
+                        {planSet.thumbnailUrl ? (
                           <img
-                            src={page.thumbnail_url}
-                            alt={page.page_title || page.sheet_number || `Page ${page.page_number}`}
+                            src={planSet.thumbnailUrl}
+                            alt={planSet.planName}
                             className="h-20 w-14 rounded border object-cover shrink-0 bg-background"
                           />
                         ) : (
                           <div className="h-20 w-14 rounded border shrink-0 bg-muted/30 flex items-center justify-center text-xs text-muted-foreground">
-                            P{page.page_number}
+                            Set
                           </div>
                         )}
                         <div className="min-w-0 flex-1 space-y-2">
                           <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium">
-                              {page.sheet_number || `Page ${page.page_number}`}
-                            </p>
-                            <Badge variant="outline">{page.plan_name}</Badge>
-                            {page.plan_number ? <Badge variant="outline">#{page.plan_number}</Badge> : null}
-                            {page.discipline ? <Badge variant="secondary">{page.discipline}</Badge> : null}
-                            {page.is_primary ? <Badge>Primary</Badge> : null}
-                            {(page.callouts || []).length > 0 ? (
+                            <p className="font-medium">{planSet.planName}</p>
+                            {planSet.planNumber ? <Badge variant="outline">#{planSet.planNumber}</Badge> : null}
+                            <Badge variant="outline">
+                              {planSet.fullSetSelected
+                                ? 'Full plan set'
+                                : `${planSet.selectedPageCount} selected page${planSet.selectedPageCount === 1 ? '' : 's'}`}
+                            </Badge>
+                            {planSet.hasPrimary ? <Badge>Primary Page Included</Badge> : null}
+                            {planSet.noteCount > 0 ? (
                               <Badge variant="secondary">
-                                {(page.callouts || []).length} linked note{(page.callouts || []).length === 1 ? '' : 's'}
+                                {planSet.noteCount} linked note{planSet.noteCount === 1 ? '' : 's'}
                               </Badge>
                             ) : null}
                           </div>
                           <p className="text-sm text-muted-foreground truncate">
-                            {page.page_title || 'Untitled sheet'}
+                            {planSet.fullSetSelected
+                              ? 'All pages in this plan set will be included on the RFP.'
+                              : `${planSet.firstPageLabel}${planSet.firstPageTitle ? ` • ${planSet.firstPageTitle}` : ''}`}
                           </p>
-                          <Textarea
-                            value={page.note || ''}
-                            onChange={(e) =>
-                              setSelectedPlanPages((prev) =>
-                                prev.map((entry) =>
-                                  entry.plan_page_id === page.plan_page_id
-                                    ? { ...entry, note: e.target.value }
-                                    : entry,
-                                ),
-                              )
-                            }
-                            rows={2}
-                            placeholder="Optional note for bidders about this sheet"
-                            className="text-sm"
-                          />
                         </div>
                         <div className="flex items-center gap-2 shrink-0">
-                          <div className="flex items-center gap-1">
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="outline"
-                              disabled={index === 0}
-                              onClick={() => moveSelectedPlanPage(index, index - 1)}
-                            >
-                              <ArrowUp className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              type="button"
-                              size="icon"
-                              variant="outline"
-                              disabled={index === selectedPlanPages.length - 1}
-                              onClick={() => moveSelectedPlanPage(index, index + 1)}
-                            >
-                              <ArrowDown className="h-4 w-4" />
-                            </Button>
-                          </div>
-                          <Button
-                            type="button"
-                            size="sm"
-                            variant={page.is_primary ? 'default' : 'outline'}
-                            onClick={() =>
-                              setSelectedPlanPages((prev) =>
-                                prev.map((entry, entryIndex) => ({
-                                  ...entry,
-                                  is_primary: entryIndex === index,
-                                })),
-                              )
-                            }
-                          >
-                            Set Primary
-                          </Button>
                           <Button
                             type="button"
                             size="icon"
                             variant="ghost"
-                            onClick={() =>
-                              setSelectedPlanPages((prev) => prev.filter((entry) => entry.plan_page_id !== page.plan_page_id))
-                            }
+                            onClick={() => {
+                              setSelectedPlanPages((prev) => prev.filter((entry) => entry.plan_id !== planSet.planId));
+                              setSelectedFullPlanSetIds((prev) => prev.filter((id) => id !== planSet.planId));
+                            }}
                           >
                             <X className="h-4 w-4" />
                           </Button>
@@ -1067,43 +1072,6 @@ export default function AddRFP() {
                     ))}
                   </div>
                 )}
-
-                <div className="space-y-2">
-                  <div className="flex items-center justify-between gap-3">
-                    <div className="text-sm font-medium">Selected Plan Sets</div>
-                    {selectedPlanSetRecords.length > 0 ? (
-                      <div className="text-xs text-muted-foreground">
-                        {selectedPlanSetRecords.length} plan set{selectedPlanSetRecords.length === 1 ? '' : 's'} selected
-                      </div>
-                    ) : null}
-                  </div>
-                  <div className="rounded-md border divide-y">
-                    {selectedPlanSetRecords.length === 0 ? (
-                      <div className="px-3 py-4 text-sm text-muted-foreground">
-                        No full plan sets selected yet.
-                      </div>
-                    ) : (
-                      selectedPlanSetRecords.map((plan) => (
-                        <div key={plan.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
-                          <div className="min-w-0">
-                            <div className="font-medium">{plan.plan_name}</div>
-                            <div className="text-muted-foreground">
-                              {plan.plan_number ? `#${plan.plan_number}` : 'No plan set number'}
-                            </div>
-                          </div>
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => setSelectedFullPlanSetIds((prev) => prev.filter((id) => id !== plan.id))}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      ))
-                    )}
-                  </div>
-                </div>
               </>
             )}
           </CardContent>

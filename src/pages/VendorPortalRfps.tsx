@@ -818,6 +818,43 @@ export default function VendorPortalRfps() {
     () => selectedPlanSet?.pages.find((page) => page.id === selectedPlanSetPageId) || selectedPlanSet?.pages[0] || null,
     [selectedPlanSet, selectedPlanSetPageId],
   );
+  const bidDialogPlanSets = useMemo(() => {
+    if (!selectedRfpForBid) return [];
+
+    const grouped = new Map<string, {
+      id: string;
+      plan_id: string;
+      plan_name: string;
+      plan_number: string | null;
+      plan_file_url: string | null;
+      pages: DetailedPlanPage[];
+      noteCount: number;
+    }>();
+
+    selectedRfpForBid.plan_pages.forEach((page) => {
+      const key = page.plan_id || page.id;
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.pages.push(page);
+        existing.noteCount += page.callouts.length;
+        return;
+      }
+      grouped.set(key, {
+        id: key,
+        plan_id: page.plan_id,
+        plan_name: page.plan_name,
+        plan_number: page.plan_number,
+        plan_file_url: page.plan_file_url,
+        pages: [page],
+        noteCount: page.callouts.length,
+      });
+    });
+
+    return Array.from(grouped.values()).map((set) => ({
+      ...set,
+      pages: [...set.pages].sort((a, b) => a.page_number - b.page_number),
+    }));
+  }, [selectedRfpForBid]);
 
   const openBidDialog = (rfp: DetailedVendorRfp) => {
     const noteSections = parseBidNotes(rfp.my_bid?.notes || null);
@@ -1447,7 +1484,7 @@ export default function VendorPortalRfps() {
               </div>
               <div className="overflow-hidden rounded-xl border bg-background/50">
                 {selectedDetailPlanSets.length === 0 ? (
-                  <div className="px-4 py-5 text-sm text-muted-foreground">No plan pages attached to this RFP yet.</div>
+                  <div className="px-4 py-5 text-sm text-muted-foreground">No plan sets attached to this RFP yet.</div>
                 ) : (
                   selectedDetailPlanSets.map((planSet) => {
                     const previewPage = planSet.pages[0];
@@ -2331,52 +2368,66 @@ export default function VendorPortalRfps() {
                       <div className="rounded-lg border bg-muted/20 p-3">
                         <div className="mb-2 flex items-center justify-between gap-3">
                           <div>
-                            <p className="text-sm font-medium">Attached Plan Pages</p>
-                            <p className="text-xs text-muted-foreground">Click a sheet to open the attached plan preview.</p>
+                            <p className="text-sm font-medium">Plan Sets</p>
+                            <p className="text-xs text-muted-foreground">Open a plan set to review the shared pages inside it.</p>
                           </div>
-                          <Badge variant="outline">{rfp.plan_pages.length}</Badge>
+                          <Badge variant="outline">{bidDialogPlanSets.length}</Badge>
                         </div>
-                      {rfp.plan_pages.length === 0 ? (
-                        <p className="text-xs text-muted-foreground">No plan pages attached to this RFP yet.</p>
+                      {bidDialogPlanSets.length === 0 ? (
+                        <p className="text-xs text-muted-foreground">No plan sets attached to this RFP yet.</p>
                       ) : (
                         <div className="space-y-2">
-                          {rfp.plan_pages.map((page) => (
+                          {bidDialogPlanSets.map((planSet) => {
+                            const previewPage = planSet.pages[0];
+                            const pageCount = planSet.pages.length;
+                            return (
                             <button
-                              key={page.id}
+                              key={planSet.id}
                               type="button"
-                              onClick={() => setSelectedPlanPage(page)}
+                              onClick={() => openPlanSetPreview(planSet.id, previewPage?.id)}
                               className="w-full rounded-md border bg-background p-3 text-left transition-colors hover:border-primary/40 hover:bg-muted/30"
                             >
                               <div className="flex items-start gap-3">
                                 <div className="flex min-w-0 gap-3">
-                                  {page.thumbnail_url ? (
+                                  {previewPage?.thumbnail_url ? (
                                     <img
-                                      src={page.thumbnail_url}
-                                      alt={page.sheet_number || `Page ${page.page_number}`}
+                                      src={previewPage.thumbnail_url}
+                                      alt={previewPage.sheet_number || `Page ${previewPage.page_number}`}
                                       className="h-16 w-12 rounded border object-cover shrink-0 bg-muted"
                                     />
                                   ) : (
                                     <div className="flex h-16 w-12 shrink-0 items-center justify-center rounded border bg-muted text-[10px] text-muted-foreground">
-                                      Pg {page.page_number}
+                                      Pg {previewPage?.page_number || 1}
                                     </div>
                                   )}
                                   <div className="min-w-0">
                                     <div className="flex flex-wrap items-center gap-2">
-                                      <p className="font-medium">{page.sheet_number || `Page ${page.page_number}`}</p>
-                                      {page.is_primary ? <Badge className="h-5 px-1.5 text-[10px]">Primary</Badge> : null}
-                                      {page.callouts.length > 0 ? <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">{page.callouts.length} note{page.callouts.length === 1 ? "" : "s"}</Badge> : null}
+                                      <p className="font-medium">
+                                        {planSet.plan_name}
+                                        {planSet.plan_number ? ` #${planSet.plan_number}` : ""}
+                                      </p>
+                                      <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                                        {pageCount} page{pageCount === 1 ? "" : "s"}
+                                      </Badge>
+                                      {planSet.noteCount > 0 ? (
+                                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                          {planSet.noteCount} note{planSet.noteCount === 1 ? "" : "s"}
+                                        </Badge>
+                                      ) : null}
                                     </div>
                                     <p className="truncate text-xs text-muted-foreground">
-                                      {page.plan_name}
-                                      {page.plan_number ? ` #${page.plan_number}` : ""}
-                                      {page.page_title ? ` • ${page.page_title}` : ""}
+                                      {pageCount === 1
+                                        ? `${previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}${previewPage?.page_title ? ` • ${previewPage.page_title}` : ""}`
+                                        : `${pageCount} shared sheet${pageCount === 1 ? "" : "s"} from this set`}
                                     </p>
-                                    {page.note ? <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{page.note}</p> : null}
+                                    {pageCount === 1 && previewPage?.note ? (
+                                      <p className="mt-1 text-xs text-muted-foreground whitespace-pre-wrap">{previewPage.note}</p>
+                                    ) : null}
                                   </div>
                                 </div>
                               </div>
                             </button>
-                          ))}
+                          )})}
                         </div>
                       )}
                     </div>

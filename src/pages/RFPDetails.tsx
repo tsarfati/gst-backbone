@@ -2197,7 +2197,7 @@ export default function RFPDetails() {
                 <CardTitle>Plan Sets</CardTitle>
                 {planPageSets.length > 0 ? (
                   <Button variant="outline" size="sm" onClick={handleDownloadAttachedPlanPagesPdf}>
-                    Download Attached Pages PDF
+                    Download Shared Plan PDF
                   </Button>
                 ) : null}
               </div>
@@ -2205,7 +2205,7 @@ export default function RFPDetails() {
             <CardContent>
               {planPageSets.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No plan pages attached to this RFP yet.
+                  No plan sets attached to this RFP yet.
                 </p>
               ) : (
                 <div className="overflow-hidden rounded-xl border bg-background/50">
