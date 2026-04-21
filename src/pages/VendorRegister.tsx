@@ -80,6 +80,41 @@ export default function VendorRegister() {
     confirmPassword: ''
   });
 
+  const vendorType = String((invitation?.vendor as any)?.vendor_type || '').toLowerCase();
+  const isDesignProfessional = vendorType === 'design_professional';
+  const companyName = companyBranding?.display_name || companyBranding?.name || (invitation?.company as any)?.name || 'BuilderLYNK';
+  const selectedSignupLogoUrl = useMemo(
+    () =>
+      resolveCompanyLogoUrl(
+        companyBranding?.vendor_portal_signup_header_logo_url
+        || companyBranding?.vendor_portal_signup_company_logo_url
+        || companyBranding?.logo_url
+        || (invitation?.company as any)?.logo_url,
+      ),
+    [
+      companyBranding?.vendor_portal_signup_header_logo_url,
+      companyBranding?.vendor_portal_signup_company_logo_url,
+      companyBranding?.logo_url,
+      (invitation?.company as any)?.logo_url,
+    ],
+  );
+  const selectedCompanyBackgroundUrl = useMemo(
+    () => resolveCompanyLogoUrl(companyBranding?.vendor_portal_signup_background_image_url),
+    [companyBranding?.vendor_portal_signup_background_image_url],
+  );
+  const selectedCompanyBackgroundColor = String(companyBranding?.vendor_portal_signup_background_color || '#030B20').trim();
+  const selectedCompanyModalColor = String(companyBranding?.vendor_portal_signup_modal_color || '#071231').trim();
+  const selectedCompanyModalOpacity = Math.min(
+    1,
+    Math.max(0.1, Number(companyBranding?.vendor_portal_signup_modal_opacity ?? 0.96)),
+  );
+  const landingTitle = isDesignProfessional ? 'Create Your Design Professional Account' : 'Create Your Vendor Account';
+  const defaultLandingSubtitle = isDesignProfessional
+    ? `You've been invited by ${companyName} to join as a design professional.`
+    : `You've been invited by ${companyName} to join as a vendor.`;
+  const brandedHeaderTitle = String(companyBranding?.vendor_portal_signup_header_title || '').trim() || landingTitle;
+  const brandedHeaderSubtitle = String(companyBranding?.vendor_portal_signup_header_subtitle || '').trim() || defaultLandingSubtitle;
+
   useEffect(() => {
     if (token) {
       validateToken();
@@ -293,41 +328,6 @@ export default function VendorRegister() {
       </div>
     );
   }
-
-  const vendorType = String((invitation?.vendor as any)?.vendor_type || '').toLowerCase();
-  const isDesignProfessional = vendorType === 'design_professional';
-  const companyName = companyBranding?.display_name || companyBranding?.name || (invitation?.company as any)?.name || 'BuilderLYNK';
-  const selectedSignupLogoUrl = useMemo(
-    () =>
-      resolveCompanyLogoUrl(
-        companyBranding?.vendor_portal_signup_header_logo_url
-        || companyBranding?.vendor_portal_signup_company_logo_url
-        || companyBranding?.logo_url
-        || (invitation?.company as any)?.logo_url,
-      ),
-    [
-      companyBranding?.vendor_portal_signup_header_logo_url,
-      companyBranding?.vendor_portal_signup_company_logo_url,
-      companyBranding?.logo_url,
-      (invitation?.company as any)?.logo_url,
-    ],
-  );
-  const selectedCompanyBackgroundUrl = useMemo(
-    () => resolveCompanyLogoUrl(companyBranding?.vendor_portal_signup_background_image_url),
-    [companyBranding?.vendor_portal_signup_background_image_url],
-  );
-  const selectedCompanyBackgroundColor = String(companyBranding?.vendor_portal_signup_background_color || '#030B20').trim();
-  const selectedCompanyModalColor = String(companyBranding?.vendor_portal_signup_modal_color || '#071231').trim();
-  const selectedCompanyModalOpacity = Math.min(
-    1,
-    Math.max(0.1, Number(companyBranding?.vendor_portal_signup_modal_opacity ?? 0.96)),
-  );
-  const landingTitle = isDesignProfessional ? 'Create Your Design Professional Account' : 'Create Your Vendor Account';
-  const defaultLandingSubtitle = isDesignProfessional
-    ? `You've been invited by ${companyName} to join as a design professional.`
-    : `You've been invited by ${companyName} to join as a vendor.`;
-  const brandedHeaderTitle = String(companyBranding?.vendor_portal_signup_header_title || '').trim() || landingTitle;
-  const brandedHeaderSubtitle = String(companyBranding?.vendor_portal_signup_header_subtitle || '').trim() || defaultLandingSubtitle;
 
   return (
     <div
