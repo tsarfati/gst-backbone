@@ -1089,6 +1089,7 @@ function EmailSettingsTab() {
   const [uploadingSignatureImage, setUploadingSignatureImage] = useState(false);
   const [testEmail, setTestEmail] = useState('');
   const signatureImageInputRef = useRef<HTMLInputElement>(null);
+  const [hasStoredSmtpPassword, setHasStoredSmtpPassword] = useState(false);
   const [settings, setSettings] = useState({
     smtp_host: '',
     smtp_port: 587,
@@ -1126,6 +1127,7 @@ function EmailSettingsTab() {
         .eq('user_id', user.id)
         .maybeSingle();
       if (data) {
+        setHasStoredSmtpPassword(Boolean(data.smtp_password_encrypted));
         setSettings({
           smtp_host: data.smtp_host || '',
           smtp_port: data.smtp_port || 587,
@@ -1162,11 +1164,18 @@ function EmailSettingsTab() {
         from_name: settings.from_name,
         use_ssl: settings.use_ssl,
         email_signature: settings.email_signature,
-        is_configured: !!(settings.smtp_host && settings.smtp_username && settings.from_email),
+        is_configured: !!(
+          settings.smtp_host &&
+          settings.smtp_port &&
+          settings.smtp_username &&
+          (settings.smtp_password || hasStoredSmtpPassword) &&
+          settings.from_email
+        ),
       };
 
       if (settings.smtp_password) {
         payload.smtp_password_encrypted = settings.smtp_password;
+        setHasStoredSmtpPassword(true);
       }
       if (settings.imap_password) {
         payload.imap_password_encrypted = settings.imap_password;

@@ -20,6 +20,7 @@ import MentionTextarea from "@/components/MentionTextarea";
 import { createMentionNotifications } from "@/utils/mentions";
 import type { Json } from "@/integrations/supabase/types";
 import { getPublicAuthOrigin } from "@/utils/publicAuthOrigin";
+import { loadEmailSenderPreview, type EmailSenderPreview } from "@/utils/emailSenderPreview";
 
 interface JobRFIsProps {
   jobId: string;
@@ -49,12 +50,6 @@ interface Profile {
   last_name: string;
   email?: string | null;
 }
-
-type InviteSenderPreview = {
-  mode: "user" | "company" | "builderlynk";
-  label: string;
-  description: string;
-};
 
 interface RFIMessage {
   id: string;
@@ -94,9 +89,10 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
   const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
   const [submitTargetRfi, setSubmitTargetRfi] = useState<RFI | null>(null);
   const [submitMessage, setSubmitMessage] = useState("");
-  const [submitSenderPreview, setSubmitSenderPreview] = useState<InviteSenderPreview>({
+  const [submitSenderPreview, setSubmitSenderPreview] = useState<EmailSenderPreview>({
     mode: "builderlynk",
-    label: "BuilderLYNK default mailer",
+    label: "BuilderLYNK",
+    email: "hello@send.builderlynk.com",
     description: "If no personal or company email settings are configured, BuilderLYNK will send the RFI email.",
   });
   const [rfiEditForm, setRfiEditForm] = useState({
@@ -207,69 +203,17 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     if (!submitDialogOpen) return;
 
     const loadInviteSenderPreview = async () => {
-      if (!user?.id) {
-        setSubmitSenderPreview({
-          mode: "builderlynk",
-          label: "BuilderLYNK default mailer",
-          description: "BuilderLYNK will send the RFI email because no authenticated sender was found.",
-        });
-        return;
-      }
-
-      try {
-        const { data: userEmailSettings, error: userSettingsError } = await supabase
-          .from("user_email_settings")
-          .select("is_configured, from_name, from_email")
-          .eq("user_id", user.id)
-          .maybeSingle();
-
-        if (userSettingsError) throw userSettingsError;
-
-        if (userEmailSettings?.is_configured && userEmailSettings?.from_email) {
-          setSubmitSenderPreview({
-            mode: "user",
-            label: userEmailSettings.from_name
-              ? `${userEmailSettings.from_name} <${userEmailSettings.from_email}>`
-              : userEmailSettings.from_email,
-            description: "This RFI email will send from your personal email settings first.",
-          });
-          return;
-        }
-
-        if (currentCompany?.id) {
-          const { data: companyEmailSettings, error: companySettingsError } = await supabase
-            .from("company_email_settings")
-            .select("is_configured, from_name, from_email")
-            .eq("company_id", currentCompany.id)
-            .maybeSingle();
-
-          if (companySettingsError) throw companySettingsError;
-
-          if (companyEmailSettings?.is_configured && companyEmailSettings?.from_email) {
-            setSubmitSenderPreview({
-              mode: "company",
-              label: companyEmailSettings.from_name
-                ? `${companyEmailSettings.from_name} <${companyEmailSettings.from_email}>`
-                : companyEmailSettings.from_email,
-              description: "Your personal email is not configured, so BuilderLYNK will fall back to the company email server.",
-            });
-            return;
-          }
-        }
-
-        setSubmitSenderPreview({
-          mode: "builderlynk",
-          label: "BuilderLYNK default mailer",
-          description: "No personal or company email settings are configured, so BuilderLYNK will send the RFI email.",
-        });
-      } catch (error) {
-        console.error("Error loading RFI sender preview:", error);
-        setSubmitSenderPreview({
-          mode: "builderlynk",
-          label: "BuilderLYNK default mailer",
-          description: "BuilderLYNK will send the RFI email if your mailbox settings are unavailable.",
-        });
-      }
+      const preview = await loadEmailSenderPreview({
+        userId: user?.id,
+        companyId: currentCompany?.id,
+        companyName: currentCompany?.name,
+        noUserDescription: "BuilderLYNK will send the RFI email because no authenticated sender was found.",
+        userDescription: "This RFI email will send from your personal email settings first.",
+        companyDescription: "Your personal email is not fully configured, so BuilderLYNK will fall back to the company email server.",
+        builderlynkDescription: "No personal or company email settings are fully configured, so BuilderLYNK will send the RFI email.",
+        unavailableDescription: "BuilderLYNK will send the RFI email if your mailbox settings are unavailable.",
+      });
+      setSubmitSenderPreview(preview);
     };
 
     void loadInviteSenderPreview();
@@ -1431,10 +1375,13 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
                     </p>
                   </div>
                   <Badge variant={submitSenderPreview.mode === "user" ? "success" : submitSenderPreview.mode === "company" ? "info" : "outline"}>
-                    Sending From: {submitSenderPreview.label}
+                    Sending From: {submitSenderPreview.email}
                   </Badge>
                 </div>
                 <div className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  {submitSenderPreview.label && submitSenderPreview.label !== submitSenderPreview.email ? (
+                    <div className="mb-1 font-medium text-foreground">{submitSenderPreview.label}</div>
+                  ) : null}
                   {submitSenderPreview.description}
                 </div>
                 <div className="space-y-2">

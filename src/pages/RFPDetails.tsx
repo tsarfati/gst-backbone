@@ -24,6 +24,7 @@ import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessJobIds } from '@/utils/jobAccess';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
+import { loadEmailSenderPreview, type EmailSenderPreview } from '@/utils/emailSenderPreview';
 import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
 import { downloadRfpPlanPagesPdf, downloadSingleRfpPlanPagePdf } from '@/utils/rfpPlanPagesPdf';
 import RfpPlanPageNoteViewer, { type RfpPlanPageNoteViewerNote } from '@/components/RfpPlanPageNoteViewer';
@@ -102,13 +103,6 @@ interface RfpAttachmentReference {
   job_id: string | null;
   job_name?: string | null;
 }
-
-type InviteSenderPreview = {
-  mode: 'user' | 'company' | 'builderlynk';
-  label: string;
-  email: string;
-  description: string;
-};
 
 interface OwnerProfile {
   user_id: string;
@@ -383,7 +377,7 @@ export default function RFPDetails() {
   const [creatingQuickInvite, setCreatingQuickInvite] = useState(false);
   const [quickInviteVendorType, setQuickInviteVendorType] = useState<string>('Contractor');
   const [inviteMessage, setInviteMessage] = useState('');
-  const [inviteSenderPreview, setInviteSenderPreview] = useState<InviteSenderPreview>({
+  const [inviteSenderPreview, setInviteSenderPreview] = useState<EmailSenderPreview>({
     mode: 'builderlynk',
     label: 'BuilderLYNK',
     email: 'hello@send.builderlynk.com',
@@ -436,70 +430,17 @@ export default function RFPDetails() {
     setInviteMessage("");
 
     const loadInviteSenderPreview = async () => {
-      if (!user?.id) {
-        setInviteSenderPreview({
-          mode: 'builderlynk',
-          label: 'BuilderLYNK',
-          email: 'hello@send.builderlynk.com',
-          description: 'BuilderLYNK will send the invite because no authenticated sender was found.',
-        });
-        return;
-      }
-
-      try {
-        const { data: userEmailSettings, error: userSettingsError } = await supabase
-          .from('user_email_settings')
-          .select('is_configured, from_name, from_email')
-          .eq('user_id', user.id)
-          .maybeSingle();
-
-        if (userSettingsError) throw userSettingsError;
-
-        if (userEmailSettings?.is_configured && userEmailSettings?.from_email) {
-          setInviteSenderPreview({
-            mode: 'user',
-            label: userEmailSettings.from_name || 'Personal email settings',
-            email: userEmailSettings.from_email,
-            description: 'These invites will send from your personal email settings first.',
-          });
-          return;
-        }
-
-        if (currentCompany?.id) {
-          const { data: companyEmailSettings, error: companySettingsError } = await supabase
-            .from('company_email_settings')
-            .select('is_configured, from_name, from_email')
-            .eq('company_id', currentCompany.id)
-            .maybeSingle();
-
-          if (companySettingsError) throw companySettingsError;
-
-          if (companyEmailSettings?.is_configured && companyEmailSettings?.from_email) {
-            setInviteSenderPreview({
-              mode: 'company',
-              label: companyEmailSettings.from_name || currentCompany?.name || 'Company email settings',
-              email: companyEmailSettings.from_email,
-              description: 'Your personal email is not configured, so BuilderLYNK will fall back to the company email server.',
-            });
-            return;
-          }
-        }
-
-        setInviteSenderPreview({
-          mode: 'builderlynk',
-          label: 'BuilderLYNK',
-          email: 'hello@send.builderlynk.com',
-          description: 'No personal or company email settings are configured, so BuilderLYNK will send the invite.',
-        });
-      } catch (error) {
-        console.error('Error loading invite sender preview:', error);
-        setInviteSenderPreview({
-          mode: 'builderlynk',
-          label: 'BuilderLYNK',
-          email: 'hello@send.builderlynk.com',
-          description: 'BuilderLYNK will send the invite if your mailbox settings are unavailable.',
-        });
-      }
+      const preview = await loadEmailSenderPreview({
+        userId: user?.id,
+        companyId: currentCompany?.id,
+        companyName: currentCompany?.name,
+        noUserDescription: 'BuilderLYNK will send the invite because no authenticated sender was found.',
+        userDescription: 'These invites will send from your personal email settings first.',
+        companyDescription: 'Your personal email is not fully configured, so BuilderLYNK will fall back to the company email server.',
+        builderlynkDescription: 'No personal or company email settings are fully configured, so BuilderLYNK will send the invite.',
+        unavailableDescription: 'BuilderLYNK will send the invite if your mailbox settings are unavailable.',
+      });
+      setInviteSenderPreview(preview);
     };
 
     void loadInviteSenderPreview();
