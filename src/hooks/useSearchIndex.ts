@@ -167,8 +167,8 @@ export function useSearchIndex() {
       }
 
       if (hasAccess('bills')) {
-        const { data: bills, error: billsError } = await supabase
-          .from('invoices')
+        const { data: bills, error: billsError } = await (supabase
+          .from('invoices') as any)
           .select('id, invoice_number, amount, due_date, status, job_id, vendor_id, vendors(name)')
           .eq('company_id', currentCompany.id)
           .order('created_at', { ascending: false })
@@ -389,8 +389,8 @@ export function useSearchIndex() {
       }
 
       if (hasAccess('vendors')) {
-        const { data: subcontracts, error: subcontractsError } = await supabase
-          .from('subcontracts')
+        const { data: subcontracts, error: subcontractsError } = await (supabase
+          .from('subcontracts') as any)
           .select('id, subcontract_number, title, contract_amount, status, vendor_id, job_id, vendors(name)')
           .eq('company_id', currentCompany.id)
           .order('created_at', { ascending: false })
@@ -425,8 +425,8 @@ export function useSearchIndex() {
             });
         }
 
-        const { data: poRows, error: poRowsError } = await supabase
-          .from('purchase_orders')
+        const { data: poRows, error: poRowsError } = await (supabase
+          .from('purchase_orders') as any)
           .select('id, po_number, title, total_amount, status, vendor_id, job_id, vendors(name)')
           .eq('company_id', currentCompany.id)
           .order('created_at', { ascending: false })

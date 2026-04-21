@@ -1341,7 +1341,7 @@ export default function RolePermissionsManager({ mode = 'company' }: RolePermiss
         const merged = new Map(prev.map((permission) => [`${permission.role}:${permission.menu_item}`, permission] as const));
 
         updates.forEach((allowed, permissionKey) => {
-          const compositeKey = `${role}:${permissionKey}`;
+          const compositeKey = `${role}:${permissionKey}` as `${string}:${string}`;
           const existing = merged.get(compositeKey);
           if (existing) {
             merged.set(compositeKey, { ...existing, can_access: allowed });

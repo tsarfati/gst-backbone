@@ -151,7 +151,7 @@ export default function AllTasks() {
             .from("task_assignees")
             .select("task_id, user_id")
             .in("task_id", companyVisibleTaskIds)
-        : { data: [] as any[], error: null };
+        : { data: [] as any[] };
 
       const involvedTaskIds = new Set(
         ((assigneeRows || []) as any[])

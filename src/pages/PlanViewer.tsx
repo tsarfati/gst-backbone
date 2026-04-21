@@ -14,6 +14,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { toast } from "sonner";
 import { ArrowLeft, ChevronLeft, ChevronRight, Loader2, MessageSquare, Pencil, Save, X, PanelRightClose, PanelRightOpen, Ruler, ZoomIn, ZoomOut, Maximize2, Move, Sparkles, ThumbsDown, ThumbsUp, Link2 } from "lucide-react";
 import { Label } from "@/components/ui/label";
+import { Badge } from "@/components/ui/badge";
 import { Canvas as FabricCanvas, PencilBrush, Circle, Line } from "fabric";
 import SinglePagePdfViewer from "@/components/SinglePagePdfViewer";
 import { format } from "date-fns";
@@ -1061,7 +1062,7 @@ export default function PlanViewer() {
       if (existingError) throw existingError;
 
       const existingPageNumbers = new Set(
-        ((existingRows || []) as Array<{ page_number: number }>).map((row) => Number(row.page_number))
+        ((existingRows || []) as unknown as Array<{ page_number: number }>).map((row) => Number(row.page_number))
       );
 
       const missingRows = Array.from({ length: totalPages }, (_, index) => index + 1)
@@ -1086,7 +1087,7 @@ export default function PlanViewer() {
         if (insertError) throw insertError;
 
         setPages((prev) => {
-          const next = [...prev, ...(batch as PlanPage[])];
+          const next = [...prev, ...(batch as unknown as PlanPage[])];
           const pageMap = new Map(next.map((page) => [page.page_number, page]));
           return Array.from(pageMap.values()).sort((a, b) => a.page_number - b.page_number);
         });
@@ -2176,7 +2177,7 @@ export default function PlanViewer() {
   const pageSelectorWidthCh = (() => {
     const longest = pageSelectorOptions.reduce((max, pageOption) => {
       const labelLength = pageOption.meta
-        ? getPageLabel(pageOption.meta)
+        ? String(getPageLabel(pageOption.meta)).length
         : `Page ${pageOption.page_number}`.length;
       return Math.max(max, labelLength);
     }, 0);

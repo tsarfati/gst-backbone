@@ -894,8 +894,8 @@ export default function MakePayment() {
 
           // Create journal entry for credit card payment
           if (creditCard?.liability_account_id && distribution?.chart_account_id) {
-            const { data: journalData } = await supabase
-              .from('journal_entries')
+            const { data: journalData } = await (supabase
+              .from('journal_entries') as any)
               .insert({
                 company_id: currentCompany.id,
                 entry_date: payment.payment_date,

@@ -190,11 +190,11 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       customColors: {
         ...((fallback.customColors as Partial<AppSettings['customColors']>) || {}),
         ...((base.customColors as Partial<AppSettings['customColors']>) || {}),
-      },
+      } as AppSettings['customColors'],
       notifications: {
         ...((fallback.notifications as Partial<AppSettings['notifications']>) || {}),
         ...((base.notifications as Partial<AppSettings['notifications']>) || {}),
-      },
+      } as AppSettings['notifications'],
       companySettings: {
         ...((fallback.companySettings as AppSettings['companySettings']) || {}),
         ...((base.companySettings as AppSettings['companySettings']) || {}),
@@ -202,7 +202,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       avatarLibrary: {
         ...((fallback.avatarLibrary as AppSettings['avatarLibrary']) || {}),
         ...((base.avatarLibrary as AppSettings['avatarLibrary']) || {}),
-      },
+      } as AppSettings['avatarLibrary'],
     };
   };
   const applyColorVarsToRoot = (colors: AppSettings['customColors']) => {
@@ -302,7 +302,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             .select('user_id, role, granted_at')
             .eq('company_id', currentCompany.id)
             .eq('is_active', true)
-            .in('role', ['admin', 'company_admin', 'controller', 'owner'])
+            .in('role', ['admin', 'company_admin', 'controller', 'owner'] as any)
             .order('granted_at', { ascending: false });
 
           const legacyUserIds = (legacyAccessRows || []).map((row) => row.user_id).filter(Boolean);

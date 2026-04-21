@@ -205,8 +205,8 @@ export default function TeamChat() {
 
         if (ownCompanyError) throw ownCompanyError;
 
-        const { data: sharedJobAccessRows, error: sharedJobAccessError } = await supabase
-          .from('user_job_access')
+        const { data: sharedJobAccessRows, error: sharedJobAccessError } = await (supabase
+          .from('user_job_access') as any)
           .select('job_id')
           .eq('user_id', user.id)
           .eq('is_active', true);
@@ -220,7 +220,7 @@ export default function TeamChat() {
           const { data: sharedDirectoryRows, error: sharedDirectoryError } = await supabase
             .from('job_project_directory')
             .select('linked_user_id')
-            .in('job_id', sharedJobIds)
+            .in('job_id', sharedJobIds as string[])
             .eq('is_project_team_member', true)
             .eq('is_active', true)
             .not('linked_user_id', 'is', null);

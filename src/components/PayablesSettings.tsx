@@ -317,8 +317,8 @@ export default function PayablesSettings({ canEdit = true }: PayablesSettingsPro
       
       const validatedSettings = payablesSettingsSchema.parse(settings);
       
-      const { error } = await supabase
-        .from('payables_settings')
+      const { error } = await (supabase
+        .from('payables_settings') as any)
         .upsert({
           company_id: currentCompany?.id,
           ...validatedSettings,

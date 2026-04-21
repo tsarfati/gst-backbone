@@ -7,8 +7,9 @@ export type UnifiedViewType = "list" | "compact" | "super-compact" | "icons";
 interface UnifiedViewSelectorProps {
   currentView: UnifiedViewType;
   onViewChange: (view: UnifiedViewType) => void;
-  onSetDefault: (view: UnifiedViewType) => void;
+  onSetDefault: (view?: UnifiedViewType) => void;
   defaultView?: UnifiedViewType;
+  isDefault?: boolean;
   className?: string;
 }
 

@@ -926,12 +926,12 @@ export class PDFExporter {
       headRow = ['Date', 'Records', 'Total Hours', 'Overtime Hours', 'Avg Hours/Record'];
       if (includeLaborCost) headRow.push('Labor Cost');
       tableData = (reportData.data || []).map((row: any) => [
-        row.date ? formatCompanyDate(row.date, this.timeZone, {
+        row.date ? formatCompanyDate(row.date, {
           weekday: 'long',
           month: 'long',
           day: 'numeric',
           year: 'numeric',
-        }) : '-',
+        } as any) : '-',
         (row.total_records || 0).toString(),
         formatHours(row.total_hours),
         formatHours(row.overtime_hours),

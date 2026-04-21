@@ -15,6 +15,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
 import { FileText, Pencil, Stamp, ArrowUp, ArrowDown, ArrowUpDown, Zap, Droplets, Wind, Flame, Building2, HardHat, Wrench, Info, Trash2, Link2 } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
 import DragDropUpload from "@/components/DragDropUpload";

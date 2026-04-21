@@ -891,7 +891,7 @@ export default function BillDetails() {
               {billTimeline.map((item) => (
                 <Badge
                   key={item.key}
-                  variant={item.variant}
+                  variant={item.variant as any}
                   className={item.active ? "" : "opacity-60"}
                 >
                   {item.label}

@@ -34,7 +34,7 @@ interface CameraMapping {
   } | null;
 }
 
-export default function CameraSystemIntegrationSettings({ showHeading = true }: { showHeading?: boolean }) {
+export default function CameraSystemIntegrationSettings({ showHeading = true }: { showHeading?: boolean } = {}) {
   const { currentCompany, userCompanies } = useCompany();
   const { profile } = useAuth();
   const { toast } = useToast();

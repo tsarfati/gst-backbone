@@ -156,8 +156,8 @@ function ManualEntryForm({ allJobs, allCostCodes, isPinAuthenticated, onSuccess 
       }
 
       // Create time card with pending status (requires approval)
-      const { data: timeCard, error: tcError } = await supabase
-        .from('time_cards')
+      const { data: timeCard, error: tcError } = await (supabase
+        .from('time_cards') as any)
         .insert({
           user_id: userId,
           job_id: formData.job_id,

@@ -402,8 +402,8 @@ export default function TenantDetails() {
         tenantUpdatePayload.subscription_tier = formData.subscription_tier;
       }
 
-      const { error } = await supabase
-        .from('tenants')
+      const { error } = await (supabase
+        .from('tenants') as any)
         .update(tenantUpdatePayload)
         .eq('id', tenantId);
 

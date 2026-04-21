@@ -43,7 +43,7 @@ export const exportTimecardToExcel = async (
   }
 
   // Prepare data rows. Timecard exports can be detailed rows or grouped summary rows.
-  const dataRows = reportData.data.flatMap((record) => {
+  const dataRows: any[] = (reportData.data as any[]).flatMap((record: any): any[] => {
     if (record.cost_codes) {
       return Object.values(record.cost_codes || {}).map((costCode: any) => ({
         Job: record.job_name || "-",
