@@ -13,10 +13,8 @@ const hasSmtpConfig = (row: any) =>
   Boolean(
     row?.is_configured &&
       row?.smtp_host &&
-      row?.smtp_port &&
       row?.smtp_username &&
-      row?.smtp_password_encrypted &&
-      row?.from_email,
+      row?.smtp_password_encrypted,
   );
 
 export async function loadEmailSenderPreview(params: {
@@ -62,7 +60,7 @@ export async function loadEmailSenderPreview(params: {
       return {
         mode: "user",
         label: userEmailSettings.from_name || "Personal email settings",
-        email: userEmailSettings.from_email,
+        email: userEmailSettings.smtp_username || userEmailSettings.from_email,
         description: userDescription,
       };
     }
@@ -80,7 +78,7 @@ export async function loadEmailSenderPreview(params: {
         return {
           mode: "company",
           label: companyEmailSettings.from_name || companyName || "Company email settings",
-          email: companyEmailSettings.from_email,
+          email: companyEmailSettings.smtp_username || companyEmailSettings.from_email,
           description: companyDescription,
         };
       }

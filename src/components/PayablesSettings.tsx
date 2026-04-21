@@ -488,13 +488,14 @@ export default function PayablesSettings({ canEdit = true }: PayablesSettingsPro
     const inputId = `vendor-portal-${field}-upload`;
     const value = settings[field];
     const [isDragging, setIsDragging] = useState(false);
+    const inputRef = useRef<HTMLInputElement | null>(null);
 
     const onFileSelected = (file?: File) => {
       if (!file) return;
       void uploadVendorPortalAsset(file, field);
     };
 
-    const onDrop: React.DragEventHandler<HTMLLabelElement> = (event) => {
+    const onDrop: React.DragEventHandler<HTMLDivElement> = (event) => {
       event.preventDefault();
       event.stopPropagation();
       setIsDragging(false);
@@ -504,24 +505,39 @@ export default function PayablesSettings({ canEdit = true }: PayablesSettingsPro
     return (
       <div className="space-y-2">
         <Label>{label}</Label>
-        <label
-          htmlFor={inputId}
-          onDrop={onDrop}
-          onDragEnter={(event) => {
+        <div
+          role="button"
+          tabIndex={0}
+          aria-label={`Upload ${label}`}
+          onClick={(event) => {
+            event.preventDefault();
+            event.stopPropagation();
+            inputRef.current?.click();
+          }}
+          onKeyDown={(event) => {
+            if (event.key === 'Enter' || event.key === ' ') {
+              event.preventDefault();
+              inputRef.current?.click();
+            }
+          }}
+          onDropCapture={onDrop}
+          onDragEnterCapture={(event) => {
             event.preventDefault();
             event.stopPropagation();
             setIsDragging(true);
           }}
-          onDragOver={(event) => {
+          onDragOverCapture={(event) => {
             event.preventDefault();
             event.stopPropagation();
+            event.dataTransfer.dropEffect = 'copy';
             setIsDragging(true);
           }}
-          onDragLeave={(event) => {
+          onDragLeaveCapture={(event) => {
             event.preventDefault();
             event.stopPropagation();
             setIsDragging(false);
           }}
+          onDrop={onDrop}
           className={cn(
             "group relative block cursor-pointer overflow-hidden rounded-lg border border-dashed bg-muted/20 transition-colors",
             isDragging ? "border-primary bg-primary/10" : "border-border/80 hover:border-primary/60 hover:bg-muted/40",
@@ -547,13 +563,17 @@ export default function PayablesSettings({ canEdit = true }: PayablesSettingsPro
           )}>
             Drag Image Here or Choose Image
           </div>
-        </label>
+        </div>
         <input
+          ref={inputRef}
           id={inputId}
           type="file"
           accept="image/*"
           className="hidden"
-          onChange={(event) => onFileSelected(event.target.files?.[0])}
+          onChange={(event) => {
+            onFileSelected(event.target.files?.[0]);
+            event.target.value = '';
+          }}
         />
       </div>
     );

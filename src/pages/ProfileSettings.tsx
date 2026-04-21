@@ -1166,10 +1166,8 @@ function EmailSettingsTab() {
         email_signature: settings.email_signature,
         is_configured: !!(
           settings.smtp_host &&
-          settings.smtp_port &&
           settings.smtp_username &&
-          (settings.smtp_password || hasStoredSmtpPassword) &&
-          settings.from_email
+          (settings.smtp_password || hasStoredSmtpPassword)
         ),
       };
 

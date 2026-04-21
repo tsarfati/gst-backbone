@@ -7,6 +7,20 @@ type ResendClient = {
   };
 };
 
+const hasWorkingSmtpConfig = (row: any) =>
+  Boolean(
+    row?.is_configured &&
+      row?.smtp_host &&
+      row?.smtp_username &&
+      row?.smtp_password_encrypted,
+  );
+
+const buildSenderAddress = (row: any) => {
+  const senderEmail = row?.smtp_username || row?.from_email || null;
+  if (!senderEmail) return null;
+  return row?.from_name ? `${row.from_name} <${senderEmail}>` : senderEmail;
+};
+
 export async function sendTransactionalEmailWithFallback(params: {
   supabaseUrl: string;
   serviceRoleKey: string;
@@ -50,40 +64,34 @@ export async function sendTransactionalEmailWithFallback(params: {
 
       if (error) {
         console.warn(`[${context}] Could not load user_email_settings`, error);
-      } else if (
-        userEmailSettings?.is_configured &&
-        userEmailSettings?.smtp_host &&
-        userEmailSettings?.smtp_port &&
-        userEmailSettings?.smtp_username &&
-        userEmailSettings?.smtp_password_encrypted &&
-        userEmailSettings?.from_email
-      ) {
-        const sender = userEmailSettings.from_name
-          ? `${userEmailSettings.from_name} <${userEmailSettings.from_email}>`
-          : userEmailSettings.from_email;
+      } else if (hasWorkingSmtpConfig(userEmailSettings)) {
+        const sender = buildSenderAddress(userEmailSettings);
+        if (!sender) {
+          console.warn(`[${context}] User SMTP sender address is missing; falling back`);
+        } else {
+          const transporter = nodemailer.createTransport({
+            host: userEmailSettings.smtp_host,
+            port: Number(userEmailSettings.smtp_port || 587),
+            secure: !!userEmailSettings.use_ssl,
+            auth: {
+              user: userEmailSettings.smtp_username,
+              pass: userEmailSettings.smtp_password_encrypted,
+            },
+          });
 
-        const transporter = nodemailer.createTransport({
-          host: userEmailSettings.smtp_host,
-          port: Number(userEmailSettings.smtp_port),
-          secure: !!userEmailSettings.use_ssl,
-          auth: {
-            user: userEmailSettings.smtp_username,
-            pass: userEmailSettings.smtp_password_encrypted,
-          },
-        });
+          const smtpResponse = await transporter.sendMail({
+            from: sender,
+            to: to.join(", "),
+            subject,
+            html,
+            text,
+            replyTo,
+          });
 
-        const smtpResponse = await transporter.sendMail({
-          from: sender,
-          to: to.join(", "),
-          subject,
-          html,
-          text,
-          replyTo,
-        });
-
-        usedTransport = "user_smtp";
-        providerMessageId = smtpResponse?.messageId || null;
-        return { usedTransport, providerMessageId };
+          usedTransport = "user_smtp";
+          providerMessageId = smtpResponse?.messageId || null;
+          return { usedTransport, providerMessageId };
+        }
       }
     } catch (userSmtpError) {
       console.warn(`[${context}] User SMTP send failed; falling back`, userSmtpError);
@@ -100,40 +108,34 @@ export async function sendTransactionalEmailWithFallback(params: {
 
       if (error) {
         console.warn(`[${context}] Could not load company_email_settings`, error);
-      } else if (
-        companyEmailSettings?.is_configured &&
-        companyEmailSettings?.smtp_host &&
-        companyEmailSettings?.smtp_port &&
-        companyEmailSettings?.smtp_username &&
-        companyEmailSettings?.smtp_password_encrypted &&
-        companyEmailSettings?.from_email
-      ) {
-        const sender = companyEmailSettings.from_name
-          ? `${companyEmailSettings.from_name} <${companyEmailSettings.from_email}>`
-          : companyEmailSettings.from_email;
+      } else if (hasWorkingSmtpConfig(companyEmailSettings)) {
+        const sender = buildSenderAddress(companyEmailSettings);
+        if (!sender) {
+          console.warn(`[${context}] Company SMTP sender address is missing; falling back to BuilderLYNK`);
+        } else {
+          const transporter = nodemailer.createTransport({
+            host: companyEmailSettings.smtp_host,
+            port: Number(companyEmailSettings.smtp_port || 587),
+            secure: !!companyEmailSettings.use_ssl,
+            auth: {
+              user: companyEmailSettings.smtp_username,
+              pass: companyEmailSettings.smtp_password_encrypted,
+            },
+          });
 
-        const transporter = nodemailer.createTransport({
-          host: companyEmailSettings.smtp_host,
-          port: Number(companyEmailSettings.smtp_port),
-          secure: !!companyEmailSettings.use_ssl,
-          auth: {
-            user: companyEmailSettings.smtp_username,
-            pass: companyEmailSettings.smtp_password_encrypted,
-          },
-        });
+          const smtpResponse = await transporter.sendMail({
+            from: sender,
+            to: to.join(", "),
+            subject,
+            html,
+            text,
+            replyTo,
+          });
 
-        const smtpResponse = await transporter.sendMail({
-          from: sender,
-          to: to.join(", "),
-          subject,
-          html,
-          text,
-          replyTo,
-        });
-
-        usedTransport = "company_smtp";
-        providerMessageId = smtpResponse?.messageId || null;
-        return { usedTransport, providerMessageId };
+          usedTransport = "company_smtp";
+          providerMessageId = smtpResponse?.messageId || null;
+          return { usedTransport, providerMessageId };
+        }
       }
     } catch (smtpError) {
       console.warn(`[${context}] Company SMTP send failed; falling back to BuilderLYNK`, smtpError);

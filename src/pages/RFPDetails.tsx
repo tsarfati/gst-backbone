@@ -1452,28 +1452,6 @@ export default function RFPDetails() {
         if (!vendor?.email) return null;
 
         try {
-          try {
-            const { data: portalInviteData, error: portalInviteError } = await supabase.functions.invoke('send-vendor-invite', {
-              body: {
-                vendorId: vendor.id,
-                vendorName: vendor.name,
-                vendorEmail: vendor.email,
-                companyId: currentCompany!.id,
-                companyName: currentCompany!.name,
-                invitedBy: user?.id,
-                baseUrl: getPublicAuthOrigin(),
-              }
-            });
-
-            if (portalInviteError) {
-              console.error(`Failed to send vendor portal invite to ${vendor.email}:`, portalInviteError);
-            } else if (portalInviteData?.error && !String(portalInviteData.error).toLowerCase().includes('active invitation already exists')) {
-              console.error(`Vendor portal invite returned an error for ${vendor.email}:`, portalInviteData.error);
-            }
-          } catch (portalInviteErr) {
-            console.error(`Failed to ensure vendor portal invite for ${vendor.email}:`, portalInviteErr);
-          }
-
           const { error: emailError } = await supabase.functions.invoke('send-rfp-invite', {
             body: {
               rfpId: id,
@@ -1639,31 +1617,6 @@ export default function RFPDetails() {
         if (accessError) throw accessError;
       }
 
-      let portalInviteNotice: string | null = null;
-      try {
-        const { data: portalInviteData, error: portalInviteError } = await supabase.functions.invoke('send-vendor-invite', {
-          body: {
-            vendorId: vendorRecord.id,
-            vendorName: vendorRecord.name,
-            vendorEmail,
-            companyId: currentCompany.id,
-            companyName: currentCompany.name,
-            invitedBy: user?.id,
-            baseUrl: window.location.origin,
-          }
-        });
-
-        if (portalInviteError) {
-          console.error('Error sending vendor portal invite:', portalInviteError);
-          portalInviteNotice = 'The bid invite was sent, but the vendor portal invitation could not be emailed yet.';
-        } else if (portalInviteData?.error) {
-          portalInviteNotice = portalInviteData.error;
-        }
-      } catch (portalInviteError) {
-        console.error('Error sending vendor portal invite:', portalInviteError);
-        portalInviteNotice = 'The bid invite was sent, but the vendor portal invitation could not be emailed yet.';
-      }
-
       try {
         const { error: rfpInviteError } = await supabase.functions.invoke('send-rfp-invite', {
           body: {
@@ -1696,7 +1649,7 @@ export default function RFPDetails() {
 
       toast({
         title: existingVendor ? 'Vendor invited' : 'Vendor added and invited',
-        description: portalInviteNotice || `${vendorRecord.name} can now sign up and access this job's bidding workflow.`,
+        description: `${vendorRecord.name} can now sign up and access this job's bidding workflow from the RFP email.`,
       });
 
       setQuickInviteForm({ firstName: '', lastName: '', companyName: '', email: '' });

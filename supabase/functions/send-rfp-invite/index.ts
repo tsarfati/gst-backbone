@@ -208,9 +208,30 @@ const handler = async (req: Request): Promise<Response> => {
         .maybeSingle(),
     ]);
 
-    const pendingVendorInvite = vendorInviteResult?.data || null;
+    let pendingVendorInvite = vendorInviteResult?.data || null;
     const linkedProfile = profileResult?.data || null;
     const companyLogoUrl = resolveCompanyLogoEmailUrl((companyResult?.data as any)?.logo_url);
+
+    if (!pendingVendorInvite?.token && !linkedProfile?.user_id) {
+      const { data: createdVendorInvite, error: createVendorInviteError } = await admin!
+        .from("vendor_invitations")
+        .insert({
+          vendor_id: vendorId,
+          company_id: companyId,
+          email: vendorEmail,
+          invited_by: authData.user.id,
+          status: "pending",
+        })
+        .select("token, status, expires_at")
+        .single();
+
+      if (createVendorInviteError) {
+        console.error("Error creating vendor invitation from RFP invite:", createVendorInviteError);
+        throw new Error("Failed to create vendor signup invitation");
+      }
+
+      pendingVendorInvite = createdVendorInvite;
+    }
 
     let ctaHref = `${publicBaseUrl}/vendor-signup?company=${encodeURIComponent(companyId)}`;
     let ctaLabel = "Create Vendor Account";

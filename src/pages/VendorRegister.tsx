@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -7,9 +7,10 @@ import { Label } from '@/components/ui/label';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Building2, CheckCircle, XCircle } from 'lucide-react';
-import builderlynkLogo from '@/assets/builderlynk-logo-new.png';
+import builderlynkLogo from '@/assets/builderlynk-icon-shield.png';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
+import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 
 interface Invitation {
   id: string;
@@ -29,6 +30,31 @@ interface Invitation {
   };
 }
 
+type PublicCompanyBranding = {
+  id: string;
+  name: string;
+  display_name: string | null;
+  logo_url: string | null;
+  vendor_portal_enabled: boolean | null;
+  vendor_portal_signup_background_image_url: string | null;
+  vendor_portal_signup_background_color: string | null;
+  vendor_portal_signup_company_logo_url: string | null;
+  vendor_portal_signup_header_logo_url: string | null;
+  vendor_portal_signup_header_title: string | null;
+  vendor_portal_signup_header_subtitle: string | null;
+  vendor_portal_signup_modal_color: string | null;
+  vendor_portal_signup_modal_opacity: number | null;
+};
+
+const hexToRgba = (hex: string, alpha: number) => {
+  const normalized = hex.trim().replace('#', '');
+  if (!/^[0-9a-fA-F]{6}$/.test(normalized)) return `rgba(7,18,49,${alpha})`;
+  const r = parseInt(normalized.slice(0, 2), 16);
+  const g = parseInt(normalized.slice(2, 4), 16);
+  const b = parseInt(normalized.slice(4, 6), 16);
+  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+};
+
 const isDesignProfessionalVendorType = (value: string | null | undefined) => {
   const normalized = String(value || '').trim().toLowerCase();
   return normalized === 'design_professional' || normalized === 'design professional';
@@ -43,6 +69,7 @@ export default function VendorRegister() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [invitation, setInvitation] = useState<Invitation | null>(null);
+  const [companyBranding, setCompanyBranding] = useState<PublicCompanyBranding | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
 
@@ -74,8 +101,19 @@ export default function VendorRegister() {
           email,
           status,
           expires_at,
-          vendor:vendors(name),
-          company:companies(name, logo_url)
+          vendor:vendors(name, vendor_type),
+          company:companies(
+            name,
+            logo_url,
+            vendor_portal_signup_background_image_url,
+            vendor_portal_signup_background_color,
+            vendor_portal_signup_company_logo_url,
+            vendor_portal_signup_header_logo_url,
+            vendor_portal_signup_header_title,
+            vendor_portal_signup_header_subtitle,
+            vendor_portal_signup_modal_color,
+            vendor_portal_signup_modal_opacity
+          )
         `)
         .eq('token', token)
         .single();
@@ -101,6 +139,20 @@ export default function VendorRegister() {
       }
 
       setInvitation(data as unknown as Invitation);
+
+      if ((data as any)?.company_id) {
+        const { data: companyPayload, error: companyPayloadError } = await supabase.functions.invoke('list-public-signup-companies', {
+          body: { companyId: (data as any).company_id },
+        });
+
+        if (companyPayloadError) {
+          console.error('Failed loading vendor register branding payload:', companyPayloadError);
+        } else {
+          const brandedCompany = Array.isArray(companyPayload?.companies) ? companyPayload.companies[0] : null;
+          setCompanyBranding(brandedCompany || null);
+        }
+      }
+
       setLoading(false);
     } catch (err) {
       console.error('Error validating token:', err);
@@ -255,16 +307,52 @@ export default function VendorRegister() {
 
   const vendorType = String((invitation?.vendor as any)?.vendor_type || '').toLowerCase();
   const isDesignProfessional = vendorType === 'design_professional';
-  const companyName = (invitation?.company as any)?.name || 'BuilderLYNK';
-  const companyLogo = (invitation?.company as any)?.logo_url || null;
+  const companyName = companyBranding?.display_name || companyBranding?.name || (invitation?.company as any)?.name || 'BuilderLYNK';
+  const selectedSignupLogoUrl = useMemo(
+    () =>
+      resolveCompanyLogoUrl(
+        companyBranding?.vendor_portal_signup_header_logo_url
+        || companyBranding?.vendor_portal_signup_company_logo_url
+        || companyBranding?.logo_url
+        || (invitation?.company as any)?.logo_url,
+      ),
+    [
+      companyBranding?.vendor_portal_signup_header_logo_url,
+      companyBranding?.vendor_portal_signup_company_logo_url,
+      companyBranding?.logo_url,
+      (invitation?.company as any)?.logo_url,
+    ],
+  );
+  const selectedCompanyBackgroundUrl = useMemo(
+    () => resolveCompanyLogoUrl(companyBranding?.vendor_portal_signup_background_image_url),
+    [companyBranding?.vendor_portal_signup_background_image_url],
+  );
+  const selectedCompanyBackgroundColor = String(companyBranding?.vendor_portal_signup_background_color || '#030B20').trim();
+  const selectedCompanyModalColor = String(companyBranding?.vendor_portal_signup_modal_color || '#071231').trim();
+  const selectedCompanyModalOpacity = Math.min(
+    1,
+    Math.max(0.1, Number(companyBranding?.vendor_portal_signup_modal_opacity ?? 0.96)),
+  );
   const landingTitle = isDesignProfessional ? 'Create Your Design Professional Account' : 'Create Your Vendor Account';
-  const landingSubtitle = isDesignProfessional
+  const defaultLandingSubtitle = isDesignProfessional
     ? `You've been invited by ${companyName} to join as a design professional.`
     : `You've been invited by ${companyName} to join as a vendor.`;
+  const brandedHeaderTitle = String(companyBranding?.vendor_portal_signup_header_title || '').trim() || landingTitle;
+  const brandedHeaderSubtitle = String(companyBranding?.vendor_portal_signup_header_subtitle || '').trim() || defaultLandingSubtitle;
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
-      <Card className="w-full max-w-lg border-slate-700 bg-[#071231] text-slate-100">
+    <div
+      className="relative min-h-screen flex items-center justify-center p-4 bg-cover bg-center"
+      style={
+        selectedCompanyBackgroundUrl
+          ? { backgroundImage: `url(${selectedCompanyBackgroundUrl})` }
+          : { backgroundColor: selectedCompanyBackgroundColor }
+      }
+    >
+      <Card
+        className="w-full max-w-lg border-slate-700 text-slate-100"
+        style={{ backgroundColor: hexToRgba(selectedCompanyModalColor, selectedCompanyModalOpacity) }}
+      >
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex flex-col items-center gap-3">
             <img
@@ -272,11 +360,11 @@ export default function VendorRegister() {
               alt="BuilderLYNK"
               className="h-12 w-auto object-contain"
             />
-            {companyLogo ? (
+            {selectedSignupLogoUrl ? (
               <img
-                src={companyLogo}
+                src={selectedSignupLogoUrl}
                 alt={`${companyName} logo`}
-                className="h-12 w-auto max-w-[220px] object-contain rounded-md bg-white/90 px-2 py-1"
+                className="h-16 w-auto max-w-[260px] object-contain rounded-md bg-white/90 px-2 py-1"
               />
             ) : (
               <div className="h-12 w-12 rounded-full bg-primary/10 flex items-center justify-center">
@@ -284,9 +372,9 @@ export default function VendorRegister() {
               </div>
             )}
           </div>
-          <CardTitle>{landingTitle}</CardTitle>
+          <CardTitle>{brandedHeaderTitle}</CardTitle>
           <CardDescription className="text-slate-300">
-            {landingSubtitle}
+            {brandedHeaderSubtitle}
             <br />
             Invited entity: <strong className="text-slate-100">{(invitation?.vendor as any)?.name}</strong>
           </CardDescription>
@@ -369,6 +457,15 @@ export default function VendorRegister() {
           </p>
         </CardContent>
       </Card>
+      <a
+        href="https://www.builderlynk.com"
+        target="_blank"
+        rel="noopener noreferrer"
+        className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-2 text-xs text-slate-100 transition-colors hover:bg-black/45"
+      >
+        <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain" />
+        <span>Powered by BuilderLYNK</span>
+      </a>
     </div>
   );
 }
