@@ -138,8 +138,8 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
       }
 
       let sharedJobIds: string[] = [];
-      const { data: sharedJobAccessRows, error: sharedJobAccessError } = await supabase
-        .from('user_job_access')
+      const { data: sharedJobAccessRows, error: sharedJobAccessError } = await (supabase
+        .from('user_job_access') as any)
         .select('job_id')
         .eq('user_id', userId)
         .eq('is_active', true);
