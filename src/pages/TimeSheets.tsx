@@ -332,7 +332,7 @@ export default function TimeSheets() {
 
         return {
           ...tc,
-          low_location_confidence: tc.low_location_confidence ?? false,
+          low_location_confidence: (tc as any).low_location_confidence ?? false,
           punch_in_photo_url: tc.punch_in_photo_url,
           punch_out_photo_url: tc.punch_out_photo_url,
           requires_approval: shouldFlag || tc.status === 'pending',

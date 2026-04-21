@@ -677,8 +677,8 @@ export default function UncodedReceipts() {
       if (firstDist?.cost_code_id) updateData.cost_code_id = firstDist.cost_code_id;
       updateData.is_credit_card_charge = isCreditCardCharge;
 
-      const { error } = await supabase
-        .from('receipts')
+      const { error } = await (supabase
+        .from('receipts') as any)
         .update(updateData)
         .eq('id', selectedReceipt.id);
 

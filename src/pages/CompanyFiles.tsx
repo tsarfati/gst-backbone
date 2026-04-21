@@ -9,6 +9,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { FolderClosed, FolderOpen, Upload, Plus, FileText, Download, Loader2, Mail, Share2, ChevronDown, ChevronRight, Lock, ArrowUpDown, GripVertical, Link2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
+import { Label } from "@/components/ui/label";
 import { resolveStorageUrl, uploadFileWithProgress } from "@/utils/storageUtils";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useAuth } from "@/contexts/AuthContext";
@@ -350,9 +351,9 @@ export default function CompanyFiles() {
         file_name: found.file_name,
         file_url: found.file_url,
         file_size: found.file_size ?? null,
-        file_type: found.file_type ?? null,
+        file_type: (found as any).file_type ?? null,
         source_job_id: jobId,
-      });
+      } as any);
     });
 
     selectedJobFolderKeys.forEach((key) => {
@@ -363,9 +364,9 @@ export default function CompanyFiles() {
           file_name: f.file_name,
           file_url: f.file_url,
           file_size: f.file_size ?? null,
-          file_type: f.file_type ?? null,
+          file_type: (f as any).file_type ?? null,
           source_job_id: jobId,
-        });
+        } as any);
       });
     });
 

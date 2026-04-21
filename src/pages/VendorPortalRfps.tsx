@@ -1195,7 +1195,7 @@ export default function VendorPortalRfps() {
         .single();
 
       if (error) throw error;
-      const messageId = String(insertedMessage.id);
+      const messageId = String((insertedMessage as any).id);
 
       for (const file of communicationFiles) {
         const storagePath = `${selectedDetailRfp.company_id}/${bidId}/messages/${Date.now()}-${file.name}`;

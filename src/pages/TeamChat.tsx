@@ -205,8 +205,8 @@ export default function TeamChat() {
 
         if (ownCompanyError) throw ownCompanyError;
 
-        const { data: sharedJobAccessRows, error: sharedJobAccessError } = await supabase
-          .from('user_job_access')
+        const { data: sharedJobAccessRows, error: sharedJobAccessError } = await (supabase
+          .from('user_job_access') as any)
           .select('job_id')
           .eq('user_id', user.id)
           .eq('is_active', true);

@@ -615,8 +615,8 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     const table = renamingItem.type === 'folder' ? 'job_folders' : 'job_files';
     const field = renamingItem.type === 'folder' ? 'name' : 'file_name';
 
-    const { error } = await supabase
-      .from(table)
+    const { error } = await (supabase
+      .from(table) as any)
       .update({ [field]: renamingItem.name.trim() })
       .eq('id', renamingItem.id);
 

@@ -1393,8 +1393,8 @@ export default function Dashboard() {
     if (!user || !currentCompany) return;
     
     try {
-      const { error } = await supabase
-        .from('dashboard_settings')
+      const { error } = await (supabase
+        .from('dashboard_settings') as any)
         .upsert({
           user_id: user.id,
           company_id: currentCompany.id,

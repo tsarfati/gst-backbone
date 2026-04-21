@@ -700,7 +700,7 @@ export default function UserSettings() {
           const requestEmail = requestEmailByUserId.get(String(user.user_id));
           return {
             ...user,
-            email: user.email || requestEmail || undefined,
+            email: (user as any).email || requestEmail || undefined,
             avatar_url: effectiveAvatarUrl,
             role: userRole,
             jobs: activeExternalJobs,
@@ -748,7 +748,7 @@ export default function UserSettings() {
         return nameA.localeCompare(nameB);
       });
       
-      setUsers(usersWithJobs);
+      setUsers(usersWithJobs as any);
     } catch (error) {
       console.error('Error fetching users:', error);
       toast({

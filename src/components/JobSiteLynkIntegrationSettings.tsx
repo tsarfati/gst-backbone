@@ -14,7 +14,7 @@ import { KeyRound, Link2, Loader2, PlugZap } from "lucide-react";
 const DEFAULT_JOBSITELYNK_BASE_URL = "https://jobsitelynk.com";
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/g, "");
 
-export default function JobSiteLynkIntegrationSettings() {
+export default function JobSiteLynkIntegrationSettings(_props: { showHeading?: boolean } = {}) {
   const { currentCompany, userCompanies } = useCompany();
   const { profile } = useAuth();
   const { toast } = useToast();

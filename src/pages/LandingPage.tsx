@@ -102,10 +102,10 @@ export default function LandingPage() {
       };
     }
 
-    const timeoutId = window.setTimeout(primeSecondaryVideo, 1800);
+    const timeoutId = window!.setTimeout(primeSecondaryVideo, 1800);
     return () => {
       cancelled = true;
-      window.clearTimeout(timeoutId);
+      window!.clearTimeout(timeoutId);
     };
   }, []);
 

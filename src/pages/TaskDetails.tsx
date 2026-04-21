@@ -574,7 +574,7 @@ export default function TaskDetails() {
       );
 
       setJobs((jobsResult.data || []) as JobOption[]);
-      setEmailMessages(((taskEmailResult.data || []) as TaskEmailMessage[]) || []);
+      setEmailMessages(((taskEmailResult.data || []) as unknown as TaskEmailMessage[]) || []);
       setTrackingEmail(await ensureTrackingEmail(id, currentCompany.id));
     } catch (error) {
       console.error('Error loading task workspace:', error);
@@ -1405,7 +1405,7 @@ export default function TaskDetails() {
 
   const getTimelineSummary = (entry: TimelineEntry) => {
     if (entry.kind !== 'activity' || !entry.metadata?.batched || !Array.isArray(entry.metadata?.changes)) {
-      return entry.body;
+      return (entry as any).body;
     }
 
     const changeSummary = entry.metadata.changes

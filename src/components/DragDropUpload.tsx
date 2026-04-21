@@ -17,7 +17,6 @@ interface DragDropUploadProps {
   buttonLabel?: string;
   size?: 'default' | 'compact';
   icon?: ReactNode;
-  buttonLabel?: string;
 }
 
 export default function DragDropUpload({

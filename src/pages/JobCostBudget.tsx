@@ -234,8 +234,8 @@ export default function JobCostBudget() {
           continue;
         }
         // Create a job-specific cost code cloned from the master
-        const { data: created, error: createErr } = await supabase
-          .from('cost_codes')
+        const { data: created, error: createErr } = await (supabase
+          .from('cost_codes') as any)
           .insert({
             code: rec.code,
             description: rec.description,

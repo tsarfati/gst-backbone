@@ -359,8 +359,8 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
 
         const fileUrl = getStoragePathForDb('receipts', fileName);
 
-        const { error: insertError } = await supabase
-          .from('receipts')
+        const { error: insertError } = await (supabase
+          .from('receipts') as any)
           .insert({
             company_id: currentCompany?.id || user?.id,
             created_by: user?.id,
