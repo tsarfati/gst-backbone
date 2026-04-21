@@ -11,6 +11,9 @@ import { ArrowLeft, Save, Eye } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
+import { useCompany } from "@/contexts/CompanyContext";
+import { renderEmailTemplatePreview } from "@/utils/emailTemplatePreview";
+import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 
 interface EmailTemplate {
   id?: string;
@@ -27,6 +30,7 @@ export default function EmailTemplateEdit() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user } = useAuth();
+  const { currentCompany } = useCompany();
   const [template, setTemplate] = useState<EmailTemplate>({
     key: "",
     name: "",
@@ -117,21 +121,10 @@ export default function EmailTemplateEdit() {
   };
 
   const getPreviewContent = () => {
-    // Replace template variables with sample data for preview
-    return template.html_content
-      .replace(/{{customer_name}}/g, "John Doe")
-      .replace(/{{company_name}}/g, "Your Company")
-      .replace(/{{invoice_number}}/g, "INV-001")
-      .replace(/{{amount}}/g, "$1,250.00")
-      .replace(/{{due_date}}/g, "2024-01-15")
-      .replace(/{{vendor_name}}/g, "ABC Supplies")
-      .replace(/{{invitation_link}}/g, "#")
-      .replace(/{{job_name}}/g, "Office Renovation")
-      .replace(/{{assignee_name}}/g, "Jane Smith")
-      .replace(/{{start_date}}/g, "2024-02-01")
-      .replace(/{{uploader_name}}/g, "Mike Johnson")
-      .replace(/{{filename}}/g, "receipt-001.pdf");
+    return renderEmailTemplatePreview(template.html_content, template.key);
   };
+
+  const previewLogoUrl = resolveCompanyLogoUrl(currentCompany?.logo_url);
 
   if (loading) {
     return (
@@ -273,20 +266,18 @@ export default function EmailTemplateEdit() {
                   <div className="border-b pb-2 mb-4">
                     <p className="text-sm text-muted-foreground">Subject:</p>
                     <p className="font-medium">
-                      {template.subject
-                        .replace(/\{\{customer_name\}\}/g, "John Doe")
-                        .replace(/\{\{company_name\}\}/g, "Your Company")
-                        .replace(/\{\{invoice_number\}\}/g, "INV-001")
-                        .replace(/\{\{amount\}\}/g, "$1,250.00")
-                        .replace(/\{\{due_date\}\}/g, "2024-01-15")
-                        .replace(/\{\{vendor_name\}\}/g, "ABC Supplies")
-                        .replace(/\{\{job_name\}\}/g, "Office Renovation")
-                        .replace(/\{\{assignee_name\}\}/g, "Jane Smith")
-                        .replace(/\{\{start_date\}\}/g, "2024-02-01")
-                        .replace(/\{\{uploader_name\}\}/g, "Mike Johnson")
-                        .replace(/\{\{filename\}\}/g, "receipt-001.pdf")}
+                      {renderEmailTemplatePreview(template.subject, template.key)}
                     </p>
                   </div>
+                  {template.key === "rfp_invitation" && previewLogoUrl ? (
+                    <div className="mb-4 flex justify-center">
+                      <img
+                        src={previewLogoUrl}
+                        alt={`${currentCompany?.name || "Company"} logo`}
+                        className="max-h-[72px] max-w-[240px] object-contain"
+                      />
+                    </div>
+                  ) : null}
                   <div 
                     className="prose prose-sm max-w-none"
                     dangerouslySetInnerHTML={{ __html: getPreviewContent() }}

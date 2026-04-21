@@ -6,6 +6,9 @@ import { ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import DOMPurify from 'dompurify';
+import { renderEmailTemplatePreview } from '@/utils/emailTemplatePreview';
+import { useCompany } from '@/contexts/CompanyContext';
+import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 
 interface EmailTemplate {
   id: string;
@@ -21,8 +24,10 @@ export default function EmailTemplatePreview() {
   const { id } = useParams();
   const navigate = useNavigate();
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [template, setTemplate] = useState<EmailTemplate | null>(null);
   const [loading, setLoading] = useState(true);
+  const previewLogoUrl = resolveCompanyLogoUrl(currentCompany?.logo_url);
 
   useEffect(() => {
     loadTemplate();
@@ -93,13 +98,22 @@ export default function EmailTemplatePreview() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Subject: {template.subject}</CardTitle>
+          <CardTitle>Subject: {renderEmailTemplatePreview(template.subject, template.key)}</CardTitle>
         </CardHeader>
         <CardContent>
           <div className="border rounded-lg p-4 bg-background">
+            {template.key === 'rfp_invitation' && previewLogoUrl ? (
+              <div className="mb-4 flex justify-center">
+                <img
+                  src={previewLogoUrl}
+                  alt={`${currentCompany?.name || 'Company'} logo`}
+                  className="max-h-[72px] max-w-[240px] object-contain"
+                />
+              </div>
+            ) : null}
             <div 
               className="prose max-w-none"
-              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(template.html_content, {
+              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderEmailTemplatePreview(template.html_content, template.key), {
                 ALLOWED_TAGS: ['p','div','span','h1','h2','h3','h4','h5','h6','img','table','thead','tbody','tr','td','th','strong','em','b','i','u','br','hr','ul','ol','li','a','blockquote','pre','code','figure','figcaption'],
                 ALLOWED_ATTR: ['class','style','src','alt','href','title','width','height','align','colspan','rowspan','target','rel'],
               }) }}

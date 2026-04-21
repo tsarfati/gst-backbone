@@ -2,6 +2,7 @@ import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
+import { resolveCompanyLogoEmailUrl } from "../_shared/emailAssets.ts";
 import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
 
 const resend = new Resend(Deno.env.get("RESEND_API_KEY"));
@@ -178,7 +179,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const publicBaseUrl = resolvePublicBaseUrl(baseUrl);
 
-    const [vendorInviteResult, profileResult, emailTemplateResult] = await Promise.all([
+    const [vendorInviteResult, profileResult, emailTemplateResult, companyResult] = await Promise.all([
       admin
         ?.from("vendor_invitations")
         .select("token, status, expires_at")
@@ -200,10 +201,16 @@ const handler = async (req: Request): Promise<Response> => {
         .select("subject, html_content")
         .eq("key", "rfp_invitation")
         .maybeSingle(),
+      admin
+        ?.from("companies")
+        .select("id, logo_url")
+        .eq("id", companyId)
+        .maybeSingle(),
     ]);
 
     const pendingVendorInvite = vendorInviteResult?.data || null;
     const linkedProfile = profileResult?.data || null;
+    const companyLogoUrl = resolveCompanyLogoEmailUrl((companyResult?.data as any)?.logo_url);
 
     let ctaHref = `${publicBaseUrl}/vendor-signup?company=${encodeURIComponent(companyId)}`;
     let ctaLabel = "Create Vendor Account";
@@ -292,6 +299,7 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
           
           <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
+            ${companyLogoUrl ? `<div style="text-align:center;margin:0 0 24px 0;"><img src="${companyLogoUrl}" alt="${escapedCompanyName} logo" style="max-height:72px;max-width:240px;object-fit:contain;" /></div>` : ""}
             ${renderedTemplateHtml}
             
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">

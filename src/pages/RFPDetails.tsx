@@ -106,6 +106,7 @@ interface RfpAttachmentReference {
 type InviteSenderPreview = {
   mode: 'user' | 'company' | 'builderlynk';
   label: string;
+  email: string;
   description: string;
 };
 
@@ -384,7 +385,8 @@ export default function RFPDetails() {
   const [inviteMessage, setInviteMessage] = useState('');
   const [inviteSenderPreview, setInviteSenderPreview] = useState<InviteSenderPreview>({
     mode: 'builderlynk',
-    label: 'BuilderLYNK default mailer',
+    label: 'BuilderLYNK',
+    email: 'hello@send.builderlynk.com',
     description: 'If no personal or company email settings are configured, BuilderLYNK will send the invite.',
   });
   const drawingsInputRef = useRef<HTMLInputElement | null>(null);
@@ -437,7 +439,8 @@ export default function RFPDetails() {
       if (!user?.id) {
         setInviteSenderPreview({
           mode: 'builderlynk',
-          label: 'BuilderLYNK default mailer',
+          label: 'BuilderLYNK',
+          email: 'hello@send.builderlynk.com',
           description: 'BuilderLYNK will send the invite because no authenticated sender was found.',
         });
         return;
@@ -455,9 +458,8 @@ export default function RFPDetails() {
         if (userEmailSettings?.is_configured && userEmailSettings?.from_email) {
           setInviteSenderPreview({
             mode: 'user',
-            label: userEmailSettings.from_name
-              ? `${userEmailSettings.from_name} <${userEmailSettings.from_email}>`
-              : userEmailSettings.from_email,
+            label: userEmailSettings.from_name || 'Personal email settings',
+            email: userEmailSettings.from_email,
             description: 'These invites will send from your personal email settings first.',
           });
           return;
@@ -475,9 +477,8 @@ export default function RFPDetails() {
           if (companyEmailSettings?.is_configured && companyEmailSettings?.from_email) {
             setInviteSenderPreview({
               mode: 'company',
-              label: companyEmailSettings.from_name
-                ? `${companyEmailSettings.from_name} <${companyEmailSettings.from_email}>`
-                : companyEmailSettings.from_email,
+              label: companyEmailSettings.from_name || currentCompany?.name || 'Company email settings',
+              email: companyEmailSettings.from_email,
               description: 'Your personal email is not configured, so BuilderLYNK will fall back to the company email server.',
             });
             return;
@@ -486,14 +487,16 @@ export default function RFPDetails() {
 
         setInviteSenderPreview({
           mode: 'builderlynk',
-          label: 'BuilderLYNK default mailer',
+          label: 'BuilderLYNK',
+          email: 'hello@send.builderlynk.com',
           description: 'No personal or company email settings are configured, so BuilderLYNK will send the invite.',
         });
       } catch (error) {
         console.error('Error loading invite sender preview:', error);
         setInviteSenderPreview({
           mode: 'builderlynk',
-          label: 'BuilderLYNK default mailer',
+          label: 'BuilderLYNK',
+          email: 'hello@send.builderlynk.com',
           description: 'BuilderLYNK will send the invite if your mailbox settings are unavailable.',
         });
       }
@@ -2004,24 +2007,17 @@ export default function RFPDetails() {
           setInviteMessage('');
         }
       }}>
-        <DialogContent className="w-[min(96vw,1120px)] max-w-5xl max-h-[88vh] overflow-hidden p-0">
-          <DialogHeader>
+        <DialogContent className="flex h-[min(84vh,860px)] w-[min(96vw,1240px)] max-w-6xl flex-col overflow-hidden p-0">
+          <DialogHeader className="shrink-0">
             <DialogTitle className="px-6 pt-6">Invite Vendors to Bid</DialogTitle>
             <DialogDescription className="px-6">
               Select existing vendors or add a new one, then customize the email message before sending.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4 overflow-y-auto px-6 pb-6">
-            <div className="grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
+          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
+            <div className="grid gap-4 xl:grid-cols-[1.45fr_0.95fr]">
               <div className="rounded-lg border bg-background p-4 space-y-4">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium">Select Saved Vendors</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Choose one or more vendors to invite to bid on this RFP.
-                  </p>
-                </div>
-
                 {getAvailableVendors().length === 0 ? (
                   <div className="py-10 text-center">
                     <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
@@ -2079,7 +2075,7 @@ export default function RFPDetails() {
                       })}
                     </div>
 
-                    <ScrollArea className="max-h-[320px] pr-4">
+                    <ScrollArea className="h-[320px] pr-4">
                       <div className="space-y-2">
                         {getFilteredVendors().length === 0 ? (
                           <div className="py-4 text-center text-muted-foreground">
@@ -2089,7 +2085,7 @@ export default function RFPDetails() {
                           getFilteredVendors().map(vendor => (
                             <div
                               key={vendor.id}
-                              className="flex items-center space-x-3 rounded-lg border p-3 hover:bg-muted/50 cursor-pointer"
+                              className="flex items-center space-x-3 rounded-lg border px-3 py-2 hover:bg-muted/50 cursor-pointer"
                               onClick={() => toggleVendorSelection(vendor.id)}
                             >
                               <Checkbox
@@ -2097,9 +2093,9 @@ export default function RFPDetails() {
                                 onCheckedChange={() => toggleVendorSelection(vendor.id)}
                               />
                               <div className="flex-1 min-w-0">
-                                <p className="font-medium truncate">{vendor.name}</p>
+                                <p className="truncate text-sm font-medium leading-tight">{vendor.name}</p>
                                 {vendor.email && (
-                                  <p className="text-sm text-muted-foreground truncate">{vendor.email}</p>
+                                  <p className="truncate text-xs text-muted-foreground">{vendor.email}</p>
                                 )}
                               </div>
                             </div>
@@ -2112,30 +2108,26 @@ export default function RFPDetails() {
               </div>
 
               <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium">Quick Add Vendor</h3>
-                  <p className="text-xs text-muted-foreground">
-                    Add and invite a subcontractor even if they are not in your address book yet.
-                  </p>
-                </div>
                 <div className="grid gap-3">
-                  <div className="space-y-2">
-                    <Label htmlFor="quick-vendor-first-name">First Name</Label>
-                    <Input
-                      id="quick-vendor-first-name"
-                      placeholder="First name"
-                      value={quickInviteForm.firstName}
-                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, firstName: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="quick-vendor-last-name">Last Name</Label>
-                    <Input
-                      id="quick-vendor-last-name"
-                      placeholder="Last name"
-                      value={quickInviteForm.lastName}
-                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, lastName: e.target.value }))}
-                    />
+                  <div className="grid gap-3 sm:grid-cols-2">
+                    <div className="space-y-2">
+                      <Label htmlFor="quick-vendor-first-name">First Name</Label>
+                      <Input
+                        id="quick-vendor-first-name"
+                        placeholder="First name"
+                        value={quickInviteForm.firstName}
+                        onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="quick-vendor-last-name">Last Name</Label>
+                      <Input
+                        id="quick-vendor-last-name"
+                        placeholder="Last name"
+                        value={quickInviteForm.lastName}
+                        onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, lastName: e.target.value }))}
+                      />
+                    </div>
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="quick-vendor-company-name">Company Name</Label>
@@ -2186,17 +2178,12 @@ export default function RFPDetails() {
             </div>
 
             <div className="rounded-lg border p-4 space-y-3">
-              <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
-                <div className="space-y-1">
-                  <h3 className="text-sm font-medium">Invitation Message</h3>
-                  <p className="text-xs text-muted-foreground">
-                    BuilderLYNK will use your `RFP Invitation` email template as the base. Add an optional project-specific note below.
-                  </p>
-                </div>
-              </div>
               <div className="rounded-md border bg-muted/20 px-3 py-3 text-xs text-muted-foreground space-y-1">
                 <div className="font-medium text-foreground">Sending From</div>
-                <div>{inviteSenderPreview.label}</div>
+                <div>{inviteSenderPreview.email}</div>
+                {inviteSenderPreview.label && inviteSenderPreview.label !== inviteSenderPreview.email ? (
+                  <div>{inviteSenderPreview.label}</div>
+                ) : null}
                 <div>{inviteSenderPreview.description}</div>
               </div>
               <div className="space-y-2">
@@ -2212,7 +2199,7 @@ export default function RFPDetails() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 border-t px-6 py-4">
             <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
               Cancel
             </Button>
