@@ -14,6 +14,7 @@ import {
   Pencil,
   Paperclip,
   Plus,
+  Save,
   Send,
   Settings,
   Target,
@@ -166,6 +167,11 @@ type TimelineEntry =
   | { id: string; kind: 'email'; created_at: string; actorName: string; actorAvatar?: string | null; subject: string; fromEmail: string; toEmails: string[] }
   | { id: string; kind: 'activity'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; metadata?: Record<string, any> | null; activityType?: string };
 
+type TaskNoteDraft = {
+  title: string;
+  body: string;
+};
+
 const EMPTY_TASK_DRAFT: TaskDraft = {
   title: '',
   description: '',
@@ -239,12 +245,16 @@ export default function TaskDetails() {
   const [sendingComment, setSendingComment] = useState(false);
   const [loggingTimelineEntry, setLoggingTimelineEntry] = useState(false);
   const [savingNotepadEntry, setSavingNotepadEntry] = useState(false);
+  const [savingNoteIds, setSavingNoteIds] = useState<string[]>([]);
+  const [deletingNoteIds, setDeletingNoteIds] = useState<string[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState('');
   const [newComment, setNewComment] = useState('');
   const [timelineComposerType, setTimelineComposerType] = useState<'comment' | 'call'>('comment');
   const [timelineComposerText, setTimelineComposerText] = useState('');
+  const [newNotepadTitle, setNewNotepadTitle] = useState('');
   const [newNotepadEntry, setNewNotepadEntry] = useState('');
+  const [noteDrafts, setNoteDrafts] = useState<Record<string, TaskNoteDraft>>({});
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
   const [newChecklistDueDate, setNewChecklistDueDate] = useState('');
   const [newChecklistAssignedUser, setNewChecklistAssignedUser] = useState('');
@@ -955,10 +965,11 @@ export default function TaskDetails() {
   };
 
   const handleSaveNotepadEntry = async () => {
-    if (!newNotepadEntry.trim() || !user || !id) return;
+    if ((!newNotepadTitle.trim() && !newNotepadEntry.trim()) || !user || !id) return;
 
     setSavingNotepadEntry(true);
     try {
+      const trimmedTitle = newNotepadTitle.trim() || 'Untitled note';
       const trimmedContent = newNotepadEntry.trim();
       await logTaskActivity(
         'task_note_added',
@@ -966,7 +977,8 @@ export default function TaskDetails() {
         {
           entry_kind: 'note',
           entry_kind_label: 'note',
-          summary: 'Added a note',
+          title: trimmedTitle,
+          summary: trimmedTitle,
         },
       );
       await notifyTaskTeam(
@@ -974,6 +986,7 @@ export default function TaskDetails() {
         `${actorName} added a note to ${taskDraft.title || 'a task'}.`,
         { preferenceKey: 'task_timeline_activity_notifications' },
       );
+      setNewNotepadTitle('');
       setNewNotepadEntry('');
       await loadTaskWorkspace();
       toast.success('Note added');
@@ -982,6 +995,72 @@ export default function TaskDetails() {
       toast.error('Failed to save note');
     } finally {
       setSavingNotepadEntry(false);
+    }
+  };
+
+  const handleUpdateNotepadDraft = (noteId: string, field: keyof TaskNoteDraft, value: string) => {
+    setNoteDrafts((prev) => ({
+      ...prev,
+      [noteId]: {
+        ...(prev[noteId] || { title: '', body: '' }),
+        [field]: value,
+      },
+    }));
+  };
+
+  const handleSaveExistingNote = async (noteId: string) => {
+    const draft = noteDrafts[noteId];
+    if (!draft) return;
+
+    const trimmedTitle = draft.title.trim() || 'Untitled note';
+    const trimmedBody = draft.body.trim();
+
+    setSavingNoteIds((prev) => [...prev, noteId]);
+    try {
+      const { error } = await supabase
+        .from('task_activity' as any)
+        .update({
+          content: trimmedBody,
+          metadata: {
+            entry_kind: 'note',
+            entry_kind_label: 'note',
+            title: trimmedTitle,
+            summary: trimmedTitle,
+          },
+        })
+        .eq('id', noteId)
+        .eq('task_id', id);
+
+      if (error) throw error;
+
+      await loadTaskWorkspace();
+      toast.success('Note saved');
+    } catch (error) {
+      console.error('Error saving note:', error);
+      toast.error('Failed to save note');
+    } finally {
+      setSavingNoteIds((prev) => prev.filter((entry) => entry !== noteId));
+    }
+  };
+
+  const handleDeleteNote = async (noteId: string) => {
+    setDeletingNoteIds((prev) => [...prev, noteId]);
+    try {
+      const { error } = await supabase
+        .from('task_activity' as any)
+        .delete()
+        .eq('id', noteId)
+        .eq('task_id', id);
+
+      if (error) throw error;
+
+      await loadTaskWorkspace();
+      toast.success('Note deleted');
+    } catch (error) {
+      console.error('Error deleting note:', error);
+      toast.error('Failed to delete note');
+    } finally {
+      setDeletingNoteIds((prev) => prev.filter((entry) => entry !== noteId));
     }
   };
 
@@ -1462,6 +1541,19 @@ export default function TaskDetails() {
     [activities],
   );
 
+  useEffect(() => {
+    setNoteDrafts((prev) => {
+      const next: Record<string, TaskNoteDraft> = {};
+      notepadEntries.forEach((entry) => {
+        next[entry.id] = prev[entry.id] || {
+          title: String(entry.metadata?.title || '').trim() || 'Untitled note',
+          body: entry.content || '',
+        };
+      });
+      return next;
+    });
+  }, [notepadEntries]);
+
   const availableAssignees = companyUsers.filter(
     (entry) => !assignees.some((assignee) => assignee.user_id === entry.user_id),
   );
@@ -1769,10 +1861,6 @@ export default function TaskDetails() {
                 <span>Task Timeline</span>
                 {timeline.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{timeline.length}</Badge> : null}
               </TabsTrigger>
-              <TabsTrigger value="notepad" className="gap-2">
-                <span>Notepad</span>
-                {notepadEntries.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{notepadEntries.length}</Badge> : null}
-              </TabsTrigger>
               <TabsTrigger value="attachments" className="gap-2">
                 <span>Attachments</span>
                 {attachments.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{attachments.length}</Badge> : null}
@@ -1780,6 +1868,10 @@ export default function TaskDetails() {
               <TabsTrigger value="checklist" className="gap-2">
                 <span>Task Checklist</span>
                 {checklistItems.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{checklistItems.length}</Badge> : null}
+              </TabsTrigger>
+              <TabsTrigger value="notepad" className="gap-2">
+                <span>Notepad</span>
+                {notepadEntries.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{notepadEntries.length}</Badge> : null}
               </TabsTrigger>
             </TabsList>
 
@@ -1967,28 +2059,40 @@ export default function TaskDetails() {
             <TabsContent value="notepad">
               <Card className="min-h-[760px]">
                 <CardContent className="space-y-4 p-6">
-                  <div className="space-y-3">
-                    <Textarea
-                      value={newNotepadEntry}
-                      onChange={(event) => setNewNotepadEntry(event.target.value)}
-                      placeholder="Add a project note..."
-                      rows={4}
-                      className="min-h-[110px] resize-none rounded-xl border bg-background"
-                      onKeyDown={(event) => {
-                        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
-                          event.preventDefault();
-                          void handleSaveNotepadEntry();
-                        }
-                      }}
-                    />
-                    <div className="flex items-center justify-between gap-3">
-                      <div className="text-sm text-muted-foreground">
-                        Shared task notes with author and date stamps
+                  <div className="rounded-2xl border bg-muted/20 p-4">
+                    <div className="grid gap-3">
+                      <Input
+                        value={newNotepadTitle}
+                        onChange={(event) => setNewNotepadTitle(event.target.value)}
+                        placeholder="Note title"
+                        className="bg-background"
+                      />
+                      <Textarea
+                        value={newNotepadEntry}
+                        onChange={(event) => setNewNotepadEntry(event.target.value)}
+                        placeholder="Start typing your note..."
+                        rows={5}
+                        className="min-h-[140px] resize-none rounded-xl border bg-background"
+                        onKeyDown={(event) => {
+                          if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                            event.preventDefault();
+                            void handleSaveNotepadEntry();
+                          }
+                        }}
+                      />
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="text-sm text-muted-foreground">
+                          Shared editable notes for this task
+                        </div>
+                        <Button
+                          onClick={handleSaveNotepadEntry}
+                          disabled={savingNotepadEntry || (!newNotepadTitle.trim() && !newNotepadEntry.trim())}
+                          className="min-w-[120px]"
+                        >
+                          <Plus className="mr-2 h-4 w-4" />
+                          Add Note
+                        </Button>
                       </div>
-                      <Button onClick={handleSaveNotepadEntry} disabled={savingNotepadEntry || !newNotepadEntry.trim()} className="min-w-[120px]">
-                        <Send className="mr-2 h-4 w-4" />
-                        Save Note
-                      </Button>
                     </div>
                   </div>
 
@@ -1999,32 +2103,69 @@ export default function TaskDetails() {
                       </div>
                     ) : (
                       notepadEntries.map((entry) => (
-                        <div key={entry.id} className="rounded-2xl border bg-background px-4 py-4">
-                          <div className="flex items-start gap-3">
-                            <Avatar className="mt-0.5 h-9 w-9 shrink-0">
-                              <AvatarImage src={entry.actor_avatar || undefined} alt={entry.actor_name || 'Unknown User'} />
-                              <AvatarFallback>
-                                {(entry.actor_name || 'U')
-                                  .split(' ')
-                                  .filter(Boolean)
-                                  .slice(0, 2)
-                                  .map((part) => part.charAt(0).toUpperCase())
-                                  .join('') || 'U'}
-                              </AvatarFallback>
-                            </Avatar>
-                            <div className="min-w-0 flex-1">
-                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
-                                <span className="text-sm font-semibold text-foreground">
-                                  {entry.actor_name || 'Unknown User'}
-                                </span>
-                                <span className="text-xs text-muted-foreground">
-                                  {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
-                                </span>
+                        <div key={entry.id} className="rounded-2xl border bg-background p-4">
+                          <div className="space-y-3">
+                            <div className="flex items-start justify-between gap-3">
+                              <div className="flex min-w-0 items-center gap-3">
+                                <Avatar className="h-9 w-9 shrink-0">
+                                  <AvatarImage src={entry.actor_avatar || undefined} alt={entry.actor_name || 'Unknown User'} />
+                                  <AvatarFallback>
+                                    {(entry.actor_name || 'U')
+                                      .split(' ')
+                                      .filter(Boolean)
+                                      .slice(0, 2)
+                                      .map((part) => part.charAt(0).toUpperCase())
+                                      .join('') || 'U'}
+                                  </AvatarFallback>
+                                </Avatar>
+                                <div className="min-w-0">
+                                  <div className="text-sm font-semibold text-foreground">
+                                    {entry.actor_name || 'Unknown User'}
+                                  </div>
+                                  <div className="text-xs text-muted-foreground">
+                                    {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
+                                  </div>
+                                </div>
                               </div>
-                              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
-                                {entry.content}
-                              </p>
+                              <div className="flex items-center gap-2">
+                                <Button
+                                  type="button"
+                                  variant="outline"
+                                  size="sm"
+                                  onClick={() => void handleSaveExistingNote(entry.id)}
+                                  disabled={savingNoteIds.includes(entry.id)}
+                                >
+                                  <Save className="mr-2 h-4 w-4" />
+                                  Save
+                                </Button>
+                                <Button
+                                  type="button"
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => void handleDeleteNote(entry.id)}
+                                  disabled={deletingNoteIds.includes(entry.id)}
+                                  className="text-destructive hover:text-destructive"
+                                >
+                                  <Trash2 className="mr-2 h-4 w-4" />
+                                  Delete
+                                </Button>
+                              </div>
                             </div>
+
+                            <Input
+                              value={noteDrafts[entry.id]?.title || ''}
+                              onChange={(event) => handleUpdateNotepadDraft(entry.id, 'title', event.target.value)}
+                              placeholder="Note title"
+                              className="bg-background"
+                            />
+
+                            <Textarea
+                              value={noteDrafts[entry.id]?.body || ''}
+                              onChange={(event) => handleUpdateNotepadDraft(entry.id, 'body', event.target.value)}
+                              placeholder="Write your note..."
+                              rows={6}
+                              className="min-h-[160px] resize-y rounded-xl border bg-background"
+                            />
                           </div>
                         </div>
                       ))

@@ -237,49 +237,25 @@ export default function VendorRegister() {
       if (signUpError) throw signUpError;
 
       if (authData.user) {
-        const externalRole = isDesignProfessionalVendorType((invitation?.vendor as any)?.vendor_type)
-          ? 'design_professional'
-          : 'vendor';
-        const approvedAt = new Date().toISOString();
+        const { data: finalizeData, error: finalizeError } = await supabase.functions.invoke(
+          'finalize-vendor-invite-registration',
+          {
+            body: {
+              token,
+              userId: authData.user.id,
+              firstName: formData.firstName,
+              lastName: formData.lastName,
+            },
+          },
+        );
 
-        // Update the invitation status
-        await supabase
-          .from('vendor_invitations')
-          .update({
-            status: 'accepted',
-            accepted_at: new Date().toISOString(),
-            created_user_id: authData.user.id
-          })
-          .eq('id', invitation!.id);
+        if (finalizeError) {
+          throw finalizeError;
+        }
 
-        // Create profile for the vendor user
-        await supabase
-          .from('profiles')
-          .upsert({
-            user_id: authData.user.id,
-            email: invitation!.email,
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            display_name: `${formData.firstName} ${formData.lastName}`.trim(),
-            role: externalRole,
-            current_company_id: invitation!.company_id,
-            default_company_id: invitation!.company_id,
-            status: 'approved',
-            approved_at: approvedAt,
-            approved_by: invitation!.invited_by || authData.user.id,
-            vendor_id: invitation!.vendor_id,
-          });
-
-        // Give them access to the company as a vendor
-        await supabase
-          .from('user_company_access')
-          .upsert({
-            user_id: authData.user.id,
-            company_id: invitation!.company_id,
-            role: externalRole,
-            is_active: true,
-            granted_by: invitation!.invited_by || authData.user.id
-          }, { onConflict: 'user_id,company_id' });
+        if (!finalizeData?.success) {
+          throw new Error('Failed to finalize vendor invitation registration');
+        }
 
         setSuccess(true);
         toast({
