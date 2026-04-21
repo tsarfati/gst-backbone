@@ -988,23 +988,28 @@ export default function RFPDetails() {
             .not('vendor_id', 'is', null),
         ]);
 
-        if (portalInvitesResult.error) throw portalInvitesResult.error;
-        if (linkedProfilesResult.error) throw linkedProfilesResult.error;
+        if (portalInvitesResult.error) {
+          console.error('Error loading vendor portal invites for RFP:', portalInvitesResult.error);
+        } else {
+          ((portalInvitesResult.data || []) as any[]).forEach((row) => {
+            const key = String(row.vendor_id);
+            if (!pendingInvitesByVendorId.has(key)) {
+              pendingInvitesByVendorId.set(key, {
+                invited_at: row.invited_at || null,
+              });
+            }
+          });
+        }
 
-        ((portalInvitesResult.data || []) as any[]).forEach((row) => {
-          const key = String(row.vendor_id);
-          if (!pendingInvitesByVendorId.has(key)) {
-            pendingInvitesByVendorId.set(key, {
-              invited_at: row.invited_at || null,
-            });
-          }
-        });
-
-        linkedVendorIds = new Set(
-          ((linkedProfilesResult.data || []) as any[])
-            .map((row) => String(row.vendor_id || ''))
-            .filter(Boolean),
-        );
+        if (linkedProfilesResult.error) {
+          console.error('Error loading linked vendor profiles for RFP:', linkedProfilesResult.error);
+        } else {
+          linkedVendorIds = new Set(
+            ((linkedProfilesResult.data || []) as any[])
+              .map((row) => String(row.vendor_id || ''))
+              .filter(Boolean),
+          );
+        }
       }
 
       setInvitedVendors(

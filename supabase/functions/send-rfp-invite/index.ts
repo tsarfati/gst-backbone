@@ -178,6 +178,10 @@ const handler = async (req: Request): Promise<Response> => {
       : 'Not specified';
 
     const publicBaseUrl = resolvePublicBaseUrl(baseUrl);
+    const pixelUrl =
+      supabaseUrl && rfpId && vendorId
+        ? `${supabaseUrl}/functions/v1/track-rfp-invite-open?rfpId=${encodeURIComponent(rfpId)}&vendorId=${encodeURIComponent(vendorId)}`
+        : null;
 
     const [vendorInviteResult, profileResult, emailTemplateResult, companyResult] = await Promise.all([
       admin
@@ -322,6 +326,7 @@ const handler = async (req: Request): Promise<Response> => {
           <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
             ${companyLogoUrl ? `<div style="text-align:center;margin:0 0 24px 0;"><img src="${companyLogoUrl}" alt="${escapedCompanyName} logo" style="max-height:72px;max-width:240px;object-fit:contain;" /></div>` : ""}
             ${renderedTemplateHtml}
+            ${pixelUrl ? `<img src="${escapeHtml(pixelUrl)}" alt="" width="1" height="1" style="display:block;border:0;outline:none;text-decoration:none;width:1px;height:1px;opacity:0;" />` : ""}
             
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
             

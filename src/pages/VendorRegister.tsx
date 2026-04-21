@@ -344,11 +344,6 @@ export default function VendorRegister() {
       >
         <CardHeader className="text-center">
           <div className="mx-auto mb-4 flex flex-col items-center gap-3">
-            <img
-              src={builderlynkLogo}
-              alt="BuilderLYNK"
-              className="h-12 w-auto object-contain"
-            />
             {selectedSignupLogoUrl ? (
               <img
                 src={selectedSignupLogoUrl}
@@ -369,14 +364,16 @@ export default function VendorRegister() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={handleSubmit} className="space-y-4" autoComplete="off">
             <div className="space-y-2">
               <Label htmlFor="email">Email</Label>
               <Input
                 id="email"
+                name="email"
                 type="email"
                 value={invitation?.email || ''}
-                disabled
+                readOnly
+                autoComplete="email"
                 className="bg-slate-800 border-slate-600"
               />
             </div>
@@ -386,9 +383,11 @@ export default function VendorRegister() {
                 <Label htmlFor="firstName">First Name</Label>
                 <Input
                   id="firstName"
+                  name="first_name"
                   value={formData.firstName}
                   onChange={(e) => setFormData(prev => ({ ...prev, firstName: e.target.value }))}
                   placeholder="John"
+                  autoComplete="given-name"
                   required
                 />
               </div>
@@ -396,9 +395,11 @@ export default function VendorRegister() {
                 <Label htmlFor="lastName">Last Name</Label>
                 <Input
                   id="lastName"
+                  name="last_name"
                   value={formData.lastName}
                   onChange={(e) => setFormData(prev => ({ ...prev, lastName: e.target.value }))}
                   placeholder="Doe"
+                  autoComplete="family-name"
                   required
                 />
               </div>
@@ -408,10 +409,12 @@ export default function VendorRegister() {
               <Label htmlFor="password">Password</Label>
               <Input
                 id="password"
+                name="new_password"
                 type="password"
                 value={formData.password}
                 onChange={(e) => setFormData(prev => ({ ...prev, password: e.target.value }))}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 required
                 minLength={6}
               />
@@ -421,10 +424,12 @@ export default function VendorRegister() {
               <Label htmlFor="confirmPassword">Confirm Password</Label>
               <Input
                 id="confirmPassword"
+                name="confirm_password"
                 type="password"
                 value={formData.confirmPassword}
                 onChange={(e) => setFormData(prev => ({ ...prev, confirmPassword: e.target.value }))}
                 placeholder="••••••••"
+                autoComplete="new-password"
                 required
               />
             </div>
