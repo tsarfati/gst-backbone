@@ -32,6 +32,11 @@ interface RFPInviteRequest {
   baseUrl?: string | null;
 }
 
+interface EmailTemplateRow {
+  subject: string | null;
+  html_content: string | null;
+}
+
 const DEFAULT_PUBLIC_ORIGIN = "https://builderlynk.com";
 
 const escapeHtml = (value: string): string =>
@@ -60,6 +65,43 @@ const resolvePublicBaseUrl = (value: string | null | undefined) => {
   } catch {
     return DEFAULT_PUBLIC_ORIGIN;
   }
+};
+
+const DEFAULT_RFP_TEMPLATE_SUBJECT = "Invitation to Bid: {{rfp_title}} - {{company_name}}";
+const DEFAULT_RFP_TEMPLATE_HTML = `
+  <p style="font-size:16px;margin-bottom:20px;">Hello <strong>{{vendor_name}}</strong>,</p>
+  <p style="font-size:16px;margin-bottom:20px;">
+    <strong>{{company_name}}</strong> invited you to review and bid the following RFP in BuilderLYNK:
+  </p>
+  <div style="background:#f8fafc;border-radius:8px;padding:20px;margin:20px 0;">
+    <h2 style="margin:0 0 15px 0;color:#1e40af;font-size:20px;">{{rfp_title}}</h2>
+    <p style="margin:5px 0;font-size:14px;"><strong>RFP Number:</strong> {{rfp_number}}</p>
+    <p style="margin:5px 0;font-size:14px;"><strong>Due Date:</strong> {{due_date}}</p>
+    {{scope_of_work_block}}
+  </div>
+  {{custom_message_block}}
+  <p style="font-size:16px;margin-bottom:20px;">
+    If you're not already familiar with BuilderLYNK, you'll be prompted to sign up or open your existing account. From there, you can review this RFP, access the supporting information, communicate with the team, and submit your bid.
+  </p>
+  <p style="font-size:16px;margin-bottom:20px;">
+    {{cta_secondary_copy}}
+  </p>
+  <div style="text-align:center;margin:24px 0;">
+    <a href="{{cta_href}}" style="display:inline-block;background-color:#E88A2D;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:8px;">
+      {{cta_label}}
+    </a>
+  </div>
+  <p style="font-size:13px;color:#6b7280;margin-bottom:20px;text-align:center;">
+    Once inside BuilderLYNK, the vendor portal RFPs tab will show the invite, attachments, plan pages, and bid submission workflow.
+  </p>
+`;
+
+const replaceTemplateTokens = (template: string, replacements: Record<string, string>) => {
+  let next = template;
+  Object.entries(replacements).forEach(([key, value]) => {
+    next = next.replaceAll(`{{${key}}}`, value);
+  });
+  return next.replace(/\{\{[\w_]+\}\}/g, "");
 };
 
 const handler = async (req: Request): Promise<Response> => {
@@ -136,7 +178,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const publicBaseUrl = resolvePublicBaseUrl(baseUrl);
 
-    const [vendorInviteResult, profileResult] = await Promise.all([
+    const [vendorInviteResult, profileResult, emailTemplateResult] = await Promise.all([
       admin
         ?.from("vendor_invitations")
         .select("token, status, expires_at")
@@ -152,6 +194,11 @@ const handler = async (req: Request): Promise<Response> => {
         .select("user_id, role")
         .eq("vendor_id", vendorId)
         .limit(1)
+        .maybeSingle(),
+      admin
+        ?.from("email_templates")
+        .select("subject, html_content")
+        .eq("key", "rfp_invitation")
         .maybeSingle(),
     ]);
 
@@ -189,6 +236,47 @@ const handler = async (req: Request): Promise<Response> => {
     const escapedCtaSecondaryCopy = escapeHtml(ctaSecondaryCopy);
     const trimmedMessage = String(message || "").trim();
     const escapedCustomMessage = escapeHtml(trimmedMessage).replace(/\n/g, "<br />");
+    const customMessageBlock = trimmedMessage
+      ? `
+        <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:16px 18px;margin:20px 0;">
+          <p style="margin:0 0 8px 0;font-size:13px;font-weight:700;letter-spacing:0.02em;text-transform:uppercase;color:#9a3412;">Project-specific note from ${escapedCompanyName}</p>
+          <p style="margin:0;font-size:15px;color:#7c2d12;">${escapedCustomMessage}</p>
+        </div>
+      `
+      : "";
+    const scopeOfWorkBlock = scopeOfWork
+      ? `
+        <div style="margin-top:15px;padding-top:15px;border-top:1px solid #e5e7eb;">
+          <p style="margin:0 0 10px 0;font-size:14px;font-weight:600;">Scope of Work:</p>
+          <p style="margin:0;font-size:14px;color:#4b5563;">${escapedScopePreview}</p>
+        </div>
+      `
+      : "";
+    const templateRow = (emailTemplateResult?.data || null) as EmailTemplateRow | null;
+    const renderedTemplateHtml = replaceTemplateTokens(
+      templateRow?.html_content || DEFAULT_RFP_TEMPLATE_HTML,
+      {
+        vendor_name: escapedVendorName,
+        company_name: escapedCompanyName,
+        rfp_title: escapedRfpTitle,
+        rfp_number: escapedRfpNumber,
+        due_date: escapedDueDate,
+        scope_of_work_block: scopeOfWorkBlock,
+        custom_message_block: customMessageBlock,
+        cta_secondary_copy: escapedCtaSecondaryCopy,
+        cta_href: escapedCtaHref,
+        cta_label: escapedCtaLabel,
+      },
+    );
+    const renderedSubject = replaceTemplateTokens(
+      templateRow?.subject || DEFAULT_RFP_TEMPLATE_SUBJECT,
+      {
+        company_name: companyName,
+        rfp_title: rfpTitle,
+        rfp_number: rfpNumber,
+        vendor_name: vendorName || vendorEmail,
+      },
+    );
 
     const emailHtml = `
         <!DOCTYPE html>
@@ -204,44 +292,7 @@ const handler = async (req: Request): Promise<Response> => {
           </div>
           
           <div style="background: #ffffff; padding: 30px; border: 1px solid #e5e7eb; border-top: none; border-radius: 0 0 12px 12px;">
-            <p style="font-size: 16px; margin-bottom: 20px;">Hello <strong>${escapedVendorName}</strong>,</p>
-            
-            <p style="font-size: 16px; margin-bottom: 20px;">
-              <strong>${escapedCompanyName}</strong> invited you to review and bid the following RFP in BuilderLYNK:
-            </p>
-            
-            <div style="background: #f8fafc; border-radius: 8px; padding: 20px; margin: 20px 0;">
-              <h2 style="margin: 0 0 15px 0; color: #1e40af; font-size: 20px;">${escapedRfpTitle}</h2>
-              <p style="margin: 5px 0; font-size: 14px;"><strong>RFP Number:</strong> ${escapedRfpNumber}</p>
-              <p style="margin: 5px 0; font-size: 14px;"><strong>Due Date:</strong> ${escapedDueDate}</p>
-              ${scopeOfWork ? `
-              <div style="margin-top: 15px; padding-top: 15px; border-top: 1px solid #e5e7eb;">
-                <p style="margin: 0 0 10px 0; font-size: 14px; font-weight: 600;">Scope of Work:</p>
-                <p style="margin: 0; font-size: 14px; color: #4b5563;">${escapedScopePreview}</p>
-              </div>
-              ` : ''}
-            </div>
-
-            ${trimmedMessage ? `
-            <div style="background:#fff7ed;border:1px solid #fdba74;border-radius:8px;padding:16px 18px;margin:20px 0;">
-              <p style="margin:0 0 8px 0;font-size:13px;font-weight:700;letter-spacing:0.02em;text-transform:uppercase;color:#9a3412;">Message from ${escapedCompanyName}</p>
-              <p style="margin:0;font-size:15px;color:#7c2d12;">${escapedCustomMessage}</p>
-            </div>
-            ` : ""}
-            
-            <p style="font-size: 16px; margin-bottom: 20px;">
-              ${escapedCtaSecondaryCopy}
-            </p>
-
-            <div style="text-align:center; margin: 24px 0;">
-              <a href="${escapedCtaHref}" style="display:inline-block;background-color:#E88A2D;color:#ffffff;font-size:16px;font-weight:700;text-decoration:none;padding:14px 28px;border-radius:8px;">
-                ${escapedCtaLabel}
-              </a>
-            </div>
-
-            <p style="font-size: 13px; color: #6b7280; margin-bottom: 20px; text-align:center;">
-              Once inside BuilderLYNK, the vendor portal RFPs tab will show the invite, attachments, plan pages, and bid submission workflow.
-            </p>
+            ${renderedTemplateHtml}
             
             <hr style="border: none; border-top: 1px solid #e5e7eb; margin: 30px 0;">
             
@@ -280,7 +331,7 @@ const handler = async (req: Request): Promise<Response> => {
       companyId,
       defaultFrom: inviteFrom,
       to: [vendorEmail],
-      subject: `Invitation to Bid: ${rfpTitle} - ${companyName}`,
+      subject: renderedSubject,
       html: emailHtml,
       text: emailText,
       context: "send-rfp-invite",
@@ -288,7 +339,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("RFP invite email sent successfully:", emailResponse);
 
-    const resendMessageId = emailResponse?.data?.id || (emailResponse as any)?.id || null;
+    const resendMessageId = emailResponse?.providerMessageId || null;
 
     if (admin && rfpId && vendorId) {
       const { error: trackingError } = await admin

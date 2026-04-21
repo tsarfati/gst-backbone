@@ -373,7 +373,12 @@ export default function RFPDetails() {
   const [vendorSearch, setVendorSearch] = useState('');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [resendingInvite, setResendingInvite] = useState<string | null>(null);
-  const [quickInviteForm, setQuickInviteForm] = useState({ name: '', email: '' });
+  const [quickInviteForm, setQuickInviteForm] = useState({
+    firstName: '',
+    lastName: '',
+    companyName: '',
+    email: '',
+  });
   const [creatingQuickInvite, setCreatingQuickInvite] = useState(false);
   const [quickInviteVendorType, setQuickInviteVendorType] = useState<string>('Contractor');
   const [inviteMessage, setInviteMessage] = useState('');
@@ -405,15 +410,6 @@ export default function RFPDetails() {
   })();
 
   const commentStorageKey = `rfp-attachment-comments:${currentCompany?.id || 'default'}:${id || 'unknown'}:${user?.id || 'anon'}`;
-  const buildDefaultInviteMessage = () => {
-    const lines = [
-      `Please review ${rfp?.rfp_number || 'this RFP'}${rfp?.title ? `, ${rfp.title},` : ''} and let us know if you plan to bid.`,
-      rfp?.due_date ? `The current due date is ${format(new Date(rfp.due_date), 'MMMM d, yyyy')}.` : '',
-      'Reach out with any scope, plan, or access questions.',
-    ].filter(Boolean);
-
-    return lines.join('\n\n');
-  };
 
   const sortedBids = useMemo(() => {
     const rows = [...bids];
@@ -435,7 +431,7 @@ export default function RFPDetails() {
   useEffect(() => {
     if (!inviteDialogOpen) return;
 
-    setInviteMessage(buildDefaultInviteMessage());
+    setInviteMessage("");
 
     const loadInviteSenderPreview = async () => {
       if (!user?.id) {
@@ -1588,13 +1584,17 @@ export default function RFPDetails() {
   const handleQuickInviteVendor = async () => {
     if (!currentCompany?.id || !id) return;
 
-    const vendorName = quickInviteForm.name.trim();
+    const firstName = quickInviteForm.firstName.trim();
+    const lastName = quickInviteForm.lastName.trim();
+    const companyName = quickInviteForm.companyName.trim();
     const vendorEmail = quickInviteForm.email.trim().toLowerCase();
+    const contactName = [firstName, lastName].filter(Boolean).join(' ').trim();
+    const vendorName = companyName || contactName || vendorEmail;
 
-    if (!vendorName) {
+    if (!companyName && !contactName) {
       toast({
-        title: 'Vendor name required',
-        description: 'Enter the vendor or subcontractor company name.',
+        title: 'Vendor information required',
+        description: 'Enter a company name or at least a first or last name.',
         variant: 'destructive',
       });
       return;
@@ -1637,7 +1637,7 @@ export default function RFPDetails() {
             company_id: currentCompany.id,
             name: vendorName,
             email: vendorEmail,
-            contact_person: vendorName,
+            contact_person: contactName || vendorName,
             is_active: true,
             vendor_type: quickInviteVendorType,
           })
@@ -1755,7 +1755,7 @@ export default function RFPDetails() {
         description: portalInviteNotice || `${vendorRecord.name} can now sign up and access this job's bidding workflow.`,
       });
 
-      setQuickInviteForm({ name: '', email: '' });
+      setQuickInviteForm({ firstName: '', lastName: '', companyName: '', email: '' });
       setQuickInviteVendorType('Contractor');
       setVendorSearch('');
       setActiveLetter(null);
@@ -1999,20 +1999,20 @@ export default function RFPDetails() {
           setVendorSearch('');
           setActiveLetter(null);
           setSelectedVendors([]);
-          setQuickInviteForm({ name: '', email: '' });
+          setQuickInviteForm({ firstName: '', lastName: '', companyName: '', email: '' });
           setQuickInviteVendorType('Contractor');
           setInviteMessage('');
         }
       }}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="w-[min(96vw,1120px)] max-w-5xl max-h-[88vh] overflow-hidden p-0">
           <DialogHeader>
-            <DialogTitle>Invite Vendors to Bid</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="px-6 pt-6">Invite Vendors to Bid</DialogTitle>
+            <DialogDescription className="px-6">
               Select existing vendors or add a new one, then customize the email message before sending.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto px-6 pb-6">
             <div className="grid gap-4 lg:grid-cols-[1.35fr_0.95fr]">
               <div className="rounded-lg border bg-background p-4 space-y-4">
                 <div className="space-y-1">
@@ -2120,12 +2120,30 @@ export default function RFPDetails() {
                 </div>
                 <div className="grid gap-3">
                   <div className="space-y-2">
-                    <Label htmlFor="quick-vendor-name">Vendor Name</Label>
+                    <Label htmlFor="quick-vendor-first-name">First Name</Label>
                     <Input
-                      id="quick-vendor-name"
-                      placeholder="Vendor or subcontractor"
-                      value={quickInviteForm.name}
-                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, name: e.target.value }))}
+                      id="quick-vendor-first-name"
+                      placeholder="First name"
+                      value={quickInviteForm.firstName}
+                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quick-vendor-last-name">Last Name</Label>
+                    <Input
+                      id="quick-vendor-last-name"
+                      placeholder="Last name"
+                      value={quickInviteForm.lastName}
+                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, lastName: e.target.value }))}
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="quick-vendor-company-name">Company Name</Label>
+                    <Input
+                      id="quick-vendor-company-name"
+                      placeholder="Company name"
+                      value={quickInviteForm.companyName}
+                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, companyName: e.target.value }))}
                     />
                   </div>
                   <div className="space-y-2">
@@ -2172,24 +2190,23 @@ export default function RFPDetails() {
                 <div className="space-y-1">
                   <h3 className="text-sm font-medium">Invitation Message</h3>
                   <p className="text-xs text-muted-foreground">
-                    This message will be included in the RFP email.
+                    BuilderLYNK will use your `RFP Invitation` email template as the base. Add an optional project-specific note below.
                   </p>
                 </div>
-                <Badge variant={inviteSenderPreview.mode === 'user' ? 'success' : inviteSenderPreview.mode === 'company' ? 'info' : 'outline'}>
-                  Sending From: {inviteSenderPreview.label}
-                </Badge>
               </div>
-              <div className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
-                {inviteSenderPreview.description}
+              <div className="rounded-md border bg-muted/20 px-3 py-3 text-xs text-muted-foreground space-y-1">
+                <div className="font-medium text-foreground">Sending From</div>
+                <div>{inviteSenderPreview.label}</div>
+                <div>{inviteSenderPreview.description}</div>
               </div>
               <div className="space-y-2">
-                <Label htmlFor="rfp-invite-message">Message</Label>
+                <Label htmlFor="rfp-invite-message">Custom RFP Message</Label>
                 <Textarea
                   id="rfp-invite-message"
                   value={inviteMessage}
                   onChange={(e) => setInviteMessage(e.target.value)}
                   rows={7}
-                  placeholder="Add any scope notes, scheduling details, or instructions for invited vendors."
+                  placeholder="Optional: add any job-specific notes, scope clarifications, scheduling details, or instructions for this RFP."
                 />
               </div>
             </div>

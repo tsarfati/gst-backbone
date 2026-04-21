@@ -19,6 +19,7 @@ import DragDropUpload from "@/components/DragDropUpload";
 import MentionTextarea from "@/components/MentionTextarea";
 import { createMentionNotifications } from "@/utils/mentions";
 import type { Json } from "@/integrations/supabase/types";
+import { getPublicAuthOrigin } from "@/utils/publicAuthOrigin";
 
 interface JobRFIsProps {
   jobId: string;
@@ -46,7 +47,14 @@ interface Profile {
   user_id: string;
   first_name: string;
   last_name: string;
+  email?: string | null;
 }
+
+type InviteSenderPreview = {
+  mode: "user" | "company" | "builderlynk";
+  label: string;
+  description: string;
+};
 
 interface RFIMessage {
   id: string;
@@ -81,7 +89,16 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
   const [uploadingFile, setUploadingFile] = useState(false);
   const [savingRfiDetails, setSavingRfiDetails] = useState(false);
   const [creatingRfi, setCreatingRfi] = useState(false);
+  const [submittingRfi, setSubmittingRfi] = useState(false);
   const [createAttachments, setCreateAttachments] = useState<File[]>([]);
+  const [submitDialogOpen, setSubmitDialogOpen] = useState(false);
+  const [submitTargetRfi, setSubmitTargetRfi] = useState<RFI | null>(null);
+  const [submitMessage, setSubmitMessage] = useState("");
+  const [submitSenderPreview, setSubmitSenderPreview] = useState<InviteSenderPreview>({
+    mode: "builderlynk",
+    label: "BuilderLYNK default mailer",
+    description: "If no personal or company email settings are configured, BuilderLYNK will send the RFI email.",
+  });
   const [rfiEditForm, setRfiEditForm] = useState({
     rfi_number: "",
     subject: "",
@@ -128,6 +145,22 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     is_private: false,
   });
 
+  const buildDefaultSubmitMessage = (rfi: RFI) => {
+    const lines = [
+      `Please review ${rfi.rfi_number || "this RFI"}${rfi.subject ? `, ${rfi.subject},` : ""} and provide your response in BuilderLYNK.`,
+      rfi.due_date ? `The current due date is ${format(new Date(rfi.due_date), "MMMM d, yyyy")}.` : "",
+      "Reach out if you need any clarification or supporting attachments.",
+    ].filter(Boolean);
+
+    return lines.join("\n\n");
+  };
+
+  const getCompanyUserById = (userId: string | null | undefined) =>
+    companyUsers.find((profile) => profile.user_id === userId) || null;
+
+  const getCompanyUserName = (profile: Profile | null | undefined) =>
+    [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || profile?.email || "Assigned user";
+
   const fetchRFIs = useCallback(async () => {
     try {
       const { data, error } = await supabase
@@ -151,7 +184,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     try {
       const { data, error } = await supabase
         .from("user_company_access")
-        .select("user_id, profiles(user_id, first_name, last_name)")
+        .select("user_id, profiles(user_id, first_name, last_name, email)")
         .eq("company_id", currentCompany?.id)
         .eq("is_active", true);
 
@@ -169,6 +202,78 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
       void fetchCompanyUsers();
     }
   }, [currentCompany?.id, fetchCompanyUsers, fetchRFIs]);
+
+  useEffect(() => {
+    if (!submitDialogOpen) return;
+
+    const loadInviteSenderPreview = async () => {
+      if (!user?.id) {
+        setSubmitSenderPreview({
+          mode: "builderlynk",
+          label: "BuilderLYNK default mailer",
+          description: "BuilderLYNK will send the RFI email because no authenticated sender was found.",
+        });
+        return;
+      }
+
+      try {
+        const { data: userEmailSettings, error: userSettingsError } = await supabase
+          .from("user_email_settings")
+          .select("is_configured, from_name, from_email")
+          .eq("user_id", user.id)
+          .maybeSingle();
+
+        if (userSettingsError) throw userSettingsError;
+
+        if (userEmailSettings?.is_configured && userEmailSettings?.from_email) {
+          setSubmitSenderPreview({
+            mode: "user",
+            label: userEmailSettings.from_name
+              ? `${userEmailSettings.from_name} <${userEmailSettings.from_email}>`
+              : userEmailSettings.from_email,
+            description: "This RFI email will send from your personal email settings first.",
+          });
+          return;
+        }
+
+        if (currentCompany?.id) {
+          const { data: companyEmailSettings, error: companySettingsError } = await supabase
+            .from("company_email_settings")
+            .select("is_configured, from_name, from_email")
+            .eq("company_id", currentCompany.id)
+            .maybeSingle();
+
+          if (companySettingsError) throw companySettingsError;
+
+          if (companyEmailSettings?.is_configured && companyEmailSettings?.from_email) {
+            setSubmitSenderPreview({
+              mode: "company",
+              label: companyEmailSettings.from_name
+                ? `${companyEmailSettings.from_name} <${companyEmailSettings.from_email}>`
+                : companyEmailSettings.from_email,
+              description: "Your personal email is not configured, so BuilderLYNK will fall back to the company email server.",
+            });
+            return;
+          }
+        }
+
+        setSubmitSenderPreview({
+          mode: "builderlynk",
+          label: "BuilderLYNK default mailer",
+          description: "No personal or company email settings are configured, so BuilderLYNK will send the RFI email.",
+        });
+      } catch (error) {
+        console.error("Error loading RFI sender preview:", error);
+        setSubmitSenderPreview({
+          mode: "builderlynk",
+          label: "BuilderLYNK default mailer",
+          description: "BuilderLYNK will send the RFI email if your mailbox settings are unavailable.",
+        });
+      }
+    };
+
+    void loadInviteSenderPreview();
+  }, [submitDialogOpen, user?.id, currentCompany?.id]);
 
   const fetchRFIDetails = async (rfi: RFI) => {
     try {
@@ -408,12 +513,31 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     }
   };
 
-  const handleSubmitRFI = async (rfi: RFI) => {
+  const handleOpenSubmitDialog = (rfi: RFI) => {
     if (!rfi.assigned_to) {
       toast.error("Please assign the RFI to a design professional before submitting");
       return;
     }
 
+    const assignedProfile = getCompanyUserById(rfi.assigned_to);
+    if (!assignedProfile?.email) {
+      toast.error("The assigned user needs an email address before this RFI can be submitted by email");
+      return;
+    }
+
+    setSubmitTargetRfi(rfi);
+    setSubmitMessage(buildDefaultSubmitMessage(rfi));
+    setSubmitDialogOpen(true);
+  };
+
+  const handleSubmitRFI = async (rfi: RFI) => {
+    const assignedProfile = getCompanyUserById(rfi.assigned_to);
+    if (!assignedProfile?.email) {
+      toast.error("The assigned user needs an email address before this RFI can be submitted");
+      return;
+    }
+
+    setSubmittingRfi(true);
     try {
       const { error } = await supabase
         .from("rfis")
@@ -426,7 +550,27 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
 
       if (error) throw error;
 
+      const { error: emailError } = await supabase.functions.invoke("send-rfi-invite", {
+        body: {
+          rfiId: rfi.id,
+          rfiNumber: rfi.rfi_number,
+          subject: rfi.subject,
+          dueDate: rfi.due_date,
+          recipientName: getCompanyUserName(assignedProfile),
+          recipientEmail: assignedProfile.email,
+          companyId: currentCompany?.id,
+          companyName: currentCompany?.name,
+          message: submitMessage,
+          baseUrl: getPublicAuthOrigin(),
+        },
+      });
+
+      if (emailError) throw emailError;
+
       toast.success("RFI submitted to design professional");
+      setSubmitDialogOpen(false);
+      setSubmitTargetRfi(null);
+      setSubmitMessage("");
       fetchRFIs();
       if (selectedRfi?.id === rfi.id) {
         setSelectedRfi({ ...rfi, status: "submitted", ball_in_court: "design_professional" });
@@ -434,6 +578,8 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     } catch (error) {
       console.error("Error submitting RFI:", error);
       toast.error("Failed to submit RFI");
+    } finally {
+      setSubmittingRfi(false);
     }
   };
 
@@ -1225,7 +1371,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
                 {/* Actions */}
                 <div className="flex gap-2">
                   {selectedRfi.status === "draft" && selectedRfi.created_by === user?.id && (
-                    <Button onClick={() => handleSubmitRFI(selectedRfi)}>
+                    <Button onClick={() => handleOpenSubmitDialog(selectedRfi)}>
                       Submit to Design Professional
                     </Button>
                   )}
@@ -1241,6 +1387,78 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
               </div>
             </>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog
+        open={submitDialogOpen}
+        onOpenChange={(open) => {
+          setSubmitDialogOpen(open);
+          if (!open) {
+            setSubmitTargetRfi(null);
+            setSubmitMessage("");
+          }
+        }}
+      >
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Submit RFI to Design Professional</DialogTitle>
+          </DialogHeader>
+          {submitTargetRfi ? (
+            <div className="space-y-4">
+              <div className="rounded-lg border bg-muted/20 p-4 space-y-2">
+                <div>
+                  <Label className="text-xs text-muted-foreground">RFI</Label>
+                  <p className="font-medium">{submitTargetRfi.rfi_number} - {submitTargetRfi.subject}</p>
+                </div>
+                <div>
+                  <Label className="text-xs text-muted-foreground">Assigned To</Label>
+                  <p className="font-medium">
+                    {getCompanyUserName(getCompanyUserById(submitTargetRfi.assigned_to))}
+                  </p>
+                  <p className="text-sm text-muted-foreground">
+                    {getCompanyUserById(submitTargetRfi.assigned_to)?.email || "No email on file"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="rounded-lg border p-4 space-y-3">
+                <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
+                  <div className="space-y-1">
+                    <h3 className="text-sm font-medium">Email Message</h3>
+                    <p className="text-xs text-muted-foreground">
+                      This message will be included in the RFI email.
+                    </p>
+                  </div>
+                  <Badge variant={submitSenderPreview.mode === "user" ? "success" : submitSenderPreview.mode === "company" ? "info" : "outline"}>
+                    Sending From: {submitSenderPreview.label}
+                  </Badge>
+                </div>
+                <div className="rounded-md bg-muted/30 px-3 py-2 text-xs text-muted-foreground">
+                  {submitSenderPreview.description}
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="submit-rfi-message">Message</Label>
+                  <Textarea
+                    id="submit-rfi-message"
+                    value={submitMessage}
+                    onChange={(e) => setSubmitMessage(e.target.value)}
+                    rows={7}
+                    placeholder="Add any context or instructions for the design professional."
+                  />
+                </div>
+              </div>
+
+              <div className="flex justify-end gap-2">
+                <Button variant="outline" onClick={() => setSubmitDialogOpen(false)} disabled={submittingRfi}>
+                  Cancel
+                </Button>
+                <Button onClick={() => handleSubmitRFI(submitTargetRfi)} disabled={submittingRfi}>
+                  {submittingRfi ? "Submitting..." : "Submit & Send Email"}
+                </Button>
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>
