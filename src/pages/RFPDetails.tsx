@@ -280,6 +280,7 @@ interface InvitedVendor {
   vendor_id: string;
   invited_at: string;
   email_status?: string | null;
+  email_transport?: string | null;
   email_sent_at?: string | null;
   email_delivered_at?: string | null;
   email_opened_at?: string | null;
@@ -953,6 +954,7 @@ export default function RFPDetails() {
           vendor_id,
           invited_at,
           email_status,
+          email_transport,
           email_sent_at,
           email_delivered_at,
           email_opened_at,
@@ -1817,6 +1819,19 @@ export default function RFPDetails() {
     return null;
   };
 
+  const renderBidInviteTransportBadge = (inv: InvitedVendor) => {
+    switch (inv.email_transport) {
+      case 'user_smtp':
+        return <Badge variant="secondary">Sent via Personal Email</Badge>;
+      case 'company_smtp':
+        return <Badge variant="secondary">Sent via Company Email</Badge>;
+      case 'builderlynk_resend':
+        return <Badge variant="secondary">Sent via BuilderLYNK</Badge>;
+      default:
+        return null;
+    }
+  };
+
   const getAvailableLetters = () => {
     const available = getAvailableVendors();
     const letters = new Set<string>();
@@ -2656,6 +2671,7 @@ export default function RFPDetails() {
                       <TableCell className="py-2">
                         <div className="flex flex-wrap gap-2">
                           {renderBidInviteEmailStatusBadge(inv)}
+                          {renderBidInviteTransportBadge(inv)}
                           {inv.portal_account_created ? (
                             <Badge variant="success">Account Created</Badge>
                           ) : inv.portal_invite_pending ? (

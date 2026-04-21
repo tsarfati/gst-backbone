@@ -368,13 +368,18 @@ const handler = async (req: Request): Promise<Response> => {
 
     console.log("RFP invite email sent successfully:", emailResponse);
 
-    const resendMessageId = emailResponse?.providerMessageId || null;
+    const usedTransport = emailResponse?.usedTransport || null;
+    const resendMessageId =
+      usedTransport === "builderlynk_resend"
+        ? emailResponse?.providerMessageId || null
+        : null;
 
     if (admin && rfpId && vendorId) {
       const { error: trackingError } = await admin
         .from("rfp_invited_vendors")
         .update({
           email_status: "sent",
+          email_transport: usedTransport,
           email_sent_at: new Date().toISOString(),
           email_delivered_at: null,
           email_opened_at: null,
@@ -392,6 +397,7 @@ const handler = async (req: Request): Promise<Response> => {
     return new Response(
       JSON.stringify({ 
         success: true, 
+        usedTransport,
         resendMessageId,
         message: "Invitation email sent successfully" 
       }),

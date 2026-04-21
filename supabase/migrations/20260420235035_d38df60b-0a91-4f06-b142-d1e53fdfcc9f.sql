@@ -1,6 +1,11 @@
 
 -- 1. Fix device_tokens: remove all-public policy, add user-scoped policies
 DROP POLICY IF EXISTS "Service role can manage all device tokens" ON public.device_tokens;
+DROP POLICY IF EXISTS "Users can view their own device tokens" ON public.device_tokens;
+DROP POLICY IF EXISTS "Users can insert their own device tokens" ON public.device_tokens;
+DROP POLICY IF EXISTS "Users can update their own device tokens" ON public.device_tokens;
+DROP POLICY IF EXISTS "Users can delete their own device tokens" ON public.device_tokens;
+DROP POLICY IF EXISTS "Service role manages device tokens" ON public.device_tokens;
 
 CREATE POLICY "Users can view their own device tokens"
 ON public.device_tokens
@@ -40,6 +45,8 @@ DROP POLICY IF EXISTS "Self can update own access" ON public.user_company_access
 
 -- 3. Fix email_history: restrict insert to user's own company
 DROP POLICY IF EXISTS "System can insert email history" ON public.email_history;
+DROP POLICY IF EXISTS "Users can insert email history for their company" ON public.email_history;
+DROP POLICY IF EXISTS "Service role can insert email history" ON public.email_history;
 
 CREATE POLICY "Users can insert email history for their company"
 ON public.email_history
