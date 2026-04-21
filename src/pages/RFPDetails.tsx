@@ -368,6 +368,8 @@ export default function RFPDetails() {
   const [vendorSearch, setVendorSearch] = useState('');
   const [activeLetter, setActiveLetter] = useState<string | null>(null);
   const [resendingInvite, setResendingInvite] = useState<string | null>(null);
+  const [removingInvite, setRemovingInvite] = useState<string | null>(null);
+  const [inviteToRemove, setInviteToRemove] = useState<InvitedVendor | null>(null);
   const [quickInviteForm, setQuickInviteForm] = useState({
     firstName: '',
     lastName: '',
@@ -1744,6 +1746,61 @@ export default function RFPDetails() {
     }
   };
 
+  const handleRemoveInvitedVendor = async () => {
+    if (!inviteToRemove) return;
+
+    try {
+      setRemovingInvite(inviteToRemove.id);
+
+      const { error: deleteInviteError } = await supabase
+        .from('rfp_invited_vendors')
+        .delete()
+        .eq('id', inviteToRemove.id)
+        .eq('rfp_id', id);
+
+      if (deleteInviteError) throw deleteInviteError;
+
+      if (!inviteToRemove.portal_account_created && inviteToRemove.vendor?.email) {
+        const { count: remainingInvitesCount, error: remainingInvitesError } = await supabase
+          .from('rfp_invited_vendors')
+          .select('id', { count: 'exact', head: true })
+          .eq('vendor_id', inviteToRemove.vendor_id)
+          .neq('id', inviteToRemove.id);
+
+        if (remainingInvitesError) throw remainingInvitesError;
+
+        if ((remainingInvitesCount || 0) === 0) {
+          const { error: cancelPortalInviteError } = await supabase
+            .from('vendor_invitations')
+            .update({ status: 'cancelled' })
+            .eq('vendor_id', inviteToRemove.vendor_id)
+            .eq('company_id', currentCompany!.id)
+            .eq('email', inviteToRemove.vendor.email)
+            .eq('status', 'pending');
+
+          if (cancelPortalInviteError) throw cancelPortalInviteError;
+        }
+      }
+
+      toast({
+        title: 'Vendor removed',
+        description: `${inviteToRemove.vendor?.name || 'Vendor'} was removed from this RFP.`,
+      });
+
+      setInviteToRemove(null);
+      await loadInvitedVendors();
+    } catch (error: any) {
+      console.error('Error removing invited vendor:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to remove vendor from this RFP',
+        variant: 'destructive',
+      });
+    } finally {
+      setRemovingInvite(null);
+    }
+  };
+
   const renderBidInviteEmailStatusBadge = (inv: InvitedVendor) => {
     if (inv.email_bounced_at) {
       return <Badge variant="destructive">Bounced</Badge>;
@@ -2615,17 +2672,29 @@ export default function RFPDetails() {
                         </div>
                       </TableCell>
                       <TableCell className="py-2 text-right">
-                        {inv.vendor?.email && inv.response_status !== 'bid_submitted' && (
+                        <div className="flex justify-end gap-2">
+                          {inv.vendor?.email && inv.response_status !== 'bid_submitted' && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleResendInvite(inv)}
+                              disabled={resendingInvite === inv.id || removingInvite === inv.id}
+                            >
+                              <Send className="h-4 w-4 mr-1" />
+                              {resendingInvite === inv.id ? 'Sending...' : 'Resend'}
+                            </Button>
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
-                            onClick={() => handleResendInvite(inv)}
-                            disabled={resendingInvite === inv.id}
+                            className="text-destructive hover:text-destructive"
+                            onClick={() => setInviteToRemove(inv)}
+                            disabled={removingInvite === inv.id || resendingInvite === inv.id}
                           >
-                            <Send className="h-4 w-4 mr-1" />
-                            {resendingInvite === inv.id ? 'Sending...' : 'Resend'}
+                            <Trash2 className="h-4 w-4 mr-1" />
+                            {removingInvite === inv.id ? 'Removing...' : 'Remove'}
                           </Button>
-                        )}
+                        </div>
                       </TableCell>
                     </TableRow>
                   ))}
@@ -2936,6 +3005,27 @@ export default function RFPDetails() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <AlertDialog open={!!inviteToRemove} onOpenChange={(open) => {
+        if (!open) setInviteToRemove(null);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Vendor From RFP?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {inviteToRemove?.portal_account_created
+                ? `${inviteToRemove.vendor?.name || 'This vendor'} will lose access to this RFP in the vendor portal.`
+                : `${inviteToRemove?.vendor?.name || 'This vendor'} will be removed from this RFP and any pending signup invite for this vendor will be cancelled if no other RFP invites remain.`}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!removingInvite}>Keep Vendor</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleRemoveInvitedVendor()} disabled={!!removingInvite}>
+              {removingInvite ? 'Removing...' : 'Remove Vendor'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Dialog
         open={!!previewPlanPage}

@@ -102,18 +102,7 @@ export default function VendorRegister() {
           status,
           expires_at,
           vendor:vendors(name, vendor_type),
-          company:companies(
-            name,
-            logo_url,
-            vendor_portal_signup_background_image_url,
-            vendor_portal_signup_background_color,
-            vendor_portal_signup_company_logo_url,
-            vendor_portal_signup_header_logo_url,
-            vendor_portal_signup_header_title,
-            vendor_portal_signup_header_subtitle,
-            vendor_portal_signup_modal_color,
-            vendor_portal_signup_modal_opacity
-          )
+          company:companies(name, logo_url)
         `)
         .eq('token', token)
         .single();
@@ -124,9 +113,9 @@ export default function VendorRegister() {
         return;
       }
 
-      // Check if already accepted
-      if (data.status === 'accepted') {
-        setError('This invitation has already been used');
+      // Check if still active
+      if (data.status !== 'pending') {
+        setError(data.status === 'accepted' ? 'This invitation has already been used' : 'This invitation is no longer active');
         setLoading(false);
         return;
       }
