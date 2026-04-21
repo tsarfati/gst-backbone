@@ -29,7 +29,7 @@ serve(async (req: Request): Promise<Response> => {
     return new Response(null, { headers: corsHeaders });
   }
 
-  if (req.method !== "GET") {
+  if (req.method !== "GET" && req.method !== "POST") {
     return new Response("Method not allowed", {
       status: 405,
       headers: corsHeaders,
@@ -43,9 +43,18 @@ serve(async (req: Request): Promise<Response> => {
       return gifResponse();
     }
 
-    const url = new URL(req.url);
-    const rfpId = String(url.searchParams.get("rfpId") || "").trim();
-    const vendorId = String(url.searchParams.get("vendorId") || "").trim();
+    let rfpId = "";
+    let vendorId = "";
+
+    if (req.method === "GET") {
+      const url = new URL(req.url);
+      rfpId = String(url.searchParams.get("rfpId") || "").trim();
+      vendorId = String(url.searchParams.get("vendorId") || "").trim();
+    } else {
+      const body = await req.json().catch(() => ({} as { rfpId?: string; vendorId?: string }));
+      rfpId = String(body?.rfpId || "").trim();
+      vendorId = String(body?.vendorId || "").trim();
+    }
 
     if (!rfpId || !vendorId) {
       return gifResponse();

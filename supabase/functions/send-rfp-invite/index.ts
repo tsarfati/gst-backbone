@@ -243,7 +243,7 @@ const handler = async (req: Request): Promise<Response> => {
       "Create or open your BuilderLYNK vendor account to review this RFP, download the attached plans, and submit your bid.";
 
     if (pendingVendorInvite?.token) {
-      ctaHref = `${publicBaseUrl}/vendor-register?token=${pendingVendorInvite.token}`;
+      ctaHref = `${publicBaseUrl}/vendor-register?token=${encodeURIComponent(pendingVendorInvite.token)}&rfpId=${encodeURIComponent(rfpId)}&vendorId=${encodeURIComponent(vendorId)}`;
       ctaLabel = "Accept Invitation";
       ctaSecondaryCopy =
         "Use your BuilderLYNK invitation to finish account setup, then review the RFP and submit your bid inside the vendor portal.";
@@ -374,6 +374,7 @@ const handler = async (req: Request): Promise<Response> => {
     console.log("RFP invite email sent successfully:", emailResponse);
 
     const usedTransport = emailResponse?.usedTransport || null;
+    const senderEmail = emailResponse?.senderEmail || null;
     const resendMessageId =
       usedTransport === "builderlynk_resend"
         ? emailResponse?.providerMessageId || null
@@ -385,6 +386,7 @@ const handler = async (req: Request): Promise<Response> => {
         .update({
           email_status: "sent",
           email_transport: usedTransport,
+          email_from_address: senderEmail,
           email_sent_at: new Date().toISOString(),
           email_delivered_at: null,
           email_opened_at: null,
@@ -403,6 +405,7 @@ const handler = async (req: Request): Promise<Response> => {
       JSON.stringify({ 
         success: true, 
         usedTransport,
+        senderEmail,
         resendMessageId,
         message: "Invitation email sent successfully" 
       }),

@@ -21,6 +21,14 @@ const buildSenderAddress = (row: any) => {
   return row?.from_name ? `${row.from_name} <${senderEmail}>` : senderEmail;
 };
 
+const extractSenderEmail = (value: string | null | undefined) => {
+  const raw = String(value || "").trim();
+  if (!raw) return null;
+  const angleMatch = raw.match(/<([^>]+)>/);
+  if (angleMatch?.[1]) return angleMatch[1].trim().toLowerCase();
+  return raw.toLowerCase();
+};
+
 export async function sendTransactionalEmailWithFallback(params: {
   supabaseUrl: string;
   serviceRoleKey: string;
@@ -52,6 +60,7 @@ export async function sendTransactionalEmailWithFallback(params: {
 
   let usedTransport: "user_smtp" | "company_smtp" | "builderlynk_resend" = "builderlynk_resend";
   let providerMessageId: string | null = null;
+  let senderEmail: string | null = extractSenderEmail(defaultFrom);
   const admin = createClient(supabaseUrl, serviceRoleKey);
 
   if (senderUserId) {
@@ -69,6 +78,7 @@ export async function sendTransactionalEmailWithFallback(params: {
         if (!sender) {
           console.warn(`[${context}] User SMTP sender address is missing; falling back`);
         } else {
+          senderEmail = extractSenderEmail(sender);
           const transporter = nodemailer.createTransport({
             host: userEmailSettings.smtp_host,
             port: Number(userEmailSettings.smtp_port || 587),
@@ -90,7 +100,7 @@ export async function sendTransactionalEmailWithFallback(params: {
 
           usedTransport = "user_smtp";
           providerMessageId = smtpResponse?.messageId || null;
-          return { usedTransport, providerMessageId };
+          return { usedTransport, providerMessageId, senderEmail };
         }
       }
     } catch (userSmtpError) {
@@ -113,6 +123,7 @@ export async function sendTransactionalEmailWithFallback(params: {
         if (!sender) {
           console.warn(`[${context}] Company SMTP sender address is missing; falling back to BuilderLYNK`);
         } else {
+          senderEmail = extractSenderEmail(sender);
           const transporter = nodemailer.createTransport({
             host: companyEmailSettings.smtp_host,
             port: Number(companyEmailSettings.smtp_port || 587),
@@ -134,7 +145,7 @@ export async function sendTransactionalEmailWithFallback(params: {
 
           usedTransport = "company_smtp";
           providerMessageId = smtpResponse?.messageId || null;
-          return { usedTransport, providerMessageId };
+          return { usedTransport, providerMessageId, senderEmail };
         }
       }
     } catch (smtpError) {
@@ -156,5 +167,5 @@ export async function sendTransactionalEmailWithFallback(params: {
   });
 
   providerMessageId = resendResponse?.data?.id || null;
-  return { usedTransport, providerMessageId };
+  return { usedTransport, providerMessageId, senderEmail };
 }

@@ -65,6 +65,8 @@ export default function VendorRegister() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const token = searchParams.get('token');
+  const rfpId = searchParams.get('rfpId');
+  const vendorId = searchParams.get('vendorId');
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -122,7 +124,7 @@ export default function VendorRegister() {
       setError('No invitation token provided');
       setLoading(false);
     }
-  }, [token]);
+  }, [token, rfpId, vendorId]);
 
   const validateToken = async () => {
     try {
@@ -163,6 +165,14 @@ export default function VendorRegister() {
       }
 
       setInvitation(data as unknown as Invitation);
+
+      if (rfpId && vendorId) {
+        supabase.functions.invoke('track-rfp-invite-open', {
+          body: { rfpId, vendorId },
+        }).catch((trackingError) => {
+          console.error('Failed to mark RFP invite as opened from vendor register:', trackingError);
+        });
+      }
 
       if ((data as any)?.company_id) {
         const { data: companyPayload, error: companyPayloadError } = await supabase.functions.invoke('list-public-signup-companies', {

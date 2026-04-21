@@ -280,6 +280,7 @@ interface InvitedVendor {
   vendor_id: string;
   invited_at: string;
   email_status?: string | null;
+  email_from_address?: string | null;
   email_transport?: string | null;
   email_sent_at?: string | null;
   email_delivered_at?: string | null;
@@ -954,6 +955,7 @@ export default function RFPDetails() {
           vendor_id,
           invited_at,
           email_status,
+          email_from_address,
           email_transport,
           email_sent_at,
           email_delivered_at,
@@ -1825,16 +1827,8 @@ export default function RFPDetails() {
   };
 
   const renderBidInviteTransportBadge = (inv: InvitedVendor) => {
-    switch (inv.email_transport) {
-      case 'user_smtp':
-        return <Badge variant="secondary">Sent via Personal Email</Badge>;
-      case 'company_smtp':
-        return <Badge variant="secondary">Sent via Company Email</Badge>;
-      case 'builderlynk_resend':
-        return <Badge variant="secondary">Sent via BuilderLYNK</Badge>;
-      default:
-        return null;
-    }
+    if (!inv.email_from_address) return null;
+    return <Badge variant="secondary">Sent from {inv.email_from_address}</Badge>;
   };
 
   const getAvailableLetters = () => {

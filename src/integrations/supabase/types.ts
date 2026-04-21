@@ -8551,6 +8551,7 @@ export type Database = {
           company_id: string
           email_bounced_at: string | null
           email_delivered_at: string | null
+          email_from_address: string | null
           email_opened_at: string | null
           email_sent_at: string | null
           email_status: string | null
@@ -8567,6 +8568,7 @@ export type Database = {
           company_id: string
           email_bounced_at?: string | null
           email_delivered_at?: string | null
+          email_from_address?: string | null
           email_opened_at?: string | null
           email_sent_at?: string | null
           email_status?: string | null
@@ -8583,6 +8585,7 @@ export type Database = {
           company_id?: string
           email_bounced_at?: string | null
           email_delivered_at?: string | null
+          email_from_address?: string | null
           email_opened_at?: string | null
           email_sent_at?: string | null
           email_status?: string | null
