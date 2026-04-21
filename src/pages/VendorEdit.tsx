@@ -9,7 +9,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle, AlertDialogTrigger } from "@/components/ui/alert-dialog";
-import { ArrowLeft, Save, Trash2, Building, Archive, CheckCircle } from "lucide-react";
+import { ArrowLeft, Save, Trash2, Building, Archive, CheckCircle, Plus, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,6 +28,22 @@ export default function VendorEdit() {
   const { currentCompany } = useCompany();
   const queryClient = useQueryClient();
   const { hasElevatedAccess } = useActionPermissions();
+
+  const PHONE_TYPE_OPTIONS = [
+    { value: "office", label: "Office" },
+    { value: "sales", label: "Sales" },
+    { value: "fax", label: "Fax" },
+    { value: "office_2", label: "Office 2" },
+    { value: "mobile", label: "Mobile" },
+    { value: "other", label: "Other" },
+  ] as const;
+
+  type VendorPhoneEntry = {
+    type: string;
+    number: string;
+  };
+
+  const emptyPhoneEntry = (): VendorPhoneEntry => ({ type: "office", number: "" });
 
   const isAddMode = !id || id === "add";
   const [vendor, setVendor] = useState<any>(null);
@@ -50,6 +66,7 @@ export default function VendorEdit() {
     is_active: true,
     require_invoice_number: true
   });
+  const [phoneNumbers, setPhoneNumbers] = useState<VendorPhoneEntry[]>([emptyPhoneEntry()]);
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -149,6 +166,22 @@ export default function VendorEdit() {
           is_active: data.is_active ?? true,
           require_invoice_number: data.require_invoice_number ?? true
         });
+        const rawPhoneNumbers = Array.isArray(data.phone_numbers)
+          ? data.phone_numbers
+          : [];
+        const normalizedPhoneNumbers = rawPhoneNumbers
+          .map((entry: any) => ({
+            type: typeof entry?.type === "string" && entry.type.trim() ? entry.type : "office",
+            number: typeof entry?.number === "string" ? entry.number : "",
+          }))
+          .filter((entry) => entry.number.trim());
+        if (normalizedPhoneNumbers.length > 0) {
+          setPhoneNumbers(normalizedPhoneNumbers);
+        } else if (data.phone?.trim()) {
+          setPhoneNumbers([{ type: "office", number: data.phone }]);
+        } else {
+          setPhoneNumbers([emptyPhoneEntry()]);
+        }
         
         if (data.logo_url) {
           const resolvedLogo = await resolveStorageUrl('receipts', data.logo_url);
@@ -198,6 +231,23 @@ export default function VendorEdit() {
         ? value === 'true' 
         : value
     }));
+  };
+
+  const updatePhoneEntry = (index: number, field: keyof VendorPhoneEntry, value: string) => {
+    setPhoneNumbers((prev) => prev.map((entry, entryIndex) => (
+      entryIndex === index ? { ...entry, [field]: value } : entry
+    )));
+  };
+
+  const addPhoneEntry = () => {
+    setPhoneNumbers((prev) => [...prev, emptyPhoneEntry()]);
+  };
+
+  const removePhoneEntry = (index: number) => {
+    setPhoneNumbers((prev) => {
+      const next = prev.filter((_, entryIndex) => entryIndex !== index);
+      return next.length > 0 ? next : [emptyPhoneEntry()];
+    });
   };
 
   const handleLogoUpload = (eventOrFile: React.ChangeEvent<HTMLInputElement> | File) => {
@@ -252,8 +302,18 @@ export default function VendorEdit() {
         logoUrl = getStoragePathForDb('receipts', filePath);
       }
 
+      const normalizedPhoneNumbers = phoneNumbers
+        .map((entry) => ({
+          type: entry.type || "office",
+          number: entry.number.trim(),
+        }))
+        .filter((entry) => entry.number);
+      const primaryPhone = normalizedPhoneNumbers[0]?.number || null;
+
       const vendorData = {
         ...formData,
+        phone: primaryPhone,
+        phone_numbers: normalizedPhoneNumbers,
         logo_url: logoUrl
       };
 
@@ -630,7 +690,7 @@ export default function VendorEdit() {
             </div>
 
             {/* Contact Information */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="contact_person">Primary Contact</Label>
                 <Input
@@ -638,15 +698,6 @@ export default function VendorEdit() {
                   value={formData.contact_person}
                   onChange={(e) => handleInputChange("contact_person", e.target.value)}
                   placeholder="Enter primary contact name"
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="phone">Phone Number</Label>
-                <Input
-                  id="phone"
-                  value={formData.phone}
-                  onChange={(e) => handleInputChange("phone", e.target.value)}
-                  placeholder="Enter phone number"
                 />
               </div>
               <div className="space-y-2">
@@ -658,6 +709,51 @@ export default function VendorEdit() {
                   onChange={(e) => handleInputChange("email", e.target.value)}
                   placeholder="Enter email address"
                 />
+              </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Phone Numbers</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addPhoneEntry}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Phone
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {phoneNumbers.map((entry, index) => (
+                  <div key={`${entry.type}-${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[180px_minmax(0,1fr)_auto] md:items-center">
+                    <Select
+                      value={entry.type}
+                      onValueChange={(value) => updatePhoneEntry(index, "type", value)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select type" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {PHONE_TYPE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Input
+                      value={entry.number}
+                      onChange={(e) => updatePhoneEntry(index, "number", e.target.value)}
+                      placeholder="Enter phone number"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removePhoneEntry(index)}
+                      disabled={phoneNumbers.length === 1}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
               </div>
             </div>
 

@@ -40,6 +40,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useSettings } from '@/contexts/SettingsContext';
+import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { supabase } from '@/integrations/supabase/client';
 import { createMentionNotifications } from '@/utils/mentions';
 import { createTaskNotifications } from '@/utils/taskNotifications';
@@ -163,7 +164,7 @@ type TimelineEntry =
   | { id: string; kind: 'comment'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; tags?: string[] }
   | { id: string; kind: 'attachment'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; fileName: string; fileUrl: string }
   | { id: string; kind: 'email'; created_at: string; actorName: string; actorAvatar?: string | null; subject: string; fromEmail: string; toEmails: string[] }
-  | { id: string; kind: 'activity'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; metadata?: Record<string, any> | null };
+  | { id: string; kind: 'activity'; created_at: string; actorName: string; actorAvatar?: string | null; body: string; metadata?: Record<string, any> | null; activityType?: string };
 
 const EMPTY_TASK_DRAFT: TaskDraft = {
   title: '',
@@ -215,6 +216,7 @@ export default function TaskDetails() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { settings } = useSettings();
+  const { loading: jobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
   const fileInputRef = useRef<HTMLInputElement>(null);
   const autoSaveReadyRef = useRef(false);
   const pendingTaskSessionChangesRef = useRef<Map<string, BatchedTaskChange>>(new Map());
@@ -235,9 +237,14 @@ export default function TaskDetails() {
   const [loadingEmails, setLoadingEmails] = useState(true);
   const [savingTask, setSavingTask] = useState(false);
   const [sendingComment, setSendingComment] = useState(false);
+  const [loggingTimelineEntry, setLoggingTimelineEntry] = useState(false);
+  const [savingNotepadEntry, setSavingNotepadEntry] = useState(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [selectedAssignee, setSelectedAssignee] = useState('');
   const [newComment, setNewComment] = useState('');
+  const [timelineComposerType, setTimelineComposerType] = useState<'comment' | 'call'>('comment');
+  const [timelineComposerText, setTimelineComposerText] = useState('');
+  const [newNotepadEntry, setNewNotepadEntry] = useState('');
   const [newChecklistTitle, setNewChecklistTitle] = useState('');
   const [newChecklistDueDate, setNewChecklistDueDate] = useState('');
   const [newChecklistAssignedUser, setNewChecklistAssignedUser] = useState('');
@@ -271,10 +278,10 @@ export default function TaskDetails() {
   };
 
   useEffect(() => {
-    if (id && currentCompany?.id) {
+    if (id && currentCompany?.id && !jobAccessLoading) {
       void loadTaskWorkspace();
     }
-  }, [id, currentCompany?.id]);
+  }, [id, currentCompany?.id, jobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
 
   const ensureTrackingEmail = async (taskId: string, companyId: string) => {
     const invokeResult = await supabase.functions.invoke('get-task-email-channel', {
@@ -325,7 +332,7 @@ export default function TaskDetails() {
   };
 
   const loadTaskWorkspace = async () => {
-    if (!id || !currentCompany) return;
+    if (!id || !currentCompany || jobAccessLoading) return;
     setLoading(true);
     setLoadingEmails(true);
     try {
@@ -357,8 +364,12 @@ export default function TaskDetails() {
           currentUserAssignment?.id
         ),
       );
+      const hasJobBasedAccess = Boolean(
+        taskRecord.job_id &&
+        (isPrivileged || allowedJobIds.includes(String(taskRecord.job_id))),
+      );
 
-      if (!isInvolvedWithTask) {
+      if (!isInvolvedWithTask && !hasJobBasedAccess) {
         toast.error('You are not assigned to this task.');
         navigate('/tasks');
         return;
@@ -908,6 +919,72 @@ export default function TaskDetails() {
     }
   };
 
+  const handleLogTimelineEntry = async () => {
+    if (!timelineComposerText.trim() || !user || !id) return;
+
+    setLoggingTimelineEntry(true);
+    try {
+      const trimmedContent = timelineComposerText.trim();
+      const entryType = 'phone_call_logged';
+      const entryLabel = 'phone call';
+      const timelineSummary = 'Logged a phone call';
+
+      await logTaskActivity(
+        entryType,
+        trimmedContent,
+        {
+          entry_kind: timelineComposerType,
+          entry_kind_label: entryLabel,
+          summary: timelineSummary,
+        },
+      );
+      await notifyTaskTeam(
+        'Phone call logged',
+        `${actorName} logged a phone call on ${taskDraft.title || 'a task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
+      );
+      setTimelineComposerText('');
+      await loadTaskWorkspace();
+      toast.success('Phone call logged');
+    } catch (error) {
+      console.error('Error logging timeline entry:', error);
+      toast.error('Failed to log phone call');
+    } finally {
+      setLoggingTimelineEntry(false);
+    }
+  };
+
+  const handleSaveNotepadEntry = async () => {
+    if (!newNotepadEntry.trim() || !user || !id) return;
+
+    setSavingNotepadEntry(true);
+    try {
+      const trimmedContent = newNotepadEntry.trim();
+      await logTaskActivity(
+        'task_note_added',
+        trimmedContent,
+        {
+          entry_kind: 'note',
+          entry_kind_label: 'note',
+          summary: 'Added a note',
+        },
+      );
+      await notifyTaskTeam(
+        'Task note added',
+        `${actorName} added a note to ${taskDraft.title || 'a task'}.`,
+        { preferenceKey: 'task_timeline_activity_notifications' },
+      );
+      setNewNotepadEntry('');
+      await loadTaskWorkspace();
+      toast.success('Note added');
+    } catch (error) {
+      console.error('Error saving notepad entry:', error);
+      toast.error('Failed to save note');
+    } finally {
+      setSavingNotepadEntry(false);
+    }
+  };
+
   const handleFileUpload = async (eventOrFile: React.ChangeEvent<HTMLInputElement> | File) => {
     const file = eventOrFile instanceof File ? eventOrFile : eventOrFile.target.files?.[0];
     if (!file || !user || !id) return;
@@ -1358,7 +1435,10 @@ export default function TaskDetails() {
     }));
 
     const activityEntries: TimelineEntry[] = activities
-      .filter((activity) => !String(activity.content || '').startsWith('Inbound email received from '))
+      .filter((activity) =>
+        !String(activity.content || '').startsWith('Inbound email received from ') &&
+        activity.activity_type !== 'task_note_added'
+      )
       .map((activity) => ({
         id: `activity-${activity.id}`,
         kind: 'activity',
@@ -1367,12 +1447,20 @@ export default function TaskDetails() {
         actorAvatar: activity.actor_avatar || null,
         body: activity.content,
         metadata: activity.metadata,
+        activityType: activity.activity_type,
       }));
 
     return [...commentEntries, ...attachmentEntries, ...emailEntries, ...activityEntries].sort(
       (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
     );
   }, [activities, attachments, comments, emailMessages]);
+
+  const notepadEntries = useMemo(
+    () => activities
+      .filter((activity) => activity.activity_type === 'task_note_added')
+      .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()),
+    [activities],
+  );
 
   const availableAssignees = companyUsers.filter(
     (entry) => !assignees.some((assignee) => assignee.user_id === entry.user_id),
@@ -1404,6 +1492,10 @@ export default function TaskDetails() {
   };
 
   const getTimelineSummary = (entry: TimelineEntry) => {
+    if (entry.kind === 'activity' && typeof entry.metadata?.summary === 'string' && entry.metadata.summary.trim()) {
+      return entry.metadata.summary;
+    }
+
     if (entry.kind !== 'activity' || !entry.metadata?.batched || !Array.isArray(entry.metadata?.changes)) {
       return (entry as any).body;
     }
@@ -1419,6 +1511,31 @@ export default function TaskDetails() {
       .join(' • ');
 
     return changeSummary ? `${entry.body} • ${changeSummary}` : entry.body;
+  };
+
+  const getTimelineBody = (entry: TimelineEntry) => {
+    if (
+      entry.kind === 'activity' &&
+      (entry.activityType === 'task_note_added' || entry.activityType === 'phone_call_logged') &&
+      entry.body
+    ) {
+      return entry.body;
+    }
+
+    return null;
+  };
+
+  const getTimelineKindLabel = (entry: TimelineEntry) => {
+    if (entry.kind === 'activity') {
+      if (entry.activityType === 'task_note_added') return 'Note';
+      if (entry.activityType === 'phone_call_logged') return 'Phone Call';
+      return 'Activity';
+    }
+
+    if (entry.kind === 'attachment') return 'Attachment';
+    if (entry.kind === 'comment') return 'Comment';
+    if (entry.kind === 'email') return 'Email';
+    return entry.kind;
   };
 
   useEffect(() => {
@@ -1647,10 +1764,14 @@ export default function TaskDetails() {
           </Card>
 
           <Tabs defaultValue="timeline" className="space-y-4">
-            <TabsList className="grid w-full grid-cols-3">
+            <TabsList className="grid w-full grid-cols-4">
               <TabsTrigger value="timeline" className="gap-2">
                 <span>Task Timeline</span>
                 {timeline.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{timeline.length}</Badge> : null}
+              </TabsTrigger>
+              <TabsTrigger value="notepad" className="gap-2">
+                <span>Notepad</span>
+                {notepadEntries.length > 0 ? <Badge variant="secondary" className="h-5 min-w-5 rounded-full px-1.5 text-[11px]">{notepadEntries.length}</Badge> : null}
               </TabsTrigger>
               <TabsTrigger value="attachments" className="gap-2">
                 <span>Attachments</span>
@@ -1714,12 +1835,17 @@ export default function TaskDetails() {
                                     {format(new Date(entry.created_at), 'MMM d, h:mm a')}
                                   </span>
                                   <Badge variant="secondary" className="rounded-full px-2 py-0 text-[10px] font-medium uppercase tracking-wide">
-                                    {entry.kind}
+                                    {getTimelineKindLabel(entry)}
                                   </Badge>
                                 </div>
                                 <p className="mt-1 whitespace-pre-wrap break-words text-sm leading-5 text-foreground">
                                   {getTimelineSummary(entry)}
                                 </p>
+                                {getTimelineBody(entry) ? (
+                                  <p className="mt-2 whitespace-pre-wrap break-words rounded-xl bg-muted/35 px-3 py-2 text-sm leading-5 text-foreground">
+                                    {getTimelineBody(entry)}
+                                  </p>
+                                ) : null}
 
                                 {entry.kind === 'comment' && entry.tags && entry.tags.length > 0 ? (
                                   <div className="mt-1 flex flex-wrap gap-1.5">
@@ -1755,34 +1881,154 @@ export default function TaskDetails() {
 
                   <div className="border-t bg-background px-6 py-4">
                     <div className="space-y-3">
-                      <MentionTextarea
-                        value={newComment}
-                        onValueChange={setNewComment}
-                        companyId={currentCompany?.id}
-                        currentUserId={user?.id}
-                        allowedUserIds={assignees.map((assignee) => assignee.user_id)}
-                        placeholder="Add a comment..."
-                        rows={2}
-                        className="min-h-[96px] resize-none rounded-xl border bg-background"
-                        onKeyDown={(event) => {
-                          if (event.key === 'Enter' && !event.shiftKey) {
-                            event.preventDefault();
-                            void handleSendComment();
-                          }
-                        }}
-                      />
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                          <span>@ Mention</span>
-                          <span>Attachment</span>
-                          <span>Audit log</span>
-                        </div>
-                        <Button onClick={handleSendComment} disabled={sendingComment || !newComment.trim()} className="min-w-[120px]">
-                          <Send className="mr-2 h-4 w-4" />
+                      <div className="flex flex-wrap items-center gap-2">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={timelineComposerType === 'comment' ? 'default' : 'outline'}
+                          onClick={() => setTimelineComposerType('comment')}
+                        >
                           Comment
                         </Button>
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant={timelineComposerType === 'call' ? 'default' : 'outline'}
+                          onClick={() => setTimelineComposerType('call')}
+                        >
+                          Phone Call
+                        </Button>
+                      </div>
+                      {timelineComposerType === 'comment' ? (
+                        <MentionTextarea
+                          value={newComment}
+                          onValueChange={setNewComment}
+                          companyId={currentCompany?.id}
+                          currentUserId={user?.id}
+                          allowedUserIds={assignees.map((assignee) => assignee.user_id)}
+                          placeholder="Add a comment..."
+                          rows={2}
+                          className="min-h-[96px] resize-none rounded-xl border bg-background"
+                          onKeyDown={(event) => {
+                            if (event.key === 'Enter' && !event.shiftKey) {
+                              event.preventDefault();
+                              void handleSendComment();
+                            }
+                          }}
+                        />
+                      ) : (
+                        <Textarea
+                          value={timelineComposerText}
+                          onChange={(event) => setTimelineComposerText(event.target.value)}
+                          placeholder="Log the phone call details..."
+                          rows={4}
+                          className="min-h-[96px] resize-none rounded-xl border bg-background"
+                          onKeyDown={(event) => {
+                            if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                              event.preventDefault();
+                              void handleLogTimelineEntry();
+                            }
+                          }}
+                        />
+                      )}
+                      <div className="flex items-center justify-between gap-3">
+                        <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                          {timelineComposerType === 'comment' ? (
+                            <>
+                              <span>@ Mention</span>
+                              <span>Attachment</span>
+                              <span>Audit log</span>
+                            </>
+                          ) : (
+                            <>
+                              <span>Shows in timeline</span>
+                              <span>Phone log</span>
+                            </>
+                          )}
+                        </div>
+                        {timelineComposerType === 'comment' ? (
+                          <Button onClick={handleSendComment} disabled={sendingComment || !newComment.trim()} className="min-w-[120px]">
+                            <Send className="mr-2 h-4 w-4" />
+                            Comment
+                          </Button>
+                        ) : (
+                          <Button onClick={handleLogTimelineEntry} disabled={loggingTimelineEntry || !timelineComposerText.trim()} className="min-w-[120px]">
+                            <Send className="mr-2 h-4 w-4" />
+                            Log Call
+                          </Button>
+                        )}
                       </div>
                     </div>
+                  </div>
+                </CardContent>
+              </Card>
+            </TabsContent>
+
+            <TabsContent value="notepad">
+              <Card className="min-h-[760px]">
+                <CardContent className="space-y-4 p-6">
+                  <div className="space-y-3">
+                    <Textarea
+                      value={newNotepadEntry}
+                      onChange={(event) => setNewNotepadEntry(event.target.value)}
+                      placeholder="Add a project note..."
+                      rows={4}
+                      className="min-h-[110px] resize-none rounded-xl border bg-background"
+                      onKeyDown={(event) => {
+                        if ((event.metaKey || event.ctrlKey) && event.key === 'Enter') {
+                          event.preventDefault();
+                          void handleSaveNotepadEntry();
+                        }
+                      }}
+                    />
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="text-sm text-muted-foreground">
+                        Shared task notes with author and date stamps
+                      </div>
+                      <Button onClick={handleSaveNotepadEntry} disabled={savingNotepadEntry || !newNotepadEntry.trim()} className="min-w-[120px]">
+                        <Send className="mr-2 h-4 w-4" />
+                        Save Note
+                      </Button>
+                    </div>
+                  </div>
+
+                  <div className="space-y-3">
+                    {notepadEntries.length === 0 ? (
+                      <div className="rounded-xl border border-dashed px-6 py-12 text-center text-sm text-muted-foreground">
+                        No notes yet. Add the first note for this task here.
+                      </div>
+                    ) : (
+                      notepadEntries.map((entry) => (
+                        <div key={entry.id} className="rounded-2xl border bg-background px-4 py-4">
+                          <div className="flex items-start gap-3">
+                            <Avatar className="mt-0.5 h-9 w-9 shrink-0">
+                              <AvatarImage src={entry.actor_avatar || undefined} alt={entry.actor_name || 'Unknown User'} />
+                              <AvatarFallback>
+                                {(entry.actor_name || 'U')
+                                  .split(' ')
+                                  .filter(Boolean)
+                                  .slice(0, 2)
+                                  .map((part) => part.charAt(0).toUpperCase())
+                                  .join('') || 'U'}
+                              </AvatarFallback>
+                            </Avatar>
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                                <span className="text-sm font-semibold text-foreground">
+                                  {entry.actor_name || 'Unknown User'}
+                                </span>
+                                <span className="text-xs text-muted-foreground">
+                                  {format(new Date(entry.created_at), 'MMM d, yyyy h:mm a')}
+                                </span>
+                              </div>
+                              <p className="mt-2 whitespace-pre-wrap break-words text-sm leading-6 text-foreground">
+                                {entry.content}
+                              </p>
+                            </div>
+                          </div>
+                        </div>
+                      ))
+                    )}
                   </div>
                 </CardContent>
               </Card>

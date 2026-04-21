@@ -5,7 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import { useVendorPortalData } from "@/hooks/useVendorPortalData";
 import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
-import { ArrowLeft, FilePlus2, Paperclip, Trash2 } from "lucide-react";
+import { ArrowLeft, Download, FilePlus2, Paperclip, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -588,7 +588,27 @@ export default function VendorPortalBills() {
                   <p className="mt-1 text-2xl font-bold">${invoiceTotal.toFixed(2)}</p>
                 </div>
                 <div className="rounded-lg border p-3">
-                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Attachment Preview</p>
+                  <div className="flex items-center justify-between gap-3">
+                    <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Attachment Preview</p>
+                    {selectedInvoiceFile && selectedInvoiceFileUrl ? (
+                      <Button
+                        type="button"
+                        variant="outline"
+                        size="sm"
+                        onClick={() => {
+                          const link = document.createElement('a');
+                          link.href = selectedInvoiceFileUrl;
+                          link.download = selectedInvoiceFile.name;
+                          document.body.appendChild(link);
+                          link.click();
+                          document.body.removeChild(link);
+                        }}
+                      >
+                        <Download className="mr-2 h-4 w-4" />
+                        Download
+                      </Button>
+                    ) : null}
+                  </div>
                   <div className="mt-3 overflow-hidden rounded-lg border bg-muted/20">
                     <ZoomableDocumentPreview
                       url={selectedInvoiceFileUrl}

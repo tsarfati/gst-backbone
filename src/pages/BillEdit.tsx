@@ -11,7 +11,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { ArrowLeft, Save, Loader2, Upload, FileText, X, AlertCircle, Search, Check } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Upload, FileText, X, AlertCircle, Search, Check, Download } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -611,6 +611,36 @@ export default function BillEdit() {
     : -1;
   const selectedNewFile = selectedNewFileIndex >= 0 ? billFiles[selectedNewFileIndex] : null;
 
+  const downloadExistingDocument = async (doc: any) => {
+    const resolved = await resolveStorageUrl('receipts', doc.file_url);
+    if (!resolved) {
+      toast({
+        title: "Download failed",
+        description: "Could not resolve this document for download.",
+        variant: "destructive",
+      });
+      return;
+    }
+    const link = document.createElement('a');
+    link.href = resolved;
+    link.download = doc.file_name || 'document';
+    link.target = '_blank';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  const downloadNewFile = (file: File) => {
+    const url = URL.createObjectURL(file);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = file.name;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    URL.revokeObjectURL(url);
+  };
+
   const selectedNewFileUrl = useMemo(
     () => (selectedNewFile ? URL.createObjectURL(selectedNewFile) : null),
     [selectedNewFile]
@@ -975,17 +1005,30 @@ export default function BillEdit() {
                         <FileText className="h-4 w-4 shrink-0" />
                         <span className="text-sm truncate">{doc.file_name}</span>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeExistingDocument(doc.id);
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            void downloadExistingDocument(doc);
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeExistingDocument(doc.id);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                   {billFiles.map((file, index) => (
@@ -1004,17 +1047,30 @@ export default function BillEdit() {
                         <span className="text-sm truncate">{file.name}</span>
                         <Badge variant="outline" className="text-[10px]">New</Badge>
                       </div>
-                      <Button
-                        type="button"
-                        variant="ghost"
-                        size="sm"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          removeFile(index);
-                        }}
-                      >
-                        <X className="h-4 w-4" />
-                      </Button>
+                      <div className="flex items-center gap-1">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            downloadNewFile(file);
+                          }}
+                        >
+                          <Download className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="sm"
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            removeFile(index);
+                          }}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </div>
                     </div>
                   ))}
                 </div>
