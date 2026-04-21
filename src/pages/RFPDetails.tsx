@@ -1908,18 +1908,25 @@ export default function RFPDetails() {
         }
       }}>
         <DialogContent className="flex h-[min(84vh,860px)] w-[min(96vw,1240px)] max-w-6xl flex-col overflow-hidden p-0">
-          <DialogHeader className="shrink-0">
-            <DialogTitle className="px-6 pt-6">Invite Vendors to Bid</DialogTitle>
-            <DialogDescription className="px-6">
-              Select one or more saved vendors, then send the invitation in one batch.
-            </DialogDescription>
+          <DialogHeader className="sr-only">
+            <DialogTitle>Invite Vendors to Bid</DialogTitle>
+            <DialogDescription>Select vendors and send the invitation.</DialogDescription>
           </DialogHeader>
-          
-          <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
-            <div className="rounded-lg border bg-background p-4 space-y-4">
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm font-medium text-foreground">
-                    Saved Vendors
+
+          <div className="min-h-0 flex-1 overflow-y-auto px-6 py-5">
+            <div className="space-y-4">
+                <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div className="relative flex-1">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                    <Input
+                      placeholder="Search vendors..."
+                      value={vendorSearch}
+                      onChange={(e) => {
+                        setVendorSearch(e.target.value);
+                        setActiveLetter(null);
+                      }}
+                      className="pl-9"
+                    />
                   </div>
                   <Button
                     type="button"
@@ -1933,7 +1940,7 @@ export default function RFPDetails() {
                 </div>
 
                 {quickAddVendorOpen ? (
-                  <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                  <div className="space-y-3 rounded-md bg-muted/20 p-3">
                     <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1.2fr]">
                       <div className="space-y-2">
                         <Label htmlFor="quick-vendor-first-name">First Name</Label>
@@ -2012,19 +2019,6 @@ export default function RFPDetails() {
                   </div>
                 ) : (
                   <>
-                    <div className="relative">
-                      <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                      <Input
-                        placeholder="Search vendors..."
-                        value={vendorSearch}
-                        onChange={(e) => {
-                          setVendorSearch(e.target.value);
-                          setActiveLetter(null);
-                        }}
-                        className="pl-9"
-                      />
-                    </div>
-
                     <div className="flex flex-wrap gap-1">
                       <Button
                         variant={activeLetter === null ? "default" : "ghost"}
@@ -2058,7 +2052,7 @@ export default function RFPDetails() {
                       })}
                     </div>
 
-                    <ScrollArea className="h-[320px] pr-4">
+                    <ScrollArea className="h-[320px]">
                       <div className="space-y-1">
                         {getFilteredVendors().length === 0 ? (
                           <div className="py-4 text-center text-muted-foreground">
@@ -2070,7 +2064,7 @@ export default function RFPDetails() {
                               key={vendor.id}
                               role="button"
                               tabIndex={0}
-                              className="grid grid-cols-[auto_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)] items-center gap-2 rounded-md border px-2 py-1 text-xs hover:bg-muted/50 cursor-pointer"
+                              className="grid grid-cols-[auto_minmax(0,1.5fr)_minmax(0,1fr)_minmax(0,0.9fr)] items-center gap-2 rounded-md px-1.5 py-1 text-xs hover:bg-muted/50 cursor-pointer"
                               onClick={() => toggleVendorSelection(vendor.id)}
                               onKeyDown={(e) => {
                                 if (e.key === 'Enter' || e.key === ' ') {
@@ -2101,14 +2095,12 @@ export default function RFPDetails() {
                 )}
             </div>
 
-            <div className="rounded-lg border p-4 space-y-3">
-              <div className="rounded-md border bg-muted/20 px-3 py-3 text-xs text-muted-foreground space-y-1">
-                <div className="font-medium text-foreground">Sending From</div>
-                <div>{inviteSenderPreview.email}</div>
-                {inviteSenderPreview.label && inviteSenderPreview.label !== inviteSenderPreview.email ? (
-                  <div>{inviteSenderPreview.label}</div>
-                ) : null}
-                <div>{inviteSenderPreview.description}</div>
+            <div className="mt-4 space-y-3">
+              <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                <span>Sending from</span>
+                <Badge variant="secondary" className="h-6 rounded-full px-2.5 font-medium">
+                  {currentCompany?.name || inviteSenderPreview.label || inviteSenderPreview.email}
+                </Badge>
               </div>
               <div className="space-y-2">
                 <Label htmlFor="rfp-invite-message">Custom RFP Message</Label>
