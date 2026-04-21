@@ -272,6 +272,7 @@ interface Vendor {
   id: string;
   name: string;
   email: string | null;
+  phone?: string | null;
   vendor_type?: string | null;
 }
 
@@ -378,6 +379,7 @@ export default function RFPDetails() {
     companyName: '',
     email: '',
   });
+  const [quickAddVendorOpen, setQuickAddVendorOpen] = useState(false);
   const [creatingQuickInvite, setCreatingQuickInvite] = useState(false);
   const [quickInviteVendorType, setQuickInviteVendorType] = useState<string>('Contractor');
   const [inviteMessage, setInviteMessage] = useState('');
@@ -934,7 +936,7 @@ export default function RFPDetails() {
     try {
       const { data, error } = await supabase
         .from('vendors')
-        .select('id, name, email, vendor_type')
+        .select('id, name, email, phone, vendor_type')
         .eq('company_id', currentCompany!.id)
         .eq('is_active', true)
         .order('name');
@@ -1549,7 +1551,7 @@ export default function RFPDetails() {
 
       const { data: existingVendor, error: existingVendorError } = await supabase
         .from('vendors')
-        .select('id, name, email')
+        .select('id, name, email, phone')
         .eq('company_id', currentCompany.id)
         .ilike('email', vendorEmail)
         .limit(1)
@@ -1562,6 +1564,7 @@ export default function RFPDetails() {
           id: existingVendor.id,
           name: existingVendor.name,
           email: existingVendor.email,
+          phone: existingVendor.phone,
         };
       } else {
         const { data: insertedVendor, error: insertVendorError } = await supabase
@@ -1574,7 +1577,7 @@ export default function RFPDetails() {
             is_active: true,
             vendor_type: quickInviteVendorType,
           })
-          .select('id, name, email')
+          .select('id, name, email, phone')
           .single();
 
         if (insertVendorError) throw insertVendorError;
@@ -1583,96 +1586,27 @@ export default function RFPDetails() {
           id: insertedVendor.id,
           name: insertedVendor.name,
           email: insertedVendor.email,
+          phone: insertedVendor.phone,
         };
       }
-
-      const { data: existingInviteRow, error: existingInviteRowError } = await supabase
-        .from('rfp_invited_vendors')
-        .select('id')
-        .eq('rfp_id', id)
-        .eq('vendor_id', vendorRecord.id)
-        .limit(1)
-        .maybeSingle();
-
-      if (existingInviteRowError) throw existingInviteRowError;
-
-      if (!existingInviteRow) {
-        const { error: inviteInsertError } = await supabase
-          .from('rfp_invited_vendors')
-          .insert({
-            rfp_id: id,
-            vendor_id: vendorRecord.id,
-            company_id: currentCompany.id,
-            response_status: 'pending',
-          });
-
-        if (inviteInsertError) throw inviteInsertError;
-      }
-
-      if (rfp?.job_id) {
-        const { error: accessError } = await supabase
-          .from('vendor_job_access' as any)
-          .upsert(
-            {
-              vendor_id: vendorRecord.id,
-              job_id: rfp.job_id,
-              created_by: user?.id || null,
-              ...BIDDER_VENDOR_ACCESS_DEFAULTS,
-            },
-            {
-              onConflict: 'vendor_id,job_id',
-              ignoreDuplicates: false,
-            }
-          );
-
-        if (accessError) throw accessError;
-      }
-
-      try {
-        const { error: rfpInviteError } = await supabase.functions.invoke('send-rfp-invite', {
-          body: {
-            rfpId: id,
-            rfpTitle: rfp?.title || '',
-            rfpNumber: rfp?.rfp_number || '',
-            dueDate: rfp?.due_date,
-            vendorId: vendorRecord.id,
-            vendorName: vendorRecord.name,
-            vendorEmail,
-            companyId: currentCompany.id,
-            companyName: currentCompany.name,
-            scopeOfWork: rfp?.scope_of_work,
-            message: inviteMessage,
-            baseUrl: getPublicAuthOrigin(),
-          }
-        });
-
-        if (rfpInviteError) throw rfpInviteError;
-      } catch (rfpInviteError: any) {
-        console.error('Error sending RFP invite email:', rfpInviteError);
-        toast({
-          title: 'Vendor added',
-          description: 'The vendor was added and linked to this RFP, but the bid email failed to send.',
-          variant: 'destructive',
-        });
-        await Promise.all([loadVendors(), loadInvitedVendors()]);
-        return;
-      }
+      await loadVendors();
+      setSelectedVendors((prev) => (prev.includes(vendorRecord!.id) ? prev : [...prev, vendorRecord!.id]));
+      setQuickAddVendorOpen(false);
 
       toast({
-        title: existingVendor ? 'Vendor invited' : 'Vendor added and invited',
-        description: `${vendorRecord.name} can now sign up and access this job's bidding workflow from the RFP email.`,
+        title: existingVendor ? 'Vendor selected' : 'Vendor added',
+        description: `${vendorRecord.name} is now in the vendor list and selected for this invite batch.`,
       });
 
       setQuickInviteForm({ firstName: '', lastName: '', companyName: '', email: '' });
       setQuickInviteVendorType('Contractor');
       setVendorSearch('');
       setActiveLetter(null);
-      await Promise.all([loadVendors(), loadInvitedVendors()]);
     } catch (error: any) {
       console.error('Error quick inviting vendor:', error);
       toast({
         title: 'Error',
-        description: error?.message || 'Failed to add and invite vendor',
+        description: error?.message || 'Failed to add vendor',
         variant: 'destructive',
       });
     } finally {
@@ -1969,6 +1903,7 @@ export default function RFPDetails() {
           setSelectedVendors([]);
           setQuickInviteForm({ firstName: '', lastName: '', companyName: '', email: '' });
           setQuickInviteVendorType('Contractor');
+          setQuickAddVendorOpen(false);
           setInviteMessage('');
         }
       }}>
@@ -1976,19 +1911,102 @@ export default function RFPDetails() {
           <DialogHeader className="shrink-0">
             <DialogTitle className="px-6 pt-6">Invite Vendors to Bid</DialogTitle>
             <DialogDescription className="px-6">
-              Select existing vendors or add a new one, then customize the email message before sending.
+              Select one or more saved vendors, then send the invitation in one batch.
             </DialogDescription>
           </DialogHeader>
           
           <div className="min-h-0 flex-1 space-y-4 overflow-y-auto px-6 pb-4">
-            <div className="grid gap-4 xl:grid-cols-[1.45fr_0.95fr]">
-              <div className="rounded-lg border bg-background p-4 space-y-4">
+            <div className="rounded-lg border bg-background p-4 space-y-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="text-sm font-medium text-foreground">
+                    Saved Vendors
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    onClick={() => setQuickAddVendorOpen((prev) => !prev)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Quick Add Vendor
+                  </Button>
+                </div>
+
+                {quickAddVendorOpen ? (
+                  <div className="rounded-lg border bg-muted/20 p-3 space-y-3">
+                    <div className="grid gap-3 sm:grid-cols-[1fr_1fr_1.2fr]">
+                      <div className="space-y-2">
+                        <Label htmlFor="quick-vendor-first-name">First Name</Label>
+                        <Input
+                          id="quick-vendor-first-name"
+                          placeholder="First name"
+                          value={quickInviteForm.firstName}
+                          onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, firstName: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="quick-vendor-last-name">Last Name</Label>
+                        <Input
+                          id="quick-vendor-last-name"
+                          placeholder="Last name"
+                          value={quickInviteForm.lastName}
+                          onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, lastName: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="quick-vendor-company-name">Company Name</Label>
+                        <Input
+                          id="quick-vendor-company-name"
+                          placeholder="Company name"
+                          value={quickInviteForm.companyName}
+                          onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, companyName: e.target.value }))}
+                        />
+                      </div>
+                    </div>
+                    <div className="grid gap-3 sm:grid-cols-[1.4fr_0.9fr_auto] sm:items-end">
+                      <div className="space-y-2">
+                        <Label htmlFor="quick-vendor-email">Email</Label>
+                        <Input
+                          id="quick-vendor-email"
+                          type="email"
+                          placeholder="name@company.com"
+                          value={quickInviteForm.email}
+                          onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, email: e.target.value }))}
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="quick-vendor-type">Vendor Type</Label>
+                        <Select value={quickInviteVendorType} onValueChange={setQuickInviteVendorType}>
+                          <SelectTrigger id="quick-vendor-type">
+                            <SelectValue placeholder="Select vendor type" />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="Contractor">Contractor</SelectItem>
+                            <SelectItem value="Supplier">Supplier</SelectItem>
+                            <SelectItem value="Design Professional">Design Professional</SelectItem>
+                            <SelectItem value="Other">Other</SelectItem>
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <Button
+                        type="button"
+                        variant="secondary"
+                        onClick={handleQuickInviteVendor}
+                        disabled={creatingQuickInvite}
+                      >
+                        <Plus className="mr-2 h-4 w-4" />
+                        {creatingQuickInvite ? 'Adding...' : 'Add Vendor'}
+                      </Button>
+                    </div>
+                  </div>
+                ) : null}
+
                 {getAvailableVendors().length === 0 ? (
                   <div className="py-10 text-center">
                     <Users className="h-10 w-10 mx-auto text-muted-foreground mb-3" />
                     <p className="text-sm text-muted-foreground">
                       {vendors.length === 0
-                        ? "No saved vendors yet. Use Quick Add Vendor to invite one now."
+                        ? "No saved vendors yet. Use Quick Add Vendor to add one."
                         : "All saved vendors have already been invited. Use Quick Add Vendor for someone new."}
                     </p>
                   </div>
@@ -2041,7 +2059,7 @@ export default function RFPDetails() {
                     </div>
 
                     <ScrollArea className="h-[320px] pr-4">
-                      <div className="space-y-2">
+                      <div className="space-y-1">
                         {getFilteredVendors().length === 0 ? (
                           <div className="py-4 text-center text-muted-foreground">
                             No vendors found matching your filters
@@ -2050,19 +2068,30 @@ export default function RFPDetails() {
                           getFilteredVendors().map(vendor => (
                             <div
                               key={vendor.id}
-                              className="flex items-center space-x-3 rounded-lg border px-3 py-2 hover:bg-muted/50 cursor-pointer"
+                              role="button"
+                              tabIndex={0}
+                              className="grid grid-cols-[auto_minmax(0,1.4fr)_minmax(0,1fr)_minmax(0,0.9fr)] items-center gap-2 rounded-md border px-2 py-1 text-xs hover:bg-muted/50 cursor-pointer"
                               onClick={() => toggleVendorSelection(vendor.id)}
+                              onKeyDown={(e) => {
+                                if (e.key === 'Enter' || e.key === ' ') {
+                                  e.preventDefault();
+                                  toggleVendorSelection(vendor.id);
+                                }
+                              }}
                             >
-                              <Checkbox
-                                checked={selectedVendors.includes(vendor.id)}
-                                onCheckedChange={() => toggleVendorSelection(vendor.id)}
-                              />
-                              <div className="flex-1 min-w-0">
-                                <p className="truncate text-sm font-medium leading-tight">{vendor.name}</p>
-                                {vendor.email && (
-                                  <p className="truncate text-xs text-muted-foreground">{vendor.email}</p>
-                                )}
+                              <div
+                                className="flex items-center justify-center"
+                                onClick={(e) => e.stopPropagation()}
+                              >
+                                <Checkbox
+                                  checked={selectedVendors.includes(vendor.id)}
+                                  onCheckedChange={() => toggleVendorSelection(vendor.id)}
+                                  aria-label={`Select ${vendor.name}`}
+                                />
                               </div>
+                              <div className="truncate font-medium">{vendor.name}</div>
+                              <div className="truncate text-muted-foreground">{vendor.email || '-'}</div>
+                              <div className="truncate text-muted-foreground">{vendor.phone || '-'}</div>
                             </div>
                           ))
                         )}
@@ -2070,76 +2099,6 @@ export default function RFPDetails() {
                     </ScrollArea>
                   </>
                 )}
-              </div>
-
-              <div className="rounded-lg border bg-muted/20 p-4 space-y-3">
-                <div className="grid gap-3">
-                  <div className="grid gap-3 sm:grid-cols-2">
-                    <div className="space-y-2">
-                      <Label htmlFor="quick-vendor-first-name">First Name</Label>
-                      <Input
-                        id="quick-vendor-first-name"
-                        placeholder="First name"
-                        value={quickInviteForm.firstName}
-                        onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, firstName: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="quick-vendor-last-name">Last Name</Label>
-                      <Input
-                        id="quick-vendor-last-name"
-                        placeholder="Last name"
-                        value={quickInviteForm.lastName}
-                        onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, lastName: e.target.value }))}
-                      />
-                    </div>
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="quick-vendor-company-name">Company Name</Label>
-                    <Input
-                      id="quick-vendor-company-name"
-                      placeholder="Company name"
-                      value={quickInviteForm.companyName}
-                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, companyName: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="quick-vendor-email">Email</Label>
-                    <Input
-                      id="quick-vendor-email"
-                      type="email"
-                      placeholder="name@company.com"
-                      value={quickInviteForm.email}
-                      onChange={(e) => setQuickInviteForm((prev) => ({ ...prev, email: e.target.value }))}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="quick-vendor-type">Vendor Type</Label>
-                    <Select value={quickInviteVendorType} onValueChange={setQuickInviteVendorType}>
-                      <SelectTrigger id="quick-vendor-type">
-                        <SelectValue placeholder="Select vendor type" />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="Contractor">Contractor</SelectItem>
-                        <SelectItem value="Supplier">Supplier</SelectItem>
-                        <SelectItem value="Design Professional">Design Professional</SelectItem>
-                        <SelectItem value="Other">Other</SelectItem>
-                      </SelectContent>
-                    </Select>
-                  </div>
-                  <div className="flex justify-end pt-2">
-                    <Button
-                      type="button"
-                      variant="secondary"
-                      onClick={handleQuickInviteVendor}
-                      disabled={creatingQuickInvite}
-                    >
-                      <Plus className="h-4 w-4 mr-2" />
-                      {creatingQuickInvite ? 'Adding & Inviting...' : 'Quick Add & Invite'}
-                    </Button>
-                  </div>
-                </div>
-              </div>
             </div>
 
             <div className="rounded-lg border p-4 space-y-3">
