@@ -229,7 +229,7 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
           </div>
           {pageOptions && pageOptions.length > 1 && selectedPageId && onSelectPage ? (
             <Select value={selectedPageId} onValueChange={onSelectPage}>
-              <SelectTrigger className="h-8 w-[240px] shrink-0">
+              <SelectTrigger className="h-8 w-[180px] shrink-0 sm:w-[200px] lg:w-[240px]">
                 <SelectValue placeholder="Select page" />
               </SelectTrigger>
               <SelectContent>
