@@ -6,6 +6,7 @@ import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { useToast } from '@/hooks/use-toast';
@@ -22,7 +23,8 @@ import {
   ArrowLeft,
   LogOut,
   CreditCard,
-  Package
+  Package,
+  Wrench
 } from 'lucide-react';
 import SubscriptionTierManager from '@/components/SubscriptionTierManager';
 import CompanySubscriptionManager from '@/components/CompanySubscriptionManager';
@@ -67,6 +69,21 @@ interface UserProfile {
   created_at: string;
 }
 
+interface VendorRepairResult {
+  success: boolean;
+  email: string;
+  userId: string;
+  companyId: string;
+  companyName: string | null;
+  requestedRole: string;
+  repaired: {
+    companyAccessRequest: boolean;
+    userCompanyAccess: boolean;
+    profileRole: boolean;
+  };
+  repairedBy?: string;
+}
+
 export default function SuperAdminDashboard() {
   const { user, signOut } = useAuth();
   const { isSuperAdmin, loading: tenantLoading } = useTenant();
@@ -80,6 +97,13 @@ export default function SuperAdminDashboard() {
   const [searchQuery, setSearchQuery] = useState('');
   const [userSearchQuery, setUserSearchQuery] = useState('');
   const [processingId, setProcessingId] = useState<string | null>(null);
+  const [repairingVendor, setRepairingVendor] = useState(false);
+  const [vendorRepairResult, setVendorRepairResult] = useState<VendorRepairResult | null>(null);
+  const [vendorRepairForm, setVendorRepairForm] = useState({
+    email: '',
+    companyName: '',
+    requestedRole: 'vendor',
+  });
 
   useEffect(() => {
     if (!tenantLoading && !isSuperAdmin) {
@@ -281,6 +305,71 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const handleRepairVendorSignup = async (event: React.FormEvent) => {
+    event.preventDefault();
+
+    const email = vendorRepairForm.email.trim().toLowerCase();
+    const companyName = vendorRepairForm.companyName.trim();
+    if (!email) {
+      toast({
+        title: 'Email required',
+        description: 'Enter the vendor user email to repair.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    if (!companyName) {
+      toast({
+        title: 'Company required',
+        description: 'Enter the builder company name the vendor signed up under.',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    try {
+      setRepairingVendor(true);
+      setVendorRepairResult(null);
+
+      const { data, error } = await supabase.functions.invoke('repair-stuck-vendor-signup', {
+        body: {
+          email,
+          companyName,
+          requestedRole: vendorRepairForm.requestedRole,
+        },
+      });
+
+      if (error) {
+        let message = error.message || 'Failed to repair vendor signup.';
+        try {
+          if (typeof (error as any)?.context?.json === 'function') {
+            const payload = await (error as any).context.json();
+            message = payload?.error || message;
+          }
+        } catch {
+          // keep fallback message
+        }
+        throw new Error(message);
+      }
+
+      setVendorRepairResult(data as VendorRepairResult);
+      toast({
+        title: 'Vendor signup repaired',
+        description: `${email} was re-linked to ${data?.companyName || companyName}.`,
+      });
+    } catch (error: any) {
+      console.error('Error repairing vendor signup:', error);
+      toast({
+        title: 'Repair failed',
+        description: error?.message || 'Could not repair the vendor signup.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRepairingVendor(false);
+    }
+  };
+
   const pendingRequests = requests.filter(r => r.status === 'pending');
   const processedRequests = requests.filter(r => r.status !== 'pending');
 
@@ -401,6 +490,10 @@ export default function SuperAdminDashboard() {
             </TabsTrigger>
             <TabsTrigger value="avatars">Avatar Libraries</TabsTrigger>
             <TabsTrigger value="system-roles">System Role Settings</TabsTrigger>
+            <TabsTrigger value="repairs">
+              <Wrench className="h-4 w-4 mr-1" />
+              Repairs
+            </TabsTrigger>
             <TabsTrigger value="tenants">Organizations</TabsTrigger>
             <TabsTrigger value="users">All Users</TabsTrigger>
             <TabsTrigger value="history">Request History</TabsTrigger>
@@ -492,6 +585,109 @@ export default function SuperAdminDashboard() {
 
           <TabsContent value="system-roles" className="space-y-4">
             <RolePermissionsManager mode="super_admin_system" />
+          </TabsContent>
+
+          <TabsContent value="repairs" className="space-y-4">
+            <Card>
+              <CardHeader>
+                <CardTitle>Vendor Signup Repair</CardTitle>
+                <CardDescription>
+                  Repair vendor or design professional signups that got stuck between public signup and builder-side intake approval.
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-6">
+                <form onSubmit={handleRepairVendorSignup} className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="repair-email">User Email</Label>
+                      <Input
+                        id="repair-email"
+                        type="email"
+                        placeholder="vendor@example.com"
+                        value={vendorRepairForm.email}
+                        onChange={(e) => setVendorRepairForm((prev) => ({ ...prev, email: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="repair-company-name">Builder Company</Label>
+                      <Input
+                        id="repair-company-name"
+                        placeholder="Sigma Construction"
+                        value={vendorRepairForm.companyName}
+                        onChange={(e) => setVendorRepairForm((prev) => ({ ...prev, companyName: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="repair-role">Role</Label>
+                      <Input
+                        id="repair-role"
+                        value={vendorRepairForm.requestedRole}
+                        onChange={(e) =>
+                          setVendorRepairForm((prev) => ({
+                            ...prev,
+                            requestedRole: e.target.value === 'design_professional' ? 'design_professional' : 'vendor',
+                          }))
+                        }
+                        placeholder="vendor"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3">
+                    <Button type="submit" disabled={repairingVendor}>
+                      {repairingVendor ? (
+                        <>
+                          <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                          Repairing...
+                        </>
+                      ) : (
+                        <>
+                          <Wrench className="h-4 w-4 mr-2" />
+                          Repair Signup
+                        </>
+                      )}
+                    </Button>
+                    <p className="text-sm text-muted-foreground">
+                      This recreates the pending access request, company access row, and profile role state.
+                    </p>
+                  </div>
+                </form>
+
+                {vendorRepairResult ? (
+                  <div className="rounded-lg border bg-muted/30 p-4 space-y-3">
+                    <div className="flex items-center justify-between gap-3 flex-wrap">
+                      <div>
+                        <p className="font-medium">Repair completed</p>
+                        <p className="text-sm text-muted-foreground">
+                          {vendorRepairResult.email} re-linked to {vendorRepairResult.companyName || vendorRepairForm.companyName}.
+                        </p>
+                      </div>
+                      <Badge variant="default" className="capitalize">
+                        {vendorRepairResult.requestedRole}
+                      </Badge>
+                    </div>
+                    <div className="grid gap-3 md:grid-cols-3 text-sm">
+                      <div className="rounded-md border bg-background p-3">
+                        <p className="font-medium">User ID</p>
+                        <p className="text-muted-foreground break-all">{vendorRepairResult.userId}</p>
+                      </div>
+                      <div className="rounded-md border bg-background p-3">
+                        <p className="font-medium">Company ID</p>
+                        <p className="text-muted-foreground break-all">{vendorRepairResult.companyId}</p>
+                      </div>
+                      <div className="rounded-md border bg-background p-3">
+                        <p className="font-medium">Updated Records</p>
+                        <div className="mt-1 flex flex-wrap gap-2">
+                          {vendorRepairResult.repaired.companyAccessRequest ? <Badge variant="secondary">Access Request</Badge> : null}
+                          {vendorRepairResult.repaired.userCompanyAccess ? <Badge variant="secondary">Company Access</Badge> : null}
+                          {vendorRepairResult.repaired.profileRole ? <Badge variant="secondary">Profile Role</Badge> : null}
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                ) : null}
+              </CardContent>
+            </Card>
           </TabsContent>
 
           <TabsContent value="tenants" className="space-y-4">
