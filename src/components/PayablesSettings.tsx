@@ -399,6 +399,9 @@ export default function PayablesSettings({ canEdit = true }: PayablesSettingsPro
   const publicVendorSignupUrl = currentCompany?.id
     ? `${window.location.origin}/vendor-signup?company=${encodeURIComponent(currentCompany.id)}`
     : '';
+  const publicVendorLoginUrl = currentCompany?.id
+    ? `${window.location.origin}/vendor-login?company=${encodeURIComponent(currentCompany.id)}`
+    : '';
 
   const copyVendorSignupLink = async () => {
     if (!publicVendorSignupUrl) return;
@@ -413,6 +416,24 @@ export default function PayablesSettings({ canEdit = true }: PayablesSettingsPro
       toast({
         title: 'Copy failed',
         description: 'Could not copy signup link.',
+        variant: 'destructive',
+      });
+    }
+  };
+
+  const copyVendorLoginLink = async () => {
+    if (!publicVendorLoginUrl) return;
+    try {
+      await navigator.clipboard.writeText(publicVendorLoginUrl);
+      toast({
+        title: 'Link copied',
+        description: 'Vendor portal login link copied to clipboard.',
+      });
+    } catch (error) {
+      console.error('Failed to copy vendor login link:', error);
+      toast({
+        title: 'Copy failed',
+        description: 'Could not copy login link.',
         variant: 'destructive',
       });
     }
@@ -1127,6 +1148,22 @@ export default function PayablesSettings({ canEdit = true }: PayablesSettingsPro
                   <a href={publicVendorSignupUrl} target="_blank" rel="noreferrer">
                     <ExternalLink className="h-4 w-4 mr-2" />
                     Open Signup Page
+                  </a>
+                </Button>
+              </div>
+              <div className="space-y-2">
+                <Label>Public Vendor Login Link</Label>
+                <Input value={publicVendorLoginUrl} readOnly />
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Button variant="outline" type="button" onClick={copyVendorLoginLink}>
+                  <Copy className="h-4 w-4 mr-2" />
+                  Copy Login Link
+                </Button>
+                <Button variant="outline" type="button" asChild>
+                  <a href={publicVendorLoginUrl} target="_blank" rel="noreferrer">
+                    <ExternalLink className="h-4 w-4 mr-2" />
+                    Open Login Page
                   </a>
                 </Button>
               </div>

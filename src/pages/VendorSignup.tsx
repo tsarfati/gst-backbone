@@ -290,7 +290,17 @@ export default function VendorSignup() {
             <p className="text-slate-300 mb-6">
               Your vendor account email has been confirmed. You can now sign in and continue setting up your BuilderLYNK vendor workspace.
             </p>
-            <Button onClick={() => navigate("/auth")}>Go to Sign In</Button>
+            <Button
+              onClick={() =>
+                navigate(
+                  preselectedCompanyId
+                    ? `/vendor-login?company=${encodeURIComponent(preselectedCompanyId)}`
+                    : "/vendor-login",
+                )
+              }
+            >
+              Go to Sign In
+            </Button>
           </CardContent>
         </Card>
       </div>
@@ -332,7 +342,17 @@ export default function VendorSignup() {
                   </>
                 )}
             </p>
-            <Button onClick={() => navigate(signupResult?.requiresEmailConfirmation ? "/vendor-signup" : "/auth")}>
+            <Button
+              onClick={() => navigate(
+                signupResult?.requiresEmailConfirmation
+                  ? (preselectedCompanyId
+                      ? `/vendor-signup?company=${encodeURIComponent(preselectedCompanyId)}`
+                      : "/vendor-signup")
+                  : (preselectedCompanyId
+                      ? `/vendor-login?company=${encodeURIComponent(preselectedCompanyId)}`
+                      : "/vendor-login"),
+              )}
+            >
               {signupResult?.requiresEmailConfirmation ? "Back to Signup" : "Go to Sign In"}
             </Button>
           </CardContent>

@@ -116,6 +116,9 @@ export default function VendorRegister() {
     : `You've been invited by ${companyName} to join as a vendor.`;
   const brandedHeaderTitle = String(companyBranding?.vendor_portal_signup_header_title || '').trim() || landingTitle;
   const brandedHeaderSubtitle = String(companyBranding?.vendor_portal_signup_header_subtitle || '').trim() || defaultLandingSubtitle;
+  const vendorLoginHref = invitation?.company_id
+    ? `/vendor-login?company=${encodeURIComponent(invitation.company_id)}`
+    : '/vendor-login';
 
   useEffect(() => {
     if (token) {
@@ -287,7 +290,7 @@ export default function VendorRegister() {
             <XCircle className="h-16 w-16 mx-auto text-destructive mb-4" />
             <h2 className="text-xl font-semibold mb-2">Invalid Invitation</h2>
             <p className="text-slate-300 mb-6">{error}</p>
-            <Button onClick={() => navigate('/auth')}>
+            <Button onClick={() => navigate(vendorLoginHref)}>
               Go to Login
             </Button>
           </CardContent>
@@ -306,7 +309,7 @@ export default function VendorRegister() {
             <p className="text-slate-300 mb-6">
               Please check your email ({invitation?.email}) to verify your account before logging in.
             </p>
-            <Button onClick={() => navigate('/auth')}>
+            <Button onClick={() => navigate(vendorLoginHref)}>
               Go to Login
             </Button>
           </CardContent>
@@ -431,7 +434,7 @@ export default function VendorRegister() {
 
           <p className="mt-4 text-center text-sm text-muted-foreground">
             Already have an account?{' '}
-            <Button variant="link" className="p-0 h-auto" onClick={() => navigate('/auth')}>
+            <Button variant="link" className="p-0 h-auto" onClick={() => navigate(vendorLoginHref)}>
               Sign in
             </Button>
           </p>

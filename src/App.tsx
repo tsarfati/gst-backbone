@@ -181,6 +181,7 @@ import DesignProfessionalSubmittals from "./pages/DesignProfessionalSubmittals";
 import DesignProfessionalPermitting from "./pages/DesignProfessionalPermitting";
 import VendorRegister from "./pages/VendorRegister";
 import VendorSignup from "./pages/VendorSignup";
+import VendorLogin from "./pages/VendorLogin";
 import DesignProfessionalSignup from "./pages/DesignProfessionalSignup";
 import SubscriptionPortal from "./pages/SubscriptionPortal";
 import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
@@ -472,6 +473,7 @@ function PublicRoutes() {
                 <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
                 <Route path="/vendor-register" element={<VendorRegister />} />
                 <Route path="/vendor-signup" element={<VendorSignup />} />
+                <Route path="/vendor-login" element={<VendorLogin />} />
                 <Route path="/design-professional-signup" element={<DesignProfessionalSignup />} />
                 <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
               </Routes>
@@ -984,11 +986,13 @@ function AppRoutes() {
     '/design-pro-lynk',
     '/vendor-register',
     '/vendor-signup',
+    '/vendor-login',
     '/design-professional-signup',
   ];
   const isPublicRoute = publicExactPaths.includes(location.pathname)
     || location.pathname.startsWith('/vendor-signup')
     || location.pathname.startsWith('/vendor-register')
+    || location.pathname.startsWith('/vendor-login')
     || location.pathname.startsWith('/design-professional-signup')
     || location.pathname.startsWith('/visitor/')
     || location.pathname.includes('/visitor-logs')
