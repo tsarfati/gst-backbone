@@ -78,6 +78,7 @@ export default function SinglePagePdfViewer({
   const pendingRenderRef = useRef<{ page: number; zoom: number; reason: RenderReason } | null>(null);
   const requestRenderRef = useRef<((args: { page: number; zoom: number; reason: RenderReason }) => void) | null>(null);
   const zoomRenderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const resizeRenderTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const clampZoom = useCallback((z: number) => Math.min(Math.max(z, 0.5), 5), []);
 
@@ -542,6 +543,38 @@ export default function SinglePagePdfViewer({
       if (rafId) window.cancelAnimationFrame(rafId);
     };
   }, [onPageRectChange, emitPageRect, pageNumber, zoomLevel, pdfDoc]);
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!container || !pdfDoc) return;
+
+    let lastWidth = container.clientWidth || 0;
+    const observer = new ResizeObserver((entries) => {
+      const nextWidth = entries[0]?.contentRect?.width || container.clientWidth || 0;
+      if (Math.abs(nextWidth - lastWidth) < 4) return;
+      lastWidth = nextWidth;
+
+      if (resizeRenderTimeoutRef.current) {
+        clearTimeout(resizeRenderTimeoutRef.current);
+      }
+      resizeRenderTimeoutRef.current = setTimeout(() => {
+        void requestRender({
+          page: safePageNumber,
+          zoom: zoomLevel,
+          reason: "page",
+        });
+      }, 80);
+    });
+
+    observer.observe(container);
+
+    return () => {
+      observer.disconnect();
+      if (resizeRenderTimeoutRef.current) {
+        clearTimeout(resizeRenderTimeoutRef.current);
+      }
+    };
+  }, [pdfDoc, requestRender, safePageNumber, zoomLevel]);
 
   // Pan/drag
   const handlePointerDown = useCallback(

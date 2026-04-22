@@ -216,11 +216,11 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
   }, [notes, resolvedThumbnailUrl]);
 
   return (
-    <div className="flex h-full min-h-0">
-      <div className="min-h-0 flex flex-col border-r">
-        <div className="border-b px-4 py-3 flex items-center justify-between gap-3">
+    <div className="flex h-full min-h-0 min-w-0">
+      <div className="flex min-h-0 min-w-0 flex-1 basis-0 flex-col border-r">
+        <div className="flex items-center justify-between gap-2 border-b px-3 py-2">
           <div className="min-w-0 flex-1">
-            <p className="font-medium">{sheetNumber || `Page ${pageNumber}`}</p>
+            <p className="text-sm font-medium leading-tight">{sheetNumber || `Page ${pageNumber}`}</p>
             <p className="text-xs text-muted-foreground truncate">
               {planName}
               {planNumber ? ` #${planNumber}` : ''}
@@ -229,7 +229,7 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
           </div>
           {pageOptions && pageOptions.length > 1 && selectedPageId && onSelectPage ? (
             <Select value={selectedPageId} onValueChange={onSelectPage}>
-              <SelectTrigger className="w-[260px] shrink-0">
+              <SelectTrigger className="h-8 w-[240px] shrink-0">
                 <SelectValue placeholder="Select page" />
               </SelectTrigger>
               <SelectContent>
@@ -241,28 +241,28 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
               </SelectContent>
             </Select>
           ) : null}
-          <div className="flex items-center gap-2">
-            <Button type="button" size="sm" variant="outline" onClick={() => setZoomLevel((prev) => Math.max(0.5, prev - 0.25))}>
+          <div className="flex items-center gap-1.5">
+            <Button type="button" size="sm" variant="outline" className="h-8 w-8 px-0" onClick={() => setZoomLevel((prev) => Math.max(0.5, prev - 0.25))}>
               <ZoomOut className="h-4 w-4" />
             </Button>
-            <span className="text-sm min-w-[52px] text-center">{Math.round(zoomLevel * 100)}%</span>
-            <Button type="button" size="sm" variant="outline" onClick={() => setZoomLevel((prev) => Math.min(5, prev + 0.25))}>
+            <span className="min-w-[48px] text-center text-xs font-medium">{Math.round(zoomLevel * 100)}%</span>
+            <Button type="button" size="sm" variant="outline" className="h-8 w-8 px-0" onClick={() => setZoomLevel((prev) => Math.min(5, prev + 0.25))}>
               <ZoomIn className="h-4 w-4" />
             </Button>
             {onDownload ? (
-              <Button type="button" size="sm" variant="outline" onClick={onDownload}>
+              <Button type="button" size="sm" variant="outline" className="h-8 w-8 px-0" onClick={onDownload}>
                 <Download className="h-4 w-4" />
               </Button>
             ) : null}
             {onClose ? (
-              <Button type="button" size="sm" variant="outline" onClick={onClose}>
+              <Button type="button" size="sm" variant="outline" className="h-8 w-8 px-0" onClick={onClose}>
                 <X className="h-4 w-4" />
               </Button>
             ) : null}
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 relative bg-muted/20">
+        <div className="relative flex-1 min-h-0 min-w-0 bg-muted/20">
           {resolvingFileUrl ? (
             <div className="relative h-full">
               {resolvedThumbnailUrl ? (
@@ -390,16 +390,16 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
 
       <div
         className={cn(
-          "min-h-0 border-l bg-background transition-all duration-200",
-          notesDrawerOpen ? "w-[320px]" : "w-12",
+          "min-h-0 shrink-0 border-l bg-background transition-all duration-200",
+          notesDrawerOpen ? "w-[280px]" : "w-12",
         )}
       >
         {notesDrawerOpen ? (
           <div className="flex h-full min-h-0 flex-col">
-            <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
+            <div className="flex items-start justify-between gap-2 border-b px-3 py-2">
               <div>
                 <p className="text-sm font-medium">Linked Notes</p>
-                <p className="mt-1 text-xs text-muted-foreground">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   These note numbers are referenced directly from the attached plan sheet.
                 </p>
               </div>
@@ -415,7 +415,7 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
               </Button>
             </div>
             <ScrollArea className="flex-1">
-              <div className="p-4 space-y-3">
+              <div className="space-y-3 p-3">
                 {notes.length === 0 ? (
                   sheetNote?.trim() ? (
                     <div className="rounded-md border p-3 space-y-2">

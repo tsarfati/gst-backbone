@@ -1,6 +1,7 @@
 import { supabase } from "@/integrations/supabase/client";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { buildPlanPageRecord, extractPlanSheetMetadataFromPdfText } from "@/utils/planSheetMetadata";
+import { hasMeaningfulPlanOcrResult, renderPlanOcrImageBase64 } from "@/utils/planOcr";
 
 type IndexPlanPagesParams = {
   planId: string;
@@ -62,10 +63,6 @@ export async function indexPlanPagesOnce({
       try {
         const page = await pdf.getPage(pageNumber);
         const baseViewport = page.getViewport({ scale: 1 });
-        const viewport = page.getViewport({ scale: 1.5 });
-        const canvas = document.createElement("canvas");
-        const context = canvas.getContext("2d");
-
         let textItems: any[] = [];
         try {
           const textContent = await page.getTextContent();
@@ -74,21 +71,12 @@ export async function indexPlanPagesOnce({
           console.warn(`Plan page text extraction fallback failed for page ${pageNumber}:`, textError);
         }
 
-        canvas.width = viewport.width;
-        canvas.height = viewport.height;
-
-        await page.render({
-          canvasContext: context!,
-          viewport,
-          canvas,
-        }).promise;
-
-        const imageBase64 = canvas.toDataURL("image/jpeg", 0.8).split(",")[1];
-        const { data: ocrData, error: ocrError } = await supabase.functions.invoke(
+        const titleBlockImageBase64 = await renderPlanOcrImageBase64(page, "titleblock");
+        let { data: ocrData, error: ocrError } = await supabase.functions.invoke(
           "analyze-plan-ocr",
           {
             body: {
-              imageBase64,
+              imageBase64: titleBlockImageBase64,
               pageNumber,
             },
           }
@@ -98,7 +86,21 @@ export async function indexPlanPagesOnce({
           throw ocrError;
         }
 
-        const result = ocrData?.data || {};
+        let result = ocrData?.data || {};
+        if (!hasMeaningfulPlanOcrResult(result)) {
+          const fullPageImageBase64 = await renderPlanOcrImageBase64(page, "full");
+          const fullPageOcr = await supabase.functions.invoke(
+            "analyze-plan-ocr",
+            {
+              body: {
+                imageBase64: fullPageImageBase64,
+                pageNumber,
+              },
+            }
+          );
+          if (fullPageOcr.error) throw fullPageOcr.error;
+          result = fullPageOcr.data?.data || result;
+        }
         const pdfTextResult = extractPlanSheetMetadataFromPdfText({
           textItems,
           viewportWidth: baseViewport.width,

@@ -27,6 +27,7 @@ import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { loadEmailSenderPreview, type EmailSenderPreview } from '@/utils/emailSenderPreview';
 import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
 import { downloadRfpPlanPagesPdf, downloadSingleRfpPlanPagePdf } from '@/utils/rfpPlanPagesPdf';
+import { syncAttachedPlanSetPagesToRfp } from '@/utils/rfpPlanSync';
 import RfpPlanPageNoteViewer, { type RfpPlanPageNoteViewerNote } from '@/components/RfpPlanPageNoteViewer';
 import PlanPageThumbnail from '@/components/PlanPageThumbnail';
 
@@ -1066,6 +1067,18 @@ export default function RFPDetails() {
 
   const loadPlanPages = async () => {
     try {
+      if (id && currentCompany?.id) {
+        try {
+          await syncAttachedPlanSetPagesToRfp({
+            rfpId: id,
+            companyId: currentCompany.id,
+            createdBy: user?.id || null,
+          });
+        } catch (syncError) {
+          console.warn('Failed syncing attached plan set pages for RFP:', syncError);
+        }
+      }
+
       const { data, error } = await supabase
         .from('rfp_plan_pages' as any)
         .select(`
@@ -3097,7 +3110,7 @@ export default function RFPDetails() {
           if (!open) setPreviewPlanPage(null);
         }}
       >
-        <DialogContent className="max-w-7xl h-[90vh] p-0 overflow-hidden">
+        <DialogContent className="h-[94vh] w-[96vw] max-w-[96vw] p-0 overflow-hidden">
           {previewPlanPage ? (
             <>
               <DialogTitle className="sr-only">

@@ -15,6 +15,7 @@ import { useToast } from '@/hooks/use-toast';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessJobIds, ensureAllowedJobFilter } from '@/utils/jobAccess';
 import { getStoragePathForDb } from '@/utils/storageUtils';
+import { hydratePlanPagesFromPdfText } from '@/utils/planPageHydration';
 import RfpPlanPagePicker, {
   type RfpPlanPageNoteDraft,
   type RfpPlanPageOption,
@@ -320,6 +321,54 @@ export default function AddRFP() {
       );
       setSelectedFullPlanSetIds((prev) => prev.filter((planId) => planIds.includes(planId)));
       setSelectedJobFileIds((prev) => prev.filter((fileId) => (jobFileRows || []).some((file: any) => String(file.id) === fileId)));
+
+      void (async () => {
+        let changed = false;
+        for (const plan of (plansData || []) as any[]) {
+          const planId = String(plan.id || '');
+          const fileUrl = String(plan.file_url || '');
+          if (!planId || !fileUrl) continue;
+          try {
+            const result = await hydratePlanPagesFromPdfText({
+              planId,
+              planUrl: fileUrl,
+            });
+            if (result.updatedCount > 0) {
+              changed = true;
+            }
+          } catch (hydrationError) {
+            console.warn(`Failed hydrating plan pages for plan ${planId}:`, hydrationError);
+          }
+        }
+
+        if (!changed) return;
+
+        const { data: refreshedPageRows, error: refreshedPageError } = await supabase
+          .from('plan_pages' as any)
+          .select('id, plan_id, page_number, sheet_number, page_title, discipline, thumbnail_url')
+          .in('plan_id', planIds)
+          .order('page_number', { ascending: true });
+
+        if (refreshedPageError) throw refreshedPageError;
+
+        setAvailablePlanPages(
+          ((refreshedPageRows || []) as any[]).map((page) => {
+            const plan = planById.get(String(page.plan_id));
+            return {
+              plan_id: String(page.plan_id),
+              plan_name: String(plan?.plan_name || 'Plan Set'),
+              plan_number: plan?.plan_number || null,
+              plan_file_url: plan?.file_url || null,
+              plan_page_id: String(page.id),
+              page_number: Number(page.page_number || 0),
+              sheet_number: page.sheet_number || null,
+              page_title: page.page_title || null,
+              discipline: page.discipline || null,
+              thumbnail_url: page.thumbnail_url || null,
+            };
+          }),
+        );
+      })();
     } catch (error) {
       console.error('Error loading available plan pages:', error);
       setAvailablePlanPages([]);

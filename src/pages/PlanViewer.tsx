@@ -20,6 +20,8 @@ import SinglePagePdfViewer from "@/components/SinglePagePdfViewer";
 import { format } from "date-fns";
 import { useCompanyFeatureAccess } from "@/hooks/useCompanyFeatureAccess";
 import { buildPlanPageRecord, extractPlanSheetMetadataFromPdfText, isPlaceholderPlanLabel } from "@/utils/planSheetMetadata";
+import { hydratePlanPagesFromPdfText } from "@/utils/planPageHydration";
+import { hasMeaningfulPlanOcrResult, renderPlanOcrImageBase64 } from "@/utils/planOcr";
 
 // Bundle worker locally (avoids relying on external CDNs that may be blocked)
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -145,6 +147,26 @@ type NormalizedRect = {
 const SHEET_REF_PATTERN = /\b(?:\d+\s*\/\s*)?([A-Z]{1,4}\s*[-.]?\s*\d{1,3}(?:\.\d{1,3})?)\b/g;
 const SYMBOL_CODE_PATTERN = /^[A-Z]{1,4}$/;
 const SYMBOL_NUM_PATTERN = /^\d{1,3}[A-Z]?$/i;
+const OCR_PAGE_TIMEOUT_MS = 20000;
+
+const sleep = (ms: number) => new Promise((resolve) => window.setTimeout(resolve, ms));
+
+const withTimeout = async <T,>(promise: Promise<T>, timeoutMs: number, label: string): Promise<T> => {
+  let timeoutId: number | undefined;
+  const timeoutPromise = new Promise<never>((_, reject) => {
+    timeoutId = window.setTimeout(() => {
+      reject(new Error(`${label} timed out after ${Math.round(timeoutMs / 1000)}s`));
+    }, timeoutMs);
+  });
+
+  try {
+    return await Promise.race([promise, timeoutPromise]);
+  } finally {
+    if (timeoutId) {
+      window.clearTimeout(timeoutId);
+    }
+  }
+};
 
 const getRfpStatusBadgeVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
   switch (String(status || "").toLowerCase()) {
@@ -434,6 +456,7 @@ export default function PlanViewer() {
   const ensuredPagePlaceholderKeyRef = useRef<string>("");
   const repairedPageLabelKeyRef = useRef<string>("");
   const placeholderRepairRunRef = useRef(0);
+  const hydratedPlanPageKeyRef = useRef<string>("");
   const planAiEnabled = !featureLoading && hasFeature("ai_plan_qa_v1");
   
 
@@ -615,6 +638,34 @@ export default function PlanViewer() {
 
     void repairPlaceholderPlanLabels();
   }, [planId, plan?.file_url, pages, analyzing, currentPage]);
+
+  useEffect(() => {
+    if (!planId || !plan?.file_url || !pdfTotalPages || analyzing) return;
+
+    const placeholderCount = pages.filter((page) =>
+      isPlaceholderPlanLabel(page.sheet_number, page.page_number),
+    ).length;
+    const hydrationKey = `${planId}:${pdfTotalPages}:${pages.length}:${placeholderCount}`;
+    if (hydratedPlanPageKeyRef.current === hydrationKey) return;
+    hydratedPlanPageKeyRef.current = hydrationKey;
+
+    if (pages.length >= pdfTotalPages && placeholderCount === 0) return;
+
+    void (async () => {
+      try {
+        const result = await hydratePlanPagesFromPdfText({
+          planId,
+          planUrl: plan.file_url,
+        });
+        if (result.updatedCount > 0) {
+          await fetchPlanData();
+        }
+      } catch (hydrationError) {
+        console.warn("Plan page hydration failed:", hydrationError);
+        hydratedPlanPageKeyRef.current = "";
+      }
+    })();
+  }, [planId, plan?.file_url, pdfTotalPages, pages, analyzing]);
 
   useEffect(() => {
     setAiSelectionNorm(null);
@@ -1285,6 +1336,7 @@ export default function PlanViewer() {
 
       for (let pageNum = 1; pageNum <= numPages; pageNum++) {
         setAnalyzeProgress({ current: pageNum, total: numPages });
+        await sleep(0);
         
         let pageData: any;
         try {
@@ -1299,31 +1351,21 @@ export default function PlanViewer() {
             console.warn(`Text extraction bootstrap failed for page ${pageNum}:`, textErr);
           }
           
-          // Render page to canvas for OCR
-          const viewport = page.getViewport({ scale: 1.5 });
-          const canvas = document.createElement('canvas');
-          const context = canvas.getContext('2d');
-          canvas.width = viewport.width;
-          canvas.height = viewport.height;
-
-          await page.render({
-            canvasContext: context!,
-            viewport: viewport,
-            canvas,
-          }).promise;
-
-          // Convert canvas to base64
-          const imageBase64 = canvas.toDataURL('image/jpeg', 0.8).split(',')[1];
+          const titleBlockImageBase64 = await renderPlanOcrImageBase64(page, "titleblock");
 
           // Call OCR edge function
-          const { data: ocrData, error: ocrError } = await supabase.functions.invoke(
-            'analyze-plan-ocr',
-            {
-              body: {
-                imageBase64,
-                pageNumber: pageNum,
-              },
-            }
+          let { data: ocrData, error: ocrError } = await withTimeout(
+            supabase.functions.invoke(
+              'analyze-plan-ocr',
+              {
+                body: {
+                  imageBase64: titleBlockImageBase64,
+                  pageNumber: pageNum,
+                },
+              }
+            ),
+            OCR_PAGE_TIMEOUT_MS,
+            `OCR page ${pageNum}`,
           );
 
           if (ocrError) {
@@ -1331,7 +1373,27 @@ export default function PlanViewer() {
             throw ocrError;
           }
 
-          const result = ocrData?.data || {};
+          let result = ocrData?.data || {};
+          if (!hasMeaningfulPlanOcrResult(result)) {
+            const fullPageImageBase64 = await renderPlanOcrImageBase64(page, "full");
+            const fullPageOcr = await withTimeout(
+              supabase.functions.invoke(
+                'analyze-plan-ocr',
+                {
+                  body: {
+                    imageBase64: fullPageImageBase64,
+                    pageNumber: pageNum,
+                  },
+                }
+              ),
+              OCR_PAGE_TIMEOUT_MS,
+              `Full-page OCR page ${pageNum}`,
+            );
+            if (fullPageOcr.error) {
+              throw fullPageOcr.error;
+            }
+            result = fullPageOcr.data?.data || result;
+          }
           console.log(`Page ${pageNum} OCR result:`, result);
 
           const pdfTextResult = extractPlanSheetMetadataFromPdfText({
@@ -1419,6 +1481,8 @@ export default function PlanViewer() {
         } catch (saveError) {
           console.error(`Failed to save page ${pageNum}:`, saveError);
         }
+
+        await sleep(0);
       }
 
       // Build and save auto-detected inter-sheet links from extracted text references.
