@@ -12,6 +12,12 @@ interface AccessControlProps {
   children: React.ReactNode;
 }
 
+const externalPortalContextCache = new Map<string, {
+  requestedRole: 'vendor' | 'design_professional' | null;
+  homeCompanyId: string | null;
+}>();
+const pendingExternalAccessCache = new Map<string, boolean>();
+
 const parseInviteFunctionError = async (error: any) => {
   let payload: any = null;
   try {
@@ -85,6 +91,12 @@ export function AccessControl({ children }: AccessControlProps) {
         return;
       }
 
+      const cachedContext = externalPortalContextCache.get(user.id);
+      if (cachedContext) {
+        setExternalPortalContext(cachedContext);
+        return;
+      }
+
       try {
         const { data, error } = await supabase
           .from('company_access_requests')
@@ -110,7 +122,9 @@ export function AccessControl({ children }: AccessControlProps) {
         }) as { notes?: string | null } | undefined;
 
         if (!matchedRow?.notes) {
-          setExternalPortalContext({ requestedRole: null, homeCompanyId: null });
+          const nextContext = { requestedRole: null, homeCompanyId: null };
+          externalPortalContextCache.set(user.id, nextContext);
+          setExternalPortalContext(nextContext);
           return;
         }
 
@@ -118,15 +132,22 @@ export function AccessControl({ children }: AccessControlProps) {
           const parsed = JSON.parse(matchedRow.notes);
           const requestedRole = String(parsed?.requestedRole || '').toLowerCase();
           const homeCompanyId = String(parsed?.homeCompanyId || '').trim();
-          setExternalPortalContext({
+          const nextContext = {
             requestedRole:
               requestedRole === 'vendor' || requestedRole === 'design_professional'
                 ? requestedRole
                 : null,
             homeCompanyId: homeCompanyId || null,
-          });
+          } as {
+            requestedRole: 'vendor' | 'design_professional' | null;
+            homeCompanyId: string | null;
+          };
+          externalPortalContextCache.set(user.id, nextContext);
+          setExternalPortalContext(nextContext);
         } catch {
-          setExternalPortalContext({ requestedRole: null, homeCompanyId: null });
+          const nextContext = { requestedRole: null, homeCompanyId: null };
+          externalPortalContextCache.set(user.id, nextContext);
+          setExternalPortalContext(nextContext);
         }
       } catch (error) {
         if (!cancelled) {
@@ -268,6 +289,20 @@ export function AccessControl({ children }: AccessControlProps) {
         return;
       }
 
+      const cacheKey = [
+        user.id,
+        role,
+        String(userCompanies.length),
+        hasHomeWorkspaceLink ? '1' : '0',
+        externalPortalContext.homeCompanyId || '',
+      ].join(':');
+      const cachedPendingState = pendingExternalAccessCache.get(cacheKey);
+      if (cachedPendingState !== undefined) {
+        setPendingExternalAccess(cachedPendingState);
+        setPendingExternalAccessLoading(false);
+        return;
+      }
+
       setPendingExternalAccessLoading(true);
       try {
         const { data, error } = await supabase
@@ -282,12 +317,14 @@ export function AccessControl({ children }: AccessControlProps) {
         if (error) {
           console.warn('Failed to query pending company access requests:', error);
           setPendingExternalAccess(false);
+          pendingExternalAccessCache.set(cacheKey, false);
           return;
         }
 
         const row = (data || [])[0] as { status?: string; notes?: string | null } | undefined;
         if (!row) {
           setPendingExternalAccess(false);
+          pendingExternalAccessCache.set(cacheKey, false);
           return;
         }
 
@@ -308,10 +345,12 @@ export function AccessControl({ children }: AccessControlProps) {
         // Do not block their portal just because an external company link is pending.
         if (isPendingExternal && (hasHomeWorkspaceLink || !!homeCompanyId || !!externalPortalContext.homeCompanyId)) {
           setPendingExternalAccess(false);
+          pendingExternalAccessCache.set(cacheKey, false);
           return;
         }
 
         setPendingExternalAccess(isPendingExternal);
+        pendingExternalAccessCache.set(cacheKey, isPendingExternal);
       } finally {
         if (!cancelled) setPendingExternalAccessLoading(false);
       }

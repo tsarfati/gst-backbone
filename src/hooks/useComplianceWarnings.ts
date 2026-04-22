@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 
 export interface ComplianceWarning {
@@ -19,13 +19,24 @@ export function useComplianceWarnings(vendorIds: string[]) {
   const [warnings, setWarnings] = useState<Record<string, number>>({});
   const [detailedWarnings, setDetailedWarnings] = useState<ComplianceWarning[]>([]);
   const [loading, setLoading] = useState(false);
+  const normalizedVendorIds = useMemo(
+    () => Array.from(new Set(vendorIds.filter(Boolean))).sort(),
+    [vendorIds],
+  );
+  const vendorIdsKey = useMemo(
+    () => normalizedVendorIds.join(','),
+    [normalizedVendorIds],
+  );
 
   useEffect(() => {
-    if (vendorIds.length === 0) {
+    if (normalizedVendorIds.length === 0) {
       setWarnings({});
       setDetailedWarnings([]);
+      setLoading(false);
       return;
     }
+
+    let cancelled = false;
 
     const fetchWarnings = async () => {
       setLoading(true);
@@ -35,8 +46,8 @@ export function useComplianceWarnings(vendorIds: string[]) {
         const BATCH_SIZE = 10;
         const batches: string[][] = [];
         
-        for (let i = 0; i < vendorIds.length; i += BATCH_SIZE) {
-          batches.push(vendorIds.slice(i, i + BATCH_SIZE));
+        for (let i = 0; i < normalizedVendorIds.length; i += BATCH_SIZE) {
+          batches.push(normalizedVendorIds.slice(i, i + BATCH_SIZE));
         }
 
         let allDocData: any[] = [];
@@ -67,7 +78,7 @@ export function useComplianceWarnings(vendorIds: string[]) {
 
         const warningsMap: Record<string, number> = {};
         
-        vendorIds.forEach(vendorId => {
+        normalizedVendorIds.forEach(vendorId => {
           const vendorDocs = allDocData?.filter(doc => doc.vendor_id === vendorId) || [];
           let warningCount = 0;
           
@@ -94,17 +105,27 @@ export function useComplianceWarnings(vendorIds: string[]) {
           }
         });
 
-        setDetailedWarnings(allDetailedData as ComplianceWarning[]);
-        setWarnings(warningsMap);
+        if (!cancelled) {
+          setDetailedWarnings(allDetailedData as ComplianceWarning[]);
+          setWarnings(warningsMap);
+        }
       } catch (error) {
-        console.error('Error fetching compliance warnings:', error);
+        if (!cancelled) {
+          console.error('Error fetching compliance warnings:', error);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchWarnings();
-  }, [vendorIds]);
+    void fetchWarnings();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [vendorIdsKey, normalizedVendorIds]);
 
   return { warnings, detailedWarnings, loading };
 }
@@ -127,6 +148,8 @@ export function useVendorCompliance(vendorId: string) {
       return;
     }
 
+    let cancelled = false;
+
     const fetchCompliance = async () => {
       setLoading(true);
       try {
@@ -139,6 +162,7 @@ export function useVendorCompliance(vendorId: string) {
         if (warningsError) throw warningsError;
 
         const warnings = (warningsData || []) as ComplianceWarning[];
+        if (cancelled) return;
         setDetailedWarnings(warnings);
 
         const missing = warnings.filter(w => w.warning_level === 'missing_required').length;
@@ -150,13 +174,21 @@ export function useVendorCompliance(vendorId: string) {
         setExpiringSoonCount(expiringSoon);
         setTotalWarnings(warnings.length);
       } catch (error) {
-        console.error('Error fetching vendor compliance:', error);
+        if (!cancelled) {
+          console.error('Error fetching vendor compliance:', error);
+        }
       } finally {
-        setLoading(false);
+        if (!cancelled) {
+          setLoading(false);
+        }
       }
     };
 
-    fetchCompliance();
+    void fetchCompliance();
+
+    return () => {
+      cancelled = true;
+    };
   }, [vendorId]);
 
   return { 

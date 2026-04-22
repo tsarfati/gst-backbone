@@ -16,11 +16,14 @@ interface Vendor {
   bills: number;
   category: string;
   logo_url?: string;
+  vendorPortalLinked?: boolean;
+  linkedVendorUserId?: string | null;
 }
 
 interface VendorCardProps {
   vendor: Vendor;
   onClick: () => void;
+  onPortalBadgeClick?: (vendor: Vendor) => void;
 }
 
 const categoryColors = {
@@ -30,7 +33,7 @@ const categoryColors = {
   "Office": "warning"
 } as const;
 
-export default function VendorCard({ vendor, onClick }: VendorCardProps) {
+export default function VendorCard({ vendor, onClick, onPortalBadgeClick }: VendorCardProps) {
   const { missingCount } = useVendorCompliance(vendor.id);
   
   return (
@@ -51,6 +54,19 @@ export default function VendorCard({ vendor, onClick }: VendorCardProps) {
             <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]}>
               {vendor.category}
             </Badge>
+            {vendor.vendorPortalLinked && (
+              <Badge
+                variant="default"
+                className={vendor.linkedVendorUserId && onPortalBadgeClick ? "cursor-pointer" : undefined}
+                onClick={(e) => {
+                  if (!vendor.linkedVendorUserId || !onPortalBadgeClick) return;
+                  e.stopPropagation();
+                  onPortalBadgeClick(vendor);
+                }}
+              >
+                Vendor Portal Linked
+              </Badge>
+            )}
             {missingCount > 0 && (
               <Badge variant="destructive" className="flex items-center gap-1">
                 <AlertTriangle className="h-3 w-3" />

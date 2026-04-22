@@ -13,6 +13,8 @@ interface RoleGuardProps {
   redirectTo?: string;
 }
 
+const resolvedExternalRoleCache = new Map<string, 'vendor' | 'design_professional' | null>();
+
 export function RoleGuard({
   children,
   allowedRoles = ['admin', 'controller', 'project_manager', 'manager'],
@@ -79,6 +81,13 @@ export function RoleGuard({
         return;
       }
 
+      const cachedRole = resolvedExternalRoleCache.get(user.id);
+      if (cachedRole !== undefined) {
+        setResolvedExternalRole(cachedRole);
+        setResolvingExternalRole(false);
+        return;
+      }
+
       setResolvingExternalRole(true);
       try {
         const { data, error } = await supabase
@@ -92,6 +101,7 @@ export function RoleGuard({
         if (error) {
           console.warn('RoleGuard external role lookup failed:', error);
           setResolvedExternalRole(null);
+          resolvedExternalRoleCache.set(user.id, null);
           return;
         }
 
@@ -106,19 +116,22 @@ export function RoleGuard({
 
         if (!matchedRow?.notes) {
           setResolvedExternalRole(null);
+          resolvedExternalRoleCache.set(user.id, null);
           return;
         }
 
         try {
           const parsed = JSON.parse(matchedRow.notes);
           const requestedRole = normalizeRole(parsed?.requestedRole);
-          setResolvedExternalRole(
+          const nextRole =
             requestedRole === 'vendor' || requestedRole === 'design_professional'
               ? (requestedRole as 'vendor' | 'design_professional')
-              : null,
-          );
+              : null;
+          resolvedExternalRoleCache.set(user.id, nextRole);
+          setResolvedExternalRole(nextRole);
         } catch {
           setResolvedExternalRole(null);
+          resolvedExternalRoleCache.set(user.id, null);
         }
       } finally {
         if (!cancelled) {

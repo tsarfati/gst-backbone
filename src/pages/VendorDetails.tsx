@@ -182,6 +182,7 @@ export default function VendorDetails() {
   const [sendingInvite, setSendingInvite] = useState(false);
   const [pendingInvite, setPendingInvite] = useState<any>(null);
   const [vendorPortalLinked, setVendorPortalLinked] = useState(false);
+  const [linkedVendorUserId, setLinkedVendorUserId] = useState<string | null>(null);
   const [scopeEditorOpen, setScopeEditorOpen] = useState(false);
   const [scopeEditorLoading, setScopeEditorLoading] = useState(false);
   const [scopeEditorAssignment, setScopeEditorAssignment] = useState<any>(null);
@@ -514,6 +515,7 @@ export default function VendorDetails() {
       try {
         if (String(vendorRecord?.vendor_type || '').toLowerCase() === 'design_professional') {
           setVendorPortalLinked(designProfessionalMembers.length > 0 || !!linkedDesignCompany);
+          setLinkedVendorUserId(null);
           return;
         }
 
@@ -527,6 +529,7 @@ export default function VendorDetails() {
 
         if (!error) {
           setVendorPortalLinked(!!data?.user_id);
+          setLinkedVendorUserId(data?.user_id ? String(data.user_id) : null);
         }
       } catch (error) {
         console.error("Error loading vendor portal link status:", error);
@@ -760,6 +763,15 @@ export default function VendorDetails() {
         variant: "destructive",
       });
     }
+  };
+
+  const openLinkedVendorAccessUser = () => {
+    if (!linkedVendorUserId || !hasElevatedAccess) return;
+    navigate(`/settings/users/${linkedVendorUserId}`, {
+      state: {
+        fromCompanyManagement: true,
+      },
+    });
   };
 
   const openScopeEditor = async (assignment: any) => {
@@ -1015,7 +1027,11 @@ export default function VendorDetails() {
               <h1 className="text-2xl font-bold text-foreground">{vendor.name}</h1>
               <div className="mt-1 flex flex-wrap items-center gap-2">
                 {vendorPortalLinked && (
-                  <Badge variant="default">
+                  <Badge
+                    variant="default"
+                    className={linkedVendorUserId && hasElevatedAccess ? "cursor-pointer hover:opacity-90" : undefined}
+                    onClick={linkedVendorUserId && hasElevatedAccess ? openLinkedVendorAccessUser : undefined}
+                  >
                     {String(vendor.vendor_type || '').toLowerCase() === 'design_professional'
                       ? 'DesignProLYNK Linked'
                       : 'Vendor Portal Linked'}
@@ -1100,7 +1116,13 @@ export default function VendorDetails() {
                 </p>
               </div>
               <div className="flex flex-wrap gap-2">
-                <Badge variant="default">Synced From Vendor Portal</Badge>
+                <Badge
+                  variant="default"
+                  className={linkedVendorUserId && hasElevatedAccess ? "cursor-pointer hover:opacity-90" : undefined}
+                  onClick={linkedVendorUserId && hasElevatedAccess ? openLinkedVendorAccessUser : undefined}
+                >
+                  Synced From Vendor Portal
+                </Badge>
                 <Badge variant="secondary">Builder Managed: Job Access</Badge>
               </div>
             </CardContent>

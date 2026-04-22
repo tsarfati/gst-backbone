@@ -4,7 +4,7 @@ import { Button } from '@/components/ui/button';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import SinglePagePdfViewer from '@/components/SinglePagePdfViewer';
-import { Download, X, ZoomIn, ZoomOut } from 'lucide-react';
+import { ChevronLeft, ChevronRight, Download, X, ZoomIn, ZoomOut } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { resolveStorageUrl } from '@/utils/storageUtils';
 import { cn } from '@/lib/utils';
@@ -43,6 +43,7 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
   const { planId, fileUrl, pageNumber, sheetNumber, pageTitle, planName, planNumber, thumbnailUrl, sheetNote, notes, selectedNoteIndex, onSelectNote, onClose, onDownload, pageOptions, selectedPageId, onSelectPage } = props;
   const [zoomLevel, setZoomLevel] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [notesDrawerOpen, setNotesDrawerOpen] = useState(true);
   const [pageRect, setPageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [resolvedFileUrl, setResolvedFileUrl] = useState<string | null>(null);
   const [resolvedThumbnailUrl, setResolvedThumbnailUrl] = useState<string | null>(null);
@@ -215,7 +216,7 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
   }, [notes, resolvedThumbnailUrl]);
 
   return (
-    <div className="h-full min-h-0 grid grid-cols-[minmax(0,1fr)_320px]">
+    <div className="flex h-full min-h-0">
       <div className="min-h-0 flex flex-col border-r">
         <div className="border-b px-4 py-3 flex items-center justify-between gap-3">
           <div className="min-w-0 flex-1">
@@ -387,59 +388,99 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
         </div>
       </div>
 
-      <div className="min-h-0 flex flex-col">
-        <div className="border-b px-4 py-3">
-          <p className="text-sm font-medium">Linked Notes</p>
-          <p className="text-xs text-muted-foreground mt-1">
-            These note numbers are referenced directly from the attached plan sheet.
-          </p>
-        </div>
-        <ScrollArea className="flex-1">
-          <div className="p-4 space-y-3">
-            {notes.length === 0 ? (
-              sheetNote?.trim() ? (
-                <div className="rounded-md border p-3 space-y-2">
-                  <div className="flex items-center gap-2">
-                    <Badge>Sheet Note</Badge>
-                    <span className="text-xs text-muted-foreground">
-                      Attached with this plan page
-                    </span>
-                  </div>
-                  <p className="text-sm whitespace-pre-wrap">{sheetNote}</p>
-                </div>
-              ) : (
-                <div className="rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">
-                  No linked notes were added to this page.
-                </div>
-              )
-            ) : (
-              notes.map((note, index) => (
-                <button
-                  key={note.id}
-                  type="button"
-                  ref={(element) => {
-                    noteRefs.current[index] = element;
-                  }}
-                  onClick={() => onSelectNote?.(index)}
-                  className={cn(
-                    "w-full rounded-md border p-3 space-y-2 text-left transition-colors",
-                    activeNoteIndex === index ? "border-amber-400 bg-amber-50/70" : "hover:bg-muted/40",
-                  )}
-                >
-                  <div className="flex items-center gap-2">
-                    <Badge>Note {index + 1}</Badge>
-                    <span className="text-xs text-muted-foreground capitalize">
-                      {note.shape_type === 'ellipse' ? 'Circle callout' : 'Highlight callout'}
-                    </span>
-                  </div>
-                  <p className="text-sm whitespace-pre-wrap">
-                    {note.note_text?.trim() || 'No note text was entered for this callout.'}
-                  </p>
-                </button>
-              ))
-            )}
+      <div
+        className={cn(
+          "min-h-0 border-l bg-background transition-all duration-200",
+          notesDrawerOpen ? "w-[320px]" : "w-12",
+        )}
+      >
+        {notesDrawerOpen ? (
+          <div className="flex h-full min-h-0 flex-col">
+            <div className="flex items-start justify-between gap-3 border-b px-4 py-3">
+              <div>
+                <p className="text-sm font-medium">Linked Notes</p>
+                <p className="mt-1 text-xs text-muted-foreground">
+                  These note numbers are referenced directly from the attached plan sheet.
+                </p>
+              </div>
+              <Button
+                type="button"
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setNotesDrawerOpen(false)}
+                aria-label="Collapse linked notes drawer"
+              >
+                <ChevronRight className="h-4 w-4" />
+              </Button>
+            </div>
+            <ScrollArea className="flex-1">
+              <div className="p-4 space-y-3">
+                {notes.length === 0 ? (
+                  sheetNote?.trim() ? (
+                    <div className="rounded-md border p-3 space-y-2">
+                      <div className="flex items-center gap-2">
+                        <Badge>Sheet Note</Badge>
+                        <span className="text-xs text-muted-foreground">
+                          Attached with this plan page
+                        </span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap">{sheetNote}</p>
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed px-3 py-4 text-sm text-muted-foreground">
+                      No linked notes were added to this page.
+                    </div>
+                  )
+                ) : (
+                  notes.map((note, index) => (
+                    <button
+                      key={note.id}
+                      type="button"
+                      ref={(element) => {
+                        noteRefs.current[index] = element;
+                      }}
+                      onClick={() => onSelectNote?.(index)}
+                      className={cn(
+                        "w-full rounded-md border p-3 space-y-2 text-left transition-colors",
+                        activeNoteIndex === index ? "border-amber-400 bg-amber-50/70" : "hover:bg-muted/40",
+                      )}
+                    >
+                      <div className="flex items-center gap-2">
+                        <Badge>Note {index + 1}</Badge>
+                        <span className="text-xs text-muted-foreground capitalize">
+                          {note.shape_type === 'ellipse' ? 'Circle callout' : 'Highlight callout'}
+                        </span>
+                      </div>
+                      <p className="text-sm whitespace-pre-wrap">
+                        {note.note_text?.trim() || 'No note text was entered for this callout.'}
+                      </p>
+                    </button>
+                  ))
+                )}
+              </div>
+            </ScrollArea>
           </div>
-        </ScrollArea>
+        ) : (
+          <div className="flex h-full flex-col items-center justify-start gap-3 py-3">
+            <Button
+              type="button"
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => setNotesDrawerOpen(true)}
+              aria-label="Expand linked notes drawer"
+            >
+              <ChevronLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex flex-col items-center gap-2">
+              <Badge variant="outline">{notes.length}</Badge>
+              <span className="text-[10px] uppercase tracking-wide text-muted-foreground [writing-mode:vertical-rl] rotate-180">
+                Notes
+              </span>
+            </div>
+          </div>
+        )}
       </div>
     </div>
   );

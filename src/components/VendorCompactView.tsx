@@ -16,11 +16,14 @@ interface Vendor {
   bills: number;
   category: string;
   logo_url?: string;
+  vendorPortalLinked?: boolean;
+  linkedVendorUserId?: string | null;
 }
 
 interface VendorCompactViewProps {
   vendors: Vendor[];
   onVendorClick: (vendor: Vendor) => void;
+  onPortalBadgeClick?: (vendor: Vendor) => void;
 }
 
 const categoryColors = {
@@ -30,7 +33,7 @@ const categoryColors = {
   "Office": "warning"
 } as const;
 
-export default function VendorCompactView({ vendors, onVendorClick }: VendorCompactViewProps) {
+export default function VendorCompactView({ vendors, onVendorClick, onPortalBadgeClick }: VendorCompactViewProps) {
   const { warnings } = useComplianceWarnings(vendors.map(v => v.id));
   
   return (
@@ -50,6 +53,19 @@ export default function VendorCompactView({ vendors, onVendorClick }: VendorComp
                 <Badge variant={categoryColors[vendor.category as keyof typeof categoryColors]} className="text-xs">
                   {vendor.category}
                 </Badge>
+                {vendor.vendorPortalLinked && (
+                  <Badge
+                    variant="default"
+                    className={vendor.linkedVendorUserId && onPortalBadgeClick ? "cursor-pointer text-xs" : "text-xs"}
+                    onClick={(e) => {
+                      if (!vendor.linkedVendorUserId || !onPortalBadgeClick) return;
+                      e.stopPropagation();
+                      onPortalBadgeClick(vendor);
+                    }}
+                  >
+                    Portal Linked
+                  </Badge>
+                )}
                 {warnings[vendor.id] && (
                   <Badge variant="destructive" className="flex items-center gap-1 text-xs">
                     <AlertTriangle className="h-3 w-3" />

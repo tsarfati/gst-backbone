@@ -396,6 +396,8 @@ export default function RFPDetails() {
   const [bidScoreMap, setBidScoreMap] = useState<Record<string, Record<string, number>>>({});
   const [autoSavingScores, setAutoSavingScores] = useState(false);
   const [scoringBidId, setScoringBidId] = useState<string | null>(null);
+  const [bidToRemove, setBidToRemove] = useState<Bid | null>(null);
+  const [removingBid, setRemovingBid] = useState<string | null>(null);
   const [editingCriterion, setEditingCriterion] = useState<ScoringCriterion | null>(null);
   const [criterionForm, setCriterionForm] = useState({
     criterion_name: '',
@@ -1744,6 +1746,72 @@ export default function RFPDetails() {
     }
   };
 
+  const handleRemoveBid = async () => {
+    if (!bidToRemove) return;
+
+    try {
+      setRemovingBid(bidToRemove.id);
+
+      const { error: deleteScoresError } = await supabase
+        .from('bid_scores')
+        .delete()
+        .eq('bid_id', bidToRemove.id);
+      if (deleteScoresError) throw deleteScoresError;
+
+      const { error: deleteCommunicationsError } = await supabase
+        .from('bid_communications')
+        .delete()
+        .eq('bid_id', bidToRemove.id);
+      if (deleteCommunicationsError) throw deleteCommunicationsError;
+
+      const { error: deleteAttachmentsError } = await supabase
+        .from('bid_attachments')
+        .delete()
+        .eq('bid_id', bidToRemove.id);
+      if (deleteAttachmentsError) throw deleteAttachmentsError;
+
+      const { count: remainingBidCount, error: remainingBidCountError } = await supabase
+        .from('bids')
+        .select('id', { count: 'exact', head: true })
+        .eq('rfp_id', bidToRemove.rfp_id)
+        .eq('vendor_id', bidToRemove.vendor_id)
+        .neq('id', bidToRemove.id);
+      if (remainingBidCountError) throw remainingBidCountError;
+
+      const { error: deleteBidError } = await supabase
+        .from('bids')
+        .delete()
+        .eq('id', bidToRemove.id);
+      if (deleteBidError) throw deleteBidError;
+
+      if ((remainingBidCount || 0) === 0) {
+        const { error: resetInviteStatusError } = await supabase
+          .from('rfp_invited_vendors')
+          .update({ response_status: 'pending' })
+          .eq('rfp_id', bidToRemove.rfp_id)
+          .eq('vendor_id', bidToRemove.vendor_id);
+        if (resetInviteStatusError) throw resetInviteStatusError;
+      }
+
+      setBids((prev) => prev.filter((bid) => bid.id !== bidToRemove.id));
+      await loadInvitedVendors();
+      toast({
+        title: 'Bid removed',
+        description: `${bidToRemove.vendor?.name || 'Vendor'}'s bid was removed from this RFP.`,
+      });
+      setBidToRemove(null);
+    } catch (error: any) {
+      console.error('Error removing bid:', error);
+      toast({
+        title: 'Error',
+        description: error?.message || 'Failed to remove bid.',
+        variant: 'destructive',
+      });
+    } finally {
+      setRemovingBid(null);
+    }
+  };
+
   const renderBidInviteEmailStatusBadge = (inv: InvitedVendor) => {
     if (inv.email_bounced_at) {
       return <Badge variant="destructive">Bounced</Badge>;
@@ -2853,6 +2921,15 @@ export default function RFPDetails() {
                                 >
                                   <BarChart3 className="h-4 w-4" />
                                 </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="icon"
+                                  title="Remove Bid"
+                                  aria-label="Remove Bid"
+                                  onClick={() => setBidToRemove(bid)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-destructive" />
+                                </Button>
                               </div>
                             </TableCell>
                           </TableRow>
@@ -2988,6 +3065,27 @@ export default function RFPDetails() {
             <AlertDialogCancel disabled={!!removingInvite}>Keep Vendor</AlertDialogCancel>
             <AlertDialogAction onClick={() => void handleRemoveInvitedVendor()} disabled={!!removingInvite}>
               {removingInvite ? 'Removing...' : 'Remove Vendor'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <AlertDialog open={!!bidToRemove} onOpenChange={(open) => {
+        if (!open) setBidToRemove(null);
+      }}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Remove Bid From RFP?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {bidToRemove
+                ? `${bidToRemove.vendor?.name || 'This vendor'}'s submitted bid will be removed from this RFP. If this is their only bid, their invite status will go back to pending.`
+                : 'This submitted bid will be removed from the RFP.'}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={!!removingBid}>Keep Bid</AlertDialogCancel>
+            <AlertDialogAction onClick={() => void handleRemoveBid()} disabled={!!removingBid}>
+              {removingBid ? 'Removing...' : 'Remove Bid'}
             </AlertDialogAction>
           </AlertDialogFooter>
         </AlertDialogContent>

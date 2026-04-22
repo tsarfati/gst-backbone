@@ -16,11 +16,14 @@ interface Vendor {
   bills: number;
   category: string;
   logo_url?: string;
+  vendorPortalLinked?: boolean;
+  linkedVendorUserId?: string | null;
 }
 
 interface VendorListViewProps {
   vendors: Vendor[];
   onVendorClick: (vendor: Vendor) => void;
+  onPortalBadgeClick?: (vendor: Vendor) => void;
 }
 
 const categoryColors = {
@@ -30,7 +33,7 @@ const categoryColors = {
   "Office": "warning"
 } as const;
 
-export default function VendorListView({ vendors, onVendorClick }: VendorListViewProps) {
+export default function VendorListView({ vendors, onVendorClick, onPortalBadgeClick }: VendorListViewProps) {
   const { warnings } = useComplianceWarnings(vendors.map(v => v.id));
   
   return (
@@ -60,6 +63,19 @@ export default function VendorListView({ vendors, onVendorClick }: VendorListVie
                     shape="square"
                   />
                   <span className="font-medium group-hover:text-primary transition-colors">{vendor.name}</span>
+                  {vendor.vendorPortalLinked && (
+                    <Badge
+                      variant="default"
+                      className={vendor.linkedVendorUserId && onPortalBadgeClick ? "cursor-pointer" : undefined}
+                      onClick={(e) => {
+                        if (!vendor.linkedVendorUserId || !onPortalBadgeClick) return;
+                        e.stopPropagation();
+                        onPortalBadgeClick(vendor);
+                      }}
+                    >
+                      Vendor Portal Linked
+                    </Badge>
+                  )}
                 </div>
               </TableCell>
               <TableCell className="border-y border-transparent group-hover:border-primary first:border-l first:border-l-transparent first:group-hover:border-l-primary first:rounded-l-lg last:border-r last:border-r-transparent last:group-hover:border-r-primary last:rounded-r-lg">

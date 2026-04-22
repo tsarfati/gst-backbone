@@ -114,7 +114,7 @@ interface UserAccessJob extends Job {
 interface VendorJob {
   id: string;
   name: string;
-  sources: Array<'vendor_job_access' | 'rfp_invite'>;
+  sources: Array<'vendor_job_access' | 'rfp_invite' | 'invoice' | 'subcontract' | 'purchase_order'>;
 }
 
 interface CustomRole {
@@ -284,14 +284,14 @@ export default function UserDetails() {
     fetchUserJobs();
 
     const isExternalAccessUser = user.role === 'vendor' || user.role === 'design_professional';
+    fetchLoginAudit();
+    fetchUserEmail();
+
     if (isExternalAccessUser) {
-      setLoginAudit([]);
       setUserFiles([]);
       return;
     }
 
-    fetchLoginAudit();
-    fetchUserEmail();
     if (userFilesFeatureAvailable) fetchUserFiles();
   }, [userId, currentCompany, user?.role, userFilesFeatureAvailable]);
 
@@ -450,28 +450,48 @@ export default function UserDetails() {
   const fetchVendorJobs = async (vendorId: string) => {
     if (!currentCompany) return;
     try {
-      const [jobAccessRes, invitedRfpsRes] = await Promise.all([
+      const [jobAccessRes, invitedRfpsRes, invoiceJobsRes, subcontractJobsRes, purchaseOrderJobsRes] = await Promise.all([
         (supabase
           .from('vendor_job_access') as any)
-          .select('jobs(id, name)')
+          .select('jobs:job_id(id, name, company_id)')
           .eq('vendor_id', vendorId)
-          .eq('company_id', currentCompany.id)
           .order('created_at', { ascending: false }),
         (supabase
           .from('rfp_invited_vendors') as any)
           .select('rfp:rfps(job:jobs(id, name, company_id))')
           .eq('vendor_id', vendorId)
-          .eq('company_id', currentCompany.id)
           .order('invited_at', { ascending: false }),
+        supabase
+          .from('invoices')
+          .select('job_id, jobs!inner(id, name, company_id)')
+          .eq('vendor_id', vendorId)
+          .eq('jobs.company_id', currentCompany.id)
+          .not('job_id', 'is', null),
+        supabase
+          .from('subcontracts')
+          .select('job_id, jobs!inner(id, name, company_id)')
+          .eq('vendor_id', vendorId)
+          .eq('jobs.company_id', currentCompany.id)
+          .not('job_id', 'is', null),
+        supabase
+          .from('purchase_orders')
+          .select('job_id, jobs!inner(id, name, company_id)')
+          .eq('vendor_id', vendorId)
+          .eq('jobs.company_id', currentCompany.id)
+          .not('job_id', 'is', null),
       ]);
 
       if (jobAccessRes.error) throw jobAccessRes.error;
       if (invitedRfpsRes.error) throw invitedRfpsRes.error;
+      if (invoiceJobsRes.error) throw invoiceJobsRes.error;
+      if (subcontractJobsRes.error) throw subcontractJobsRes.error;
+      if (purchaseOrderJobsRes.error) throw purchaseOrderJobsRes.error;
 
       const mergedById = new Map<string, VendorJob>();
 
       ((jobAccessRes.data || []) as any[]).forEach((row: any) => {
         const job = row?.jobs;
+        if (String(job?.company_id || '') !== String(currentCompany.id)) return;
         if (!job?.id || !job?.name) return;
         const id = String(job.id);
         const existing = mergedById.get(id);
@@ -488,6 +508,7 @@ export default function UserDetails() {
 
       ((invitedRfpsRes.data || []) as any[]).forEach((row: any) => {
         const job = row?.rfp?.job;
+        if (String(job?.company_id || '') !== String(currentCompany.id)) return;
         if (!job?.id || !job?.name) return;
         const id = String(job.id);
         const existing = mergedById.get(id);
@@ -499,6 +520,54 @@ export default function UserDetails() {
           id,
           name: String(job.name),
           sources: ['rfp_invite'],
+        });
+      });
+
+      ((invoiceJobsRes.data || []) as any[]).forEach((row: any) => {
+        const job = row?.jobs;
+        if (!job?.id || !job?.name) return;
+        const id = String(job.id);
+        const existing = mergedById.get(id);
+        if (existing) {
+          if (!existing.sources.includes('invoice')) existing.sources.push('invoice');
+          return;
+        }
+        mergedById.set(id, {
+          id,
+          name: String(job.name),
+          sources: ['invoice'],
+        });
+      });
+
+      ((subcontractJobsRes.data || []) as any[]).forEach((row: any) => {
+        const job = row?.jobs;
+        if (!job?.id || !job?.name) return;
+        const id = String(job.id);
+        const existing = mergedById.get(id);
+        if (existing) {
+          if (!existing.sources.includes('subcontract')) existing.sources.push('subcontract');
+          return;
+        }
+        mergedById.set(id, {
+          id,
+          name: String(job.name),
+          sources: ['subcontract'],
+        });
+      });
+
+      ((purchaseOrderJobsRes.data || []) as any[]).forEach((row: any) => {
+        const job = row?.jobs;
+        if (!job?.id || !job?.name) return;
+        const id = String(job.id);
+        const existing = mergedById.get(id);
+        if (existing) {
+          if (!existing.sources.includes('purchase_order')) existing.sources.push('purchase_order');
+          return;
+        }
+        mergedById.set(id, {
+          id,
+          name: String(job.name),
+          sources: ['purchase_order'],
         });
       });
 
@@ -1262,6 +1331,16 @@ export default function UserDetails() {
     return 'outline';
   };
 
+  const mostRecentSuccessfulAuditLoginAt = loginAudit.find((entry) => entry.success !== false)?.login_time || null;
+  const formatLocalTimestamp = (value: string) => new Date(value).toLocaleString([], {
+    year: 'numeric',
+    month: 'numeric',
+    day: 'numeric',
+    hour: 'numeric',
+    minute: '2-digit',
+    timeZoneName: 'short',
+  });
+
   if (isExternalAccessUser) {
     return (
       <div className="p-6 space-y-6 max-w-5xl mx-auto">
@@ -1332,7 +1411,7 @@ export default function UserDetails() {
                   {isVendorUser && associatedVendor && (
                     <div className="flex items-center gap-2">
                       <Store className="h-4 w-4" />
-                      <span>Vendor Account: {associatedVendor.name}</span>
+                      <span>Vendor Company: {associatedVendor.name}</span>
                     </div>
                   )}
                 </div>
@@ -1340,7 +1419,7 @@ export default function UserDetails() {
                 <div className="rounded-lg border bg-muted/20 p-4 text-sm text-muted-foreground">
                   {isDesignProfessionalUser
                     ? 'This design professional uses their own BuilderLYNK account. From your side, you can review their status here and see which jobs they are attached to through the project team.'
-                    : 'This vendor user signs in through their own BuilderLYNK vendor account. From your side, you can review their status here and see which jobs and RFPs are shared with this vendor account.'}
+                    : 'This vendor user is managed from your BuilderLYNK company and linked to a vendor company record. From your side, you can review their status, login activity, and which jobs and RFPs are shared with this vendor relationship.'}
                 </div>
               </div>
             </div>
@@ -1370,7 +1449,7 @@ export default function UserDetails() {
                   ? 'Independent design account'
                   : associatedVendor
                     ? `Linked to ${associatedVendor.name}`
-                    : 'No vendor account linked'}
+                    : 'No vendor company linked'}
               </p>
             </CardContent>
           </Card>
@@ -1387,11 +1466,11 @@ export default function UserDetails() {
             {isVendorUser ? (
               !associatedVendor ? (
                 <p className="text-sm text-muted-foreground">
-                  No vendor account is assigned to this user yet.
+                  No vendor company is assigned to this user yet.
                 </p>
               ) : vendorJobs.length === 0 ? (
                 <p className="text-sm text-muted-foreground">
-                  No jobs or RFP-backed jobs are currently assigned to this vendor account.
+                  No jobs or RFP-backed jobs are currently assigned to this vendor relationship yet.
                 </p>
               ) : (
                 <div className="space-y-2">
@@ -1403,7 +1482,13 @@ export default function UserDetails() {
                           ? 'Vendor Access + RFP'
                           : job.sources.includes('rfp_invite')
                             ? 'Shared Through RFP'
-                            : 'Managed from Vendor / Job Access'}
+                            : job.sources.includes('subcontract')
+                              ? 'Linked Through Subcontract'
+                              : job.sources.includes('purchase_order')
+                                ? 'Linked Through Purchase Order'
+                                : job.sources.includes('invoice')
+                                  ? 'Linked Through Bills'
+                                  : 'Managed from Vendor / Job Access'}
                       </Badge>
                     </div>
                   ))}
@@ -1428,6 +1513,95 @@ export default function UserDetails() {
             </p>
           </CardContent>
         </Card>
+
+        {isVendorUser && (
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <KeyRound className="h-5 w-5" />
+                Vendor Access Security
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="flex flex-wrap gap-2">
+                {canChangeUserPassword && (userEmail || user?.email) ? (
+                  <AlertDialog>
+                    <AlertDialogTrigger asChild>
+                      <Button variant="outline" size="sm" className="flex items-center gap-2">
+                        <KeyRound className="h-4 w-4" />
+                        Send Password Reset
+                      </Button>
+                    </AlertDialogTrigger>
+                    <AlertDialogContent>
+                      <AlertDialogHeader>
+                        <AlertDialogTitle>Send Password Reset Email</AlertDialogTitle>
+                        <AlertDialogDescription>
+                          This will send a password reset email to <strong>{userEmail || user?.email}</strong>.
+                        </AlertDialogDescription>
+                      </AlertDialogHeader>
+                      <AlertDialogFooter>
+                        <AlertDialogCancel>Cancel</AlertDialogCancel>
+                        <AlertDialogAction onClick={handleSendPasswordReset} disabled={sendingReset}>
+                          {sendingReset ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</>) : 'Send Reset Email'}
+                        </AlertDialogAction>
+                      </AlertDialogFooter>
+                    </AlertDialogContent>
+                  </AlertDialog>
+                ) : null}
+                {canChangeUserPassword ? (
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="flex items-center gap-2"
+                    onClick={() => setSetPasswordOpen(true)}
+                  >
+                    <Key className="h-4 w-4" />
+                    Set Password
+                  </Button>
+                ) : null}
+              </div>
+
+              <div className="rounded-lg border bg-muted/20 p-4">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-sm font-medium">Recent Login Activity</p>
+                    <p className="text-xs text-muted-foreground">
+                      Builder-side audit trail for this vendor user.
+                    </p>
+                  </div>
+                  <Badge variant="outline">
+                    {loginAudit.length > 0 ? `${loginAudit.length} recent login${loginAudit.length === 1 ? '' : 's'}` : 'No audit rows'}
+                  </Badge>
+                </div>
+                <div className="mt-3">
+                  {loginAudit.length > 0 ? (
+                    <div className="space-y-2">
+                      {loginAudit.slice(0, 5).map((audit) => (
+                        <div key={audit.id} className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium">{new Date(audit.login_time).toLocaleString()}</p>
+                            <p className="text-xs text-muted-foreground">
+                              {audit.login_method ? audit.login_method : 'Standard login'}
+                            </p>
+                          </div>
+                          <Badge variant={getAppBadgeVariant(audit.app_source) as any}>
+                            {getAppLabel(audit.app_source)}
+                          </Badge>
+                        </div>
+                      ))}
+                    </div>
+                  ) : lastSignInAt ? (
+                    <p className="text-sm text-muted-foreground">
+                      Last sign-in: {new Date(lastSignInAt).toLocaleString()}
+                    </p>
+                  ) : (
+                    <p className="text-sm text-muted-foreground">No login history available yet.</p>
+                  )}
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
       </div>
     );
   }
@@ -1819,7 +1993,7 @@ export default function UserDetails() {
                     {associatedVendor && (
                       <div className="flex items-center gap-2 text-muted-foreground">
                         <Store className="h-4 w-4" />
-                        <span>Vendor Account: {associatedVendor.name}</span>
+                        <span>Vendor Company: {associatedVendor.name}</span>
                       </div>
                     )}
                     <div className="flex items-center gap-2 text-muted-foreground">
@@ -2080,11 +2254,11 @@ export default function UserDetails() {
           <CardContent>
             {!associatedVendor ? (
               <p className="text-sm text-muted-foreground">
-                No vendor account is assigned to this user yet.
+                No vendor company is assigned to this user yet.
               </p>
             ) : vendorJobs.length === 0 ? (
               <p className="text-sm text-muted-foreground">
-                No jobs or RFP-backed jobs are currently assigned to this vendor account.
+                No jobs or RFP-backed jobs are currently assigned to this vendor relationship yet.
               </p>
             ) : (
               <div className="space-y-2">
@@ -2096,15 +2270,128 @@ export default function UserDetails() {
                         ? 'Vendor Access + RFP'
                         : job.sources.includes('rfp_invite')
                           ? 'RFP Access'
-                          : 'View Only'}
+                          : job.sources.includes('subcontract')
+                            ? 'Subcontract'
+                            : job.sources.includes('purchase_order')
+                              ? 'Purchase Order'
+                              : job.sources.includes('invoice')
+                                ? 'Bills'
+                                : 'View Only'}
                     </Badge>
                   </div>
                 ))}
               </div>
             )}
             <p className="text-xs text-muted-foreground mt-3">
-              Job and RFP access for vendor users is managed from the vendor account.
+              Job and RFP access for vendor users is managed from your BuilderLYNK company and tied to the linked vendor company.
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {isVendorUser && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <KeyRound className="h-5 w-5" />
+              Vendor Access Security
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex flex-wrap gap-2">
+              {canChangeUserPassword && (userEmail || user?.email) ? (
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="outline" size="sm" className="flex items-center gap-2">
+                      <KeyRound className="h-4 w-4" />
+                      Send Password Reset
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Send Password Reset Email</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This will send a password reset email to <strong>{userEmail || user?.email}</strong>.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleSendPasswordReset} disabled={sendingReset}>
+                        {sendingReset ? (<><Loader2 className="mr-2 h-4 w-4 animate-spin" />Sending...</>) : 'Send Reset Email'}
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              ) : null}
+              {canChangeUserPassword ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2"
+                  onClick={() => setSetPasswordOpen(true)}
+                >
+                  <Key className="h-4 w-4" />
+                  Set Password
+                </Button>
+              ) : null}
+            </div>
+
+            <div className="rounded-lg border bg-muted/20 p-4">
+              <div className="flex items-center justify-between gap-3">
+                <div>
+                  <p className="text-sm font-medium">Recent Login Activity</p>
+                  <p className="text-xs text-muted-foreground">
+                    Builder-side audit trail for this vendor user.
+                  </p>
+                </div>
+                <Badge variant="outline">
+                  {loginAudit.length > 0 ? `${loginAudit.length} recent login${loginAudit.length === 1 ? '' : 's'}` : 'No audit rows'}
+                </Badge>
+              </div>
+              <div className="mt-3">
+                {lastSignInAt || mostRecentSuccessfulAuditLoginAt ? (
+                  <div className="mb-3 grid gap-2 md:grid-cols-2">
+                    {mostRecentSuccessfulAuditLoginAt ? (
+                      <div className="rounded-md border bg-background px-3 py-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Last Sign-In</p>
+                        <p className="text-sm font-medium">{formatLocalTimestamp(mostRecentSuccessfulAuditLoginAt)}</p>
+                        <p className="text-xs text-muted-foreground">Source: BuilderLYNK login audit</p>
+                      </div>
+                    ) : null}
+                    {lastSignInAt ? (
+                      <div className="rounded-md border bg-background px-3 py-2">
+                        <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Auth Account Sign-In</p>
+                        <p className="text-sm font-medium">{formatLocalTimestamp(lastSignInAt)}</p>
+                        <p className="text-xs text-muted-foreground">Source: Supabase auth record</p>
+                      </div>
+                    ) : null}
+                  </div>
+                ) : null}
+                {loginAudit.length > 0 ? (
+                  <div className="space-y-2">
+                    {loginAudit.slice(0, 5).map((audit) => (
+                      <div key={audit.id} className="flex items-center justify-between rounded-md border bg-background px-3 py-2">
+                        <div className="min-w-0">
+                          <p className="text-sm font-medium">{formatLocalTimestamp(audit.login_time)}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {audit.login_method ? audit.login_method : 'Standard login'}
+                          </p>
+                        </div>
+                        <Badge variant={getAppBadgeVariant(audit.app_source) as any}>
+                          {getAppLabel(audit.app_source)}
+                        </Badge>
+                      </div>
+                    ))}
+                  </div>
+                ) : mostRecentSuccessfulAuditLoginAt ? (
+                  <p className="text-sm text-muted-foreground">
+                    Last sign-in: {formatLocalTimestamp(mostRecentSuccessfulAuditLoginAt)}
+                  </p>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No login history available yet.</p>
+                )}
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

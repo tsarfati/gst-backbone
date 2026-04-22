@@ -556,7 +556,7 @@ export default function UserSettings() {
         ),
       );
 
-      const [externalJobAccessRes, externalProjectDirectoryRes, vendorJobAccessRes, vendorRfpInvitesRes, pendingJobsRes] = await Promise.all([
+      const [externalJobAccessRes, externalProjectDirectoryRes, vendorJobAccessRes, vendorRfpInvitesRes, pendingJobsRes, loginAuditRes] = await Promise.all([
         externalUserIds.length > 0
           ? supabase
               .from('user_job_access')
@@ -594,6 +594,13 @@ export default function UserSettings() {
               .in('id', pendingJobIds)
               .eq('company_id', currentCompany.id)
           : Promise.resolve({ data: [], error: null }),
+        externalUserIds.length > 0
+          ? supabase
+              .from('user_login_audit')
+              .select('user_id, login_time')
+              .in('user_id', externalUserIds)
+              .order('login_time', { ascending: false })
+          : Promise.resolve({ data: [], error: null }),
       ]);
 
       if (externalJobAccessRes.error) throw externalJobAccessRes.error;
@@ -601,15 +608,19 @@ export default function UserSettings() {
       if (vendorJobAccessRes.error) throw vendorJobAccessRes.error;
       if (vendorRfpInvitesRes.error) throw vendorRfpInvitesRes.error;
       if (pendingJobsRes.error) throw pendingJobsRes.error;
+      if (loginAuditRes.error) throw loginAuditRes.error;
 
       const activeJobsByExternalUserId = new Map<string, { id: string; name: string }[]>();
-      const userIdByVendorId = new Map<string, string>();
+      const userIdsByVendorId = new Map<string, string[]>();
       (regularUsers || []).forEach((user: any) => {
         const profileRole = String(user.role || '').trim().toLowerCase();
         const resolvedRole = roleMap.get(user.user_id)
           || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : null);
         if (resolvedRole === 'vendor' && user.vendor_id) {
-          userIdByVendorId.set(String(user.vendor_id), String(user.user_id));
+          const vendorId = String(user.vendor_id);
+          const existingUserIds = userIdsByVendorId.get(vendorId) || [];
+          existingUserIds.push(String(user.user_id));
+          userIdsByVendorId.set(vendorId, existingUserIds);
         }
       });
       const pushActiveJob = (targetUserId: string, job: { id: string; name: string } | null | undefined) => {
@@ -632,20 +643,31 @@ export default function UserSettings() {
       });
 
       ((vendorJobAccessRes.data || []) as any[]).forEach((row) => {
-        const linkedUserId = userIdByVendorId.get(String(row.vendor_id || ''));
+        const linkedUserIds = userIdsByVendorId.get(String(row.vendor_id || '')) || [];
         const job = row.jobs;
-        pushActiveJob(linkedUserId || '', job ? { id: String(job.id), name: String(job.name) } : null);
+        linkedUserIds.forEach((linkedUserId) => {
+          pushActiveJob(linkedUserId, job ? { id: String(job.id), name: String(job.name) } : null);
+        });
       });
 
       ((vendorRfpInvitesRes.data || []) as any[]).forEach((row) => {
-        const linkedUserId = userIdByVendorId.get(String(row.vendor_id || ''));
+        const linkedUserIds = userIdsByVendorId.get(String(row.vendor_id || '')) || [];
         const job = row?.rfp?.jobs;
-        pushActiveJob(linkedUserId || '', job ? { id: String(job.id), name: String(job.name) } : null);
+        linkedUserIds.forEach((linkedUserId) => {
+          pushActiveJob(linkedUserId, job ? { id: String(job.id), name: String(job.name) } : null);
+        });
       });
 
       const pendingJobNameById = new Map(
         ((pendingJobsRes.data || []) as any[]).map((job) => [String(job.id), String(job.name || 'Unnamed Job')]),
       );
+      const lastLoginByUserId = new Map<string, string>();
+      ((loginAuditRes.data || []) as any[]).forEach((row) => {
+        const resolvedUserId = String(row.user_id || '');
+        const resolvedLoginTime = String(row.login_time || '');
+        if (!resolvedUserId || !resolvedLoginTime || lastLoginByUserId.has(resolvedUserId)) return;
+        lastLoginByUserId.set(resolvedUserId, resolvedLoginTime);
+      });
 
       // Fetch jobs for regular users and determine PIN status
       // Also fetch latest punch selfie as avatar fallback for users without avatars
@@ -705,6 +727,7 @@ export default function UserSettings() {
             role: userRole,
             jobs: activeExternalJobs,
             has_pin: hasPin,
+            last_sign_in_at: lastLoginByUserId.get(String(user.user_id)) || undefined,
             company_name: resolvedCompanyName,
             company_logo_url: resolvedCompanyLogo,
             external_access_state: activeExternalJobs.length > 0 ? 'active' : 'pending',

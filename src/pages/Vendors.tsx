@@ -20,7 +20,7 @@ export default function Vendors() {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
-  const { canCreate } = useActionPermissions();
+  const { canCreate, hasElevatedAccess } = useActionPermissions();
   const { currentView, setCurrentView, setDefaultView, isDefault } = useVendorViewPreference();
   const [letter, setLetter] = useState<string>('All');
   const letters = useMemo(() => ['All', ...'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split(''), '#'], []);
@@ -36,7 +36,34 @@ export default function Vendors() {
         .eq('company_id', currentCompany.id)
         .order('name');
       if (error) throw error;
-      return data || [];
+      const vendorRows = data || [];
+      const vendorIds = vendorRows.map((vendor: any) => String(vendor.id)).filter(Boolean);
+
+      if (vendorIds.length === 0) {
+        return vendorRows;
+      }
+
+      const { data: linkedVendorProfiles, error: linkedVendorProfilesError } = await supabase
+        .from('profiles')
+        .select('user_id, vendor_id, role')
+        .in('vendor_id', vendorIds)
+        .eq('role', 'vendor');
+
+      if (linkedVendorProfilesError) throw linkedVendorProfilesError;
+
+      const vendorUserByVendorId = new Map<string, string>();
+      ((linkedVendorProfiles || []) as any[]).forEach((row) => {
+        const vendorId = String(row.vendor_id || '');
+        const userId = String(row.user_id || '');
+        if (!vendorId || !userId || vendorUserByVendorId.has(vendorId)) return;
+        vendorUserByVendorId.set(vendorId, userId);
+      });
+
+      return vendorRows.map((vendor: any) => ({
+        ...vendor,
+        vendorPortalLinked: vendorUserByVendorId.has(String(vendor.id)),
+        linkedVendorUserId: vendorUserByVendorId.get(String(vendor.id)) || null,
+      }));
     } catch (error) {
       console.error('Error loading vendors:', error);
       toast({ title: 'Error', description: 'Failed to load vendors', variant: 'destructive' });
@@ -63,6 +90,15 @@ export default function Vendors() {
 
   const handleVendorClick = (vendor: any) => {
     navigate(`/vendors/${vendor.id}`);
+  };
+
+  const handlePortalBadgeClick = (vendor: any) => {
+    if (!vendor?.linkedVendorUserId || !hasElevatedAccess()) return;
+    navigate(`/settings/users/${vendor.linkedVendorUserId}`, {
+      state: {
+        fromCompanyManagement: true,
+      },
+    });
   };
 
   const renderVendors = () => {
@@ -97,14 +133,19 @@ export default function Vendors() {
         return (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {filteredVendors.map((vendor) => (
-              <VendorCard key={vendor.id} vendor={vendor} onClick={() => handleVendorClick(vendor)} />
+              <VendorCard
+                key={vendor.id}
+                vendor={vendor}
+                onClick={() => handleVendorClick(vendor)}
+                onPortalBadgeClick={handlePortalBadgeClick}
+              />
             ))}
           </div>
         );
       case "list":
-        return <VendorListView vendors={filteredVendors} onVendorClick={handleVendorClick} />;
+        return <VendorListView vendors={filteredVendors} onVendorClick={handleVendorClick} onPortalBadgeClick={handlePortalBadgeClick} />;
       case "compact":
-        return <VendorCompactView vendors={filteredVendors} onVendorClick={handleVendorClick} />;
+        return <VendorCompactView vendors={filteredVendors} onVendorClick={handleVendorClick} onPortalBadgeClick={handlePortalBadgeClick} />;
       default:
         return null;
     }

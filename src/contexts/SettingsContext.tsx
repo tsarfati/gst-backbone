@@ -505,11 +505,6 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     const timeoutId = setTimeout(saveSettings, 1000);
     return () => {
       clearTimeout(timeoutId);
-      // Flush the last pending company-level save on scope change/unmount so switching companies
-      // does not silently drop a just-made settings change.
-      if (!isLogoutInProgress()) {
-        void persistCompanySettings(settings);
-      }
     };
   }, [settings, currentCompany?.id, user?.id, isLoaded, activeCompanyRole, currentScopeKey, persistCompanySettings]);
 
