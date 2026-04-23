@@ -52,6 +52,8 @@ serve(async (req) => {
         email,
         status,
         expires_at,
+        accepted_at,
+        created_user_id,
         vendor:vendors(id, name, vendor_type)
       `)
       .eq("token", inviteToken)
@@ -66,7 +68,9 @@ serve(async (req) => {
     }
 
     const inviteStatus = safeString((invitation as any).status).toLowerCase();
-    if (inviteStatus !== "pending" && safeString((invitation as any).created_user_id) !== authUserId) {
+    const existingCreatedUserId = safeString((invitation as any).created_user_id);
+    const isAcceptedByThisUser = inviteStatus === "accepted" && existingCreatedUserId === authUserId;
+    if (inviteStatus !== "pending" && !isAcceptedByThisUser) {
       return new Response(
         JSON.stringify({ error: "This invitation is no longer active" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } },
@@ -108,16 +112,6 @@ serve(async (req) => {
       email: invitedEmail,
       source: "rfp_vendor_invitation",
     };
-
-    const { error: invitationUpdateError } = await supabase
-      .from("vendor_invitations")
-      .update({
-        status: "accepted",
-        accepted_at: approvedAt,
-        created_user_id: authUserId,
-      })
-      .eq("id", (invitation as any).id);
-    if (invitationUpdateError) throw invitationUpdateError;
 
     const { error: profileError } = await supabase
       .from("profiles")
@@ -181,9 +175,19 @@ serve(async (req) => {
           reviewed_at: approvedAt,
           reviewed_by: (invitation as any).invited_by || authUserId,
           notes: JSON.stringify(notesPayload),
-        });
+      });
       if (insertAccessRequestError) throw insertAccessRequestError;
     }
+
+    const { error: invitationUpdateError } = await supabase
+      .from("vendor_invitations")
+      .update({
+        status: "accepted",
+        accepted_at: safeString((invitation as any).accepted_at) || approvedAt,
+        created_user_id: authUserId,
+      })
+      .eq("id", (invitation as any).id);
+    if (invitationUpdateError) throw invitationUpdateError;
 
     return new Response(
       JSON.stringify({

@@ -423,50 +423,48 @@ export default function CompanyAccessRequests({
         ]);
         const targetRole = allowedBaseRoles.has(requestedRole) ? requestedRole : 'employee';
 
-        if (isFallbackRequest) {
-          const { error: profileError } = await supabase
-            .from('profiles')
+        const { error: profileError } = await supabase
+          .from('profiles')
+          .update({
+            role: targetRole as any,
+            custom_role_id: request.custom_role_id || null,
+            status: 'approved',
+            approved_by: currentUser?.id || null,
+            approved_at: new Date().toISOString(),
+          })
+          .eq('user_id', request.user_id);
+        if (profileError) throw profileError;
+
+        const { data: existingAccess, error: existingAccessError } = await supabase
+          .from('user_company_access')
+          .select('id')
+          .eq('user_id', request.user_id)
+          .eq('company_id', currentCompany.id)
+          .limit(1);
+        if (existingAccessError) throw existingAccessError;
+
+        if ((existingAccess || []).length > 0) {
+          const { error: accessUpdateError } = await supabase
+            .from('user_company_access')
             .update({
               role: targetRole as any,
-              custom_role_id: request.custom_role_id || null,
-              status: 'approved',
-              approved_by: currentUser?.id || null,
-              approved_at: new Date().toISOString(),
+              granted_by: currentUser?.id || null,
+              is_active: true,
             })
-            .eq('user_id', request.user_id);
-          if (profileError) throw profileError;
-
-          const { data: existingAccess, error: existingAccessError } = await supabase
-            .from('user_company_access')
-            .select('id')
             .eq('user_id', request.user_id)
-            .eq('company_id', currentCompany.id)
-            .limit(1);
-          if (existingAccessError) throw existingAccessError;
-
-          if ((existingAccess || []).length > 0) {
-            const { error: accessUpdateError } = await supabase
-              .from('user_company_access')
-              .update({
-                role: targetRole as any,
-                granted_by: currentUser?.id || null,
-                is_active: true,
-              })
-              .eq('user_id', request.user_id)
-              .eq('company_id', currentCompany.id);
-            if (accessUpdateError) throw accessUpdateError;
-          } else {
-            const { error: accessInsertError } = await supabase
-              .from('user_company_access')
-              .insert({
-                user_id: request.user_id,
-                company_id: currentCompany.id,
-                role: targetRole as any,
-                granted_by: currentUser?.id || null,
-                is_active: true
-              });
-            if (accessInsertError) throw accessInsertError;
-          }
+            .eq('company_id', currentCompany.id);
+          if (accessUpdateError) throw accessUpdateError;
+        } else {
+          const { error: accessInsertError } = await supabase
+            .from('user_company_access')
+            .insert({
+              user_id: request.user_id,
+              company_id: currentCompany.id,
+              role: targetRole as any,
+              granted_by: currentUser?.id || null,
+              is_active: true
+            });
+          if (accessInsertError) throw accessInsertError;
         }
 
         if (targetRole === 'design_professional' && request.invited_job_id) {

@@ -74,6 +74,8 @@ export default function VendorRegister() {
   const [companyBranding, setCompanyBranding] = useState<PublicCompanyBranding | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [alreadyAccepted, setAlreadyAccepted] = useState(false);
+  const [resetSending, setResetSending] = useState(false);
 
   const [formData, setFormData] = useState({
     firstName: '',
@@ -120,6 +122,20 @@ export default function VendorRegister() {
     ? `/vendor-login?company=${encodeURIComponent(invitation.company_id)}`
     : '/vendor-login';
 
+  const loadCompanyBranding = async (companyId: string) => {
+    const { data: companyPayload, error: companyPayloadError } = await supabase.functions.invoke('list-public-signup-companies', {
+      body: { companyId },
+    });
+
+    if (companyPayloadError) {
+      console.error('Failed loading vendor register branding payload:', companyPayloadError);
+      return;
+    }
+
+    const brandedCompany = Array.isArray(companyPayload?.companies) ? companyPayload.companies[0] : null;
+    setCompanyBranding(brandedCompany || null);
+  };
+
   useEffect(() => {
     if (token) {
       validateToken();
@@ -141,6 +157,7 @@ export default function VendorRegister() {
           email,
           status,
           expires_at,
+          created_user_id,
           vendor:vendors(name, vendor_type),
           company:companies(name, logo_url)
         `)
@@ -153,9 +170,16 @@ export default function VendorRegister() {
         return;
       }
 
-      // Check if still active
       if (data.status !== 'pending') {
-        setError(data.status === 'accepted' ? 'This invitation has already been used' : 'This invitation is no longer active');
+        if (data.status === 'accepted' && (data as any).created_user_id) {
+          setInvitation(data as unknown as Invitation);
+          setAlreadyAccepted(true);
+          if ((data as any)?.company_id) {
+            await loadCompanyBranding((data as any).company_id);
+          }
+        } else {
+          setError(data.status === 'accepted' ? 'This invitation has already been used' : 'This invitation is no longer active');
+        }
         setLoading(false);
         return;
       }
@@ -178,16 +202,7 @@ export default function VendorRegister() {
       }
 
       if ((data as any)?.company_id) {
-        const { data: companyPayload, error: companyPayloadError } = await supabase.functions.invoke('list-public-signup-companies', {
-          body: { companyId: (data as any).company_id },
-        });
-
-        if (companyPayloadError) {
-          console.error('Failed loading vendor register branding payload:', companyPayloadError);
-        } else {
-          const brandedCompany = Array.isArray(companyPayload?.companies) ? companyPayload.companies[0] : null;
-          setCompanyBranding(brandedCompany || null);
-        }
+        await loadCompanyBranding((data as any).company_id);
       }
 
       setLoading(false);
@@ -195,6 +210,31 @@ export default function VendorRegister() {
       console.error('Error validating token:', err);
       setError('Failed to validate invitation');
       setLoading(false);
+    }
+  };
+
+  const sendPasswordReset = async () => {
+    const targetEmail = invitation?.email?.trim();
+    if (!targetEmail) return;
+
+    setResetSending(true);
+    try {
+      const { error: resetError } = await supabase.auth.resetPasswordForEmail(targetEmail, {
+        redirectTo: `${getPublicAuthOrigin()}/auth?type=recovery`,
+      });
+      if (resetError) throw resetError;
+      toast({
+        title: 'Password reset sent',
+        description: `Check ${targetEmail} for the password reset link.`,
+      });
+    } catch (resetError: any) {
+      toast({
+        title: 'Password reset failed',
+        description: resetError?.message || 'Unable to send a password reset email right now.',
+        variant: 'destructive',
+      });
+    } finally {
+      setResetSending(false);
     }
   };
 
@@ -318,6 +358,33 @@ export default function VendorRegister() {
     );
   }
 
+  if (alreadyAccepted) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
+        <Card className="w-full max-w-md border-slate-700 bg-[#071231] text-slate-100">
+          <CardContent className="pt-6 text-center">
+            <CheckCircle className="h-16 w-16 mx-auto text-green-500 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Account Already Created</h2>
+            <p className="text-slate-300 mb-2">
+              This invitation has already been accepted for {invitation?.email}.
+            </p>
+            <p className="text-sm text-slate-400 mb-6">
+              Sign in to continue, or send a password reset if the password was not saved.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button onClick={() => navigate(vendorLoginHref)}>
+                Go to Login
+              </Button>
+              <Button variant="outline" onClick={sendPasswordReset} disabled={resetSending}>
+                {resetSending ? 'Sending Reset...' : 'Send Password Reset'}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    );
+  }
+
   return (
     <div
       className="relative min-h-screen flex items-center justify-center p-4 bg-cover bg-center"
@@ -365,6 +432,20 @@ export default function VendorRegister() {
                 autoComplete="email"
                 className="bg-slate-800 border-slate-600"
               />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="companyName">Company Name</Label>
+              <Input
+                id="companyName"
+                name="company_name"
+                value={(invitation?.vendor as any)?.name || ''}
+                readOnly
+                className="bg-slate-800 border-slate-600"
+              />
+              <p className="text-xs text-slate-300">
+                This comes from the RFP invitation. Contact the builder if it needs to be changed.
+              </p>
             </div>
 
             <div className="grid grid-cols-2 gap-4">

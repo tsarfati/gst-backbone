@@ -856,9 +856,24 @@ export default function Dashboard() {
 
       if (pendingAccessError) throw pendingAccessError;
 
-      const fallbackUserIds = Array.from(
+      const accessUserIds = Array.from(
         new Set((pendingAccessRows || []).map((row: any) => String(row.user_id || '')).filter(Boolean)),
       );
+
+      const { data: accessRequestRows, error: accessRequestRowsError } = accessUserIds.length > 0
+        ? await supabase
+            .from('company_access_requests')
+            .select('user_id, status')
+            .eq('company_id', currentCompany.id)
+            .in('user_id', accessUserIds)
+        : { data: [] as any[], error: null };
+
+      if (accessRequestRowsError) throw accessRequestRowsError;
+
+      const usersWithAnyRequest = new Set(
+        (accessRequestRows || []).map((row: any) => String(row.user_id || '')).filter(Boolean),
+      );
+      const fallbackUserIds = accessUserIds.filter((userId) => !usersWithAnyRequest.has(userId));
 
       const pendingUserIds = Array.from(new Set([...requestedUserIds, ...fallbackUserIds]));
       if (requestedUserIds.length === 0 && fallbackUserIds.length === 0) {
