@@ -9,6 +9,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useUserAvatars } from '@/hooks/useUserAvatar';
 import { createMentionNotifications } from '@/utils/mentions';
+import { sendDirectMessageNotifications } from '@/utils/directMessageNotifications';
 import MentionTextarea from '@/components/MentionTextarea';
 
 const CURRENT_USER_ID = 'fa67f9ba-67fc-4708-9526-7bfef906dae3';
@@ -194,6 +195,14 @@ export default function MessageThreadView({
       });
 
       if (error) throw error;
+
+      await sendDirectMessageNotifications({
+        companyId,
+        actorUserId: userId,
+        recipientUserIds: [replyToUserId],
+        subject: `Re: ${message.subject}`,
+        content: replyContent.trim(),
+      });
 
       await createMentionNotifications({
         companyId,

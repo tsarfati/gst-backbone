@@ -25,6 +25,7 @@ import { canAccessJobIds } from '@/utils/jobAccess';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 import { getStoragePathForDb, resolveStorageUrl } from '@/utils/storageUtils';
 import { loadEmailSenderPreview, type EmailSenderPreview } from '@/utils/emailSenderPreview';
+import { createRfpNotifications } from '@/utils/rfpNotifications';
 import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
 import { downloadRfpPlanPagesPdf, downloadSingleRfpPlanPagePdf } from '@/utils/rfpPlanPagesPdf';
 import { syncAttachedPlanSetPagesToRfp } from '@/utils/rfpPlanSync';
@@ -1239,6 +1240,19 @@ export default function RFPDetails() {
       const { error: insertError } = await supabase.from('rfp_attachments').insert(rows);
       if (insertError) throw insertError;
 
+      try {
+        await createRfpNotifications({
+          rfpId: id,
+          companyId: currentCompany.id,
+          actorUserId: user.id,
+          title: 'RFP Plans Updated',
+          message: `${rfp?.rfp_number || 'RFP'} has new drawings or files attached.`,
+          preferenceKey: 'rfp_plan_update_notifications',
+        });
+      } catch (notificationError) {
+        console.warn('Failed sending RFP plan update notifications after upload', notificationError);
+      }
+
       toast({
         title: 'Drawings uploaded',
         description: `${uploadFiles.length} drawing file(s) uploaded`,
@@ -1280,6 +1294,19 @@ export default function RFPDetails() {
       const storagePath = getStoragePathFromUrl(attachment.file_url);
       if (storagePath) {
         await supabase.storage.from('company-files').remove([storagePath]);
+      }
+
+      try {
+        await createRfpNotifications({
+          rfpId: id,
+          companyId: currentCompany!.id,
+          actorUserId: user?.id || null,
+          title: 'RFP Plans Updated',
+          message: `${rfp?.rfp_number || 'RFP'} had an attached drawing removed or replaced.`,
+          preferenceKey: 'rfp_plan_update_notifications',
+        });
+      } catch (notificationError) {
+        console.warn('Failed sending RFP plan update notifications after delete', notificationError);
       }
 
       toast({
@@ -1355,6 +1382,18 @@ export default function RFPDetails() {
             ].sort((a, b) => `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`)),
           };
         });
+      }
+      try {
+        await createRfpNotifications({
+          rfpId: selectedTargetRfpId,
+          companyId: currentCompany.id,
+          actorUserId: user.id,
+          title: 'RFP Plans Updated',
+          message: `${target?.rfp_number || 'RFP'} has a newly attached file available for review.`,
+          preferenceKey: 'rfp_plan_update_notifications',
+        });
+      } catch (notificationError) {
+        console.warn('Failed sending RFP plan update notifications after copy', notificationError);
       }
       toast({ title: 'Attached to RFP', description: 'Attachment copied to the selected RFP.' });
       setRfpAttachDialogOpen(false);

@@ -56,6 +56,9 @@ interface NotificationSettings {
   intake_queue_requests?: boolean;
   new_bid_notifications?: boolean;
   bill_revision_reply_notifications?: boolean;
+  rfp_update_notifications?: boolean;
+  rfp_plan_update_notifications?: boolean;
+  rfp_comment_update_notifications?: boolean;
 }
 
 export default function ProfileSettings() {
@@ -113,6 +116,9 @@ export default function ProfileSettings() {
     intake_queue_requests: true,
     new_bid_notifications: true,
     bill_revision_reply_notifications: true,
+    rfp_update_notifications: true,
+    rfp_plan_update_notifications: true,
+    rfp_comment_update_notifications: true,
   });
 
   const requestedTab = searchParams.get('tab') || 'profile';
@@ -173,6 +179,9 @@ export default function ProfileSettings() {
           intake_queue_requests: typedData.intake_queue_requests ?? true,
           new_bid_notifications: typedData.new_bid_notifications ?? true,
           bill_revision_reply_notifications: typedData.bill_revision_reply_notifications ?? true,
+          rfp_update_notifications: typedData.rfp_update_notifications ?? true,
+          rfp_plan_update_notifications: typedData.rfp_plan_update_notifications ?? true,
+          rfp_comment_update_notifications: typedData.rfp_comment_update_notifications ?? true,
         });
       }
     } catch (error) {
@@ -430,6 +439,9 @@ export default function ProfileSettings() {
         intake_queue_requests: notificationSettings.intake_queue_requests ?? true,
         new_bid_notifications: notificationSettings.new_bid_notifications ?? true,
         bill_revision_reply_notifications: notificationSettings.bill_revision_reply_notifications ?? true,
+        rfp_update_notifications: notificationSettings.rfp_update_notifications ?? true,
+        rfp_plan_update_notifications: notificationSettings.rfp_plan_update_notifications ?? true,
+        rfp_comment_update_notifications: notificationSettings.rfp_comment_update_notifications ?? true,
       };
       
       const { error } = await (supabase as any)
@@ -787,6 +799,43 @@ export default function ProfileSettings() {
                           onCheckedChange={(checked) => updateNotificationSetting('vendor_invitations', checked)}
                         />
                       </div>
+                    )}
+                    {isExternalUser && (
+                      <>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label htmlFor="rfp-update-notifications">RFP Updates</Label>
+                            <p className="text-sm text-muted-foreground">Get notified when an RFP you are attached to is updated</p>
+                          </div>
+                          <Switch
+                            id="rfp-update-notifications"
+                            checked={notificationSettings.rfp_update_notifications !== false}
+                            onCheckedChange={(checked) => updateNotificationSetting('rfp_update_notifications', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label htmlFor="rfp-plan-update-notifications">RFP Plan Updates</Label>
+                            <p className="text-sm text-muted-foreground">Get notified when attached plans or issued files change on an RFP</p>
+                          </div>
+                          <Switch
+                            id="rfp-plan-update-notifications"
+                            checked={notificationSettings.rfp_plan_update_notifications !== false}
+                            onCheckedChange={(checked) => updateNotificationSetting('rfp_plan_update_notifications', checked)}
+                          />
+                        </div>
+                        <div className="flex items-center justify-between">
+                          <div>
+                            <Label htmlFor="rfp-comment-update-notifications">RFP Comment Updates</Label>
+                            <p className="text-sm text-muted-foreground">Get notified when plan page notes or callouts are updated on an RFP</p>
+                          </div>
+                          <Switch
+                            id="rfp-comment-update-notifications"
+                            checked={notificationSettings.rfp_comment_update_notifications !== false}
+                            onCheckedChange={(checked) => updateNotificationSetting('rfp_comment_update_notifications', checked)}
+                          />
+                        </div>
+                      </>
                     )}
                   </div>
 

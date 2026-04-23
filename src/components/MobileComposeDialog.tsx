@@ -12,6 +12,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import MentionTextarea from '@/components/MentionTextarea';
 import { createMentionNotifications } from '@/utils/mentions';
+import { sendDirectMessageNotifications } from '@/utils/directMessageNotifications';
 
 interface Message {
   id: string;
@@ -124,6 +125,16 @@ export function MobileComposeDialog({ isOpen, onClose, onMessageSent, replyToMes
         });
 
       if (error) throw error;
+
+      if (currentCompany?.id) {
+        await sendDirectMessageNotifications({
+          companyId: currentCompany.id,
+          actorUserId: user.id,
+          recipientUserIds: [selectedUser],
+          subject: subject.trim(),
+          content: message.trim(),
+        });
+      }
 
       if (currentCompany?.id) {
         await createMentionNotifications({

@@ -14,6 +14,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessJobIds, ensureAllowedJobFilter } from '@/utils/jobAccess';
+import { createRfpNotifications } from '@/utils/rfpNotifications';
 import { getStoragePathForDb } from '@/utils/storageUtils';
 import { hydratePlanPagesFromPdfText } from '@/utils/planPageHydration';
 import RfpPlanPagePicker, {
@@ -75,6 +76,51 @@ const isMissingRfpPlanPageNotesTableError = (error: any) => {
   );
 };
 
+const buildPlanSelectionSignature = (pages: SelectedRfpPlanPage[]) =>
+  JSON.stringify(
+    [...pages]
+      .map((page) => ({
+        plan_id: page.plan_id,
+        plan_page_id: page.plan_page_id,
+        is_primary: !!page.is_primary,
+        note: page.note || null,
+        callouts: [...(page.callouts || [])]
+          .map((callout) => ({
+            shape_type: callout.shape_type,
+            x: callout.x,
+            y: callout.y,
+            width: callout.width,
+            height: callout.height,
+            note_text: callout.note_text || '',
+          }))
+          .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+      }))
+      .sort((a, b) =>
+        `${a.plan_id}:${a.plan_page_id}`.localeCompare(`${b.plan_id}:${b.plan_page_id}`),
+      ),
+  );
+
+const buildCommentSelectionSignature = (pages: SelectedRfpPlanPage[]) =>
+  JSON.stringify(
+    [...pages]
+      .map((page) => ({
+        plan_page_id: page.plan_page_id,
+        note: page.note || null,
+        callouts: [...(page.callouts || [])]
+          .map((callout) => ({
+            shape_type: callout.shape_type,
+            x: callout.x,
+            y: callout.y,
+            width: callout.width,
+            height: callout.height,
+            note_text: callout.note_text || '',
+          }))
+          .sort((a, b) => JSON.stringify(a).localeCompare(JSON.stringify(b))),
+      }))
+      .filter((page) => page.note || page.callouts.length > 0)
+      .sort((a, b) => a.plan_page_id.localeCompare(b.plan_page_id)),
+  );
+
 export default function AddRFP() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -96,6 +142,9 @@ export default function AddRFP() {
   const [selectedPlanPages, setSelectedPlanPages] = useState<SelectedRfpPlanPage[]>([]);
   const [selectedFullPlanSetIds, setSelectedFullPlanSetIds] = useState<string[]>([]);
   const [selectedJobFileIds, setSelectedJobFileIds] = useState<string[]>([]);
+  const [initialFormSnapshot, setInitialFormSnapshot] = useState<Record<string, string> | null>(null);
+  const [initialPlanSelectionSignature, setInitialPlanSelectionSignature] = useState('[]');
+  const [initialCommentSelectionSignature, setInitialCommentSelectionSignature] = useState('[]');
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [planSetPickerOpen, setPlanSetPickerOpen] = useState(false);
   const [jobFilePickerOpen, setJobFilePickerOpen] = useState(false);
@@ -208,7 +257,19 @@ export default function AddRFP() {
         issue_date: rfpData?.issue_date || '',
         due_date: rfpData?.due_date || '',
       });
-      await loadSelectedPlanPages(id!);
+      setInitialFormSnapshot({
+        rfp_number: rfpData?.rfp_number || '',
+        title: rfpData?.title || '',
+        description: rfpData?.description || '',
+        scope_of_work: rfpData?.scope_of_work || '',
+        logistics_details: rfpData?.logistics_details || '',
+        job_id: rfpData?.job_id || '',
+        issue_date: rfpData?.issue_date || '',
+        due_date: rfpData?.due_date || '',
+      });
+      const loadedPages = await loadSelectedPlanPages(id!);
+      setInitialPlanSelectionSignature(buildPlanSelectionSignature(loadedPages));
+      setInitialCommentSelectionSignature(buildCommentSelectionSignature(loadedPages));
     } catch (error) {
       console.error('Error loading RFP for edit:', error);
       toast({
@@ -377,7 +438,7 @@ export default function AddRFP() {
     }
   };
 
-  const loadSelectedPlanPages = async (rfpId: string) => {
+  const loadSelectedPlanPages = async (rfpId: string): Promise<SelectedRfpPlanPage[]> => {
     try {
       const { data, error } = await supabase
         .from('rfp_plan_pages' as any)
@@ -453,9 +514,11 @@ export default function AddRFP() {
       }));
 
       setSelectedPlanPages(next);
+      return next;
     } catch (error) {
       console.error('Error loading selected RFP plan pages:', error);
       setSelectedPlanPages([]);
+      return [];
     }
   };
 
@@ -483,7 +546,7 @@ export default function AddRFP() {
       }
     });
 
-    if (mergedPages.length === 0) return;
+    if (mergedPages.length === 0) return { pageCount: 0, noteCount: 0 };
 
     const rows = mergedPages.map((page, index) => ({
       rfp_id: rfpId,
@@ -527,6 +590,11 @@ export default function AddRFP() {
         throw insertNotesError;
       }
     }
+
+    return {
+      pageCount: rows.length,
+      noteCount: noteRows.length,
+    };
   };
 
   const applySelectedPlanPages = (pages: PickerSelectedPlanPage[]) => {
@@ -541,7 +609,7 @@ export default function AddRFP() {
   };
 
   const uploadAttachments = async (rfpId: string) => {
-    if (!selectedDrawings.length) return;
+    if (!selectedDrawings.length) return 0;
 
     const uploads = [];
     for (const file of selectedDrawings) {
@@ -566,13 +634,14 @@ export default function AddRFP() {
       .from('rfp_attachments')
       .insert(uploads);
     if (insertError) throw insertError;
+    return uploads.length;
   };
 
   const attachJobFiles = async (rfpId: string) => {
-    if (!selectedJobFileIds.length) return;
+    if (!selectedJobFileIds.length) return 0;
 
     const filesToAttach = availableJobFiles.filter((file) => selectedJobFileIds.includes(file.id));
-    if (!filesToAttach.length) return;
+    if (!filesToAttach.length) return 0;
 
     const rows = filesToAttach.map((file) => ({
       rfp_id: rfpId,
@@ -588,6 +657,7 @@ export default function AddRFP() {
       .from('rfp_attachments')
       .insert(rows);
     if (error) throw error;
+    return rows.length;
   };
 
   const addDrawingFiles = (files: File[] | FileList) => {
@@ -810,6 +880,20 @@ export default function AddRFP() {
       setLoading(true);
 
       let savedRfpId = id;
+      const detailsChanged = isEditMode && !!initialFormSnapshot && (
+        formData.rfp_number !== initialFormSnapshot.rfp_number ||
+        formData.title !== initialFormSnapshot.title ||
+        formData.description !== initialFormSnapshot.description ||
+        formData.scope_of_work !== initialFormSnapshot.scope_of_work ||
+        formData.logistics_details !== initialFormSnapshot.logistics_details ||
+        formData.job_id !== initialFormSnapshot.job_id ||
+        formData.issue_date !== initialFormSnapshot.issue_date ||
+        formData.due_date !== initialFormSnapshot.due_date
+      );
+      const currentPlanSignature = buildPlanSelectionSignature(selectedPlanPages);
+      const currentCommentSignature = buildCommentSelectionSignature(selectedPlanPages);
+      const planSelectionChanged = isEditMode && currentPlanSignature !== initialPlanSelectionSignature;
+      const commentSelectionChanged = isEditMode && currentCommentSignature !== initialCommentSelectionSignature;
 
       if (isEditMode) {
         const { error } = await supabase
@@ -851,9 +935,57 @@ export default function AddRFP() {
       }
 
       if (savedRfpId) {
-        await uploadAttachments(savedRfpId);
-        await attachJobFiles(savedRfpId);
-        await syncRfpPlanPages(savedRfpId);
+        const uploadedDrawingCount = await uploadAttachments(savedRfpId);
+        const attachedJobFileCount = await attachJobFiles(savedRfpId);
+        const syncedPlanResult = await syncRfpPlanPages(savedRfpId);
+
+        if (isEditMode && currentCompany?.id) {
+          const notificationPromises: Promise<void>[] = [];
+
+          if (detailsChanged) {
+            notificationPromises.push(
+              createRfpNotifications({
+                rfpId: savedRfpId,
+                companyId: currentCompany.id,
+                actorUserId: user?.id || null,
+                title: 'RFP Updated',
+                message: `${formData.rfp_number || 'RFP'} - ${formData.title || 'Untitled RFP'} was updated.`,
+                preferenceKey: 'rfp_update_notifications',
+              }),
+            );
+          }
+
+          if (uploadedDrawingCount > 0 || attachedJobFileCount > 0 || planSelectionChanged) {
+            notificationPromises.push(
+              createRfpNotifications({
+                rfpId: savedRfpId,
+                companyId: currentCompany.id,
+                actorUserId: user?.id || null,
+                title: 'RFP Plans Updated',
+                message: `${formData.rfp_number || 'RFP'} now has updated drawings, files, or attached plan pages available for review.`,
+                preferenceKey: 'rfp_plan_update_notifications',
+              }),
+            );
+          }
+
+          if (commentSelectionChanged && (syncedPlanResult?.noteCount || 0) >= 0) {
+            notificationPromises.push(
+              createRfpNotifications({
+                rfpId: savedRfpId,
+                companyId: currentCompany.id,
+                actorUserId: user?.id || null,
+                title: 'RFP Comments Updated',
+                message: `${formData.rfp_number || 'RFP'} has updated plan page notes or callouts.`,
+                preferenceKey: 'rfp_comment_update_notifications',
+              }),
+            );
+          }
+
+          await Promise.allSettled(notificationPromises);
+          setInitialFormSnapshot({ ...formData });
+          setInitialPlanSelectionSignature(currentPlanSignature);
+          setInitialCommentSelectionSignature(currentCommentSignature);
+        }
       }
 
       toast({

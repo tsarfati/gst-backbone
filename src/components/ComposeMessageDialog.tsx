@@ -14,6 +14,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useUserAvatars } from '@/hooks/useUserAvatar';
 import UserAvatar from '@/components/UserAvatar';
 import { createMentionNotifications } from '@/utils/mentions';
+import { sendDirectMessageNotifications } from '@/utils/directMessageNotifications';
 import MentionTextarea from '@/components/MentionTextarea';
 
 const CURRENT_USER_ID = 'fa67f9ba-67fc-4708-9526-7bfef906dae3';
@@ -262,6 +263,14 @@ export default function ComposeMessageDialog({ children, onMessageSent }: Compos
 
         if (error) throw error;
       }
+
+      await sendDirectMessageNotifications({
+        companyId,
+        actorUserId: userId,
+        recipientUserIds: recipients.map((recipient) => recipient.user_id),
+        subject: subject.trim(),
+        content: message.trim(),
+      });
 
       await createMentionNotifications({
         companyId,

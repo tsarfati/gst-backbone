@@ -6156,6 +6156,9 @@ export type Database = {
           overdue_bills_interval: string | null
           overdue_invoices: boolean
           receipt_uploaded: boolean
+          rfp_comment_update_notifications: boolean
+          rfp_plan_update_notifications: boolean
+          rfp_update_notifications: boolean
           task_team_assignment_notifications: boolean
           task_timeline_activity_notifications: boolean
           task_timeline_mention_notifications: boolean
@@ -6182,6 +6185,9 @@ export type Database = {
           overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean
+          rfp_comment_update_notifications?: boolean
+          rfp_plan_update_notifications?: boolean
+          rfp_update_notifications?: boolean
           task_team_assignment_notifications?: boolean
           task_timeline_activity_notifications?: boolean
           task_timeline_mention_notifications?: boolean
@@ -6208,6 +6214,9 @@ export type Database = {
           overdue_bills_interval?: string | null
           overdue_invoices?: boolean
           receipt_uploaded?: boolean
+          rfp_comment_update_notifications?: boolean
+          rfp_plan_update_notifications?: boolean
+          rfp_update_notifications?: boolean
           task_team_assignment_notifications?: boolean
           task_timeline_activity_notifications?: boolean
           task_timeline_mention_notifications?: boolean
