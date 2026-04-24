@@ -14,7 +14,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { toast } from "sonner";
-import { FileText, Pencil, Stamp, ArrowUp, ArrowDown, ArrowUpDown, Zap, Droplets, Wind, Flame, Building2, HardHat, Wrench, Info, Trash2, Link2 } from "lucide-react";
+import { FileText, Pencil, Stamp, ArrowUp, ArrowDown, ArrowUpDown, Info, Trash2, Link2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { format } from "date-fns";
 import { useNavigate } from "react-router-dom";
@@ -24,6 +24,7 @@ import { useUnifiedViewPreference, type UnifiedViewType } from "@/hooks/useUnifi
 import { uploadFileWithProgress } from "@/utils/storageUtils";
 import { indexPlanPagesOnce } from "@/utils/planIndexing";
 import builderlynkShieldIcon from "@/assets/builderlynk-icon-shield.png";
+import { PlanDisciplineIcon } from "@/components/plans/PlanDisciplineIcon";
 
 interface JobPlansProps {
   jobId: string;
@@ -171,65 +172,6 @@ function parsePlanMetadataFromFileName(fileName: string) {
     revision_date: revisionDate,
     architect: architectMatch?.[1]?.trim() || "",
   };
-}
-
-function getPlanDisciplineKey(plan: Pick<JobPlan, "plan_name" | "plan_number">) {
-  const text = `${plan.plan_name || ""} ${plan.plan_number || ""}`.toLowerCase();
-  const planNo = (plan.plan_number || "").toLowerCase();
-
-  if (
-    /\b(plumb|plumbing|sanitary|waste|vent|domestic water)\b/.test(text) ||
-    /^[p][-\s]?\d/.test(planNo)
-  ) return "plumbing";
-  if (
-    /\b(electrical|power|lighting|low voltage|telecom)\b/.test(text) ||
-    /^[e][-\s]?\d/.test(planNo)
-  ) return "electrical";
-  if (
-    /\b(mechanical|hvac|duct|air handling)\b/.test(text) ||
-    /^[m][-\s]?\d/.test(planNo)
-  ) return "mechanical";
-  if (
-    /\b(fire protection|sprinkler|fire alarm)\b/.test(text) ||
-    /^[fp][-\s]?\d/.test(planNo)
-  ) return "fire";
-  if (
-    /\b(structural|foundation|steel|framing)\b/.test(text) ||
-    /^[s][-\s]?\d/.test(planNo)
-  ) return "structural";
-  if (
-    /\b(civil|site|grading|utility plan)\b/.test(text) ||
-    /^[c][-\s]?\d/.test(planNo)
-  ) return "civil";
-  if (
-    /\b(architect|architectural|floor plan|elevation|section|detail)\b/.test(text) ||
-    /^[a][-\s]?\d/.test(planNo)
-  ) return "architectural";
-
-  return "general";
-}
-
-function PlanDisciplineIcon({ plan, className = "h-8 w-8" }: { plan: Pick<JobPlan, "plan_name" | "plan_number">; className?: string }) {
-  const key = getPlanDisciplineKey(plan);
-
-  switch (key) {
-    case "plumbing":
-      return <Droplets className={`${className} text-sky-500`} />;
-    case "electrical":
-      return <Zap className={`${className} text-amber-500`} />;
-    case "mechanical":
-      return <Wind className={`${className} text-cyan-500`} />;
-    case "fire":
-      return <Flame className={`${className} text-red-500`} />;
-    case "structural":
-      return <Building2 className={`${className} text-stone-500`} />;
-    case "civil":
-      return <HardHat className={`${className} text-yellow-600`} />;
-    case "architectural":
-      return <Wrench className={`${className} text-indigo-500`} />;
-    default:
-      return <FileText className={`${className} text-primary`} />;
-  }
 }
 
 export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {

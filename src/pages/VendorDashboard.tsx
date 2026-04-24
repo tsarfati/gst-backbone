@@ -41,6 +41,7 @@ import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
 import { downloadRfpPlanPagesPdf } from '@/utils/rfpPlanPagesPdf';
 import RfpPlanPageNoteViewer, { type RfpPlanPageNoteViewerNote } from '@/components/RfpPlanPageNoteViewer';
+import { PlanDisciplineIcon } from '@/components/plans/PlanDisciplineIcon';
 
 interface ComplianceDocument {
   id: string;
@@ -2659,12 +2660,17 @@ export default function VendorDashboard() {
                                   {rfp.issued_package.plans.map((plan) => (
                                     <div
                                       key={`${rfp.issued_package?.id}-${plan.plan_id}`}
-                                      className="flex items-center justify-between rounded-sm px-2 py-2 text-xs hover:bg-background/50"
+                                      className="flex items-center justify-between gap-3 rounded-sm px-2 py-2 text-xs hover:bg-background/50"
                                     >
-                                      <div className="min-w-0 pr-3">
-                                        <div className="font-medium truncate">{plan.plan_name}</div>
-                                        <div className="text-muted-foreground">
-                                          {plan.plan_number ? `Plan #${plan.plan_number}` : 'Full set'}
+                                      <div className="min-w-0 pr-3 flex items-center gap-3">
+                                        <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-md border bg-background">
+                                          <PlanDisciplineIcon plan={plan} className="h-5 w-5" />
+                                        </div>
+                                        <div className="min-w-0">
+                                          <div className="font-medium truncate">{plan.plan_name}</div>
+                                          <div className="text-muted-foreground">
+                                            {plan.plan_number ? `Plan #${plan.plan_number}` : 'Full set'}
+                                          </div>
                                         </div>
                                       </div>
                                       <div className="shrink-0">

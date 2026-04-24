@@ -848,6 +848,25 @@ export default function Dashboard() {
         new Set((pendingRows || []).map((row: any) => String(row.user_id || '')).filter(Boolean)),
       );
 
+      const { data: dismissedIntakeRows, error: dismissedIntakeError } = await supabase
+        .from('notifications')
+        .select('type, created_at')
+        .eq('user_id', user.id)
+        .eq('read', true)
+        .like('type', 'intake_queue:%');
+
+      if (dismissedIntakeError) throw dismissedIntakeError;
+
+      const dismissedIntakeByType = new Map<string, string>();
+      (dismissedIntakeRows || []).forEach((row: any) => {
+        const type = String(row.type || '');
+        const createdAt = String(row.created_at || '');
+        const existingCreatedAt = dismissedIntakeByType.get(type);
+        if (!existingCreatedAt || new Date(createdAt).getTime() > new Date(existingCreatedAt).getTime()) {
+          dismissedIntakeByType.set(type, createdAt);
+        }
+      });
+
       const { data: pendingAccessRows, error: pendingAccessError } = await supabase
         .from('user_company_access')
         .select('user_id, role, granted_at')
@@ -881,25 +900,35 @@ export default function Dashboard() {
         return;
       }
 
-      const { data: pendingProfiles, error: pendingProfilesError } = await supabase
+      const { data: profileRows, error: pendingProfilesError } = await supabase
         .from('profiles')
         .select('user_id, first_name, last_name, display_name, status, created_at')
-        .in('user_id', pendingUserIds)
-        .eq('status', 'pending');
+        .in('user_id', pendingUserIds);
 
       if (pendingProfilesError) throw pendingProfilesError;
 
+      const profilesByUserId = new Map(
+        (profileRows || []).map((profile: any) => [String(profile.user_id), profile]),
+      );
       const pendingProfilesByUserId = new Map(
-        (pendingProfiles || []).map((profile: any) => [String(profile.user_id), profile]),
+        (profileRows || [])
+          .filter((profile: any) => String(profile.status || '').toLowerCase() === 'pending')
+          .map((profile: any) => [String(profile.user_id), profile]),
       );
       const explicitRequestUserIdSet = new Set(requestedUserIds);
+      const activeAccessUserIdSet = new Set(accessUserIds);
 
       const intakeCandidates = [
-        ...(pendingRows || []).map((row: any) => ({
-          user_id: String(row.user_id),
-          requested_at: String(row.requested_at || new Date().toISOString()),
-          notes: typeof row.notes === 'string' ? row.notes : null,
-        })),
+        ...(pendingRows || [])
+          .map((row: any) => ({
+            user_id: String(row.user_id),
+            requested_at: String(row.requested_at || new Date().toISOString()),
+            notes: typeof row.notes === 'string' ? row.notes : null,
+          }))
+          .filter((row) => {
+            const profileStatus = String(profilesByUserId.get(row.user_id)?.status || '').toLowerCase();
+            return !(activeAccessUserIdSet.has(row.user_id) && profileStatus && profileStatus !== 'pending');
+          }),
         ...(pendingAccessRows || [])
           .filter((row: any) => !explicitRequestUserIdSet.has(String(row.user_id || '')))
           .map((row: any) => ({
@@ -944,6 +973,11 @@ export default function Dashboard() {
             read: false,
             created_at: row.requested_at,
           };
+        })
+        .filter((notification) => {
+          const dismissedAt = dismissedIntakeByType.get(String(notification.type || ''));
+          if (!dismissedAt) return true;
+          return new Date(dismissedAt).getTime() < new Date(notification.created_at).getTime();
         })
         .sort((a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime());
 
@@ -1435,10 +1469,27 @@ export default function Dashboard() {
   };
 
   const markNotificationAsRead = async (notificationId: string) => {
-    if (notificationId === 'intake-queue-summary' || notificationId.startsWith('intake-queue:')) {
-      return;
-    }
     try {
+      if (notificationId === 'intake-queue-summary' || notificationId.startsWith('intake-queue:')) {
+        const notification = notifications.find((item) => item.id === notificationId);
+        if (notification && user?.id) {
+          const { error: insertError } = await supabase
+            .from('notifications')
+            .insert({
+              user_id: user.id,
+              title: notification.title,
+              message: notification.message,
+              type: notification.type,
+              read: true,
+            } as any);
+
+          if (insertError) throw insertError;
+        }
+
+        setNotifications((prev) => prev.filter((item) => item.id !== notificationId));
+        return;
+      }
+
       const { error } = await supabase
         .from('notifications')
         .update({ read: true })

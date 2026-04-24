@@ -145,6 +145,7 @@ export default function AddRFP() {
   const [initialFormSnapshot, setInitialFormSnapshot] = useState<Record<string, string> | null>(null);
   const [initialPlanSelectionSignature, setInitialPlanSelectionSignature] = useState('[]');
   const [initialCommentSelectionSignature, setInitialCommentSelectionSignature] = useState('[]');
+  const [didHydrateFullPlanSetSelection, setDidHydrateFullPlanSetSelection] = useState(false);
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [planSetPickerOpen, setPlanSetPickerOpen] = useState(false);
   const [jobFilePickerOpen, setJobFilePickerOpen] = useState(false);
@@ -175,6 +176,44 @@ export default function AddRFP() {
       }
     }
   }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(','), id]);
+
+  useEffect(() => {
+    if (!isEditMode) {
+      setDidHydrateFullPlanSetSelection(false);
+      return;
+    }
+
+    if (didHydrateFullPlanSetSelection || availablePlanPages.length === 0 || selectedPlanPages.length === 0) {
+      return;
+    }
+
+    const availableCountsByPlanId = availablePlanPages.reduce<Map<string, number>>((map, page) => {
+      map.set(page.plan_id, (map.get(page.plan_id) || 0) + 1);
+      return map;
+    }, new Map());
+
+    const selectedPageIdsByPlanId = selectedPlanPages.reduce<Map<string, Set<string>>>((map, page) => {
+      const current = map.get(page.plan_id) || new Set<string>();
+      current.add(page.plan_page_id);
+      map.set(page.plan_id, current);
+      return map;
+    }, new Map());
+
+    const hydratedFullPlanSetIds = Array.from(selectedPageIdsByPlanId.entries())
+      .filter(([planId, pageIds]) => {
+        const availableCount = availableCountsByPlanId.get(planId) || 0;
+        return availableCount > 0 && pageIds.size === availableCount;
+      })
+      .map(([planId]) => planId);
+
+    setSelectedFullPlanSetIds(hydratedFullPlanSetIds);
+    setDidHydrateFullPlanSetSelection(true);
+  }, [
+    isEditMode,
+    didHydrateFullPlanSetSelection,
+    availablePlanPages,
+    selectedPlanPages,
+  ]);
 
   useEffect(() => {
     if (!currentCompany?.id || !formData.job_id) {
@@ -227,6 +266,7 @@ export default function AddRFP() {
   const loadRfpForEdit = async () => {
     try {
       setLoadingRfp(true);
+      setDidHydrateFullPlanSetSelection(false);
       const { data, error } = await supabase
         .from('rfps')
         .select('*')
@@ -1395,13 +1435,19 @@ export default function AddRFP() {
                   </div>
                   <Checkbox
                     checked={selectedFullPlanSetIds.includes(plan.id)}
-                    onCheckedChange={(checked) =>
+                    onCheckedChange={(checked) => {
                       setSelectedFullPlanSetIds((prev) =>
                         checked === true
                           ? [...new Set([...prev, plan.id])]
                           : prev.filter((id) => id !== plan.id),
-                      )
-                    }
+                      );
+
+                      if (checked !== true) {
+                        setSelectedPlanPages((prev) =>
+                          prev.filter((page) => page.plan_id !== plan.id),
+                        );
+                      }
+                    }}
                   />
                 </label>
               ))
