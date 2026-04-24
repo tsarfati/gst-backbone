@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, useState } from "react";
+import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 import { ArrowLeft, ChevronDown, ChevronUp, Loader2 } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
@@ -12,9 +12,19 @@ interface FullPagePdfViewerProps {
   hideBackButton?: boolean;
   selectedPage?: number; // externally controlled page to scroll to
   zoom?: number; // visual zoom factor affecting canvas CSS size
+  backLabel?: string;
+  headerActions?: ReactNode;
 }
 
-export default function FullPagePdfViewer({ file, onBack, hideBackButton = false, selectedPage, zoom = 1 }: FullPagePdfViewerProps) {
+export default function FullPagePdfViewer({
+  file,
+  onBack,
+  hideBackButton = false,
+  selectedPage,
+  zoom = 1,
+  backLabel = "Back",
+  headerActions,
+}: FullPagePdfViewerProps) {
   const [pages, setPages] = useState<HTMLCanvasElement[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -149,7 +159,7 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
         <div className="flex items-center gap-3">
           <Button variant="ghost" size="sm" onClick={onBack}>
             <ArrowLeft className="h-4 w-4 mr-2" />
-            Back
+            {backLabel}
           </Button>
           <div className="border-l pl-3">
             <p className="font-medium text-sm truncate max-w-xs">{file.name}</p>
@@ -162,8 +172,10 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
         </div>
 
         {/* Page Navigation */}
-        {totalPages > 1 && (
-          <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2">
+          {headerActions}
+          {totalPages > 1 && (
+            <>
             <Button
               variant="outline"
               size="sm"
@@ -180,8 +192,9 @@ export default function FullPagePdfViewer({ file, onBack, hideBackButton = false
             >
               <ChevronDown className="h-4 w-4" />
             </Button>
-          </div>
-        )}
+            </>
+          )}
+        </div>
       </div>
 
       {/* PDF Content */}

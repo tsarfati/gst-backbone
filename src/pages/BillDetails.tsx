@@ -818,6 +818,24 @@ export default function BillDetails() {
   const StatusIcon = getStatusIcon(bill?.status || "pending");
   const billIsOverdue = isOverdue();
   const daysOverdue = billIsOverdue ? calculateDaysOverdue(bill.due_date) : 0;
+  const attachmentFiles = [
+    ...(bill?.file_url
+      ? [{
+          key: "bill" as const,
+          id: "bill-main-document",
+          file_name: "Bill Document",
+          file_url: bill.file_url as string,
+          file_size: null as number | null,
+        }]
+      : []),
+    ...documents.map((doc) => ({
+      key: String(doc.id),
+      id: String(doc.id),
+      file_name: doc.file_name || "Document",
+      file_url: doc.file_url,
+      file_size: doc.file_size ?? null,
+    })),
+  ];
   const codingValidation = evaluateInvoiceCoding({
     amount: bill?.amount,
     job_id: bill?.job_id,
@@ -859,22 +877,18 @@ export default function BillDetails() {
       {/* Overdue Banner */}
       {billIsOverdue && (
         <div 
-          className="mb-6 border-2 border-destructive rounded-lg p-6"
+          className="mb-6 rounded-lg border border-destructive/60 bg-destructive/5 px-4 py-3"
           style={{ animation: 'pulse-red 2s ease-in-out infinite' }}
         >
-          <div className="flex items-center gap-4">
-            <AlertTriangle className="h-12 w-12 text-destructive flex-shrink-0" />
-            <div>
-              <h2 className="text-2xl font-bold text-destructive mb-1">
-                Bill Overdue
-              </h2>
-              <p className="text-lg font-semibold text-destructive/90">
-                This bill is overdue by {daysOverdue} {daysOverdue === 1 ? 'day' : 'days'}
-              </p>
-              <p className="text-sm text-muted-foreground mt-1">
-                Due date was {new Date(bill.due_date).toLocaleDateString()}
-              </p>
-            </div>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm">
+            <AlertTriangle className="h-4 w-4 text-destructive shrink-0" />
+            <span className="font-semibold text-destructive">Bill Overdue</span>
+            <span className="text-destructive/90">
+              This bill is overdue by {daysOverdue} {daysOverdue === 1 ? 'day' : 'days'}
+            </span>
+            <span className="text-muted-foreground">
+              Due date was {new Date(bill.due_date).toLocaleDateString()}
+            </span>
           </div>
         </div>
       )}
@@ -885,9 +899,9 @@ export default function BillDetails() {
           <Button variant="ghost" onClick={() => navigate("/invoices")}>
             <ArrowLeft className="h-4 w-4" />
           </Button>
-          <div>
+          <div className="flex flex-wrap items-center gap-3">
             <h1 className="text-2xl font-bold text-foreground">Bill Details</h1>
-            <div className="mt-2 flex flex-wrap items-center gap-2">
+            <div className="flex flex-wrap items-center gap-2">
               {billTimeline.map((item) => (
                 <Badge
                   key={item.key}
@@ -1064,129 +1078,91 @@ export default function BillDetails() {
       <div className="grid grid-cols-1 xl:grid-cols-4 gap-6 items-start">
         {/* File Preview Section */}
         <div className="xl:col-span-3">
-          <Card className="mb-6 xl:sticky xl:top-20">
-            <CardContent className="space-y-4">
-              <div className="h-[calc(100vh-12rem)] min-h-[680px] rounded-lg overflow-hidden bg-muted/20">
-                <ZoomableDocumentPreview
-                  url={resolvedPreviewUrl}
-                  fileName={activePreviewName}
-                  className="h-full"
-                  emptyMessage="No documents available"
-                  emptySubMessage="Attach a bill document to preview it here"
-                />
-              </div>
+          <Card className="mb-6">
+            <CardContent>
+              <div className="space-y-4">
+                <div className="h-[70vh] min-h-[520px] rounded-lg overflow-hidden bg-muted/20">
+                  <ZoomableDocumentPreview
+                    url={resolvedPreviewUrl}
+                    fileName={activePreviewName}
+                    className="h-full"
+                    emptyMessage="No documents available"
+                    emptySubMessage="Attach a bill document to preview it here"
+                  />
+                </div>
 
-              {(documents.length > 0 || bill?.file_url) && (
-                <div className="space-y-2">
-                  <div className="text-sm font-medium">Select Document</div>
-                  <div className="space-y-2 max-h-52 overflow-y-auto">
-                  {documents.map((doc) => (
-                    <div
-                      key={doc.id}
-                      className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md cursor-pointer border ${selectedPreviewKey === doc.id ? 'bg-primary/10 ring-1 ring-primary/50 border-primary/50' : 'bg-muted/40 hover:bg-muted/70 border-transparent'}`}
-                      onClick={() => setSelectedPreviewKey(doc.id)}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="h-4 w-4 shrink-0" />
-                        <span className="text-sm truncate">{doc.file_name}</span>
-                      </div>
-                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="Download"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void downloadDocument(doc.file_url, doc.file_name || "Document");
-                          }}
-                        >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="Email"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const shareable = toShareableFile({
-                              id: String(doc.id),
-                              file_name: doc.file_name || "Document",
-                              file_url: doc.file_url,
-                              file_size: doc.file_size ?? null,
-                            });
-                            if (!shareable) {
-                              toast({
-                                title: "Cannot email file",
-                                description: "This file is missing a valid storage path.",
-                                variant: "destructive",
-                              });
-                              return;
-                            }
-                            setShareFiles([shareable]);
-                          }}
-                        >
-                          <Mail className="h-4 w-4" />
-                        </Button>
-                      </div>
+                <div className="rounded-lg border bg-muted/10 p-3">
+                  <div className="mb-3 flex items-center justify-between gap-3">
+                    <div className="text-sm font-medium">Attachment Files</div>
+                    <div className="text-xs text-muted-foreground truncate">
+                      {selectedPreviewKey ? `Viewing: ${activePreviewName}` : `${attachmentFiles.length} file${attachmentFiles.length === 1 ? "" : "s"}`}
                     </div>
-                  ))}
+                  </div>
 
-                  {bill?.file_url && (
-                    <div
-                      className={`flex items-center justify-between gap-2 px-2.5 py-1.5 rounded-md cursor-pointer border ${selectedPreviewKey === 'bill' ? 'bg-primary/10 ring-1 ring-primary/50 border-primary/50' : 'bg-muted/40 hover:bg-muted/70 border-transparent'}`}
-                      onClick={() => setSelectedPreviewKey('bill')}
-                    >
-                      <div className="flex items-center gap-2 min-w-0">
-                        <FileText className="h-4 w-4 shrink-0" />
-                        <span className="text-sm truncate">Bill Document</span>
-                      </div>
-                      <div className="ml-auto flex items-center gap-1.5 shrink-0">
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="Download"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            void downloadDocument(bill.file_url, "Bill Document");
-                          }}
+                  {attachmentFiles.length > 0 ? (
+                    <div className="space-y-2">
+                      {attachmentFiles.map((file) => (
+                        <div
+                          key={file.id}
+                          className={`flex items-center justify-between gap-3 rounded-md border px-3 py-2.5 cursor-pointer ${selectedPreviewKey === file.key ? 'bg-primary/10 ring-1 ring-primary/50 border-primary/50' : 'bg-background hover:bg-muted/50 border-border'}`}
+                          onClick={() => setSelectedPreviewKey(file.key)}
                         >
-                          <Download className="h-4 w-4" />
-                        </Button>
-                        <Button
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          title="Email"
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            const shareable = toShareableFile({
-                              id: "bill-main-document",
-                              file_name: "Bill Document",
-                              file_url: bill.file_url,
-                              file_size: null,
-                            });
-                            if (!shareable) {
-                              toast({
-                                title: "Cannot email file",
-                                description: "This file is missing a valid storage path.",
-                                variant: "destructive",
-                              });
-                              return;
-                            }
-                            setShareFiles([shareable]);
-                          }}
-                        >
-                          <Mail className="h-4 w-4" />
-                        </Button>
-                      </div>
+                          <div className="flex min-w-0 items-center gap-2">
+                            <FileText className="h-4 w-4 shrink-0" />
+                            <div className="min-w-0">
+                              <div className="truncate text-sm font-medium">{file.file_name}</div>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2 shrink-0">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                void downloadDocument(file.file_url, file.file_name || "Document");
+                              }}
+                            >
+                              <Download className="h-4 w-4 mr-1.5" />
+                              Download
+                            </Button>
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="h-8"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const shareable = toShareableFile({
+                                  id: file.id,
+                                  file_name: file.file_name || "Document",
+                                  file_url: file.file_url,
+                                  file_size: file.file_size ?? null,
+                                });
+                                if (!shareable) {
+                                  toast({
+                                    title: "Cannot email file",
+                                    description: "This file is missing a valid storage path.",
+                                    variant: "destructive",
+                                  });
+                                  return;
+                                }
+                                setShareFiles([shareable]);
+                              }}
+                            >
+                              <Mail className="h-4 w-4 mr-1.5" />
+                              Share
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  ) : (
+                    <div className="rounded-md border border-dashed px-4 py-8 text-center text-sm text-muted-foreground">
+                      No attachment files available.
                     </div>
                   )}
-                  </div>
                 </div>
-              )}
+              </div>
             </CardContent>
           </Card>
 

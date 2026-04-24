@@ -19,6 +19,7 @@ import CommitmentInfo from "@/components/CommitmentInfo";
 import { generateCommitmentStatusReport } from "@/utils/commitmentReportPdf";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
+import FileShareModal from "@/components/FileShareModal";
 
 export default function SubcontractDetails() {
   const { id } = useParams();
@@ -31,9 +32,10 @@ export default function SubcontractDetails() {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
-const [changeOrders, setChangeOrders] = useState<any[]>([]);
-const [viewingFile, setViewingFile] = useState<{file: File, name: string} | null>(null);
-const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: string; description: string; type?: string }>>({});
+  const [changeOrders, setChangeOrders] = useState<any[]>([]);
+  const [viewingFile, setViewingFile] = useState<{file: File, name: string, path: string} | null>(null);
+  const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: string; description: string; type?: string }>>({});
+  const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
   const [contractEvents, setContractEvents] = useState<any[]>([]);
   const [companySignatureProvider, setCompanySignatureProvider] = useState<'manual' | 'docusign'>('manual');
   const [signatureActionLoading, setSignatureActionLoading] = useState(false);
@@ -222,17 +224,20 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
     }
   };
 
+  const normalizeSubcontractPath = (filePath: string) => {
+    let path = filePath;
+    if (filePath.includes('/storage/v1/object/')) {
+      const match = filePath.match(/\/subcontract-files\/(.+)$/);
+      if (match) {
+        path = match[1];
+      }
+    }
+    return path;
+  };
+
   const handleViewFile = async (filePath: string, fileName: string) => {
     try {
-      // Extract the path from the full URL if it's a URL
-      let path = filePath;
-      if (filePath.includes('/storage/v1/object/')) {
-        // Extract path after the bucket name
-        const match = filePath.match(/\/subcontract-files\/(.+)$/);
-        if (match) {
-          path = match[1];
-        }
-      }
+      const path = normalizeSubcontractPath(filePath);
 
       const { data, error } = await supabase.storage
         .from('subcontract-files')
@@ -242,12 +247,39 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
 
       // Create a proper File object from the Blob
       const fileObj = new File([data], fileName, { type: data.type });
-      setViewingFile({ file: fileObj, name: fileName });
+      setViewingFile({ file: fileObj, name: fileName, path });
     } catch (error) {
       console.error('Error downloading file:', error);
       toast({
         title: "Error",
         description: "Failed to load file",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDownloadFile = async (filePath: string, fileName: string) => {
+    try {
+      const path = normalizeSubcontractPath(filePath);
+      const { data, error } = await supabase.storage
+        .from('subcontract-files')
+        .download(path);
+
+      if (error) throw error;
+
+      const objectUrl = URL.createObjectURL(data);
+      const link = document.createElement('a');
+      link.href = objectUrl;
+      link.download = fileName || 'Contract Document';
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error) {
+      console.error('Error downloading subcontract file:', error);
+      toast({
+        title: "Download failed",
+        description: "Could not download this contract document.",
         variant: "destructive",
       });
     }
@@ -355,10 +387,58 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
 
   if (viewingFile) {
     return (
-      <FullPagePdfViewer 
-        file={viewingFile.file} 
-        onBack={() => setViewingFile(null)} 
-      />
+      <>
+        <div className="fixed inset-0 z-40 flex flex-col bg-background">
+          <div className="flex items-center justify-between gap-3 border-b bg-background/95 px-4 py-3 backdrop-blur supports-[backdrop-filter]:bg-background/70">
+            <div className="min-w-0">
+              <p className="truncate text-sm font-medium">{viewingFile.name}</p>
+              <p className="text-xs text-muted-foreground">Subcontract document</p>
+            </div>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShareFiles([{
+                  id: `subcontract-doc-${viewingFile.path}`,
+                  file_name: viewingFile.name,
+                  file_url: viewingFile.path,
+                  file_size: viewingFile.file.size || null,
+                }])}
+              >
+                <Send className="h-4 w-4 mr-2" />
+                Email / Share
+              </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => void handleDownloadFile(viewingFile.path, viewingFile.name)}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download
+              </Button>
+              <Button variant="default" size="sm" onClick={() => setViewingFile(null)}>
+                Close
+              </Button>
+            </div>
+          </div>
+          <div className="min-h-0 flex-1">
+            <FullPagePdfViewer
+              file={viewingFile.file}
+              onBack={() => setViewingFile(null)}
+              hideBackButton
+            />
+          </div>
+        </div>
+        <FileShareModal
+          open={shareFiles.length > 0}
+          onOpenChange={(open) => {
+            if (!open) setShareFiles([]);
+          }}
+          files={shareFiles}
+          jobId={subcontract?.jobs?.id || ''}
+          storageBucket="subcontract-files"
+        />
+      </>
     );
   }
 
@@ -866,6 +946,16 @@ const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: stri
           )}
         </CardContent>
       </Card>
+
+      <FileShareModal
+        open={shareFiles.length > 0}
+        onOpenChange={(open) => {
+          if (!open) setShareFiles([]);
+        }}
+        files={shareFiles}
+        jobId={subcontract?.jobs?.id || ''}
+        storageBucket="subcontract-files"
+      />
     </div>
   );
 }
