@@ -1026,13 +1026,6 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
         onDragOver={handleRootDragOver}
         onDragLeave={() => setDragOverRoot(false)}
       >
-        <div className="pointer-events-none absolute inset-0 z-0 flex items-center justify-center">
-          <div className="text-sm font-medium text-muted-foreground/20">
-            Drop files here
-            <span className="mx-2 text-border/40">|</span>
-            Drag folders here to move them to top level
-          </div>
-        </div>
         <div className="relative z-10">
         <div className="flex items-center gap-2 px-2.5 py-1 text-xs font-medium text-muted-foreground border-b">
           <span className="flex-1">
@@ -1363,6 +1356,11 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
 
           return renderFolderNode(folder, 0);
         })}
+        </div>
+        <div className="border-t px-2.5 py-2 text-center text-sm font-medium text-muted-foreground/60">
+          Drop files here
+          <span className="mx-2 text-border/50">|</span>
+          Drag folders here to move them to top level
         </div>
       </div>
 

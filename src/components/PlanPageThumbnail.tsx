@@ -9,9 +9,11 @@ interface PlanPageThumbnailProps {
   pageNumber: number;
   alt: string;
   className?: string;
+  disablePdfFallback?: boolean;
 }
 
 const renderCache = new Map<string, string>();
+const resolvedThumbnailUrlCache = new Map<string, string>();
 
 function inferBucket(pathOrUrl: string) {
   if (pathOrUrl.includes("/job-filing-cabinet/") || pathOrUrl.startsWith("job-filing-cabinet/")) {
@@ -26,16 +28,44 @@ export default function PlanPageThumbnail({
   pageNumber,
   alt,
   className = "h-16 w-16 rounded-lg border object-cover shrink-0 bg-muted",
+  disablePdfFallback = false,
 }: PlanPageThumbnailProps) {
-  const [previewUrl, setPreviewUrl] = useState<string | null>(thumbnailUrl || null);
-  const [loading, setLoading] = useState(!thumbnailUrl && !!planFileUrl);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [loading, setLoading] = useState(!!thumbnailUrl || (!!planFileUrl && !disablePdfFallback));
 
   useEffect(() => {
     let cancelled = false;
 
-    async function loadFallbackThumbnail() {
+    async function loadThumbnail() {
       if (thumbnailUrl) {
-        setPreviewUrl(thumbnailUrl);
+        const cachedThumbnailUrl = resolvedThumbnailUrlCache.get(thumbnailUrl);
+        if (cachedThumbnailUrl) {
+          setPreviewUrl(cachedThumbnailUrl);
+          setLoading(false);
+          return;
+        }
+
+        try {
+          setLoading(true);
+          const resolvedThumbnailUrl = await resolveStorageUrl("company-files", thumbnailUrl);
+          if (cancelled) return;
+          if (resolvedThumbnailUrl) {
+            resolvedThumbnailUrlCache.set(thumbnailUrl, resolvedThumbnailUrl);
+          }
+          setPreviewUrl(resolvedThumbnailUrl || thumbnailUrl);
+          setLoading(false);
+          return;
+        } catch (error) {
+          console.error("PlanPageThumbnail: failed resolving thumbnail URL", error);
+          if (!cancelled) {
+            setPreviewUrl(null);
+            setLoading(!disablePdfFallback && !!planFileUrl);
+          }
+        }
+      }
+
+      if (disablePdfFallback) {
+        setPreviewUrl(null);
         setLoading(false);
         return;
       }
@@ -96,12 +126,12 @@ export default function PlanPageThumbnail({
       }
     }
 
-    void loadFallbackThumbnail();
+    void loadThumbnail();
 
     return () => {
       cancelled = true;
     };
-  }, [pageNumber, planFileUrl, thumbnailUrl]);
+  }, [disablePdfFallback, pageNumber, planFileUrl, thumbnailUrl]);
 
   if (previewUrl) {
     return <img src={previewUrl} alt={alt} className={className} />;

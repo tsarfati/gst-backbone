@@ -632,6 +632,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
           void indexPlanPagesOnce({
             planId: savedPlan!.id,
             planUrl: savedPlan!.file_url,
+            companyId: currentCompany?.id,
           })
             .then((result) => {
               if (!result.skipped && result.successCount > 0) {

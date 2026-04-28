@@ -193,8 +193,9 @@ export function buildPlanPageRecord(params: {
   pageNumber: number;
   ocrResult?: Partial<PlanSheetMetadata> | null;
   pdfTextResult?: Partial<PlanSheetMetadata> | null;
+  thumbnailUrl?: string | null;
 }) {
-  const { planId, pageNumber, ocrResult, pdfTextResult } = params;
+  const { planId, pageNumber, ocrResult, pdfTextResult, thumbnailUrl } = params;
 
   const sheetNumber =
     cleanSheetNumber(ocrResult?.sheet_number) ||
@@ -223,6 +224,7 @@ export function buildPlanPageRecord(params: {
     page_description: sheetTitle
       ? `${discipline} - ${sheetTitle}`
       : (sheetNumber ? `${discipline} - ${sheetNumber}` : `Page ${pageNumber}`),
+    thumbnail_url: thumbnailUrl || null,
   };
 }
 

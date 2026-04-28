@@ -16,6 +16,7 @@ import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessJobIds, ensureAllowedJobFilter } from '@/utils/jobAccess';
 import { createRfpNotifications } from '@/utils/rfpNotifications';
 import { getStoragePathForDb } from '@/utils/storageUtils';
+import { backfillPlanPageThumbnails } from '@/utils/planPageThumbnails';
 import RfpPlanPagePicker, {
   type RfpPlanPageNoteDraft,
   type RfpPlanPageOption,
@@ -57,6 +58,9 @@ interface SelectedRfpPlanPage extends RfpPlanPageOption {
   note?: string | null;
   callouts?: RfpPlanPageNoteDraft[];
 }
+
+const INITIAL_PLAN_PAGE_BATCH_SIZE = 12;
+const BACKGROUND_PLAN_PAGE_BATCH_SIZE = 50;
 
 function pickJoinedRow<T>(value: T | T[] | null | undefined): T | null {
   if (Array.isArray(value)) return value[0] ?? null;
@@ -120,29 +124,6 @@ const buildCommentSelectionSignature = (pages: SelectedRfpPlanPage[]) =>
       .sort((a, b) => a.plan_page_id.localeCompare(b.plan_page_id)),
   );
 
-const resolveEffectiveFullPlanSetIds = (
-  selectedFullPlanSetIds: string[],
-  selectedPlanPages: SelectedRfpPlanPage[],
-  availablePlanPages: RfpPlanPageOption[],
-) => {
-  const availableCountsByPlanId = availablePlanPages.reduce<Map<string, number>>((map, page) => {
-    map.set(page.plan_id, (map.get(page.plan_id) || 0) + 1);
-    return map;
-  }, new Map());
-
-  const selectedCountsByPlanId = selectedPlanPages.reduce<Map<string, number>>((map, page) => {
-    map.set(page.plan_id, (map.get(page.plan_id) || 0) + 1);
-    return map;
-  }, new Map());
-
-  return selectedFullPlanSetIds.filter((planId) => {
-    const selectedCount = selectedCountsByPlanId.get(planId);
-    if (!selectedCount) return true;
-    const availableCount = availableCountsByPlanId.get(planId) || 0;
-    return availableCount > 0 && selectedCount >= availableCount;
-  });
-};
-
 export default function AddRFP() {
   const navigate = useNavigate();
   const { id } = useParams<{ id: string }>();
@@ -167,7 +148,8 @@ export default function AddRFP() {
   const [initialFormSnapshot, setInitialFormSnapshot] = useState<Record<string, string> | null>(null);
   const [initialPlanSelectionSignature, setInitialPlanSelectionSignature] = useState('[]');
   const [initialCommentSelectionSignature, setInitialCommentSelectionSignature] = useState('[]');
-  const [didHydrateFullPlanSetSelection, setDidHydrateFullPlanSetSelection] = useState(false);
+  const [loadedPlanPagePlanIds, setLoadedPlanPagePlanIds] = useState<string[]>([]);
+  const [loadingPlanPagePlanIds, setLoadingPlanPagePlanIds] = useState<string[]>([]);
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [planSetPickerOpen, setPlanSetPickerOpen] = useState(false);
   const [jobFilePickerOpen, setJobFilePickerOpen] = useState(false);
@@ -200,47 +182,11 @@ export default function AddRFP() {
   }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(','), id]);
 
   useEffect(() => {
-    if (!isEditMode) {
-      setDidHydrateFullPlanSetSelection(false);
-      return;
-    }
-
-    if (didHydrateFullPlanSetSelection || availablePlanPages.length === 0 || selectedPlanPages.length === 0) {
-      return;
-    }
-
-    const availableCountsByPlanId = availablePlanPages.reduce<Map<string, number>>((map, page) => {
-      map.set(page.plan_id, (map.get(page.plan_id) || 0) + 1);
-      return map;
-    }, new Map());
-
-    const selectedPageIdsByPlanId = selectedPlanPages.reduce<Map<string, Set<string>>>((map, page) => {
-      const current = map.get(page.plan_id) || new Set<string>();
-      current.add(page.plan_page_id);
-      map.set(page.plan_id, current);
-      return map;
-    }, new Map());
-
-    const hydratedFullPlanSetIds = Array.from(selectedPageIdsByPlanId.entries())
-      .filter(([planId, pageIds]) => {
-        const availableCount = availableCountsByPlanId.get(planId) || 0;
-        return availableCount > 0 && pageIds.size === availableCount;
-      })
-      .map(([planId]) => planId);
-
-    setSelectedFullPlanSetIds(hydratedFullPlanSetIds);
-    setDidHydrateFullPlanSetSelection(true);
-  }, [
-    isEditMode,
-    didHydrateFullPlanSetSelection,
-    availablePlanPages,
-    selectedPlanPages,
-  ]);
-
-  useEffect(() => {
     if (!currentCompany?.id || !formData.job_id) {
       setAvailablePlanSets([]);
       setAvailablePlanPages([]);
+      setLoadedPlanPagePlanIds([]);
+      setLoadingPlanPagePlanIds([]);
       setAvailableJobFiles([]);
       setAvailableJobFolders([]);
       setSelectedPlanPages((prev) => prev.filter((page) => !page.plan_id));
@@ -288,7 +234,6 @@ export default function AddRFP() {
   const loadRfpForEdit = async () => {
     try {
       setLoadingRfp(true);
-      setDidHydrateFullPlanSetSelection(false);
       const { data, error } = await supabase
         .from('rfps')
         .select('*')
@@ -366,6 +311,8 @@ export default function AddRFP() {
       const planIds = (plansData || []).map((plan: any) => String(plan.id)).filter(Boolean);
       if (planIds.length === 0) {
         setAvailablePlanPages([]);
+        setLoadedPlanPagePlanIds([]);
+        setLoadingPlanPagePlanIds([]);
         setAvailableJobFiles([]);
         setAvailableJobFolders([]);
         setSelectedPlanPages((prev) => prev.filter((page) => planIds.includes(page.plan_id)));
@@ -374,32 +321,9 @@ export default function AddRFP() {
         return;
       }
 
-      const { data: pageRows, error: pageError } = await supabase
-        .from('plan_pages' as any)
-        .select('id, plan_id, page_number, sheet_number, page_title, discipline, thumbnail_url')
-        .in('plan_id', planIds)
-        .order('page_number', { ascending: true });
-
-      if (pageError) throw pageError;
-
-      const planById = new Map((plansData || []).map((plan: any) => [String(plan.id), plan]));
-      const nextOptions: RfpPlanPageOption[] = ((pageRows || []) as any[]).map((page) => {
-        const plan = planById.get(String(page.plan_id));
-        return {
-          plan_id: String(page.plan_id),
-          plan_name: String(plan?.plan_name || 'Plan Set'),
-          plan_number: plan?.plan_number || null,
-          plan_file_url: plan?.file_url || null,
-          plan_page_id: String(page.id),
-          page_number: Number(page.page_number || 0),
-          sheet_number: page.sheet_number || null,
-          page_title: page.page_title || null,
-          discipline: page.discipline || null,
-          thumbnail_url: page.thumbnail_url || null,
-        };
-      });
-
-      setAvailablePlanPages(nextOptions);
+      setAvailablePlanPages((prev) => prev.filter((page) => planIds.includes(page.plan_id)));
+      setLoadedPlanPagePlanIds((prev) => prev.filter((planId) => planIds.includes(planId)));
+      setLoadingPlanPagePlanIds((prev) => prev.filter((planId) => planIds.includes(planId)));
       const { data: jobFileRows, error: jobFilesError } = await supabase
         .from('job_files')
         .select('id, file_name, file_url, file_size, file_type, folder_id')
@@ -440,7 +364,7 @@ export default function AddRFP() {
           .map((folder) => String(folder.id)),
       );
       setSelectedPlanPages((prev) =>
-        prev.filter((page) => nextOptions.some((option) => option.plan_page_id === page.plan_page_id)),
+        prev.filter((page) => planIds.includes(page.plan_id)),
       );
       setSelectedFullPlanSetIds((prev) => prev.filter((planId) => planIds.includes(planId)));
       setSelectedJobFileIds((prev) => prev.filter((fileId) => (jobFileRows || []).some((file: any) => String(file.id) === fileId)));
@@ -450,6 +374,154 @@ export default function AddRFP() {
       setAvailablePlanPages([]);
       setAvailableJobFiles([]);
       setAvailableJobFolders([]);
+    }
+  };
+
+  const loadPlanPagesForPlan = async (planId: string) => {
+    if (!planId || loadedPlanPagePlanIds.includes(planId) || loadingPlanPagePlanIds.includes(planId)) {
+      return;
+    }
+
+    const plan = availablePlanSets.find((entry) => entry.id === planId);
+    if (!plan) return;
+
+    try {
+      setLoadingPlanPagePlanIds((prev) => [...prev, planId]);
+      const mapPageRows = (pageRows: any[]): RfpPlanPageOption[] =>
+        pageRows.map((page) => ({
+          plan_id: String(page.plan_id),
+          plan_name: plan.plan_name,
+          plan_number: plan.plan_number || null,
+          plan_file_url: plan.file_url || null,
+          plan_page_id: String(page.id),
+          page_number: Number(page.page_number || 0),
+          sheet_number: page.sheet_number || null,
+          page_title: page.page_title || null,
+          discipline: page.discipline || null,
+          thumbnail_url: page.thumbnail_url || null,
+        }));
+
+      const mergePlanPages = (pages: RfpPlanPageOption[]) => {
+        setAvailablePlanPages((prev) => {
+          const next = new Map<string, RfpPlanPageOption>();
+          prev.forEach((page) => {
+            if (page.plan_id !== planId) {
+              next.set(page.plan_page_id, page);
+            }
+          });
+
+          const existingForPlan = prev
+            .filter((page) => page.plan_id === planId)
+            .sort((a, b) => a.page_number - b.page_number);
+
+          [...existingForPlan, ...pages]
+            .sort((a, b) => a.page_number - b.page_number)
+            .forEach((page) => {
+              next.set(page.plan_page_id, page);
+            });
+
+          return Array.from(next.values());
+        });
+      };
+
+      const { data: initialRows, error } = await supabase
+        .from('plan_pages' as any)
+        .select('id, plan_id, page_number, sheet_number, page_title, discipline, thumbnail_url')
+        .eq('plan_id', planId)
+        .range(0, INITIAL_PLAN_PAGE_BATCH_SIZE - 1)
+        .order('page_number', { ascending: true });
+
+      if (error) throw error;
+
+      const initialOptions = mapPageRows((initialRows || []) as any[]);
+      mergePlanPages(initialOptions);
+
+      const initialMissingThumbnailRows = ((initialRows || []) as any[])
+        .filter((row) => !row.thumbnail_url)
+        .map((row) => ({
+          page_number: Number(row.page_number || 0),
+          thumbnail_url: row.thumbnail_url || null,
+        }))
+        .filter((row) => row.page_number > 0)
+        .sort((a, b) => a.page_number - b.page_number);
+      const prioritizedMissingThumbnailRows = initialMissingThumbnailRows.slice(0, 5);
+
+      if (plan.file_url && prioritizedMissingThumbnailRows.length > 0) {
+        void backfillPlanPageThumbnails({
+          planId,
+          planUrl: plan.file_url,
+          companyId: currentCompany!.id,
+          pageRows: prioritizedMissingThumbnailRows,
+          onBatch: (results) => {
+            setAvailablePlanPages((prev) =>
+              prev.map((page) => {
+                const match = results.find((result) => result.pageNumber === page.page_number && page.plan_id === planId);
+                return match ? { ...page, thumbnail_url: match.thumbnailUrl } : page;
+              }),
+            );
+          },
+        });
+      }
+
+      let offset = INITIAL_PLAN_PAGE_BATCH_SIZE;
+      let done = ((initialRows || []) as any[]).length < INITIAL_PLAN_PAGE_BATCH_SIZE;
+      const deferredMissingThumbnailRows: Array<{ page_number: number; thumbnail_url?: string | null }> =
+        initialMissingThumbnailRows.slice(5);
+
+      while (!done) {
+        const { data: batchRows, error: batchError } = await supabase
+          .from('plan_pages' as any)
+          .select('id, plan_id, page_number, sheet_number, page_title, discipline, thumbnail_url')
+          .eq('plan_id', planId)
+          .range(offset, offset + BACKGROUND_PLAN_PAGE_BATCH_SIZE - 1)
+          .order('page_number', { ascending: true });
+
+        if (batchError) throw batchError;
+
+        const rows = (batchRows || []) as any[];
+        if (rows.length === 0) {
+          done = true;
+          break;
+        }
+
+        mergePlanPages(mapPageRows(rows));
+        rows
+          .filter((row) => !row.thumbnail_url)
+          .forEach((row) => {
+            const pageNumber = Number(row.page_number || 0);
+            if (pageNumber > 0) {
+              deferredMissingThumbnailRows.push({
+                page_number: pageNumber,
+                thumbnail_url: row.thumbnail_url || null,
+              });
+            }
+          });
+        offset += rows.length;
+        done = rows.length < BACKGROUND_PLAN_PAGE_BATCH_SIZE;
+      }
+
+      if (plan.file_url && deferredMissingThumbnailRows.length > 0) {
+        void backfillPlanPageThumbnails({
+          planId,
+          planUrl: plan.file_url,
+          companyId: currentCompany!.id,
+          pageRows: deferredMissingThumbnailRows,
+          onBatch: (results) => {
+            setAvailablePlanPages((prev) =>
+              prev.map((page) => {
+                const match = results.find((result) => result.pageNumber === page.page_number && page.plan_id === planId);
+                return match ? { ...page, thumbnail_url: match.thumbnailUrl } : page;
+              }),
+            );
+          },
+        });
+      }
+
+      setLoadedPlanPagePlanIds((prev) => [...prev, planId]);
+    } catch (error) {
+      console.error(`Error loading plan pages for plan ${planId}:`, error);
+    } finally {
+      setLoadingPlanPagePlanIds((prev) => prev.filter((entry) => entry !== planId));
     }
   };
 
@@ -529,6 +601,55 @@ export default function AddRFP() {
       }));
 
       setSelectedPlanPages(next);
+      setAvailablePlanPages((prev) => {
+        const merged = new Map<string, RfpPlanPageOption>();
+        [...prev, ...next].forEach((page) => {
+          merged.set(page.plan_page_id, {
+            plan_id: page.plan_id,
+            plan_name: page.plan_name,
+            plan_number: page.plan_number || null,
+            plan_file_url: page.plan_file_url || null,
+            plan_page_id: page.plan_page_id,
+            page_number: page.page_number,
+            sheet_number: page.sheet_number || null,
+            page_title: page.page_title || null,
+            discipline: page.discipline || null,
+            thumbnail_url: page.thumbnail_url || null,
+          });
+        });
+        return Array.from(merged.values());
+      });
+
+      const selectedPlanIds = Array.from(new Set(next.map((page) => page.plan_id)));
+      if (selectedPlanIds.length > 0) {
+        const { data: allPlanRows, error: allPlanRowsError } = await supabase
+          .from('plan_pages' as any)
+          .select('id, plan_id')
+          .in('plan_id', selectedPlanIds);
+
+        if (allPlanRowsError) throw allPlanRowsError;
+
+        const totalByPlanId = ((allPlanRows || []) as any[]).reduce<Map<string, number>>((map, row) => {
+          const key = String(row.plan_id || '');
+          map.set(key, (map.get(key) || 0) + 1);
+          return map;
+        }, new Map());
+
+        const selectedByPlanId = next.reduce<Map<string, number>>((map, page) => {
+          map.set(page.plan_id, (map.get(page.plan_id) || 0) + 1);
+          return map;
+        }, new Map());
+
+        setSelectedFullPlanSetIds(
+          selectedPlanIds.filter((planId) => {
+            const total = totalByPlanId.get(planId) || 0;
+            const selected = selectedByPlanId.get(planId) || 0;
+            return total > 0 && total === selected;
+          }),
+        );
+      } else {
+        setSelectedFullPlanSetIds([]);
+      }
       return next;
     } catch (error) {
       console.error('Error loading selected RFP plan pages:', error);
@@ -548,17 +669,35 @@ export default function AddRFP() {
 
     if (deleteError) throw deleteError;
 
-    const effectiveFullPlanSetIds = resolveEffectiveFullPlanSetIds(
-      selectedFullPlanSetIds,
-      selectedPlanPages,
-      availablePlanPages,
-    );
-    const fullPlanSetPages = availablePlanPages.filter((page) => effectiveFullPlanSetIds.includes(page.plan_id));
+    let fullPlanSetPages: Array<{ plan_id: string; plan_page_id: string }> = [];
+    if (selectedFullPlanSetIds.length > 0) {
+      const { data: fullPlanSetRows, error: fullPlanSetRowsError } = await supabase
+        .from('plan_pages' as any)
+        .select('id, plan_id')
+        .in('plan_id', selectedFullPlanSetIds);
+
+      if (fullPlanSetRowsError) throw fullPlanSetRowsError;
+
+      fullPlanSetPages = ((fullPlanSetRows || []) as any[]).map((row) => ({
+        plan_id: String(row.plan_id),
+        plan_page_id: String(row.id),
+      }));
+    }
     const mergedPages = [...selectedPlanPages];
     fullPlanSetPages.forEach((page) => {
       if (!mergedPages.some((entry) => entry.plan_page_id === page.plan_page_id)) {
         mergedPages.push({
-          ...page,
+          ...availablePlanPages.find((entry) => entry.plan_page_id === page.plan_page_id),
+          plan_id: page.plan_id,
+          plan_page_id: page.plan_page_id,
+          plan_name: availablePlanSets.find((entry) => entry.id === page.plan_id)?.plan_name || 'Plan Set',
+          plan_number: availablePlanSets.find((entry) => entry.id === page.plan_id)?.plan_number || null,
+          plan_file_url: availablePlanSets.find((entry) => entry.id === page.plan_id)?.file_url || null,
+          page_number: 0,
+          sheet_number: null,
+          page_title: null,
+          discipline: null,
+          thumbnail_url: null,
           is_primary: false,
           note: null,
           callouts: [],
@@ -625,9 +764,8 @@ export default function AddRFP() {
         callouts: (page.callouts || []).map((callout) => ({ ...callout })),
       }));
     setSelectedPlanPages(normalizedPages);
-    setSelectedFullPlanSetIds((prev) =>
-      resolveEffectiveFullPlanSetIds(prev, normalizedPages, availablePlanPages),
-    );
+    const touchedPlanIds = new Set(normalizedPages.map((page) => page.plan_id));
+    setSelectedFullPlanSetIds((prev) => prev.filter((planId) => !touchedPlanIds.has(planId)));
   };
 
   const uploadAttachments = async (rfpId: string) => {
@@ -688,12 +826,7 @@ export default function AddRFP() {
     setSelectedDrawings(prev => [...prev, ...nextFiles]);
   };
 
-  const effectiveFullPlanSetIds = resolveEffectiveFullPlanSetIds(
-    selectedFullPlanSetIds,
-    selectedPlanPages,
-    availablePlanPages,
-  );
-  const selectedPlanSetRecords = availablePlanSets.filter((plan) => effectiveFullPlanSetIds.includes(plan.id));
+  const selectedPlanSetRecords = availablePlanSets.filter((plan) => selectedFullPlanSetIds.includes(plan.id));
   const selectedPlanSetSummaries = Array.from(
     selectedPlanPages.reduce<Map<string, {
       planId: string;
@@ -721,7 +854,7 @@ export default function AddRFP() {
         planNumber: page.plan_number || null,
         thumbnailUrl: page.thumbnail_url || null,
         selectedPageCount: 1,
-        fullSetSelected: effectiveFullPlanSetIds.includes(page.plan_id),
+        fullSetSelected: selectedFullPlanSetIds.includes(page.plan_id),
         noteCount: (page.callouts || []).length,
         hasPrimary: !!page.is_primary,
         firstPageLabel: page.sheet_number || `Page ${page.page_number}`,
@@ -1358,13 +1491,16 @@ export default function AddRFP() {
       </form>
       )}
 
-      <RfpPlanPagePicker
-        open={planPickerOpen}
-        onOpenChange={setPlanPickerOpen}
-        options={availablePlanPages}
-        selectedPages={selectedPlanPages}
-        onApply={applySelectedPlanPages}
-      />
+        <RfpPlanPagePicker
+          open={planPickerOpen}
+          onOpenChange={setPlanPickerOpen}
+          planSets={availablePlanSets}
+          options={availablePlanPages}
+          selectedPages={selectedPlanPages}
+          onApply={applySelectedPlanPages}
+          onLoadPlanPages={loadPlanPagesForPlan}
+          loadingPlanSetIds={loadingPlanPagePlanIds}
+        />
 
       <Dialog open={planSetPickerOpen} onOpenChange={setPlanSetPickerOpen}>
         <DialogContent className="max-w-2xl">

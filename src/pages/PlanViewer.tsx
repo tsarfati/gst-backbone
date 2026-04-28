@@ -656,6 +656,7 @@ export default function PlanViewer() {
         const result = await hydratePlanPagesFromPdfText({
           planId,
           planUrl: plan.file_url,
+          companyId: plan.company_id || undefined,
         });
         if (result.updatedCount > 0) {
           await fetchPlanData();

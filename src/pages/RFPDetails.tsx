@@ -108,15 +108,6 @@ async function resolveOptionalCompanyFileUrl(path: string | null | undefined) {
   }
 }
 
-interface RfpAttachmentReference {
-  rfp_id: string;
-  rfp_number: string;
-  title: string;
-  status: string;
-  job_id: string | null;
-  job_name?: string | null;
-}
-
 interface OwnerProfile {
   user_id: string;
   first_name?: string | null;
@@ -293,6 +284,7 @@ interface InvitedVendor {
   id: string;
   vendor_id: string;
   invited_at: string;
+  last_resent_at?: string | null;
   email_status?: string | null;
   email_from_address?: string | null;
   email_transport?: string | null;
@@ -305,6 +297,7 @@ interface InvitedVendor {
   vendor: Vendor;
   portal_invite_pending?: boolean;
   portal_invite_sent_at?: string | null;
+  portal_invite_expires_at?: string | null;
   portal_account_created?: boolean;
 }
 
@@ -329,6 +322,13 @@ const BIDDER_VENDOR_ACCESS_DEFAULTS = {
 };
 
 const isValidEmail = (value: string) => /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(value.trim());
+
+const formatInviteDate = (value: string | null | undefined) => {
+  if (!value) return null;
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return null;
+  return format(date, 'MMM d, yyyy');
+};
 
 const isMissingRfpPlanPageNotesTableError = (error: any) => {
   const message = String(error?.message || '').toLowerCase();
@@ -375,12 +375,7 @@ export default function RFPDetails() {
   const [attachmentToCopy, setAttachmentToCopy] = useState<RfpAttachment | null>(null);
   const [copyingAttachmentToRfp, setCopyingAttachmentToRfp] = useState(false);
   const [ownerProfilesById, setOwnerProfilesById] = useState<Record<string, OwnerProfile>>({});
-  const [rfpAttachmentRefsByUrl, setRfpAttachmentRefsByUrl] = useState<Record<string, RfpAttachmentReference[]>>({});
-  const [rfpLinksDialogOpen, setRfpLinksDialogOpen] = useState(false);
-  const [rfpLinksDialogTitle, setRfpLinksDialogTitle] = useState('');
-  const [rfpLinksDialogRefs, setRfpLinksDialogRefs] = useState<RfpAttachmentReference[]>([]);
   const [loadingRfpTargets, setLoadingRfpTargets] = useState(false);
-  const [loadingAttachmentRefsByUrl, setLoadingAttachmentRefsByUrl] = useState<Record<string, boolean>>({});
   const [vendors, setVendors] = useState<Vendor[]>([]);
   const [invitedVendors, setInvitedVendors] = useState<InvitedVendor[]>([]);
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
@@ -884,44 +879,6 @@ export default function RFPDetails() {
     }
   };
 
-  const loadAttachmentRefsForUrl = async (fileUrl: string) => {
-    if (!fileUrl || !currentCompany?.id) return [];
-    if (rfpAttachmentRefsByUrl[fileUrl]) return rfpAttachmentRefsByUrl[fileUrl];
-
-    try {
-      setLoadingAttachmentRefsByUrl((prev) => ({ ...prev, [fileUrl]: true }));
-
-      const { data, error } = await supabase
-        .from('rfp_attachments')
-        .select('file_url, rfp_id, rfps!inner(id, rfp_number, title, status, job_id, jobs(name))')
-        .eq('company_id', currentCompany.id)
-        .eq('file_url', fileUrl);
-
-      if (error) throw error;
-
-      const refs = ((data || []) as any[]).reduce<RfpAttachmentReference[]>((acc, row: any) => {
-        const ref: RfpAttachmentReference = {
-          rfp_id: String(row.rfp_id || ''),
-          rfp_number: String(row.rfps?.rfp_number || ''),
-          title: String(row.rfps?.title || ''),
-          status: String(row.rfps?.status || ''),
-          job_id: row.rfps?.job_id || null,
-          job_name: row.rfps?.jobs?.name || null,
-        };
-        if (acc.some((entry) => entry.rfp_id === ref.rfp_id)) return acc;
-        return [...acc, ref];
-      }, []).sort((a, b) => `${a.rfp_number} ${a.title}`.localeCompare(`${b.rfp_number} ${b.title}`));
-
-      setRfpAttachmentRefsByUrl((prev) => ({ ...prev, [fileUrl]: refs }));
-      return refs;
-    } catch (error) {
-      console.error('Error loading attachment link refs for file:', error);
-      return [];
-    } finally {
-      setLoadingAttachmentRefsByUrl((prev) => ({ ...prev, [fileUrl]: false }));
-    }
-  };
-
   const loadBids = async () => {
     try {
       const { data, error } = await supabase
@@ -1149,6 +1106,7 @@ export default function RFPDetails() {
           id,
           vendor_id,
           invited_at,
+          last_resent_at,
           email_status,
           email_from_address,
           email_transport,
@@ -1166,7 +1124,7 @@ export default function RFPDetails() {
       const invitedRows = (data || []) as any[];
       const vendorIds = Array.from(new Set(invitedRows.map((row) => String(row.vendor_id)).filter(Boolean)));
 
-      let pendingInvitesByVendorId = new Map<string, { invited_at: string | null }>();
+      let pendingInvitesByVendorId = new Map<string, { invited_at: string | null; expires_at: string | null }>();
       let linkedVendorIds = new Set<string>();
 
       if (vendorIds.length > 0) {
@@ -1193,6 +1151,7 @@ export default function RFPDetails() {
             if (!pendingInvitesByVendorId.has(key)) {
               pendingInvitesByVendorId.set(key, {
                 invited_at: row.invited_at || null,
+                expires_at: row.expires_at || null,
               });
             }
           });
@@ -1218,6 +1177,7 @@ export default function RFPDetails() {
             ...row,
             portal_invite_pending: !!pendingPortalInvite && !portalAccountCreated,
             portal_invite_sent_at: pendingPortalInvite?.invited_at || null,
+            portal_invite_expires_at: pendingPortalInvite?.expires_at || null,
             portal_account_created: portalAccountCreated,
           };
         }),
@@ -1332,11 +1292,10 @@ export default function RFPDetails() {
       }
 
       setPlanPages(
-        await Promise.all(selectedRows.map(async (row) => ({
+        selectedRows.map((row) => ({
           ...row,
-          thumbnail_url: await resolveOptionalCompanyFileUrl(row.thumbnail_url),
           callouts: calloutsByPageId.get(row.id) || [],
-        }))),
+        })),
       );
       console.info('RFPDetails: mapped attached plan pages', selectedRows.map((row) => ({
         rfpPlanPageId: row.id,
@@ -1594,17 +1553,6 @@ export default function RFPDetails() {
     );
   };
 
-  const getRfpAttachmentRefsForUrl = (fileUrl: string) => rfpAttachmentRefsByUrl[fileUrl] || [];
-  const getRfpAttachmentCountForUrl = (fileUrl: string) => getRfpAttachmentRefsForUrl(fileUrl).length;
-
-  const openRfpLinksDialog = async (title: string, fileUrl: string) => {
-    const refs = await loadAttachmentRefsForUrl(fileUrl);
-    if (refs.length === 0) return;
-    setRfpLinksDialogTitle(title);
-    setRfpLinksDialogRefs(refs);
-    setRfpLinksDialogOpen(true);
-  };
-
   const saveAttachmentName = async (attachmentId: string) => {
     const nextName = editingAttachmentName.trim();
     if (!nextName) {
@@ -1647,6 +1595,25 @@ export default function RFPDetails() {
     setPreviewAttachmentUrl(resolved);
   };
 
+  const downloadAttachmentFile = async (attachment: RfpAttachment) => {
+    const resolved = await resolveStorageUrl('company-files', attachment.file_url);
+    if (!resolved) {
+      toast({
+        title: 'Error',
+        description: 'Failed to download attachment',
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    const link = document.createElement('a');
+    link.href = resolved;
+    link.download = attachment.file_name || 'Attachment';
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
   const handleInviteVendors = async () => {
     if (selectedVendors.length === 0) {
       toast({
@@ -1659,6 +1626,27 @@ export default function RFPDetails() {
 
     try {
       setInviting(true);
+
+      const ensureIssueDateForFirstInvite = async () => {
+        if (!id || rfp?.issue_date) return rfp?.issue_date || null;
+
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const { data: updatedRfp, error: updateIssueDateError } = await supabase
+          .from('rfps')
+          .update({ issue_date: today })
+          .eq('id', id)
+          .is('issue_date', null)
+          .select('issue_date')
+          .maybeSingle();
+
+        if (updateIssueDateError) throw updateIssueDateError;
+
+        const nextIssueDate = updatedRfp?.issue_date || today;
+        setRfp((prev) => (prev ? { ...prev, issue_date: nextIssueDate } : prev));
+        return nextIssueDate;
+      };
+
+      const effectiveIssueDate = await ensureIssueDateForFirstInvite();
 
       const invitations = selectedVendors.map(vendorId => ({
         rfp_id: id,
@@ -1704,6 +1692,7 @@ export default function RFPDetails() {
               rfpTitle: rfp?.title || '',
               rfpNumber: rfp?.rfp_number || '',
               dueDate: rfp?.due_date,
+              issueDate: effectiveIssueDate,
               vendorId: vendor.id,
               vendorName: vendor.name,
               vendorEmail: vendor.email,
@@ -1888,12 +1877,30 @@ export default function RFPDetails() {
     try {
       setResendingInvite(inv.id);
 
+      let effectiveIssueDate = rfp.issue_date;
+      if (!effectiveIssueDate && id) {
+        const today = format(new Date(), 'yyyy-MM-dd');
+        const { data: updatedRfp, error: updateIssueDateError } = await supabase
+          .from('rfps')
+          .update({ issue_date: today })
+          .eq('id', id)
+          .is('issue_date', null)
+          .select('issue_date')
+          .maybeSingle();
+
+        if (updateIssueDateError) throw updateIssueDateError;
+
+        effectiveIssueDate = updatedRfp?.issue_date || today;
+        setRfp((prev) => (prev ? { ...prev, issue_date: effectiveIssueDate } : prev));
+      }
+
       const { error: emailError } = await supabase.functions.invoke('send-rfp-invite', {
         body: {
           rfpId: id,
           rfpTitle: rfp.title,
           rfpNumber: rfp.rfp_number,
           dueDate: rfp.due_date,
+          issueDate: effectiveIssueDate,
           vendorId: inv.vendor.id,
           vendorName: inv.vendor.name,
           vendorEmail: inv.vendor.email,
@@ -1901,10 +1908,13 @@ export default function RFPDetails() {
           companyName: currentCompany!.name,
           scopeOfWork: rfp.scope_of_work,
           baseUrl: getPublicAuthOrigin(),
+          isResend: true,
         }
       });
 
       if (emailError) throw emailError;
+
+      await loadInvitedVendors();
 
       toast({
         title: 'Invitation Resent',
@@ -2570,18 +2580,9 @@ export default function RFPDetails() {
                 ) : null}
 
                 {!loadingPlansAndFiles ? (
-                  <>
-                <section className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold">Attached Plan Sets</h3>
-                    <Badge variant="outline">
-                      {planPageSets.length} set{planPageSets.length === 1 ? '' : 's'}
-                    </Badge>
-                  </div>
-
-                  {planPageSets.length === 0 ? (
+                  planPageSets.length === 0 && attachments.length === 0 ? (
                     <div className="rounded-lg border border-dashed px-4 py-5 text-sm text-muted-foreground">
-                      No plan sets attached to this RFP yet.
+                      No plans or files attached to this RFP yet.
                     </div>
                   ) : (
                     <div className="space-y-2">
@@ -2610,6 +2611,7 @@ export default function RFPDetails() {
                                 pageNumber={previewPage?.page_number || 1}
                                 alt={previewPage?.page_title || previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}
                                 className="h-14 w-14 rounded-lg border object-cover shrink-0 bg-background"
+                                disablePdfFallback
                               />
                               <div className="min-w-0 flex-1 space-y-1">
                                 <div className="flex flex-wrap items-center gap-2">
@@ -2617,6 +2619,9 @@ export default function RFPDetails() {
                                     {planSet.plan_name}
                                     {planSet.plan_number ? ` #${planSet.plan_number}` : ''}
                                   </p>
+                                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                    Plan Set
+                                  </Badge>
                                   <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
                                     {pageCount} page{pageCount === 1 ? '' : 's'}
                                   </Badge>
@@ -2678,24 +2683,6 @@ export default function RFPDetails() {
                           </div>
                         );
                       })}
-                    </div>
-                  )}
-                </section>
-
-                <section className="space-y-3">
-                  <div className="flex items-center gap-2">
-                    <h3 className="text-sm font-semibold">Attached Files</h3>
-                    <Badge variant="outline">
-                      {attachments.length} file{attachments.length === 1 ? '' : 's'}
-                    </Badge>
-                  </div>
-
-                  {attachments.length === 0 ? (
-                    <div className="rounded-lg border border-dashed px-4 py-5 text-sm text-muted-foreground">
-                      No files attached yet.
-                    </div>
-                  ) : (
-                    <div className="space-y-2">
                       {attachments.map((attachment) => {
                         const owner = ownerProfilesById[attachment.uploaded_by];
                         const ownerName = getAttachmentOwnerName(attachment);
@@ -2716,6 +2703,13 @@ export default function RFPDetails() {
                                   alt={attachment.file_name}
                                   className="h-12 w-12 rounded-lg border bg-muted object-cover shrink-0"
                                 />
+                              ) : attachment.file_url && String(attachment.file_type || '').toLowerCase().includes('pdf') ? (
+                                <PlanPageThumbnail
+                                  planFileUrl={attachment.file_url}
+                                  pageNumber={1}
+                                  alt={attachment.file_name}
+                                  className="h-12 w-12 rounded-lg border object-cover shrink-0 bg-muted"
+                                />
                               ) : (
                                 <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
                                   <FileText className="h-4 w-4" />
@@ -2724,33 +2718,14 @@ export default function RFPDetails() {
                               <div className="min-w-0 flex-1 space-y-2">
                                 <div className="flex items-start justify-between gap-3">
                                   <div className="min-w-0">
-                                    {editingAttachmentId === attachment.id ? (
-                                      <Input
-                                        autoFocus
-                                        value={editingAttachmentName}
-                                        onClick={(e) => e.stopPropagation()}
-                                        onChange={(e) => setEditingAttachmentName(e.target.value)}
-                                        onBlur={() => void saveAttachmentName(attachment.id)}
-                                        onKeyDown={(e) => {
-                                          if (e.key === 'Enter') void saveAttachmentName(attachment.id);
-                                          if (e.key === 'Escape') setEditingAttachmentId(null);
-                                        }}
-                                        disabled={savingAttachmentNameId === attachment.id}
-                                        className="h-8 text-sm"
-                                      />
-                                    ) : (
-                                      <button
-                                        type="button"
-                                        className="max-w-full truncate text-left text-sm font-medium hover:underline"
-                                        onClick={(e) => {
-                                          e.stopPropagation();
-                                          setEditingAttachmentId(attachment.id);
-                                          setEditingAttachmentName(attachment.file_name);
-                                        }}
-                                      >
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="max-w-full truncate text-left text-sm font-medium">
                                         {attachment.file_name}
-                                      </button>
-                                    )}
+                                      </p>
+                                      <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                        File
+                                      </Badge>
+                                    </div>
                                     <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                                       <span>{format(new Date(attachment.uploaded_at), 'MMM d, yyyy')}</span>
                                       <span>•</span>
@@ -2760,30 +2735,14 @@ export default function RFPDetails() {
                                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
                                     <Button
                                       type="button"
-                                      variant="ghost"
-                                      size="icon"
+                                      variant="outline"
+                                      size="sm"
                                       onClick={() => {
-                                        setAttachmentToCopy(attachment);
-                                        setSelectedTargetRfpId('');
-                                        setRfpAttachDialogOpen(true);
+                                        void downloadAttachmentFile(attachment);
                                       }}
                                     >
-                                      <Link2 className="h-4 w-4" />
-                                    </Button>
-                                    <Button
-                                      type="button"
-                                      variant="ghost"
-                                      size="icon"
-                                      disabled={deletingAttachmentId === attachment.id}
-                                      onClick={() => {
-                                        void handleDeleteAttachment(attachment);
-                                      }}
-                                    >
-                                      {deletingAttachmentId === attachment.id ? (
-                                        <span className="loading-dots text-xs">Loading</span>
-                                      ) : (
-                                        <Trash2 className="h-4 w-4 text-destructive" />
-                                      )}
+                                      <Download className="mr-2 h-4 w-4" />
+                                      PDF
                                     </Button>
                                   </div>
                                 </div>
@@ -2795,38 +2754,13 @@ export default function RFPDetails() {
                                   </Avatar>
                                   <span className="truncate text-sm">{ownerName}</span>
                                 </div>
-
-                                <div className="flex flex-wrap items-center gap-2" onClick={(e) => e.stopPropagation()}>
-                                  <button
-                                    type="button"
-                                    onClick={() => {
-                                      void openRfpLinksDialog(`${attachment.file_name} linked RFPs`, attachment.file_url);
-                                    }}
-                                  >
-                                    <Badge variant="secondary" className="text-[10px]">
-                                      {loadingAttachmentRefsByUrl[attachment.file_url] ? 'Loading links...' : 'View linked RFPs'}
-                                    </Badge>
-                                  </button>
-                                </div>
-
-                                <Input
-                                  value={attachmentComments[attachment.id] || ''}
-                                  placeholder="Add comment..."
-                                  className="h-8 text-sm"
-                                  onClick={(e) => e.stopPropagation()}
-                                  onChange={(e) =>
-                                    setAttachmentComments((prev) => ({ ...prev, [attachment.id]: e.target.value }))
-                                  }
-                                />
                               </div>
                             </div>
                           </div>
                         );
                       })}
                     </div>
-                  )}
-                </section>
-                  </>
+                  )
                 ) : null}
               </CardContent>
             </Card>
@@ -2949,7 +2883,32 @@ export default function RFPDetails() {
                         </div>
                       </TableCell>
                       <TableCell className="py-2">{inv.vendor?.email || '-'}</TableCell>
-                      <TableCell className="py-2">{format(new Date(inv.invited_at), 'MMM d, yyyy')}</TableCell>
+                      <TableCell className="py-2">
+                        <div className="space-y-1 text-xs leading-4">
+                          <div className="flex items-center gap-2">
+                            <span className="min-w-[48px] uppercase tracking-wide text-muted-foreground/80">Invited</span>
+                            <span className="text-sm font-medium text-foreground">
+                              {formatInviteDate(inv.invited_at) || '-'}
+                            </span>
+                          </div>
+                          {inv.last_resent_at ? (
+                            <div className="flex items-center gap-2">
+                              <span className="min-w-[48px] uppercase tracking-wide text-muted-foreground/80">Resent</span>
+                              <span className="text-sm text-foreground">
+                                {formatInviteDate(inv.last_resent_at) || '-'}
+                              </span>
+                            </div>
+                          ) : null}
+                          {(inv.portal_invite_expires_at || inv.portal_invite_pending) ? (
+                            <div className="flex items-center gap-2">
+                              <span className="min-w-[48px] uppercase tracking-wide text-muted-foreground/80">Expires</span>
+                              <span className="text-sm text-foreground">
+                                {formatInviteDate(inv.portal_invite_expires_at) || 'Pending'}
+                              </span>
+                            </div>
+                          ) : null}
+                        </div>
+                      </TableCell>
                       <TableCell className="py-2">
                         <div className="flex flex-wrap gap-2">
                           {renderBidInviteEmailStatusBadge(inv)}
@@ -3274,50 +3233,6 @@ export default function RFPDetails() {
         </DialogContent>
       </Dialog>
 
-      <Dialog
-        open={rfpLinksDialogOpen}
-        onOpenChange={(open) => {
-          if (!open) {
-            setRfpLinksDialogOpen(false);
-            setRfpLinksDialogTitle('');
-            setRfpLinksDialogRefs([]);
-          }
-        }}
-      >
-        <DialogContent className="max-w-md">
-          <DialogHeader>
-            <DialogTitle>{rfpLinksDialogTitle || 'Linked RFPs'}</DialogTitle>
-            <DialogDescription>
-              These RFPs already reference this file.
-            </DialogDescription>
-          </DialogHeader>
-          <div className="max-h-72 space-y-2 overflow-auto">
-            {rfpLinksDialogRefs.map((ref) => (
-              <button
-                key={ref.rfp_id}
-                type="button"
-                className="w-full rounded-md border px-3 py-2 text-left hover:bg-muted/40"
-                onClick={() => {
-                  setRfpLinksDialogOpen(false);
-                  navigate(`/construction/rfps/${ref.rfp_id}`);
-                }}
-              >
-                <div className="font-medium">{ref.rfp_number} - {ref.title}</div>
-                <div className="mt-1 flex items-center gap-2">
-                  {ref.job_name ? <span className="text-xs text-muted-foreground">{ref.job_name}</span> : null}
-                  <Badge variant={getRfpStatusBadgeVariant(ref.status)} className="capitalize">
-                    {ref.status.replace(/_/g, ' ')}
-                  </Badge>
-                </div>
-              </button>
-            ))}
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setRfpLinksDialogOpen(false)}>Close</Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-
       <AlertDialog open={!!inviteToRemove} onOpenChange={(open) => {
         if (!open) setInviteToRemove(null);
       }}>
@@ -3391,6 +3306,7 @@ export default function RFPDetails() {
                   label: `${page.sheet_number || `Page ${page.page_number}`}${page.page_title ? ` • ${page.page_title}` : ''}`,
                 }))}
                 selectedPageId={previewPlanPage.id}
+                autoOpenFullPreview
                 onSelectPage={(pageId) => {
                   const nextPage = previewPlanSet?.pages.find((page) => page.id === pageId) || null;
                   if (nextPage) setPreviewPlanPage(nextPage);

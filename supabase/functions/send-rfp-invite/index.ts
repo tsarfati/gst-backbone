@@ -31,6 +31,7 @@ interface RFPInviteRequest {
   scopeOfWork: string | null;
   message?: string | null;
   baseUrl?: string | null;
+  isResend?: boolean;
 }
 
 interface EmailTemplateRow {
@@ -156,6 +157,7 @@ const handler = async (req: Request): Promise<Response> => {
       scopeOfWork,
       message,
       baseUrl,
+      isResend,
     }: RFPInviteRequest = await req.json();
 
     console.log(`Sending RFP invite to ${vendorEmail} for RFP: ${rfpTitle}`);
@@ -235,6 +237,30 @@ const handler = async (req: Request): Promise<Response> => {
       }
 
       pendingVendorInvite = createdVendorInvite;
+    } else if (pendingVendorInvite?.token && isResend) {
+      const refreshedExpiry = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString();
+      const { data: refreshedVendorInvite, error: refreshVendorInviteError } = await admin!
+        .from("vendor_invitations")
+        .update({
+          invited_by: authData.user.id,
+          invited_at: new Date().toISOString(),
+          expires_at: refreshedExpiry,
+        })
+        .eq("vendor_id", vendorId)
+        .eq("email", vendorEmail)
+        .eq("status", "pending")
+        .gt("expires_at", new Date().toISOString())
+        .select("token, status, expires_at")
+        .order("invited_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (refreshVendorInviteError) {
+        console.error("Error refreshing vendor invitation from RFP resend:", refreshVendorInviteError);
+        throw new Error("Failed to refresh vendor signup invitation");
+      }
+
+      pendingVendorInvite = refreshedVendorInvite || pendingVendorInvite;
     }
 
     let ctaHref = `${publicBaseUrl}/vendor-signup?company=${encodeURIComponent(companyId)}`;
@@ -392,6 +418,7 @@ const handler = async (req: Request): Promise<Response> => {
           email_opened_at: null,
           email_bounced_at: null,
           resend_message_id: resendMessageId,
+          last_resent_at: isResend ? new Date().toISOString() : null,
         })
         .eq("rfp_id", rfpId)
         .eq("vendor_id", vendorId);

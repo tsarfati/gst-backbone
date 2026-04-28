@@ -1,10 +1,12 @@
 import { supabase } from "@/integrations/supabase/client";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { buildPlanPageRecord, extractPlanSheetMetadataFromPdfText, isPlaceholderPlanLabel } from "@/utils/planSheetMetadata";
+import { renderAndUploadPlanPageThumbnail } from "@/utils/planPageThumbnails";
 
 type HydratePlanPagesParams = {
   planId: string;
   planUrl: string;
+  companyId?: string;
 };
 
 type HydratePlanPagesResult = {
@@ -17,6 +19,7 @@ const UPSERT_BATCH_SIZE = 20;
 export async function hydratePlanPagesFromPdfText({
   planId,
   planUrl,
+  companyId,
 }: HydratePlanPagesParams): Promise<HydratePlanPagesResult> {
   const { data: existingRows, error: existingError } = await supabase
     .from("plan_pages" as any)
@@ -80,11 +83,23 @@ export async function hydratePlanPagesFromPdfText({
           viewportWidth: viewport.width,
           viewportHeight: viewport.height,
         });
+        let thumbnailUrl: string | null = null;
+        try {
+          thumbnailUrl = await renderAndUploadPlanPageThumbnail({
+            planId,
+            pageNumber,
+            page,
+            companyId,
+          });
+        } catch (thumbnailError) {
+          console.warn(`Hydration thumbnail generation failed for plan ${planId} page ${pageNumber}:`, thumbnailError);
+        }
         pendingRows.push(
           buildPlanPageRecord({
             planId,
             pageNumber,
             pdfTextResult,
+            thumbnailUrl,
           }),
         );
       } catch (pageError) {

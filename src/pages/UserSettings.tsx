@@ -761,10 +761,15 @@ export default function UserSettings() {
         const vendorRecord = user.vendor_id ? vendorById.get(String(user.vendor_id)) : null;
         const companyRecord = user.current_company_id ? companyById.get(String(user.current_company_id)) : null;
         const resolvedCompanyName =
-          String(companyRecord?.display_name || companyRecord?.name || '').trim()
-          || String(vendorRecord?.name || '').trim()
-          || requestBusinessNameByUserId.get(String(user.user_id))
-          || null;
+          userRole === 'vendor'
+            ? String(vendorRecord?.name || '').trim()
+              || requestBusinessNameByUserId.get(String(user.user_id))
+              || String(companyRecord?.display_name || companyRecord?.name || '').trim()
+              || null
+            : String(companyRecord?.display_name || companyRecord?.name || '').trim()
+              || String(vendorRecord?.name || '').trim()
+              || requestBusinessNameByUserId.get(String(user.user_id))
+              || null;
         const resolvedCompanyLogo =
           resolveCompanyLogoUrl(companyRecord?.logo_url || vendorRecord?.logo_url || null);
         const activeExternalJobs = (activeJobsByExternalUserId.get(String(user.user_id)) || [])
@@ -1117,7 +1122,7 @@ export default function UserSettings() {
                                 <div
                                   key={user.id}
                                   onClick={() => navigate(`/settings/users/${user.user_id}`)}
-                                  className="flex items-center gap-4 p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                                  className="flex items-center gap-4 p-3 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                                 >
                                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
                                     {user.avatar_url ? (
@@ -1137,22 +1142,20 @@ export default function UserSettings() {
                                     </span>
                                   </div>
                                   <div className="flex-1 min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <h3 className="font-semibold">
+                                    <div className="flex items-center gap-2 flex-wrap leading-tight">
+                                      <h3 className="font-semibold truncate">
                                         {user.display_name || `${user.first_name} ${user.last_name}`}
                                       </h3>
                                       <Badge variant={user.status === 'approved' ? 'success' : user.status === 'pending' ? 'warning' : user.status === 'rejected' ? 'destructive' : 'outline'}>
                                         {user.status || 'pending'}
                                       </Badge>
-                                    </div>
-                                    <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
-                                      {user.phone && <span>{user.phone}</span>}
-                                      <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                                    </div>
-                                    <div className="flex flex-wrap gap-2 mt-2">
                                       <Badge variant={customRoleForUser ? 'secondary' : (roleColors[user.role as keyof typeof roleColors] || 'outline')}>
                                         {customRoleForUser ? `${customRoleForUser.role_name} (Custom)` : (roleLabels[user.role as keyof typeof roleLabels] || user.role)}
                                       </Badge>
+                                    </div>
+                                    <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground flex-wrap leading-tight">
+                                      {user.phone && <span>{user.phone}</span>}
+                                      <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
                                       {user.has_pin ? (
                                         <Badge variant="outline" className="text-xs">PIN: {user.pin_code}</Badge>
                                       ) : (
@@ -1217,7 +1220,7 @@ export default function UserSettings() {
                                   <div
                                     key={user.id}
                                     onClick={() => navigate(`/settings/users/${user.user_id}`)}
-                                    className="flex items-center gap-4 p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
+                                    className="flex items-center gap-4 p-3 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                                   >
                                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
                                       {user.avatar_url ? (
@@ -1237,22 +1240,20 @@ export default function UserSettings() {
                                       </span>
                                     </div>
                                     <div className="flex-1 min-w-0">
-                                      <div className="flex items-center gap-2 flex-wrap">
-                                        <h3 className="font-semibold">
+                                      <div className="flex items-center gap-2 flex-wrap leading-tight">
+                                        <h3 className="font-semibold truncate">
                                           {user.display_name || `${user.first_name} ${user.last_name}`}
                                         </h3>
                                         <Badge variant={user.status === 'approved' ? 'success' : user.status === 'pending' ? 'warning' : user.status === 'rejected' ? 'destructive' : 'outline'}>
                                           {user.status || 'pending'}
                                         </Badge>
-                                      </div>
-                                      <div className="flex items-center gap-3 text-sm text-muted-foreground mt-1 flex-wrap">
-                                        {user.phone && <span>{user.phone}</span>}
-                                        <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
-                                      </div>
-                                      <div className="flex flex-wrap gap-2 mt-2">
                                         <Badge variant="secondary">
                                           {customRoleForUser ? `${customRoleForUser.role_name} (Custom)` : 'Custom Role'}
                                         </Badge>
+                                      </div>
+                                      <div className="mt-1 flex items-center gap-2 text-sm text-muted-foreground flex-wrap leading-tight">
+                                        {user.phone && <span>{user.phone}</span>}
+                                        <span>Created: {new Date(user.created_at).toLocaleDateString()}</span>
                                         {user.has_pin ? (
                                           <Badge variant="outline" className="text-xs">PIN: {user.pin_code}</Badge>
                                         ) : (
@@ -1327,18 +1328,16 @@ export default function UserSettings() {
                           <div className="flex items-center gap-2 flex-wrap leading-none">
                             <p className="font-medium truncate">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
                             <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">Vendor</Badge>
-                          </div>
-                          <p className="mt-1 text-sm text-muted-foreground truncate">
-                            {user.company_name || 'Vendor'}
-                            {user.phone ? ` • ${user.phone}` : ''}
-                          </p>
-                          <div className="mt-1 flex flex-wrap gap-1.5">
                             <Badge className="h-5 px-1.5 text-[11px]" variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'outline'}>
                               {user.status || 'pending'}
                             </Badge>
                             <Badge className="h-5 px-1.5 text-[11px]" variant={user.external_access_state === 'pending' ? 'secondary' : 'outline'}>
                               {user.external_access_state === 'pending' ? 'Portal Pending' : 'Portal Active'}
                             </Badge>
+                          </div>
+                          <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap leading-tight">
+                            <span className="truncate">{user.company_name || 'Vendor'}</span>
+                            {user.phone ? <span>• {user.phone}</span> : null}
                             {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
                               <Badge className="h-5 px-1.5 text-[11px]" variant="outline">
                                 {user.external_pending_jobs.length} pending job{user.external_pending_jobs.length === 1 ? '' : 's'}
@@ -1438,15 +1437,13 @@ export default function UserSettings() {
                           <div className="flex items-center gap-2 flex-wrap leading-none">
                             <p className="font-medium truncate">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
                             <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">Design Professional</Badge>
-                          </div>
-                          <p className="mt-1 text-sm text-muted-foreground truncate">
-                            {user.company_name || 'Design Professional'}
-                            {user.phone ? ` • ${user.phone}` : ''}
-                          </p>
-                          <div className="mt-1 flex flex-wrap gap-1.5">
                             <Badge className="h-5 px-1.5 text-[11px]" variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'outline'}>
                               {user.status || 'pending'}
                             </Badge>
+                          </div>
+                          <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap leading-tight">
+                            <span className="truncate">{user.company_name || 'Design Professional'}</span>
+                            {user.phone ? <span>• {user.phone}</span> : null}
                             {user.last_sign_in_at ? (
                               <Badge className="h-5 px-1.5 text-[11px]" variant="outline">
                                 Last login {new Date(user.last_sign_in_at).toLocaleDateString()}
@@ -1520,26 +1517,26 @@ export default function UserSettings() {
                                     </span>
                                   </div>
                                   <div className="min-w-0">
-                                    <div className="flex items-center gap-2 flex-wrap">
-                                      <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
+                                    <div className="flex items-center gap-2 flex-wrap leading-tight">
+                                      <p className="font-medium truncate">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
                                       <Badge variant="outline">Awaiting Acceptance</Badge>
+                                      <Badge variant="secondary">Design Professional</Badge>
                                     </div>
-                                    <p className="text-sm text-muted-foreground">
-                                      {group.companyName}
-                                      {user.phone ? ` • ${user.phone}` : ''}
-                                    </p>
-                                    {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        Pending jobs: {user.external_pending_jobs.map((job) => job.name).join(', ')}
-                                      </p>
-                                    ) : (
-                                      <p className="text-xs text-muted-foreground mt-1">
-                                        Waiting on email confirmation or project invite acceptance.
-                                      </p>
-                                    )}
+                                    <div className="mt-1 flex items-center gap-1.5 text-sm text-muted-foreground flex-wrap leading-tight">
+                                      <span className="truncate">{group.companyName}</span>
+                                      {user.phone ? <span>• {user.phone}</span> : null}
+                                      {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
+                                        <Badge variant="outline" className="text-[11px]">
+                                          {user.external_pending_jobs.length} pending job{user.external_pending_jobs.length === 1 ? '' : 's'}
+                                        </Badge>
+                                      ) : (
+                                        <Badge variant="outline" className="text-[11px] text-muted-foreground">
+                                          Waiting on acceptance
+                                        </Badge>
+                                      )}
+                                    </div>
                                   </div>
                                 </div>
-                                <Badge variant="secondary">Design Professional</Badge>
                               </div>
                             ))}
                           </div>

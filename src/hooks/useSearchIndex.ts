@@ -11,7 +11,7 @@ export interface SearchIndexItem {
   id: string;
   title: string;
   description: string;
-  type: 'receipt' | 'job' | 'vendor' | 'employee' | 'announcement' | 'page' | 'action' | 'report' | 'task' | 'bill' | 'ar_invoice' | 'customer' | 'payment' | 'credit_card_transaction' | 'subcontract' | 'purchase_order';
+  type: 'receipt' | 'job' | 'vendor' | 'employee' | 'announcement' | 'page' | 'action' | 'report' | 'task' | 'bill' | 'ar_invoice' | 'customer' | 'payment' | 'credit_card_transaction' | 'subcontract' | 'purchase_order' | 'file';
   path: string;
   content?: string;
   tags?: string[];
@@ -485,6 +485,121 @@ export function useSearchIndex() {
                 content: [job.name, job.client, job.address, job.description, job.status].filter(Boolean).join(' '),
                 tags: ['job', 'project'],
                 updatedAt: job.updated_at
+              });
+            });
+        }
+      }
+
+      if (hasAccess('jobs') || hasAccess('company-files') || hasAccess('jobs-view-filing-cabinet')) {
+        const { data: jobRows, error: jobRowsError } = await supabase
+          .from('jobs')
+          .select('id, name')
+          .eq('company_id', currentCompany.id)
+          .eq('is_active', true);
+
+        if (jobRowsError) {
+          console.error('Error fetching jobs for filing cabinet search:', jobRowsError);
+        } else {
+          const visibleJobs = ((jobRows || []) as any[]).filter((job) =>
+            !hasScopedJobAccess || allowedJobIds.has(String(job.id)),
+          );
+          const jobNameById = new Map<string, string>(
+            visibleJobs.map((job) => [String(job.id), String(job.name || '')]),
+          );
+          const visibleJobIds = Array.from(jobNameById.keys());
+
+          if (visibleJobIds.length > 0) {
+            const [{ data: folderRows, error: folderRowsError }, { data: fileRows, error: fileRowsError }] = await Promise.all([
+              supabase
+                .from('job_folders')
+                .select('id, job_id, name, parent_folder_id')
+                .in('job_id', visibleJobIds),
+              supabase
+                .from('job_files')
+                .select('id, job_id, folder_id, file_name, original_file_name, file_type, file_size, created_at, updated_at')
+                .in('job_id', visibleJobIds),
+            ]);
+
+            if (folderRowsError) {
+              console.error('Error fetching filing cabinet folders for search:', folderRowsError);
+            }
+            if (fileRowsError) {
+              console.error('Error fetching filing cabinet files for search:', fileRowsError);
+            }
+
+            const folderNameById = new Map<string, string>(
+              ((folderRows || []) as any[]).map((folder) => [String(folder.id), String(folder.name || '')]),
+            );
+
+            ((fileRows || []) as any[]).forEach((file) => {
+              const jobId = String(file.job_id || '');
+              const jobName = jobNameById.get(jobId) || 'Job Filing Cabinet';
+              const folderName = file.folder_id ? folderNameById.get(String(file.folder_id)) || '' : '';
+              const fileType = String(file.file_type || '').trim();
+              const fileSize = Number(file.file_size || 0);
+
+              newIndex.push({
+                id: `job-file-${file.id}`,
+                title: file.file_name || file.original_file_name || 'Job File',
+                description: [jobName, folderName ? `• ${folderName}` : '', fileType ? `• ${fileType}` : '']
+                  .filter(Boolean)
+                  .join(' '),
+                type: 'file',
+                path: '/company-files/jobs',
+                content: [
+                  file.file_name,
+                  file.original_file_name,
+                  jobName,
+                  folderName,
+                  fileType,
+                  fileSize > 0 ? `${fileSize}` : '',
+                ].filter(Boolean).join(' '),
+                tags: ['file', 'document', 'job filing cabinet', 'jobs'],
+                updatedAt: file.updated_at || file.created_at || new Date().toISOString(),
+              });
+            });
+          }
+        }
+      }
+
+      if (hasAccess('receipts')) {
+        const { data: receiptRows, error: receiptRowsError } = await supabase
+          .from('receipts')
+          .select('id, file_name, amount, vendor_name, receipt_date, job_id, status, created_at, updated_at')
+          .eq('company_id', currentCompany.id)
+          .order('created_at', { ascending: false })
+          .limit(1000);
+
+        if (receiptRowsError) {
+          console.error('Error fetching receipts for search:', receiptRowsError);
+        } else {
+          ((receiptRows || []) as any[])
+            .filter((receipt) => !hasScopedJobAccess || !receipt.job_id || allowedJobIds.has(String(receipt.job_id)))
+            .forEach((receipt) => {
+              const amountTokens = formatCurrencyVariants(receipt.amount);
+              const status = String(receipt.status || '').trim();
+              const vendorName = String(receipt.vendor_name || '').trim();
+              const isUncoded = status === 'uncoded' || status === 'partially_coded';
+
+              newIndex.push({
+                id: `receipt-${receipt.id}`,
+                title: receipt.file_name || `Receipt ${receipt.id}`,
+                description: [
+                  vendorName,
+                  status ? `• ${status.replace(/_/g, ' ')}` : '',
+                  amountTokens[amountTokens.length - 1] ? `• ${amountTokens[amountTokens.length - 1]}` : '',
+                ].filter(Boolean).join(' '),
+                type: 'receipt',
+                path: isUncoded ? `/uncoded?receiptId=${encodeURIComponent(String(receipt.id))}` : '/receipts',
+                content: [
+                  receipt.file_name,
+                  vendorName,
+                  status,
+                  receipt.receipt_date,
+                  ...amountTokens,
+                ].filter(Boolean).join(' '),
+                tags: ['receipt', ...(isUncoded ? ['uncoded'] : ['coded'])],
+                updatedAt: receipt.updated_at || receipt.created_at || new Date().toISOString(),
               });
             });
         }

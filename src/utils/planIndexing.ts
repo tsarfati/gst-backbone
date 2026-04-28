@@ -2,10 +2,12 @@ import { supabase } from "@/integrations/supabase/client";
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { buildPlanPageRecord, extractPlanSheetMetadataFromPdfText } from "@/utils/planSheetMetadata";
 import { hasMeaningfulPlanOcrResult, renderPlanOcrImageBase64 } from "@/utils/planOcr";
+import { renderAndUploadPlanPageThumbnail } from "@/utils/planPageThumbnails";
 
 type IndexPlanPagesParams = {
   planId: string;
   planUrl: string;
+  companyId?: string;
   force?: boolean;
   onProgress?: (current: number, total: number) => void;
 };
@@ -19,6 +21,7 @@ type IndexPlanPagesResult = {
 export async function indexPlanPagesOnce({
   planId,
   planUrl,
+  companyId,
   force = false,
   onProgress,
 }: IndexPlanPagesParams): Promise<IndexPlanPagesResult> {
@@ -106,11 +109,23 @@ export async function indexPlanPagesOnce({
           viewportWidth: baseViewport.width,
           viewportHeight: baseViewport.height,
         });
+        let thumbnailUrl: string | null = null;
+        try {
+          thumbnailUrl = await renderAndUploadPlanPageThumbnail({
+            planId,
+            pageNumber,
+            page,
+            companyId,
+          });
+        } catch (thumbnailError) {
+          console.warn(`Plan page thumbnail generation failed for page ${pageNumber}:`, thumbnailError);
+        }
         pageData = buildPlanPageRecord({
           planId,
           pageNumber,
           ocrResult: result,
           pdfTextResult,
+          thumbnailUrl,
         });
       } catch (error) {
         console.warn(`Plan page indexing fallback for page ${pageNumber}:`, error);
@@ -123,10 +138,22 @@ export async function indexPlanPagesOnce({
             viewportWidth: baseViewport.width,
             viewportHeight: baseViewport.height,
           });
+          let thumbnailUrl: string | null = null;
+          try {
+            thumbnailUrl = await renderAndUploadPlanPageThumbnail({
+              planId,
+              pageNumber,
+              page,
+              companyId,
+            });
+          } catch (thumbnailError) {
+            console.warn(`Plan page thumbnail generation failed for page ${pageNumber}:`, thumbnailError);
+          }
           pageData = buildPlanPageRecord({
             planId,
             pageNumber,
             pdfTextResult,
+            thumbnailUrl,
           });
         } catch (textFallbackError) {
           console.warn(`Plan page indexing text-only fallback failed for page ${pageNumber}:`, textFallbackError);

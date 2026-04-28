@@ -8,6 +8,8 @@ import { ChevronLeft, ChevronRight, Download, X, ZoomIn, ZoomOut } from 'lucide-
 import { supabase } from '@/integrations/supabase/client';
 import { resolveStorageUrl } from '@/utils/storageUtils';
 import { cn } from '@/lib/utils';
+const MIN_ZOOM_LEVEL = 0.5;
+const MAX_ZOOM_LEVEL = 5;
 
 export interface RfpPlanPageNoteViewerNote {
   id: string;
@@ -37,10 +39,30 @@ interface RfpPlanPageNoteViewerProps {
   pageOptions?: Array<{ id: string; label: string }>;
   selectedPageId?: string | null;
   onSelectPage?: (pageId: string) => void;
+  autoOpenFullPreview?: boolean;
 }
 
 export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps) {
-  const { planId, fileUrl, pageNumber, sheetNumber, pageTitle, planName, planNumber, thumbnailUrl, sheetNote, notes, selectedNoteIndex, onSelectNote, onClose, onDownload, pageOptions, selectedPageId, onSelectPage } = props;
+  const {
+    planId,
+    fileUrl,
+    pageNumber,
+    sheetNumber,
+    pageTitle,
+    planName,
+    planNumber,
+    thumbnailUrl,
+    sheetNote,
+    notes,
+    selectedNoteIndex,
+    onSelectNote,
+    onClose,
+    onDownload,
+    pageOptions,
+    selectedPageId,
+    onSelectPage,
+    autoOpenFullPreview = false,
+  } = props;
   const [zoomLevel, setZoomLevel] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [notesDrawerOpen, setNotesDrawerOpen] = useState(true);
@@ -50,17 +72,77 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
   const [resolvingFileUrl, setResolvingFileUrl] = useState(true);
   const [shouldRenderPdf, setShouldRenderPdf] = useState(false);
   const [fullPreviewRequested, setFullPreviewRequested] = useState(false);
+  const [previewViewportWidth, setPreviewViewportWidth] = useState(960);
+  const [isPanningPreview, setIsPanningPreview] = useState(false);
+  const thumbnailViewportRef = useRef<HTMLDivElement | null>(null);
+  const thumbnailImageRef = useRef<HTMLImageElement | null>(null);
   const noteRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const previewPanRef = useRef<{ pointerId: number; startX: number; startY: number; scrollLeft: number; scrollTop: number } | null>(null);
   const activeNoteIndex = useMemo(() => (
     typeof selectedNoteIndex === 'number' && selectedNoteIndex >= 0 && selectedNoteIndex < notes.length
       ? selectedNoteIndex
       : null
   ), [notes.length, selectedNoteIndex]);
 
+  const adjustZoom = (delta: number) => {
+    setZoomLevel((prev) => Math.max(MIN_ZOOM_LEVEL, Math.min(MAX_ZOOM_LEVEL, Number((prev + delta).toFixed(2)))));
+  };
+
+  const handlePreviewWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!event.altKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    adjustZoom(event.deltaY > 0 ? -0.15 : 0.15);
+  };
+
+  const handlePreviewPanStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (event.button !== 0) return;
+    const target = event.target as HTMLElement | null;
+    if (target?.closest('button')) return;
+    const viewport = thumbnailViewportRef.current;
+    if (!viewport) return;
+    previewPanRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
+    setIsPanningPreview(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handlePreviewPanMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const state = previewPanRef.current;
+    const viewport = thumbnailViewportRef.current;
+    if (!state || !viewport || state.pointerId !== event.pointerId) return;
+    viewport.scrollLeft = state.scrollLeft - (event.clientX - state.startX);
+    viewport.scrollTop = state.scrollTop - (event.clientY - state.startY);
+  };
+
+  const handlePreviewPanEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const state = previewPanRef.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    previewPanRef.current = null;
+    setIsPanningPreview(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
   useEffect(() => {
     let cancelled = false;
 
     const loadResolvedUrl = async () => {
+      if (thumbnailUrl && !fullPreviewRequested) {
+        if (!cancelled) {
+          setResolvingFileUrl(false);
+          setResolvedFileUrl(null);
+        }
+        return;
+      }
+
       if (!cancelled) {
         setResolvingFileUrl(true);
         setResolvedFileUrl(null);
@@ -137,7 +219,7 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
     return () => {
       cancelled = true;
     };
-  }, [fileUrl, planId]);
+  }, [fileUrl, fullPreviewRequested, planId, thumbnailUrl]);
 
   useEffect(() => {
     setShouldRenderPdf(false);
@@ -156,10 +238,10 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
   }, [resolvedFileUrl, resolvedThumbnailUrl, fullPreviewRequested]);
 
   useEffect(() => {
-    setFullPreviewRequested(false);
-    setShouldRenderPdf(false);
+    setFullPreviewRequested(autoOpenFullPreview);
     setZoomLevel(1);
-  }, [planId, pageNumber, selectedPageId]);
+    setPageRect(null);
+  }, [autoOpenFullPreview, planId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -208,6 +290,42 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
     });
   }, [notes.length, pageNumber, resolvedFileUrl, resolvedThumbnailUrl, sheetNote, sheetNumber]);
 
+  useEffect(() => {
+    if (!resolvedThumbnailUrl || fullPreviewRequested) return;
+
+    const viewport = thumbnailViewportRef.current;
+    const image = thumbnailImageRef.current;
+    if (!viewport || !image) return;
+
+    const updateRect = () => {
+      const viewportRect = viewport.getBoundingClientRect();
+      const imageRect = image.getBoundingClientRect();
+      setPreviewViewportWidth(Math.max(320, viewportRect.width - 48));
+      setPageRect({
+        left: imageRect.left - viewportRect.left,
+        top: imageRect.top - viewportRect.top,
+        width: imageRect.width,
+        height: imageRect.height,
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateRect();
+    });
+
+    resizeObserver.observe(viewport);
+    resizeObserver.observe(image);
+    image.addEventListener('load', updateRect);
+    window.addEventListener('resize', updateRect);
+    updateRect();
+
+    return () => {
+      resizeObserver.disconnect();
+      image.removeEventListener('load', updateRect);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [fullPreviewRequested, resolvedThumbnailUrl, zoomLevel]);
+
   const thumbnailOverlayRects = useMemo(() => {
     if (!resolvedThumbnailUrl || !notes.length) return [];
 
@@ -249,11 +367,11 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
             </Select>
           ) : null}
           <div className="flex items-center gap-1.5">
-            <Button type="button" size="sm" variant="outline" className="h-8 w-8 px-0" onClick={() => setZoomLevel((prev) => Math.max(0.5, prev - 0.25))}>
+            <Button type="button" size="sm" variant="outline" className="h-8 w-8 px-0" onClick={() => adjustZoom(-0.25)}>
               <ZoomOut className="h-4 w-4" />
             </Button>
             <span className="min-w-[48px] text-center text-xs font-medium">{Math.round(zoomLevel * 100)}%</span>
-            <Button type="button" size="sm" variant="outline" className="h-8 w-8 px-0" onClick={() => setZoomLevel((prev) => Math.min(5, prev + 0.25))}>
+            <Button type="button" size="sm" variant="outline" className="h-8 w-8 px-0" onClick={() => adjustZoom(0.25)}>
               <ZoomIn className="h-4 w-4" />
             </Button>
             {onDownload ? (
@@ -270,7 +388,7 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
         </div>
 
         <div className="relative flex-1 min-h-0 min-w-0 bg-muted/20">
-          {resolvingFileUrl ? (
+          {resolvingFileUrl && !resolvedThumbnailUrl ? (
             <div className="relative h-full">
               {resolvedThumbnailUrl ? (
                 <div className="absolute inset-0 flex items-center justify-center overflow-auto p-6">
@@ -286,41 +404,55 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
               </div>
             </div>
           ) : resolvedThumbnailUrl && !fullPreviewRequested ? (
-            <div className="relative h-full">
-              <div className="flex h-full items-center justify-center overflow-auto p-6">
-                <div className="relative inline-block max-h-full max-w-full">
+            <div
+              ref={thumbnailViewportRef}
+              className={cn("relative h-full overflow-auto p-6", isPanningPreview ? 'cursor-grabbing' : 'cursor-grab')}
+              onWheel={handlePreviewWheel}
+              onPointerDown={handlePreviewPanStart}
+              onPointerMove={handlePreviewPanMove}
+              onPointerUp={handlePreviewPanEnd}
+              onPointerCancel={handlePreviewPanEnd}
+            >
+              <div className="flex min-h-full min-w-max items-center justify-center">
+                <div
+                  className="relative inline-block shrink-0"
+                  style={{ width: `${Math.max(320, previewViewportWidth * zoomLevel)}px`, maxWidth: 'none' }}
+                >
                   <img
+                    ref={thumbnailImageRef}
                     src={resolvedThumbnailUrl}
                     alt={sheetNumber || `Page ${pageNumber}`}
-                    className="block max-h-full max-w-full rounded border bg-background object-contain shadow-sm"
+                    className="block h-auto max-h-none w-full rounded border bg-background object-contain shadow-sm"
                   />
-                  {thumbnailOverlayRects.length > 0 ? (
+                  {pageRect ? (
                     <div className="pointer-events-none absolute inset-0">
-                      {thumbnailOverlayRects.map((noteRect) => (
+                      {notes.map((note, index) => (
                         <button
-                          key={noteRect.key}
+                          key={note.id}
                           type="button"
-                          aria-label={`Focus note ${noteRect.index + 1}`}
-                          onClick={() => onSelectNote?.(noteRect.index)}
+                          aria-label={`Focus note ${index + 1}`}
+                          onClick={() => onSelectNote?.(index)}
                           className={cn(
                             "pointer-events-auto absolute border-2 bg-amber-300/15 transition-all",
-                            activeNoteIndex === noteRect.index
+                            activeNoteIndex === index
                               ? "border-amber-400 shadow-[0_0_0_3px_rgba(251,191,36,0.35)]"
                               : "border-amber-500",
                           )}
                           style={{
-                            left: noteRect.left,
-                            top: noteRect.top,
-                            width: noteRect.width,
-                            height: noteRect.height,
-                            borderRadius: noteRect.ellipse ? '9999px' : '0.25rem',
+                            left: `${note.x * 100}%`,
+                            top: `${note.y * 100}%`,
+                            width: `${note.width * 100}%`,
+                            height: `${note.height * 100}%`,
+                            borderRadius: note.shape_type === 'ellipse' ? '9999px' : '0.25rem',
                           }}
                         >
-                          <div className={cn(
-                            "absolute -top-2 -left-2 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-black",
-                            activeNoteIndex === noteRect.index ? 'bg-amber-300' : 'bg-amber-500',
-                          )}>
-                            {noteRect.index + 1}
+                          <div
+                            className={cn(
+                              "absolute -top-2 -left-2 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-black",
+                              activeNoteIndex === index ? 'bg-amber-300' : 'bg-amber-500',
+                            )}
+                          >
+                            {index + 1}
                           </div>
                         </button>
                       ))}
@@ -330,13 +462,13 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
               </div>
               {resolvedFileUrl ? (
                 <div className="absolute right-3 top-3 z-10">
-                  <Button type="button" size="sm" onClick={() => setFullPreviewRequested(true)}>
-                    Load Full Preview
+                  <Button type="button" size="sm" variant="outline" onClick={() => setFullPreviewRequested(true)}>
+                    Open Full PDF
                   </Button>
                 </div>
               ) : null}
             </div>
-          ) : resolvedFileUrl ? (
+          ) : fullPreviewRequested && resolvedFileUrl ? (
             <div className="relative h-full">
               {resolvedThumbnailUrl ? (
                 <div className="pointer-events-none absolute inset-0 flex items-center justify-center overflow-auto p-6">
@@ -439,8 +571,13 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
               </div>
             </div>
           ) : (
-            <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-              No plan preview available for this sheet.
+            <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+              <div>No plan thumbnail available for this sheet.</div>
+              {fileUrl || planId ? (
+                <Button type="button" size="sm" onClick={() => setFullPreviewRequested(true)}>
+                  Load Full Preview
+                </Button>
+              ) : null}
             </div>
           )}
         </div>

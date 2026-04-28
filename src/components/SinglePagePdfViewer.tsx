@@ -16,6 +16,9 @@ interface SinglePagePdfViewerProps {
 }
 
 type RenderReason = "page" | "zoom";
+const MAX_RENDER_PIXELS = 4_500_000;
+const INITIAL_RENDER_DPR_CAP = 1;
+const ZOOM_RENDER_DPR_CAP = 1.5;
 
 /**
  * Single-page PDF renderer.
@@ -56,6 +59,7 @@ export default function SinglePagePdfViewer({
   const [pdfDoc, setPdfDoc] = useState<any>(null);
   const activeLoadIdRef = useRef(0);
   const pdfDocRef = useRef<any>(null);
+  const activeRenderTokenRef = useRef(0);
 
   useEffect(() => {
     pdfDocRef.current = pdfDoc;
@@ -342,6 +346,7 @@ export default function SinglePagePdfViewer({
     let cancelled = false;
     let loadingTask: any = null;
     const loadId = ++activeLoadIdRef.current;
+    activeRenderTokenRef.current += 1;
 
     async function loadPdf() {
       try {
@@ -387,6 +392,7 @@ export default function SinglePagePdfViewer({
 
     return () => {
       cancelled = true;
+      activeRenderTokenRef.current += 1;
       try {
         loadingTask?.destroy?.();
       } catch {
@@ -399,6 +405,7 @@ export default function SinglePagePdfViewer({
     async ({ page, zoom, reason }: { page: number; zoom: number; reason: RenderReason }) => {
       if (!pdfDoc) return;
       const currentDoc = pdfDoc;
+      const renderToken = ++activeRenderTokenRef.current;
 
       if (isRenderingRef.current) {
         pendingRenderRef.current = { page, zoom, reason };
@@ -417,7 +424,7 @@ export default function SinglePagePdfViewer({
         const pdfPage = await currentDoc.getPage(safePage);
         const container = containerRef.current;
         const displayCanvas = canvasRef.current;
-        if (!container || !displayCanvas || currentDoc !== pdfDocRef.current) return;
+        if (!container || !displayCanvas || currentDoc !== pdfDocRef.current || renderToken !== activeRenderTokenRef.current) return;
 
         const containerWidth = container.clientWidth || window.innerWidth;
         const baseViewport = pdfPage.getViewport({ scale: 1 });
@@ -436,9 +443,16 @@ export default function SinglePagePdfViewer({
         // Resize immediately (keeps existing bitmap visible while we re-render).
         updateCanvasCssSize(zoom);
 
-        const dpr = window.devicePixelRatio || 1;
+        const dpr = Math.min(
+          window.devicePixelRatio || 1,
+          reason === "page" ? INITIAL_RENDER_DPR_CAP : ZOOM_RENDER_DPR_CAP,
+        );
         const displayScale = fitScale * zoom;
-        const renderScale = displayScale * dpr;
+        const targetRenderScale = displayScale * dpr;
+        const maxRenderScale = Math.sqrt(
+          MAX_RENDER_PIXELS / Math.max(1, baseViewport.width * baseViewport.height),
+        );
+        const renderScale = Math.min(targetRenderScale, maxRenderScale);
         const renderViewport = pdfPage.getViewport({ scale: renderScale });
 
         // Render to offscreen first to avoid visible "blank" flashes.
@@ -449,7 +463,7 @@ export default function SinglePagePdfViewer({
         if (!offscreenCtx) return;
 
         await pdfPage.render({ canvasContext: offscreenCtx, viewport: renderViewport, canvas: offscreen }).promise;
-        if (currentDoc !== pdfDocRef.current) return;
+        if (currentDoc !== pdfDocRef.current || renderToken !== activeRenderTokenRef.current) return;
 
         const ctx = displayCanvas.getContext("2d");
         if (!ctx) return;
@@ -460,6 +474,16 @@ export default function SinglePagePdfViewer({
         emitPageRect();
 
       } catch (err: any) {
+        const message = String(err?.message || '');
+        const expectedDuringTeardown =
+          message.includes('Transport destroyed')
+          || message.includes('Worker was destroyed')
+          || message.includes('Rendering cancelled')
+          || renderToken !== activeRenderTokenRef.current
+          || currentDoc !== pdfDocRef.current;
+        if (expectedDuringTeardown) {
+          return;
+        }
         console.error("Page render error:", err);
         if (currentDoc === pdfDocRef.current) {
           setError("Failed to render page");

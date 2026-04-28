@@ -12,6 +12,7 @@ import { Separator } from '@/components/ui/separator';
 const getIconForType = (type: string) => {
   switch (type) {
     case 'receipt': return Receipt;
+    case 'file': return FileText;
     case 'job': return Building;
     case 'vendor': return Building;
     case 'customer': return Users;
@@ -56,6 +57,7 @@ export default function GlobalSearch() {
   const getTypeLabel = (type: string) => {
     switch (type) {
       case 'receipt': return 'Receipts';
+      case 'file': return 'Files';
       case 'job': return 'Jobs';
       case 'vendor': return 'Vendors';
       case 'customer': return 'Customers';

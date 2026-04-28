@@ -8567,6 +8567,7 @@ export type Database = {
           email_transport: string | null
           id: string
           invited_at: string
+          last_resent_at: string | null
           last_viewed_at: string | null
           resend_message_id: string | null
           response_status: string | null
@@ -8584,6 +8585,7 @@ export type Database = {
           email_transport?: string | null
           id?: string
           invited_at?: string
+          last_resent_at?: string | null
           last_viewed_at?: string | null
           resend_message_id?: string | null
           response_status?: string | null
@@ -8601,6 +8603,7 @@ export type Database = {
           email_transport?: string | null
           id?: string
           invited_at?: string
+          last_resent_at?: string | null
           last_viewed_at?: string | null
           resend_message_id?: string | null
           response_status?: string | null

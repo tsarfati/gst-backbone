@@ -82,6 +82,7 @@ export async function syncAttachedPlanSetPagesToRfp({
       await hydratePlanPagesFromPdfText({
         planId: plan.id,
         planUrl: plan.file_url,
+        companyId,
       });
     } catch (hydrationError) {
       console.warn(`Failed hydrating attached RFP plan ${plan.id}:`, hydrationError);

@@ -1,4 +1,5 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
+import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -7,10 +8,62 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Check, ChevronsUpDown, ZoomIn, ZoomOut, Highlighter, Circle, Plus, X } from 'lucide-react';
-import SinglePagePdfViewer from '@/components/SinglePagePdfViewer';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
 import { resolveStorageUrl } from '@/utils/storageUtils';
+
+const previewRenderCache = new Map<string, string>();
+const resolvedPlanUrlCache = new Map<string, string>();
+const pdfDocumentPromiseCache = new Map<string, Promise<any>>();
+const PICKER_PREVIEW_TARGET_WIDTH = 1800;
+const PICKER_MAX_PREVIEW_TARGET_WIDTH = 5200;
+const MIN_ZOOM_LEVEL = 0.5;
+const MAX_ZOOM_LEVEL = 5;
+
+function inferBucket(pathOrUrl: string) {
+  if (pathOrUrl.includes("/job-filing-cabinet/") || pathOrUrl.startsWith("job-filing-cabinet/")) {
+    return "job-filing-cabinet" as const;
+  }
+  return "company-files" as const;
+}
+
+async function getResolvedPlanUrl(planFileUrl: string) {
+  const cached = resolvedPlanUrlCache.get(planFileUrl);
+  if (cached) return cached;
+  const resolved = await resolveStorageUrl(inferBucket(planFileUrl) as any, planFileUrl);
+  if (!resolved) {
+    throw new Error("No plan URL available for preview");
+  }
+  resolvedPlanUrlCache.set(planFileUrl, resolved);
+  return resolved;
+}
+
+async function getCachedPdfDocument(planFileUrl: string) {
+  const existing = pdfDocumentPromiseCache.get(planFileUrl);
+  if (existing) return existing;
+
+  const nextPromise = (async () => {
+    const resolvedPlanUrl = await getResolvedPlanUrl(planFileUrl);
+    const pdfjs: any = await import("pdfjs-dist");
+    pdfjs.GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
+
+    const loadingTask = pdfjs.getDocument({
+      url: resolvedPlanUrl,
+      withCredentials: false,
+      disableAutoFetch: false,
+      disableStream: false,
+      rangeChunkSize: 1024 * 1024,
+    });
+
+    return await loadingTask.promise;
+  })().catch((error) => {
+    pdfDocumentPromiseCache.delete(planFileUrl);
+    throw error;
+  });
+
+  pdfDocumentPromiseCache.set(planFileUrl, nextPromise);
+  return nextPromise;
+}
 
 export interface RfpPlanPageNoteDraft {
   id: string;
@@ -41,18 +94,37 @@ export interface RfpSelectedPlanPage extends RfpPlanPageOption {
   callouts?: RfpPlanPageNoteDraft[];
 }
 
+interface RfpPlanSetOption {
+  id: string;
+  plan_name: string;
+  plan_number?: string | null;
+  file_url?: string | null;
+}
+
 interface RfpPlanPagePickerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
+  planSets: RfpPlanSetOption[];
   options: RfpPlanPageOption[];
   selectedPages: RfpSelectedPlanPage[];
   onApply: (selectedPages: RfpSelectedPlanPage[]) => void;
+  onLoadPlanPages?: (planId: string) => Promise<void> | void;
+  loadingPlanSetIds?: string[];
 }
 
 type DrawMode = 'pan' | 'rect' | 'ellipse';
 
 export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
-  const { open, onOpenChange, options, selectedPages, onApply } = props;
+  const {
+    open,
+    onOpenChange,
+    planSets,
+    options,
+    selectedPages,
+    onApply,
+    onLoadPlanPages,
+    loadingPlanSetIds = [],
+  } = props;
   const [search, setSearch] = useState('');
   const [planSearch, setPlanSearch] = useState('');
   const [currentPlanId, setCurrentPlanId] = useState<string>('');
@@ -60,15 +132,88 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
   const [planPickerOpen, setPlanPickerOpen] = useState(false);
   const [sheetPickerOpen, setSheetPickerOpen] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
-  const [totalPages, setTotalPages] = useState(1);
-  const [pageRect, setPageRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
   const [drawMode, setDrawMode] = useState<DrawMode>('pan');
   const [stagedPages, setStagedPages] = useState<RfpSelectedPlanPage[]>(selectedPages);
   const [draftShape, setDraftShape] = useState<RfpPlanPageNoteDraft | null>(null);
   const [draftOrigin, setDraftOrigin] = useState<{ x: number; y: number } | null>(null);
   const [previewPageId, setPreviewPageId] = useState<string>('');
   const [resolvedPreviewThumbnailUrl, setResolvedPreviewThumbnailUrl] = useState<string | null>(null);
-  const [fullPreviewRequested, setFullPreviewRequested] = useState(false);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [brokenThumbnailPageIds, setBrokenThumbnailPageIds] = useState<string[]>([]);
+  const [imagePreviewRect, setImagePreviewRect] = useState<{ left: number; top: number; width: number; height: number } | null>(null);
+  const [previewViewportWidth, setPreviewViewportWidth] = useState(960);
+  const [isPanningPreview, setIsPanningPreview] = useState(false);
+  const thumbnailViewportRef = useRef<HTMLDivElement | null>(null);
+  const thumbnailImageRef = useRef<HTMLImageElement | null>(null);
+  const previewPanRef = useRef<{ pointerId: number; startX: number; startY: number; scrollLeft: number; scrollTop: number } | null>(null);
+
+  const adjustZoom = (delta: number) => {
+    setZoomLevel((prev) => Math.max(MIN_ZOOM_LEVEL, Math.min(MAX_ZOOM_LEVEL, Number((prev + delta).toFixed(2)))));
+  };
+
+  const handlePreviewWheel = (event: React.WheelEvent<HTMLDivElement>) => {
+    if (!event.altKey) return;
+    event.preventDefault();
+    event.stopPropagation();
+    adjustZoom(event.deltaY > 0 ? -0.15 : 0.15);
+  };
+
+  const handlePreviewPanStart = (event: React.PointerEvent<HTMLDivElement>) => {
+    if (drawMode !== 'pan') return;
+    if (event.button !== 0) return;
+    const viewport = thumbnailViewportRef.current;
+    if (!viewport) return;
+    previewPanRef.current = {
+      pointerId: event.pointerId,
+      startX: event.clientX,
+      startY: event.clientY,
+      scrollLeft: viewport.scrollLeft,
+      scrollTop: viewport.scrollTop,
+    };
+    setIsPanningPreview(true);
+    event.currentTarget.setPointerCapture(event.pointerId);
+    event.preventDefault();
+  };
+
+  const handlePreviewPanMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    const state = previewPanRef.current;
+    const viewport = thumbnailViewportRef.current;
+    if (!state || !viewport || state.pointerId !== event.pointerId) return;
+    viewport.scrollLeft = state.scrollLeft - (event.clientX - state.startX);
+    viewport.scrollTop = state.scrollTop - (event.clientY - state.startY);
+  };
+
+  const handlePreviewPanEnd = (event: React.PointerEvent<HTMLDivElement>) => {
+    const state = previewPanRef.current;
+    if (!state || state.pointerId !== event.pointerId) return;
+    previewPanRef.current = null;
+    setIsPanningPreview(false);
+    if (event.currentTarget.hasPointerCapture(event.pointerId)) {
+      event.currentTarget.releasePointerCapture(event.pointerId);
+    }
+  };
+
+  const handlePreviewPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
+    handlePreviewPanStart(event);
+    handleOverlayPointerDown(event);
+  };
+
+  const handlePreviewPointerMove = (event: React.PointerEvent<HTMLDivElement>) => {
+    handlePreviewPanMove(event);
+    handleOverlayPointerMove(event);
+  };
+
+  const handlePreviewPointerUp = (event: React.PointerEvent<HTMLDivElement>) => {
+    handlePreviewPanEnd(event);
+    handleOverlayPointerUp();
+  };
+
+  const handlePreviewPointerLeave = () => {
+    if (draftShape) {
+      setDraftOrigin(null);
+      setDraftShape(null);
+    }
+  };
 
   useEffect(() => {
     if (!open) return;
@@ -82,15 +227,24 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
     setDraftOrigin(null);
     setStagedPages(selectedPages);
     const firstPage = selectedPages[0] || options[0];
-    setCurrentPlanId(firstPage?.plan_id || '');
+    setCurrentPlanId(firstPage?.plan_id || planSets[0]?.id || '');
     setCurrentPageId(firstPage?.plan_page_id || '');
     setPreviewPageId(firstPage?.plan_page_id || '');
     setResolvedPreviewThumbnailUrl(null);
-    setFullPreviewRequested(false);
-  }, [open, options, selectedPages]);
+    setBrokenThumbnailPageIds([]);
+  }, [open, options, planSets, selectedPages]);
 
   const planGroups = useMemo(() => {
     const map = new Map<string, { plan_id: string; plan_name: string; plan_number?: string | null; plan_file_url?: string | null; pages: RfpPlanPageOption[] }>();
+    planSets.forEach((planSet) => {
+      map.set(planSet.id, {
+        plan_id: planSet.id,
+        plan_name: planSet.plan_name,
+        plan_number: planSet.plan_number,
+        plan_file_url: planSet.file_url || null,
+        pages: [],
+      });
+    });
     options.forEach((option) => {
       const existing = map.get(option.plan_id);
       if (existing) {
@@ -106,7 +260,7 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
       });
     });
     return Array.from(map.values()).sort((a, b) => a.plan_name.localeCompare(b.plan_name));
-  }, [options]);
+  }, [options, planSets]);
 
   const filteredPlanGroups = useMemo(() => {
     const term = planSearch.trim().toLowerCase();
@@ -147,6 +301,12 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
       .sort((a, b) => a.page_number - b.page_number);
   }, [currentPlanPages, search]);
 
+  const isCurrentPlanLoading = !!currentPlanId && loadingPlanSetIds.includes(currentPlanId);
+  const currentPlanGroup = useMemo(
+    () => planGroups.find((group) => group.plan_id === currentPlanId) || null,
+    [currentPlanId, planGroups],
+  );
+
   useEffect(() => {
     if (!currentPlanId && planGroups[0]?.plan_id) {
       setCurrentPlanId(planGroups[0].plan_id);
@@ -154,11 +314,31 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
   }, [currentPlanId, planGroups]);
 
   useEffect(() => {
+    if (!open || !currentPlanId) return;
+    void onLoadPlanPages?.(currentPlanId);
+  }, [open, currentPlanId, onLoadPlanPages]);
+
+  useEffect(() => {
+    if (!open || !currentPlanGroup?.plan_file_url) return;
+    void getCachedPdfDocument(currentPlanGroup.plan_file_url).catch(() => {
+      // ignore prewarm failures; active preview path will handle errors visibly
+    });
+  }, [currentPlanGroup?.plan_file_url, open]);
+
+  useEffect(() => {
     if (!currentPlanId) return;
     const pageStillBelongsToPlan = currentPlanPages.some((page) => page.plan_page_id === currentPageId);
     if (pageStillBelongsToPlan) return;
     setCurrentPageId('');
   }, [currentPageId, currentPlanId, currentPlanPages]);
+
+  useEffect(() => {
+    if (!open || !currentPlanId || currentPageId) return;
+    const firstPage = currentPlanPages[0];
+    if (!firstPage) return;
+    setCurrentPageId(firstPage.plan_page_id);
+    setPreviewPageId(firstPage.plan_page_id);
+  }, [currentPageId, currentPlanId, currentPlanPages, open]);
 
   const activePage = useMemo(
     () => options.find((option) => option.plan_page_id === currentPageId) || null,
@@ -168,6 +348,18 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
     () => options.find((option) => option.plan_page_id === previewPageId) || null,
     [previewPageId, options],
   );
+  const previewRenderZoomBucket = useMemo(() => {
+    if (zoomLevel <= 1) return 1;
+    return Math.ceil(zoomLevel * 2) / 2;
+  }, [zoomLevel]);
+  const previewRenderTargetWidth = useMemo(() => {
+    const deviceScale = typeof window !== 'undefined' ? Math.max(1, window.devicePixelRatio || 1) : 1;
+    const requestedWidth = Math.round(previewViewportWidth * previewRenderZoomBucket * deviceScale);
+    return Math.max(
+      PICKER_PREVIEW_TARGET_WIDTH,
+      Math.min(PICKER_MAX_PREVIEW_TARGET_WIDTH, requestedWidth),
+    );
+  }, [previewRenderZoomBucket, previewViewportWidth]);
 
   const selectedCount = stagedPages.length;
   const stagedMap = useMemo(() => new Map(stagedPages.map((page) => [page.plan_page_id, page])), [stagedPages]);
@@ -179,47 +371,120 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
       setPreviewPageId('');
       return;
     }
-
-    const timeoutId = window.setTimeout(() => {
-      setPreviewPageId(currentPageId);
-    }, 180);
-
-    return () => window.clearTimeout(timeoutId);
+    setPreviewPageId(currentPageId);
   }, [open, currentPageId]);
 
   useEffect(() => {
     setResolvedPreviewThumbnailUrl(null);
-    setFullPreviewRequested(false);
     setZoomLevel(1);
+    setImagePreviewRect(null);
   }, [previewPageId]);
 
   useEffect(() => {
     let cancelled = false;
 
-    const loadThumbnail = async () => {
-      if (!previewPage?.thumbnail_url) {
-        if (!cancelled) setResolvedPreviewThumbnailUrl(null);
+    const loadPreview = async () => {
+      if (!previewPage) {
+        if (!cancelled) {
+          setResolvedPreviewThumbnailUrl(null);
+          setPreviewLoading(false);
+        }
+        return;
+      }
+
+      if (!cancelled) {
+        setPreviewLoading(true);
+      }
+
+      const shouldBypassStoredThumbnail = brokenThumbnailPageIds.includes(previewPage.plan_page_id);
+
+      const renderHighResPreview = async () => {
+        if (!previewPage.plan_file_url) {
+          if (!cancelled) {
+            setPreviewLoading(false);
+          }
+          return;
+        }
+
+        const cacheKey = `${previewPage.plan_file_url}::${previewPage.page_number}::w${previewRenderTargetWidth}`;
+        const cachedPreview = previewRenderCache.get(cacheKey);
+        if (cachedPreview) {
+          if (!cancelled) {
+            setResolvedPreviewThumbnailUrl(cachedPreview);
+            setPreviewLoading(false);
+          }
+          return;
+        }
+
+        const pdf = await getCachedPdfDocument(previewPage.plan_file_url);
+        const safePage = Math.min(Math.max(1, previewPage.page_number || 1), pdf.numPages);
+        const page = await pdf.getPage(safePage);
+        const baseViewport = page.getViewport({ scale: 1 });
+        const scale = Math.max(0.1, previewRenderTargetWidth / Math.max(1, baseViewport.width));
+        const viewport = page.getViewport({ scale });
+
+        const canvas = document.createElement("canvas");
+        const context = canvas.getContext("2d");
+        if (!context) {
+          throw new Error("Canvas not available for plan preview");
+        }
+
+        canvas.width = Math.max(1, Math.round(viewport.width));
+        canvas.height = Math.max(1, Math.round(viewport.height));
+
+        await page.render({
+          canvasContext: context,
+          viewport,
+          canvas,
+        }).promise;
+
+        const nextPreviewUrl = canvas.toDataURL("image/png");
+        previewRenderCache.set(cacheKey, nextPreviewUrl);
+
+        if (!cancelled) {
+          setResolvedPreviewThumbnailUrl(nextPreviewUrl);
+          setPreviewLoading(false);
+        }
+      };
+
+      if (previewPage.thumbnail_url && !shouldBypassStoredThumbnail) {
+        try {
+          const resolved = await resolveStorageUrl('company-files', previewPage.thumbnail_url);
+          if (!cancelled) {
+            setResolvedPreviewThumbnailUrl(resolved || previewPage.thumbnail_url);
+          }
+          await renderHighResPreview();
+          return;
+        } catch {
+          await renderHighResPreview();
+          return;
+        }
+      }
+
+      if (!previewPage.plan_file_url) {
+        if (!cancelled) {
+          setResolvedPreviewThumbnailUrl(null);
+          setPreviewLoading(false);
+        }
         return;
       }
 
       try {
-        const resolved = await resolveStorageUrl('company-files', previewPage.thumbnail_url);
-        if (!cancelled) {
-          setResolvedPreviewThumbnailUrl(resolved || previewPage.thumbnail_url);
-        }
+        await renderHighResPreview();
       } catch {
         if (!cancelled) {
-          setResolvedPreviewThumbnailUrl(previewPage.thumbnail_url);
+          setResolvedPreviewThumbnailUrl(null);
+          setPreviewLoading(false);
         }
       }
     };
 
-    void loadThumbnail();
+    void loadPreview();
 
     return () => {
       cancelled = true;
     };
-  }, [previewPage?.thumbnail_url]);
+  }, [brokenThumbnailPageIds, previewPage, previewRenderTargetWidth]);
 
   const upsertPage = (page: RfpPlanPageOption, updater?: (existing: RfpSelectedPlanPage) => RfpSelectedPlanPage) => {
     setStagedPages((prev) => {
@@ -253,11 +518,49 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
     upsertPage(activePage);
   };
 
+  const effectivePageRect = imagePreviewRect;
+
+  useEffect(() => {
+    if (!resolvedPreviewThumbnailUrl) return;
+
+    const viewport = thumbnailViewportRef.current;
+    const image = thumbnailImageRef.current;
+    if (!viewport || !image) return;
+
+    const updateRect = () => {
+      const viewportRect = viewport.getBoundingClientRect();
+      const imageRect = image.getBoundingClientRect();
+      setPreviewViewportWidth(Math.max(320, viewportRect.width - 48));
+      setImagePreviewRect({
+        left: imageRect.left - viewportRect.left,
+        top: imageRect.top - viewportRect.top,
+        width: imageRect.width,
+        height: imageRect.height,
+      });
+    };
+
+    const resizeObserver = new ResizeObserver(() => {
+      updateRect();
+    });
+
+    resizeObserver.observe(viewport);
+    resizeObserver.observe(image);
+    image.addEventListener('load', updateRect);
+    window.addEventListener('resize', updateRect);
+    updateRect();
+
+    return () => {
+      resizeObserver.disconnect();
+      image.removeEventListener('load', updateRect);
+      window.removeEventListener('resize', updateRect);
+    };
+  }, [previewPage?.plan_file_url, resolvedPreviewThumbnailUrl, zoomLevel]);
+
   const getOverlayPoint = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (!pageRect) return null;
+    if (!effectivePageRect) return null;
     const bounds = event.currentTarget.getBoundingClientRect();
-    const x = (event.clientX - bounds.left - pageRect.left) / pageRect.width;
-    const y = (event.clientY - bounds.top - pageRect.top) / pageRect.height;
+    const x = (event.clientX - bounds.left - effectivePageRect.left) / effectivePageRect.width;
+    const y = (event.clientY - bounds.top - effectivePageRect.top) / effectivePageRect.height;
     if (x < 0 || x > 1 || y < 0 || y > 1) return null;
     return {
       x: Math.max(0, Math.min(1, x)),
@@ -266,7 +569,7 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
   };
 
   const handleOverlayPointerDown = (event: React.PointerEvent<HTMLDivElement>) => {
-    if (drawMode === 'pan' || !activePage || !pageRect) return;
+    if (drawMode === 'pan' || !activePage || !effectivePageRect) return;
     const point = getOverlayPoint(event);
     if (!point) return;
     if (!activeSelection) {
@@ -444,12 +747,14 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
                   role="combobox"
                   aria-expanded={sheetPickerOpen}
                   className="justify-between"
-                  disabled={!currentPlanId || currentPlanPages.length === 0}
+                  disabled={!currentPlanId || (currentPlanPages.length === 0 && isCurrentPlanLoading)}
                 >
                   <span className="truncate">
                     {activePage
                       ? `${activePage.sheet_number || `Page ${activePage.page_number}`}${activePage.page_title ? ` • ${activePage.page_title}` : ''}`
-                      : 'Select a sheet'}
+                      : isCurrentPlanLoading
+                        ? 'Loading sheets...'
+                        : 'Select a sheet'}
                   </span>
                   <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
                 </Button>
@@ -520,11 +825,11 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
                 </p>
               </div>
               <div className="flex items-center gap-2 shrink-0">
-                <Button type="button" size="sm" variant="outline" onClick={() => setZoomLevel((prev) => Math.max(0.5, prev - 0.25))}>
+                <Button type="button" size="sm" variant="outline" onClick={() => adjustZoom(-0.25)}>
                   <ZoomOut className="h-4 w-4" />
                 </Button>
                 <span className="text-sm min-w-[52px] text-center">{Math.round(zoomLevel * 100)}%</span>
-                <Button type="button" size="sm" variant="outline" onClick={() => setZoomLevel((prev) => Math.min(5, prev + 0.25))}>
+                <Button type="button" size="sm" variant="outline" onClick={() => adjustZoom(0.25)}>
                   <ZoomIn className="h-4 w-4" />
                 </Button>
                 <Button
@@ -559,71 +864,75 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
             </div>
 
             <div className="flex-1 min-h-0 relative bg-muted/20">
-              {previewPage?.plan_file_url && (!resolvedPreviewThumbnailUrl || fullPreviewRequested) ? (
+              {resolvedPreviewThumbnailUrl ? (
                 <div
-                  className="absolute inset-0"
-                  onPointerDown={handleOverlayPointerDown}
-                  onPointerMove={handleOverlayPointerMove}
-                  onPointerUp={handleOverlayPointerUp}
-                  onPointerLeave={() => {
-                    if (draftShape) {
-                      setDraftOrigin(null);
-                      setDraftShape(null);
-                    }
-                  }}
+                  ref={thumbnailViewportRef}
+                  className={cn("absolute inset-0 overflow-auto p-6", drawMode === 'pan' ? (isPanningPreview ? 'cursor-grabbing' : 'cursor-grab') : 'cursor-crosshair')}
+                  onWheel={handlePreviewWheel}
+                  onPointerDown={handlePreviewPointerDown}
+                  onPointerMove={handlePreviewPointerMove}
+                  onPointerUp={handlePreviewPointerUp}
+                  onPointerCancel={handlePreviewPanEnd}
+                  onPointerLeave={handlePreviewPointerLeave}
                 >
-                  <SinglePagePdfViewer
-                    url={previewPage.plan_file_url}
-                    pageNumber={previewPage.page_number}
-                    totalPages={totalPages}
-                    zoomLevel={zoomLevel}
-                    onZoomChange={setZoomLevel}
-                    onTotalPagesChange={setTotalPages}
-                    onPageRectChange={setPageRect}
-                  />
-                  {pageRect ? (
+                  <div className="flex min-h-full min-w-max items-center justify-center">
                     <div
-                      className={cn('absolute inset-0', drawMode === 'pan' ? 'pointer-events-none' : 'pointer-events-auto')}
+                      className="relative inline-block shrink-0"
+                      style={{ width: `${Math.max(320, previewViewportWidth * zoomLevel)}px`, maxWidth: 'none' }}
                     >
-                      {[...(activeSelection?.callouts || []), ...(draftShape ? [draftShape] : [])].map((callout, index) => (
+                      <img
+                        ref={thumbnailImageRef}
+                        src={resolvedPreviewThumbnailUrl}
+                        alt={activePage?.sheet_number || `Page ${activePage?.page_number || 1}`}
+                        onError={() => {
+                          if (!previewPage?.plan_page_id) return;
+                          setBrokenThumbnailPageIds((prev) =>
+                            prev.includes(previewPage.plan_page_id) ? prev : [...prev, previewPage.plan_page_id],
+                          );
+                          setResolvedPreviewThumbnailUrl(null);
+                          setPreviewLoading(true);
+                        }}
+                        className="block h-auto max-h-none w-full rounded border bg-background object-contain shadow-sm"
+                      />
+                      {effectivePageRect ? (
                         <div
-                          key={callout.id}
-                          className="absolute border-2 border-amber-500 bg-amber-300/15"
-                          style={{
-                            left: pageRect.left + callout.x * pageRect.width,
-                            top: pageRect.top + callout.y * pageRect.height,
-                            width: callout.width * pageRect.width,
-                            height: callout.height * pageRect.height,
-                            borderRadius: callout.shape_type === 'ellipse' ? '9999px' : '0.25rem',
-                          }}
+                          className={cn('absolute inset-0', drawMode === 'pan' ? 'pointer-events-none' : 'pointer-events-auto')}
                         >
-                          <div className="absolute -top-2 -left-2 h-5 min-w-5 rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-black flex items-center justify-center">
-                            {index + 1}
-                          </div>
+                          {[...(activeSelection?.callouts || []), ...(draftShape ? [draftShape] : [])].map((callout, index) => (
+                            <div
+                              key={callout.id}
+                              className="absolute border-2 border-amber-500 bg-amber-300/15"
+                              style={{
+                                left: `${callout.x * 100}%`,
+                                top: `${callout.y * 100}%`,
+                                width: `${callout.width * 100}%`,
+                                height: `${callout.height * 100}%`,
+                                borderRadius: callout.shape_type === 'ellipse' ? '9999px' : '0.25rem',
+                              }}
+                            >
+                              <div className="absolute -top-2 -left-2 h-5 min-w-5 rounded-full bg-amber-500 px-1 text-[10px] font-semibold text-black flex items-center justify-center">
+                                {index + 1}
+                              </div>
+                            </div>
+                          ))}
                         </div>
-                      ))}
+                      ) : null}
                     </div>
-                  ) : null}
-                </div>
-              ) : resolvedPreviewThumbnailUrl ? (
-                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 overflow-auto p-6 text-center">
-                  <img
-                    src={resolvedPreviewThumbnailUrl}
-                    alt={activePage?.sheet_number || `Page ${activePage?.page_number || 1}`}
-                    className="max-h-full max-w-full rounded border bg-background object-contain shadow-sm"
-                  />
-                  <div className="space-y-2">
-                    <p className="text-sm text-muted-foreground">
-                      Thumbnail loaded. Open the full preview when you want to zoom in or place linked notes.
-                    </p>
-                    <Button type="button" size="sm" onClick={() => setFullPreviewRequested(true)}>
-                      Load Full Preview
-                    </Button>
                   </div>
                 </div>
               ) : (
-                <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                  {activePage ? 'Loading sheet preview…' : 'Select a page with a previewable plan file.'}
+                <div className="flex h-full flex-col items-center justify-center gap-3 text-sm text-muted-foreground">
+                  <div>
+                    {previewLoading
+                      ? 'Loading sheet preview...'
+                      : !activePage && isCurrentPlanLoading
+                      ? 'Loading the first sheets for this plan set...'
+                      : activePage?.plan_file_url
+                      ? 'No preview available for this page yet.'
+                      : activePage
+                        ? 'No sheet thumbnail available yet.'
+                        : 'Select a page with a previewable plan file.'}
+                  </div>
                 </div>
               )}
             </div>
