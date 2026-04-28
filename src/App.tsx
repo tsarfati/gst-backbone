@@ -695,18 +695,54 @@ function AuthenticatedRoutes() {
                 <Route path="upload" element={<UploadReceipts />} />
                 <Route path="uncoded" element={<UncodedReceipts />} />
                 <Route path="receipts" element={<CodedReceipts />} />
-                <Route path="receipts/reports" element={<ReceiptReports />} />
+                <Route path="receipts/reports" element={
+                  <MenuPermissionRoute menuKey="receipt-reports-view">
+                    <ReceiptReports />
+                  </MenuPermissionRoute>
+                } />
               </Route>
               <Route path="construction/dashboard" element={<ConstructionDashboard />} />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
-                <Route path="construction/reports" element={<ConstructionReports />} />
-                <Route path="construction/reports/cost-history" element={<ProjectCostTransactionHistory />} />
-                <Route path="construction/reports/committed-details" element={<CommittedCostDetails />} />
-                <Route path="construction/reports/transactions" element={<ProjectTransactionReport />} />
-                <Route path="construction/reports/subcontract-summary" element={<SubcontractSummaryReport />} />
-                <Route path="construction/reports/subcontract-details" element={<SubcontractDetailsByVendor />} />
-                <Route path="construction/reports/budget-status" element={<ProjectCostBudgetStatus />} />
-                <Route path="construction/reports/ap-aging-by-job" element={<APAgingByJobReport />} />
+                <Route path="construction/reports" element={
+                  <MenuPermissionRoute menuKey="construction-reports-view">
+                    <ConstructionReports />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="construction/reports/cost-history" element={
+                  <MenuPermissionRoute menuKey="construction-reports-cost-history-view" fallbackMenuKeys={["construction-reports-view"]}>
+                    <ProjectCostTransactionHistory />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="construction/reports/committed-details" element={
+                  <MenuPermissionRoute menuKey="construction-reports-subcontract-summary-view" fallbackMenuKeys={["construction-reports-view"]}>
+                    <CommittedCostDetails />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="construction/reports/transactions" element={
+                  <MenuPermissionRoute menuKey="construction-reports-transactions-view" fallbackMenuKeys={["construction-reports-view"]}>
+                    <ProjectTransactionReport />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="construction/reports/subcontract-summary" element={
+                  <MenuPermissionRoute menuKey="construction-reports-subcontract-summary-view" fallbackMenuKeys={["construction-reports-view"]}>
+                    <SubcontractSummaryReport />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="construction/reports/subcontract-details" element={
+                  <MenuPermissionRoute menuKey="construction-reports-subcontract-details-view" fallbackMenuKeys={["construction-reports-view"]}>
+                    <SubcontractDetailsByVendor />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="construction/reports/budget-status" element={
+                  <MenuPermissionRoute menuKey="construction-reports-budget-status-view" fallbackMenuKeys={["construction-reports-view"]}>
+                    <ProjectCostBudgetStatus />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="construction/reports/ap-aging-by-job" element={
+                  <MenuPermissionRoute menuKey="construction-reports-ap-aging-by-job-view" fallbackMenuKeys={["construction-reports-view"]}>
+                    <APAgingByJobReport />
+                  </MenuPermissionRoute>
+                } />
               </Route>
               <Route path="construction/rfps" element={<RFPs />} />
               <Route path="construction/submittals" element={<ConstructionSubmittals />} />
@@ -780,10 +816,26 @@ function AuthenticatedRoutes() {
                 <Route path="employees/add" element={<AddEmployee />} />
                 <Route path="employees/payroll" element={<EmployeePayroll />} />
                 <Route path="employees/performance" element={<EmployeePerformance />} />
-                <Route path="employees/reports" element={<EmployeeReports />} />
-                <Route path="employees/reports/pin-list" element={<PinEmployeeListReport />} />
-                <Route path="employees/reports/qr-cards" element={<EmployeeQRCardsReport />} />
-                <Route path="employees/reports/punch-clock-attempt-audit" element={<PunchClockAttemptAuditReport />} />
+                <Route path="employees/reports" element={
+                  <MenuPermissionRoute menuKey="employees-reports-view">
+                    <EmployeeReports />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="employees/reports/pin-list" element={
+                  <MenuPermissionRoute menuKey="employees-reports-pin-list-view" fallbackMenuKeys={["employees-reports-view"]}>
+                    <PinEmployeeListReport />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="employees/reports/qr-cards" element={
+                  <MenuPermissionRoute menuKey="employees-reports-qr-cards-view" fallbackMenuKeys={["employees-reports-view"]}>
+                    <EmployeeQRCardsReport />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="employees/reports/punch-clock-attempt-audit" element={
+                  <MenuPermissionRoute menuKey="employees-reports-punch-clock-attempt-audit-view" fallbackMenuKeys={["employees-reports-view"]}>
+                    <PunchClockAttemptAuditReport />
+                  </MenuPermissionRoute>
+                } />
                 
                 <Route path="manual-punch-out" element={<ManualPunchOut />} />
                 <Route path="manual-time-entry" element={<ManualTimeEntry />} />
@@ -807,7 +859,7 @@ function AuthenticatedRoutes() {
                 } />
                 <Route path="punch-clock/reports" element={
                   <PunchClockFeatureRoute>
-                    <MenuPermissionRoute menuKey="timecard-reports" fallbackMenuKeys={["timecard-reports-view", "employees-reports", "employees"]}>
+                    <MenuPermissionRoute menuKey="timecard-reports-view">
                       <TimecardReports />
                     </MenuPermissionRoute>
                   </PunchClockFeatureRoute>
@@ -844,8 +896,16 @@ function AuthenticatedRoutes() {
                 } />
                 <Route path="payables-dashboard" element={<PayablesDashboard />} />
                 <Route path="payables/make-payment" element={<MakePayment />} />
-                <Route path="payables/payment-reports" element={<PaymentReports />} />
-                <Route path="bills/payment-reports" element={<PaymentReports />} />
+                <Route path="payables/payment-reports" element={
+                  <MenuPermissionRoute menuKey="payment-reports-view">
+                    <PaymentReports />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="bills/payment-reports" element={
+                  <MenuPermissionRoute menuKey="payment-reports-view">
+                    <PaymentReports />
+                  </MenuPermissionRoute>
+                } />
                 <Route path="bills/credit-card-transaction-report" element={<CreditCardTransactionReport />} />
                 <Route path="payables/payment-history" element={<PaymentHistory />} />
                 <Route path="payables/payments/:id" element={<PaymentDetails />} />
@@ -861,7 +921,11 @@ function AuthenticatedRoutes() {
                     <PaymentEdit />
                   </RoleGuard>
                 } />
-                <Route path="bills/payment-reports" element={<PaymentReports />} />
+                <Route path="bills/payment-reports" element={
+                  <MenuPermissionRoute menuKey="payment-reports-view">
+                    <PaymentReports />
+                  </MenuPermissionRoute>
+                } />
                 <Route path="subcontracts" element={<Subcontracts />} />
                 <Route path="subcontracts/add" element={<AddSubcontract />} />
                 <Route path="subcontracts/:id" element={<SubcontractDetails />} />
@@ -883,7 +947,11 @@ function AuthenticatedRoutes() {
                   </MenuPermissionRoute>
                 } />
                 <Route path="invoices/payments" element={<PaymentHistory />} />
-                <Route path="invoices/payment-reports" element={<PaymentReports />} />
+                <Route path="invoices/payment-reports" element={
+                  <MenuPermissionRoute menuKey="payment-reports-view">
+                    <PaymentReports />
+                  </MenuPermissionRoute>
+                } />
               </Route>
               <Route path="company-files" element={<CompanyFiles />} />
               <Route path="company-files/jobs" element={<CompanyFiles />} />
@@ -919,9 +987,21 @@ function AuthenticatedRoutes() {
                 <Route path="payables/credit-cards/:id/edit" element={<CreditCardEdit />} />
                 <Route path="payables/credit-cards/:id/transactions" element={<CreditCardTransactions />} />
                 <Route path="payables/credit-cards/:id/make-payment" element={<CreditCardMakePayment />} />
-                <Route path="banking/reports" element={<BankingReports />} />
-                <Route path="banking/balance-sheet" element={<BalanceSheet />} />
-                <Route path="banking/general-ledger" element={<GeneralLedger />} />
+                <Route path="banking/reports" element={
+                  <MenuPermissionRoute menuKey="banking-reports-view">
+                    <BankingReports />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="banking/balance-sheet" element={
+                  <MenuPermissionRoute menuKey="banking-reports-balance-sheet-view" fallbackMenuKeys={["banking-reports-view"]}>
+                    <BalanceSheet />
+                  </MenuPermissionRoute>
+                } />
+                <Route path="banking/general-ledger" element={
+                  <MenuPermissionRoute menuKey="banking-reports-general-ledger-view" fallbackMenuKeys={["banking-reports-view"]}>
+                    <GeneralLedger />
+                  </MenuPermissionRoute>
+                } />
                 <Route path="banking/journal-entries" element={<JournalEntries />} />
                 <Route path="banking/journal-entries/new" element={<NewJournalEntry />} />
                 <Route path="banking/journal-entries/:id" element={<JournalEntryDetails />} />
@@ -945,7 +1025,11 @@ function AuthenticatedRoutes() {
                 <Route path="receivables/invoices/:id" element={<ARInvoiceDetails />} />
                 <Route path="receivables/invoices/:id/edit" element={<AddARInvoice />} />
                 <Route path="receivables/payments" element={<ARPayments />} />
-                <Route path="receivables/reports" element={<ReceivablesReports />} />
+                <Route path="receivables/reports" element={
+                  <MenuPermissionRoute menuKey="receivables-reports-view">
+                    <ReceivablesReports />
+                  </MenuPermissionRoute>
+                } />
               </Route>
               <Route path="subscription" element={<SubscriptionPortal />} />
             </Route>

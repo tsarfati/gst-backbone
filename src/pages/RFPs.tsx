@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -31,6 +31,9 @@ interface RFP {
   bid_count?: number;
 }
 
+type SortColumn = 'rfp_number' | 'job' | 'status' | 'due_date' | 'bid_count';
+type SortDirection = 'asc' | 'desc';
+
 export default function RFPs() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -43,6 +46,8 @@ export default function RFPs() {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
   const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [sortColumn, setSortColumn] = useState<SortColumn>('due_date');
+  const [sortDirection, setSortDirection] = useState<SortDirection>('asc');
   
   const jobIdFilter = searchParams.get('jobId');
 
@@ -106,16 +111,64 @@ export default function RFPs() {
     return <Badge variant={config.variant}>{config.label}</Badge>;
   };
 
-  const filteredRFPs = rfps.filter(rfp => {
-    const matchesSearch = 
-      rfp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rfp.rfp_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      rfp.job?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
-    
-    const matchesStatus = statusFilter === 'all' || rfp.status === statusFilter;
-    
-    return matchesSearch && matchesStatus;
-  });
+  const handleSort = (column: SortColumn) => {
+    if (sortColumn === column) {
+      setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
+      return;
+    }
+
+    setSortColumn(column);
+    setSortDirection(column === 'job' || column === 'rfp_number' || column === 'status' ? 'asc' : 'desc');
+  };
+
+  const getSortIndicator = (column: SortColumn) => {
+    if (sortColumn !== column) return '';
+    return sortDirection === 'asc' ? ' ↑' : ' ↓';
+  };
+
+  const filteredRFPs = useMemo(() => {
+    const filtered = rfps.filter(rfp => {
+      const matchesSearch =
+        rfp.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        rfp.rfp_number.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        rfp.job?.name?.toLowerCase().includes(searchTerm.toLowerCase()) || false;
+
+      const matchesStatus = statusFilter === 'all' || rfp.status === statusFilter;
+
+      return matchesSearch && matchesStatus;
+    });
+
+    const sorted = [...filtered].sort((a, b) => {
+      let comparison = 0;
+
+      switch (sortColumn) {
+        case 'rfp_number':
+          comparison = a.rfp_number.localeCompare(b.rfp_number, undefined, { numeric: true, sensitivity: 'base' });
+          break;
+        case 'job':
+          comparison = (a.job?.name || '').localeCompare(b.job?.name || '', undefined, { sensitivity: 'base' });
+          break;
+        case 'status':
+          comparison = a.status.localeCompare(b.status, undefined, { sensitivity: 'base' });
+          break;
+        case 'due_date': {
+          const aTime = a.due_date ? new Date(a.due_date).getTime() : Number.POSITIVE_INFINITY;
+          const bTime = b.due_date ? new Date(b.due_date).getTime() : Number.POSITIVE_INFINITY;
+          comparison = aTime - bTime;
+          break;
+        }
+        case 'bid_count':
+          comparison = (a.bid_count || 0) - (b.bid_count || 0);
+          break;
+        default:
+          comparison = 0;
+      }
+
+      return sortDirection === 'asc' ? comparison : -comparison;
+    });
+
+    return sorted;
+  }, [rfps, searchTerm, statusFilter, sortColumn, sortDirection]);
 
   return (
     <div className="space-y-4 px-4 md:px-6 pb-6">
@@ -247,12 +300,32 @@ export default function RFPs() {
             <Table>
               <TableHeader>
                 <TableRow>
-                  <TableHead className="py-2">RFP #</TableHead>
+                  <TableHead className="py-2">
+                    <button type="button" className="font-medium text-left hover:text-foreground" onClick={() => handleSort('rfp_number')}>
+                      RFP #{getSortIndicator('rfp_number')}
+                    </button>
+                  </TableHead>
                   <TableHead className="py-2">Title</TableHead>
-                  <TableHead className="py-2">Job</TableHead>
-                  <TableHead className="py-2">Status</TableHead>
-                  <TableHead className="py-2">Due Date</TableHead>
-                  <TableHead className="py-2">Bids</TableHead>
+                  <TableHead className="py-2">
+                    <button type="button" className="font-medium text-left hover:text-foreground" onClick={() => handleSort('job')}>
+                      Job{getSortIndicator('job')}
+                    </button>
+                  </TableHead>
+                  <TableHead className="py-2">
+                    <button type="button" className="font-medium text-left hover:text-foreground" onClick={() => handleSort('status')}>
+                      Status{getSortIndicator('status')}
+                    </button>
+                  </TableHead>
+                  <TableHead className="py-2">
+                    <button type="button" className="font-medium text-left hover:text-foreground" onClick={() => handleSort('due_date')}>
+                      Due Date{getSortIndicator('due_date')}
+                    </button>
+                  </TableHead>
+                  <TableHead className="py-2">
+                    <button type="button" className="font-medium text-left hover:text-foreground" onClick={() => handleSort('bid_count')}>
+                      Bids{getSortIndicator('bid_count')}
+                    </button>
+                  </TableHead>
                   <TableHead className="py-2"></TableHead>
                 </TableRow>
               </TableHeader>

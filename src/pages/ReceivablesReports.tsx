@@ -3,14 +3,14 @@ import ReportCatalogPage, { type ReportCatalogItem } from "@/components/ReportCa
 
 export default function ReceivablesReports() {
   const reports: ReportCatalogItem[] = [
-    { key: "aging", title: "Aging Report", description: "Open AR invoices and filter by overdue aging buckets", icon: Clock, to: "/receivables/invoices", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
-    { key: "statements", title: "Customer Statement", description: "Open customers and statements workflow", icon: FileText, to: "/receivables/customers", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
-    { key: "invoice-summary", title: "Invoice Summary", description: "Open invoice summary and status tracking", icon: BarChart3, to: "/receivables/invoices", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
-    { key: "payment-history", title: "Payment History", description: "Open receivables payment history", icon: DollarSign, to: "/receivables/payments", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
-    { key: "revenue-by-customer", title: "Revenue by Customer", description: "Open receivables dashboard customer revenue metrics", icon: TrendingUp, to: "/receivables/dashboard", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
-    { key: "revenue-by-project", title: "Revenue by Project", description: "Open receivables dashboard project revenue view", icon: BarChart3, to: "/receivables/dashboard", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
-    { key: "top-customers", title: "Top Customers", description: "Open customer list with top-customer indicators", icon: Users, to: "/receivables/customers", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
-    { key: "collections", title: "Collections Report", description: "Open overdue invoices for collections follow-up", icon: Clock, to: "/receivables/invoices", isBuilt: true, requiredPermissions: ["receivables-reports-view"] },
+    { key: "aging", title: "Aging Report", description: "Open AR invoices and filter by overdue aging buckets", icon: Clock, to: "/receivables/invoices", isBuilt: true, requiredPermissions: ["receivables-reports-aging-view"], fallbackPermissions: ["receivables-reports-view"] },
+    { key: "statements", title: "Customer Statement", description: "Open customers and statements workflow", icon: FileText, to: "/receivables/customers", isBuilt: true, requiredPermissions: ["receivables-reports-statements-view"], fallbackPermissions: ["receivables-reports-view"] },
+    { key: "invoice-summary", title: "Invoice Summary", description: "Open invoice summary and status tracking", icon: BarChart3, to: "/receivables/invoices", isBuilt: true, requiredPermissions: ["receivables-reports-invoice-summary-view"], fallbackPermissions: ["receivables-reports-view"] },
+    { key: "payment-history", title: "Payment History", description: "Open receivables payment history", icon: DollarSign, to: "/receivables/payments", isBuilt: true, requiredPermissions: ["receivables-reports-payment-history-view"], fallbackPermissions: ["receivables-reports-view"] },
+    { key: "revenue-by-customer", title: "Revenue by Customer", description: "Open receivables dashboard customer revenue metrics", icon: TrendingUp, to: "/receivables/dashboard", isBuilt: true, requiredPermissions: ["receivables-reports-revenue-by-customer-view"], fallbackPermissions: ["receivables-reports-view"] },
+    { key: "revenue-by-project", title: "Revenue by Project", description: "Open receivables dashboard project revenue view", icon: BarChart3, to: "/receivables/dashboard", isBuilt: true, requiredPermissions: ["receivables-reports-revenue-by-project-view"], fallbackPermissions: ["receivables-reports-view"] },
+    { key: "top-customers", title: "Top Customers", description: "Open customer list with top-customer indicators", icon: Users, to: "/receivables/customers", isBuilt: true, requiredPermissions: ["receivables-reports-top-customers-view"], fallbackPermissions: ["receivables-reports-view"] },
+    { key: "collections", title: "Collections Report", description: "Open overdue invoices for collections follow-up", icon: Clock, to: "/receivables/invoices", isBuilt: true, requiredPermissions: ["receivables-reports-collections-view"], fallbackPermissions: ["receivables-reports-view"] },
   ];
 
   return (

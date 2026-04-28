@@ -10,6 +10,7 @@ import { Check, ChevronsUpDown, ZoomIn, ZoomOut, Highlighter, Circle, Plus, X } 
 import SinglePagePdfViewer from '@/components/SinglePagePdfViewer';
 import { cn } from '@/lib/utils';
 import { Textarea } from '@/components/ui/textarea';
+import { resolveStorageUrl } from '@/utils/storageUtils';
 
 export interface RfpPlanPageNoteDraft {
   id: string;
@@ -65,6 +66,9 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
   const [stagedPages, setStagedPages] = useState<RfpSelectedPlanPage[]>(selectedPages);
   const [draftShape, setDraftShape] = useState<RfpPlanPageNoteDraft | null>(null);
   const [draftOrigin, setDraftOrigin] = useState<{ x: number; y: number } | null>(null);
+  const [previewPageId, setPreviewPageId] = useState<string>('');
+  const [resolvedPreviewThumbnailUrl, setResolvedPreviewThumbnailUrl] = useState<string | null>(null);
+  const [fullPreviewRequested, setFullPreviewRequested] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -80,6 +84,9 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
     const firstPage = selectedPages[0] || options[0];
     setCurrentPlanId(firstPage?.plan_id || '');
     setCurrentPageId(firstPage?.plan_page_id || '');
+    setPreviewPageId(firstPage?.plan_page_id || '');
+    setResolvedPreviewThumbnailUrl(null);
+    setFullPreviewRequested(false);
   }, [open, options, selectedPages]);
 
   const planGroups = useMemo(() => {
@@ -148,20 +155,71 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
 
   useEffect(() => {
     if (!currentPlanId) return;
-    const visiblePageIds = new Set(filteredCurrentPlanPages.map((page) => page.plan_page_id));
-    if (currentPageId && visiblePageIds.has(currentPageId)) return;
-    const fallback = filteredCurrentPlanPages[0] || currentPlanPages[0] || options.find((page) => page.plan_id === currentPlanId);
-    setCurrentPageId(fallback?.plan_page_id || '');
-  }, [currentPageId, currentPlanId, filteredCurrentPlanPages, currentPlanPages, options]);
+    const pageStillBelongsToPlan = currentPlanPages.some((page) => page.plan_page_id === currentPageId);
+    if (pageStillBelongsToPlan) return;
+    setCurrentPageId('');
+  }, [currentPageId, currentPlanId, currentPlanPages]);
 
   const activePage = useMemo(
     () => options.find((option) => option.plan_page_id === currentPageId) || null,
     [currentPageId, options],
   );
+  const previewPage = useMemo(
+    () => options.find((option) => option.plan_page_id === previewPageId) || null,
+    [previewPageId, options],
+  );
 
   const selectedCount = stagedPages.length;
   const stagedMap = useMemo(() => new Map(stagedPages.map((page) => [page.plan_page_id, page])), [stagedPages]);
   const activeSelection = activePage ? stagedMap.get(activePage.plan_page_id) || null : null;
+
+  useEffect(() => {
+    if (!open) return;
+    if (!currentPageId) {
+      setPreviewPageId('');
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      setPreviewPageId(currentPageId);
+    }, 180);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [open, currentPageId]);
+
+  useEffect(() => {
+    setResolvedPreviewThumbnailUrl(null);
+    setFullPreviewRequested(false);
+    setZoomLevel(1);
+  }, [previewPageId]);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadThumbnail = async () => {
+      if (!previewPage?.thumbnail_url) {
+        if (!cancelled) setResolvedPreviewThumbnailUrl(null);
+        return;
+      }
+
+      try {
+        const resolved = await resolveStorageUrl('company-files', previewPage.thumbnail_url);
+        if (!cancelled) {
+          setResolvedPreviewThumbnailUrl(resolved || previewPage.thumbnail_url);
+        }
+      } catch {
+        if (!cancelled) {
+          setResolvedPreviewThumbnailUrl(previewPage.thumbnail_url);
+        }
+      }
+    };
+
+    void loadThumbnail();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [previewPage?.thumbnail_url]);
 
   const upsertPage = (page: RfpPlanPageOption, updater?: (existing: RfpSelectedPlanPage) => RfpSelectedPlanPage) => {
     setStagedPages((prev) => {
@@ -501,7 +559,7 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
             </div>
 
             <div className="flex-1 min-h-0 relative bg-muted/20">
-              {activePage?.plan_file_url ? (
+              {previewPage?.plan_file_url && (!resolvedPreviewThumbnailUrl || fullPreviewRequested) ? (
                 <div
                   className="absolute inset-0"
                   onPointerDown={handleOverlayPointerDown}
@@ -515,8 +573,8 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
                   }}
                 >
                   <SinglePagePdfViewer
-                    url={activePage.plan_file_url}
-                    pageNumber={activePage.page_number}
+                    url={previewPage.plan_file_url}
+                    pageNumber={previewPage.page_number}
                     totalPages={totalPages}
                     zoomLevel={zoomLevel}
                     onZoomChange={setZoomLevel}
@@ -547,9 +605,25 @@ export default function RfpPlanPagePicker(props: RfpPlanPagePickerProps) {
                     </div>
                   ) : null}
                 </div>
+              ) : resolvedPreviewThumbnailUrl ? (
+                <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 overflow-auto p-6 text-center">
+                  <img
+                    src={resolvedPreviewThumbnailUrl}
+                    alt={activePage?.sheet_number || `Page ${activePage?.page_number || 1}`}
+                    className="max-h-full max-w-full rounded border bg-background object-contain shadow-sm"
+                  />
+                  <div className="space-y-2">
+                    <p className="text-sm text-muted-foreground">
+                      Thumbnail loaded. Open the full preview when you want to zoom in or place linked notes.
+                    </p>
+                    <Button type="button" size="sm" onClick={() => setFullPreviewRequested(true)}>
+                      Load Full Preview
+                    </Button>
+                  </div>
+                </div>
               ) : (
                 <div className="h-full flex items-center justify-center text-sm text-muted-foreground">
-                  Select a page with a previewable plan file.
+                  {activePage ? 'Loading sheet preview…' : 'Select a page with a previewable plan file.'}
                 </div>
               )}
             </div>

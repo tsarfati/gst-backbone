@@ -427,6 +427,7 @@ export default function UserSettings() {
     }
 
     try {
+      setLoading(true);
       // Get users that have access to the current company WITH their roles
       const { data: companyUsers, error: companyError } = await supabase
         .from('user_company_access')
@@ -457,7 +458,7 @@ export default function UserSettings() {
         if (request.user_id) {
           requestedUserIds.add(request.user_id);
         }
-        const requestedRole = parseRequestedRoleFromNotes(request.notes);
+        const requestedRole = String(parseRequestedRoleFromNotes(request.notes) || '').trim().toLowerCase();
         const requestBusinessName = parseBusinessNameFromNotes(request.notes);
         const requestEmail = parseEmailFromNotes(request.notes);
         const pendingJobIds = parsePendingJobIdsFromNotes(request.notes);
@@ -486,16 +487,97 @@ export default function UserSettings() {
 
       if (profilesError) throw profilesError;
 
+      const { data: companyVendors, error: companyVendorsError } = await supabase
+        .from('vendors')
+        .select('id')
+        .eq('company_id', currentCompany.id)
+        .eq('is_active', true);
+
+      if (companyVendorsError) throw companyVendorsError;
+
+      const companyVendorIds = Array.from(
+        new Set(((companyVendors || []) as any[]).map((vendor) => String(vendor.id || '').trim()).filter(Boolean))
+      );
+
+      const existingProfileUserIds = new Set((regularUsers || []).map((user: any) => String(user.user_id || '')));
+      const { data: linkedVendorProfiles, error: linkedVendorProfilesError } = companyVendorIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role, vendor_id, current_company_id')
+            .in('vendor_id', companyVendorIds)
+            .order('created_at', { ascending: false })
+        : { data: [], error: null };
+
+      if (linkedVendorProfilesError) throw linkedVendorProfilesError;
+
+      const supplementalVendorProfiles = ((linkedVendorProfiles || []) as any[]).filter(
+        (user) => !existingProfileUserIds.has(String(user.user_id || ''))
+      );
+
+      supplementalVendorProfiles.forEach((user: any) => {
+        const linkedUserId = String(user.user_id || '').trim();
+        if (linkedUserId) {
+          roleMap.set(linkedUserId, 'vendor');
+        }
+      });
+
+      const mergedProfiles = [...(regularUsers || []), ...supplementalVendorProfiles];
+      const foundProfileUserIds = new Set(mergedProfiles.map((user: any) => String(user.user_id || '')));
+      const fallbackExternalUsers = (approvedExternalRequests || [])
+        .filter((request: any) => {
+          const userId = String(request.user_id || '').trim();
+          if (!userId || foundProfileUserIds.has(userId)) return false;
+          const requestedRole = String(parseRequestedRoleFromNotes(request.notes) || '').trim().toLowerCase();
+          return EXTERNAL_ACCESS_ROLES.includes(requestedRole as typeof EXTERNAL_ACCESS_ROLES[number]);
+        })
+        .map((request: any) => {
+          const userId = String(request.user_id || '').trim();
+          const requestedRole = String(parseRequestedRoleFromNotes(request.notes) || '').trim().toLowerCase() as UserProfile['role'];
+          const requestBusinessName = parseBusinessNameFromNotes(request.notes);
+          const requestEmail = parseEmailFromNotes(request.notes);
+          const pendingJobIds = parsePendingJobIdsFromNotes(request.notes);
+          return {
+            id: `external-request:${userId}`,
+            user_id: userId,
+            first_name: '',
+            last_name: '',
+            display_name: requestEmail || requestBusinessName || 'Pending External User',
+            avatar_url: null,
+            company_name: requestBusinessName || null,
+            company_logo_url: null,
+            vendor_id: null,
+            current_company_id: currentCompany.id,
+            role: requestedRole,
+            created_at: new Date().toISOString(),
+            has_global_job_access: false,
+            has_pin: false,
+            status: 'approved',
+            phone: undefined,
+            punch_clock_access: false,
+            pm_lynk_access: false,
+            custom_role_id: null,
+            last_sign_in_at: undefined,
+            jobs: [],
+            external_access_state: pendingJobIds.length > 0 ? 'pending' as const : 'active' as const,
+            external_pending_jobs: pendingJobIds.map((jobId) => ({
+              id: jobId,
+              name: 'Pending Job',
+            })),
+          } satisfies UserProfile;
+        });
+
+      const allRegularUsers = [...mergedProfiles, ...fallbackExternalUsers];
+
       const vendorIds = Array.from(
         new Set(
-          (regularUsers || [])
+          allRegularUsers
             .map((user: any) => String(user.vendor_id || '').trim())
             .filter(Boolean)
         )
       );
       const companyIds = Array.from(
         new Set(
-          (regularUsers || [])
+          allRegularUsers
             .map((user: any) => String(user.current_company_id || '').trim())
             .filter(Boolean)
         )
@@ -526,7 +608,7 @@ export default function UserSettings() {
         ((companyRows || []) as any[]).map((company) => [String(company.id), company]),
       );
 
-      const externalUserIds = (regularUsers || [])
+      const externalUserIds = allRegularUsers
         .map((user: any) => {
           const profileRole = String(user.role || '').trim().toLowerCase();
           const resolvedRole = roleMap.get(user.user_id)
@@ -539,7 +621,7 @@ export default function UserSettings() {
 
       const externalVendorIds = Array.from(
         new Set(
-          (regularUsers || [])
+          allRegularUsers
             .map((user: any) => {
               const profileRole = String(user.role || '').trim().toLowerCase();
               const resolvedRole = roleMap.get(user.user_id)
@@ -612,7 +694,7 @@ export default function UserSettings() {
 
       const activeJobsByExternalUserId = new Map<string, { id: string; name: string }[]>();
       const userIdsByVendorId = new Map<string, string[]>();
-      (regularUsers || []).forEach((user: any) => {
+      allRegularUsers.forEach((user: any) => {
         const profileRole = String(user.role || '').trim().toLowerCase();
         const resolvedRole = roleMap.get(user.user_id)
           || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : null);
@@ -671,7 +753,7 @@ export default function UserSettings() {
 
       // Fetch jobs for regular users and determine PIN status
       // Also fetch latest punch selfie as avatar fallback for users without avatars
-      const usersWithJobs = await Promise.all((regularUsers || []).map(async (user) => {
+      const usersWithJobs = await Promise.all(allRegularUsers.map(async (user) => {
         const profileRole = String((user as any).role || '').trim().toLowerCase();
         const userRole = roleMap.get(user.user_id)
           || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : 'employee');
@@ -697,9 +779,11 @@ export default function UserSettings() {
           }))
           .sort((a, b) => a.name.localeCompare(b.name));
 
-        // If no avatar, fetch latest punch selfie as fallback
+        // External portal users do not need punch-clock avatar fallbacks here.
+        // Skipping those extra queries keeps vendor/design-professional access
+        // tabs from loading slowly.
         let effectiveAvatarUrl = user.avatar_url;
-        if (!effectiveAvatarUrl) {
+        if (!effectiveAvatarUrl && !EXTERNAL_ACCESS_ROLES.includes(userRole as typeof EXTERNAL_ACCESS_ROLES[number])) {
           const { data: punchData, error: punchError } = await supabase
             .from('time_cards')
             .select('punch_in_photo_url, punch_out_photo_url')
@@ -834,11 +918,17 @@ export default function UserSettings() {
     return users.filter((u) => !u.custom_role_id && roles.includes(u.role));
   };
 
-  const getExternalUsers = (role: typeof EXTERNAL_ACCESS_ROLES[number]) =>
-    users.filter((u) => u.role === role && u.external_access_state !== 'pending');
+  const getExternalUsers = (role: typeof EXTERNAL_ACCESS_ROLES[number]) => {
+    if (role === 'vendor') {
+      return users.filter((u) => u.role === role);
+    }
+    return users.filter((u) => u.role === role && (u.status === 'approved' || u.external_access_state === 'active'));
+  };
 
   const getPendingExternalUsers = (role: typeof EXTERNAL_ACCESS_ROLES[number]) =>
-    users.filter((u) => u.role === role && u.external_access_state === 'pending');
+    role === 'vendor'
+      ? []
+      : users.filter((u) => u.role === role && u.external_access_state === 'pending' && u.status !== 'approved');
 
   const groupUsersByCompany = (sourceUsers: UserProfile[]) => {
     const groups = new Map<string, { companyName: string; companyLogoUrl: string | null; users: UserProfile[] }>();
@@ -1201,126 +1291,98 @@ export default function UserSettings() {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Vendor Access Users ({getExternalUsers('vendor').length})</CardTitle>
+                <CardTitle>Vendor Access Users{loading ? '' : ` (${getExternalUsers('vendor').length})`}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {getExternalUsers('vendor').length === 0 ? (
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Loading vendor access users...</p>
+                ) : getExternalUsers('vendor').length === 0 ? (
                   <p className="text-sm text-muted-foreground">No vendor users are currently linked to this company.</p>
                 ) : (
-                  getExternalUsersGroupedByCompany('vendor').map((group) => (
-                    <div key={group.companyName} className="rounded-xl border bg-card/50">
-                      <div className="flex items-center gap-3 border-b px-4 py-3">
-                        {group.companyLogoUrl ? (
-                          <img
-                            src={group.companyLogoUrl}
-                            alt={group.companyName}
-                            className="h-10 w-10 rounded-md border object-contain bg-background p-1 shrink-0"
-                          />
-                        ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted text-xs font-semibold text-muted-foreground">
-                            {group.companyName.slice(0, 2).toUpperCase()}
+                  getExternalUsers('vendor').map((user) => (
+                    <div
+                      key={user.user_id}
+                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                      className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="relative h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                          {user.avatar_url ? (
+                            <img
+                              src={user.avatar_url}
+                              alt={user.display_name || user.first_name || ''}
+                              className="h-full w-full object-cover"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                                (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : null}
+                          <span className={`text-sm font-semibold text-primary ${user.avatar_url ? 'hidden' : ''}`}>
+                            {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
+                          </span>
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap leading-none">
+                            <p className="font-medium truncate">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
+                            <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">Vendor</Badge>
                           </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="font-semibold">{group.companyName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {group.users.length} user{group.users.length !== 1 ? 's' : ''}
+                          <p className="mt-1 text-sm text-muted-foreground truncate">
+                            {user.company_name || 'Vendor'}
+                            {user.phone ? ` • ${user.phone}` : ''}
                           </p>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            <Badge className="h-5 px-1.5 text-[11px]" variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'outline'}>
+                              {user.status || 'pending'}
+                            </Badge>
+                            <Badge className="h-5 px-1.5 text-[11px]" variant={user.external_access_state === 'pending' ? 'secondary' : 'outline'}>
+                              {user.external_access_state === 'pending' ? 'Portal Pending' : 'Portal Active'}
+                            </Badge>
+                            {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
+                              <Badge className="h-5 px-1.5 text-[11px]" variant="outline">
+                                {user.external_pending_jobs.length} pending job{user.external_pending_jobs.length === 1 ? '' : 's'}
+                              </Badge>
+                            ) : null}
+                            {user.last_sign_in_at ? (
+                              <Badge className="h-5 px-1.5 text-[11px]" variant="outline">
+                                Last login {new Date(user.last_sign_in_at).toLocaleDateString()}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="h-5 px-1.5 text-[11px] text-muted-foreground">No login yet</Badge>
+                            )}
+                          </div>
                         </div>
                       </div>
-                      <div className="space-y-2 p-3">
-                        {group.users.map((user) => (
-                          <div
-                            key={user.user_id}
-                            onClick={() => navigate(`/settings/users/${user.user_id}`)}
-                            className="flex items-center justify-between rounded-lg border bg-background p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
+                      <div className="flex shrink-0 items-center gap-2 self-start">
+                        {user.vendor_id ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/vendors/${user.vendor_id}`);
+                            }}
                           >
-                            <div className="flex min-w-0 items-center gap-3">
-                              <div className="relative h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                                {user.avatar_url ? (
-                                  <img
-                                    src={user.avatar_url}
-                                    alt={user.display_name || user.first_name || ''}
-                                    className="h-full w-full object-cover"
-                                    referrerPolicy="no-referrer"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                      (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                                    }}
-                                  />
-                                ) : null}
-                                <span className={`text-sm font-semibold text-primary ${user.avatar_url ? 'hidden' : ''}`}>
-                                  {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
-                                </span>
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
-                                  {group.companyLogoUrl ? (
-                                    <img
-                                      src={group.companyLogoUrl}
-                                      alt={group.companyName}
-                                      className="h-5 w-5 rounded-sm border object-contain bg-background p-0.5 shrink-0"
-                                    />
-                                  ) : null}
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  {group.companyName}
-                                  {user.phone ? ` • ${user.phone}` : ''}
-                                </p>
-                                <div className="mt-2 flex flex-wrap gap-2">
-                                  <Badge variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'outline'}>
-                                    {user.status || 'pending'}
-                                  </Badge>
-                                  <Badge variant={user.external_access_state === 'pending' ? 'secondary' : 'outline'}>
-                                    {user.external_access_state === 'pending' ? 'Portal Pending' : 'Portal Active'}
-                                  </Badge>
-                                  {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
-                                    <Badge variant="outline">
-                                      {user.external_pending_jobs.length} pending job{user.external_pending_jobs.length === 1 ? '' : 's'}
-                                    </Badge>
-                                  ) : null}
-                                  {user.last_sign_in_at ? (
-                                    <Badge variant="outline">
-                                      Last login {new Date(user.last_sign_in_at).toLocaleDateString()}
-                                    </Badge>
-                                  ) : (
-                                    <Badge variant="outline" className="text-muted-foreground">No login yet</Badge>
-                                  )}
-                                </div>
-                              </div>
-                            </div>
-                            <div className="flex items-center gap-2">
-                              {user.vendor_id ? (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    navigate(`/vendors/${user.vendor_id}`);
-                                  }}
-                                >
-                                  Vendor
-                                </Button>
-                              ) : null}
-                              {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
-                                <Button
-                                  type="button"
-                                  variant="outline"
-                                  size="sm"
-                                  onClick={(event) => {
-                                    event.stopPropagation();
-                                    navigate(`/jobs/${user.external_pending_jobs?.[0]?.id}`);
-                                  }}
-                                >
-                                  Open Job
-                                </Button>
-                              ) : null}
-                              <Badge variant="secondary">Vendor</Badge>
-                            </div>
-                          </div>
-                        ))}
+                            Vendor
+                          </Button>
+                        ) : null}
+                        {user.external_pending_jobs && user.external_pending_jobs.length > 0 ? (
+                          <Button
+                            type="button"
+                            variant="outline"
+                            size="sm"
+                            className="h-8 px-2"
+                            onClick={(event) => {
+                              event.stopPropagation();
+                              navigate(`/jobs/${user.external_pending_jobs?.[0]?.id}`);
+                            }}
+                          >
+                            Open Job
+                          </Button>
+                        ) : null}
                       </div>
                     </div>
                   ))
@@ -1340,78 +1402,60 @@ export default function UserSettings() {
           <div className="space-y-4">
             <Card>
               <CardHeader>
-                <CardTitle>Design Professional Access Users ({getExternalUsers('design_professional').length})</CardTitle>
+                <CardTitle>Design Professional Access Users{loading ? '' : ` (${getExternalUsers('design_professional').length})`}</CardTitle>
               </CardHeader>
               <CardContent className="space-y-3">
-                {getExternalUsers('design_professional').length === 0 ? (
+                {loading ? (
+                  <p className="text-sm text-muted-foreground">Loading design professional access users...</p>
+                ) : getExternalUsers('design_professional').length === 0 ? (
                   <p className="text-sm text-muted-foreground">No design professional users are currently linked to this company.</p>
                 ) : (
-                  getExternalUsersGroupedByCompany('design_professional').map((group) => (
-                    <div key={group.companyName} className="rounded-xl border bg-card/50">
-                      <div className="flex items-center gap-3 border-b px-4 py-3">
-                        {group.companyLogoUrl ? (
-                          <img
-                            src={group.companyLogoUrl}
-                            alt={group.companyName}
-                            className="h-10 w-10 rounded-md border object-contain bg-background p-1 shrink-0"
-                          />
-                        ) : (
-                          <div className="flex h-10 w-10 items-center justify-center rounded-md border bg-muted text-xs font-semibold text-muted-foreground">
-                            {group.companyName.slice(0, 2).toUpperCase()}
-                          </div>
-                        )}
-                        <div className="min-w-0">
-                          <p className="font-semibold">{group.companyName}</p>
-                          <p className="text-sm text-muted-foreground">
-                            {group.users.length} user{group.users.length !== 1 ? 's' : ''}
-                          </p>
+                  getExternalUsers('design_professional').map((user) => (
+                    <div
+                      key={user.user_id}
+                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                      className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
+                    >
+                      <div className="flex min-w-0 items-center gap-3">
+                        <div className="relative h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
+                          {user.avatar_url ? (
+                            <img
+                              src={user.avatar_url}
+                              alt={user.display_name || user.first_name || ''}
+                              className="h-full w-full object-cover"
+                              referrerPolicy="no-referrer"
+                              onError={(e) => {
+                                (e.target as HTMLImageElement).style.display = 'none';
+                                (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
+                              }}
+                            />
+                          ) : null}
+                          <span className={`text-sm font-semibold text-primary ${user.avatar_url ? 'hidden' : ''}`}>
+                            {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
+                          </span>
                         </div>
-                      </div>
-                      <div className="space-y-2 p-3">
-                        {group.users.map((user) => (
-                          <div
-                            key={user.user_id}
-                            onClick={() => navigate(`/settings/users/${user.user_id}`)}
-                            className="flex items-center justify-between rounded-lg border bg-background p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
-                          >
-                            <div className="flex min-w-0 items-center gap-3">
-                              <div className="relative h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
-                                {user.avatar_url ? (
-                                  <img
-                                    src={user.avatar_url}
-                                    alt={user.display_name || user.first_name || ''}
-                                    className="h-full w-full object-cover"
-                                    referrerPolicy="no-referrer"
-                                    onError={(e) => {
-                                      (e.target as HTMLImageElement).style.display = 'none';
-                                      (e.target as HTMLImageElement).nextElementSibling?.classList.remove('hidden');
-                                    }}
-                                  />
-                                ) : null}
-                                <span className={`text-sm font-semibold text-primary ${user.avatar_url ? 'hidden' : ''}`}>
-                                  {user.first_name?.[0]?.toUpperCase() || user.display_name?.[0]?.toUpperCase() || 'U'}
-                                </span>
-                              </div>
-                              <div className="min-w-0">
-                                <div className="flex items-center gap-2 flex-wrap">
-                                  <p className="font-medium">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
-                                  {group.companyLogoUrl ? (
-                                    <img
-                                      src={group.companyLogoUrl}
-                                      alt={group.companyName}
-                                      className="h-5 w-5 rounded-sm border object-contain bg-background p-0.5 shrink-0"
-                                    />
-                                  ) : null}
-                                </div>
-                                <p className="text-sm text-muted-foreground">
-                                  {group.companyName}
-                                  {user.phone ? ` • ${user.phone}` : ''}
-                                </p>
-                              </div>
-                            </div>
-                            <Badge variant="secondary">Design Professional</Badge>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex items-center gap-2 flex-wrap leading-none">
+                            <p className="font-medium truncate">{user.display_name || `${user.first_name} ${user.last_name}`.trim() || 'Unnamed User'}</p>
+                            <Badge variant="secondary" className="h-5 px-1.5 text-[11px]">Design Professional</Badge>
                           </div>
-                        ))}
+                          <p className="mt-1 text-sm text-muted-foreground truncate">
+                            {user.company_name || 'Design Professional'}
+                            {user.phone ? ` • ${user.phone}` : ''}
+                          </p>
+                          <div className="mt-1 flex flex-wrap gap-1.5">
+                            <Badge className="h-5 px-1.5 text-[11px]" variant={user.status === 'approved' ? 'default' : user.status === 'pending' ? 'secondary' : 'outline'}>
+                              {user.status || 'pending'}
+                            </Badge>
+                            {user.last_sign_in_at ? (
+                              <Badge className="h-5 px-1.5 text-[11px]" variant="outline">
+                                Last login {new Date(user.last_sign_in_at).toLocaleDateString()}
+                              </Badge>
+                            ) : (
+                              <Badge variant="outline" className="h-5 px-1.5 text-[11px] text-muted-foreground">No login yet</Badge>
+                            )}
+                          </div>
+                        </div>
                       </div>
                     </div>
                   ))

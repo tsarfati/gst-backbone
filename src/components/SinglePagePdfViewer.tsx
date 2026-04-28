@@ -17,8 +17,6 @@ interface SinglePagePdfViewerProps {
 
 type RenderReason = "page" | "zoom";
 
-const pdfDocumentPromiseCache = new Map<string, Promise<any>>();
-
 /**
  * Single-page PDF renderer.
  * - Trackpad pinch and touch pinch are handled without zooming the whole page.
@@ -56,6 +54,12 @@ export default function SinglePagePdfViewer({
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [pdfDoc, setPdfDoc] = useState<any>(null);
+  const activeLoadIdRef = useRef(0);
+  const pdfDocRef = useRef<any>(null);
+
+  useEffect(() => {
+    pdfDocRef.current = pdfDoc;
+  }, [pdfDoc]);
 
   // Tracks layout metrics so we can instantly resize the canvas element during zoom.
   const layoutRef = useRef<{
@@ -337,35 +341,34 @@ export default function SinglePagePdfViewer({
   useEffect(() => {
     let cancelled = false;
     let loadingTask: any = null;
+    const loadId = ++activeLoadIdRef.current;
 
     async function loadPdf() {
       try {
         setLoading(true);
         setError(null);
+        setPdfDoc(null);
         layoutRef.current = null;
 
         const pdfjs = await import("pdfjs-dist");
         (pdfjs as any).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-        let pdfPromise = pdfDocumentPromiseCache.get(url);
-        if (!pdfPromise) {
-          loadingTask = (pdfjs as any).getDocument({
-            url,
-            withCredentials: false,
-            disableAutoFetch: false,
-            disableStream: false,
-            rangeChunkSize: 1024 * 1024,
-          });
-          pdfPromise = loadingTask.promise.catch((error: any) => {
-            pdfDocumentPromiseCache.delete(url);
-            throw error;
-          });
-          pdfDocumentPromiseCache.set(url, pdfPromise);
-        }
+        loadingTask = (pdfjs as any).getDocument({
+          url,
+          withCredentials: false,
+          disableAutoFetch: false,
+          disableStream: false,
+          rangeChunkSize: 1024 * 1024,
+        });
 
-        const pdf = await pdfPromise;
+        const pdf = await loadingTask.promise;
 
-        if (cancelled) {
+        if (cancelled || loadId !== activeLoadIdRef.current) {
+          try {
+            await pdf.destroy?.();
+          } catch {
+            // ignore cleanup errors
+          }
           return;
         }
 
@@ -392,20 +395,10 @@ export default function SinglePagePdfViewer({
     };
   }, [url]);
 
-  useEffect(() => {
-    if (!pdfDoc) return;
-
-    const nextPageNumber = safePageNumber + 1;
-    if (nextPageNumber > totalPages) return;
-
-    void pdfDoc.getPage(nextPageNumber).catch(() => {
-      // Best-effort warmup only; the current page should still render normally.
-    });
-  }, [pdfDoc, safePageNumber, totalPages]);
-
   const requestRender = useCallback(
     async ({ page, zoom, reason }: { page: number; zoom: number; reason: RenderReason }) => {
       if (!pdfDoc) return;
+      const currentDoc = pdfDoc;
 
       if (isRenderingRef.current) {
         pendingRenderRef.current = { page, zoom, reason };
@@ -421,10 +414,10 @@ export default function SinglePagePdfViewer({
         setError(null);
 
         const safePage = Math.max(1, page);
-        const pdfPage = await pdfDoc.getPage(safePage);
+        const pdfPage = await currentDoc.getPage(safePage);
         const container = containerRef.current;
         const displayCanvas = canvasRef.current;
-        if (!container || !displayCanvas) return;
+        if (!container || !displayCanvas || currentDoc !== pdfDocRef.current) return;
 
         const containerWidth = container.clientWidth || window.innerWidth;
         const baseViewport = pdfPage.getViewport({ scale: 1 });
@@ -456,6 +449,7 @@ export default function SinglePagePdfViewer({
         if (!offscreenCtx) return;
 
         await pdfPage.render({ canvasContext: offscreenCtx, viewport: renderViewport, canvas: offscreen }).promise;
+        if (currentDoc !== pdfDocRef.current) return;
 
         const ctx = displayCanvas.getContext("2d");
         if (!ctx) return;
@@ -467,9 +461,11 @@ export default function SinglePagePdfViewer({
 
       } catch (err: any) {
         console.error("Page render error:", err);
-        setError("Failed to render page");
+        if (currentDoc === pdfDocRef.current) {
+          setError("Failed to render page");
+        }
       } finally {
-        if (reason === "page") {
+        if (reason === "page" && currentDoc === pdfDocRef.current) {
           setLoading(false);
         }
         isRenderingRef.current = false;

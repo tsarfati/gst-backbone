@@ -421,9 +421,49 @@ export default function UserDetails() {
           role: userData.custom_role_id ? `custom_${userData.custom_role_id}` : (effectiveRole === 'owner' ? 'admin' : role),
           status: userData.status || 'approved',
         });
-        
-        if (profileRes.data.vendor_id) {
-          const { data: vendorData } = await supabase.from('vendors').select('id, name').eq('id', profileRes.data.vendor_id).single();
+
+        let resolvedVendorId = profileRes.data.vendor_id || null;
+        let resolvedUserEmail = String(profileRes.data.email || '').trim().toLowerCase();
+
+        if (!resolvedUserEmail) {
+          try {
+            const response = await supabase.functions.invoke('get-user-email', { body: { userId, companyId: currentCompany?.id } });
+            resolvedUserEmail = String(response.data?.email || '').trim().toLowerCase();
+          } catch (emailError) {
+            console.warn('UserDetails: unable to resolve user email during vendor linkage lookup', emailError);
+          }
+        }
+
+        if (!resolvedVendorId && String(effectiveRole || '').toLowerCase() === 'vendor' && currentCompany?.id && resolvedUserEmail) {
+          const { data: matchedVendor, error: matchedVendorError } = await supabase
+            .from('vendors')
+            .select('id, name')
+            .eq('company_id', currentCompany.id)
+            .ilike('email', resolvedUserEmail)
+            .maybeSingle();
+
+          if (matchedVendorError) {
+            console.warn('UserDetails: vendor email match lookup failed', matchedVendorError);
+          } else if (matchedVendor?.id) {
+            resolvedVendorId = matchedVendor.id;
+            try {
+              const { error: linkVendorError } = await supabase
+                .from('profiles')
+                .update({ vendor_id: matchedVendor.id })
+                .eq('user_id', userId!);
+              if (linkVendorError) {
+                console.warn('UserDetails: failed to persist vendor linkage from email match', linkVendorError);
+              } else {
+                setUser((prev) => prev ? { ...prev, vendor_id: matchedVendor.id } : prev);
+              }
+            } catch (linkVendorError) {
+              console.warn('UserDetails: failed to persist vendor linkage from email match', linkVendorError);
+            }
+          }
+        }
+
+        if (resolvedVendorId) {
+          const { data: vendorData } = await supabase.from('vendors').select('id, name, email, phone').eq('id', resolvedVendorId).single();
           if (vendorData) {
             setAssociatedVendor(vendorData);
             setSelectedVendorId(vendorData.id);
@@ -458,8 +498,9 @@ export default function UserDetails() {
           .order('created_at', { ascending: false }),
         (supabase
           .from('rfp_invited_vendors') as any)
-          .select('rfp:rfps(job:jobs(id, name, company_id))')
+          .select('rfp:rfps!inner(job_id, jobs!inner(id, name, company_id))')
           .eq('vendor_id', vendorId)
+          .eq('rfp.company_id', currentCompany.id)
           .order('invited_at', { ascending: false }),
         supabase
           .from('invoices')
@@ -507,7 +548,7 @@ export default function UserDetails() {
       });
 
       ((invitedRfpsRes.data || []) as any[]).forEach((row: any) => {
-        const job = row?.rfp?.job;
+        const job = row?.rfp?.jobs;
         if (String(job?.company_id || '') !== String(currentCompany.id)) return;
         if (!job?.id || !job?.name) return;
         const id = String(job.id);
@@ -1513,6 +1554,44 @@ export default function UserDetails() {
             </p>
           </CardContent>
         </Card>
+
+        {isVendorUser && associatedVendor && (
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-3">
+              <CardTitle className="flex items-center gap-2">
+                <Store className="h-5 w-5" />
+                Vendor Company Info
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => navigate(`/vendors/${associatedVendor.id}/edit`)}
+              >
+                <Edit className="mr-2 h-4 w-4" />
+                Edit Vendor
+              </Button>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-3 text-sm text-muted-foreground md:grid-cols-3">
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Company Name</p>
+                  <p className="mt-1 text-foreground">{associatedVendor.name || 'Not set'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Email</p>
+                  <p className="mt-1 text-foreground">{associatedVendor.email || 'Not set'}</p>
+                </div>
+                <div>
+                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Phone</p>
+                  <p className="mt-1 text-foreground">{associatedVendor.phone || 'Not set'}</p>
+                </div>
+              </div>
+              <p className="mt-3 text-xs text-muted-foreground">
+                Vendor company info is primarily maintained by the vendor in their portal, but you can edit the builder-side vendor record here when needed.
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {isVendorUser && (
           <Card>

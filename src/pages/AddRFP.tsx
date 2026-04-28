@@ -16,7 +16,6 @@ import { useWebsiteJobAccess } from '@/hooks/useWebsiteJobAccess';
 import { canAccessJobIds, ensureAllowedJobFilter } from '@/utils/jobAccess';
 import { createRfpNotifications } from '@/utils/rfpNotifications';
 import { getStoragePathForDb } from '@/utils/storageUtils';
-import { hydratePlanPagesFromPdfText } from '@/utils/planPageHydration';
 import RfpPlanPagePicker, {
   type RfpPlanPageNoteDraft,
   type RfpPlanPageOption,
@@ -120,6 +119,29 @@ const buildCommentSelectionSignature = (pages: SelectedRfpPlanPage[]) =>
       .filter((page) => page.note || page.callouts.length > 0)
       .sort((a, b) => a.plan_page_id.localeCompare(b.plan_page_id)),
   );
+
+const resolveEffectiveFullPlanSetIds = (
+  selectedFullPlanSetIds: string[],
+  selectedPlanPages: SelectedRfpPlanPage[],
+  availablePlanPages: RfpPlanPageOption[],
+) => {
+  const availableCountsByPlanId = availablePlanPages.reduce<Map<string, number>>((map, page) => {
+    map.set(page.plan_id, (map.get(page.plan_id) || 0) + 1);
+    return map;
+  }, new Map());
+
+  const selectedCountsByPlanId = selectedPlanPages.reduce<Map<string, number>>((map, page) => {
+    map.set(page.plan_id, (map.get(page.plan_id) || 0) + 1);
+    return map;
+  }, new Map());
+
+  return selectedFullPlanSetIds.filter((planId) => {
+    const selectedCount = selectedCountsByPlanId.get(planId);
+    if (!selectedCount) return true;
+    const availableCount = availableCountsByPlanId.get(planId) || 0;
+    return availableCount > 0 && selectedCount >= availableCount;
+  });
+};
 
 export default function AddRFP() {
   const navigate = useNavigate();
@@ -423,53 +445,6 @@ export default function AddRFP() {
       setSelectedFullPlanSetIds((prev) => prev.filter((planId) => planIds.includes(planId)));
       setSelectedJobFileIds((prev) => prev.filter((fileId) => (jobFileRows || []).some((file: any) => String(file.id) === fileId)));
 
-      void (async () => {
-        let changed = false;
-        for (const plan of (plansData || []) as any[]) {
-          const planId = String(plan.id || '');
-          const fileUrl = String(plan.file_url || '');
-          if (!planId || !fileUrl) continue;
-          try {
-            const result = await hydratePlanPagesFromPdfText({
-              planId,
-              planUrl: fileUrl,
-            });
-            if (result.updatedCount > 0) {
-              changed = true;
-            }
-          } catch (hydrationError) {
-            console.warn(`Failed hydrating plan pages for plan ${planId}:`, hydrationError);
-          }
-        }
-
-        if (!changed) return;
-
-        const { data: refreshedPageRows, error: refreshedPageError } = await supabase
-          .from('plan_pages' as any)
-          .select('id, plan_id, page_number, sheet_number, page_title, discipline, thumbnail_url')
-          .in('plan_id', planIds)
-          .order('page_number', { ascending: true });
-
-        if (refreshedPageError) throw refreshedPageError;
-
-        setAvailablePlanPages(
-          ((refreshedPageRows || []) as any[]).map((page) => {
-            const plan = planById.get(String(page.plan_id));
-            return {
-              plan_id: String(page.plan_id),
-              plan_name: String(plan?.plan_name || 'Plan Set'),
-              plan_number: plan?.plan_number || null,
-              plan_file_url: plan?.file_url || null,
-              plan_page_id: String(page.id),
-              page_number: Number(page.page_number || 0),
-              sheet_number: page.sheet_number || null,
-              page_title: page.page_title || null,
-              discipline: page.discipline || null,
-              thumbnail_url: page.thumbnail_url || null,
-            };
-          }),
-        );
-      })();
     } catch (error) {
       console.error('Error loading available plan pages:', error);
       setAvailablePlanPages([]);
@@ -573,7 +548,12 @@ export default function AddRFP() {
 
     if (deleteError) throw deleteError;
 
-    const fullPlanSetPages = availablePlanPages.filter((page) => selectedFullPlanSetIds.includes(page.plan_id));
+    const effectiveFullPlanSetIds = resolveEffectiveFullPlanSetIds(
+      selectedFullPlanSetIds,
+      selectedPlanPages,
+      availablePlanPages,
+    );
+    const fullPlanSetPages = availablePlanPages.filter((page) => effectiveFullPlanSetIds.includes(page.plan_id));
     const mergedPages = [...selectedPlanPages];
     fullPlanSetPages.forEach((page) => {
       if (!mergedPages.some((entry) => entry.plan_page_id === page.plan_page_id)) {
@@ -638,13 +618,15 @@ export default function AddRFP() {
   };
 
   const applySelectedPlanPages = (pages: PickerSelectedPlanPage[]) => {
-    setSelectedPlanPages(
-      pages.map((page, index) => ({
+    const normalizedPages = pages.map((page, index) => ({
         ...page,
         is_primary: pages.some((entry) => entry.is_primary) ? !!page.is_primary : index === 0,
         note: page.note || null,
         callouts: (page.callouts || []).map((callout) => ({ ...callout })),
-      })),
+      }));
+    setSelectedPlanPages(normalizedPages);
+    setSelectedFullPlanSetIds((prev) =>
+      resolveEffectiveFullPlanSetIds(prev, normalizedPages, availablePlanPages),
     );
   };
 
@@ -706,7 +688,12 @@ export default function AddRFP() {
     setSelectedDrawings(prev => [...prev, ...nextFiles]);
   };
 
-  const selectedPlanSetRecords = availablePlanSets.filter((plan) => selectedFullPlanSetIds.includes(plan.id));
+  const effectiveFullPlanSetIds = resolveEffectiveFullPlanSetIds(
+    selectedFullPlanSetIds,
+    selectedPlanPages,
+    availablePlanPages,
+  );
+  const selectedPlanSetRecords = availablePlanSets.filter((plan) => effectiveFullPlanSetIds.includes(plan.id));
   const selectedPlanSetSummaries = Array.from(
     selectedPlanPages.reduce<Map<string, {
       planId: string;
@@ -734,7 +721,7 @@ export default function AddRFP() {
         planNumber: page.plan_number || null,
         thumbnailUrl: page.thumbnail_url || null,
         selectedPageCount: 1,
-        fullSetSelected: selectedFullPlanSetIds.includes(page.plan_id),
+        fullSetSelected: effectiveFullPlanSetIds.includes(page.plan_id),
         noteCount: (page.callouts || []).length,
         hasPrimary: !!page.is_primary,
         firstPageLabel: page.sheet_number || `Page ${page.page_number}`,
@@ -1107,11 +1094,12 @@ export default function AddRFP() {
           </div>
         </div>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>RFP Details</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
+        <div className="grid gap-6 xl:grid-cols-[minmax(0,3fr)_minmax(340px,2fr)]">
+          <Card>
+            <CardHeader>
+              <CardTitle>RFP Details</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="rfp_number">RFP Number</Label>
@@ -1123,7 +1111,7 @@ export default function AddRFP() {
                 />
               </div>
               <div className="space-y-2">
-                <Label htmlFor="job_id">Job (Optional)</Label>
+                <Label htmlFor="job_id">Job</Label>
                 <Select 
                   value={formData.job_id || "none"} 
                   onValueChange={(value) => setFormData(prev => ({ ...prev, job_id: value === "none" ? "" : value }))}
@@ -1140,6 +1128,27 @@ export default function AddRFP() {
                     ))}
                   </SelectContent>
                 </Select>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="issue_date">Issue Date</Label>
+                <Input
+                  id="issue_date"
+                  type="date"
+                  value={formData.issue_date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, issue_date: e.target.value }))}
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="due_date">Due Date</Label>
+                <Input
+                  id="due_date"
+                  type="date"
+                  value={formData.due_date}
+                  onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
+                />
               </div>
             </div>
 
@@ -1186,219 +1195,165 @@ export default function AddRFP() {
                 rows={4}
               />
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label htmlFor="issue_date">Issue Date</Label>
-                <Input
-                  id="issue_date"
-                  type="date"
-                  value={formData.issue_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, issue_date: e.target.value }))}
-                />
-              </div>
-              <div className="space-y-2">
-                <Label htmlFor="due_date">Due Date</Label>
-                <Input
-                  id="due_date"
-                  type="date"
-                  value={formData.due_date}
-                  onChange={(e) => setFormData(prev => ({ ...prev, due_date: e.target.value }))}
-                />
-              </div>
-            </div>
           </CardContent>
-        </Card>
+          </Card>
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Plan Sets</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!formData.job_id ? (
-              <p className="text-sm text-muted-foreground">
-                Select a job first to attach indexed plan pages.
-              </p>
-            ) : (
-              <>
-                <div className="flex items-center justify-between gap-3">
-                  <div className="text-sm text-muted-foreground">
-                    {groupedSelectedPlanSets.length === 0
-                      ? 'No plan sets attached yet.'
-                      : `${groupedSelectedPlanSets.length} plan set${groupedSelectedPlanSets.length !== 1 ? 's' : ''} attached`}
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Button type="button" variant="outline" onClick={() => setPlanSetPickerOpen(true)}>
-                      <Layers3 className="h-4 w-4 mr-2" />
-                      Add Plan Sets
-                    </Button>
-                    <Button type="button" variant="outline" onClick={() => setPlanPickerOpen(true)}>
-                      <Layers3 className="h-4 w-4 mr-2" />
-                      Add Plan Pages
-                    </Button>
-                  </div>
-                </div>
-
-                {groupedSelectedPlanSets.length > 0 && (
-                  <div className="rounded-md border divide-y">
-                    {groupedSelectedPlanSets.map((planSet) => (
-                      <div key={planSet.planId} className="flex items-start justify-between gap-3 px-4 py-3">
-                        {planSet.thumbnailUrl ? (
-                          <img
-                            src={planSet.thumbnailUrl}
-                            alt={planSet.planName}
-                            className="h-20 w-14 rounded border object-cover shrink-0 bg-background"
-                          />
-                        ) : (
-                          <div className="h-20 w-14 rounded border shrink-0 bg-muted/30 flex items-center justify-center text-xs text-muted-foreground">
-                            Set
-                          </div>
-                        )}
-                        <div className="min-w-0 flex-1 space-y-2">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <p className="font-medium">{planSet.planName}</p>
-                            {planSet.planNumber ? <Badge variant="outline">#{planSet.planNumber}</Badge> : null}
-                            <Badge variant="outline">
-                              {planSet.fullSetSelected
-                                ? 'Full plan set'
-                                : `${planSet.selectedPageCount} selected page${planSet.selectedPageCount === 1 ? '' : 's'}`}
-                            </Badge>
-                            {planSet.hasPrimary ? <Badge>Primary Page Included</Badge> : null}
-                            {planSet.noteCount > 0 ? (
-                              <Badge variant="secondary">
-                                {planSet.noteCount} linked note{planSet.noteCount === 1 ? '' : 's'}
-                              </Badge>
-                            ) : null}
-                          </div>
-                          <p className="text-sm text-muted-foreground truncate">
-                            {planSet.fullSetSelected
-                              ? 'All pages in this plan set will be included on the RFP.'
-                              : `${planSet.firstPageLabel}${planSet.firstPageTitle ? ` • ${planSet.firstPageTitle}` : ''}`}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-2 shrink-0">
-                          <Button
-                            type="button"
-                            size="icon"
-                            variant="ghost"
-                            onClick={() => {
-                              setSelectedPlanPages((prev) => prev.filter((entry) => entry.plan_id !== planSet.planId));
-                              setSelectedFullPlanSetIds((prev) => prev.filter((id) => id !== planSet.planId));
-                            }}
-                          >
-                            <X className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Attached Files</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {!formData.job_id ? (
-              <p className="text-sm text-muted-foreground">
-                Select a job first to attach files from the job filing cabinet.
-              </p>
-            ) : (
-              <div className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Button type="button" variant="outline" onClick={() => setJobFilePickerOpen(true)}>
-                    <FolderOpen className="h-4 w-4 mr-2" />
-                    Attach from Job Filing Cabinet
-                  </Button>
-                </div>
-
-                <div className="space-y-2">
-                  <Label htmlFor="attachments_upload">Upload Files</Label>
-                  <input
-                    ref={attachmentsInputRef}
-                    id="attachments_upload"
-                    type="file"
-                    multiple
-                    onChange={(e) => {
-                      addDrawingFiles(e.target.files || []);
-                      e.target.value = '';
-                    }}
-                    accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
-                    className="hidden"
-                  />
-                  <div
-                    className={`rounded-md border-2 border-dashed px-4 py-3 text-center text-sm transition-colors ${
-                      isAttachmentsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
-                    }`}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      setIsAttachmentsDragOver(true);
-                    }}
-                    onDragLeave={(e) => {
-                      e.preventDefault();
-                      setIsAttachmentsDragOver(false);
-                    }}
-                    onDrop={(e) => {
-                      e.preventDefault();
-                      setIsAttachmentsDragOver(false);
-                      const droppedFiles = Array.from(e.dataTransfer.files || []);
-                      if (droppedFiles.length > 0) addDrawingFiles(droppedFiles);
-                    }}
-                    onClick={() => attachmentsInputRef.current?.click()}
-                  >
-                    <div className="flex items-center justify-center gap-3">
-                      <span>{isAttachmentsDragOver ? 'Drop Files Here' : 'Drag Files Here'}</span>
-                      <span className="text-muted-foreground">or</span>
-                      <Button type="button" variant="outline" size="sm" onClick={(e) => {
-                        e.stopPropagation();
-                        attachmentsInputRef.current?.click();
-                      }}>
-                        Choose Files to Add
-                      </Button>
-                    </div>
-                  </div>
-                  {selectedDrawings.length > 0 && (
-                    <p className="text-sm text-muted-foreground">
-                      {selectedDrawings.length} file{selectedDrawings.length === 1 ? '' : 's'} selected for upload on save
-                    </p>
-                  )}
-                </div>
-
-                <div className="rounded-md border divide-y">
-                  {selectedJobFileRecords.length === 0 ? (
-                    <div className="px-3 py-4 text-sm text-muted-foreground">
-                      No filing cabinet files selected yet.
-                    </div>
-                  ) : (
-                    selectedJobFileRecords.map((file) => (
-                      <div key={file.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
-                        <div className="min-w-0">
-                          <div className="font-medium truncate">{file.file_name}</div>
-                          <div className="text-muted-foreground">
-                            {file.file_type || 'File'}
-                            {typeof file.file_size === 'number' ? ` • ${Math.max(1, Math.round(file.file_size / 1024))} KB` : ''}
-                          </div>
-                        </div>
-                        <Button
-                          type="button"
-                          size="icon"
-                          variant="ghost"
-                          onClick={() => setSelectedJobFileIds((prev) => prev.filter((id) => id !== file.id))}
-                        >
-                          <X className="h-4 w-4" />
+          <Card className="overflow-hidden">
+            <CardHeader>
+              <CardTitle>Plans and Files</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-5">
+              {!formData.job_id ? (
+                <p className="text-sm text-muted-foreground">
+                  Select a job first to attach indexed plan pages and job files.
+                </p>
+              ) : (
+                <>
+                  <div className="space-y-3">
+                    <div className="flex flex-wrap items-center justify-between gap-3">
+                      <div className="flex items-center gap-2">
+                        <Button type="button" variant="outline" onClick={() => setPlanSetPickerOpen(true)}>
+                          <Layers3 className="h-4 w-4 mr-2" />
+                          Add Plan Sets
+                        </Button>
+                        <Button type="button" variant="outline" onClick={() => setPlanPickerOpen(true)}>
+                          <Layers3 className="h-4 w-4 mr-2" />
+                          Add Plan Pages
+                        </Button>
+                        <Button type="button" variant="outline" onClick={() => setJobFilePickerOpen(true)}>
+                        <FolderOpen className="h-4 w-4 mr-2" />
+                          Filing Cabinet
                         </Button>
                       </div>
-                    ))
-                  )}
-                </div>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+                    </div>
+
+                    {(groupedSelectedPlanSets.length > 0 || selectedJobFileRecords.length > 0) ? (
+                      <div className="rounded-md border divide-y">
+                        {groupedSelectedPlanSets.map((planSet) => (
+                          <div key={`plan-${planSet.planId}`} className="flex items-start justify-between gap-3 px-4 py-3">
+                            {planSet.thumbnailUrl ? (
+                              <img
+                                src={planSet.thumbnailUrl}
+                                alt={planSet.planName}
+                                className="h-20 w-14 rounded border object-cover shrink-0 bg-background"
+                              />
+                            ) : (
+                              <div className="h-20 w-14 rounded border shrink-0 bg-muted/30 flex items-center justify-center text-xs text-muted-foreground">
+                                Set
+                              </div>
+                            )}
+                            <div className="min-w-0 flex-1 space-y-2">
+                              <div className="flex items-center gap-2 flex-wrap">
+                                <p className="font-medium">{planSet.planName}</p>
+                                {planSet.planNumber ? <Badge variant="outline">#{planSet.planNumber}</Badge> : null}
+                                <Badge variant="outline">
+                                  {planSet.fullSetSelected
+                                    ? 'Full plan set'
+                                    : `${planSet.selectedPageCount} selected page${planSet.selectedPageCount === 1 ? '' : 's'}`}
+                                </Badge>
+                                {planSet.hasPrimary ? <Badge>Primary Page Included</Badge> : null}
+                                {planSet.noteCount > 0 ? (
+                                  <Badge variant="secondary">
+                                    {planSet.noteCount} linked note{planSet.noteCount === 1 ? '' : 's'}
+                                  </Badge>
+                                ) : null}
+                              </div>
+                              <p className="text-sm text-muted-foreground truncate">
+                                {planSet.fullSetSelected
+                                  ? 'All pages in this plan set will be included on the RFP.'
+                                  : `${planSet.firstPageLabel}${planSet.firstPageTitle ? ` • ${planSet.firstPageTitle}` : ''}`}
+                              </p>
+                            </div>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => {
+                                setSelectedPlanPages((prev) => prev.filter((entry) => entry.plan_id !== planSet.planId));
+                                setSelectedFullPlanSetIds((prev) => prev.filter((planId) => planId !== planSet.planId));
+                              }}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+
+                        {selectedJobFileRecords.map((file) => (
+                          <div key={file.id} className="flex items-center justify-between gap-3 px-3 py-3 text-sm">
+                            <div className="min-w-0">
+                              <div className="font-medium truncate">{file.file_name}</div>
+                              <div className="text-muted-foreground">
+                                {file.file_type || 'File'}
+                                {typeof file.file_size === 'number' ? ` • ${Math.max(1, Math.round(file.file_size / 1024))} KB` : ''}
+                              </div>
+                            </div>
+                            <Button
+                              type="button"
+                              size="icon"
+                              variant="ghost"
+                              onClick={() => setSelectedJobFileIds((prev) => prev.filter((entryId) => entryId !== file.id))}
+                            >
+                              <X className="h-4 w-4" />
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    ) : null}
+
+                    <input
+                      ref={attachmentsInputRef}
+                      id="attachments_upload"
+                      type="file"
+                      multiple
+                      onChange={(e) => {
+                        addDrawingFiles(e.target.files || []);
+                        e.target.value = '';
+                      }}
+                      accept=".pdf,.dwg,.dxf,.png,.jpg,.jpeg,.webp"
+                      className="hidden"
+                    />
+                    <div
+                      className={`rounded-md border-2 border-dashed px-4 py-3 text-center text-sm transition-colors ${
+                        isAttachmentsDragOver ? 'border-primary bg-primary/5' : 'border-muted-foreground/25'
+                      }`}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        setIsAttachmentsDragOver(true);
+                      }}
+                      onDragLeave={(e) => {
+                        e.preventDefault();
+                        setIsAttachmentsDragOver(false);
+                      }}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        setIsAttachmentsDragOver(false);
+                        const droppedFiles = Array.from(e.dataTransfer.files || []);
+                        if (droppedFiles.length > 0) addDrawingFiles(droppedFiles);
+                      }}
+                      onClick={() => attachmentsInputRef.current?.click()}
+                    >
+                      <div className="flex items-center justify-center gap-3">
+                        <span>{isAttachmentsDragOver ? 'Drop Files Here' : 'Drag Files Here'}</span>
+                        <span className="text-muted-foreground">or</span>
+                        <Button type="button" variant="outline" size="sm" onClick={(e) => {
+                          e.stopPropagation();
+                          attachmentsInputRef.current?.click();
+                        }}>
+                          Choose Files to Add
+                        </Button>
+                      </div>
+                    </div>
+                    {selectedDrawings.length > 0 ? (
+                      <p className="text-sm text-muted-foreground">
+                        {selectedDrawings.length} file{selectedDrawings.length === 1 ? '' : 's'} selected for upload on save
+                      </p>
+                    ) : null}
+                  </div>
+                </>
+              )}
+            </CardContent>
+          </Card>
+        </div>
 
       </form>
       )}

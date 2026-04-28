@@ -20,6 +20,7 @@ import {
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useToast } from "@/hooks/use-toast";
+import { useMenuPermissions } from "@/hooks/useMenuPermissions";
 
 export default function BankingReports() {
   const navigate = useNavigate();
@@ -34,6 +35,7 @@ export default function BankingReports() {
   const [totalWithdrawals, setTotalWithdrawals] = useState(0);
   const [journalEntryCount, setJournalEntryCount] = useState(0);
   const [accountCount, setAccountCount] = useState(0);
+  const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
 
   useEffect(() => {
     if (currentCompany) {
@@ -145,30 +147,34 @@ export default function BankingReports() {
   };
 
   const accountingReports = [
-    { name: "Account Totals", category: "accounts" },
-    { name: "Balance Sheet", category: "accounts" },
-    { name: "Balance Sheet - Comparative", category: "accounts" },
-    { name: "Balance Sheet - Property Comparison", category: "accounts" },
-    { name: "Bank Account Activity", category: "accounts" },
-    { name: "Bank Account Association", category: "accounts" },
-    { name: "Cash Flow", category: "cashflow" },
-    { name: "Cash Flow - 12 Month", category: "cashflow" },
-    { name: "Cash Flow - Property Comparison", category: "cashflow" },
-    { name: "Cash Flow Detail", category: "cashflow" },
-    { name: "Chart of Accounts", category: "accounts" },
-    { name: "Expense Distribution", category: "expenses" },
-    { name: "General Ledger", category: "ledger" },
-    { name: "Income Statement", category: "income" },
-    { name: "Income Statement - 12 Month", category: "income" },
-    { name: "Income Statement - Comparative", category: "income" },
-    { name: "Income Statement - Property Comparison", category: "income" },
-    { name: "Income Statement (Date Range)", category: "income" },
-    { name: "Loans", category: "liabilities" },
-    { name: "Trial Balance", category: "accounts" },
-    { name: "Trial Balance by Property", category: "accounts" },
-    { name: "Trust Account Balance", category: "accounts" },
-    { name: "Trust Account Detail", category: "accounts" },
+    { name: "Account Totals", category: "accounts", permission: "banking-reports-account-totals-view" },
+    { name: "Balance Sheet", category: "accounts", permission: "banking-reports-balance-sheet-view" },
+    { name: "Balance Sheet - Comparative", category: "accounts", permission: "banking-reports-balance-sheet-view" },
+    { name: "Balance Sheet - Property Comparison", category: "accounts", permission: "banking-reports-balance-sheet-view" },
+    { name: "Bank Account Activity", category: "accounts", permission: "banking-reports-bank-account-activity-view" },
+    { name: "Bank Account Association", category: "accounts", permission: "banking-reports-bank-account-association-view" },
+    { name: "Cash Flow", category: "cashflow", permission: "banking-reports-cash-flow-view" },
+    { name: "Cash Flow - 12 Month", category: "cashflow", permission: "banking-reports-cash-flow-view" },
+    { name: "Cash Flow - Property Comparison", category: "cashflow", permission: "banking-reports-cash-flow-view" },
+    { name: "Cash Flow Detail", category: "cashflow", permission: "banking-reports-cash-flow-detail-view" },
+    { name: "Chart of Accounts", category: "accounts", permission: "banking-reports-chart-of-accounts-view" },
+    { name: "Expense Distribution", category: "expenses", permission: "banking-reports-expense-distribution-view" },
+    { name: "General Ledger", category: "ledger", permission: "banking-reports-general-ledger-view" },
+    { name: "Income Statement", category: "income", permission: "banking-reports-income-statement-view" },
+    { name: "Income Statement - 12 Month", category: "income", permission: "banking-reports-income-statement-view" },
+    { name: "Income Statement - Comparative", category: "income", permission: "banking-reports-income-statement-view" },
+    { name: "Income Statement - Property Comparison", category: "income", permission: "banking-reports-income-statement-view" },
+    { name: "Income Statement (Date Range)", category: "income", permission: "banking-reports-income-statement-view" },
+    { name: "Loans", category: "liabilities", permission: "banking-reports-loans-view" },
+    { name: "Trial Balance", category: "accounts", permission: "banking-reports-trial-balance-view" },
+    { name: "Trial Balance by Property", category: "accounts", permission: "banking-reports-trial-balance-view" },
+    { name: "Trust Account Balance", category: "accounts", permission: "banking-reports-trust-account-balance-view" },
+    { name: "Trust Account Detail", category: "accounts", permission: "banking-reports-trust-account-detail-view" },
   ];
+  const visibleAccountingReports = accountingReports.filter((report) => {
+    if (permissionsLoading) return false;
+    return hasAccess(report.permission) || hasAccess("banking-reports-view");
+  });
 
   const openReport = (reportName: string) => {
     const routeMap: Record<string, string> = {

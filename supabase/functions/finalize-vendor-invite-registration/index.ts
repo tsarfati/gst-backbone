@@ -100,18 +100,45 @@ serve(async (req) => {
     const externalRole = isDesignProfessionalVendorType(vendorRecord?.vendor_type) ? "design_professional" : "vendor";
     const approvedAt = new Date().toISOString();
     const displayName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(" ").trim() || invitedEmail;
+    const linkedVendorId = safeString((invitation as any).vendor_id) || null;
+    const linkedCompanyId = safeString((invitation as any).company_id) || null;
 
     const notesPayload = {
       requestType: "external_access_signup",
       requestedRole: externalRole,
       businessName: safeString(vendorRecord?.name) || null,
-      homeCompanyId: safeString((invitation as any).company_id) || null,
+      homeCompanyId: linkedCompanyId,
       homeCompanyName: null,
-      externalCompanyId: safeString((invitation as any).company_id) || null,
+      externalCompanyId: linkedCompanyId,
+      vendorId: linkedVendorId,
       requestedAt: approvedAt,
       email: invitedEmail,
       source: "rfp_vendor_invitation",
     };
+
+    const existingUserMetadata = authUserData.user?.user_metadata || {};
+    const existingAppMetadata = authUserData.user?.app_metadata || {};
+    const { error: authMetadataError } = await supabase.auth.admin.updateUserById(authUserId, {
+      user_metadata: {
+        ...existingUserMetadata,
+        first_name: normalizedFirstName || existingUserMetadata.first_name || null,
+        last_name: normalizedLastName || existingUserMetadata.last_name || null,
+        is_vendor: externalRole === "vendor",
+        vendor_id: linkedVendorId,
+        current_company_id: linkedCompanyId,
+        default_company_id: linkedCompanyId,
+        role: externalRole,
+      },
+      app_metadata: {
+        ...existingAppMetadata,
+        is_vendor: externalRole === "vendor",
+        vendor_id: linkedVendorId,
+        current_company_id: linkedCompanyId,
+        default_company_id: linkedCompanyId,
+        role: externalRole,
+      },
+    });
+    if (authMetadataError) throw authMetadataError;
 
     const { error: profileError } = await supabase
       .from("profiles")
@@ -122,12 +149,12 @@ serve(async (req) => {
         last_name: normalizedLastName || null,
         display_name: displayName,
         role: externalRole,
-        current_company_id: (invitation as any).company_id,
-        default_company_id: (invitation as any).company_id,
+        current_company_id: linkedCompanyId,
+        default_company_id: linkedCompanyId,
         status: "approved",
         approved_at: approvedAt,
         approved_by: (invitation as any).invited_by || authUserId,
-        vendor_id: (invitation as any).vendor_id,
+        vendor_id: linkedVendorId,
       }, { onConflict: "user_id" });
     if (profileError) throw profileError;
 
@@ -135,7 +162,7 @@ serve(async (req) => {
       .from("user_company_access")
       .upsert({
         user_id: authUserId,
-        company_id: (invitation as any).company_id,
+        company_id: linkedCompanyId,
         role: externalRole,
         is_active: true,
         granted_by: (invitation as any).invited_by || authUserId,
@@ -146,7 +173,7 @@ serve(async (req) => {
       .from("company_access_requests")
       .select("id")
       .eq("user_id", authUserId)
-      .eq("company_id", (invitation as any).company_id)
+      .eq("company_id", linkedCompanyId)
       .order("requested_at", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -169,7 +196,7 @@ serve(async (req) => {
         .from("company_access_requests")
         .insert({
           user_id: authUserId,
-          company_id: (invitation as any).company_id,
+          company_id: linkedCompanyId,
           status: "approved",
           requested_at: approvedAt,
           reviewed_at: approvedAt,
@@ -193,8 +220,8 @@ serve(async (req) => {
       JSON.stringify({
         success: true,
         role: externalRole,
-        companyId: (invitation as any).company_id,
-        vendorId: (invitation as any).vendor_id,
+        companyId: linkedCompanyId,
+        vendorId: linkedVendorId,
       }),
       { status: 200, headers: { "Content-Type": "application/json", ...corsHeaders } },
     );

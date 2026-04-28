@@ -11,7 +11,6 @@ export default function EmployeeReports() {
       to: "/punch-clock/reports",
       isBuilt: true,
       requiredPermissions: ["timecard-reports-view"],
-      fallbackPermissions: ["timecard-reports", "employees-reports", "employees"],
     },
     {
       key: "employee-qr-cards",
@@ -20,8 +19,8 @@ export default function EmployeeReports() {
       icon: QrCode,
       to: "/employees/reports/qr-cards",
       isBuilt: true,
-      requiredPermissions: ["employees-reports-view"],
-      fallbackPermissions: ["employees-reports", "employees"],
+      requiredPermissions: ["employees-reports-qr-cards-view"],
+      fallbackPermissions: ["employees-reports-view"],
     },
     {
       key: "pin-employee-list",
@@ -30,8 +29,8 @@ export default function EmployeeReports() {
       icon: Users,
       to: "/employees/reports/pin-list",
       isBuilt: true,
-      requiredPermissions: ["employees-reports-view"],
-      fallbackPermissions: ["employees-reports", "employees"],
+      requiredPermissions: ["employees-reports-pin-list-view"],
+      fallbackPermissions: ["employees-reports-view"],
     },
     {
       key: "punch-clock-attempt-audit",
@@ -40,8 +39,8 @@ export default function EmployeeReports() {
       icon: ShieldAlert,
       to: "/employees/reports/punch-clock-attempt-audit",
       isBuilt: true,
-      requiredPermissions: ["employees-reports-view"],
-      fallbackPermissions: ["employees-reports", "employees"],
+      requiredPermissions: ["employees-reports-punch-clock-attempt-audit-view"],
+      fallbackPermissions: ["employees-reports-view"],
     },
     {
       key: "employee-performance",
@@ -50,8 +49,8 @@ export default function EmployeeReports() {
       icon: FileText,
       to: "/employees/performance",
       isBuilt: true,
-      requiredPermissions: ["employees-reports-view"],
-      fallbackPermissions: ["employees-reports", "employees"],
+      requiredPermissions: ["employees-reports-performance-view"],
+      fallbackPermissions: ["employees-reports-view"],
     },
   ];
 

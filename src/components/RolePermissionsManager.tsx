@@ -261,6 +261,17 @@ const menuCategories: MenuCategory[] = [
         description: 'Construction reports',
         actions: [
           { key: 'construction-reports-view', label: 'View Reports', description: 'Access construction reports' },
+        ],
+        children: [
+          { key: 'construction-reports-projects', label: 'Projects', description: 'Projects report', actions: [{ key: 'construction-reports-projects-view', label: 'View', description: 'Access projects report' }] },
+          { key: 'construction-reports-project-tasks', label: 'Tasks', description: 'Tasks report', actions: [{ key: 'construction-reports-project-tasks-view', label: 'View', description: 'Access tasks report' }] },
+          { key: 'construction-reports-employee-hours', label: 'Employee Hours', description: 'Employee hours report', actions: [{ key: 'construction-reports-employee-hours-view', label: 'View', description: 'Access employee hours report' }] },
+          { key: 'construction-reports-transactions', label: 'Project Transactions', description: 'Project transactions report', actions: [{ key: 'construction-reports-transactions-view', label: 'View', description: 'Access project transactions report' }] },
+          { key: 'construction-reports-cost-history', label: 'Project Cost Transaction History', description: 'Detailed cost history report', actions: [{ key: 'construction-reports-cost-history-view', label: 'View', description: 'Access project cost history report' }] },
+          { key: 'construction-reports-subcontract-summary', label: 'Subcontract Summary', description: 'Subcontract summary report', actions: [{ key: 'construction-reports-subcontract-summary-view', label: 'View', description: 'Access subcontract summary report' }] },
+          { key: 'construction-reports-subcontract-details', label: 'Subcontract Details by Vendor', description: 'Vendor subcontract details report', actions: [{ key: 'construction-reports-subcontract-details-view', label: 'View', description: 'Access subcontract details by vendor report' }] },
+          { key: 'construction-reports-budget-status', label: 'Project Cost Budget Status', description: 'Budget status report', actions: [{ key: 'construction-reports-budget-status-view', label: 'View', description: 'Access project cost budget status report' }] },
+          { key: 'construction-reports-ap-aging-by-job', label: 'AP Aging By Job', description: 'Aging report by job', actions: [{ key: 'construction-reports-ap-aging-by-job-view', label: 'View', description: 'Access AP aging by job report' }] },
         ]
       },
       { 
@@ -412,6 +423,16 @@ const menuCategories: MenuCategory[] = [
         description: 'Receivables reports',
         actions: [
           { key: 'receivables-reports-view', label: 'View Reports', description: 'Access receivables reports' },
+        ],
+        children: [
+          { key: 'receivables-reports-aging', label: 'Aging Report', description: 'Open AR aging report', actions: [{ key: 'receivables-reports-aging-view', label: 'View', description: 'Access aging report' }] },
+          { key: 'receivables-reports-statements', label: 'Customer Statement', description: 'Customer statement report', actions: [{ key: 'receivables-reports-statements-view', label: 'View', description: 'Access customer statement report' }] },
+          { key: 'receivables-reports-invoice-summary', label: 'Invoice Summary', description: 'Invoice summary report', actions: [{ key: 'receivables-reports-invoice-summary-view', label: 'View', description: 'Access invoice summary report' }] },
+          { key: 'receivables-reports-payment-history', label: 'Payment History', description: 'Payment history report', actions: [{ key: 'receivables-reports-payment-history-view', label: 'View', description: 'Access payment history report' }] },
+          { key: 'receivables-reports-revenue-by-customer', label: 'Revenue by Customer', description: 'Revenue by customer report', actions: [{ key: 'receivables-reports-revenue-by-customer-view', label: 'View', description: 'Access revenue by customer report' }] },
+          { key: 'receivables-reports-revenue-by-project', label: 'Revenue by Project', description: 'Revenue by project report', actions: [{ key: 'receivables-reports-revenue-by-project-view', label: 'View', description: 'Access revenue by project report' }] },
+          { key: 'receivables-reports-top-customers', label: 'Top Customers', description: 'Top customers report', actions: [{ key: 'receivables-reports-top-customers-view', label: 'View', description: 'Access top customers report' }] },
+          { key: 'receivables-reports-collections', label: 'Collections Report', description: 'Collections report', actions: [{ key: 'receivables-reports-collections-view', label: 'View', description: 'Access collections report' }] },
         ]
       },
     ],
@@ -609,6 +630,12 @@ const menuCategories: MenuCategory[] = [
         description: 'Employee reports',
         actions: [
           { key: 'employees-reports-view', label: 'View Reports', description: 'Access employee reports' },
+        ],
+        children: [
+          { key: 'employees-reports-qr-cards', label: 'Employee QR Cards', description: 'Printable QR cards report', actions: [{ key: 'employees-reports-qr-cards-view', label: 'View', description: 'Access employee QR cards report' }] },
+          { key: 'employees-reports-pin-list', label: 'PIN Employee List', description: 'PIN employee list report', actions: [{ key: 'employees-reports-pin-list-view', label: 'View', description: 'Access PIN employee list report' }] },
+          { key: 'employees-reports-punch-clock-attempt-audit', label: 'Punch Clock Attempt Audit', description: 'Punch clock attempt audit report', actions: [{ key: 'employees-reports-punch-clock-attempt-audit-view', label: 'View', description: 'Access punch clock attempt audit report' }] },
+          { key: 'employees-reports-performance', label: 'Employee Performance', description: 'Employee performance report', actions: [{ key: 'employees-reports-performance-view', label: 'View', description: 'Access employee performance report' }] },
         ]
       },
     ],
@@ -751,6 +778,22 @@ const menuCategories: MenuCategory[] = [
         description: 'Banking and financial reports',
         actions: [
           { key: 'banking-reports-view', label: 'View Reports', description: 'Access banking reports' },
+        ],
+        children: [
+          { key: 'banking-reports-account-totals', label: 'Account Totals', description: 'Account totals report', actions: [{ key: 'banking-reports-account-totals-view', label: 'View', description: 'Access account totals report' }] },
+          { key: 'banking-reports-balance-sheet', label: 'Balance Sheet', description: 'Balance sheet report', actions: [{ key: 'banking-reports-balance-sheet-view', label: 'View', description: 'Access balance sheet report' }] },
+          { key: 'banking-reports-bank-account-activity', label: 'Bank Account Activity', description: 'Bank account activity report', actions: [{ key: 'banking-reports-bank-account-activity-view', label: 'View', description: 'Access bank account activity report' }] },
+          { key: 'banking-reports-bank-account-association', label: 'Bank Account Association', description: 'Bank account association report', actions: [{ key: 'banking-reports-bank-account-association-view', label: 'View', description: 'Access bank account association report' }] },
+          { key: 'banking-reports-cash-flow', label: 'Cash Flow', description: 'Cash flow reports', actions: [{ key: 'banking-reports-cash-flow-view', label: 'View', description: 'Access cash flow reports' }] },
+          { key: 'banking-reports-cash-flow-detail', label: 'Cash Flow Detail', description: 'Cash flow detail report', actions: [{ key: 'banking-reports-cash-flow-detail-view', label: 'View', description: 'Access cash flow detail report' }] },
+          { key: 'banking-reports-chart-of-accounts', label: 'Chart of Accounts', description: 'Chart of accounts report', actions: [{ key: 'banking-reports-chart-of-accounts-view', label: 'View', description: 'Access chart of accounts report' }] },
+          { key: 'banking-reports-expense-distribution', label: 'Expense Distribution', description: 'Expense distribution report', actions: [{ key: 'banking-reports-expense-distribution-view', label: 'View', description: 'Access expense distribution report' }] },
+          { key: 'banking-reports-general-ledger', label: 'General Ledger', description: 'General ledger report', actions: [{ key: 'banking-reports-general-ledger-view', label: 'View', description: 'Access general ledger report' }] },
+          { key: 'banking-reports-income-statement', label: 'Income Statement', description: 'Income statement reports', actions: [{ key: 'banking-reports-income-statement-view', label: 'View', description: 'Access income statement reports' }] },
+          { key: 'banking-reports-loans', label: 'Loans', description: 'Loans report', actions: [{ key: 'banking-reports-loans-view', label: 'View', description: 'Access loans report' }] },
+          { key: 'banking-reports-trial-balance', label: 'Trial Balance', description: 'Trial balance report', actions: [{ key: 'banking-reports-trial-balance-view', label: 'View', description: 'Access trial balance report' }] },
+          { key: 'banking-reports-trust-account-balance', label: 'Trust Account Balance', description: 'Trust account balance report', actions: [{ key: 'banking-reports-trust-account-balance-view', label: 'View', description: 'Access trust account balance report' }] },
+          { key: 'banking-reports-trust-account-detail', label: 'Trust Account Detail', description: 'Trust account detail report', actions: [{ key: 'banking-reports-trust-account-detail-view', label: 'View', description: 'Access trust account detail report' }] },
         ]
       },
     ],

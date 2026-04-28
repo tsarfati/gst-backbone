@@ -49,6 +49,7 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
   const [resolvedThumbnailUrl, setResolvedThumbnailUrl] = useState<string | null>(null);
   const [resolvingFileUrl, setResolvingFileUrl] = useState(true);
   const [shouldRenderPdf, setShouldRenderPdf] = useState(false);
+  const [fullPreviewRequested, setFullPreviewRequested] = useState(false);
   const noteRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const activeNoteIndex = useMemo(() => (
     typeof selectedNoteIndex === 'number' && selectedNoteIndex >= 0 && selectedNoteIndex < notes.length
@@ -141,7 +142,7 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
   useEffect(() => {
     setShouldRenderPdf(false);
 
-    if (!resolvedFileUrl) {
+    if (!resolvedFileUrl || (resolvedThumbnailUrl && !fullPreviewRequested)) {
       return;
     }
 
@@ -152,7 +153,13 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
     return () => {
       window.clearTimeout(timer);
     };
-  }, [resolvedFileUrl, resolvedThumbnailUrl]);
+  }, [resolvedFileUrl, resolvedThumbnailUrl, fullPreviewRequested]);
+
+  useEffect(() => {
+    setFullPreviewRequested(false);
+    setShouldRenderPdf(false);
+    setZoomLevel(1);
+  }, [planId, pageNumber, selectedPageId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -277,6 +284,57 @@ export default function RfpPlanPageNoteViewer(props: RfpPlanPageNoteViewerProps)
               <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
                 Loading plan preview...
               </div>
+            </div>
+          ) : resolvedThumbnailUrl && !fullPreviewRequested ? (
+            <div className="relative h-full">
+              <div className="flex h-full items-center justify-center overflow-auto p-6">
+                <div className="relative inline-block max-h-full max-w-full">
+                  <img
+                    src={resolvedThumbnailUrl}
+                    alt={sheetNumber || `Page ${pageNumber}`}
+                    className="block max-h-full max-w-full rounded border bg-background object-contain shadow-sm"
+                  />
+                  {thumbnailOverlayRects.length > 0 ? (
+                    <div className="pointer-events-none absolute inset-0">
+                      {thumbnailOverlayRects.map((noteRect) => (
+                        <button
+                          key={noteRect.key}
+                          type="button"
+                          aria-label={`Focus note ${noteRect.index + 1}`}
+                          onClick={() => onSelectNote?.(noteRect.index)}
+                          className={cn(
+                            "pointer-events-auto absolute border-2 bg-amber-300/15 transition-all",
+                            activeNoteIndex === noteRect.index
+                              ? "border-amber-400 shadow-[0_0_0_3px_rgba(251,191,36,0.35)]"
+                              : "border-amber-500",
+                          )}
+                          style={{
+                            left: noteRect.left,
+                            top: noteRect.top,
+                            width: noteRect.width,
+                            height: noteRect.height,
+                            borderRadius: noteRect.ellipse ? '9999px' : '0.25rem',
+                          }}
+                        >
+                          <div className={cn(
+                            "absolute -top-2 -left-2 flex h-5 min-w-5 items-center justify-center rounded-full px-1 text-[10px] font-semibold text-black",
+                            activeNoteIndex === noteRect.index ? 'bg-amber-300' : 'bg-amber-500',
+                          )}>
+                            {noteRect.index + 1}
+                          </div>
+                        </button>
+                      ))}
+                    </div>
+                  ) : null}
+                </div>
+              </div>
+              {resolvedFileUrl ? (
+                <div className="absolute right-3 top-3 z-10">
+                  <Button type="button" size="sm" onClick={() => setFullPreviewRequested(true)}>
+                    Load Full Preview
+                  </Button>
+                </div>
+              ) : null}
             </div>
           ) : resolvedFileUrl ? (
             <div className="relative h-full">
