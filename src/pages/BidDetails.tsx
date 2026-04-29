@@ -140,6 +140,14 @@ const getCustomAttachmentTypeLabel = (attachmentType: string | null | undefined)
   return "";
 };
 
+const getQuoteAttachmentVersion = (attachmentType: string | null | undefined) => {
+  const value = String(attachmentType || "").toLowerCase().trim();
+  if (value === "quote") return 1;
+  const match = value.match(/^quote_v(\d+)$/);
+  if (match) return Number(match[1]);
+  return null;
+};
+
 const toNumber = (v: string | number | null | undefined) => Number(v || 0);
 
 const computeTotal = (bid: {
@@ -213,6 +221,13 @@ export default function BidDetails() {
   const teamMessages = communications.filter((message) => message.message_type === "intercompany");
   const vendorMessages = communications.filter((message) => message.message_type === "vendor");
   const selectedAttachment = attachments.find((attachment) => attachment.id === selectedAttachmentId) || null;
+  const currentQuoteVersion = useMemo(() => {
+    return attachments.reduce<number | null>((latest, attachment) => {
+      const nextVersion = getQuoteAttachmentVersion(attachment.attachment_type);
+      if (!nextVersion) return latest;
+      return latest === null ? nextVersion : Math.max(latest, nextVersion);
+    }, null);
+  }, [attachments]);
   const highlightedMessageId = searchParams.get("messageId");
   const highlightedMessageSource = searchParams.get("messageSource");
 
@@ -843,9 +858,14 @@ export default function BidDetails() {
         <div className="xl:col-span-7 space-y-4">
           <Card>
             <CardHeader className="pb-3">
-              <div className="flex items-center gap-2">
-                <Paperclip className="h-5 w-5" />
-                <CardTitle>Attachments</CardTitle>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="flex items-center gap-2">
+                  <Paperclip className="h-5 w-5" />
+                  <CardTitle>Attachments</CardTitle>
+                </div>
+                {currentQuoteVersion ? (
+                  <Badge variant="outline">Current Quote Version: v{currentQuoteVersion}</Badge>
+                ) : null}
               </div>
             </CardHeader>
             <div

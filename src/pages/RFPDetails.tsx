@@ -138,6 +138,7 @@ interface Bid {
   tax_amount?: number | null;
   discount_amount?: number | null;
   comparison_notes?: string | null;
+  display_version_number?: number | null;
   vendor: {
     id: string;
     name: string;
@@ -171,6 +172,14 @@ const normalizeCriterionType = (value: unknown): 'numeric' | 'yes_no' | 'picklis
 };
 
 const toNumber = (value: string | number | null | undefined) => Number(value || 0);
+
+const getQuoteAttachmentVersion = (attachmentType: string | null | undefined) => {
+  const value = String(attachmentType || '').toLowerCase().trim();
+  if (value === 'quote') return 1;
+  const match = value.match(/^quote_v(\d+)$/);
+  if (match) return Number(match[1]);
+  return null;
+};
 
 const computeBidFinalTotal = (bid: {
   bid_amount: number;
@@ -586,9 +595,10 @@ export default function RFPDetails() {
   useEffect(() => {
     if (!rfp?.id) return;
 
+    if (!vendorsLoaded) void loadVendors();
+    if (!invitedVendorsLoaded) void loadInvitedVendors();
+
     if (activeTab === 'invited') {
-      if (!vendorsLoaded) void loadVendors();
-      if (!invitedVendorsLoaded) void loadInvitedVendors();
       return;
     }
 
@@ -892,13 +902,44 @@ export default function RFPDetails() {
 
       if (error) throw error;
       const rows = (data || []) as Bid[];
+      const bidIds = rows.map((row) => row.id).filter(Boolean);
+      const attachmentVersionByBidId = new Map<string, number>();
+
+      if (bidIds.length > 0) {
+        const { data: attachmentRows, error: attachmentError } = await supabase
+          .from('bid_attachments')
+          .select('bid_id, attachment_type')
+          .in('bid_id', bidIds);
+
+        if (attachmentError) throw attachmentError;
+
+        ((attachmentRows || []) as Array<{ bid_id: string; attachment_type: string | null }>).forEach((row) => {
+          const nextVersion = getQuoteAttachmentVersion(row.attachment_type);
+          if (!nextVersion) return;
+          attachmentVersionByBidId.set(
+            row.bid_id,
+            Math.max(attachmentVersionByBidId.get(row.bid_id) || 0, nextVersion),
+          );
+        });
+      }
+
       const rowsWithVendorLogo = await Promise.all(
         rows.map(async (row) => {
           const logoPath = row.vendor?.logo_url || null;
-          if (!logoPath) return row;
+          const displayVersionNumber = Math.max(
+            Number(row.version_number || 1),
+            attachmentVersionByBidId.get(row.id) || 0,
+          );
+          if (!logoPath) {
+            return {
+              ...row,
+              display_version_number: displayVersionNumber,
+            };
+          }
           const logoDisplayUrl = await resolveStorageUrl('receipts', logoPath);
           return {
             ...row,
+            display_version_number: displayVersionNumber,
             vendor: {
               ...row.vendor,
               logo_display_url: logoDisplayUrl,
@@ -2560,16 +2601,11 @@ export default function RFPDetails() {
               <CardHeader className="space-y-3">
                 <div className="flex items-center justify-between gap-3">
                   <CardTitle>Plans and Files</CardTitle>
-                  <div className="flex items-center gap-2">
-                    {loadingPlansAndFiles ? (
+                  {loadingPlansAndFiles ? (
+                    <div className="flex items-center gap-2">
                       <span className="text-sm text-muted-foreground"><span className="loading-dots">Loading</span></span>
-                    ) : null}
-                    {planPageSets.length > 0 ? (
-                      <Button variant="outline" size="sm" onClick={handleDownloadAttachedPlanPagesPdf}>
-                        Download Shared Plan PDF
-                      </Button>
-                    ) : null}
-                  </div>
+                    </div>
+                  ) : null}
                 </div>
               </CardHeader>
               <CardContent className="space-y-5">
@@ -2604,91 +2640,90 @@ export default function RFPDetails() {
                             }}
                             className="w-full rounded-xl border bg-background px-3 py-3 text-left transition-colors hover:border-primary/60 hover:bg-primary/5 cursor-pointer"
                           >
-                            <div className="flex items-start gap-3">
+                            <div className="flex items-stretch gap-3">
                               <PlanPageThumbnail
                                 thumbnailUrl={previewPage?.thumbnail_url}
                                 planFileUrl={previewPage?.plan_file_url}
                                 pageNumber={previewPage?.page_number || 1}
                                 alt={previewPage?.page_title || previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}
-                                className="h-14 w-14 rounded-lg border object-cover shrink-0 bg-background"
-                                disablePdfFallback
+                                className="h-16 w-16 rounded-lg border object-cover shrink-0 bg-background"
                               />
-                              <div className="min-w-0 flex-1 space-y-1">
-                                <div className="flex flex-wrap items-center gap-2">
-                                  <p className="font-medium">
-                                    {planSet.plan_name}
-                                    {planSet.plan_number ? ` #${planSet.plan_number}` : ''}
-                                  </p>
-                                  <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                                    Plan Set
-                                  </Badge>
-                                  <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
-                                    {pageCount} page{pageCount === 1 ? '' : 's'}
-                                  </Badge>
-                                  {planSet.noteCount > 0 ? (
-                                    <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
-                                      {planSet.noteCount} linked note{planSet.noteCount === 1 ? '' : 's'}
-                                    </Badge>
-                                  ) : null}
+                              <div className="min-w-0 flex-1">
+                                <div className="flex min-w-0 items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
+                                    <div className="flex flex-wrap items-center gap-2">
+                                      <p className="truncate text-sm font-medium">
+                                        {planSet.plan_name}
+                                        {planSet.plan_number ? ` #${planSet.plan_number}` : ''}
+                                      </p>
+                                      <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                        Plan Set
+                                      </Badge>
+                                      <Badge variant="outline" className="h-5 px-1.5 text-[10px]">
+                                        {pageCount} page{pageCount === 1 ? '' : 's'}
+                                      </Badge>
+                                      {planSet.noteCount > 0 ? (
+                                        <Badge variant="secondary" className="h-5 px-1.5 text-[10px]">
+                                          {planSet.noteCount} note{planSet.noteCount === 1 ? '' : 's'}
+                                        </Badge>
+                                      ) : null}
+                                    </div>
+                                    <div className="mt-1 truncate text-xs text-muted-foreground">
+                                      {pageCount === 1
+                                        ? `${previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}${previewPage?.page_title ? ` • ${previewPage.page_title}` : ''}`
+                                        : `${pageCount} shared sheet${pageCount === 1 ? '' : 's'} from this set`}
+                                    </div>
+                                  </div>
+                                  <div className="shrink-0">
+                                    <Button
+                                      type="button"
+                                      variant="outline"
+                                      size="sm"
+                                      onClick={(event) => {
+                                        event.preventDefault();
+                                        event.stopPropagation();
+                                        if (pageCount === 1 && previewPage?.plan_file_url) {
+                                          void downloadSingleRfpPlanPagePdf({
+                                            page: {
+                                              plan_id: previewPage.plan_id,
+                                              plan_name: previewPage.plan_name,
+                                              plan_file_url: previewPage.plan_file_url,
+                                              page_number: previewPage.page_number,
+                                              sheet_number: previewPage.sheet_number,
+                                              page_title: previewPage.page_title,
+                                            },
+                                            fileName: `${rfp?.rfp_number || 'RFP'}_${previewPage.sheet_number || `Page-${previewPage.page_number}`}.pdf`,
+                                          });
+                                        } else {
+                                          void downloadRfpPlanPagesPdf({
+                                            fileName: `${rfp?.rfp_number || 'RFP'}_${planSet.plan_name.replace(/[^\w.-]+/g, '_')}.pdf`,
+                                            pages: planSet.pages.map((page) => ({
+                                              plan_id: page.plan_id,
+                                              plan_name: page.plan_name,
+                                              plan_file_url: page.plan_file_url,
+                                              page_number: page.page_number,
+                                              sheet_number: page.sheet_number,
+                                              page_title: page.page_title,
+                                            })),
+                                          });
+                                        }
+                                      }}
+                                    >
+                                      <Download className="mr-2 h-4 w-4" />
+                                      PDF
+                                    </Button>
+                                  </div>
                                 </div>
-                                <p className="text-xs text-muted-foreground">
-                                  {pageCount === 1
-                                    ? `${previewPage?.sheet_number || `Page ${previewPage?.page_number || 1}`}${previewPage?.page_title ? ` • ${previewPage.page_title}` : ''}`
-                                    : `${pageCount} shared sheet${pageCount === 1 ? '' : 's'} from this set`}
-                                </p>
                                 {pageCount === 1 && previewPage?.note ? (
-                                  <p className="text-xs text-muted-foreground whitespace-pre-wrap">{previewPage.note}</p>
+                                  <p className="mt-1 line-clamp-1 text-xs text-muted-foreground">{previewPage.note}</p>
                                 ) : null}
-                              </div>
-                              <div className="shrink-0">
-                                <Button
-                                  type="button"
-                                  size="sm"
-                                  variant="outline"
-                                  onClick={(event) => {
-                                    event.preventDefault();
-                                    event.stopPropagation();
-                                    if (pageCount === 1 && previewPage?.plan_file_url) {
-                                      void downloadSingleRfpPlanPagePdf({
-                                        page: {
-                                          plan_id: previewPage.plan_id,
-                                          plan_name: previewPage.plan_name,
-                                          plan_file_url: previewPage.plan_file_url,
-                                          page_number: previewPage.page_number,
-                                          sheet_number: previewPage.sheet_number,
-                                          page_title: previewPage.page_title,
-                                        },
-                                        fileName: `${rfp?.rfp_number || 'RFP'}_${previewPage.sheet_number || `Page-${previewPage.page_number}`}.pdf`,
-                                      });
-                                    } else {
-                                      void downloadRfpPlanPagesPdf({
-                                        fileName: `${rfp?.rfp_number || 'RFP'}_${planSet.plan_name.replace(/[^\w.-]+/g, '_')}.pdf`,
-                                        pages: planSet.pages.map((page) => ({
-                                          plan_id: page.plan_id,
-                                          plan_name: page.plan_name,
-                                          plan_file_url: page.plan_file_url,
-                                          page_number: page.page_number,
-                                          sheet_number: page.sheet_number,
-                                          page_title: page.page_title,
-                                        })),
-                                      });
-                                    }
-                                  }}
-                                >
-                                  <Download className="mr-2 h-4 w-4" />
-                                  PDF
-                                </Button>
                               </div>
                             </div>
                           </div>
                         );
                       })}
                       {attachments.map((attachment) => {
-                        const owner = ownerProfilesById[attachment.uploaded_by];
                         const ownerName = getAttachmentOwnerName(attachment);
-                        const ownerInitials =
-                          `${owner?.first_name?.[0] || ''}${owner?.last_name?.[0] || ''}`.trim() ||
-                          ownerName.charAt(0).toUpperCase();
 
                         return (
                           <div
@@ -2696,28 +2731,28 @@ export default function RFPDetails() {
                             className="rounded-xl border bg-background px-3 py-3 transition-colors hover:bg-muted/30 cursor-pointer"
                             onClick={() => void openAttachmentPreview(attachment)}
                           >
-                            <div className="flex items-start gap-3">
+                            <div className="flex items-stretch gap-3">
                               {attachment.preview_url ? (
                                 <img
                                   src={attachment.preview_url}
                                   alt={attachment.file_name}
-                                  className="h-12 w-12 rounded-lg border bg-muted object-cover shrink-0"
+                                  className="h-16 w-16 rounded-lg border bg-muted object-cover shrink-0"
                                 />
                               ) : attachment.file_url && String(attachment.file_type || '').toLowerCase().includes('pdf') ? (
                                 <PlanPageThumbnail
                                   planFileUrl={attachment.file_url}
                                   pageNumber={1}
                                   alt={attachment.file_name}
-                                  className="h-12 w-12 rounded-lg border object-cover shrink-0 bg-muted"
+                                  className="h-16 w-16 rounded-lg border object-cover shrink-0 bg-muted"
                                 />
                               ) : (
-                                <div className="flex h-12 w-12 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
+                                <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-lg border bg-muted text-muted-foreground">
                                   <FileText className="h-4 w-4" />
                                 </div>
                               )}
-                              <div className="min-w-0 flex-1 space-y-2">
-                                <div className="flex items-start justify-between gap-3">
-                                  <div className="min-w-0">
+                              <div className="min-w-0 flex-1">
+                                <div className="flex min-w-0 items-start justify-between gap-3">
+                                  <div className="min-w-0 flex-1">
                                     <div className="flex flex-wrap items-center gap-2">
                                       <p className="max-w-full truncate text-left text-sm font-medium">
                                         {attachment.file_name}
@@ -2726,10 +2761,12 @@ export default function RFPDetails() {
                                         File
                                       </Badge>
                                     </div>
-                                    <div className="mt-1 flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                                    <div className="mt-1 flex flex-wrap items-center gap-2 truncate text-xs text-muted-foreground">
                                       <span>{format(new Date(attachment.uploaded_at), 'MMM d, yyyy')}</span>
                                       <span>•</span>
                                       <span>{formatFileSize(attachment.file_size) || '0 MB'}</span>
+                                      <span>•</span>
+                                      <span className="truncate">{ownerName}</span>
                                     </div>
                                   </div>
                                   <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
@@ -2745,14 +2782,6 @@ export default function RFPDetails() {
                                       PDF
                                     </Button>
                                   </div>
-                                </div>
-
-                                <div className="flex items-center gap-2 min-w-0">
-                                  <Avatar className="h-6 w-6 shrink-0">
-                                    <AvatarImage src={owner?.avatar_url || undefined} />
-                                    <AvatarFallback>{ownerInitials}</AvatarFallback>
-                                  </Avatar>
-                                  <span className="truncate text-sm">{ownerName}</span>
                                 </div>
                               </div>
                             </div>
@@ -2874,9 +2903,12 @@ export default function RFPDetails() {
                 <TableBody>
                   {invitedVendors.map(inv => (
                     <TableRow key={inv.id}>
-                      <TableCell className="py-2">
+                      <TableCell
+                        className="py-2 cursor-pointer"
+                        onClick={() => navigate(`/vendors/${inv.vendor_id}`)}
+                      >
                         <div className="space-y-1">
-                          <div className="font-medium">{inv.vendor?.name}</div>
+                          <div className="font-medium hover:underline underline-offset-2">{inv.vendor?.name}</div>
                           {inv.vendor?.vendor_type ? (
                             <div className="text-xs text-muted-foreground">{inv.vendor.vendor_type}</div>
                           ) : null}
@@ -3110,7 +3142,7 @@ export default function RFPDetails() {
                               </div>
                             </TableCell>
                             <TableCell className="py-2">
-                              <Badge variant="outline">v{Number(bid.version_number || 1)}</Badge>
+                              <Badge variant="outline">v{Number(bid.display_version_number || bid.version_number || 1)}</Badge>
                             </TableCell>
                             <TableCell className="py-2 font-medium">
                               <div className="flex items-center gap-2">
