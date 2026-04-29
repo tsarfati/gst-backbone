@@ -65,6 +65,26 @@ const BID_STATUS_OPTIONS = [
   { value: 'retracted', label: 'Retracted' },
 ] as const;
 
+const BIDDER_VENDOR_ACCESS_DEFAULTS = {
+  can_view_job_details: true,
+  can_submit_bills: false,
+  can_view_plans: true,
+  can_view_rfis: false,
+  can_submit_rfis: false,
+  can_view_submittals: false,
+  can_submit_submittals: false,
+  can_view_team_directory: true,
+  can_upload_compliance_docs: true,
+  can_view_photos: false,
+  can_view_rfps: true,
+  can_submit_bids: true,
+  can_view_subcontracts: false,
+  can_access_messages: true,
+  can_access_filing_cabinet: true,
+  filing_cabinet_access_level: 'view_only',
+  can_download_filing_cabinet_files: true,
+};
+
 export default function AddBid() {
   const { rfpId } = useParams<{ rfpId: string }>();
   const navigate = useNavigate();
@@ -268,6 +288,36 @@ export default function AddBid() {
         .single();
 
       if (error) throw error;
+
+      const { error: inviteLinkError } = await supabase
+        .from('rfp_invited_vendors')
+        .upsert({
+          rfp_id: rfpId,
+          vendor_id: formData.vendor_id,
+          company_id: currentCompany!.id,
+          response_status: 'submitted',
+        }, {
+          onConflict: 'rfp_id,vendor_id',
+          ignoreDuplicates: false,
+        });
+
+      if (inviteLinkError) throw inviteLinkError;
+
+      if (rfp?.job_id) {
+        const { error: accessError } = await supabase
+          .from('vendor_job_access' as any)
+          .upsert({
+            vendor_id: formData.vendor_id,
+            job_id: rfp.job_id,
+            created_by: user?.id || null,
+            ...BIDDER_VENDOR_ACCESS_DEFAULTS,
+          }, {
+            onConflict: 'vendor_id,job_id',
+            ignoreDuplicates: false,
+          });
+
+        if (accessError) throw accessError;
+      }
 
       if (pendingFiles.length > 0 && bidData) {
         await uploadAttachments(bidData.id);

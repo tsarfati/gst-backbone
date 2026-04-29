@@ -45,24 +45,27 @@ export default function Vendors() {
 
       const { data: linkedVendorProfiles, error: linkedVendorProfilesError } = await supabase
         .from('profiles')
-        .select('user_id, vendor_id, role')
+        .select('user_id, vendor_id, role, avatar_url')
         .in('vendor_id', vendorIds)
         .eq('role', 'vendor');
 
       if (linkedVendorProfilesError) throw linkedVendorProfilesError;
 
       const vendorUserByVendorId = new Map<string, string>();
+      const vendorAvatarByVendorId = new Map<string, string | null>();
       ((linkedVendorProfiles || []) as any[]).forEach((row) => {
         const vendorId = String(row.vendor_id || '');
         const userId = String(row.user_id || '');
         if (!vendorId || !userId || vendorUserByVendorId.has(vendorId)) return;
         vendorUserByVendorId.set(vendorId, userId);
+        vendorAvatarByVendorId.set(vendorId, row.avatar_url || null);
       });
 
       return vendorRows.map((vendor: any) => ({
         ...vendor,
         vendorPortalLinked: vendorUserByVendorId.has(String(vendor.id)),
         linkedVendorUserId: vendorUserByVendorId.get(String(vendor.id)) || null,
+        linkedVendorAvatarUrl: vendorAvatarByVendorId.get(String(vendor.id)) || null,
       }));
     } catch (error) {
       console.error('Error loading vendors:', error);

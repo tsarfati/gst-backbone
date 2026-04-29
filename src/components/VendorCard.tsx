@@ -16,6 +16,7 @@ interface Vendor {
   bills: number;
   category: string;
   logo_url?: string;
+  linkedVendorAvatarUrl?: string | null;
   vendorPortalLinked?: boolean;
   linkedVendorUserId?: string | null;
 }
@@ -44,6 +45,7 @@ export default function VendorCard({ vendor, onClick, onPortalBadgeClick }: Vend
             <VendorAvatar 
               name={vendor.name}
               logoUrl={vendor.logo_url}
+              fallbackAvatarUrl={vendor.linkedVendorAvatarUrl}
               size="lg"
               shape="square"
               className="mr-3"

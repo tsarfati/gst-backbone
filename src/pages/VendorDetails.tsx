@@ -183,6 +183,7 @@ export default function VendorDetails() {
   const [pendingInvite, setPendingInvite] = useState<any>(null);
   const [vendorPortalLinked, setVendorPortalLinked] = useState(false);
   const [linkedVendorUserId, setLinkedVendorUserId] = useState<string | null>(null);
+  const [linkedVendorAvatarUrl, setLinkedVendorAvatarUrl] = useState<string | null>(null);
   const [scopeEditorOpen, setScopeEditorOpen] = useState(false);
   const [scopeEditorLoading, setScopeEditorLoading] = useState(false);
   const [scopeEditorAssignment, setScopeEditorAssignment] = useState<any>(null);
@@ -521,7 +522,7 @@ export default function VendorDetails() {
 
         const { data, error } = await supabase
           .from("profiles")
-          .select("user_id")
+          .select("user_id, avatar_url")
           .eq("vendor_id", vendorRecord.id)
           .eq("role", "vendor")
           .limit(1)
@@ -530,6 +531,7 @@ export default function VendorDetails() {
         if (!error) {
           setVendorPortalLinked(!!data?.user_id);
           setLinkedVendorUserId(data?.user_id ? String(data.user_id) : null);
+          setLinkedVendorAvatarUrl(data?.avatar_url ? String(data.avatar_url) : null);
         }
       } catch (error) {
         console.error("Error loading vendor portal link status:", error);
@@ -1020,6 +1022,7 @@ export default function VendorDetails() {
             <VendorAvatar
               name={vendor.name}
               logoUrl={vendor.logo_url}
+              fallbackAvatarUrl={linkedVendorAvatarUrl}
               size="lg"
               className="rounded-lg border"
             />

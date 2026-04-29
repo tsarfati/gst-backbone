@@ -144,6 +144,7 @@ interface Bid {
     name: string;
     logo_url?: string | null;
     logo_display_url?: string | null;
+    linked_avatar_url?: string | null;
   };
   total_score?: number;
   scores?: Record<string, number>;
@@ -425,6 +426,7 @@ export default function RFPDetails() {
   const [sendingRfpCommunication, setSendingRfpCommunication] = useState(false);
   const [newIntercompanyMessage, setNewIntercompanyMessage] = useState('');
   const [bidsLoaded, setBidsLoaded] = useState(false);
+  const [bidCount, setBidCount] = useState<number | null>(null);
   const [criteriaLoaded, setCriteriaLoaded] = useState(false);
   const [vendorsLoaded, setVendorsLoaded] = useState(false);
   const [invitedVendorsLoaded, setInvitedVendorsLoaded] = useState(false);
@@ -580,6 +582,7 @@ export default function RFPDetails() {
       setLoadingPlansAndFiles(false);
       setPlansAndFilesLoaded(false);
       setBidsLoaded(false);
+      setBidCount(null);
       setCriteriaLoaded(false);
       setVendorsLoaded(false);
       setInvitedVendorsLoaded(false);
@@ -597,6 +600,7 @@ export default function RFPDetails() {
 
     if (!vendorsLoaded) void loadVendors();
     if (!invitedVendorsLoaded) void loadInvitedVendors();
+    if (!bidsLoaded && bidCount === null) void loadBidCount();
 
     if (activeTab === 'invited') {
       return;
@@ -607,7 +611,7 @@ export default function RFPDetails() {
       if (!criteriaLoaded) void loadCriteria();
       return;
     }
-  }, [activeTab, rfp?.id, vendorsLoaded, invitedVendorsLoaded, bidsLoaded, criteriaLoaded]);
+  }, [activeTab, rfp?.id, vendorsLoaded, invitedVendorsLoaded, bidsLoaded, criteriaLoaded, bidCount]);
 
   useEffect(() => {
     if (!plansAndFilesEnabled || !rfp?.id || !currentCompany?.id) return;
@@ -923,9 +927,31 @@ export default function RFPDetails() {
         });
       }
 
+      const vendorIds = rows
+        .map((row) => String(row.vendor?.id || '').trim())
+        .filter(Boolean);
+      const linkedVendorAvatarByVendorId = new Map<string, string | null>();
+
+      if (vendorIds.length > 0) {
+        const { data: linkedVendorProfiles, error: linkedVendorProfilesError } = await supabase
+          .from('profiles')
+          .select('user_id, vendor_id, role, avatar_url')
+          .in('vendor_id', vendorIds)
+          .eq('role', 'vendor');
+
+        if (linkedVendorProfilesError) throw linkedVendorProfilesError;
+
+        ((linkedVendorProfiles || []) as Array<{ vendor_id: string | null; avatar_url: string | null }>).forEach((row) => {
+          const vendorId = String(row.vendor_id || '').trim();
+          if (!vendorId || linkedVendorAvatarByVendorId.has(vendorId)) return;
+          linkedVendorAvatarByVendorId.set(vendorId, row.avatar_url || null);
+        });
+      }
+
       const rowsWithVendorLogo = await Promise.all(
         rows.map(async (row) => {
           const logoPath = row.vendor?.logo_url || null;
+          const linkedAvatarUrl = linkedVendorAvatarByVendorId.get(String(row.vendor?.id || '')) || null;
           const displayVersionNumber = Math.max(
             Number(row.version_number || 1),
             attachmentVersionByBidId.get(row.id) || 0,
@@ -934,6 +960,10 @@ export default function RFPDetails() {
             return {
               ...row,
               display_version_number: displayVersionNumber,
+              vendor: {
+                ...row.vendor,
+                linked_avatar_url: linkedAvatarUrl,
+              },
             };
           }
           const logoDisplayUrl = await resolveStorageUrl('receipts', logoPath);
@@ -943,14 +973,31 @@ export default function RFPDetails() {
             vendor: {
               ...row.vendor,
               logo_display_url: logoDisplayUrl,
+              linked_avatar_url: linkedAvatarUrl,
             },
           };
         }),
       );
       setBids(rowsWithVendorLogo);
+      setBidCount(rowsWithVendorLogo.length);
       setBidsLoaded(true);
     } catch (error) {
       console.error('Error loading bids:', error);
+    }
+  };
+
+  const loadBidCount = async () => {
+    try {
+      const { count, error } = await supabase
+        .from('bids')
+        .select('id', { count: 'exact', head: true })
+        .eq('rfp_id', id);
+
+      if (error) throw error;
+      setBidCount(Number(count || 0));
+    } catch (error) {
+      console.error('Error loading bid count:', error);
+      setBidCount(0);
     }
   };
 
@@ -2527,7 +2574,7 @@ export default function RFPDetails() {
               <Users className="h-5 w-5 text-muted-foreground" />
               <div>
                 <p className="text-sm text-muted-foreground">Bids Received</p>
-                <p className="font-medium">{bids.length}</p>
+                <p className="font-medium">{bidsLoaded ? bids.length : (bidCount ?? 0)}</p>
               </div>
             </div>
           </CardContent>
@@ -2551,7 +2598,7 @@ export default function RFPDetails() {
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="invited">Invited ({invitedVendors.length})</TabsTrigger>
-          <TabsTrigger value="bids">Bids ({bids.length})</TabsTrigger>
+          <TabsTrigger value="bids">Bids ({bidsLoaded ? bids.length : (bidCount ?? 0)})</TabsTrigger>
         </TabsList>
 
         <TabsContent value="overview" className="space-y-4">
@@ -3128,7 +3175,7 @@ export default function RFPDetails() {
                             <TableCell className="py-2 font-medium">
                               <div className="flex items-center gap-2">
                                 <Avatar className="h-7 w-7">
-                                  <AvatarImage src={bid.vendor.logo_display_url || bid.vendor.logo_url || undefined} alt={bid.vendor.name} />
+                                  <AvatarImage src={bid.vendor.logo_display_url || bid.vendor.linked_avatar_url || bid.vendor.logo_url || undefined} alt={bid.vendor.name} />
                                   <AvatarFallback className="text-[10px]">
                                     {String(bid.vendor.name || '')
                                       .split(' ')

@@ -16,6 +16,7 @@ interface Vendor {
   bills: number;
   category: string;
   logo_url?: string;
+  linkedVendorAvatarUrl?: string | null;
   vendorPortalLinked?: boolean;
   linkedVendorUserId?: string | null;
 }
@@ -59,6 +60,7 @@ export default function VendorListView({ vendors, onVendorClick, onPortalBadgeCl
                   <VendorAvatar 
                     name={vendor.name}
                     logoUrl={vendor.logo_url}
+                    fallbackAvatarUrl={vendor.linkedVendorAvatarUrl}
                     size="lg"
                     shape="square"
                   />

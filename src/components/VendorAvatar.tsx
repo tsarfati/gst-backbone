@@ -6,12 +6,13 @@ import { resolveStorageUrl } from "@/utils/storageUtils";
 interface VendorAvatarProps {
   name: string;
   logoUrl?: string | null;
+  fallbackAvatarUrl?: string | null;
   size?: "sm" | "md" | "lg";
   shape?: "circle" | "square";
   className?: string;
 }
 
-export default function VendorAvatar({ name, logoUrl, size = "md", shape = "circle", className = "" }: VendorAvatarProps) {
+export default function VendorAvatar({ name, logoUrl, fallbackAvatarUrl, size = "md", shape = "circle", className = "" }: VendorAvatarProps) {
   const [resolvedLogoUrl, setResolvedLogoUrl] = useState<string | null>(null);
   const [logoFailed, setLogoFailed] = useState(false);
 
@@ -70,6 +71,12 @@ export default function VendorAvatar({ name, logoUrl, size = "md", shape = "circ
             e.currentTarget.style.display = 'none';
             setLogoFailed(true);
           }}
+        />
+      ) : fallbackAvatarUrl ? (
+        <AvatarImage
+          src={fallbackAvatarUrl}
+          alt={`${name} avatar`}
+          className="object-cover"
         />
       ) : null}
       <AvatarFallback className={`bg-muted ${roundedClass}`}>
