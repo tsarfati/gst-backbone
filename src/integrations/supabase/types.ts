@@ -4995,6 +4995,7 @@ export type Database = {
           photo_url: string
           pin_employee_id: string | null
           rotation_degrees: number
+          thumbnail_url: string | null
           updated_at: string
           uploaded_by: string
         }
@@ -5010,6 +5011,7 @@ export type Database = {
           photo_url: string
           pin_employee_id?: string | null
           rotation_degrees?: number
+          thumbnail_url?: string | null
           updated_at?: string
           uploaded_by: string
         }
@@ -5025,6 +5027,7 @@ export type Database = {
           photo_url?: string
           pin_employee_id?: string | null
           rotation_degrees?: number
+          thumbnail_url?: string | null
           updated_at?: string
           uploaded_by?: string
         }

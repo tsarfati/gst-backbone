@@ -28,6 +28,7 @@ import jobSiteLynkLogo from '@/assets/jobsitelynk-logo.png';
 interface JobPhoto {
   id: string;
   photo_url: string;
+  thumbnail_url?: string | null;
   note?: string;
   uploaded_by: string;
   created_at: string;
@@ -67,23 +68,142 @@ interface PhotoComment {
   };
 }
 
+type ThumbnailVariant = 'album-cover' | 'photo-grid';
+
+const THUMBNAIL_TRANSFORM_BY_VARIANT: Record<ThumbnailVariant, { width: number; height: number; resize: 'cover'; quality: number }> = {
+  'album-cover': { width: 320, height: 320, resize: 'cover', quality: 60 },
+  'photo-grid': { width: 640, height: 480, resize: 'cover', quality: 65 },
+};
+
+const transformedPhotoUrlCache = new Map<string, string>();
+const JOB_PHOTO_THUMBNAIL_MAX_DIMENSION = 640;
+const JOB_PHOTO_THUMBNAIL_QUALITY = 0.72;
+
+function normalizePunchPhotoPath(src: string): string {
+  if (!src.startsWith('http')) {
+    const bucketPrefix = 'punch-photos/';
+    return src.startsWith(bucketPrefix) ? src.slice(bucketPrefix.length) : src;
+  }
+
+  const publicPattern = '/storage/v1/object/public/punch-photos/';
+  const signedPattern = '/storage/v1/object/sign/punch-photos/';
+
+  for (const pattern of [publicPattern, signedPattern]) {
+    const idx = src.indexOf(pattern);
+    if (idx !== -1) {
+      let path = src.substring(idx + pattern.length);
+      const queryIndex = path.indexOf('?');
+      if (queryIndex !== -1) path = path.substring(0, queryIndex);
+      return decodeURIComponent(path);
+    }
+  }
+
+  return src;
+}
+
+async function createJobPhotoThumbnailFile(source: Blob, targetBaseName: string): Promise<File> {
+  const objectUrl = URL.createObjectURL(source);
+
+  try {
+    const image = await new Promise<HTMLImageElement>((resolve, reject) => {
+      const nextImage = new Image();
+      nextImage.onload = () => resolve(nextImage);
+      nextImage.onerror = () => reject(new Error('Failed to load image for thumbnail generation'));
+      nextImage.src = objectUrl;
+    });
+
+    const longestSide = Math.max(image.width, image.height);
+    const scale = longestSide > JOB_PHOTO_THUMBNAIL_MAX_DIMENSION
+      ? JOB_PHOTO_THUMBNAIL_MAX_DIMENSION / longestSide
+      : 1;
+    const width = Math.max(1, Math.round(image.width * scale));
+    const height = Math.max(1, Math.round(image.height * scale));
+
+    const canvas = document.createElement('canvas');
+    canvas.width = width;
+    canvas.height = height;
+
+    const context = canvas.getContext('2d');
+    if (!context) {
+      throw new Error('Could not create thumbnail canvas context');
+    }
+
+    context.drawImage(image, 0, 0, width, height);
+
+    const blob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob(
+        (nextBlob) => {
+          if (nextBlob) {
+            resolve(nextBlob);
+            return;
+          }
+          reject(new Error('Failed to encode thumbnail image'));
+        },
+        'image/jpeg',
+        JOB_PHOTO_THUMBNAIL_QUALITY,
+      );
+    });
+
+    return new File([blob], `${targetBaseName}.jpg`, { type: 'image/jpeg' });
+  } finally {
+    URL.revokeObjectURL(objectUrl);
+  }
+}
+
 /** Lazily resolves a signed URL for a private-bucket image */
-function ResolvedImage({ src, alt, className, onClick }: { src: string; alt: string; className?: string; onClick?: () => void }) {
+function ResolvedImage({
+  src,
+  alt,
+  className,
+  onClick,
+  variant,
+}: {
+  src: string;
+  alt: string;
+  className?: string;
+  onClick?: () => void;
+  variant?: ThumbnailVariant;
+}) {
   const [resolvedSrc, setResolvedSrc] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
-    resolveStorageUrl('punch-photos', src).then((url) => {
-      if (!cancelled) setResolvedSrc(url || src);
-    });
+    const resolve = async () => {
+      const normalizedPath = normalizePunchPhotoPath(src);
+
+      if (!variant) {
+        const url = await resolveStorageUrl('punch-photos', src);
+        if (!cancelled) setResolvedSrc(url || src);
+        return;
+      }
+
+      const cacheKey = `${variant}:${normalizedPath}`;
+      const cached = transformedPhotoUrlCache.get(cacheKey);
+      if (cached) {
+        if (!cancelled) setResolvedSrc(cached);
+        return;
+      }
+
+      const { data, error } = await supabase.storage
+        .from('punch-photos')
+        .createSignedUrl(normalizedPath, 3600, {
+          transform: THUMBNAIL_TRANSFORM_BY_VARIANT[variant],
+        });
+
+      const nextUrl = !error && data?.signedUrl ? data.signedUrl : (await resolveStorageUrl('punch-photos', src)) || src;
+      transformedPhotoUrlCache.set(cacheKey, nextUrl);
+      if (!cancelled) setResolvedSrc(nextUrl);
+    };
+
+    resolve();
     return () => { cancelled = true; };
-  }, [src]);
+  }, [src, variant]);
 
   if (!resolvedSrc) {
     return <div className={className + ' bg-muted animate-pulse'} />;
   }
 
-  return <img src={resolvedSrc} alt={alt} className={className} onClick={onClick} />;
+  return <img src={resolvedSrc} alt={alt} className={className} onClick={onClick} loading="lazy" decoding="async" />;
 }
 
 interface JobPhotoAlbumProps {
@@ -494,7 +614,7 @@ export default function JobPhotoAlbum({
         (data || []).map(async (album) => {
           const { data: latestPhoto } = await supabase
             .from('job_photos')
-            .select('photo_url')
+            .select('*')
             .eq('album_id', album.id)
             .order('created_at', { ascending: false })
             .limit(1)
@@ -502,7 +622,7 @@ export default function JobPhotoAlbum({
           
           return {
             ...album,
-            cover_photo_url: latestPhoto?.photo_url || null
+            cover_photo_url: latestPhoto?.thumbnail_url || latestPhoto?.photo_url || null
           };
         })
       );
@@ -634,8 +754,24 @@ export default function JobPhotoAlbum({
       }
 
       // Upload photo to storage
-      const fileName = `job-${jobId}/${Date.now()}.jpg`;
-      const uploadFile = new File([photoBlob], `job-${jobId}-${Date.now()}.jpg`, { type: photoBlob.type || 'image/jpeg' });
+      const timestamp = Date.now();
+      const fileName = `job-${jobId}/${timestamp}.jpg`;
+      const thumbnailFileName = `job-${jobId}/thumbnails/${timestamp}.jpg`;
+      const uploadFile = new File([photoBlob], `job-${jobId}-${timestamp}.jpg`, { type: photoBlob.type || 'image/jpeg' });
+      let thumbnailPath: string | null = null;
+
+      try {
+        const thumbnailFile = await createJobPhotoThumbnailFile(photoBlob, `job-${jobId}-${timestamp}-thumbnail`);
+        await uploadFileWithProgress({
+          bucketName: 'punch-photos',
+          filePath: thumbnailFileName,
+          file: thumbnailFile,
+        });
+        thumbnailPath = getStoragePathForDb('punch-photos', thumbnailFileName);
+      } catch (thumbnailError) {
+        console.warn('Failed to generate or upload job photo thumbnail:', thumbnailError);
+      }
+
       await uploadFileWithProgress({
         bucketName: 'punch-photos',
         filePath: fileName,
@@ -646,18 +782,39 @@ export default function JobPhotoAlbum({
       const photoPath = getStoragePathForDb('punch-photos', fileName);
 
       // Save to database
+      const insertPayload = {
+        job_id: jobId,
+        uploaded_by: user.id,
+        photo_url: photoPath,
+        thumbnail_url: thumbnailPath,
+        note: note.trim() || null,
+        album_id: albumId,
+        ...locationData,
+      };
+
       const { error: insertError } = await supabase
         .from('job_photos')
-        .insert({
-          job_id: jobId,
-          uploaded_by: user.id,
-          photo_url: photoPath,
-          note: note.trim() || null,
-          album_id: albumId,
-          ...locationData,
-        });
+        .insert(insertPayload);
 
-      if (insertError) throw insertError;
+      if (insertError) {
+        const shouldRetryWithoutThumbnail = typeof insertError.message === 'string' && insertError.message.includes('thumbnail_url');
+        if (!shouldRetryWithoutThumbnail) {
+          throw insertError;
+        }
+
+        const { error: retryError } = await supabase
+          .from('job_photos')
+          .insert({
+            job_id: jobId,
+            uploaded_by: user.id,
+            photo_url: photoPath,
+            note: note.trim() || null,
+            album_id: albumId,
+            ...locationData,
+          });
+
+        if (retryError) throw retryError;
+      }
 
       toast({
         title: 'Success',
@@ -1002,7 +1159,23 @@ export default function JobPhotoAlbum({
     for (const file of imageFiles) {
       try {
         const ext = file.name.split('.').pop() || 'jpg';
-        const fileName = `job-${jobId}/${Date.now()}-${Math.random().toString(36).slice(2, 8)}.${ext}`;
+        const fileSuffix = `${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+        const fileName = `job-${jobId}/${fileSuffix}.${ext}`;
+        const thumbnailFileName = `job-${jobId}/thumbnails/${fileSuffix}.jpg`;
+        let thumbnailPath: string | null = null;
+
+        try {
+          const thumbnailFile = await createJobPhotoThumbnailFile(file, `job-${jobId}-${fileSuffix}-thumbnail`);
+          await uploadFileWithProgress({
+            bucketName: 'punch-photos',
+            filePath: thumbnailFileName,
+            file: thumbnailFile,
+          });
+          thumbnailPath = getStoragePathForDb('punch-photos', thumbnailFileName);
+        } catch (thumbnailError) {
+          console.warn(`Failed to generate or upload thumbnail for ${file.name}:`, thumbnailError);
+        }
+
         await uploadFileWithProgress({
           bucketName: 'punch-photos',
           filePath: fileName,
@@ -1015,14 +1188,28 @@ export default function JobPhotoAlbum({
         });
 
         const photoPath = getStoragePathForDb('punch-photos', fileName);
-        const { error: insertError } = await supabase.from('job_photos').insert({
+        const insertPayload = {
           job_id: jobId,
           uploaded_by: user.id,
           photo_url: photoPath,
+          thumbnail_url: thumbnailPath,
           album_id: albumId,
           ...locationData,
-        });
-        if (insertError) throw insertError;
+        };
+        const { error: insertError } = await supabase.from('job_photos').insert(insertPayload);
+        if (insertError) {
+          const shouldRetryWithoutThumbnail = typeof insertError.message === 'string' && insertError.message.includes('thumbnail_url');
+          if (!shouldRetryWithoutThumbnail) throw insertError;
+
+          const { error: retryError } = await supabase.from('job_photos').insert({
+            job_id: jobId,
+            uploaded_by: user.id,
+            photo_url: photoPath,
+            album_id: albumId,
+            ...locationData,
+          });
+          if (retryError) throw retryError;
+        }
         successCount++;
 
         // Sync to Google Drive
@@ -1513,6 +1700,7 @@ export default function JobPhotoAlbum({
                       src={album.cover_photo_url} 
                       alt={album.name}
                       className="w-full h-full object-cover"
+                      variant="album-cover"
                     />
                   ) : (
                     <FolderPlus className="h-8 w-8 text-muted-foreground" />
@@ -1698,9 +1886,10 @@ export default function JobPhotoAlbum({
             <Card key={photo.id} className="overflow-hidden">
               <div className={`relative ${photoViewMode === 'super-compact' ? 'aspect-square' : 'aspect-video'}`}>
                 <ResolvedImage
-                  src={photo.photo_url}
+                  src={photo.thumbnail_url || photo.photo_url}
                   alt="Job photo"
                   className="w-full h-full object-cover cursor-pointer"
+                  variant="photo-grid"
                   onClick={() => {
                     if (selectionMode) {
                       togglePhotoSelection(photo.id);

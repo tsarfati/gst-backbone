@@ -953,15 +953,16 @@ export default function VendorDashboard() {
                     .eq('album_id', album.id),
                   supabase
                     .from('job_photos')
-                    .select('photo_url, created_at')
+                    .select('*')
                     .eq('album_id', album.id)
                     .order('created_at', { ascending: false })
                     .limit(1)
                     .maybeSingle(),
                 ]);
 
-                const coverUrl = latestPhoto?.photo_url
-                  ? await resolveStorageUrl('punch-photos', latestPhoto.photo_url)
+                const coverPhotoPath = latestPhoto?.thumbnail_url || latestPhoto?.photo_url;
+                const coverUrl = coverPhotoPath
+                  ? await resolveStorageUrl('punch-photos', coverPhotoPath)
                   : null;
 
                 return {
