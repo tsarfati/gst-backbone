@@ -37,7 +37,10 @@ export default function QuickAddVendor({
     email: "",
     phone: "",
     vendor_type: "",
-    address: ""
+    address: "",
+    city: "",
+    state: "",
+    zip_code: "",
   });
 
   const handleInputChange = (field: string, value: string) => {
@@ -69,6 +72,9 @@ export default function QuickAddVendor({
           phone: formData.phone || null,
           vendor_type: formData.vendor_type || null,
           address: formData.address || null,
+          city: formData.city || null,
+          state: formData.state || null,
+          zip_code: formData.zip_code || null,
           company_id: currentCompany.id,
           is_active: true,
           require_invoice_number: true,
@@ -95,7 +101,10 @@ export default function QuickAddVendor({
         email: "",
         phone: "",
         vendor_type: "",
-        address: ""
+        address: "",
+        city: "",
+        state: "",
+        zip_code: "",
       });
     } catch (error: any) {
       console.error('Error adding vendor:', error);
@@ -216,13 +225,45 @@ export default function QuickAddVendor({
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="vendor_address">Address</Label>
+            <Label htmlFor="vendor_address">Street Address</Label>
             <Input
               id="vendor_address"
               value={formData.address}
               onChange={(e) => handleInputChange("address", e.target.value)}
               placeholder="Street address"
             />
+          </div>
+
+          <div className="grid grid-cols-1 sm:grid-cols-[minmax(0,1fr)_120px_120px] gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="vendor_city">City</Label>
+              <Input
+                id="vendor_city"
+                value={formData.city}
+                onChange={(e) => handleInputChange("city", e.target.value)}
+                placeholder="City"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vendor_state">State</Label>
+              <Input
+                id="vendor_state"
+                value={formData.state}
+                onChange={(e) => handleInputChange("state", e.target.value)}
+                placeholder="State"
+              />
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="vendor_zip_code">ZIP Code</Label>
+              <Input
+                id="vendor_zip_code"
+                value={formData.zip_code}
+                onChange={(e) => handleInputChange("zip_code", e.target.value)}
+                placeholder="ZIP"
+              />
+            </div>
           </div>
 
           <div className="flex gap-3 pt-4">

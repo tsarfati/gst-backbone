@@ -11,10 +11,61 @@ import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
 import { SUBCONTRACT_PLACEHOLDERS } from "@/utils/subcontractPdfGenerator";
+import TemplateFileUploader from "@/components/TemplateFileUploader";
 
 interface SubcontractTemplateProps {
   onSave?: () => void;
 }
+
+const PLACEHOLDER_GROUPS: Array<{ title: string; keys: string[] }> = [
+  {
+    title: 'Contractor Information',
+    keys: ['{contractor_name}', '{contractor_address}', '{contractor_phone}', '{contractor_email}', '{contractor_signer_name}', '{contractor_signer_title}'],
+  },
+  {
+    title: 'Subcontractor Information',
+    keys: [
+      '{subcontractor_name}',
+      '{subcontractor_signer_name}',
+      '{subcontractor_signer_position}',
+      '{subcontractor_signer_title}',
+      '{subcontractor_contact_phone}',
+      '{subcontractor_address}',
+      '{subcontractor_city}',
+      '{subcontractor_state}',
+      '{subcontractor_zip_code}',
+      '{subcontractor_phone}',
+      '{subcontractor_email}',
+    ],
+  },
+  {
+    title: 'Contract Details',
+    keys: [
+      '{contract_name}',
+      '{contract_number}',
+      '{subcontract_number}',
+      '{subcontract_description}',
+      '{contract_amount}',
+      '{contract_amount_numeric}',
+      '{contract_amount_written}',
+      '{scope_of_work}',
+      '{payment_terms}',
+      '{retainage_percentage}',
+    ],
+  },
+  {
+    title: 'Job Details',
+    keys: ['{job_name}', '{job_number}', '{job_address}', '{architect}', '{start_date}', '{end_date}'],
+  },
+  {
+    title: 'Contract Date',
+    keys: ['{date}', '{contract_month}', '{contract_day_number}', '{contract_year}'],
+  },
+  {
+    title: 'Document Layout',
+    keys: ['{page}', '{pages}'],
+  },
+];
 
 export default function SubcontractTemplateSettings({ onSave }: SubcontractTemplateProps) {
   const { toast } = useToast();
@@ -32,6 +83,8 @@ export default function SubcontractTemplateSettings({ onSave }: SubcontractTempl
     font_family: 'helvetica',
     primary_color: '#1e40af',
   });
+  const activeTemplateRow = templates.find((template) => template.id === selectedTemplateId);
+  const subcontractVariableNames = Object.keys(SUBCONTRACT_PLACEHOLDERS).map((key) => key.replace(/^\{|\}$/g, ''));
 
   useEffect(() => {
     if (currentCompany?.id) {
@@ -92,7 +145,9 @@ export default function SubcontractTemplateSettings({ onSave }: SubcontractTempl
     }
   };
 
-  const handleCreateNew = () => {
+  const handleCreateNew = async () => {
+    if (!currentCompany?.id) return;
+
     if (!newTemplateName.trim()) {
       toast({
         title: "Template name required",
@@ -101,18 +156,61 @@ export default function SubcontractTemplateSettings({ onSave }: SubcontractTempl
       });
       return;
     }
-    
-    setSelectedTemplateId('new');
-    setCurrentTemplate({
-      template_name: newTemplateName.trim(),
-      header_html: '',
-      body_html: '',
-      footer_html: '',
-      font_family: 'helvetica',
-      primary_color: '#1e40af',
-    });
-    setIsCreatingNew(false);
-    setNewTemplateName('');
+
+    setLoading(true);
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) throw new Error('User not authenticated');
+
+      const templateData = {
+        template_name: newTemplateName.trim(),
+        header_html: '',
+        body_html: '',
+        footer_html: '',
+        font_family: 'helvetica',
+        primary_color: '#1e40af',
+        company_id: currentCompany.id,
+        template_type: 'subcontract',
+        created_by: user.id,
+      };
+
+      const { data, error } = await supabase
+        .from('pdf_templates')
+        .insert([templateData])
+        .select()
+        .single();
+
+      if (error) throw error;
+
+      if (data) {
+        setSelectedTemplateId(data.id);
+        setCurrentTemplate({
+          template_name: data.template_name,
+          header_html: data.header_html || '',
+          body_html: data.body_html || '',
+          footer_html: data.footer_html || '',
+          font_family: data.font_family || 'helvetica',
+          primary_color: data.primary_color || '#1e40af',
+        });
+      }
+
+      setIsCreatingNew(false);
+      setNewTemplateName('');
+      await loadTemplates();
+      toast({
+        title: "Template created",
+        description: `Subcontract template "${templateData.template_name}" is ready for your Word upload.`,
+      });
+    } catch (error: any) {
+      console.error('Error creating subcontract template:', error);
+      toast({
+        title: "Error",
+        description: error.message || "Failed to create template.",
+        variant: "destructive"
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const saveTemplate = async () => {
@@ -222,11 +320,20 @@ export default function SubcontractTemplateSettings({ onSave }: SubcontractTempl
         <AlertDescription>
           <div className="space-y-2">
             <p className="font-medium">Available Placeholders for Subcontracts:</p>
-            <div className="grid grid-cols-2 md:grid-cols-3 gap-x-4 gap-y-1 text-xs mt-2">
-              {Object.entries(SUBCONTRACT_PLACEHOLDERS).map(([placeholder, description]) => (
-                <div key={placeholder} className="flex items-start gap-1">
-                  <code className="bg-muted px-1 rounded font-mono whitespace-nowrap text-[10px]">{placeholder}</code>
-                  <span className="text-muted-foreground text-[10px]">- {description}</span>
+            <div className="space-y-4 mt-3">
+              {PLACEHOLDER_GROUPS.map((group) => (
+                <div key={group.title} className="space-y-2">
+                  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-muted-foreground">
+                    {group.title}
+                  </p>
+                  <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-x-4 gap-y-1 text-xs">
+                    {group.keys.map((placeholder) => (
+                      <div key={placeholder} className="flex items-start gap-1">
+                        <code className="bg-muted px-1 rounded font-mono whitespace-nowrap text-[10px]">{placeholder}</code>
+                        <span className="text-muted-foreground text-[10px]">- {SUBCONTRACT_PLACEHOLDERS[placeholder as keyof typeof SUBCONTRACT_PLACEHOLDERS]}</span>
+                      </div>
+                    ))}
+                  </div>
                 </div>
               ))}
             </div>
@@ -254,7 +361,7 @@ export default function SubcontractTemplateSettings({ onSave }: SubcontractTempl
                   <SelectContent>
                     {templates.map(template => (
                       <SelectItem key={template.id} value={template.id}>
-                        {template.template_name}
+                        {template.template_name} {template.template_file_type === 'docx' || String(template.template_file_name || '').toLowerCase().endsWith('.docx') ? '(Word Attached)' : '(HTML/PDF Only)'}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -315,7 +422,7 @@ export default function SubcontractTemplateSettings({ onSave }: SubcontractTempl
         </CardContent>
       </Card>
 
-      {selectedTemplateId && (
+          {selectedTemplateId && (
         <>
           {/* Template Name */}
           <Card>
@@ -323,13 +430,41 @@ export default function SubcontractTemplateSettings({ onSave }: SubcontractTempl
               <CardTitle className="text-base">Template Name</CardTitle>
             </CardHeader>
             <CardContent>
-              <Input
-                value={currentTemplate.template_name}
-                onChange={(e) => setCurrentTemplate({ ...currentTemplate, template_name: e.target.value })}
-                placeholder="Template name"
-              />
+              <div className="space-y-3">
+                <Input
+                  value={currentTemplate.template_name}
+                  onChange={(e) => setCurrentTemplate({ ...currentTemplate, template_name: e.target.value })}
+                  placeholder="Template name"
+                />
+                <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                  <span>Attached file status:</span>
+                  <span className="rounded-full border px-2 py-0.5">
+                    {activeTemplateRow?.template_file_type === 'docx' || String(activeTemplateRow?.template_file_name || '').toLowerCase().endsWith('.docx')
+                      ? 'Word template attached'
+                      : 'No Word template attached'}
+                  </span>
+                  {activeTemplateRow?.template_file_name && (
+                    <span className="truncate">{activeTemplateRow.template_file_name}</span>
+                  )}
+                </div>
+              </div>
             </CardContent>
           </Card>
+
+          <TemplateFileUploader
+            templateType="subcontract"
+            displayName="Subcontract Word Template"
+            templateId={selectedTemplateId}
+            availableVariables={subcontractVariableNames}
+            placeholderStart="{"
+            placeholderEnd="}"
+            currentTemplate={activeTemplateRow ? {
+              file_url: activeTemplateRow.template_file_url || undefined,
+              file_name: activeTemplateRow.template_file_name || undefined,
+              file_type: activeTemplateRow.template_file_type || undefined,
+            } : undefined}
+            onTemplateUpdate={loadTemplates}
+          />
 
           {/* Header HTML */}
           <Card>
@@ -360,7 +495,7 @@ export default function SubcontractTemplateSettings({ onSave }: SubcontractTempl
                 onChange={(e) => setCurrentTemplate({ ...currentTemplate, body_html: e.target.value })}
                 rows={15}
                 className="font-mono text-sm"
-                placeholder="<div>Your contract body HTML here...\n\nUse placeholders like {company_name}, {contractor_name}, {scope_of_work}, etc.</div>"
+                placeholder="<div>Your contract body HTML here...\n\nUse placeholders like {contractor_name}, {subcontractor_name}, {scope_of_work}, etc.</div>"
               />
             </CardContent>
           </Card>

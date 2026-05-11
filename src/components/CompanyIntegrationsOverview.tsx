@@ -9,7 +9,7 @@ export default function CompanyIntegrationsOverview() {
       </div>
 
       <div className="flex flex-wrap gap-4">
-        <JobSiteLynkIntegrationSettings showHeading={false} />
+        <JobSiteLynkIntegrationSettings showHeading={false} displayMode="icon" />
         <CameraSystemIntegrationSettings showHeading={false} />
       </div>
     </div>

@@ -1182,6 +1182,9 @@ export default function VendorDetails() {
                   <div>
                     <label className="text-sm font-medium text-muted-foreground">Contact Person</label>
                     <p className="text-foreground">{vendor.contact_person}</p>
+                    {vendor.contact_title && (
+                      <p className="text-sm text-muted-foreground">{vendor.contact_title}</p>
+                    )}
                   </div>
                 )}
 

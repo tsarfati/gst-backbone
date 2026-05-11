@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Upload, FileText, X, AlertCircle, FileDown } from "lucide-react";
+import { ArrowLeft, Upload, FileText, X, AlertCircle, FileDown, Settings } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -18,7 +18,7 @@ import PdfInlinePreview from "@/components/PdfInlinePreview";
 import FullPagePdfViewer from "@/components/FullPagePdfViewer";
 import JobCostingDistribution from "@/components/JobCostingDistribution";
 import QuickAddVendor from "@/components/QuickAddVendor";
-import { generateSubcontractPDF } from "@/utils/subcontractPdfGenerator";
+import { downloadGeneratedSubcontractDocument, generateSubcontractPDF } from "@/utils/subcontractPdfGenerator";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import { ensureSubcontractVendorJobAccess } from "@/utils/vendorJobAccess";
@@ -33,9 +33,15 @@ export default function AddSubcontract() {
   
   const jobId = searchParams.get('jobId');
   const vendorId = searchParams.get('vendorId');
+  const subcontractTemplateSettingsPath = '/settings/company?tab=pdf-templates&section=subcontracts';
   
   const [formData, setFormData] = useState({
     name: "",
+    subcontract_number: "",
+    company_signer_name: "",
+    company_signer_title: "",
+    subcontractor_signer_name: "",
+    subcontractor_signer_title: "",
     description: "",
     scope_of_work: "",
     job_id: jobId || "",
@@ -64,8 +70,64 @@ export default function AddSubcontract() {
   const [uploadingFiles, setUploadingFiles] = useState(false);
   const [viewingPdf, setViewingPdf] = useState<File | null>(null);
   const [requiredFields, setRequiredFields] = useState<string[]>(["name", "job_id", "vendor_id", "contract_amount"]);
-  const [availableTemplates, setAvailableTemplates] = useState<string[]>([]);
-  const [selectedTemplate, setSelectedTemplate] = useState<string>('default');
+  const [availableTemplates, setAvailableTemplates] = useState<Array<{ id: string; template_name: string; template_format?: string | null; template_file_type?: string | null }>>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
+  const [subcontractNumberManuallyEdited, setSubcontractNumberManuallyEdited] = useState(false);
+
+  const isDocxTemplate = (template?: { template_format?: string | null; template_file_type?: string | null; template_file_name?: string | null; template_file_url?: string | null }) => {
+    const fileType = String(template?.template_file_type || '').toLowerCase();
+    const fileName = String(template?.template_file_name || '').toLowerCase();
+    const fileUrl = String(template?.template_file_url || '').toLowerCase();
+    return (
+      fileType === 'docx' ||
+      fileName.endsWith('.docx') ||
+      fileUrl.endsWith('.docx')
+    );
+  };
+
+  const dedupeTemplates = (templates: Array<{ id: string; template_name: string; template_format?: string | null; template_file_type?: string | null; template_file_name?: string | null; template_file_url?: string | null }>) => {
+    const byName = new Map<string, typeof templates[number]>();
+    for (const template of templates) {
+      const existing = byName.get(template.template_name);
+      if (!existing) {
+        byName.set(template.template_name, template);
+        continue;
+      }
+
+      const existingIsDocx = isDocxTemplate(existing);
+      const candidateIsDocx = isDocxTemplate(template);
+
+      if (!existingIsDocx && candidateIsDocx) {
+        byName.set(template.template_name, template);
+      }
+    }
+
+    return Array.from(byName.values());
+  };
+
+  const formatAutoSubcontractNumber = (sequence: number, jobNumber?: string | null) => {
+    const normalizedJobNumber = String(jobNumber || '').trim();
+    return normalizedJobNumber ? `SC-${sequence}-${normalizedJobNumber}` : `SC-${sequence}`;
+  };
+
+  const getNextSubcontractNumber = async (selectedJobId: string) => {
+    const selectedJob = jobs.find((job) => job.id === selectedJobId);
+    const { data: existingSubcontracts, error } = await supabase
+      .from('subcontracts')
+      .select('subcontract_number, created_at')
+      .eq('job_id', selectedJobId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw error;
+
+    const highestSequence = (existingSubcontracts || []).reduce((max, subcontract) => {
+      const match = String(subcontract.subcontract_number || '').match(/^SC-(\d+)(?:-|$)/i);
+      if (!match) return max;
+      return Math.max(max, Number.parseInt(match[1], 10) || 0);
+    }, 0);
+
+    return formatAutoSubcontractNumber(highestSequence + 1, selectedJob?.project_number);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -108,7 +170,7 @@ export default function AddSubcontract() {
         // Fetch jobs for current company only
         const { data: jobsData, error: jobsError } = await supabase
           .from('jobs')
-          .select('id, name, client')
+          .select('id, name, client, project_number')
           .eq('company_id', companyId)
           .order('name');
 
@@ -125,7 +187,7 @@ export default function AddSubcontract() {
         // Fetch vendors filtered by company and allowed types
         const { data: vendorsData, error: vendorsError } = await supabase
           .from('vendors')
-          .select('id, name, vendor_type')
+          .select('id, name, vendor_type, contact_person, contact_title')
           .eq('company_id', companyId)
           .eq('is_active', true)
           .in('vendor_type', allowedTypes)
@@ -137,16 +199,18 @@ export default function AddSubcontract() {
         // Fetch available subcontract PDF templates (optional)
         const { data: templatesData } = await supabase
           .from('pdf_templates')
-          .select('template_name')
+          .select('id, template_name, template_format, template_file_type, template_file_name, template_file_url')
           .eq('company_id', companyId)
           .eq('template_type', 'subcontract')
           .order('template_name');
         
         if (templatesData && templatesData.length > 0) {
-          setAvailableTemplates(templatesData.map(t => t.template_name));
-          setSelectedTemplate(templatesData[0].template_name);
+          const resolvedTemplates = dedupeTemplates(templatesData);
+          setAvailableTemplates(resolvedTemplates);
+          setSelectedTemplate(resolvedTemplates[0].id);
         } else {
           setAvailableTemplates([]);
+          setSelectedTemplate('');
         }
       } catch (error) {
         console.error('Error fetching data:', error);
@@ -199,11 +263,42 @@ export default function AddSubcontract() {
   }, [formData.job_id, isPrivileged, allowedJobIds.join(",")]);
 
   const handleInputChange = (field: string, value: any) => {
+    if (field === 'subcontract_number') {
+      setSubcontractNumberManuallyEdited(true);
+    }
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
   };
+
+  useEffect(() => {
+    const autoPopulateSubcontractNumber = async () => {
+      if (!formData.job_id || subcontractNumberManuallyEdited) return;
+      try {
+        const nextNumber = await getNextSubcontractNumber(formData.job_id);
+        setFormData((prev) => {
+          if (prev.job_id !== formData.job_id || subcontractNumberManuallyEdited) return prev;
+          return { ...prev, subcontract_number: nextNumber };
+        });
+      } catch (error) {
+        console.error('Error generating subcontract number:', error);
+      }
+    };
+
+    void autoPopulateSubcontractNumber();
+  }, [formData.job_id, subcontractNumberManuallyEdited, jobs]);
+
+  useEffect(() => {
+    const selectedVendor = vendors.find((vendor) => vendor.id === formData.vendor_id);
+    if (!selectedVendor) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      subcontractor_signer_name: prev.subcontractor_signer_name || selectedVendor.contact_person || "",
+      subcontractor_signer_title: prev.subcontractor_signer_title || selectedVendor.contact_title || "",
+    }));
+  }, [formData.vendor_id, vendors]);
 
   // Check if all required fields are filled
   const areRequiredFieldsFilled = () => {
@@ -348,7 +443,7 @@ export default function AddSubcontract() {
           
           displayName = namingSettings.subcontract_naming_pattern
             .replace('{vendor}', vendor?.name || 'Unknown')
-            .replace('{contract_number}', formData.name || 'NoContractNum')
+            .replace('{contract_number}', formData.subcontract_number || formData.name || 'NoContractNum')
             .replace('{date}', dateStr)
             .replace('{amount}', parseFloat(formData.contract_amount || '0').toFixed(2))
             .replace('{job}', job?.name || 'NoJob')
@@ -391,6 +486,34 @@ export default function AddSubcontract() {
     } finally {
       setUploadingFiles(false);
     }
+  };
+
+  const uploadGeneratedContractToStorage = async (
+    subcontractId: string,
+    generatedDocument: { blob: Blob; fileName: string; mimeType: string },
+    templateName?: string | null
+  ) => {
+    const companyId = currentCompany?.id || profile?.current_company_id;
+    if (!companyId) throw new Error("No active company found for generated contract upload.");
+
+    const storagePath = `${companyId}/generated-contracts/${subcontractId}/${Date.now()}-${generatedDocument.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const uploadFile = new File([generatedDocument.blob], generatedDocument.fileName, { type: generatedDocument.mimeType });
+
+    const { error: uploadError } = await supabase.storage
+      .from('subcontract-files')
+      .upload(storagePath, uploadFile, {
+        contentType: generatedDocument.mimeType,
+        upsert: true,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const fileExtension = generatedDocument.fileName.split('.').pop() || (generatedDocument.mimeType === 'application/pdf' ? 'pdf' : 'docx');
+
+    return JSON.stringify([{
+      path: storagePath,
+      name: templateName ? `${templateName}.${fileExtension}` : generatedDocument.fileName,
+    }]);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -456,11 +579,17 @@ export default function AddSubcontract() {
       const fileDataString = fileData.length > 0 ? JSON.stringify(fileData) : formData.contract_file_url || null;
 
       const totalDistributedAmount = costDistribution.reduce((sum, dist) => sum + (dist.amount || 0), 0);
+      const subcontractNumber = formData.subcontract_number.trim() || await getNextSubcontractNumber(formData.job_id);
 
       const { data: newSubcontract, error } = await supabase
         .from('subcontracts')
         .insert({
           name: formData.name.trim(),
+          subcontract_number: subcontractNumber,
+          company_signer_name: formData.company_signer_name.trim() || null,
+          company_signer_title: formData.company_signer_title.trim() || null,
+          subcontractor_signer_name: formData.subcontractor_signer_name.trim() || null,
+          subcontractor_signer_title: formData.subcontractor_signer_title.trim() || null,
           description: formData.description.trim() || null,
           scope_of_work: formData.scope_of_work.trim() || null,
           job_id: formData.job_id,
@@ -531,11 +660,17 @@ export default function AddSubcontract() {
 
       const fileDataString = fileData.length > 0 ? JSON.stringify(fileData) : formData.contract_file_url || null;
       const totalDistributedAmount = costDistribution.reduce((sum, dist) => sum + (dist.amount || 0), 0);
+      const subcontractNumber = formData.subcontract_number.trim() || await getNextSubcontractNumber(formData.job_id);
 
       const { data: newSubcontract, error } = await supabase
         .from('subcontracts')
         .insert({
           name: formData.name.trim(),
+          subcontract_number: subcontractNumber,
+          company_signer_name: formData.company_signer_name.trim() || null,
+          company_signer_title: formData.company_signer_title.trim() || null,
+          subcontractor_signer_name: formData.subcontractor_signer_name.trim() || null,
+          subcontractor_signer_title: formData.subcontractor_signer_title.trim() || null,
           description: formData.description.trim() || null,
           scope_of_work: formData.scope_of_work.trim() || null,
           job_id: formData.job_id,
@@ -561,8 +696,22 @@ export default function AddSubcontract() {
         createdBy: user.id,
       });
 
-      // Generate PDF
-      await generateSubcontractPDF(newSubcontract.id, selectedTemplate);
+      const selectedTemplateRow = availableTemplates.find((template) => template.id === selectedTemplate);
+      const generatedDocument = await generateSubcontractPDF(newSubcontract.id, selectedTemplate);
+      const generatedContractFileUrl = await uploadGeneratedContractToStorage(
+        newSubcontract.id,
+        generatedDocument,
+        selectedTemplateRow?.template_name || null
+      );
+
+      const { error: updateError } = await supabase
+        .from('subcontracts')
+        .update({ contract_file_url: generatedContractFileUrl })
+        .eq('id', newSubcontract.id);
+
+      if (updateError) throw updateError;
+
+      downloadGeneratedSubcontractDocument(generatedDocument);
 
       toast({
         title: "Success",
@@ -636,6 +785,60 @@ export default function AddSubcontract() {
                     required
                   />
                 </div>
+                <div>
+                  <Label htmlFor="subcontract_number">Subcontract Number</Label>
+                  <Input
+                    id="subcontract_number"
+                    value={formData.subcontract_number}
+                    onChange={(e) => handleInputChange("subcontract_number", e.target.value)}
+                    placeholder="Auto-generated from the selected job"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="company_signer_name">Contractor Signer Name</Label>
+                  <Input
+                    id="company_signer_name"
+                    value={formData.company_signer_name}
+                    onChange={(e) => handleInputChange("company_signer_name", e.target.value)}
+                    placeholder="Who will sign this subcontract"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="company_signer_title">Contractor Signer Title</Label>
+                  <Input
+                    id="company_signer_title"
+                    value={formData.company_signer_title}
+                    onChange={(e) => handleInputChange("company_signer_title", e.target.value)}
+                    placeholder="Signer position or title"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="subcontractor_signer_name">Subcontractor Signer Name</Label>
+                  <Input
+                    id="subcontractor_signer_name"
+                    value={formData.subcontractor_signer_name}
+                    onChange={(e) => handleInputChange("subcontractor_signer_name", e.target.value)}
+                    placeholder="Who will sign for the subcontractor"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="subcontractor_signer_title">Subcontractor Signer Title</Label>
+                  <Input
+                    id="subcontractor_signer_title"
+                    value={formData.subcontractor_signer_title}
+                    onChange={(e) => handleInputChange("subcontractor_signer_title", e.target.value)}
+                    placeholder="Subcontractor signer position or title"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="status">Status</Label>
                   <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
@@ -1033,47 +1236,68 @@ export default function AddSubcontract() {
             </CardContent>
           </Card>
 
-          {/* Generate Contract Document (Optional - only show if templates exist) */}
-          {availableTemplates.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <FileDown className="h-5 w-5" />
-                  Generate Contract Document (Optional)
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor="template_select">Contract Template</Label>
-                  <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
-                    <SelectTrigger>
-                      <SelectValue placeholder="Select template" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {availableTemplates.map(template => (
-                        <SelectItem key={template} value={template}>
-                          {template}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                  <p className="text-xs text-muted-foreground mt-1">
-                    Select a template for the generated contract. Configure templates in Company Settings &gt; PDF Template Settings.
-                  </p>
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <FileDown className="h-5 w-5" />
+                Generate Contract Document
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {availableTemplates.length > 0 ? (
+                <>
+                  <div>
+                    <Label htmlFor="template_select">Contract Template</Label>
+                    <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select template" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableTemplates.map(template => (
+                          <SelectItem key={template.id} value={template.id}>
+                            {template.template_name} {isDocxTemplate(template) ? '(Word Template)' : '(HTML/PDF Template)'}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      Select a template for the generated contract.
+                    </p>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    className="w-full"
+                    onClick={handleGenerateContract}
+                    disabled={isSubmitting || !formData.name || !formData.job_id || !formData.vendor_id || !formData.contract_amount}
+                  >
+                    <FileDown className="h-4 w-4 mr-2" />
+                    {isSubmitting ? 'Generating...' : 'Save & Generate Contract Document'}
+                  </Button>
+                </>
+              ) : (
+                <div className="rounded-lg border border-dashed p-4 bg-muted/30 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="h-5 w-5 text-muted-foreground mt-0.5" />
+                    <div className="space-y-1">
+                      <p className="font-medium">No subcontract template is set up yet.</p>
+                      <p className="text-sm text-muted-foreground">
+                        You can still create the subcontract now, but to generate a populated contract document you first need to create a subcontract template in Company Settings.
+                      </p>
+                    </div>
+                  </div>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => navigate(subcontractTemplateSettingsPath)}
+                  >
+                    <Settings className="h-4 w-4 mr-2" />
+                    Set Up Subcontract Template
+                  </Button>
                 </div>
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={handleGenerateContract}
-                  disabled={isSubmitting || !formData.name || !formData.job_id || !formData.vendor_id || !formData.contract_amount}
-                >
-                  <FileDown className="h-4 w-4 mr-2" />
-                  {isSubmitting ? 'Generating...' : 'Save & Generate Contract PDF'}
-                </Button>
-              </CardContent>
-            </Card>
-          )}
+              )}
+            </CardContent>
+          </Card>
 
           {/* Actions */}
           <div className="flex gap-4 justify-end">

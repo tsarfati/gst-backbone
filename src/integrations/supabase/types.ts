@@ -9089,6 +9089,8 @@ export type Database = {
       subcontracts: {
         Row: {
           apply_retainage: boolean | null
+          company_signer_name: string | null
+          company_signer_title: string | null
           contract_amount: number
           contract_file_url: string | null
           cost_distribution: Json | null
@@ -9103,12 +9105,17 @@ export type Database = {
           scope_of_work: string | null
           start_date: string | null
           status: string
+          subcontractor_signer_name: string | null
+          subcontractor_signer_title: string | null
+          subcontract_number: string | null
           total_distributed_amount: number | null
           updated_at: string
           vendor_id: string
         }
         Insert: {
           apply_retainage?: boolean | null
+          company_signer_name?: string | null
+          company_signer_title?: string | null
           contract_amount: number
           contract_file_url?: string | null
           cost_distribution?: Json | null
@@ -9123,12 +9130,17 @@ export type Database = {
           scope_of_work?: string | null
           start_date?: string | null
           status?: string
+          subcontractor_signer_name?: string | null
+          subcontractor_signer_title?: string | null
+          subcontract_number?: string | null
           total_distributed_amount?: number | null
           updated_at?: string
           vendor_id: string
         }
         Update: {
           apply_retainage?: boolean | null
+          company_signer_name?: string | null
+          company_signer_title?: string | null
           contract_amount?: number
           contract_file_url?: string | null
           cost_distribution?: Json | null
@@ -9143,6 +9155,9 @@ export type Database = {
           scope_of_work?: string | null
           start_date?: string | null
           status?: string
+          subcontractor_signer_name?: string | null
+          subcontractor_signer_title?: string | null
+          subcontract_number?: string | null
           total_distributed_amount?: number | null
           updated_at?: string
           vendor_id?: string
@@ -11223,6 +11238,7 @@ export type Database = {
           city: string | null
           company_id: string | null
           contact_person: string | null
+          contact_title: string | null
           created_at: string
           customer_number: string | null
           email: string | null
@@ -11246,6 +11262,7 @@ export type Database = {
           city?: string | null
           company_id?: string | null
           contact_person?: string | null
+          contact_title?: string | null
           created_at?: string
           customer_number?: string | null
           email?: string | null
@@ -11269,6 +11286,7 @@ export type Database = {
           city?: string | null
           company_id?: string | null
           contact_person?: string | null
+          contact_title?: string | null
           created_at?: string
           customer_number?: string | null
           email?: string | null
@@ -11624,6 +11642,7 @@ export type Database = {
           city: string | null
           company_id: string | null
           contact_person: string | null
+          contact_title: string | null
           created_at: string | null
           email: string | null
           id: string | null
@@ -11644,6 +11663,7 @@ export type Database = {
           city?: string | null
           company_id?: string | null
           contact_person?: string | null
+          contact_title?: string | null
           created_at?: string | null
           email?: string | null
           id?: string | null
@@ -11664,6 +11684,7 @@ export type Database = {
           city?: string | null
           company_id?: string | null
           contact_person?: string | null
+          contact_title?: string | null
           created_at?: string | null
           email?: string | null
           id?: string | null

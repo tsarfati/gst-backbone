@@ -10,11 +10,12 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { KeyRound, Link2, Loader2, PlugZap } from "lucide-react";
+import jobSiteLynkLogo from "@/assets/jobsitelynk-logo.png";
 
 const DEFAULT_JOBSITELYNK_BASE_URL = "https://jobsitelynk.com";
 const trimTrailingSlashes = (value: string) => value.replace(/\/+$/g, "");
 
-export default function JobSiteLynkIntegrationSettings(_props: { showHeading?: boolean } = {}) {
+export default function JobSiteLynkIntegrationSettings({ displayMode = "card" }: { showHeading?: boolean; displayMode?: "card" | "icon" } = {}) {
   const { currentCompany, userCompanies } = useCompany();
   const { profile } = useAuth();
   const { toast } = useToast();
@@ -159,66 +160,105 @@ export default function JobSiteLynkIntegrationSettings(_props: { showHeading?: b
 
   return (
     <>
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between gap-3">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Link2 className="h-5 w-5" />
-                JobSiteLynk
-              </CardTitle>
-              <CardDescription>
-                Connect this BuilderLynk company to JobSiteLynk, then paste the JobSiteLynk job code on each BuilderLynk job.
-              </CardDescription>
-            </div>
-            <Badge variant={isConnected ? "default" : connectionStatus === "error" ? "destructive" : "outline"}>
-              {isConnected ? "Connected" : connectionStatus === "error" ? "Connection Error" : "Not Connected"}
-            </Badge>
-          </div>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          {loading ? (
-            <div className="py-4 text-muted-foreground flex items-center gap-2">
-              <Loader2 className="h-4 w-4 animate-spin" />
-              <span className="loading-dots">Loading connector</span>
-            </div>
-          ) : (
-            <>
-              <div className="rounded-lg border p-4 space-y-2 text-sm">
-                <div className="text-muted-foreground">
-                  BuilderLynk Company ID: <span className="text-foreground">{normalizedCompanyId || currentCompany?.id || "Not set"}</span>
-                </div>
-                <div className="text-muted-foreground">
-                  JobSiteLynk environment: <span className="text-foreground">{DEFAULT_JOBSITELYNK_BASE_URL}</span>
-                </div>
-                {connectedAccountEmail && (
-                  <div className="text-muted-foreground">
-                    Connected account: <span className="text-foreground">{connectedAccountName || connectedAccountEmail}</span>
-                    {connectedAccountName ? <span className="text-muted-foreground"> ({connectedAccountEmail})</span> : null}
-                  </div>
-                )}
-                {connectedAt && (
-                  <div className="text-muted-foreground">
-                    Connected on: <span className="text-foreground">{new Date(connectedAt).toLocaleString()}</span>
-                  </div>
-                )}
-                {lastConnectionError && connectionStatus === "error" && (
-                  <div className="text-destructive">
-                    Last error: {lastConnectionError}
-                  </div>
-                )}
+      {displayMode === "icon" ? (
+        loading ? (
+          <Card className="flex h-[240px] w-[240px] items-center justify-center rounded-3xl">
+            <CardContent className="py-10">
+              <div className="text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="loading-dots">Loading connector</span>
               </div>
+            </CardContent>
+          </Card>
+        ) : (
+          <button
+            type="button"
+            onClick={() => setSettingsDialogOpen(true)}
+            className="group flex h-[240px] w-[240px] flex-col items-center justify-between rounded-3xl border border-border bg-card p-5 text-left transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/70 hover:bg-primary/5 hover:shadow-[0_0_0_1px_rgba(14,165,233,0.22),0_20px_40px_-24px_rgba(14,165,233,0.45)] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/70"
+            disabled={!canEdit}
+          >
+            <div className="flex flex-1 items-center justify-center overflow-hidden px-2 py-4 transition-transform duration-200 group-hover:scale-[1.04]">
+              <div className="flex h-[168px] w-[168px] items-center justify-center">
+                <img
+                  src={jobSiteLynkLogo}
+                  alt="JobSiteLynk"
+                  className="h-full w-full object-contain"
+                />
+              </div>
+            </div>
 
-              <div className="flex justify-end">
-                <Button onClick={() => setSettingsDialogOpen(true)} disabled={!canEdit}>
-                  <PlugZap className="h-4 w-4 mr-2" />
-                  {isConnected ? "Manage Connector" : "Connect JobSiteLynk"}
-                </Button>
+            <div className="flex w-full flex-col items-center gap-2">
+              <Badge variant={isConnected ? "default" : connectionStatus === "error" ? "destructive" : "outline"} className="px-3 py-1">
+                {isConnected ? "Connected" : connectionStatus === "error" ? "Connection Error" : "Not Connected"}
+              </Badge>
+              <div className="text-center text-xs text-muted-foreground">
+                {connectedAccountName || connectedAccountEmail || "Open settings"}
               </div>
-            </>
-          )}
-        </CardContent>
-      </Card>
+            </div>
+          </button>
+        )
+      ) : (
+        <Card>
+          <CardHeader>
+            <div className="flex items-center justify-between gap-3">
+              <div>
+                <CardTitle className="flex items-center gap-2">
+                  <Link2 className="h-5 w-5" />
+                  JobSiteLynk
+                </CardTitle>
+                <CardDescription>
+                  Connect this BuilderLynk company to JobSiteLynk, then paste the JobSiteLynk job code on each BuilderLynk job.
+                </CardDescription>
+              </div>
+              <Badge variant={isConnected ? "default" : connectionStatus === "error" ? "destructive" : "outline"}>
+                {isConnected ? "Connected" : connectionStatus === "error" ? "Connection Error" : "Not Connected"}
+              </Badge>
+            </div>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {loading ? (
+              <div className="py-4 text-muted-foreground flex items-center gap-2">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                <span className="loading-dots">Loading connector</span>
+              </div>
+            ) : (
+              <>
+                <div className="rounded-lg border p-4 space-y-2 text-sm">
+                  <div className="text-muted-foreground">
+                    BuilderLynk Company ID: <span className="text-foreground">{normalizedCompanyId || currentCompany?.id || "Not set"}</span>
+                  </div>
+                  <div className="text-muted-foreground">
+                    JobSiteLynk environment: <span className="text-foreground">{DEFAULT_JOBSITELYNK_BASE_URL}</span>
+                  </div>
+                  {connectedAccountEmail && (
+                    <div className="text-muted-foreground">
+                      Connected account: <span className="text-foreground">{connectedAccountName || connectedAccountEmail}</span>
+                      {connectedAccountName ? <span className="text-muted-foreground"> ({connectedAccountEmail})</span> : null}
+                    </div>
+                  )}
+                  {connectedAt && (
+                    <div className="text-muted-foreground">
+                      Connected on: <span className="text-foreground">{new Date(connectedAt).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {lastConnectionError && connectionStatus === "error" && (
+                    <div className="text-destructive">
+                      Last error: {lastConnectionError}
+                    </div>
+                  )}
+                </div>
+
+                <div className="flex justify-end">
+                  <Button onClick={() => setSettingsDialogOpen(true)} disabled={!canEdit}>
+                    <PlugZap className="h-4 w-4 mr-2" />
+                    {isConnected ? "Manage Connector" : "Connect JobSiteLynk"}
+                  </Button>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
+      )}
 
       <Dialog open={settingsDialogOpen} onOpenChange={setSettingsDialogOpen}>
         <DialogContent className="max-w-md">

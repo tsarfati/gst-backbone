@@ -174,7 +174,6 @@ export default function CompanySettingsPage() {
     { value: 'theme', label: 'Themes & Appearance', permissionKey: 'company-settings-tab-theme', icon: Palette },
     { value: 'pdf-templates', label: 'PDF Templates', permissionKey: 'company-settings-tab-pdf-templates', icon: FileText },
     { value: 'email-templates', label: 'Email Templates', permissionKey: 'company-settings-tab-email-templates', icon: FileText },
-    { value: 'integrations', label: 'Integrations', permissionKey: 'company-settings-tab-integrations', icon: Link2 },
   ].filter((tab) => canAccessCompanyTab(tab.permissionKey));
 
   const canAccessJobsSubtab = (permissionKey: string) => {

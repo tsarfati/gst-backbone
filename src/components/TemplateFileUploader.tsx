@@ -15,6 +15,9 @@ interface TemplateFileUploaderProps {
   templateType: string;
   displayName: string;
   availableVariables: string[];
+  templateId?: string;
+  placeholderStart?: string;
+  placeholderEnd?: string;
   currentTemplate?: {
     file_url?: string;
     file_name?: string;
@@ -27,6 +30,9 @@ export default function TemplateFileUploader({
   templateType,
   displayName,
   availableVariables,
+  templateId,
+  placeholderStart = '{{',
+  placeholderEnd = '}}',
   currentTemplate,
   onTemplateUpdate,
 }: TemplateFileUploaderProps) {
@@ -34,6 +40,7 @@ export default function TemplateFileUploader({
   const { currentCompany } = useCompany();
   const [uploading, setUploading] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const wrapVariable = (variable: string) => `${placeholderStart}${variable}${placeholderEnd}`;
 
   const processSelectedFile = (file?: File | null) => {
     if (!file) return;
@@ -69,6 +76,14 @@ export default function TemplateFileUploader({
 
   const handleUpload = async () => {
     if (!selectedFile || !currentCompany) return;
+    if (!templateId) {
+      toast({
+        title: "Save the template first",
+        description: "Create or save the subcontract template row before uploading the Word file so it attaches to the correct template.",
+        variant: "destructive",
+      });
+      return;
+    }
 
     setUploading(true);
     try {
@@ -87,14 +102,6 @@ export default function TemplateFileUploader({
 
       if (uploadError) throw uploadError;
 
-      // Save template info to database with file path (not signed URL)
-      const { data: existingTemplate } = await supabase
-        .from('pdf_templates')
-        .select('id')
-        .eq('company_id', currentCompany.id)
-        .eq('template_type', templateType)
-        .single();
-
       const templateData = {
         company_id: currentCompany.id,
         template_type: templateType,
@@ -107,20 +114,12 @@ export default function TemplateFileUploader({
         created_by: user.id,
       };
 
-      if (existingTemplate) {
-        const { error } = await supabase
-          .from('pdf_templates')
-          .update(templateData)
-          .eq('id', existingTemplate.id);
-        
-        if (error) throw error;
-      } else {
-        const { error } = await supabase
-          .from('pdf_templates')
-          .insert([templateData]);
-        
-        if (error) throw error;
-      }
+      const { error } = await supabase
+        .from('pdf_templates')
+        .update(templateData)
+        .eq('id', templateId);
+
+      if (error) throw error;
 
       toast({
         title: "Template uploaded",
@@ -171,29 +170,17 @@ export default function TemplateFileUploader({
 <w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main">
   <w:body>
     <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:b/><w:sz w:val="32"/></w:rPr><w:t>${displayName}</w:t></w:r></w:p>
-    <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>Company: [[company_name]]</w:t></w:r></w:p>
-    <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>Period: [[period]]</w:t></w:r></w:p>
-    <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:t>Generated: [[generated_date]]</w:t></w:r></w:p>
     <w:p><w:r><w:t></w:t></w:r></w:p>
-    <w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Summary Information</w:t></w:r></w:p>
-    <w:p><w:r><w:t>Bank Account: [[bank_account]]</w:t></w:r></w:p>
-    <w:p><w:r><w:t>Beginning Balance: [[beginning_balance]]</w:t></w:r></w:p>
-    <w:p><w:r><w:t>Ending Balance: [[ending_balance]]</w:t></w:r></w:p>
-    <w:p><w:r><w:t>Cleared Balance: [[cleared_balance]]</w:t></w:r></w:p>
-    <w:p><w:r><w:t>Difference: [[difference]]</w:t></w:r></w:p>
+    <w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Template Notes</w:t></w:r></w:p>
+    <w:p><w:r><w:t>Format this document however you want in Word, then keep the placeholders wherever you want BuilderLYNK to swap in live data.</w:t></w:r></w:p>
     <w:p><w:r><w:t></w:t></w:r></w:p>
-    <w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Transaction Details</w:t></w:r></w:p>
-    <w:p><w:r><w:t>[[report_data]]</w:t></w:r></w:p>
+    <w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Example Placeholder Usage</w:t></w:r></w:p>
+    ${availableVariables.slice(0, 8).map(v => `<w:p><w:r><w:t>${wrapVariable(v)}</w:t></w:r></w:p>`).join('')}
     <w:p><w:r><w:t></w:t></w:r></w:p>
     <w:p><w:r><w:rPr><w:b/></w:rPr><w:t>Available Placeholders:</w:t></w:r></w:p>
-    ${availableVariables.map(v => `<w:p><w:r><w:t>[[${v}]] - ${v.replace(/_/g, ' ')}</w:t></w:r></w:p>`).join('')}
-    <w:p><w:r><w:t>[[cleared_deposits_total]] - Total cleared deposits</w:t></w:r></w:p>
-    <w:p><w:r><w:t>[[cleared_payments_total]] - Total cleared payments</w:t></w:r></w:p>
-    <w:p><w:r><w:t>[[uncleared_deposits_total]] - Total uncleared deposits</w:t></w:r></w:p>
-    <w:p><w:r><w:t>[[uncleared_payments_total]] - Total uncleared payments</w:t></w:r></w:p>
-    <w:p><w:r><w:t>[[report_data]] - Complete report with all transactions</w:t></w:r></w:p>
+    ${availableVariables.map(v => `<w:p><w:r><w:t>${wrapVariable(v)} - ${v.replace(/_/g, ' ')}</w:t></w:r></w:p>`).join('')}
     <w:p><w:r><w:t></w:t></w:r></w:p>
-    <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:sz w:val="18"/></w:rPr><w:t>Page [[page]] of [[pages]]</w:t></w:r></w:p>
+    <w:p><w:pPr><w:jc w:val="center"/></w:pPr><w:r><w:rPr><w:sz w:val="18"/></w:rPr><w:t>Page ${wrapVariable('page')} of ${wrapVariable('pages')}</w:t></w:r></w:p>
   </w:body>
 </w:document>`);
 
@@ -231,14 +218,17 @@ export default function TemplateFileUploader({
     if (!currentTemplate?.file_url || !currentCompany) return;
 
     try {
-      const { data: template } = await supabase
-        .from('pdf_templates')
-        .select('id')
-        .eq('company_id', currentCompany.id)
-        .eq('template_type', templateType)
-        .single();
+      const template = templateId
+        ? { id: templateId }
+        : await supabase
+            .from('pdf_templates')
+            .select('id')
+            .eq('company_id', currentCompany.id)
+            .eq('template_type', templateType)
+            .single()
+            .then(({ data }) => data);
 
-      if (template) {
+      if (template?.id) {
         const { error } = await supabase
           .from('pdf_templates')
           .update({
@@ -288,18 +278,18 @@ export default function TemplateFileUploader({
               <div className="flex flex-wrap gap-2">
                 {availableVariables.map((variable) => (
                   <Badge key={variable} variant="secondary" className="font-mono text-xs">
-                    {`{{${variable}}}`}
+                    {wrapVariable(variable)}
                   </Badge>
                 ))}
                 <Badge variant="secondary" className="font-mono text-xs">
-                  {`{{report_data}}`}
+                  {wrapVariable('report_data')}
                 </Badge>
               </div>
               <p className="text-xs text-muted-foreground mt-2">
                 Use these variables in your template document. They will be replaced with actual data when generating reports.
               </p>
               <p className="text-xs text-muted-foreground font-medium">
-                Use <code className="bg-muted px-1 py-0.5 rounded">{`{{report_data}}`}</code> for the main report table. Colors from Template Settings will automatically apply to the report data.
+                Use <code className="bg-muted px-1 py-0.5 rounded">{wrapVariable('report_data')}</code> for the main report table. Colors from Template Settings will automatically apply to the report data.
               </p>
             </div>
           </AlertDescription>
@@ -381,7 +371,7 @@ export default function TemplateFileUploader({
             Download Sample Template with All Placeholders
           </Button>
           <p className="text-xs text-muted-foreground mt-2">
-            Download an HTML file with all placeholders. Open in Word, edit & format as needed, then save as .docx and upload
+            Download a sample Word template with all placeholders, format it however you want, then upload it back here
           </p>
         </div>
       </CardContent>

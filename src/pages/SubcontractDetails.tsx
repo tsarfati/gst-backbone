@@ -3,11 +3,11 @@ import { useNavigate, useParams } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Edit, FileText, Plus, Download, Send, Stamp, CheckCircle2 } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Plus, Download, Send, CheckCircle2, FileDown, Settings } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -20,6 +20,7 @@ import { generateCommitmentStatusReport } from "@/utils/commitmentReportPdf";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import FileShareModal from "@/components/FileShareModal";
+import { downloadGeneratedSubcontractDocument, generateSubcontractPDF } from "@/utils/subcontractPdfGenerator";
 
 export default function SubcontractDetails() {
   const { id } = useParams();
@@ -40,6 +41,10 @@ export default function SubcontractDetails() {
   const [companySignatureProvider, setCompanySignatureProvider] = useState<'manual' | 'docusign'>('manual');
   const [signatureActionLoading, setSignatureActionLoading] = useState(false);
   const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
+  const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
+  const [templateActionLoading, setTemplateActionLoading] = useState(false);
+  const [availableTemplates, setAvailableTemplates] = useState<Array<{ id: string; template_name: string; template_format?: string | null; template_file_type?: string | null }>>([]);
+  const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [workflowForm, setWorkflowForm] = useState({
     contract_negotiation_status: 'draft',
     signature_status: 'not_started',
@@ -52,6 +57,37 @@ export default function SubcontractDetails() {
       fetchSubcontract();
     }
   }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+
+  const isDocxTemplate = (template?: { template_format?: string | null; template_file_type?: string | null; template_file_name?: string | null; template_file_url?: string | null }) => {
+    const fileType = String(template?.template_file_type || '').toLowerCase();
+    const fileName = String(template?.template_file_name || '').toLowerCase();
+    const fileUrl = String(template?.template_file_url || '').toLowerCase();
+    return (
+      fileType === 'docx' ||
+      fileName.endsWith('.docx') ||
+      fileUrl.endsWith('.docx')
+    );
+  };
+
+  const dedupeTemplates = (templates: Array<{ id: string; template_name: string; template_format?: string | null; template_file_type?: string | null; template_file_name?: string | null; template_file_url?: string | null }>) => {
+    const byName = new Map<string, typeof templates[number]>();
+    for (const template of templates) {
+      const existing = byName.get(template.template_name);
+      if (!existing) {
+        byName.set(template.template_name, template);
+        continue;
+      }
+
+      const existingIsDocx = isDocxTemplate(existing);
+      const candidateIsDocx = isDocxTemplate(template);
+
+      if (!existingIsDocx && candidateIsDocx) {
+        byName.set(template.template_name, template);
+      }
+    }
+
+    return Array.from(byName.values());
+  };
 
   const fetchSubcontract = async () => {
     try {
@@ -120,8 +156,18 @@ export default function SubcontractDetails() {
             .maybeSingle(),
         ]);
 
+        const { data: templateRows } = await supabase
+          .from('pdf_templates')
+          .select('id, template_name, template_format, template_file_type, template_file_name, template_file_url')
+          .eq('company_id', data.jobs?.company_id)
+          .eq('template_type', 'subcontract')
+          .order('template_name');
+
         setContractEvents((eventsData as any[]) || []);
         setCompanySignatureProvider(((payablesConfig as any)?.vendor_portal_signature_provider || 'manual') as 'manual' | 'docusign');
+        const templateOptions = dedupeTemplates((templateRows || []).filter((row) => !!row.id && !!row.template_name));
+        setAvailableTemplates(templateOptions);
+        setSelectedTemplate((prev) => (prev && templateOptions.some((row) => row.id === prev) ? prev : templateOptions[0]?.id || ''));
 
         const { data: invoiceData } = await supabase
           .from('invoices')
@@ -364,6 +410,107 @@ export default function SubcontractDetails() {
     setWorkflowDialogOpen(false);
   };
 
+  const openTemplateDialog = () => {
+    if (availableTemplates.length === 0) {
+      toast({
+        title: "No subcontract templates yet",
+        description: "Set up a subcontract template first so we can generate the contract document from it.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setTemplateDialogOpen(true);
+  };
+
+  const saveGeneratedContractDocument = async (
+    generatedDocument: { blob: Blob; fileName: string; mimeType: string },
+    templateName: string | null
+  ) => {
+    if (!subcontract?.id || !subcontract?.jobs?.company_id) {
+      throw new Error('Missing subcontract context for saving the generated contract.');
+    }
+
+    const fileExtension = generatedDocument.fileName.split('.').pop() || (generatedDocument.mimeType === 'application/pdf' ? 'pdf' : 'docx');
+    const storagePath = `${subcontract.jobs.company_id}/generated-contracts/${subcontract.id}/${Date.now()}-${generatedDocument.fileName.replace(/[^a-zA-Z0-9._-]/g, '_')}`;
+    const uploadFile = new File([generatedDocument.blob], generatedDocument.fileName, { type: generatedDocument.mimeType });
+
+    const { error: uploadError } = await supabase.storage
+      .from('subcontract-files')
+      .upload(storagePath, uploadFile, {
+        contentType: generatedDocument.mimeType,
+        upsert: true,
+      });
+
+    if (uploadError) throw uploadError;
+
+    const displayName = templateName
+      ? `${templateName}.${fileExtension}`
+      : generatedDocument.fileName;
+
+    const { error: updateError } = await supabase
+      .from('subcontracts')
+      .update({
+        contract_file_url: JSON.stringify([{ path: storagePath, name: displayName }]),
+      })
+      .eq('id', subcontract.id);
+
+    if (updateError) throw updateError;
+
+    return { path: storagePath, name: displayName };
+  };
+
+  const handleCreateFromTemplate = async () => {
+    if (!subcontract?.id || !selectedTemplate) {
+      toast({
+        title: "Select a template",
+        description: "Choose a subcontract template before continuing.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      setTemplateActionLoading(true);
+      const selectedTemplateRow = availableTemplates.find((template) => template.id === selectedTemplate);
+      const generatedDocument = await generateSubcontractPDF(subcontract.id, selectedTemplate);
+      const savedDocument = await saveGeneratedContractDocument(
+        generatedDocument,
+        selectedTemplateRow?.template_name || null
+      );
+      downloadGeneratedSubcontractDocument(generatedDocument);
+      await createContractEvent(
+        'company_generated_contract_from_template',
+        `Company generated contract document from template "${selectedTemplateRow?.template_name || 'Selected Template'}".`,
+        {
+          template_id: selectedTemplate,
+          template_name: selectedTemplateRow?.template_name || null,
+          saved_contract_path: savedDocument.path,
+          saved_contract_name: savedDocument.name,
+          generated_kind: generatedDocument.kind,
+        }
+      );
+
+      await fetchSubcontract();
+
+      toast({
+        title: "Contract generated",
+        description: `We generated and saved the contract document from the "${selectedTemplateRow?.template_name || 'selected'}" template.`,
+      });
+
+      setTemplateDialogOpen(false);
+    } catch (error: any) {
+      console.error('Failed to generate contract from template:', error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to generate the subcontract contract document.",
+        variant: "destructive",
+      });
+    } finally {
+      setTemplateActionLoading(false);
+    }
+  };
+
   if (loading || websiteJobAccessLoading) {
     return (
       <div className="p-6">
@@ -445,6 +592,8 @@ export default function SubcontractDetails() {
   const getFileNameFromPath = (path: string) => {
     return path.split('/').pop() || 'Contract Document';
   };
+
+  const isPdfFile = (fileNameOrPath: string) => fileNameOrPath.toLowerCase().endsWith('.pdf');
 
   let contractFiles: {path: string, name: string}[] = [];
   if (subcontract.contract_file_url) {
@@ -644,12 +793,14 @@ export default function SubcontractDetails() {
               <div 
                 key={index}
                 className="flex items-center gap-3 p-3 border rounded-lg cursor-pointer hover:bg-primary/10 hover:border-primary transition-colors"
-                onClick={() => handleViewFile(fileData.path, fileData.name)}
+                onClick={() => isPdfFile(fileData.name || fileData.path)
+                  ? handleViewFile(fileData.path, fileData.name)
+                  : handleDownloadFile(fileData.path, fileData.name)}
               >
                 <FileText className="h-8 w-8 text-muted-foreground" />
                 <div className="flex-1">
                   <p className="font-medium text-foreground">{fileData.name}</p>
-                  <p className="text-sm text-muted-foreground">Click to view</p>
+                  <p className="text-sm text-muted-foreground">{isPdfFile(fileData.name || fileData.path) ? 'Click to view' : 'Click to download'}</p>
                 </div>
               </div>
             ))}
@@ -721,21 +872,12 @@ export default function SubcontractDetails() {
                 Send for Vendor Review
               </Button>
               <Button
-                disabled={signatureActionLoading}
-                onClick={() => updateSignatureState(
-                  {
-                    signature_provider: 'manual',
-                    signature_status: 'awaiting_external_signature',
-                    contract_negotiation_status: 'approved_for_signature',
-                    awaiting_signature_sent_at: new Date().toISOString(),
-                  },
-                  'Contract sent for manual signature.',
-                  'company_sent_for_signature_manual',
-                  'Company sent contract for manual signature upload'
-                )}
+                variant="outline"
+                disabled={signatureActionLoading || templateActionLoading}
+                onClick={openTemplateDialog}
               >
-                <Stamp className="h-4 w-4 mr-2" />
-                Send for Signature (Manual)
+                <FileDown className="h-4 w-4 mr-2" />
+                Create from Template
               </Button>
               <Button
                 variant="outline"
@@ -764,6 +906,15 @@ export default function SubcontractDetails() {
                 >
                   <CheckCircle2 className="h-4 w-4 mr-2" />
                   Mark Executed
+                </Button>
+              )}
+              {availableTemplates.length === 0 && (
+                <Button
+                  variant="ghost"
+                  onClick={() => navigate('/settings/company?tab=pdf-templates&section=subcontracts')}
+                >
+                  <Settings className="h-4 w-4 mr-2" />
+                  Set Up Subcontract Template
                 </Button>
               )}
             </div>
@@ -861,6 +1012,57 @@ export default function SubcontractDetails() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setWorkflowDialogOpen(false)}>Cancel</Button>
             <Button onClick={handleSaveWorkflow} disabled={signatureActionLoading}>Save Workflow</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={templateDialogOpen} onOpenChange={setTemplateDialogOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>
+              Create Contract from Template
+            </DialogTitle>
+            <DialogDescription>
+              Choose the subcontract template to generate and save the contract document for this subcontract.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Subcontract Template</Label>
+              <Select value={selectedTemplate} onValueChange={setSelectedTemplate}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select a subcontract template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {availableTemplates.map((template) => (
+                    <SelectItem key={template.id} value={template.id}>
+                      {template.template_name} {isDocxTemplate(template) ? '(Word Template)' : '(HTML/PDF Template)'}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {availableTemplates.length === 0 && (
+              <div className="rounded border border-dashed p-3 text-sm text-muted-foreground">
+                No subcontract templates are set up yet. Go to Company Settings and add one first.
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setTemplateDialogOpen(false)} disabled={templateActionLoading}>
+              Cancel
+            </Button>
+            {availableTemplates.length === 0 ? (
+              <Button onClick={() => navigate('/settings/company?tab=pdf-templates&section=subcontracts')}>
+                <Settings className="h-4 w-4 mr-2" />
+                Open Template Settings
+              </Button>
+            ) : (
+              <Button onClick={handleCreateFromTemplate} disabled={templateActionLoading || !selectedTemplate}>
+                <FileDown className="h-4 w-4 mr-2" />
+                {templateActionLoading ? 'Generating...' : 'Generate Contract'}
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

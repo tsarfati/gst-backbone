@@ -298,6 +298,7 @@ export default function VendorDashboard() {
   const [vendorCompanyForm, setVendorCompanyForm] = useState({
     name: '',
     contact_person: '',
+    contact_title: '',
     email: '',
     phone: '',
     address: '',
@@ -388,6 +389,7 @@ export default function VendorDashboard() {
     setVendorCompanyForm({
       name: vendorInfo?.name || '',
       contact_person: vendorInfo?.contact_person || '',
+      contact_title: vendorInfo?.contact_title || '',
       email: vendorInfo?.email || '',
       phone: vendorInfo?.phone || '',
       address: vendorInfo?.address || '',
@@ -433,7 +435,7 @@ export default function VendorDashboard() {
       // Fetch vendor info
       const { data: vendor } = await supabase
         .from('vendors')
-        .select('id, name, contact_person, email, phone, address, city, state, zip_code, logo_url, tax_id, vendor_type')
+        .select('id, name, contact_person, contact_title, email, phone, address, city, state, zip_code, logo_url, tax_id, vendor_type')
         .eq('id', profile.vendor_id)
         .single();
       
@@ -1422,6 +1424,7 @@ export default function VendorDashboard() {
       const payload = {
         name: vendorCompanyForm.name.trim() || 'Vendor',
         contact_person: vendorCompanyForm.contact_person.trim() || null,
+        contact_title: vendorCompanyForm.contact_title.trim() || null,
         email: vendorCompanyForm.email.trim() || null,
         phone: vendorCompanyForm.phone.trim() || null,
         address: vendorCompanyForm.address.trim() || null,
@@ -2900,6 +2903,10 @@ export default function VendorDashboard() {
                     <div className="space-y-2">
                       <Label>Contact Person</Label>
                       <Input value={vendorCompanyForm.contact_person} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, contact_person: e.target.value }))} />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Contact Position</Label>
+                      <Input value={vendorCompanyForm.contact_title} onChange={(e) => setVendorCompanyForm((p) => ({ ...p, contact_title: e.target.value }))} />
                     </div>
                     <div className="space-y-2">
                       <Label>Email</Label>

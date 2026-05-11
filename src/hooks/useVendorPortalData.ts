@@ -104,6 +104,7 @@ export interface VendorPortalPaymentMethod {
 export interface VendorPortalSettingsForm {
   name: string;
   contact_person: string;
+  contact_title: string;
   email: string;
   phone: string;
   address: string;
@@ -178,6 +179,7 @@ export function useVendorPortalData() {
   const [settingsForm, setSettingsForm] = useState<VendorPortalSettingsForm>({
     name: "",
     contact_person: "",
+    contact_title: "",
     email: "",
     phone: "",
     address: "",
@@ -231,7 +233,7 @@ export function useVendorPortalData() {
 
       const { data: vendor, error: vendorError } = await supabase
         .from("vendors")
-        .select("id, name, contact_person, email, phone, address, city, state, zip_code, logo_url, tax_id, vendor_type")
+        .select("id, name, contact_person, contact_title, email, phone, address, city, state, zip_code, logo_url, tax_id, vendor_type")
         .eq("id", effectiveVendorId)
         .single();
       if (vendorError) throw vendorError;
@@ -239,6 +241,7 @@ export function useVendorPortalData() {
       setSettingsForm({
         name: vendor?.name || "",
         contact_person: vendor?.contact_person || "",
+        contact_title: vendor?.contact_title || "",
         email: vendor?.email || "",
         phone: vendor?.phone || "",
         address: vendor?.address || "",
@@ -558,6 +561,7 @@ export function useVendorPortalData() {
     const payload = {
       name: settingsForm.name.trim() || "Vendor",
       contact_person: settingsForm.contact_person.trim() || null,
+      contact_title: settingsForm.contact_title.trim() || null,
       email: settingsForm.email.trim() || null,
       phone: settingsForm.phone.trim() || null,
       address: settingsForm.address.trim() || null,

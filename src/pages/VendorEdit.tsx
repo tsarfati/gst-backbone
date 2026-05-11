@@ -53,6 +53,7 @@ export default function VendorEdit() {
     name: "",
     vendor_type: "Other",
     contact_person: "",
+    contact_title: "",
     phone: "",
     email: "",
     address: "",
@@ -153,6 +154,7 @@ export default function VendorEdit() {
           name: data.name || "",
           vendor_type: data.vendor_type || "Other",
           contact_person: data.contact_person || "",
+          contact_title: data.contact_title || "",
           phone: data.phone || "",
           email: data.email || "",
           address: data.address || "",
@@ -690,7 +692,7 @@ export default function VendorEdit() {
             </div>
 
             {/* Contact Information */}
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="space-y-2">
                 <Label htmlFor="contact_person">Primary Contact</Label>
                 <Input
@@ -698,6 +700,15 @@ export default function VendorEdit() {
                   value={formData.contact_person}
                   onChange={(e) => handleInputChange("contact_person", e.target.value)}
                   placeholder="Enter primary contact name"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="contact_title">Contact Position</Label>
+                <Input
+                  id="contact_title"
+                  value={formData.contact_title}
+                  onChange={(e) => handleInputChange("contact_title", e.target.value)}
+                  placeholder="Enter contact position"
                 />
               </div>
               <div className="space-y-2">

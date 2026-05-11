@@ -37,6 +37,11 @@ export default function SubcontractEdit() {
   
   const [formData, setFormData] = useState({
     name: "",
+    subcontract_number: "",
+    company_signer_name: "",
+    company_signer_title: "",
+    subcontractor_signer_name: "",
+    subcontractor_signer_title: "",
     description: "",
     job_id: "",
     vendor_id: "",
@@ -60,6 +65,33 @@ export default function SubcontractEdit() {
   const [existingFileUrl, setExistingFileUrl] = useState<string | null>(null);
   const [isDragOver, setIsDragOver] = useState(false);
   const [uploadingFiles, setUploadingFiles] = useState(false);
+  const [subcontractNumberManuallyEdited, setSubcontractNumberManuallyEdited] = useState(false);
+
+  const formatAutoSubcontractNumber = (sequence: number, jobNumber?: string | null) => {
+    const normalizedJobNumber = String(jobNumber || '').trim();
+    return normalizedJobNumber ? `SC-${sequence}-${normalizedJobNumber}` : `SC-${sequence}`;
+  };
+
+  const getNextSubcontractNumber = async (selectedJobId: string, currentSubcontractId?: string) => {
+    const selectedJob = jobs.find((job) => job.id === selectedJobId);
+    const query = supabase
+      .from('subcontracts')
+      .select('id, subcontract_number, created_at')
+      .eq('job_id', selectedJobId)
+      .order('created_at', { ascending: true });
+
+    const { data: existingSubcontracts, error } = await query;
+    if (error) throw error;
+
+    const relevantSubcontracts = (existingSubcontracts || []).filter((subcontract) => subcontract.id !== currentSubcontractId);
+    const highestSequence = relevantSubcontracts.reduce((max, subcontract) => {
+      const match = String(subcontract.subcontract_number || '').match(/^SC-(\d+)(?:-|$)/i);
+      if (!match) return max;
+      return Math.max(max, Number.parseInt(match[1], 10) || 0);
+    }, 0);
+
+    return formatAutoSubcontractNumber(highestSequence + 1, selectedJob?.project_number);
+  };
 
   useEffect(() => {
     const fetchData = async () => {
@@ -111,6 +143,11 @@ export default function SubcontractEdit() {
 
         setFormData({
           name: subcontractData.name,
+          subcontract_number: subcontractData.subcontract_number || "",
+          company_signer_name: subcontractData.company_signer_name || "",
+          company_signer_title: subcontractData.company_signer_title || "",
+          subcontractor_signer_name: subcontractData.subcontractor_signer_name || "",
+          subcontractor_signer_title: subcontractData.subcontractor_signer_title || "",
           description: subcontractData.description || "",
           job_id: subcontractData.job_id,
           vendor_id: subcontractData.vendor_id,
@@ -140,7 +177,7 @@ export default function SubcontractEdit() {
         // Fetch jobs
         let jobsQuery = supabase
           .from('jobs')
-          .select('id, name, client')
+          .select('id, name, client, project_number')
           .eq('company_id', companyId)
           .order('name');
         if (!isPrivileged) {
@@ -161,7 +198,7 @@ export default function SubcontractEdit() {
         // Fetch vendors
         const { data: vendorsData, error: vendorsError } = await supabase
           .from('vendors')
-          .select('id, name, vendor_type')
+          .select('id, name, vendor_type, contact_person, contact_title')
           .eq('company_id', companyId)
           .eq('is_active', true)
           .order('name');
@@ -186,11 +223,42 @@ export default function SubcontractEdit() {
   }, [id, user, currentCompany, profile, toast, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(','), canAccessJob, navigate]);
 
   const handleInputChange = (field: string, value: any) => {
+    if (field === 'subcontract_number') {
+      setSubcontractNumberManuallyEdited(true);
+    }
     setFormData(prev => ({
       ...prev,
       [field]: value
     }));
   };
+
+  useEffect(() => {
+    const autoPopulateSubcontractNumber = async () => {
+      if (!formData.job_id || formData.subcontract_number || subcontractNumberManuallyEdited) return;
+      try {
+        const nextNumber = await getNextSubcontractNumber(formData.job_id, id);
+        setFormData((prev) => {
+          if (prev.subcontract_number || prev.job_id !== formData.job_id || subcontractNumberManuallyEdited) return prev;
+          return { ...prev, subcontract_number: nextNumber };
+        });
+      } catch (error) {
+        console.error('Error generating subcontract number:', error);
+      }
+    };
+
+    void autoPopulateSubcontractNumber();
+  }, [formData.job_id, formData.subcontract_number, subcontractNumberManuallyEdited, jobs, id]);
+
+  useEffect(() => {
+    const selectedVendor = vendors.find((vendor) => vendor.id === formData.vendor_id);
+    if (!selectedVendor) return;
+
+    setFormData((prev) => ({
+      ...prev,
+      subcontractor_signer_name: prev.subcontractor_signer_name || selectedVendor.contact_person || "",
+      subcontractor_signer_title: prev.subcontractor_signer_title || selectedVendor.contact_title || "",
+    }));
+  }, [formData.vendor_id, vendors]);
 
   const handleFileUpload = (files: File[]) => {
     const validFiles: File[] = [];
@@ -372,6 +440,11 @@ export default function SubcontractEdit() {
         .from('subcontracts')
         .update({
           name: formData.name.trim(),
+          subcontract_number: formData.subcontract_number.trim() || null,
+          company_signer_name: formData.company_signer_name.trim() || null,
+          company_signer_title: formData.company_signer_title.trim() || null,
+          subcontractor_signer_name: formData.subcontractor_signer_name.trim() || null,
+          subcontractor_signer_title: formData.subcontractor_signer_title.trim() || null,
           description: formData.description.trim() || null,
           job_id: formData.job_id,
           vendor_id: formData.vendor_id,
@@ -479,6 +552,60 @@ export default function SubcontractEdit() {
                     required
                   />
                 </div>
+                <div>
+                  <Label htmlFor="subcontract_number">Subcontract Number</Label>
+                  <Input
+                    id="subcontract_number"
+                    value={formData.subcontract_number}
+                    onChange={(e) => handleInputChange("subcontract_number", e.target.value)}
+                    placeholder="Auto-generated from the selected job"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="company_signer_name">Contractor Signer Name</Label>
+                  <Input
+                    id="company_signer_name"
+                    value={formData.company_signer_name}
+                    onChange={(e) => handleInputChange("company_signer_name", e.target.value)}
+                    placeholder="Who will sign this subcontract"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="company_signer_title">Contractor Signer Title</Label>
+                  <Input
+                    id="company_signer_title"
+                    value={formData.company_signer_title}
+                    onChange={(e) => handleInputChange("company_signer_title", e.target.value)}
+                    placeholder="Signer position or title"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="subcontractor_signer_name">Subcontractor Signer Name</Label>
+                  <Input
+                    id="subcontractor_signer_name"
+                    value={formData.subcontractor_signer_name}
+                    onChange={(e) => handleInputChange("subcontractor_signer_name", e.target.value)}
+                    placeholder="Who will sign for the subcontractor"
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="subcontractor_signer_title">Subcontractor Signer Title</Label>
+                  <Input
+                    id="subcontractor_signer_title"
+                    value={formData.subcontractor_signer_title}
+                    onChange={(e) => handleInputChange("subcontractor_signer_title", e.target.value)}
+                    placeholder="Subcontractor signer position or title"
+                  />
+                </div>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
                   <Label htmlFor="status">Status</Label>
                   <Select value={formData.status} onValueChange={(value) => handleInputChange("status", value)}>
