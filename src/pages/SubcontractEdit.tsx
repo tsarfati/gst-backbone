@@ -448,6 +448,7 @@ export default function SubcontractEdit() {
           subcontractor_signer_name: formData.subcontractor_signer_name.trim() || null,
           subcontractor_signer_title: formData.subcontractor_signer_title.trim() || null,
           description: formData.description.trim() || null,
+          scope_of_work: formData.scope_of_work.trim() || null,
           job_id: formData.job_id,
           vendor_id: formData.vendor_id,
           contract_amount: parseFloat(formData.contract_amount),
