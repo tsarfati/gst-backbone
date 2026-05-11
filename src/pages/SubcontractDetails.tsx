@@ -808,7 +808,6 @@ export default function SubcontractDetails() {
         </Card>
       )}
 
-      {String(subcontract.status || '').toLowerCase() !== 'active' && (
       <Card>
         <CardHeader>
           <CardTitle>Contract Workflow</CardTitle>
@@ -944,7 +943,6 @@ export default function SubcontractDetails() {
           </div>
         </CardContent>
       </Card>
-      )}
 
       <Dialog open={workflowDialogOpen} onOpenChange={setWorkflowDialogOpen}>
         <DialogContent className="max-w-lg">
