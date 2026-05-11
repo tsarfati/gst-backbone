@@ -782,6 +782,17 @@ export default function SubcontractDetails() {
         </Card>
       )}
 
+      {subcontract.scope_of_work && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Scope of Work</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="text-foreground whitespace-pre-wrap">{subcontract.scope_of_work}</p>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Contract Files */}
       {contractFiles.length > 0 && (
         <Card>
