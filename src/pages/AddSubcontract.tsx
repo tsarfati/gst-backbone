@@ -863,13 +863,16 @@ export default function AddSubcontract() {
 
               <div>
                 <Label htmlFor="description">Description</Label>
-                <Textarea
+                <Input
                   id="description"
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
-                  placeholder="Enter subcontract description"
-                  rows={3}
+                  placeholder="Enter a short subcontract description"
+                  maxLength={120}
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Short description, up to 120 characters.
+                </p>
               </div>
 
               <div>

@@ -624,13 +624,30 @@ export default function SubcontractEdit() {
 
               <div>
                 <Label htmlFor="description">Description</Label>
-                <Textarea
+                <Input
                   id="description"
                   value={formData.description}
                   onChange={(e) => handleInputChange("description", e.target.value)}
-                  placeholder="Enter subcontract description"
-                  rows={3}
+                  placeholder="Enter a short subcontract description"
+                  maxLength={120}
                 />
+                <p className="text-xs text-muted-foreground mt-1">
+                  Short description, up to 120 characters.
+                </p>
+              </div>
+
+              <div>
+                <Label htmlFor="scope_of_work">Scope of Work</Label>
+                <Textarea
+                  id="scope_of_work"
+                  value={formData.scope_of_work}
+                  onChange={(e) => handleInputChange("scope_of_work", e.target.value)}
+                  placeholder="Enter detailed scope of work for this subcontract"
+                  rows={5}
+                />
+                <p className="text-xs text-muted-foreground mt-1">
+                  This is linked to the subcontract scope of work placeholder in the generated contract.
+                </p>
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
