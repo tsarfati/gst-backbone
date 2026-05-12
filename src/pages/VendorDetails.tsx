@@ -136,6 +136,10 @@ const VENDOR_ACCESS_PRESETS: Record<
 };
 
 export default function VendorDetails() {
+  type VendorEmailContactEntry = {
+    name: string;
+    email: string;
+  };
   interface LinkedDesignCompany {
     id: string;
     name: string | null;
@@ -194,6 +198,16 @@ export default function VendorDetails() {
   const [linkedDesignCompany, setLinkedDesignCompany] = useState<LinkedDesignCompany | null>(null);
   const [designProfessionalMembers, setDesignProfessionalMembers] = useState<DesignProfessionalMember[]>([]);
   const [derivedProjectTeamAssignments, setDerivedProjectTeamAssignments] = useState<DerivedProjectTeamAssignment[]>([]);
+  const normalizedEmailContacts = useMemo<VendorEmailContactEntry[]>(() => {
+    const rawContacts = Array.isArray(vendor?.email_contacts) ? vendor.email_contacts : [];
+    return rawContacts
+      .map((entry: any) => ({
+        name: typeof entry?.name === 'string' ? entry.name : '',
+        email: typeof entry?.email === 'string' ? entry.email : '',
+      }))
+      .filter((entry) => entry.name.trim() || entry.email.trim());
+  }, [vendor?.email_contacts]);
+  const primaryVendorEmail = String(vendor?.email || normalizedEmailContacts[0]?.email || '').trim();
   const designProfessionalMemberIds = useMemo(
     () => designProfessionalMembers.map((member) => member.user_id).filter(Boolean),
     [designProfessionalMembers]
@@ -892,7 +906,7 @@ export default function VendorDetails() {
   };
 
   const handleSendInvite = async () => {
-    if (!vendor?.email) {
+    if (!primaryVendorEmail) {
       toast({
         title: "No email",
         description: "This vendor does not have an email address configured",
@@ -908,7 +922,7 @@ export default function VendorDetails() {
         body: {
           vendorId: vendor.id,
           vendorName: vendor.name,
-          vendorEmail: vendor.email,
+          vendorEmail: primaryVendorEmail,
           companyId: currentCompany?.id,
           companyName: currentCompany?.name,
           invitedBy: user?.id,
@@ -929,7 +943,7 @@ export default function VendorDetails() {
 
       toast({
         title: "Invitation Sent",
-        description: `An invitation has been sent to ${vendor.email}`,
+        description: `An invitation has been sent to ${primaryVendorEmail}`,
       });
       
       setInviteDialogOpen(false);
@@ -1053,7 +1067,7 @@ export default function VendorDetails() {
           </div>
         </div>
         <div className="flex gap-2">
-          {vendor.email && (
+          {primaryVendorEmail && (
             <Button 
               variant="outline" 
               onClick={() => setInviteDialogOpen(true)}
@@ -1083,7 +1097,7 @@ export default function VendorDetails() {
           
           <div className="py-4">
             <p className="text-sm text-muted-foreground mb-2">Invitation will be sent to:</p>
-            <p className="font-medium">{vendor.email}</p>
+            <p className="font-medium">{primaryVendorEmail}</p>
           </div>
 
           <DialogFooter>
@@ -1206,11 +1220,11 @@ export default function VendorDetails() {
                 <div className="border-t pt-4">
                   <h4 className="text-sm font-medium text-muted-foreground mb-3">Contact Information</h4>
                   <div className="space-y-3">
-                    {vendor.email && (
+                    {primaryVendorEmail && (
                       <div className="flex items-center gap-3">
                         <Mail className="h-4 w-4 text-muted-foreground" />
-                        <a href={`mailto:${vendor.email}`} className="text-primary hover:underline">
-                          {vendor.email}
+                        <a href={`mailto:${primaryVendorEmail}`} className="text-primary hover:underline">
+                          {primaryVendorEmail}
                         </a>
                       </div>
                     )}
@@ -1224,11 +1238,34 @@ export default function VendorDetails() {
                       </div>
                     )}
 
-                    {!vendor.email && !vendor.phone && (
+                    {!primaryVendorEmail && !vendor.phone && normalizedEmailContacts.length === 0 && (
                       <p className="text-muted-foreground text-sm">No contact information available</p>
                     )}
                   </div>
                 </div>
+
+                {normalizedEmailContacts.length > 0 && (
+                  <div className="border-t pt-4">
+                    <h4 className="text-sm font-medium text-muted-foreground mb-3">Additional Email Contacts</h4>
+                    <div className="space-y-3">
+                      {normalizedEmailContacts.map((contact, index) => (
+                        <div key={`${contact.email}-${index}`} className="flex items-start gap-3">
+                          <Mail className="mt-0.5 h-4 w-4 text-muted-foreground" />
+                          <div className="space-y-0.5">
+                            {contact.name ? <p className="text-foreground">{contact.name}</p> : null}
+                            {contact.email ? (
+                              <a href={`mailto:${contact.email}`} className="text-primary hover:underline">
+                                {contact.email}
+                              </a>
+                            ) : (
+                              <p className="text-sm text-muted-foreground">No email entered</p>
+                            )}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
 
                 {/* Business Information */}
                 <div className="border-t pt-4">

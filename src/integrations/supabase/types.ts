@@ -11241,6 +11241,7 @@ export type Database = {
           contact_title: string | null
           created_at: string
           customer_number: string | null
+          email_contacts: Json
           email: string | null
           id: string
           is_active: boolean
@@ -11265,6 +11266,7 @@ export type Database = {
           contact_title?: string | null
           created_at?: string
           customer_number?: string | null
+          email_contacts?: Json
           email?: string | null
           id?: string
           is_active?: boolean
@@ -11289,6 +11291,7 @@ export type Database = {
           contact_title?: string | null
           created_at?: string
           customer_number?: string | null
+          email_contacts?: Json
           email?: string | null
           id?: string
           is_active?: boolean
@@ -11644,6 +11647,7 @@ export type Database = {
           contact_person: string | null
           contact_title: string | null
           created_at: string | null
+          email_contacts: Json | null
           email: string | null
           id: string | null
           is_active: boolean | null
@@ -11665,6 +11669,7 @@ export type Database = {
           contact_person?: string | null
           contact_title?: string | null
           created_at?: string | null
+          email_contacts?: Json | null
           email?: string | null
           id?: string | null
           is_active?: boolean | null
@@ -11686,6 +11691,7 @@ export type Database = {
           contact_person?: string | null
           contact_title?: string | null
           created_at?: string | null
+          email_contacts?: Json | null
           email?: string | null
           id?: string | null
           is_active?: boolean | null

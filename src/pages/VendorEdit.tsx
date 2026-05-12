@@ -43,7 +43,13 @@ export default function VendorEdit() {
     number: string;
   };
 
+  type VendorEmailContactEntry = {
+    name: string;
+    email: string;
+  };
+
   const emptyPhoneEntry = (): VendorPhoneEntry => ({ type: "office", number: "" });
+  const emptyEmailContactEntry = (): VendorEmailContactEntry => ({ name: "", email: "" });
 
   const isAddMode = !id || id === "add";
   const [vendor, setVendor] = useState<any>(null);
@@ -68,6 +74,7 @@ export default function VendorEdit() {
     require_invoice_number: true
   });
   const [phoneNumbers, setPhoneNumbers] = useState<VendorPhoneEntry[]>([emptyPhoneEntry()]);
+  const [emailContacts, setEmailContacts] = useState<VendorEmailContactEntry[]>([emptyEmailContactEntry()]);
 
   const [logoFile, setLogoFile] = useState<File | null>(null);
   const [logoPreview, setLogoPreview] = useState<string | null>(null);
@@ -184,6 +191,14 @@ export default function VendorEdit() {
         } else {
           setPhoneNumbers([emptyPhoneEntry()]);
         }
+        const rawEmailContacts = Array.isArray(data.email_contacts) ? data.email_contacts : [];
+        const normalizedEmailContacts = rawEmailContacts
+          .map((entry: any) => ({
+            name: typeof entry?.name === "string" ? entry.name : "",
+            email: typeof entry?.email === "string" ? entry.email : "",
+          }))
+          .filter((entry) => entry.name.trim() || entry.email.trim());
+        setEmailContacts(normalizedEmailContacts.length > 0 ? normalizedEmailContacts : [emptyEmailContactEntry()]);
         
         if (data.logo_url) {
           const resolvedLogo = await resolveStorageUrl('receipts', data.logo_url);
@@ -243,6 +258,23 @@ export default function VendorEdit() {
 
   const addPhoneEntry = () => {
     setPhoneNumbers((prev) => [...prev, emptyPhoneEntry()]);
+  };
+
+  const updateEmailContactEntry = (index: number, field: keyof VendorEmailContactEntry, value: string) => {
+    setEmailContacts((prev) => prev.map((entry, entryIndex) => (
+      entryIndex === index ? { ...entry, [field]: value } : entry
+    )));
+  };
+
+  const addEmailContactEntry = () => {
+    setEmailContacts((prev) => [...prev, emptyEmailContactEntry()]);
+  };
+
+  const removeEmailContactEntry = (index: number) => {
+    setEmailContacts((prev) => {
+      const next = prev.filter((_, entryIndex) => entryIndex !== index);
+      return next.length > 0 ? next : [emptyEmailContactEntry()];
+    });
   };
 
   const removePhoneEntry = (index: number) => {
@@ -310,12 +342,19 @@ export default function VendorEdit() {
           number: entry.number.trim(),
         }))
         .filter((entry) => entry.number);
+      const normalizedEmailContacts = emailContacts
+        .map((entry) => ({
+          name: entry.name.trim(),
+          email: entry.email.trim(),
+        }))
+        .filter((entry) => entry.name || entry.email);
       const primaryPhone = normalizedPhoneNumbers[0]?.number || null;
 
       const vendorData = {
         ...formData,
         phone: primaryPhone,
         phone_numbers: normalizedPhoneNumbers,
+        email_contacts: normalizedEmailContacts,
         logo_url: logoUrl
       };
 
@@ -721,6 +760,45 @@ export default function VendorEdit() {
                   placeholder="Enter email address"
                 />
               </div>
+            </div>
+
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <Label>Additional Email Contacts</Label>
+                <Button type="button" variant="outline" size="sm" onClick={addEmailContactEntry}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Email Contact
+                </Button>
+              </div>
+              <div className="space-y-2">
+                {emailContacts.map((entry, index) => (
+                  <div key={`email-contact-${index}`} className="grid grid-cols-1 gap-2 md:grid-cols-[minmax(0,1fr)_minmax(0,1fr)_auto] md:items-center">
+                    <Input
+                      value={entry.name}
+                      onChange={(e) => updateEmailContactEntry(index, "name", e.target.value)}
+                      placeholder="Contact name"
+                    />
+                    <Input
+                      type="email"
+                      value={entry.email}
+                      onChange={(e) => updateEmailContactEntry(index, "email", e.target.value)}
+                      placeholder="Email address"
+                    />
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="icon"
+                      onClick={() => removeEmailContactEntry(index)}
+                      disabled={emailContacts.length === 1}
+                    >
+                      <X className="h-4 w-4" />
+                    </Button>
+                  </div>
+                ))}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Use this for extra AP, project, or office contacts without creating separate vendor records.
+              </p>
             </div>
 
             <div className="space-y-3">
