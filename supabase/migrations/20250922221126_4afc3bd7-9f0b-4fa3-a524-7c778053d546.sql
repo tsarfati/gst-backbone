@@ -1,11 +1,21 @@
 -- Add unique constraint for role_permissions to support upserts
-DO $$ BEGIN
-  ALTER TABLE public.role_permissions
-  ADD CONSTRAINT role_permissions_role_menu_item_key UNIQUE (role, menu_item);
-EXCEPTION WHEN duplicate_object THEN
-  -- constraint already exists
-  NULL;
-END $$;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1
+    FROM pg_constraint
+    WHERE conname = 'role_permissions_role_menu_item_key'
+      AND conrelid = 'public.role_permissions'::regclass
+  ) AND NOT EXISTS (
+    SELECT 1
+    FROM pg_class
+    WHERE relname = 'role_permissions_role_menu_item_key'
+  ) THEN
+    ALTER TABLE public.role_permissions
+    ADD CONSTRAINT role_permissions_role_menu_item_key UNIQUE (role, menu_item);
+  END IF;
+END
+$$;
 
 -- Create a SECURITY DEFINER function to set role permissions safely
 CREATE OR REPLACE FUNCTION public.set_role_permission(

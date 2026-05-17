@@ -1,5 +1,5 @@
 -- Create user_menu_permissions table
-CREATE TABLE public.user_menu_permissions (
+CREATE TABLE IF NOT EXISTS public.user_menu_permissions (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   menu_item TEXT NOT NULL,
@@ -10,7 +10,7 @@ CREATE TABLE public.user_menu_permissions (
 );
 
 -- Create user_job_access table
-CREATE TABLE public.user_job_access (
+CREATE TABLE IF NOT EXISTS public.user_job_access (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   job_id UUID NOT NULL REFERENCES public.jobs(id) ON DELETE CASCADE,
@@ -21,7 +21,7 @@ CREATE TABLE public.user_job_access (
 );
 
 -- Create page_locks table for development freeze
-CREATE TABLE public.page_locks (
+CREATE TABLE IF NOT EXISTS public.page_locks (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   page_name TEXT NOT NULL UNIQUE,
   page_path TEXT NOT NULL,
@@ -38,6 +38,7 @@ ALTER TABLE public.user_job_access ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.page_locks ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for user_menu_permissions
+DROP POLICY IF EXISTS "Admin and controllers can manage menu permissions" ON public.user_menu_permissions;
 CREATE POLICY "Admin and controllers can manage menu permissions"
 ON public.user_menu_permissions
 FOR ALL
@@ -50,6 +51,7 @@ USING (
 );
 
 -- Create policies for user_job_access
+DROP POLICY IF EXISTS "Admin and controllers can manage job access" ON public.user_job_access;
 CREATE POLICY "Admin and controllers can manage job access"
 ON public.user_job_access
 FOR ALL
@@ -62,6 +64,7 @@ USING (
 );
 
 -- Create policies for page_locks
+DROP POLICY IF EXISTS "Admin and controllers can manage page locks" ON public.page_locks;
 CREATE POLICY "Admin and controllers can manage page locks"
 ON public.page_locks
 FOR ALL
@@ -74,17 +77,23 @@ USING (
 );
 
 -- Add triggers for updated_at
-CREATE TRIGGER update_user_menu_permissions_updated_at
-BEFORE UPDATE ON public.user_menu_permissions
-FOR EACH ROW
-EXECUTE FUNCTION public.update_updated_at_column();
+DO $$ BEGIN
+  CREATE TRIGGER update_user_menu_permissions_updated_at
+  BEFORE UPDATE ON public.user_menu_permissions
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_updated_at_column();
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TRIGGER update_user_job_access_updated_at
-BEFORE UPDATE ON public.user_job_access
-FOR EACH ROW
-EXECUTE FUNCTION public.update_updated_at_column();
+DO $$ BEGIN
+  CREATE TRIGGER update_user_job_access_updated_at
+  BEFORE UPDATE ON public.user_job_access
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_updated_at_column();
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;
 
-CREATE TRIGGER update_page_locks_updated_at
-BEFORE UPDATE ON public.page_locks
-FOR EACH ROW
-EXECUTE FUNCTION public.update_updated_at_column();
+DO $$ BEGIN
+  CREATE TRIGGER update_page_locks_updated_at
+  BEFORE UPDATE ON public.page_locks
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_updated_at_column();
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

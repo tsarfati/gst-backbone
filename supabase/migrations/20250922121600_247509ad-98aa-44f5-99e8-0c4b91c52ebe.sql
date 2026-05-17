@@ -13,6 +13,7 @@ ON public.user_company_access
 FOR SELECT 
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Company owners can manage user access" ON public.user_company_access;
 CREATE POLICY "Company owners can manage user access" 
 ON public.user_company_access 
 FOR ALL 

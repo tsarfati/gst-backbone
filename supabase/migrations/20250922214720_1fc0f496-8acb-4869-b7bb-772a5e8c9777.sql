@@ -1,4 +1,5 @@
 -- Add storage policies for theme files in the avatars bucket
+DROP POLICY IF EXISTS "Users can upload theme logos" ON storage.objects;
 CREATE POLICY "Users can upload theme logos"
 ON storage.objects
 FOR INSERT
@@ -9,6 +10,7 @@ WITH CHECK (
   AND auth.uid()::text = (storage.foldername(name))[2]
 );
 
+DROP POLICY IF EXISTS "Users can upload theme banners" ON storage.objects;
 CREATE POLICY "Users can upload theme banners"
 ON storage.objects
 FOR INSERT 
@@ -19,6 +21,7 @@ WITH CHECK (
   AND auth.uid()::text = (storage.foldername(name))[2]
 );
 
+DROP POLICY IF EXISTS "Users can update theme logos" ON storage.objects;
 CREATE POLICY "Users can update theme logos"
 ON storage.objects
 FOR UPDATE
@@ -29,6 +32,7 @@ USING (
   AND auth.uid()::text = (storage.foldername(name))[2]
 );
 
+DROP POLICY IF EXISTS "Users can update theme banners" ON storage.objects;
 CREATE POLICY "Users can update theme banners"
 ON storage.objects
 FOR UPDATE
@@ -39,6 +43,7 @@ USING (
   AND auth.uid()::text = (storage.foldername(name))[2]
 );
 
+DROP POLICY IF EXISTS "Users can delete theme logos" ON storage.objects;
 CREATE POLICY "Users can delete theme logos"
 ON storage.objects
 FOR DELETE
@@ -49,6 +54,7 @@ USING (
   AND auth.uid()::text = (storage.foldername(name))[2]
 );
 
+DROP POLICY IF EXISTS "Users can delete theme banners" ON storage.objects;
 CREATE POLICY "Users can delete theme banners"
 ON storage.objects
 FOR DELETE

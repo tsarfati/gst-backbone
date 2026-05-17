@@ -21,17 +21,20 @@ CREATE TABLE IF NOT EXISTS public.email_templates (
 ALTER TABLE public.email_templates ENABLE ROW LEVEL SECURITY;
 
 -- Policies
-CREATE POLICY IF NOT EXISTS "Email templates are viewable by authenticated users"
+DROP POLICY IF EXISTS "Email templates are viewable by authenticated users" ON public.email_templates;
+CREATE POLICY "Email templates are viewable by authenticated users"
 ON public.email_templates FOR SELECT
 USING (auth.uid() IS NOT NULL);
 
-CREATE POLICY IF NOT EXISTS "Admins or controllers can create templates"
+DROP POLICY IF EXISTS "Admins or controllers can create templates" ON public.email_templates;
+CREATE POLICY "Admins or controllers can create templates"
 ON public.email_templates FOR INSERT
 WITH CHECK (
   created_by = auth.uid() AND (has_role(auth.uid(), 'admin'::user_role) OR has_role(auth.uid(), 'controller'::user_role))
 );
 
-CREATE POLICY IF NOT EXISTS "Creators or admins/controllers can update templates"
+DROP POLICY IF EXISTS "Creators or admins/controllers can update templates" ON public.email_templates;
+CREATE POLICY "Creators or admins/controllers can update templates"
 ON public.email_templates FOR UPDATE
 USING (
   created_by = auth.uid() OR has_role(auth.uid(), 'admin'::user_role) OR has_role(auth.uid(), 'controller'::user_role)
@@ -69,15 +72,18 @@ CREATE TABLE IF NOT EXISTS public.notification_settings (
 
 ALTER TABLE public.notification_settings ENABLE ROW LEVEL SECURITY;
 
-CREATE POLICY IF NOT EXISTS "Users can view their own notification settings"
+DROP POLICY IF EXISTS "Users can view their own notification settings" ON public.notification_settings;
+CREATE POLICY "Users can view their own notification settings"
 ON public.notification_settings FOR SELECT
 USING (auth.uid() = user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can upsert their own notification settings"
+DROP POLICY IF EXISTS "Users can upsert their own notification settings" ON public.notification_settings;
+CREATE POLICY "Users can upsert their own notification settings"
 ON public.notification_settings FOR INSERT
 WITH CHECK (auth.uid() = user_id);
 
-CREATE POLICY IF NOT EXISTS "Users can update their own notification settings"
+DROP POLICY IF EXISTS "Users can update their own notification settings" ON public.notification_settings;
+CREATE POLICY "Users can update their own notification settings"
 ON public.notification_settings FOR UPDATE
 USING (auth.uid() = user_id);
 

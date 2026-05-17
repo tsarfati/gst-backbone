@@ -10,15 +10,19 @@ begin
     select 1 from pg_policies 
     where schemaname = 'storage' and tablename = 'objects' and policyname = 'Bank statements viewable by company members'
   ) then
-    create policy "Bank statements viewable by company members"
-    on storage.objects
-    for select
-    using (
-      bucket_id = 'bank-statements'
-      and ((storage.foldername(name))[1])::uuid in (
-        select uc.company_id from get_user_companies(auth.uid()) uc
-      )
-    );
+    begin
+      create policy "Bank statements viewable by company members"
+      on storage.objects
+      for select
+      using (
+        bucket_id = 'bank-statements'
+        and ((storage.foldername(name))[1])::uuid in (
+          select uc.company_id from get_user_companies(auth.uid()) uc
+        )
+      );
+    exception
+      when duplicate_object OR insufficient_privilege then null;
+    end;
   end if;
 end$$;
 
@@ -29,15 +33,19 @@ begin
     select 1 from pg_policies 
     where schemaname = 'storage' and tablename = 'objects' and policyname = 'Company members can upload bank statements'
   ) then
-    create policy "Company members can upload bank statements"
-    on storage.objects
-    for insert
-    with check (
-      bucket_id = 'bank-statements'
-      and ((storage.foldername(name))[1])::uuid in (
-        select uc.company_id from get_user_companies(auth.uid()) uc
-      )
-    );
+    begin
+      create policy "Company members can upload bank statements"
+      on storage.objects
+      for insert
+      with check (
+        bucket_id = 'bank-statements'
+        and ((storage.foldername(name))[1])::uuid in (
+          select uc.company_id from get_user_companies(auth.uid()) uc
+        )
+      );
+    exception
+      when duplicate_object OR insufficient_privilege then null;
+    end;
   end if;
 end$$;
 
@@ -48,21 +56,25 @@ begin
     select 1 from pg_policies 
     where schemaname = 'storage' and tablename = 'objects' and policyname = 'Admins/controllers can update bank statements'
   ) then
-    create policy "Admins/controllers can update bank statements"
-    on storage.objects
-    for update
-    using (
-      bucket_id = 'bank-statements'
-      and ((storage.foldername(name))[1])::uuid in (
-        select uc.company_id from get_user_companies(auth.uid()) uc where uc.role in ('admin','controller')
+    begin
+      create policy "Admins/controllers can update bank statements"
+      on storage.objects
+      for update
+      using (
+        bucket_id = 'bank-statements'
+        and ((storage.foldername(name))[1])::uuid in (
+          select uc.company_id from get_user_companies(auth.uid()) uc where uc.role in ('admin','controller')
+        )
       )
-    )
-    with check (
-      bucket_id = 'bank-statements'
-      and ((storage.foldername(name))[1])::uuid in (
-        select uc.company_id from get_user_companies(auth.uid()) uc where uc.role in ('admin','controller')
-      )
-    );
+      with check (
+        bucket_id = 'bank-statements'
+        and ((storage.foldername(name))[1])::uuid in (
+          select uc.company_id from get_user_companies(auth.uid()) uc where uc.role in ('admin','controller')
+        )
+      );
+    exception
+      when duplicate_object OR insufficient_privilege then null;
+    end;
   end if;
 end$$;
 
@@ -73,15 +85,19 @@ begin
     select 1 from pg_policies 
     where schemaname = 'storage' and tablename = 'objects' and policyname = 'Admins/controllers can delete bank statements'
   ) then
-    create policy "Admins/controllers can delete bank statements"
-    on storage.objects
-    for delete
-    using (
-      bucket_id = 'bank-statements'
-      and ((storage.foldername(name))[1])::uuid in (
-        select uc.company_id from get_user_companies(auth.uid()) uc where uc.role in ('admin','controller')
-      )
-    );
+    begin
+      create policy "Admins/controllers can delete bank statements"
+      on storage.objects
+      for delete
+      using (
+        bucket_id = 'bank-statements'
+        and ((storage.foldername(name))[1])::uuid in (
+          select uc.company_id from get_user_companies(auth.uid()) uc where uc.role in ('admin','controller')
+        )
+      );
+    exception
+      when duplicate_object OR insufficient_privilege then null;
+    end;
   end if;
 end$$;
 

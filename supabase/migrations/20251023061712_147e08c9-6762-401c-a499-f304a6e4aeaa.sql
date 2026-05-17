@@ -17,10 +17,15 @@ BEGIN
     WHERE schemaname = 'storage' AND tablename = 'objects' 
       AND policyname = 'Public read for credit-card-attachments'
   ) THEN
-    CREATE POLICY "Public read for credit-card-attachments"
-    ON storage.objects
-    FOR SELECT
-    USING (bucket_id = 'credit-card-attachments');
+    BEGIN
+      CREATE POLICY "Public read for credit-card-attachments"
+      ON storage.objects
+      FOR SELECT
+      USING (bucket_id = 'credit-card-attachments');
+    EXCEPTION
+      WHEN duplicate_object OR insufficient_privilege THEN
+        NULL;
+    END;
   END IF;
 END $$;
 
@@ -32,12 +37,17 @@ BEGIN
     WHERE schemaname = 'storage' AND tablename = 'objects' 
       AND policyname = 'Authenticated upload to credit-card-attachments'
   ) THEN
-    CREATE POLICY "Authenticated upload to credit-card-attachments"
-    ON storage.objects
-    FOR INSERT
-    WITH CHECK (
-      bucket_id = 'credit-card-attachments' AND auth.role() = 'authenticated'
-    );
+    BEGIN
+      CREATE POLICY "Authenticated upload to credit-card-attachments"
+      ON storage.objects
+      FOR INSERT
+      WITH CHECK (
+        bucket_id = 'credit-card-attachments' AND auth.role() = 'authenticated'
+      );
+    EXCEPTION
+      WHEN duplicate_object OR insufficient_privilege THEN
+        NULL;
+    END;
   END IF;
 END $$;
 
@@ -49,15 +59,20 @@ BEGIN
     WHERE schemaname = 'storage' AND tablename = 'objects' 
       AND policyname = 'Authenticated update credit-card-attachments'
   ) THEN
-    CREATE POLICY "Authenticated update credit-card-attachments"
-    ON storage.objects
-    FOR UPDATE
-    USING (
-      bucket_id = 'credit-card-attachments' AND auth.role() = 'authenticated'
-    )
-    WITH CHECK (
-      bucket_id = 'credit-card-attachments' AND auth.role() = 'authenticated'
-    );
+    BEGIN
+      CREATE POLICY "Authenticated update credit-card-attachments"
+      ON storage.objects
+      FOR UPDATE
+      USING (
+        bucket_id = 'credit-card-attachments' AND auth.role() = 'authenticated'
+      )
+      WITH CHECK (
+        bucket_id = 'credit-card-attachments' AND auth.role() = 'authenticated'
+      );
+    EXCEPTION
+      WHEN duplicate_object OR insufficient_privilege THEN
+        NULL;
+    END;
   END IF;
 END $$;
 
@@ -69,11 +84,16 @@ BEGIN
     WHERE schemaname = 'storage' AND tablename = 'objects' 
       AND policyname = 'Authenticated delete credit-card-attachments'
   ) THEN
-    CREATE POLICY "Authenticated delete credit-card-attachments"
-    ON storage.objects
-    FOR DELETE
-    USING (
-      bucket_id = 'credit-card-attachments' AND auth.role() = 'authenticated'
-    );
+    BEGIN
+      CREATE POLICY "Authenticated delete credit-card-attachments"
+      ON storage.objects
+      FOR DELETE
+      USING (
+        bucket_id = 'credit-card-attachments' AND auth.role() = 'authenticated'
+      );
+    EXCEPTION
+      WHEN duplicate_object OR insufficient_privilege THEN
+        NULL;
+    END;
   END IF;
 END $$;

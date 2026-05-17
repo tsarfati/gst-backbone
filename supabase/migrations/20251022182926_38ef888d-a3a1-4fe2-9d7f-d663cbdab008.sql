@@ -9,40 +9,56 @@ DROP POLICY IF EXISTS "Users can upload subcontract files to their company" ON s
 DROP POLICY IF EXISTS "Users can delete subcontract files in their company" ON storage.objects;
 
 -- Create RLS policies for subcontract files
-CREATE POLICY "Users can view subcontract files in their company"
-ON storage.objects FOR SELECT
-USING (
-  bucket_id = 'subcontract-files' AND
-  auth.uid() IN (
-    SELECT uca.user_id 
-    FROM user_company_access uca
-    WHERE uca.company_id::text = (storage.foldername(name))[1]
-      AND uca.is_active = true
-  )
-);
+DO $$
+BEGIN
+  BEGIN
+    CREATE POLICY "Users can view subcontract files in their company"
+    ON storage.objects FOR SELECT
+    USING (
+      bucket_id = 'subcontract-files' AND
+      auth.uid() IN (
+        SELECT uca.user_id
+        FROM user_company_access uca
+        WHERE uca.company_id::text = (storage.foldername(name))[1]
+          AND uca.is_active = true
+      )
+    );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN NULL;
+  END;
 
-CREATE POLICY "Users can upload subcontract files to their company"
-ON storage.objects FOR INSERT
-WITH CHECK (
-  bucket_id = 'subcontract-files' AND
-  auth.uid() IN (
-    SELECT uca.user_id 
-    FROM user_company_access uca
-    WHERE uca.company_id::text = (storage.foldername(name))[1]
-      AND uca.is_active = true
-      AND uca.role IN ('admin', 'controller', 'project_manager', 'company_admin')
-  )
-);
+  BEGIN
+    CREATE POLICY "Users can upload subcontract files to their company"
+    ON storage.objects FOR INSERT
+    WITH CHECK (
+      bucket_id = 'subcontract-files' AND
+      auth.uid() IN (
+        SELECT uca.user_id
+        FROM user_company_access uca
+        WHERE uca.company_id::text = (storage.foldername(name))[1]
+          AND uca.is_active = true
+          AND uca.role IN ('admin', 'controller', 'project_manager', 'company_admin')
+      )
+    );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN NULL;
+  END;
 
-CREATE POLICY "Users can delete subcontract files in their company"
-ON storage.objects FOR DELETE
-USING (
-  bucket_id = 'subcontract-files' AND
-  auth.uid() IN (
-    SELECT uca.user_id 
-    FROM user_company_access uca
-    WHERE uca.company_id::text = (storage.foldername(name))[1]
-      AND uca.is_active = true
-      AND uca.role IN ('admin', 'controller', 'company_admin')
-  )
-);
+  BEGIN
+    CREATE POLICY "Users can delete subcontract files in their company"
+    ON storage.objects FOR DELETE
+    USING (
+      bucket_id = 'subcontract-files' AND
+      auth.uid() IN (
+        SELECT uca.user_id
+        FROM user_company_access uca
+        WHERE uca.company_id::text = (storage.foldername(name))[1]
+          AND uca.is_active = true
+          AND uca.role IN ('admin', 'controller', 'company_admin')
+      )
+    );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN NULL;
+  END;
+END
+$$;

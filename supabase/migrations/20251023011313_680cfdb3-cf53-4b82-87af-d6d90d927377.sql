@@ -69,60 +69,99 @@ VALUES ('credit-card-statements', 'credit-card-statements', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- RLS policies for credit card attachments
-CREATE POLICY "Users can view attachments for their companies"
-  ON storage.objects FOR SELECT
-  USING (
-    bucket_id = 'credit-card-attachments' AND
-    (storage.foldername(name))[1] IN (
-      SELECT company_id::text FROM get_user_companies(auth.uid())
-    )
-  );
+DO $$
+BEGIN
+  BEGIN
+    DROP POLICY IF EXISTS "Users can view attachments for their companies" ON storage.objects;
+    CREATE POLICY "Users can view attachments for their companies"
+      ON storage.objects FOR SELECT
+      USING (
+        bucket_id = 'credit-card-attachments' AND
+        (storage.foldername(name))[1] IN (
+          SELECT company_id::text FROM get_user_companies(auth.uid())
+        )
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
-CREATE POLICY "Users can upload attachments for their companies"
-  ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'credit-card-attachments' AND
-    (storage.foldername(name))[1] IN (
-      SELECT company_id::text FROM get_user_companies(auth.uid())
-    )
-  );
+  BEGIN
+    DROP POLICY IF EXISTS "Users can upload attachments for their companies" ON storage.objects;
+    CREATE POLICY "Users can upload attachments for their companies"
+      ON storage.objects FOR INSERT
+      WITH CHECK (
+        bucket_id = 'credit-card-attachments' AND
+        (storage.foldername(name))[1] IN (
+          SELECT company_id::text FROM get_user_companies(auth.uid())
+        )
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
-CREATE POLICY "Users can delete attachments for their companies"
-  ON storage.objects FOR DELETE
-  USING (
-    bucket_id = 'credit-card-attachments' AND
-    (storage.foldername(name))[1] IN (
-      SELECT company_id::text FROM get_user_companies(auth.uid())
-    )
-  );
+  BEGIN
+    DROP POLICY IF EXISTS "Users can delete attachments for their companies" ON storage.objects;
+    CREATE POLICY "Users can delete attachments for their companies"
+      ON storage.objects FOR DELETE
+      USING (
+        bucket_id = 'credit-card-attachments' AND
+        (storage.foldername(name))[1] IN (
+          SELECT company_id::text FROM get_user_companies(auth.uid())
+        )
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
--- RLS policies for credit card statements storage
-CREATE POLICY "Users can view statements for their companies"
-  ON storage.objects FOR SELECT
-  USING (
-    bucket_id = 'credit-card-statements' AND
-    (storage.foldername(name))[1] IN (
-      SELECT company_id::text FROM get_user_companies(auth.uid())
-    )
-  );
+  BEGIN
+    DROP POLICY IF EXISTS "Users can view statements for their companies" ON storage.objects;
+    CREATE POLICY "Users can view statements for their companies"
+      ON storage.objects FOR SELECT
+      USING (
+        bucket_id = 'credit-card-statements' AND
+        (storage.foldername(name))[1] IN (
+          SELECT company_id::text FROM get_user_companies(auth.uid())
+        )
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
-CREATE POLICY "Users can upload statements for their companies"
-  ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'credit-card-statements' AND
-    (storage.foldername(name))[1] IN (
-      SELECT company_id::text FROM get_user_companies(auth.uid())
-    )
-  );
+  BEGIN
+    DROP POLICY IF EXISTS "Users can upload statements for their companies" ON storage.objects;
+    CREATE POLICY "Users can upload statements for their companies"
+      ON storage.objects FOR INSERT
+      WITH CHECK (
+        bucket_id = 'credit-card-statements' AND
+        (storage.foldername(name))[1] IN (
+          SELECT company_id::text FROM get_user_companies(auth.uid())
+        )
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
-CREATE POLICY "Users can delete statements for their companies"
-  ON storage.objects FOR DELETE
-  USING (
-    bucket_id = 'credit-card-statements' AND
-    (storage.foldername(name))[1] IN (
-      SELECT company_id::text FROM get_user_companies(auth.uid())
-    )
-  );
+  BEGIN
+    DROP POLICY IF EXISTS "Users can delete statements for their companies" ON storage.objects;
+    CREATE POLICY "Users can delete statements for their companies"
+      ON storage.objects FOR DELETE
+      USING (
+        bucket_id = 'credit-card-statements' AND
+        (storage.foldername(name))[1] IN (
+          SELECT company_id::text FROM get_user_companies(auth.uid())
+        )
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
+END;
+$$;
 
 -- Create table for coding request notifications
 CREATE TABLE IF NOT EXISTS credit_card_coding_requests (

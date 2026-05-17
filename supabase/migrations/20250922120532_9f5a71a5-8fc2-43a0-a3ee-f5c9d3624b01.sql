@@ -1,5 +1,5 @@
 -- Create companies table
-CREATE TABLE public.companies (
+CREATE TABLE IF NOT EXISTS public.companies (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   display_name TEXT,
@@ -30,10 +30,11 @@ SELECT DISTINCT
   v.company_id
 FROM vendors v
 LEFT JOIN profiles p ON p.user_id = v.company_id
-WHERE v.company_id IS NOT NULL;
+WHERE v.company_id IS NOT NULL
+ON CONFLICT (id) DO NOTHING;
 
 -- Create user_company_access table
-CREATE TABLE public.user_company_access (
+CREATE TABLE IF NOT EXISTS public.user_company_access (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -48,7 +49,8 @@ CREATE TABLE public.user_company_access (
 ALTER TABLE public.user_company_access ENABLE ROW LEVEL SECURITY;
 
 -- Add current_company_id to profiles table
-ALTER TABLE public.profiles ADD COLUMN current_company_id UUID REFERENCES public.companies(id);
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS current_company_id UUID REFERENCES public.companies(id);
 
 -- Create user_company_access records for existing users
 INSERT INTO public.user_company_access (user_id, company_id, role, granted_by)
@@ -58,7 +60,8 @@ SELECT DISTINCT
   'admin'::user_role as role,
   v.company_id as granted_by
 FROM vendors v
-WHERE v.company_id IS NOT NULL;
+WHERE v.company_id IS NOT NULL
+ON CONFLICT (user_id, company_id) DO NOTHING;
 
 -- Update profiles to set current_company_id
 UPDATE public.profiles 
@@ -66,10 +69,12 @@ SET current_company_id = user_id
 WHERE user_id IN (SELECT DISTINCT company_id FROM vendors WHERE company_id IS NOT NULL);
 
 -- Now add the foreign key constraint to vendors
+ALTER TABLE public.vendors DROP CONSTRAINT IF EXISTS vendors_company_id_fkey;
 ALTER TABLE public.vendors ADD CONSTRAINT vendors_company_id_fkey 
   FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 -- Create RLS policies for companies
+DROP POLICY IF EXISTS "Users can view companies they have access to" ON public.companies;
 CREATE POLICY "Users can view companies they have access to" 
 ON public.companies 
 FOR SELECT 
@@ -82,6 +87,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Company admins can update their companies" ON public.companies;
 CREATE POLICY "Company admins can update their companies" 
 ON public.companies 
 FOR UPDATE 
@@ -95,17 +101,20 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Users can create companies" ON public.companies;
 CREATE POLICY "Users can create companies" 
 ON public.companies 
 FOR INSERT 
 WITH CHECK (auth.uid() = created_by);
 
 -- Create RLS policies for user_company_access
+DROP POLICY IF EXISTS "Users can view their own company access" ON public.user_company_access;
 CREATE POLICY "Users can view their own company access" 
 ON public.user_company_access 
 FOR SELECT 
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Company admins can view all access for their companies" ON public.user_company_access;
 CREATE POLICY "Company admins can view all access for their companies" 
 ON public.user_company_access 
 FOR SELECT 
@@ -119,6 +128,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Company admins can manage user access" ON public.user_company_access;
 CREATE POLICY "Company admins can manage user access" 
 ON public.user_company_access 
 FOR ALL 
@@ -223,7 +233,8 @@ USING (
 );
 
 -- Add trigger for updating timestamps
+DROP TRIGGER IF EXISTS update_companies_updated_at ON public.companies;
 CREATE TRIGGER update_companies_updated_at
-BEFORE UPDATE ON companies
+BEFORE UPDATE ON public.companies
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();

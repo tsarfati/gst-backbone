@@ -24,4 +24,4 @@ WHERE created_via_punch_clock = true
 
 -- Create index for performance
 CREATE INDEX IF NOT EXISTS idx_time_cards_requires_approval ON public.time_cards(requires_approval);
-CREATE INDEX IF NOT EXISTS idx_time_cards_user_date ON public.time_cards(user_id, DATE(punch_in_time));
+CREATE INDEX IF NOT EXISTS idx_time_cards_user_date ON public.time_cards(user_id, punch_in_time);

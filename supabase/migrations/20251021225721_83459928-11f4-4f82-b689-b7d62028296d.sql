@@ -19,22 +19,50 @@ VALUES ('report-templates', 'report-templates', false)
 ON CONFLICT (id) DO NOTHING;
 
 -- RLS policies for report-templates bucket
-CREATE POLICY "Authenticated users can view report templates"
-ON storage.objects FOR SELECT
-TO authenticated
-USING (bucket_id = 'report-templates');
+DO $$
+BEGIN
+  BEGIN
+    DROP POLICY IF EXISTS "Authenticated users can view report templates" ON storage.objects;
+    CREATE POLICY "Authenticated users can view report templates"
+    ON storage.objects FOR SELECT
+    TO authenticated
+    USING (bucket_id = 'report-templates');
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
-CREATE POLICY "Authenticated users can upload report templates"
-ON storage.objects FOR INSERT
-TO authenticated
-WITH CHECK (bucket_id = 'report-templates');
+  BEGIN
+    DROP POLICY IF EXISTS "Authenticated users can upload report templates" ON storage.objects;
+    CREATE POLICY "Authenticated users can upload report templates"
+    ON storage.objects FOR INSERT
+    TO authenticated
+    WITH CHECK (bucket_id = 'report-templates');
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
-CREATE POLICY "Authenticated users can update their company report templates"
-ON storage.objects FOR UPDATE
-TO authenticated
-USING (bucket_id = 'report-templates');
+  BEGIN
+    DROP POLICY IF EXISTS "Authenticated users can update their company report templates" ON storage.objects;
+    CREATE POLICY "Authenticated users can update their company report templates"
+    ON storage.objects FOR UPDATE
+    TO authenticated
+    USING (bucket_id = 'report-templates');
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
-CREATE POLICY "Authenticated users can delete their company report templates"
-ON storage.objects FOR DELETE
-TO authenticated
-USING (bucket_id = 'report-templates');
+  BEGIN
+    DROP POLICY IF EXISTS "Authenticated users can delete their company report templates" ON storage.objects;
+    CREATE POLICY "Authenticated users can delete their company report templates"
+    ON storage.objects FOR DELETE
+    TO authenticated
+    USING (bucket_id = 'report-templates');
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
+END;
+$$;

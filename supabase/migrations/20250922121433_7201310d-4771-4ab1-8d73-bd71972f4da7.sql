@@ -3,6 +3,7 @@ DROP POLICY IF EXISTS "Company admins can view all access for their companies" O
 DROP POLICY IF EXISTS "Company admins can manage user access" ON public.user_company_access;
 
 -- Create simpler, non-recursive policies for user_company_access
+DROP POLICY IF EXISTS "Users can view company access where they are members" ON public.user_company_access;
 CREATE POLICY "Users can view company access where they are members" 
 ON public.user_company_access 
 FOR SELECT 
@@ -16,6 +17,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Admins and controllers can insert user access" ON public.user_company_access;
 CREATE POLICY "Admins and controllers can insert user access" 
 ON public.user_company_access 
 FOR INSERT 
@@ -28,6 +30,7 @@ WITH CHECK (
   )
 );
 
+DROP POLICY IF EXISTS "Admins and controllers can update user access" ON public.user_company_access;
 CREATE POLICY "Admins and controllers can update user access" 
 ON public.user_company_access 
 FOR UPDATE 
@@ -39,6 +42,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Admins and controllers can delete user access" ON public.user_company_access;
 CREATE POLICY "Admins and controllers can delete user access" 
 ON public.user_company_access 
 FOR DELETE 

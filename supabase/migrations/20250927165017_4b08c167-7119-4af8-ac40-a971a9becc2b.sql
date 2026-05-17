@@ -30,29 +30,61 @@ FOR ALL USING (
 -- Update chart_of_accounts policies
 DROP POLICY IF EXISTS "Authenticated users can view chart of accounts" ON public.chart_of_accounts;
 DROP POLICY IF EXISTS "Admins and controllers can manage chart of accounts" ON public.chart_of_accounts;
+DROP POLICY IF EXISTS "Users can view chart of accounts for their companies" ON public.chart_of_accounts;
+DROP POLICY IF EXISTS "Admins and controllers can manage chart of accounts for their companies" ON public.chart_of_accounts;
 
-CREATE POLICY "Users can view chart of accounts for their companies" ON public.chart_of_accounts
-FOR SELECT USING (
-  company_id IN (
-    SELECT uc.company_id 
-    FROM get_user_companies(auth.uid()) uc
-  )
-);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'chart_of_accounts'
+      AND column_name = 'company_id'
+  ) THEN
+    EXECUTE $policy$
+      CREATE POLICY "Users can view chart of accounts for their companies" ON public.chart_of_accounts
+      FOR SELECT USING (
+        company_id IN (
+          SELECT uc.company_id
+          FROM get_user_companies(auth.uid()) uc
+        )
+      )
+    $policy$;
 
-CREATE POLICY "Admins and controllers can manage chart of accounts for their companies" ON public.chart_of_accounts
-FOR ALL USING (
-  company_id IN (
-    SELECT uc.company_id 
-    FROM get_user_companies(auth.uid()) uc
-    WHERE uc.role IN ('admin', 'controller')
-  )
-) WITH CHECK (
-  company_id IN (
-    SELECT uc.company_id 
-    FROM get_user_companies(auth.uid()) uc
-    WHERE uc.role IN ('admin', 'controller')
-  )
-);
+    EXECUTE $policy$
+      CREATE POLICY "Admins and controllers can manage chart of accounts for their companies" ON public.chart_of_accounts
+      FOR ALL USING (
+        company_id IN (
+          SELECT uc.company_id
+          FROM get_user_companies(auth.uid()) uc
+          WHERE uc.role IN ('admin', 'controller')
+        )
+      ) WITH CHECK (
+        company_id IN (
+          SELECT uc.company_id
+          FROM get_user_companies(auth.uid()) uc
+          WHERE uc.role IN ('admin', 'controller')
+        )
+      )
+    $policy$;
+  ELSE
+    EXECUTE $policy$
+      CREATE POLICY "Authenticated users can view chart of accounts" ON public.chart_of_accounts
+      FOR SELECT USING (auth.uid() IS NOT NULL)
+    $policy$;
+
+    EXECUTE $policy$
+      CREATE POLICY "Admins and controllers can manage chart of accounts" ON public.chart_of_accounts
+      FOR ALL USING (
+        has_role(auth.uid(), 'admin'::user_role) OR has_role(auth.uid(), 'controller'::user_role)
+      ) WITH CHECK (
+        has_role(auth.uid(), 'admin'::user_role) OR has_role(auth.uid(), 'controller'::user_role)
+      )
+    $policy$;
+  END IF;
+END
+$$;
 
 -- Update time_cards policies
 DROP POLICY IF EXISTS "Users can view their own time cards" ON public.time_cards;

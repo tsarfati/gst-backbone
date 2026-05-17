@@ -113,34 +113,50 @@ CREATE POLICY "Admins and controllers can delete reconcile reports"
   );
 
 -- Storage policies for bank-statements bucket
-CREATE POLICY "Users can view bank statements for their companies"
-  ON storage.objects FOR SELECT
-  USING (
-    bucket_id = 'bank-statements' AND
-    (storage.foldername(name))[1] IN (
-      SELECT company_id::text FROM get_user_companies(auth.uid()) uc
-    )
-  );
+DO $$
+BEGIN
+  BEGIN
+    CREATE POLICY "Users can view bank statements for their companies"
+      ON storage.objects FOR SELECT
+      USING (
+        bucket_id = 'bank-statements' AND
+        (storage.foldername(name))[1] IN (
+          SELECT company_id::text FROM get_user_companies(auth.uid()) uc
+        )
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN NULL;
+  END;
 
-CREATE POLICY "Admins and controllers can upload bank statements"
-  ON storage.objects FOR INSERT
-  WITH CHECK (
-    bucket_id = 'bank-statements' AND
-    (storage.foldername(name))[1] IN (
-      SELECT uc.company_id::text FROM get_user_companies(auth.uid()) uc
-      WHERE uc.role = ANY(ARRAY['admin'::user_role, 'controller'::user_role])
-    )
-  );
+  BEGIN
+    CREATE POLICY "Admins and controllers can upload bank statements"
+      ON storage.objects FOR INSERT
+      WITH CHECK (
+        bucket_id = 'bank-statements' AND
+        (storage.foldername(name))[1] IN (
+          SELECT uc.company_id::text FROM get_user_companies(auth.uid()) uc
+          WHERE uc.role = ANY(ARRAY['admin'::user_role, 'controller'::user_role])
+        )
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN NULL;
+  END;
 
-CREATE POLICY "Admins and controllers can delete bank statements"
-  ON storage.objects FOR DELETE
-  USING (
-    bucket_id = 'bank-statements' AND
-    (storage.foldername(name))[1] IN (
-      SELECT uc.company_id::text FROM get_user_companies(auth.uid()) uc
-      WHERE uc.role = ANY(ARRAY['admin'::user_role, 'controller'::user_role])
-    )
-  );
+  BEGIN
+    CREATE POLICY "Admins and controllers can delete bank statements"
+      ON storage.objects FOR DELETE
+      USING (
+        bucket_id = 'bank-statements' AND
+        (storage.foldername(name))[1] IN (
+          SELECT uc.company_id::text FROM get_user_companies(auth.uid()) uc
+          WHERE uc.role = ANY(ARRAY['admin'::user_role, 'controller'::user_role])
+        )
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN NULL;
+  END;
+END
+$$;
 
 -- Create indexes
 CREATE INDEX idx_bank_statements_account ON public.bank_statements(bank_account_id);

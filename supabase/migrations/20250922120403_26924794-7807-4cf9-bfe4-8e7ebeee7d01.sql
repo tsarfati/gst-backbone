@@ -1,5 +1,5 @@
 -- Create companies table
-CREATE TABLE public.companies (
+CREATE TABLE IF NOT EXISTS public.companies (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   name TEXT NOT NULL,
   display_name TEXT,
@@ -23,7 +23,7 @@ CREATE TABLE public.companies (
 ALTER TABLE public.companies ENABLE ROW LEVEL SECURITY;
 
 -- Create user_company_access table
-CREATE TABLE public.user_company_access (
+CREATE TABLE IF NOT EXISTS public.user_company_access (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   user_id UUID NOT NULL,
   company_id UUID NOT NULL REFERENCES public.companies(id) ON DELETE CASCADE,
@@ -38,7 +38,8 @@ CREATE TABLE public.user_company_access (
 ALTER TABLE public.user_company_access ENABLE ROW LEVEL SECURITY;
 
 -- Add current_company_id to profiles table
-ALTER TABLE public.profiles ADD COLUMN current_company_id UUID REFERENCES public.companies(id);
+ALTER TABLE public.profiles
+ADD COLUMN IF NOT EXISTS current_company_id UUID REFERENCES public.companies(id);
 
 -- Update vendors table to properly reference companies
 ALTER TABLE public.vendors DROP CONSTRAINT IF EXISTS vendors_company_id_fkey;
@@ -46,6 +47,7 @@ ALTER TABLE public.vendors ADD CONSTRAINT vendors_company_id_fkey
   FOREIGN KEY (company_id) REFERENCES public.companies(id) ON DELETE CASCADE;
 
 -- Create RLS policies for companies
+DROP POLICY IF EXISTS "Users can view companies they have access to" ON public.companies;
 CREATE POLICY "Users can view companies they have access to" 
 ON public.companies 
 FOR SELECT 
@@ -58,6 +60,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Company admins can update their companies" ON public.companies;
 CREATE POLICY "Company admins can update their companies" 
 ON public.companies 
 FOR UPDATE 
@@ -71,17 +74,20 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Users can create companies" ON public.companies;
 CREATE POLICY "Users can create companies" 
 ON public.companies 
 FOR INSERT 
 WITH CHECK (auth.uid() = created_by);
 
 -- Create RLS policies for user_company_access
+DROP POLICY IF EXISTS "Users can view their own company access" ON public.user_company_access;
 CREATE POLICY "Users can view their own company access" 
 ON public.user_company_access 
 FOR SELECT 
 USING (auth.uid() = user_id);
 
+DROP POLICY IF EXISTS "Company admins can view all access for their companies" ON public.user_company_access;
 CREATE POLICY "Company admins can view all access for their companies" 
 ON public.user_company_access 
 FOR SELECT 
@@ -95,6 +101,7 @@ USING (
   )
 );
 
+DROP POLICY IF EXISTS "Company admins can manage user access" ON public.user_company_access;
 CREATE POLICY "Company admins can manage user access" 
 ON public.user_company_access 
 FOR ALL 
@@ -199,7 +206,8 @@ USING (
 );
 
 -- Add trigger for updating timestamps
+DROP TRIGGER IF EXISTS update_companies_updated_at ON public.companies;
 CREATE TRIGGER update_companies_updated_at
-BEFORE UPDATE ON companies
+BEFORE UPDATE ON public.companies
 FOR EACH ROW
 EXECUTE FUNCTION update_updated_at_column();

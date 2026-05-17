@@ -1,5 +1,5 @@
 -- Create vendors table
-CREATE TABLE public.vendors (
+CREATE TABLE IF NOT EXISTS public.vendors (
   id UUID NOT NULL DEFAULT gen_random_uuid() PRIMARY KEY,
   company_id UUID REFERENCES auth.users(id),
   name TEXT NOT NULL,
@@ -22,32 +22,48 @@ CREATE TABLE public.vendors (
 ALTER TABLE public.vendors ENABLE ROW LEVEL SECURITY;
 
 -- Create policies for vendors
+DROP POLICY IF EXISTS "Users can view vendors for their company" ON public.vendors;
 CREATE POLICY "Users can view vendors for their company" 
 ON public.vendors 
 FOR SELECT 
 USING (auth.uid() = company_id);
 
+DROP POLICY IF EXISTS "Users can create vendors for their company" ON public.vendors;
 CREATE POLICY "Users can create vendors for their company" 
 ON public.vendors 
 FOR INSERT 
 WITH CHECK (auth.uid() = company_id);
 
+DROP POLICY IF EXISTS "Users can update vendors for their company" ON public.vendors;
 CREATE POLICY "Users can update vendors for their company" 
 ON public.vendors 
 FOR UPDATE 
 USING (auth.uid() = company_id);
 
+DROP POLICY IF EXISTS "Users can delete vendors for their company" ON public.vendors;
 CREATE POLICY "Users can delete vendors for their company" 
 ON public.vendors 
 FOR DELETE 
 USING (auth.uid() = company_id);
 
 -- Add vendor_id to receipts and coded_receipts tables
-ALTER TABLE public.receipts ADD COLUMN vendor_id UUID REFERENCES public.vendors(id);
-ALTER TABLE public.coded_receipts ADD COLUMN vendor_id UUID REFERENCES public.vendors(id);
+DO $$
+BEGIN
+  IF to_regclass('public.receipts') IS NOT NULL THEN
+    ALTER TABLE public.receipts
+      ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES public.vendors(id);
+  END IF;
+
+  IF to_regclass('public.coded_receipts') IS NOT NULL THEN
+    ALTER TABLE public.coded_receipts
+      ADD COLUMN IF NOT EXISTS vendor_id UUID REFERENCES public.vendors(id);
+  END IF;
+END $$;
 
 -- Create updated_at trigger for vendors
-CREATE TRIGGER update_vendors_updated_at
-BEFORE UPDATE ON public.vendors
-FOR EACH ROW
-EXECUTE FUNCTION public.update_updated_at_column();
+DO $$ BEGIN
+  CREATE TRIGGER update_vendors_updated_at
+  BEFORE UPDATE ON public.vendors
+  FOR EACH ROW
+  EXECUTE FUNCTION public.update_updated_at_column();
+EXCEPTION WHEN duplicate_object THEN NULL; END $$;

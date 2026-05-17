@@ -1,5 +1,5 @@
 -- Create employee timecard settings table
-CREATE TABLE public.employee_timecard_settings (
+CREATE TABLE IF NOT EXISTS public.employee_timecard_settings (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
   company_id UUID NOT NULL,
@@ -26,6 +26,7 @@ CREATE TABLE public.employee_timecard_settings (
 ALTER TABLE public.employee_timecard_settings ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Admins and controllers can manage employee timecard settings" ON public.employee_timecard_settings;
 CREATE POLICY "Admins and controllers can manage employee timecard settings"
 ON public.employee_timecard_settings
 FOR ALL
@@ -33,6 +34,7 @@ TO authenticated
 USING (has_role(auth.uid(), 'admin'::user_role) OR has_role(auth.uid(), 'controller'::user_role))
 WITH CHECK (has_role(auth.uid(), 'admin'::user_role) OR has_role(auth.uid(), 'controller'::user_role));
 
+DROP POLICY IF EXISTS "Users can view their own timecard settings" ON public.employee_timecard_settings;
 CREATE POLICY "Users can view their own timecard settings"
 ON public.employee_timecard_settings
 FOR SELECT
@@ -40,7 +42,7 @@ TO authenticated
 USING (auth.uid() = user_id);
 
 -- Create role default pages table
-CREATE TABLE public.role_default_pages (
+CREATE TABLE IF NOT EXISTS public.role_default_pages (
   id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
   role user_role NOT NULL UNIQUE,
   default_page TEXT NOT NULL,
@@ -53,6 +55,7 @@ CREATE TABLE public.role_default_pages (
 ALTER TABLE public.role_default_pages ENABLE ROW LEVEL SECURITY;
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Admins can manage role default pages" ON public.role_default_pages;
 CREATE POLICY "Admins can manage role default pages"
 ON public.role_default_pages
 FOR ALL
@@ -60,6 +63,7 @@ TO authenticated
 USING (has_role(auth.uid(), 'admin'::user_role))
 WITH CHECK (has_role(auth.uid(), 'admin'::user_role));
 
+DROP POLICY IF EXISTS "All users can view role default pages" ON public.role_default_pages;
 CREATE POLICY "All users can view role default pages"
 ON public.role_default_pages
 FOR SELECT
@@ -85,5 +89,6 @@ BEGIN
   ('controller', '/dashboard', admin_user_id),
   ('project_manager', '/jobs', admin_user_id),
   ('employee', '/time-tracking', admin_user_id),
-  ('view_only', '/dashboard', admin_user_id);
+  ('view_only', '/dashboard', admin_user_id)
+  ON CONFLICT (role) DO NOTHING;
 END $$;

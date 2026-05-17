@@ -149,37 +149,6 @@ export default function AddARInvoice({
     }
   }, [currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
 
-  // When launched from Job Billing, refresh job/customer context on tab focus/return
-  // so locked customer/project values reflect any changes made in Job Information.
-  useEffect(() => {
-    if (!launchFromJobBilling) return;
-
-    const refreshFromFocus = () => {
-      if (!currentCompany?.id || websiteJobAccessLoading || saving) return;
-      void loadInitialData();
-    };
-
-    const handleVisibility = () => {
-      if (document.visibilityState === "visible") {
-        refreshFromFocus();
-      }
-    };
-
-    window.addEventListener("focus", refreshFromFocus);
-    document.addEventListener("visibilitychange", handleVisibility);
-    return () => {
-      window.removeEventListener("focus", refreshFromFocus);
-      document.removeEventListener("visibilitychange", handleVisibility);
-    };
-  }, [
-    launchFromJobBilling,
-    currentCompany?.id,
-    websiteJobAccessLoading,
-    saving,
-    isPrivileged,
-    allowedJobIds.join(","),
-  ]);
-
   useEffect(() => {
     if (selectedJobId && currentCompany?.id) {
       if (isHydratingExistingInvoice) return;

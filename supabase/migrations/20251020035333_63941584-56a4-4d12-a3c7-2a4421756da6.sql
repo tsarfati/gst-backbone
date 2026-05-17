@@ -1,4 +1,9 @@
 -- Insert overdue bill notification email template
+WITH seed_actor AS (
+  SELECT id
+  FROM auth.users
+  LIMIT 1
+)
 INSERT INTO public.email_templates (
   key,
   name,
@@ -7,7 +12,8 @@ INSERT INTO public.email_templates (
   html_content,
   editor_type,
   created_by
-) VALUES (
+)
+SELECT
   'overdue_bill_alert',
   'Overdue Bill Alert',
   'Email notification for overdue bills requiring immediate attention',
@@ -126,9 +132,9 @@ INSERT INTO public.email_templates (
   </div>
 </body>
 </html>',
-  'html',
-  (SELECT id FROM auth.users LIMIT 1)
-)
+  'html'::public.template_editor,
+  seed_actor.id
+FROM seed_actor
 ON CONFLICT (key) DO UPDATE SET
   html_content = EXCLUDED.html_content,
   subject = EXCLUDED.subject,

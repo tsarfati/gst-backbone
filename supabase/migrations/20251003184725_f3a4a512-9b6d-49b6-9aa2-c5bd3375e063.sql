@@ -4,7 +4,18 @@
 CREATE INDEX IF NOT EXISTS idx_cost_codes_company_id ON public.cost_codes(company_id);
 
 -- Add index on company_id for chart_of_accounts if it doesn't exist
-CREATE INDEX IF NOT EXISTS idx_chart_of_accounts_company_id ON public.chart_of_accounts(company_id);
+DO $$
+BEGIN
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'chart_of_accounts'
+          AND column_name = 'company_id'
+    ) THEN
+        CREATE INDEX IF NOT EXISTS idx_chart_of_accounts_company_id ON public.chart_of_accounts(company_id);
+    END IF;
+END $$;
 
 -- Verify data integrity - check for any orphaned records
 DO $$
@@ -24,9 +35,19 @@ BEGIN
     END IF;
     
     -- Check for orphaned chart of accounts
-    SELECT COUNT(*) INTO orphaned_accounts
-    FROM public.chart_of_accounts coa
-    WHERE NOT EXISTS (SELECT 1 FROM public.companies c WHERE c.id = coa.company_id);
+    IF EXISTS (
+        SELECT 1
+        FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'chart_of_accounts'
+          AND column_name = 'company_id'
+    ) THEN
+        SELECT COUNT(*) INTO orphaned_accounts
+        FROM public.chart_of_accounts coa
+        WHERE NOT EXISTS (SELECT 1 FROM public.companies c WHERE c.id = coa.company_id);
+    ELSE
+        orphaned_accounts := 0;
+    END IF;
     
     IF orphaned_accounts > 0 THEN
         RAISE NOTICE 'Found % chart of accounts with invalid company references', orphaned_accounts;

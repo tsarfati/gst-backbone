@@ -2,36 +2,44 @@
 -- Payment PAY-000005 has journal_entry_id but no lines
 
 -- Add the journal entry lines for payment PAY-000005
-INSERT INTO public.journal_entry_lines (
-  journal_entry_id,
-  account_id,
-  debit_amount,
-  credit_amount,
-  description,
-  line_order
-) VALUES
-  -- Debit Accounts Payable (20100)
-  (
-    'bb22598a-a3fa-4bae-8d2b-ea43b6632b76',
-    'd9a64896-72b9-481d-85c2-c97a353d88da',
-    50000.00,
-    0,
-    'Payment to vendor - Steven S. Cohen Architect, PC',
-    1
-  ),
-  -- Credit Cash/Bank Account (11500 - TD)
-  (
-    'bb22598a-a3fa-4bae-8d2b-ea43b6632b76',
-    '3c6e0cb2-47df-4432-86d3-107d2d89999c',
-    0,
-    50000.00,
-    'Cash payment via bank account',
-    2
-  );
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM public.journal_entries
+    WHERE id = 'bb22598a-a3fa-4bae-8d2b-ea43b6632b76'
+  ) THEN
+    INSERT INTO public.journal_entry_lines (
+      journal_entry_id,
+      account_id,
+      debit_amount,
+      credit_amount,
+      description,
+      line_order
+    ) VALUES
+      (
+        'bb22598a-a3fa-4bae-8d2b-ea43b6632b76',
+        'd9a64896-72b9-481d-85c2-c97a353d88da',
+        50000.00,
+        0,
+        'Payment to vendor - Steven S. Cohen Architect, PC',
+        1
+      ),
+      (
+        'bb22598a-a3fa-4bae-8d2b-ea43b6632b76',
+        '3c6e0cb2-47df-4432-86d3-107d2d89999c',
+        0,
+        50000.00,
+        'Cash payment via bank account',
+        2
+      )
+    ON CONFLICT DO NOTHING;
 
--- Recalculate the account balances for both accounts
-SELECT public.recalculate_account_balance('d9a64896-72b9-481d-85c2-c97a353d88da'); -- AP account
-SELECT public.recalculate_account_balance('3c6e0cb2-47df-4432-86d3-107d2d89999c'); -- Cash account
+    PERFORM public.recalculate_account_balance('d9a64896-72b9-481d-85c2-c97a353d88da');
+    PERFORM public.recalculate_account_balance('3c6e0cb2-47df-4432-86d3-107d2d89999c');
+  END IF;
+END;
+$$;
 
 -- Improve the create_payment_journal_entry trigger to find AP accounts better
 CREATE OR REPLACE FUNCTION public.create_payment_journal_entry()

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -140,7 +140,6 @@ export default function UserManagement() {
   const [vendorApprovalMode, setVendorApprovalMode] = useState<'link' | 'create'>('create');
   const [selectedVendorId, setSelectedVendorId] = useState('');
   const [newVendorName, setNewVendorName] = useState('');
-  const lastRefreshAtRef = useRef(0);
 
   const activeCompanyRole = useActiveCompanyRole();
   const isAdmin = activeCompanyRole === 'admin' || activeCompanyRole === 'company_admin' || activeCompanyRole === 'owner';
@@ -290,36 +289,6 @@ export default function UserManagement() {
       fetchVendors(),
     ]);
   }, [currentCompany, location.key, fetchUsers, fetchCustomRoles, fetchVendors]);
-
-  useEffect(() => {
-    if (!currentCompany) return;
-
-    const refreshData = () => {
-      const now = Date.now();
-      if (document.visibilityState !== 'visible') return;
-      if (now - lastRefreshAtRef.current < 15_000) return;
-      lastRefreshAtRef.current = now;
-      void Promise.all([
-        fetchUsers(),
-        fetchCustomRoles(),
-        fetchVendors(),
-      ]);
-    };
-
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        refreshData();
-      }
-    };
-
-    window.addEventListener('focus', refreshData);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-
-    return () => {
-      window.removeEventListener('focus', refreshData);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, [currentCompany, fetchUsers, fetchCustomRoles, fetchVendors]);
 
   const approveUser = async (
     userId: string,

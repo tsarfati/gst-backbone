@@ -1,6 +1,7 @@
 -- Create storage policies for avatars bucket to allow users to upload their own avatars
 
 -- Allow users to upload their own avatars
+DROP POLICY IF EXISTS "Users can upload their own avatars" ON storage.objects;
 CREATE POLICY "Users can upload their own avatars" 
 ON storage.objects 
 FOR INSERT 
@@ -10,6 +11,7 @@ WITH CHECK (
 );
 
 -- Allow users to update their own avatars
+DROP POLICY IF EXISTS "Users can update their own avatars" ON storage.objects;
 CREATE POLICY "Users can update their own avatars" 
 ON storage.objects 
 FOR UPDATE 
@@ -19,6 +21,7 @@ USING (
 );
 
 -- Allow users to delete their own avatars
+DROP POLICY IF EXISTS "Users can delete their own avatars" ON storage.objects;
 CREATE POLICY "Users can delete their own avatars" 
 ON storage.objects 
 FOR DELETE 
@@ -28,6 +31,7 @@ USING (
 );
 
 -- Allow public access to view avatars (since bucket is public)
+DROP POLICY IF EXISTS "Anyone can view avatars" ON storage.objects;
 CREATE POLICY "Anyone can view avatars" 
 ON storage.objects 
 FOR SELECT 
