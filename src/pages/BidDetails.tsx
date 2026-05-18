@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Save, MessageSquare, Send, Users, Building2, Calendar, Copy, Paperclip, Download } from "lucide-react";
+import { ArrowLeft, Save, MessageSquare, Send, Users, Building2, Calendar, Copy, Paperclip, Download, Mail } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -25,6 +25,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { resolveStorageUrl } from "@/utils/storageUtils";
 import { persistNonDirectMessageReadEverywhere } from "@/utils/nonDirectMessageRead";
 import MultiFileUploadDropzone from "@/components/MultiFileUploadDropzone";
+import FileShareModal from "@/components/FileShareModal";
 
 interface BidRecord {
   id: string;
@@ -201,6 +202,7 @@ export default function BidDetails() {
   const [customTypeDraft, setCustomTypeDraft] = useState("");
   const [editingDescriptionId, setEditingDescriptionId] = useState<string | null>(null);
   const [editingDescriptionText, setEditingDescriptionText] = useState("");
+  const [shareFiles, setShareFiles] = useState<Array<{ id: string; file_name: string; file_url: string; file_size: number | null }>>([]);
   const [form, setForm] = useState({
     status: "submitted",
     bid_amount: "",
@@ -230,6 +232,37 @@ export default function BidDetails() {
   }, [attachments]);
   const highlightedMessageId = searchParams.get("messageId");
   const highlightedMessageSource = searchParams.get("messageSource");
+  const parseStoragePathFromPublicUrl = (url: string, bucket: string): string | null => {
+    try {
+      const parsed = new URL(url);
+      const marker = `/storage/v1/object/public/${bucket}/`;
+      const idx = parsed.pathname.indexOf(marker);
+      if (idx === -1) return null;
+      return decodeURIComponent(parsed.pathname.slice(idx + marker.length));
+    } catch {
+      return null;
+    }
+  };
+
+  const normalizeBidAttachmentPath = (urlOrPath?: string | null): string | null => {
+    if (!urlOrPath) return null;
+    if (urlOrPath.startsWith("http://") || urlOrPath.startsWith("https://")) {
+      return parseStoragePathFromPublicUrl(urlOrPath, "bid-attachments");
+    }
+    return urlOrPath;
+  };
+
+  const toShareableAttachment = (source: { id: string; file_name: string; file_url: string; file_size?: number | null } | null) => {
+    if (!source?.file_url) return null;
+    const normalizedPath = normalizeBidAttachmentPath(source.file_url);
+    if (!normalizedPath) return null;
+    return {
+      id: source.id,
+      file_name: source.file_name,
+      file_url: normalizedPath,
+      file_size: source.file_size ?? null,
+    };
+  };
 
   const loadAttachments = async (bidId: string) => {
     try {
@@ -894,21 +927,9 @@ export default function BidDetails() {
                   <Paperclip className="h-5 w-5" />
                   <CardTitle>Attachments</CardTitle>
                 </div>
-                <div className="flex flex-wrap items-center gap-2">
-                  {selectedAttachment ? (
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => void handleDownloadAttachment(selectedAttachment)}
-                    >
-                      <Download className="mr-2 h-4 w-4" />
-                      Download
-                    </Button>
-                  ) : null}
-                  {currentQuoteVersion ? (
-                    <Badge variant="outline">Current Quote Version: v{currentQuoteVersion}</Badge>
-                  ) : null}
-                </div>
+                {currentQuoteVersion ? (
+                  <Badge variant="outline">Current Quote Version: v{currentQuoteVersion}</Badge>
+                ) : null}
               </div>
             </CardHeader>
             <div
@@ -1082,21 +1103,47 @@ export default function BidDetails() {
                         {format(new Date(attachment.uploaded_at), "MMM d")}
                       </div>
                       <div className="col-span-1 flex justify-end">
-                        <Button
-                          type="button"
-                          variant="ghost"
-                          size="icon"
-                          className="h-7 w-7"
-                          onClick={(event) => {
-                            event.preventDefault();
-                            event.stopPropagation();
-                            void handleDownloadAttachment(attachment);
-                          }}
-                          title={`Download ${attachment.file_name}`}
-                          aria-label={`Download ${attachment.file_name}`}
-                        >
-                          <Download className="h-3.5 w-3.5" />
-                        </Button>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              void handleDownloadAttachment(attachment);
+                            }}
+                            title={`Download ${attachment.file_name}`}
+                            aria-label={`Download ${attachment.file_name}`}
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </Button>
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(event) => {
+                              event.preventDefault();
+                              event.stopPropagation();
+                              const shareable = toShareableAttachment(attachment);
+                              if (!shareable) {
+                                toast({
+                                  title: "Cannot email file",
+                                  description: "This file is missing a valid storage path.",
+                                  variant: "destructive",
+                                });
+                                return;
+                              }
+                              setShareFiles([shareable]);
+                            }}
+                            title={`Share ${attachment.file_name}`}
+                            aria-label={`Share ${attachment.file_name}`}
+                          >
+                            <Mail className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </div>
                     </div>
                   ))}
@@ -1333,6 +1380,18 @@ export default function BidDetails() {
           )}
         </DialogContent>
       </Dialog>
+
+      {shareFiles.length > 0 && (
+        <FileShareModal
+          open={shareFiles.length > 0}
+          onOpenChange={(open) => {
+            if (!open) setShareFiles([]);
+          }}
+          files={shareFiles}
+          jobId={bid?.rfp?.job_id || "bid-details"}
+          storageBucket="bid-attachments"
+        />
+      )}
     </div>
   );
 }
