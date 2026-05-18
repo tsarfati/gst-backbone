@@ -891,6 +891,37 @@ export default function VendorPortalRfps() {
     window.open(resolvedUrl, "_blank", "noopener,noreferrer");
   };
 
+  const downloadStoredFile = async (bucket: string, pathOrUrl: string, fileName: string) => {
+    try {
+      const resolvedUrl = await resolveStorageUrl(bucket as any, pathOrUrl);
+      if (!resolvedUrl) {
+        throw new Error("No file URL available");
+      }
+
+      const response = await fetch(resolvedUrl);
+      if (!response.ok) {
+        throw new Error("Failed to download file");
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = fileName || "download";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error: any) {
+      console.error("VendorPortalRfps: failed to download stored file", error);
+      toast({
+        title: "Download failed",
+        description: error?.message || "Unable to download this file.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const ensureBidRecord = useCallback(async (rfp: DetailedVendorRfp) => {
     if (!profile?.vendor_id || !rfp.company_id) {
       throw new Error("Missing vendor or company context for this RFP.");
@@ -2336,9 +2367,13 @@ export default function VendorPortalRfps() {
                                     <p className="truncate text-sm font-medium">{attachment.file_name}</p>
                                     {attachment.description ? <p className="text-xs text-muted-foreground">{attachment.description}</p> : null}
                                   </div>
-                                  <Button size="sm" variant="outline" onClick={() => window.open(attachment.file_url, "_blank", "noopener,noreferrer")}>
-                                    <ExternalLink className="mr-2 h-4 w-4" />
-                                    Open
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => void downloadStoredFile("bid-attachments", attachment.file_url, attachment.file_name)}
+                                  >
+                                    <Download className="mr-2 h-4 w-4" />
+                                    Download
                                   </Button>
                                 </div>
                               ))}

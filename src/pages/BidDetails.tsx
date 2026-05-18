@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Checkbox } from "@/components/ui/checkbox";
-import { ArrowLeft, Save, MessageSquare, Send, Users, Building2, Calendar, Copy, Paperclip } from "lucide-react";
+import { ArrowLeft, Save, MessageSquare, Send, Users, Building2, Calendar, Copy, Paperclip, Download } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -554,6 +554,37 @@ export default function BidDetails() {
     }
   };
 
+  const handleDownloadAttachment = async (attachment: BidAttachment) => {
+    try {
+      const resolvedUrl = await resolveStorageUrl("bid-attachments", attachment.file_url);
+      if (!resolvedUrl) {
+        throw new Error("No file URL available");
+      }
+
+      const response = await fetch(resolvedUrl);
+      if (!response.ok) {
+        throw new Error("Failed to download file");
+      }
+
+      const blob = await response.blob();
+      const objectUrl = URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = objectUrl;
+      link.download = attachment.file_name || "bid-attachment";
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(objectUrl);
+    } catch (error: any) {
+      console.error("Error downloading bid attachment:", error);
+      toast({
+        title: "Download failed",
+        description: error?.message || "Unable to download this bid file.",
+        variant: "destructive",
+      });
+    }
+  };
+
   const startRenameAttachment = (attachment: BidAttachment) => {
     setEditingAttachmentId(attachment.id);
     setEditingAttachmentName(attachment.file_name);
@@ -863,9 +894,21 @@ export default function BidDetails() {
                   <Paperclip className="h-5 w-5" />
                   <CardTitle>Attachments</CardTitle>
                 </div>
-                {currentQuoteVersion ? (
-                  <Badge variant="outline">Current Quote Version: v{currentQuoteVersion}</Badge>
-                ) : null}
+                <div className="flex flex-wrap items-center gap-2">
+                  {selectedAttachment ? (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => void handleDownloadAttachment(selectedAttachment)}
+                    >
+                      <Download className="mr-2 h-4 w-4" />
+                      Download
+                    </Button>
+                  ) : null}
+                  {currentQuoteVersion ? (
+                    <Badge variant="outline">Current Quote Version: v{currentQuoteVersion}</Badge>
+                  ) : null}
+                </div>
               </div>
             </CardHeader>
             <div
@@ -900,10 +943,11 @@ export default function BidDetails() {
               ) : (
                 <div className="space-y-1 rounded-md border border-dashed border-border/60 p-2">
                   <div className="grid grid-cols-12 gap-2 px-2 text-[11px] uppercase tracking-wide text-muted-foreground">
-                    <div className="col-span-4">File</div>
+                    <div className="col-span-3">File</div>
                     <div className="col-span-3">Description</div>
                     <div className="col-span-3">Type</div>
                     <div className="col-span-2">Date</div>
+                    <div className="col-span-1 text-right">Get</div>
                   </div>
                   {attachments.map((attachment) => (
                     <div
@@ -913,7 +957,7 @@ export default function BidDetails() {
                       }`}
                       onClick={() => setSelectedAttachmentId(attachment.id)}
                     >
-                      <div className="col-span-4 min-w-0">
+                      <div className="col-span-3 min-w-0">
                         {editingAttachmentId === attachment.id ? (
                           <Input
                             value={editingAttachmentName}
@@ -1036,6 +1080,23 @@ export default function BidDetails() {
                       </div>
                       <div className="col-span-2 text-muted-foreground">
                         {format(new Date(attachment.uploaded_at), "MMM d")}
+                      </div>
+                      <div className="col-span-1 flex justify-end">
+                        <Button
+                          type="button"
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                          onClick={(event) => {
+                            event.preventDefault();
+                            event.stopPropagation();
+                            void handleDownloadAttachment(attachment);
+                          }}
+                          title={`Download ${attachment.file_name}`}
+                          aria-label={`Download ${attachment.file_name}`}
+                        >
+                          <Download className="h-3.5 w-3.5" />
+                        </Button>
                       </div>
                     </div>
                   ))}
