@@ -60,6 +60,8 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
   const [currentCompany, setCurrentCompany] = useState<Company | null>(null);
   const [userCompanies, setUserCompanies] = useState<UserCompanyAccess[]>([]);
   const [loading, setLoading] = useState(true);
+  const currentCompanyPreferenceId = profile?.current_company_id ?? null;
+  const hasResolvedProfile = !!profile;
 
   const getCompanyLogoUrl = (logoUrl?: string | null): string | null => {
     if (!logoUrl) return null;
@@ -298,7 +300,15 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
 
     fetchUserCompanies();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [user?.id, profile?.current_company_id, currentTenant?.id, isSuperAdmin, tenantLoading, authLoading, profile]);
+  }, [
+    user?.id,
+    currentCompanyPreferenceId,
+    currentTenant?.id,
+    isSuperAdmin,
+    tenantLoading,
+    authLoading,
+    hasResolvedProfile,
+  ]);
 
   const value = {
     currentCompany,
