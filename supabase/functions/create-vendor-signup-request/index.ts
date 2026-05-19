@@ -21,6 +21,8 @@ type RequestPayload = {
   companyId?: string | null;
   requestedRole: RequestedRole;
   businessName?: string | null;
+  associatedJobName?: string | null;
+  associatedJobAddress?: string | null;
   jobInviteToken?: string | null;
   password?: string | null;
 };
@@ -42,6 +44,8 @@ const buildAdminIntakeEmailHtml = ({
   applicantEmail,
   requestedRole,
   businessName,
+  associatedJobName,
+  associatedJobAddress,
   reviewUrl,
 }: {
   companyName: string;
@@ -50,6 +54,8 @@ const buildAdminIntakeEmailHtml = ({
   applicantEmail: string;
   requestedRole: RequestedRole;
   businessName?: string | null;
+  associatedJobName?: string | null;
+  associatedJobAddress?: string | null;
   reviewUrl: string;
 }) => {
   const roleLabel = requestedRole === "design_professional" ? "Design Professional" : "Vendor";
@@ -72,6 +78,8 @@ const buildAdminIntakeEmailHtml = ({
           <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 8px 0;"><strong>Name:</strong> ${applicantName}</p>
           <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 8px 0;"><strong>Email:</strong> ${applicantEmail}</p>
           ${businessName ? `<p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 8px 0;"><strong>Business:</strong> ${businessName}</p>` : ""}
+          ${associatedJobName ? `<p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 8px 0;"><strong>Associated Job:</strong> ${associatedJobName}</p>` : ""}
+          ${associatedJobAddress ? `<p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 8px 0;"><strong>Job Address:</strong> ${associatedJobAddress}</p>` : ""}
           <p style="color:#374151;font-size:15px;line-height:1.6;margin:0 0 20px 0;"><strong>Role Requested:</strong> ${roleLabel}</p>
           <table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center">
             <a href="${reviewUrl}" style="display:inline-block;background-color:#E88A2D;color:#ffffff;font-size:16px;font-weight:600;text-decoration:none;padding:12px 26px;border-radius:8px;">Review Request</a>
@@ -145,6 +153,8 @@ serve(async (req: Request): Promise<Response> => {
     const companyId = safeString(body.companyId);
     const requestedRole = body.requestedRole === "design_professional" ? "design_professional" : "vendor";
     const businessName = safeString(body.businessName || "");
+    const associatedJobName = safeString(body.associatedJobName || "");
+    const associatedJobAddress = safeString(body.associatedJobAddress || "");
     const phone = safeString(body.phone || "");
     const jobInviteToken = safeString(body.jobInviteToken || "");
     const password = safeString(body.password || "");
@@ -507,6 +517,8 @@ serve(async (req: Request): Promise<Response> => {
       requestType: "external_access_signup",
       requestedRole,
       businessName: businessName || null,
+      associatedJobName: associatedJobName || null,
+      associatedJobAddress: associatedJobAddress || null,
       invitedJobId: invitedJobId || null,
       jobInviteToken: jobInviteToken || null,
       pendingJobInvites:
@@ -674,7 +686,12 @@ serve(async (req: Request): Promise<Response> => {
 
         if (allowedRecipients.length > 0) {
           const roleLabel = requestedRole === "design_professional" ? "Design Professional" : "Vendor";
-          const intakeMessage = `${firstName} ${lastName} is pending approval for ${roleLabel}${businessName ? ` (${businessName})` : ""}.`;
+          const jobContext = associatedJobName
+            ? ` for ${associatedJobName}`
+            : associatedJobAddress
+              ? ` for ${associatedJobAddress}`
+              : "";
+          const intakeMessage = `${firstName} ${lastName} is pending approval for ${roleLabel}${businessName ? ` (${businessName})` : ""}${jobContext}.`;
           await supabase.from("notifications").insert(
             allowedRecipients.map((recipientId) => ({
               user_id: recipientId,
@@ -709,6 +726,8 @@ serve(async (req: Request): Promise<Response> => {
             applicantEmail: email,
             requestedRole,
             businessName: businessName || null,
+            associatedJobName: associatedJobName || null,
+            associatedJobAddress: associatedJobAddress || null,
             reviewUrl,
           }),
           context: "create-vendor-signup-request",

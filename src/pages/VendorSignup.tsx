@@ -73,6 +73,8 @@ export default function VendorSignup() {
     phone: "",
     companyId: preselectedCompanyId || "",
     businessName: "",
+    associatedJobName: "",
+    associatedJobAddress: "",
     password: "",
     confirmPassword: "",
   });
@@ -197,6 +199,8 @@ export default function VendorSignup() {
           companyId: form.companyId || null,
           requestedRole: "vendor",
           businessName: form.businessName.trim(),
+          associatedJobName: form.associatedJobName.trim() || null,
+          associatedJobAddress: form.associatedJobAddress.trim() || null,
           password: form.password,
         },
       });
@@ -487,6 +491,27 @@ export default function VendorSignup() {
                 placeholder="Your company name"
                 required
               />
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="signup-associated-job-name">Associated Job Name (Optional)</Label>
+                <Input
+                  id="signup-associated-job-name"
+                  value={form.associatedJobName}
+                  onChange={(e) => setForm((prev) => ({ ...prev, associatedJobName: e.target.value }))}
+                  placeholder="115 N 3rd Street Renovation"
+                />
+              </div>
+              <div className="space-y-2">
+                <Label htmlFor="signup-associated-job-address">Associated Job Address (Optional)</Label>
+                <Input
+                  id="signup-associated-job-address"
+                  value={form.associatedJobAddress}
+                  onChange={(e) => setForm((prev) => ({ ...prev, associatedJobAddress: e.target.value }))}
+                  placeholder="115 N 3rd St, Philadelphia, PA"
+                />
+              </div>
             </div>
 
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">

@@ -43,6 +43,8 @@ interface ParsedRequestNotes {
   requestType: string | null;
   requestedRole: string | null;
   businessName: string | null;
+  associatedJobName: string | null;
+  associatedJobAddress: string | null;
   invitedJobId: string | null;
   pendingJobInvites: Array<{ jobId?: string | null; companyId?: string | null }>;
   email: string | null;
@@ -54,6 +56,8 @@ const parseRequestNotes = (notes?: string): ParsedRequestNotes => {
       requestType: null,
       requestedRole: null,
       businessName: null,
+      associatedJobName: null,
+      associatedJobAddress: null,
       invitedJobId: null,
       pendingJobInvites: [],
       email: null,
@@ -66,6 +70,8 @@ const parseRequestNotes = (notes?: string): ParsedRequestNotes => {
       requestType: typeof parsed?.requestType === 'string' ? parsed.requestType : null,
       requestedRole: typeof parsed?.requestedRole === 'string' ? parsed.requestedRole : null,
       businessName: typeof parsed?.businessName === 'string' ? parsed.businessName : null,
+      associatedJobName: typeof parsed?.associatedJobName === 'string' ? parsed.associatedJobName : null,
+      associatedJobAddress: typeof parsed?.associatedJobAddress === 'string' ? parsed.associatedJobAddress : null,
       invitedJobId: typeof parsed?.invitedJobId === 'string' ? parsed.invitedJobId : null,
       pendingJobInvites: Array.isArray(parsed?.pendingJobInvites) ? parsed.pendingJobInvites : [],
       email: typeof parsed?.email === 'string' ? parsed.email : null,
@@ -75,6 +81,8 @@ const parseRequestNotes = (notes?: string): ParsedRequestNotes => {
       requestType: null,
       requestedRole: null,
       businessName: null,
+      associatedJobName: null,
+      associatedJobAddress: null,
       invitedJobId: null,
       pendingJobInvites: [],
       email: null,
@@ -153,6 +161,10 @@ const getRequestDetails = (request: AccessRequest): string => {
   const parsedNotes = parseRequestNotes(request.notes);
   const role = String(request.requested_role || parsedNotes.requestedRole || 'employee').toLowerCase();
   const pendingJobInviteCount = parsedNotes.pendingJobInvites.length;
+  const jobContext = [
+    parsedNotes.associatedJobName ? `Job: ${parsedNotes.associatedJobName}` : null,
+    parsedNotes.associatedJobAddress ? `Address: ${parsedNotes.associatedJobAddress}` : null,
+  ].filter(Boolean).join(' • ');
 
   if (request.source === 'fallback_profile' || parsedNotes.requestType === 'fallback_pending_profile') {
     return 'Pending profile record awaiting final approval.';
@@ -160,20 +172,20 @@ const getRequestDetails = (request: AccessRequest): string => {
 
   if (role === 'vendor') {
     if (pendingJobInviteCount > 0) {
-      return `Vendor portal access request with ${pendingJobInviteCount} pending job invite${pendingJobInviteCount === 1 ? '' : 's'}.`;
+      return `Vendor portal access request with ${pendingJobInviteCount} pending job invite${pendingJobInviteCount === 1 ? '' : 's'}${jobContext ? ` • ${jobContext}` : ''}.`;
     }
-    return 'Vendor portal access request. This does not create employee access.';
+    return `Vendor portal access request. This does not create employee access${jobContext ? ` • ${jobContext}` : ''}.`;
   }
 
   if (role === 'design_professional') {
     if (pendingJobInviteCount > 0) {
-      return `Design professional access request with ${pendingJobInviteCount} pending project invite${pendingJobInviteCount === 1 ? '' : 's'}.`;
+      return `Design professional access request with ${pendingJobInviteCount} pending project invite${pendingJobInviteCount === 1 ? '' : 's'}${jobContext ? ` • ${jobContext}` : ''}.`;
     }
-    return 'Design professional portal access request.';
+    return `Design professional portal access request${jobContext ? ` • ${jobContext}` : ''}.`;
   }
 
   if (parsedNotes.requestType === 'external_access_signup') {
-    return 'External access request awaiting approval.';
+    return `External access request awaiting approval${jobContext ? ` • ${jobContext}` : ''}.`;
   }
 
   return 'Company access request awaiting approval.';
