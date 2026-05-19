@@ -33,10 +33,16 @@ export default function AddEmployee() {
   const canManageEmployees = profile?.role === 'admin' || profile?.role === 'controller';
 
   useEffect(() => {
-    loadGroups();
     const newPin = Math.floor(100000 + Math.random() * 900000).toString();
     setFormData(prev => ({ ...prev, pinCode: newPin }));
   }, []);
+
+  useEffect(() => {
+    setGroups([]);
+    setFormData(prev => ({ ...prev, groupId: '' }));
+    if (!currentCompany?.id) return;
+    void loadGroups();
+  }, [currentCompany?.id]);
 
   const loadGroups = async () => {
     if (!currentCompany) return;

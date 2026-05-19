@@ -82,16 +82,52 @@ Deno.serve(async (req) => {
         .maybeSingle();
 
       if (existingProfile) {
-        // Update existing profile with PIN if provided
-        if (pin_code) {
-          await adminClient
-            .from("profiles")
-            .update({
-              pin_code,
-              punch_clock_access: true,
-              phone: phone || undefined,
-            })
-            .eq("user_id", userId);
+        const { error: updateProfileError } = await adminClient
+          .from("profiles")
+          .update({
+            first_name,
+            last_name,
+            display_name: display_name || `${first_name} ${last_name}`.trim(),
+            role: "employee",
+            custom_role_id: null,
+            pin_code: pin_code || null,
+            phone: phone || null,
+            punch_clock_access: !!pin_code,
+            current_company_id: company_id,
+            default_company_id: company_id,
+            group_id: group_id || null,
+          })
+          .eq("user_id", userId);
+
+        if (updateProfileError) {
+          return new Response(JSON.stringify({ error: updateProfileError.message }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      } else {
+        const { error: createProfileError } = await adminClient
+          .from("profiles")
+          .insert({
+            user_id: userId,
+            first_name,
+            last_name,
+            display_name: display_name || `${first_name} ${last_name}`.trim(),
+            role: "employee",
+            custom_role_id: null,
+            pin_code: pin_code || null,
+            phone: phone || null,
+            punch_clock_access: !!pin_code,
+            current_company_id: company_id,
+            default_company_id: company_id,
+            group_id: group_id || null,
+          });
+
+        if (createProfileError) {
+          return new Response(JSON.stringify({ error: createProfileError.message }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
         }
       }
     } else {
@@ -125,15 +161,19 @@ Deno.serve(async (req) => {
         last_name,
         display_name: display_name || `${first_name} ${last_name}`.trim(),
         role: "employee",
+        custom_role_id: null,
         pin_code: pin_code || null,
         phone: phone || null,
         punch_clock_access: !!pin_code,
         current_company_id: company_id,
+        default_company_id: company_id,
+        group_id: group_id || null,
       });
     }
 
-    // Grant company access
-    const { error: accessError } = await adminClient.rpc("admin_grant_company_access", {
+    // Grant company access using the authenticated caller context so the RPC authorization
+    // check sees the real admin/controller auth.uid().
+    const { error: accessError } = await anonClient.rpc("admin_grant_company_access", {
       p_user_id: userId,
       p_company_id: company_id,
       p_role: "employee",
@@ -141,9 +181,12 @@ Deno.serve(async (req) => {
       p_is_active: true,
     });
 
-    // Ignore access errors if already granted (the RPC handles upsert)
     if (accessError) {
-      console.error("Access grant warning:", accessError);
+      console.error("Access grant error:", accessError);
+      return new Response(JSON.stringify({ error: accessError.message || "Failed to grant company access" }), {
+        status: 400,
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
     }
 
     return new Response(

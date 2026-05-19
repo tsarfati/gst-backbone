@@ -109,6 +109,28 @@ interface DashboardSettings {
   show_resource_allocation: boolean;
 }
 
+const parseDashboardRequestedRole = (notes?: string | null): string => {
+  if (!notes) return 'employee';
+  try {
+    const parsed = JSON.parse(notes);
+    const role = String(parsed?.requestedRole || '').trim().toLowerCase();
+    return role || 'employee';
+  } catch {
+    return 'employee';
+  }
+};
+
+const isDashboardProjectDesignProfessionalInvite = (notes?: string | null): boolean => {
+  if (!notes) return false;
+  try {
+    const parsed = JSON.parse(notes);
+    return String(parsed?.requestedRole || '').toLowerCase() === 'design_professional'
+      && Boolean(String(parsed?.invitedJobId || '').trim());
+  } catch {
+    return false;
+  }
+};
+
 function ActiveJobsList() {
   const navigate = useNavigate();
   const { currentCompany } = useCompany();
@@ -920,6 +942,7 @@ export default function Dashboard() {
 
       const intakeCandidates = [
         ...(pendingRows || [])
+          .filter((row: any) => !isDashboardProjectDesignProfessionalInvite(typeof row.notes === 'string' ? row.notes : null))
           .map((row: any) => ({
             user_id: String(row.user_id),
             requested_at: String(row.requested_at || new Date().toISOString()),
@@ -943,13 +966,7 @@ export default function Dashboard() {
           const profile = pendingProfilesByUserId.get(row.user_id);
           const fullName = [profile?.first_name, profile?.last_name].filter(Boolean).join(' ').trim();
           const displayName = String(profile?.display_name || fullName || 'A new user').trim();
-          let requestedRole = 'employee';
-          try {
-            const parsed = row.notes ? JSON.parse(row.notes) : {};
-            requestedRole = String(parsed?.requestedRole || 'employee').trim().toLowerCase() || 'employee';
-          } catch {
-            requestedRole = 'employee';
-          }
+          const requestedRole = parseDashboardRequestedRole(row.notes);
 
           const title =
             requestedRole === 'vendor'

@@ -70,9 +70,13 @@ interface Invitation {
   status: string;
   email_status: string | null;
   email_delivered_at: string | null;
-   email_opened_at: string | null;
-   email_bounced_at: string | null;
- }
+  email_opened_at: string | null;
+  email_bounced_at: string | null;
+  matched_user_id?: string | null;
+  matched_user_name?: string | null;
+  matched_user_status?: string | null;
+  has_company_access?: boolean;
+}
  
  
 const roleColors = {
@@ -189,6 +193,7 @@ export default function UserSettings() {
    const [pinEmployees, setPinEmployees] = useState<any[]>([]);
    const [resendingId, setResendingId] = useState<string | null>(null);
   const [cancellingId, setCancellingId] = useState<string | null>(null);
+  const [repairingId, setRepairingId] = useState<string | null>(null);
   const [customRoles, setCustomRoles] = useState<CustomRole[]>([]);
   const [intakeRoleFilter, setIntakeRoleFilter] = useState<'all' | 'vendor' | 'design_professional'>(initialIntakeRoleFilter);
   const [intakePendingOnly, setIntakePendingOnly] = useState(true);
@@ -254,6 +259,30 @@ export default function UserSettings() {
     }
   };
 
+   const performInvitationRepair = async (invitation: Invitation, options?: { silent?: boolean }) => {
+     if (!currentCompany) return false;
+
+     const { data, error } = await supabase.functions.invoke('repair-user-invite', {
+       body: {
+         invitationId: invitation.id,
+         companyId: currentCompany.id,
+       },
+     });
+
+     if (error) throw error;
+
+     if (!options?.silent) {
+       toast({
+         title: 'Invitation finalized',
+         description:
+           data?.message ||
+           `The pending invitation for ${invitation.email} has been reconciled with the existing account.`,
+       });
+     }
+
+     return true;
+   };
+
    const fetchInvitations = async () => {
      if (!currentCompany) return;
  
@@ -266,7 +295,100 @@ export default function UserSettings() {
          .order('invited_at', { ascending: false });
  
        if (error) throw error;
-       setInvitations(data || []);
+       const pendingInvites = (data || []) as Invitation[];
+       const invitationEmails = Array.from(
+         new Set(
+           pendingInvites
+             .map((invite) => String(invite.email || '').trim().toLowerCase())
+             .filter(Boolean),
+         ),
+       );
+
+       if (invitationEmails.length === 0) {
+         setInvitations(pendingInvites);
+         return;
+       }
+
+       const { data: matchingProfiles, error: matchingProfilesError } = await supabase
+         .from('profiles')
+         .select('user_id, email, display_name, first_name, last_name, status')
+         .in('email', invitationEmails);
+
+       if (matchingProfilesError) throw matchingProfilesError;
+
+       const matchedProfiles = (matchingProfiles || []) as Array<{
+         user_id: string;
+         email: string | null;
+         display_name: string | null;
+         first_name: string | null;
+         last_name: string | null;
+         status: string | null;
+       }>;
+
+       const profileByEmail = new Map(
+         matchedProfiles
+           .filter((entry) => entry.email)
+           .map((entry) => [String(entry.email).trim().toLowerCase(), entry] as const),
+       );
+
+       const matchedUserIds = matchedProfiles.map((entry) => entry.user_id).filter(Boolean);
+       let accessUserIds = new Set<string>();
+
+       if (matchedUserIds.length > 0) {
+         const { data: accessRows, error: accessError } = await supabase
+           .from('user_company_access')
+           .select('user_id')
+           .eq('company_id', currentCompany.id)
+           .in('user_id', matchedUserIds)
+           .eq('is_active', true);
+
+         if (accessError) throw accessError;
+         accessUserIds = new Set((accessRows || []).map((row: any) => String(row.user_id || '')));
+       }
+
+       const hydratedInvitations = pendingInvites.map((invite) => {
+           const matchedProfile = profileByEmail.get(String(invite.email || '').trim().toLowerCase());
+           const matchedUserName = matchedProfile
+             ? matchedProfile.display_name || `${matchedProfile.first_name || ''} ${matchedProfile.last_name || ''}`.trim() || invite.email
+             : null;
+
+           return {
+             ...invite,
+             matched_user_id: matchedProfile?.user_id || null,
+             matched_user_name: matchedUserName,
+             matched_user_status: matchedProfile?.status || null,
+             has_company_access: matchedProfile?.user_id ? accessUserIds.has(String(matchedProfile.user_id)) : false,
+           };
+         });
+
+       const reconciliableInvitations = hydratedInvitations.filter(
+         (invite) => String(invite.email || '').trim().length > 0,
+       );
+
+       if (reconciliableInvitations.length > 0) {
+         const repairResults = await Promise.allSettled(
+           reconciliableInvitations.map((invite) => performInvitationRepair(invite, { silent: true })),
+         );
+
+         const repairedInvitationIds = new Set(
+           repairResults
+             .map((result, index) =>
+               result.status === 'fulfilled' ? reconciliableInvitations[index]?.id : null,
+             )
+             .filter(Boolean),
+         );
+
+         const repairedCount = repairedInvitationIds.size;
+         if (repairedCount > 0) {
+           const remainingInvitations = hydratedInvitations.filter(
+             (invite) => !repairedInvitationIds.has(invite.id),
+           );
+           setInvitations(remainingInvitations);
+           return;
+         }
+       }
+
+       setInvitations(hydratedInvitations);
      } catch (error) {
        console.error('Error fetching invitations:', error);
      }
@@ -372,6 +494,36 @@ export default function UserSettings() {
         setCancellingId(null);
       }
     };
+
+   const repairInvitation = async (invitation: Invitation) => {
+     if (!currentCompany) return;
+
+     setRepairingId(invitation.id);
+
+     try {
+       await performInvitationRepair(invitation);
+
+       await Promise.all([fetchInvitations(), fetchUsers()]);
+     } catch (error: any) {
+       console.error('Error repairing invitation:', error);
+       let errorMessage = error?.message || 'Failed to repair invitation';
+       try {
+         if (typeof error?.context?.json === 'function') {
+           const body = await error.context.json();
+           errorMessage = body?.error || body?.message || errorMessage;
+         }
+       } catch {
+         // ignore parse errors
+       }
+       toast({
+         title: 'Error',
+         description: errorMessage,
+         variant: 'destructive',
+       });
+     } finally {
+       setRepairingId(null);
+     }
+   };
  
    const getEmailStatusBadge = (invitation: Invitation) => {
      const isExpired = new Date(invitation.expires_at) < new Date();
@@ -439,6 +591,23 @@ export default function UserSettings() {
 
       const roleMap = new Map(companyUsers?.map(u => [u.user_id, u.role]) || []);
 
+      const { data: companyProfilesFallback, error: companyProfilesFallbackError } = await supabase
+        .from('profiles')
+        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role, vendor_id, current_company_id')
+        .eq('current_company_id', currentCompany.id)
+        .not('role', 'in', '("vendor","design_professional")');
+
+      if (companyProfilesFallbackError) throw companyProfilesFallbackError;
+
+      for (const profileRow of companyProfilesFallback || []) {
+        const fallbackUserId = String(profileRow.user_id || '').trim();
+        const fallbackRole = String(profileRow.role || '').trim().toLowerCase();
+        if (!fallbackUserId) continue;
+        if (!roleMap.has(fallbackUserId) && fallbackRole) {
+          roleMap.set(fallbackUserId, fallbackRole as UserProfile['role']);
+        }
+      }
+
       // Fallback for vendor/design professional portal signups: if a durable company
       // access request exists but the access row is missing, still surface the user
       // in the external access lists so admins can manage them.
@@ -462,7 +631,11 @@ export default function UserSettings() {
         const requestBusinessName = parseBusinessNameFromNotes(request.notes);
         const requestEmail = parseEmailFromNotes(request.notes);
         const pendingJobIds = parsePendingJobIdsFromNotes(request.notes);
-        if (requestedRole && EXTERNAL_ACCESS_ROLES.includes(requestedRole as typeof EXTERNAL_ACCESS_ROLES[number])) {
+        if (
+          requestedRole &&
+          EXTERNAL_ACCESS_ROLES.includes(requestedRole as typeof EXTERNAL_ACCESS_ROLES[number]) &&
+          !roleMap.has(String(request.user_id || '').trim())
+        ) {
           roleMap.set(request.user_id, requestedRole as UserProfile['role']);
         }
         if (request.user_id && requestBusinessName) {
@@ -500,6 +673,9 @@ export default function UserSettings() {
       );
 
       const existingProfileUserIds = new Set((regularUsers || []).map((user: any) => String(user.user_id || '')));
+      const supplementalInternalProfiles = ((companyProfilesFallback || []) as any[]).filter(
+        (user) => !existingProfileUserIds.has(String(user.user_id || ''))
+      );
       const { data: linkedVendorProfiles, error: linkedVendorProfilesError } = companyVendorIds.length > 0
         ? await supabase
             .from('profiles')
@@ -510,8 +686,12 @@ export default function UserSettings() {
 
       if (linkedVendorProfilesError) throw linkedVendorProfilesError;
 
+      const mergedExistingProfileUserIds = new Set([
+        ...existingProfileUserIds,
+        ...supplementalInternalProfiles.map((user: any) => String(user.user_id || '')),
+      ]);
       const supplementalVendorProfiles = ((linkedVendorProfiles || []) as any[]).filter(
-        (user) => !existingProfileUserIds.has(String(user.user_id || ''))
+        (user) => !mergedExistingProfileUserIds.has(String(user.user_id || ''))
       );
 
       supplementalVendorProfiles.forEach((user: any) => {
@@ -521,7 +701,7 @@ export default function UserSettings() {
         }
       });
 
-      const mergedProfiles = [...(regularUsers || []), ...supplementalVendorProfiles];
+      const mergedProfiles = [...(regularUsers || []), ...supplementalInternalProfiles, ...supplementalVendorProfiles];
       const foundProfileUserIds = new Set(mergedProfiles.map((user: any) => String(user.user_id || '')));
       const fallbackExternalUsers = (approvedExternalRequests || [])
         .filter((request: any) => {
@@ -920,7 +1100,12 @@ export default function UserSettings() {
   };
 
   const getUsersForSystemGroup = (roles: string[]) => {
-    return users.filter((u) => !u.custom_role_id && roles.includes(u.role));
+    return users.filter((u) => {
+      const resolvedCustomRole = getCustomRoleForUser(u);
+      const isExternalRole = EXTERNAL_ACCESS_ROLES.includes(u.role as typeof EXTERNAL_ACCESS_ROLES[number]);
+      if (isExternalRole) return false;
+      return !resolvedCustomRole && roles.includes(u.role);
+    });
   };
 
   const getExternalUsers = (role: typeof EXTERNAL_ACCESS_ROLES[number]) => {
@@ -1073,9 +1258,39 @@ export default function UserSettings() {
                                 <Badge variant="secondary">Pending Invitation</Badge>
                                 {getInvitationRoleBadge(invitation)}
                                 {getEmailStatusBadge(invitation)}
+                                {invitation.matched_user_id ? (
+                                  <Badge variant={invitation.has_company_access ? 'secondary' : 'outline'}>
+                                    {invitation.has_company_access ? 'Account Linked' : 'Account Created'}
+                                  </Badge>
+                                ) : null}
                               </div>
+                              {invitation.matched_user_id ? (
+                                <p className="text-xs text-muted-foreground mt-2">
+                                  {invitation.matched_user_name || invitation.email}
+                                  {invitation.has_company_access
+                                    ? ' already has company access, but this invitation still shows pending.'
+                                    : ' already created an account, but the Sigma invitation was never finalized.'}
+                                </p>
+                              ) : null}
                             </div>
                             <div className="flex items-center gap-2">
+                              {invitation.matched_user_id && !invitation.has_company_access ? (
+                                <Button
+                                  variant="secondary"
+                                  size="sm"
+                                  onClick={(e) => {
+                                    e.stopPropagation();
+                                    repairInvitation(invitation);
+                                  }}
+                                  disabled={repairingId === invitation.id}
+                                >
+                                  {repairingId === invitation.id ? (
+                                    <Loader2 className="h-4 w-4 animate-spin" />
+                                  ) : (
+                                    'Finalize Invite'
+                                  )}
+                                </Button>
+                              ) : null}
                               <Button variant="outline" size="sm" onClick={(e) => { e.stopPropagation(); resendInvitation(invitation); }} disabled={resendingId === invitation.id}>
                                 {resendingId === invitation.id ? <Loader2 className="h-4 w-4 animate-spin" /> : <><RefreshCw className="h-4 w-4 mr-2" />Resend</>}
                               </Button>
@@ -1599,12 +1814,12 @@ export default function UserSettings() {
             <CompanyAccessRequests
               requestedRoleFilter={
                 intakeRoleFilter === 'all'
-                  ? ['employee', 'vendor', 'design_professional']
+                  ? undefined
                   : [intakeRoleFilter]
               }
               statusFilter={intakePendingOnly ? 'pending' : 'all'}
               title="Signup Intake Queue"
-              description="Review employee, vendor, and design professional signup requests."
+              description="Review all signup requests, including internal users, vendors, and design professionals."
             />
           </div>
         </TabsContent>
