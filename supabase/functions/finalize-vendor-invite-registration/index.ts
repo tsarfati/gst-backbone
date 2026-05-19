@@ -8,6 +8,11 @@ const corsHeaders = {
 
 const safeString = (value: unknown) => String(value || "").trim();
 
+const isMissingColumnError = (error: any, columnName: string) => {
+  const message = String(error?.message || "").toLowerCase();
+  return message.includes(columnName.toLowerCase()) && message.includes("column");
+};
+
 const isDesignProfessionalVendorType = (value: unknown) => {
   const normalized = safeString(value).toLowerCase();
   return normalized === "design_professional" || normalized === "design professional";
@@ -42,7 +47,10 @@ serve(async (req) => {
       );
     }
 
-    const { data: invitation, error: invitationError } = await supabase
+    let invitation: any = null;
+    let invitationError: any = null;
+
+    const invitationWithRole = await supabase
       .from("vendor_invitations")
       .select(`
         id,
@@ -59,6 +67,30 @@ serve(async (req) => {
       `)
       .eq("token", inviteToken)
       .maybeSingle();
+
+    if (invitationWithRole.error && isMissingColumnError(invitationWithRole.error, "vendor_portal_role")) {
+      const invitationWithoutRole = await supabase
+        .from("vendor_invitations")
+        .select(`
+          id,
+          vendor_id,
+          company_id,
+          invited_by,
+          email,
+          status,
+          expires_at,
+          accepted_at,
+          created_user_id,
+          vendor:vendors(id, name, vendor_type)
+        `)
+        .eq("token", inviteToken)
+        .maybeSingle();
+      invitation = invitationWithoutRole.data;
+      invitationError = invitationWithoutRole.error;
+    } else {
+      invitation = invitationWithRole.data;
+      invitationError = invitationWithRole.error;
+    }
 
     if (invitationError) throw invitationError;
     if (!invitation) {
@@ -145,23 +177,34 @@ serve(async (req) => {
     });
     if (authMetadataError) throw authMetadataError;
 
-    const { error: profileError } = await supabase
+    const profilePayload = {
+      user_id: authUserId,
+      email: invitedEmail,
+      first_name: normalizedFirstName || null,
+      last_name: normalizedLastName || null,
+      display_name: displayName,
+      role: externalRole,
+      current_company_id: linkedCompanyId,
+      default_company_id: linkedCompanyId,
+      status: "approved",
+      approved_at: approvedAt,
+      approved_by: (invitation as any).invited_by || authUserId,
+      vendor_id: linkedVendorId,
+      vendor_portal_role: vendorPortalRole,
+    };
+
+    let { error: profileError } = await supabase
       .from("profiles")
-      .upsert({
-        user_id: authUserId,
-        email: invitedEmail,
-        first_name: normalizedFirstName || null,
-        last_name: normalizedLastName || null,
-        display_name: displayName,
-        role: externalRole,
-        current_company_id: linkedCompanyId,
-        default_company_id: linkedCompanyId,
-        status: "approved",
-        approved_at: approvedAt,
-        approved_by: (invitation as any).invited_by || authUserId,
-        vendor_id: linkedVendorId,
-        vendor_portal_role: vendorPortalRole,
-      }, { onConflict: "user_id" });
+      .upsert(profilePayload, { onConflict: "user_id" });
+
+    if (profileError && isMissingColumnError(profileError, "vendor_portal_role")) {
+      const { vendor_portal_role, ...profilePayloadWithoutRole } = profilePayload;
+      const retryResult = await supabase
+        .from("profiles")
+        .upsert(profilePayloadWithoutRole, { onConflict: "user_id" });
+      profileError = retryResult.error;
+    }
+
     if (profileError) throw profileError;
 
     const { error: accessError } = await supabase

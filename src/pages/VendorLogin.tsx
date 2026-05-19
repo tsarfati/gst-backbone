@@ -41,9 +41,10 @@ export default function VendorLogin() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const { toast } = useToast();
-  const { signIn, user } = useAuth();
+  const { signIn, signOut, user } = useAuth();
 
   const preselectedCompanyId = searchParams.get("company");
+  const invitationToken = searchParams.get("token");
 
   const [loadingCompanies, setLoadingCompanies] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -54,12 +55,6 @@ export default function VendorLogin() {
     email: "",
     password: "",
   });
-
-  useEffect(() => {
-    if (user) {
-      navigate("/dashboard", { replace: true });
-    }
-  }, [navigate, user]);
 
   useEffect(() => {
     const loadCompanies = async () => {
@@ -142,11 +137,34 @@ export default function VendorLogin() {
       const { error: signInError } = await signIn(form.email.trim(), form.password);
       if (signInError) throw signInError;
 
+      if (invitationToken) {
+        const { data: authUserData, error: authUserError } = await supabase.auth.getUser();
+        if (authUserError) throw authUserError;
+        const signedInUser = authUserData.user;
+
+        if (signedInUser) {
+          const { data: finalizeData, error: finalizeError } = await supabase.functions.invoke(
+            "finalize-vendor-invite-registration",
+            {
+              body: {
+                token: invitationToken,
+                userId: signedInUser.id,
+              },
+            },
+          );
+
+          if (finalizeError) throw finalizeError;
+          if (!finalizeData?.success) {
+            throw new Error("Failed to finalize vendor portal access for this company");
+          }
+        }
+      }
+
       toast({
         title: "Signed in",
         description: "Taking you to your vendor portal.",
       });
-      navigate("/dashboard", { replace: true });
+      navigate("/vendor/dashboard", { replace: true });
     } catch (signInError: any) {
       console.error("Vendor login failed", signInError);
       const message = signInError?.message || "Unable to sign in right now.";
@@ -193,6 +211,22 @@ export default function VendorLogin() {
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
+            {user && (
+              <div className="rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-100">
+                <p className="mb-2">
+                  You are currently signed in to BuilderLYNK. Sign in below to switch to this vendor portal account.
+                </p>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => void signOut()}
+                >
+                  Sign Out First
+                </Button>
+              </div>
+            )}
+
             {error && (
               <div className="rounded-md border border-red-500/40 bg-red-500/10 p-3 text-sm text-red-200 flex items-start gap-2">
                 <XCircle className="h-4 w-4 mt-0.5" />

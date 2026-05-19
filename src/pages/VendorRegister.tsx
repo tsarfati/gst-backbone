@@ -119,7 +119,7 @@ export default function VendorRegister() {
   const brandedHeaderTitle = String(companyBranding?.vendor_portal_signup_header_title || '').trim() || landingTitle;
   const brandedHeaderSubtitle = String(companyBranding?.vendor_portal_signup_header_subtitle || '').trim() || defaultLandingSubtitle;
   const vendorLoginHref = invitation?.company_id
-    ? `/vendor-login?company=${encodeURIComponent(invitation.company_id)}`
+    ? `/vendor-login?company=${encodeURIComponent(invitation.company_id)}${token ? `&token=${encodeURIComponent(token)}` : ''}`
     : '/vendor-login';
 
   const loadCompanyBranding = async (companyId: string) => {
@@ -279,13 +279,27 @@ export default function VendorRegister() {
 
       if (signUpError) throw signUpError;
 
-      if (authData.user) {
+      const authUser = authData.user;
+      const identityCount = Array.isArray((authUser as any)?.identities)
+        ? (authUser as any).identities.length
+        : 0;
+
+      if (authUser && identityCount === 0) {
+        toast({
+          title: 'Account already exists',
+          description: 'This email already has a BuilderLYNK account. Sign in to this company vendor portal instead.',
+        });
+        navigate(vendorLoginHref, { replace: true });
+        return;
+      }
+
+      if (authUser) {
         const { data: finalizeData, error: finalizeError } = await supabase.functions.invoke(
           'finalize-vendor-invite-registration',
           {
             body: {
               token,
-              userId: authData.user.id,
+              userId: authUser.id,
               firstName: formData.firstName,
               lastName: formData.lastName,
             },
@@ -308,6 +322,15 @@ export default function VendorRegister() {
       }
     } catch (err: any) {
       console.error('Error creating account:', err);
+      const errorMessage = String(err?.message || '').toLowerCase();
+      if (errorMessage.includes('already registered') || errorMessage.includes('already exists')) {
+        toast({
+          title: 'Account already exists',
+          description: 'This email already has a BuilderLYNK account. Sign in to the vendor portal for this company instead.',
+        });
+        navigate(vendorLoginHref, { replace: true });
+        return;
+      }
       toast({
         title: 'Error',
         description: err.message || 'Failed to create account',
