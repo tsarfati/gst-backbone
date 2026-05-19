@@ -11,6 +11,7 @@ import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import builderlynkLogo from "@/assets/builderlynk-icon-shield.png";
 import { useAuth } from "@/contexts/AuthContext";
+import { setAuthEntryContext } from "@/utils/authEntryContext";
 
 type PublicCompany = {
   id: string;
@@ -134,29 +135,29 @@ export default function VendorLogin() {
     setSubmitting(true);
 
     try {
+      setAuthEntryContext("vendor");
       const { error: signInError } = await signIn(form.email.trim(), form.password);
       if (signInError) throw signInError;
 
-      if (invitationToken) {
-        const { data: authUserData, error: authUserError } = await supabase.auth.getUser();
-        if (authUserError) throw authUserError;
-        const signedInUser = authUserData.user;
+      const { data: authUserData, error: authUserError } = await supabase.auth.getUser();
+      if (authUserError) throw authUserError;
+      const signedInUser = authUserData.user;
 
-        if (signedInUser) {
-          const { data: finalizeData, error: finalizeError } = await supabase.functions.invoke(
-            "finalize-vendor-invite-registration",
-            {
-              body: {
-                token: invitationToken,
-                userId: signedInUser.id,
-              },
+      if (signedInUser && (invitationToken || form.companyId)) {
+        const { data: finalizeData, error: finalizeError } = await supabase.functions.invoke(
+          "finalize-vendor-invite-registration",
+          {
+            body: {
+              token: invitationToken,
+              userId: signedInUser.id,
+              companyId: form.companyId,
             },
-          );
+          },
+        );
 
-          if (finalizeError) throw finalizeError;
-          if (!finalizeData?.success) {
-            throw new Error("Failed to finalize vendor portal access for this company");
-          }
+        if (finalizeError) throw finalizeError;
+        if (!finalizeData?.success) {
+          throw new Error("Failed to finalize vendor portal access for this company");
         }
       }
 

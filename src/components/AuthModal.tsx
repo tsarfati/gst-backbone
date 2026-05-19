@@ -10,6 +10,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, EyeOff, X, ArrowLeft } from 'lucide-react';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
+import { setAuthEntryContext } from '@/utils/authEntryContext';
 
 interface AuthModalProps {
   open: boolean;
@@ -52,6 +53,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
     e.preventDefault();
     setLoading(true);
 
+    setAuthEntryContext('builder');
     const { error } = await signIn(email, password);
     
     if (error) {
@@ -140,6 +142,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'signUp' }: AuthMo
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
+    setAuthEntryContext('builder');
     const { error } = await signInWithGoogle();
     
     if (error) {

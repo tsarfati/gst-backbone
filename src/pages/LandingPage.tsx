@@ -18,6 +18,7 @@ import logoTransparent from '@/assets/builderlynk-logo-new.png';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import headerLogo from '@/assets/builderlynk-header-logo.png';
 import { TawkToChat } from '@/components/TawkToChat';
+import { setAuthEntryContext } from '@/utils/authEntryContext';
 import punchClockLynkLogo from '@/assets/punchclock-lynk-logo.png';
 import pmLynkLogo from '@/assets/pm-lynk-logo.png';
 import {
@@ -152,7 +153,8 @@ export default function LandingPage() {
   // Redirect authenticated users to dashboard
   useEffect(() => {
     if (!loading && user) {
-      navigate('/dashboard', { replace: true });
+      setAuthEntryContext('builder');
+      navigate('/auth', { replace: true });
     }
   }, [user, loading, navigate]);
 

@@ -148,6 +148,9 @@ export default function VendorSignup() {
     || (selectedCompany
       ? `Create your BuilderLYNK account to request access to ${selectedCompany.display_name || selectedCompany.name}.`
       : "Create your BuilderLYNK account and submit for company approval.");
+  const vendorLoginHref = form.companyId
+    ? `/vendor-login?company=${encodeURIComponent(form.companyId)}`
+    : "/vendor-login";
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -367,7 +370,7 @@ export default function VendorSignup() {
 
   return (
     <div
-      className="relative min-h-screen flex items-center justify-center p-4 bg-cover bg-center"
+      className="min-h-screen flex flex-col items-center justify-center gap-4 p-4 sm:py-8 bg-cover bg-center"
       style={
         selectedCompanyBackgroundUrl
           ? {
@@ -548,6 +551,14 @@ export default function VendorSignup() {
                     ? `Try again in ${rateLimitCountdown}s`
                     : "Submit For Approval"}
               </Button>
+              <Button
+                type="button"
+                variant="link"
+                className="h-auto p-0 text-slate-200 hover:text-white"
+                onClick={() => navigate(vendorLoginHref)}
+              >
+                Already have an account? Sign in to this vendor portal
+              </Button>
             </div>
           </form>
         </CardContent>
@@ -556,7 +567,7 @@ export default function VendorSignup() {
         href="https://www.builderlynk.com"
         target="_blank"
         rel="noopener noreferrer"
-        className="absolute bottom-4 left-1/2 -translate-x-1/2 inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-2 text-xs text-slate-100 transition-colors hover:bg-black/45"
+        className="inline-flex items-center gap-2 rounded-md border border-white/20 bg-black/30 px-3 py-2 text-xs text-slate-100 transition-colors hover:bg-black/45"
       >
         <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain" />
         <span>Powered by BuilderLYNK</span>

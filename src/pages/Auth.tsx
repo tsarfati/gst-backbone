@@ -13,6 +13,7 @@ import { Loader2, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useRoleBasedRouting } from '@/hooks/useRoleBasedRouting';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
+import { setAuthEntryContext } from '@/utils/authEntryContext';
 
 type InvitePreview = {
   companyName: string;
@@ -187,14 +188,7 @@ export default function Auth() {
     if (profile?.profile_completed === false) {
       navigate('/profile-completion', { replace: true });
     } else {
-      const role = String(profile?.role || '').toLowerCase();
-      if (role === 'design_professional') {
-        navigate('/design-professional/dashboard', { replace: true });
-      } else if (role === 'vendor') {
-        navigate('/vendor/dashboard', { replace: true });
-      } else {
-        navigate('/dashboard', { replace: true });
-      }
+      navigate('/dashboard', { replace: true });
     }
   }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting]);
 
@@ -439,6 +433,7 @@ export default function Auth() {
     e.preventDefault();
     setLoading(true);
 
+    setAuthEntryContext('builder');
     const { error } = await signIn(email, password);
     
     if (error) {
@@ -503,6 +498,7 @@ export default function Auth() {
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
+    setAuthEntryContext('builder');
     const { error } = await signInWithGoogle();
     
     if (error) {

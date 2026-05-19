@@ -6,6 +6,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { supabase } from '@/integrations/supabase/client';
+import { getAuthEntryContext } from '@/utils/authEntryContext';
 
 export function useRoleBasedRouting() {
   const { profile } = useAuth();
@@ -16,12 +17,22 @@ export function useRoleBasedRouting() {
   const navigate = useNavigate();
   const location = useLocation();
   const isInviteAuthRoute = location.pathname === '/auth' && new URLSearchParams(location.search).has('invite');
+  const authEntryContext = getAuthEntryContext();
+  const externalRoles = new Set(['vendor', 'design_professional']);
+  const internalCompanyRole =
+    userCompanies
+      .map((company) => String(company?.role || '').toLowerCase())
+      .find((companyRole) => companyRole && !externalRoles.has(companyRole)) || null;
 
   // Prefer active-company role, then profile role, then any company role we can infer.
   const effectiveRole =
     activeCompanyRole ||
     profile?.role ||
     (userCompanies.length > 0 ? userCompanies[0].role : null);
+  const routingRole =
+    authEntryContext === 'builder' && internalCompanyRole
+      ? internalCompanyRole
+      : effectiveRole;
 
   // Company access signal (used to prevent super-admin default routing when the user also has legacy/company access)
   const hasCompanyAccess =
@@ -53,14 +64,14 @@ export function useRoleBasedRouting() {
     // If super admin but not tenant owner (e.g., tenant admin like mike@greenstarteam.com),
     // or super admin with company access, treat as regular user and continue with normal routing
 
-    if (!effectiveRole) return;
+    if (!routingRole) return;
 
     const fetchDefaultPage = async () => {
       try {
         const { data, error } = await supabase
           .from('role_default_pages')
           .select('default_page')
-          .eq('role', effectiveRole)
+          .eq('role', routingRole)
           .maybeSingle();
 
         if (error) {
@@ -69,7 +80,7 @@ export function useRoleBasedRouting() {
         }
 
         // For employees, redirect to punch clock app only
-        if (effectiveRole === 'employee') {
+        if (routingRole === 'employee') {
           if (location.pathname === '/auth' || location.pathname === '/') {
             navigate('/punch-clock-app', { replace: true });
           }
@@ -77,7 +88,7 @@ export function useRoleBasedRouting() {
         }
 
         // For vendors/design professionals, redirect to their portal
-        if (effectiveRole === 'vendor' || effectiveRole === 'design_professional') {
+        if (routingRole === 'vendor' || routingRole === 'design_professional') {
           if (location.pathname === '/auth' || location.pathname === '/') {
             let target = '/vendor/dashboard';
             const vendorId = (profile as any)?.vendor_id as string | null | undefined;
@@ -90,7 +101,7 @@ export function useRoleBasedRouting() {
               if (String(vendorData?.vendor_type || '').toLowerCase() === 'design_professional') {
                 target = '/design-professional/dashboard';
               }
-            } else if (effectiveRole === 'design_professional') {
+            } else if (routingRole === 'design_professional') {
               target = '/design-professional/dashboard';
             }
             navigate(target, { replace: true });
@@ -130,5 +141,5 @@ export function useRoleBasedRouting() {
     };
 
     fetchDefaultPage();
-  }, [effectiveRole, isSuperAdmin, isTenantOwner, tenantLoading, companyLoading, hasAccess, navigate, location.pathname, location.search, isInviteAuthRoute, profile?.status]);
+  }, [routingRole, isSuperAdmin, isTenantOwner, tenantLoading, companyLoading, hasAccess, navigate, location.pathname, location.search, isInviteAuthRoute, profile?.status]);
 }
