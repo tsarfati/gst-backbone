@@ -37,20 +37,57 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
+    const body = await req.json().catch(() => ({}));
+    const requestedVendorId = String(body?.vendorId || "").trim();
+
     const { data: profile, error: profileError } = await admin
       .from("profiles")
       .select("user_id, role, vendor_id, current_company_id")
       .eq("user_id", user.id)
       .single();
-    if (profileError || !profile?.vendor_id || String(profile.role || "").toLowerCase() !== "vendor") {
+    if (profileError || !profile?.user_id) {
       return new Response(JSON.stringify({ error: "Vendor profile not found" }), {
         status: 404,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    const homeVendorId = String(profile.vendor_id);
-    const homeCompanyId = String(profile.current_company_id || "");
+    const candidateVendorIds = Array.from(
+      new Set([
+        requestedVendorId,
+        String(profile.vendor_id || "").trim(),
+      ].filter(Boolean)),
+    );
+
+    if (candidateVendorIds.length === 0) {
+      return new Response(JSON.stringify({ error: "No vendor context was provided" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    const normalizedEmail = String(user.email || "").trim().toLowerCase();
+    const { data: inviteMatches, error: inviteMatchesError } = await admin
+      .from("vendor_invitations")
+      .select("vendor_id, company_id, created_user_id, email, status, vendor_portal_role, invited_at, accepted_at")
+      .in("vendor_id", candidateVendorIds)
+      .or(`created_user_id.eq.${user.id},email.eq.${normalizedEmail}`)
+      .order("accepted_at", { ascending: false, nullsFirst: false })
+      .order("invited_at", { ascending: false });
+    if (inviteMatchesError) throw inviteMatchesError;
+
+    const bestInvite = ((inviteMatches || []) as any[]).find((row: any) => {
+      const status = String(row?.status || "").trim().toLowerCase();
+      return candidateVendorIds.includes(String(row?.vendor_id || "").trim()) && (status === "accepted" || status === "pending" || status === "suspended");
+    });
+
+    const homeVendorId = String(bestInvite?.vendor_id || requestedVendorId || profile.vendor_id || "").trim();
+    if (!homeVendorId) {
+      return new Response(JSON.stringify({ error: "No vendor record is linked to this portal session" }), {
+        status: 404,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
 
     const { data: homeVendor, error: vendorError } = await admin
       .from("vendors")
@@ -64,21 +101,22 @@ serve(async (req: Request): Promise<Response> => {
       });
     }
 
-    const { data: linkedCompanies, error: linkedCompaniesError } = await admin
-      .from("user_company_access")
-      .select("company_id, is_active, companies:company_id(id, company_type)")
-      .eq("user_id", user.id)
-      .eq("is_active", true)
-      .eq("role", "vendor");
-    if (linkedCompaniesError) throw linkedCompaniesError;
+    const homeCompanyId = String(homeVendor.company_id || bestInvite?.company_id || profile.current_company_id || "").trim();
 
-    const externalCompanyIds = ((linkedCompanies || []) as any[])
-      .map((row) => ({
-        companyId: String(row.company_id || ""),
-        companyType: String(row.companies?.company_type || "").toLowerCase(),
-      }))
-      .filter((row) => row.companyId && row.companyId !== homeCompanyId && row.companyType !== "vendor")
-      .map((row) => row.companyId);
+    const { data: invitationCompanyRows, error: invitationCompanyRowsError } = await admin
+      .from("vendor_invitations")
+      .select("company_id")
+      .eq("vendor_id", homeVendorId)
+      .or(`created_user_id.eq.${user.id},email.eq.${normalizedEmail}`);
+    if (invitationCompanyRowsError) throw invitationCompanyRowsError;
+
+    const externalCompanyIds = Array.from(
+      new Set(
+        ((invitationCompanyRows || []) as any[])
+          .map((row: any) => String(row.company_id || "").trim())
+          .filter((companyId: string) => companyId && companyId !== homeCompanyId),
+      ),
+    );
 
     if (externalCompanyIds.length === 0) {
       return new Response(JSON.stringify({ success: true, syncedCompanies: 0 }), {

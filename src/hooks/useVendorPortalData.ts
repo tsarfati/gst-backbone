@@ -202,7 +202,11 @@ export function useVendorPortalData() {
 
   const syncLinkedBuilderVendorRecords = useCallback(async () => {
     if (!effectiveVendorId) return;
-    const { error } = await supabase.functions.invoke("sync-vendor-portal-data");
+    const { error } = await supabase.functions.invoke("sync-vendor-portal-data", {
+      body: {
+        vendorId: effectiveVendorId,
+      },
+    });
     if (error) {
       throw error;
     }
