@@ -24,7 +24,7 @@ interface VendorInviteRequest {
   vendorEmail: string;
   companyId: string;
   companyName: string;
-  invitedBy: string;
+  invitedBy?: string;
   baseUrl: string;
   vendorPortalRole?: string;
   replaceInviteId?: string | null;
@@ -71,7 +71,7 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { vendorId, vendorName, vendorEmail, companyId, companyName, invitedBy, baseUrl, vendorPortalRole, replaceInviteId }: VendorInviteRequest = await req.json();
+    const { vendorId, vendorName, vendorEmail, companyId, companyName, baseUrl, vendorPortalRole, replaceInviteId }: VendorInviteRequest = await req.json();
 
     if (!vendorEmail) {
       return new Response(
@@ -82,17 +82,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     const normalizedRole = (() => {
       const normalized = String(vendorPortalRole || "").trim().toLowerCase();
-      return [
-        "owner",
-        "admin",
-        "accounting",
-        "project_contact",
-        "estimator",
-        "compliance_manager",
-        "basic_user",
-      ].includes(normalized)
-        ? normalized
-        : "basic_user";
+      return normalized === "owner" ? "owner" : "basic_user";
     })();
 
     if (replaceInviteId) {
@@ -157,7 +147,7 @@ const handler = async (req: Request): Promise<Response> => {
         vendor_id: vendorId,
         company_id: companyId,
         email: vendorEmail,
-        invited_by: invitedBy,
+        invited_by: authData.user.id,
         status: 'pending',
         vendor_portal_role: resolvedInviteRole,
       })

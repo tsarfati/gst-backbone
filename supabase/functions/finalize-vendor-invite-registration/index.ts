@@ -103,7 +103,8 @@ serve(async (req) => {
     const displayName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(" ").trim() || invitedEmail;
     const linkedVendorId = safeString((invitation as any).vendor_id) || null;
     const linkedCompanyId = safeString((invitation as any).company_id) || null;
-    const vendorPortalRole = safeString((invitation as any).vendor_portal_role) || "basic_user";
+    const rawVendorPortalRole = safeString((invitation as any).vendor_portal_role).toLowerCase();
+    const vendorPortalRole = rawVendorPortalRole === "owner" ? "owner" : "basic_user";
 
     const notesPayload = {
       requestType: "external_access_signup",

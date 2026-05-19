@@ -8,11 +8,6 @@ const corsHeaders = {
 
 const allowedRoles = new Set([
   "owner",
-  "admin",
-  "accounting",
-  "project_contact",
-  "estimator",
-  "compliance_manager",
   "basic_user",
 ]);
 
@@ -92,11 +87,9 @@ serve(async (req) => {
 
     const requesterRole = String(requesterProfile?.role || "").trim().toLowerCase();
     const requesterVendorId = String(requesterProfile?.vendor_id || "").trim();
-    const requesterVendorPortalRole = normalizeRole(requesterProfile?.vendor_portal_role);
     const isVendorManager =
       requesterRole === "vendor" &&
-      requesterVendorId === normalizedVendorId &&
-      (requesterVendorPortalRole === "owner" || requesterVendorPortalRole === "admin");
+      requesterVendorId === normalizedVendorId;
 
     const { data: builderAccessRows, error: builderAccessError } = await supabase
       .from("user_company_access")
@@ -138,8 +131,35 @@ serve(async (req) => {
       if (linkedUsersError) throw linkedUsersError;
       if (pendingInvitesError) throw pendingInvitesError;
 
+      const linkedUserIds = ((linkedUsers || []) as any[])
+        .map((entry) => String(entry.user_id || "").trim())
+        .filter(Boolean);
+
+      const lastLoginByUserId = new Map<string, { login_time: string | null; login_method: string | null; app_source: string | null }>();
+      if (linkedUserIds.length > 0) {
+        const { data: loginAuditRows, error: loginAuditError } = await supabase
+          .from("user_login_audit")
+          .select("user_id, login_time, login_method, app_source")
+          .in("user_id", linkedUserIds)
+          .order("login_time", { ascending: false });
+        if (loginAuditError) throw loginAuditError;
+
+        ((loginAuditRows || []) as any[]).forEach((row) => {
+          const userId = String(row.user_id || "").trim();
+          if (!userId || lastLoginByUserId.has(userId)) return;
+          lastLoginByUserId.set(userId, {
+            login_time: row.login_time || null,
+            login_method: row.login_method || null,
+            app_source: row.app_source || null,
+          });
+        });
+      }
+
       return {
         linkedUsers: ((linkedUsers || []) as any[]).map((entry) => ({
+          last_login_at: lastLoginByUserId.get(String(entry.user_id))?.login_time || null,
+          last_login_method: lastLoginByUserId.get(String(entry.user_id))?.login_method || null,
+          last_login_app_source: lastLoginByUserId.get(String(entry.user_id))?.app_source || null,
           user_id: String(entry.user_id),
           name:
             String(entry.display_name || "").trim()

@@ -9,6 +9,9 @@ export interface VendorPortalTeamUser {
   phone: string | null;
   avatar_url: string | null;
   vendor_portal_role: VendorPortalRole;
+  last_login_at?: string | null;
+  last_login_method?: string | null;
+  last_login_app_source?: string | null;
 }
 
 export interface VendorPortalTeamInvite {

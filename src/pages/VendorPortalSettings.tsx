@@ -178,7 +178,6 @@ export default function VendorPortalSettings() {
           vendorPortalRole: inviteRole,
           companyId: currentCompany?.id,
           companyName: currentCompany?.display_name || currentCompany?.name,
-          invitedBy: currentCompany?.created_by,
           baseUrl: window.location.origin,
         },
       });
@@ -232,7 +231,6 @@ export default function VendorPortalSettings() {
           replaceInviteId: invite.id,
           companyId: currentCompany?.id,
           companyName: currentCompany?.display_name || currentCompany?.name,
-          invitedBy: currentCompany?.created_by,
           baseUrl: window.location.origin,
         },
       });
@@ -460,9 +458,9 @@ export default function VendorPortalSettings() {
                       {sendingInvite ? "Sending..." : "Send Invite"}
                     </Button>
                   </div>
-                  <p className="text-xs text-muted-foreground">
-                    {VENDOR_PORTAL_ROLE_OPTIONS.find((option) => option.value === inviteRole)?.description}
-                  </p>
+              <p className="text-xs text-muted-foreground">
+                {VENDOR_PORTAL_ROLE_OPTIONS.find((option) => option.value === inviteRole)?.description} This label does not change the vendor portal access shared by BuilderLYNK.
+              </p>
                 </div>
 
                 <div className="space-y-3">

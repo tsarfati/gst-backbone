@@ -186,7 +186,7 @@ export default function VendorDetails() {
   const [unmaskedMethods, setUnmaskedMethods] = useState<Set<string>>(new Set());
   const [viewingVoidedCheck, setViewingVoidedCheck] = useState<any>(null);
   const { hasElevatedAccess } = useActionPermissions();
-  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [vendorPortalDialogOpen, setVendorPortalDialogOpen] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<VendorPortalRole>("basic_user");
   const [sendingInvite, setSendingInvite] = useState(false);
@@ -892,7 +892,22 @@ export default function VendorDetails() {
   const openInviteDialog = () => {
     setInviteEmail(primaryVendorEmail);
     setInviteRole(linkedVendorUsers.length === 0 && pendingInvites.length === 0 ? "owner" : "basic_user");
-    setInviteDialogOpen(true);
+    setVendorPortalDialogOpen(true);
+  };
+
+  const formatPortalTimestamp = (value?: string | null) => {
+    if (!value) return "No login recorded yet";
+    const parsed = new Date(value);
+    if (Number.isNaN(parsed.getTime())) return "No login recorded yet";
+    return parsed.toLocaleString();
+  };
+
+  const formatPortalLoginDetails = (portalUser: typeof linkedVendorUsers[number]) => {
+    if (!portalUser.last_login_at) return "No login recorded yet";
+    const details = [formatPortalTimestamp(portalUser.last_login_at)];
+    if (portalUser.last_login_method) details.push(`Method: ${portalUser.last_login_method}`);
+    if (portalUser.last_login_app_source) details.push(`App: ${portalUser.last_login_app_source}`);
+    return details.join(" • ");
   };
 
   const toggleUnmask = (methodId: string) => {
@@ -932,7 +947,6 @@ export default function VendorDetails() {
           vendorPortalRole: inviteRole,
           companyId: currentCompany?.id,
           companyName: currentCompany?.name,
-          invitedBy: user?.id,
           baseUrl: window.location.origin
         }
       });
@@ -953,8 +967,8 @@ export default function VendorDetails() {
         description: `An invitation has been sent to ${normalizedInviteEmail}`,
       });
       
-      setInviteDialogOpen(false);
       setInviteEmail(primaryVendorEmail);
+      setInviteRole("basic_user");
       await loadVendorPortalTeam();
     } catch (err: any) {
       console.error('Error sending invite:', err);
@@ -1020,7 +1034,6 @@ export default function VendorDetails() {
           replaceInviteId: invite.id,
           companyId: currentCompany?.id,
           companyName: currentCompany?.name,
-          invitedBy: user?.id,
           baseUrl: window.location.origin,
         }
       });
@@ -1141,8 +1154,8 @@ export default function VendorDetails() {
         <div className="flex gap-2">
           {!isDesignProfessionalVendor && (
             <Button variant="outline" onClick={openInviteDialog}>
-              <Send className="h-4 w-4 mr-2" />
-              Invite Portal User
+              <Building className="h-4 w-4 mr-2" />
+              Vendor Portal
             </Button>
           )}
           <Button variant="outline" onClick={() => navigate(`/vendors/${id}/edit`)}>
@@ -1152,67 +1165,209 @@ export default function VendorDetails() {
         </div>
       </div>
 
-      {/* Invite Vendor Dialog */}
-      <Dialog open={inviteDialogOpen && !isDesignProfessionalVendor} onOpenChange={setInviteDialogOpen}>
-        <DialogContent>
+      {/* Vendor Portal Dialog */}
+      <Dialog open={vendorPortalDialogOpen && !isDesignProfessionalVendor} onOpenChange={setVendorPortalDialogOpen}>
+        <DialogContent className="max-w-5xl">
           <DialogHeader>
-            <DialogTitle>Invite Vendor Portal User</DialogTitle>
+            <DialogTitle>Vendor Portal</DialogTitle>
             <DialogDescription>
-              Send an invitation to an individual coworker at {vendor.name}. Each person gets their own login under this vendor company.
+              Manage the individual people at {vendor.name} who can log in to the vendor portal, label them by company role, and review recent login activity.
             </DialogDescription>
           </DialogHeader>
-          
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="vendor-portal-invite-email">Coworker email</Label>
-              <Input
-                id="vendor-portal-invite-email"
-                type="email"
-                value={inviteEmail}
-                onChange={(event) => setInviteEmail(event.target.value)}
-                placeholder="name@vendorcompany.com"
-                autoComplete="email"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="vendor-portal-invite-role">Portal role</Label>
-              <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as VendorPortalRole)}>
-                <SelectTrigger id="vendor-portal-invite-role">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
-                    <SelectItem key={option.value} value={option.value}>
-                      {option.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-              <p className="text-xs text-muted-foreground">
-                {VENDOR_PORTAL_ROLE_OPTIONS.find((option) => option.value === inviteRole)?.description}
-              </p>
-            </div>
-            <p className="text-sm text-muted-foreground">
-              This user will sign up under the same vendor company and can collaborate using their own login.
-            </p>
-          </div>
+          <ScrollArea className="max-h-[75vh] pr-4">
+            <div className="space-y-6 py-2">
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle className="text-base">Invite coworker</CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-start">
+                    <div className="space-y-2">
+                      <Label htmlFor="vendor-portal-invite-email">Coworker email</Label>
+                      <Input
+                        id="vendor-portal-invite-email"
+                        type="email"
+                        value={inviteEmail}
+                        onChange={(event) => setInviteEmail(event.target.value)}
+                        placeholder="name@vendorcompany.com"
+                        autoComplete="email"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="vendor-portal-invite-role">Portal role</Label>
+                      <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as VendorPortalRole)}>
+                        <SelectTrigger id="vendor-portal-invite-role">
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
+                            <SelectItem key={option.value} value={option.value}>
+                              {option.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="flex items-end pt-0 md:pt-7">
+                      <Button onClick={handleSendInvite} disabled={sendingInvite} className="w-full md:w-auto">
+                        {sendingInvite ? (
+                          <>
+                            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                            Sending...
+                          </>
+                        ) : (
+                          <>
+                            <Send className="mr-2 h-4 w-4" />
+                            Send Invite
+                          </>
+                        )}
+                      </Button>
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {VENDOR_PORTAL_ROLE_OPTIONS.find((option) => option.value === inviteRole)?.description} This label does not change the vendor portal access shared by BuilderLYNK.
+                  </p>
+                </CardContent>
+              </Card>
 
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">Portal users</CardTitle>
+                    <Badge variant="outline">{linkedVendorUserCount}</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {vendorPortalTeamLoading && linkedVendorUsers.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      <span className="loading-dots">Loading vendor portal users</span>
+                    </div>
+                  ) : linkedVendorUsers.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      No portal users are linked yet. Invite the first coworker to create the vendor portal account.
+                    </div>
+                  ) : (
+                    linkedVendorUsers.map((portalUser) => (
+                      <div key={portalUser.user_id} className="flex flex-col gap-3 rounded-lg border p-4 lg:flex-row lg:items-start lg:justify-between">
+                        <div className="flex min-w-0 items-start gap-3">
+                          <UserAvatar
+                            src={portalUser.avatar_url}
+                            name={portalUser.name}
+                            className="h-10 w-10"
+                          />
+                          <div className="min-w-0 space-y-1">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate font-medium">{portalUser.name}</p>
+                              <Badge variant={portalUser.vendor_portal_role === "owner" ? "default" : "outline"}>
+                                {getVendorPortalRoleLabel(portalUser.vendor_portal_role)}
+                              </Badge>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                              {portalUser.email && <span className="truncate">{portalUser.email}</span>}
+                              {portalUser.phone && <span>{portalUser.phone}</span>}
+                            </div>
+                            <div className="text-xs text-muted-foreground">
+                              Last login: {formatPortalLoginDetails(portalUser)}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col gap-2 lg:items-end">
+                          <div className="w-full lg:w-[190px]">
+                            <Select
+                              value={portalUser.vendor_portal_role}
+                              onValueChange={(value) => handleUpdateVendorPortalRole(portalUser.user_id, value as VendorPortalRole)}
+                              disabled={updatingVendorPortalUserId === portalUser.user_id}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {hasElevatedAccess() && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                navigate(`/settings/users/${portalUser.user_id}`, {
+                                  state: { fromCompanyManagement: true },
+                                })
+                              }
+                            >
+                              View User
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-2">
+                    <CardTitle className="text-base">Pending invites</CardTitle>
+                    <Badge variant="outline">{pendingVendorInviteCount}</Badge>
+                  </div>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {vendorPortalTeamLoading && pendingInvites.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      <span className="loading-dots">Loading pending invites</span>
+                    </div>
+                  ) : pendingInvites.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      No coworker invites are currently pending.
+                    </div>
+                  ) : (
+                    pendingInvites.map((invite) => (
+                      <div key={invite.id} className="flex flex-col gap-3 rounded-lg border p-4 lg:flex-row lg:items-center lg:justify-between">
+                        <div className="min-w-0 space-y-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">{invite.email}</p>
+                            <Badge variant="outline">{getVendorPortalRoleLabel(invite.vendor_portal_role)}</Badge>
+                            <Badge variant="secondary">Pending</Badge>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                            <span>Invited {formatPortalTimestamp(invite.invited_at)}</span>
+                            {invite.expires_at && <span>Expires {formatPortalTimestamp(invite.expires_at)}</span>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={processingInviteId === invite.id}
+                            onClick={() => handleResendVendorInvite(invite)}
+                          >
+                            Resend
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={processingInviteId === invite.id}
+                            onClick={() => handleRevokeVendorInvite(invite.id)}
+                          >
+                            Revoke
+                          </Button>
+                        </div>
+                      </div>
+                    ))
+                  )}
+                </CardContent>
+              </Card>
+            </div>
+          </ScrollArea>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setInviteDialogOpen(false)}>
-              Cancel
-            </Button>
-            <Button onClick={handleSendInvite} disabled={sendingInvite}>
-              {sendingInvite ? (
-                <>
-                  <Loader2 className="h-4 w-4 mr-2 animate-spin" />
-                  Sending...
-                </>
-              ) : (
-                <>
-                  <Send className="h-4 w-4 mr-2" />
-                  Send Invitation
-                </>
-              )}
+            <Button variant="outline" onClick={() => setVendorPortalDialogOpen(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -1275,152 +1430,6 @@ export default function VendorDetails() {
             </CardContent>
           </Card>
         </div>
-
-        {!isDesignProfessionalVendor && (
-          <Card>
-            <CardHeader>
-              <div className="flex flex-wrap items-center justify-between gap-3">
-                <div className="space-y-1">
-                  <CardTitle>Vendor Portal Users</CardTitle>
-                  <p className="text-sm text-muted-foreground">
-                    Manage the individual people at this vendor company who can log in to the vendor portal.
-                  </p>
-                </div>
-                <Button variant="outline" size="sm" onClick={openInviteDialog}>
-                  <Plus className="mr-2 h-4 w-4" />
-                  Invite Coworker
-                </Button>
-              </div>
-            </CardHeader>
-            <CardContent className="space-y-6">
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-foreground">Active portal users</p>
-                  <Badge variant="outline">{linkedVendorUserCount}</Badge>
-                </div>
-                {vendorPortalTeamLoading && linkedVendorUsers.length === 0 ? (
-                  <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                    <span className="loading-dots">Loading vendor portal users</span>
-                  </div>
-                ) : linkedVendorUsers.length === 0 ? (
-                  <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                    No portal users are linked yet. Invite the first coworker to create the vendor portal account.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {linkedVendorUsers.map((portalUser, index) => (
-                      <div key={portalUser.user_id} className="flex items-center justify-between rounded-lg border p-3">
-                        <div className="flex min-w-0 items-center gap-3">
-                          <UserAvatar
-                            src={portalUser.avatar_url}
-                            name={portalUser.name}
-                            className="h-10 w-10"
-                          />
-                          <div className="min-w-0">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="truncate font-medium">{portalUser.name}</p>
-                              {index === 0 && <Badge variant="secondary">Primary</Badge>}
-                              <Badge variant="outline">{getVendorPortalRoleLabel(portalUser.vendor_portal_role)}</Badge>
-                            </div>
-                            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                              {portalUser.email && <span className="truncate">{portalUser.email}</span>}
-                              {portalUser.phone && <span>{portalUser.phone}</span>}
-                            </div>
-                          </div>
-                        </div>
-                        <div className="flex flex-col items-end gap-2">
-                          <div className="w-[180px]">
-                            <Select
-                              value={portalUser.vendor_portal_role}
-                              onValueChange={(value) => handleUpdateVendorPortalRole(portalUser.user_id, value as VendorPortalRole)}
-                              disabled={updatingVendorPortalUserId === portalUser.user_id}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
-                          </div>
-                          {hasElevatedAccess() && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                navigate(`/settings/users/${portalUser.user_id}`, {
-                                  state: { fromCompanyManagement: true },
-                                })
-                              }
-                            >
-                              View User
-                            </Button>
-                          )}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-
-              <div className="space-y-3">
-                <div className="flex items-center gap-2">
-                  <p className="text-sm font-medium text-foreground">Pending invites</p>
-                  <Badge variant="outline">{pendingVendorInviteCount}</Badge>
-                </div>
-                {vendorPortalTeamLoading && pendingInvites.length === 0 ? (
-                  <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                    <span className="loading-dots">Loading pending invites</span>
-                  </div>
-                ) : pendingInvites.length === 0 ? (
-                  <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                    No coworker invites are currently pending.
-                  </div>
-                ) : (
-                  <div className="space-y-3">
-                    {pendingInvites.map((invite) => (
-                      <div key={invite.id} className="flex items-center justify-between rounded-lg border p-3">
-                        <div className="min-w-0">
-                          <div className="flex flex-wrap items-center gap-2">
-                            <p className="font-medium">{invite.email}</p>
-                            <Badge variant="outline">{getVendorPortalRoleLabel(invite.vendor_portal_role)}</Badge>
-                          </div>
-                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
-                            <span>Invited {new Date(invite.invited_at).toLocaleDateString()}</span>
-                            <span>Expires {new Date(invite.expires_at).toLocaleDateString()}</span>
-                          </div>
-                        </div>
-                        <div className="flex items-center gap-2">
-                          <Badge variant="secondary">Pending</Badge>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={processingInviteId === invite.id}
-                            onClick={() => handleResendVendorInvite(invite)}
-                          >
-                            Resend
-                          </Button>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            disabled={processingInviteId === invite.id}
-                            onClick={() => handleRevokeVendorInvite(invite.id)}
-                          >
-                            Revoke
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        )}
 
         {/* Overview Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
