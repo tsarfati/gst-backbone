@@ -16,6 +16,11 @@ const normalizeRole = (value: unknown) => {
   return allowedRoles.has(normalized) ? normalized : "basic_user";
 };
 
+const isInternalRole = (value: unknown) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return !!normalized && normalized !== "vendor" && normalized !== "design_professional" && normalized !== "employee";
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -80,16 +85,28 @@ serve(async (req) => {
 
     const { data: requesterProfile, error: requesterProfileError } = await supabase
       .from("profiles")
-      .select("user_id, role, vendor_id, vendor_portal_role")
+      .select("user_id, role")
       .eq("user_id", requesterUserId)
       .maybeSingle();
     if (requesterProfileError) throw requesterProfileError;
 
     const requesterRole = String(requesterProfile?.role || "").trim().toLowerCase();
-    const requesterVendorId = String(requesterProfile?.vendor_id || "").trim();
+    const { data: requesterVendorMembership, error: requesterVendorMembershipError } = await supabase
+      .from("vendor_invitations")
+      .select("vendor_id, vendor_portal_role, created_user_id, status")
+      .eq("vendor_id", normalizedVendorId)
+      .eq("created_user_id", requesterUserId)
+      .eq("status", "accepted")
+      .order("accepted_at", { ascending: false, nullsFirst: false })
+      .order("invited_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (requesterVendorMembershipError) throw requesterVendorMembershipError;
+
     const isVendorManager =
       requesterRole === "vendor" &&
-      requesterVendorId === normalizedVendorId;
+      String(requesterVendorMembership?.vendor_id || "").trim() === normalizedVendorId;
+    const isVendorOwner = isVendorManager && normalizeRole(requesterVendorMembership?.vendor_portal_role) === "owner";
 
     const { data: builderAccessRows, error: builderAccessError } = await supabase
       .from("user_company_access")
@@ -100,8 +117,7 @@ serve(async (req) => {
     if (builderAccessError) throw builderAccessError;
 
     const isInternalBuilderUser = ((builderAccessRows || []) as any[]).some((row) => {
-      const rowRole = String(row.role || "").trim().toLowerCase();
-      return rowRole !== "vendor" && rowRole !== "design_professional" && rowRole !== "employee";
+      return isInternalRole(row.role);
     });
 
     if (!isVendorManager && !isInternalBuilderUser) {
@@ -111,14 +127,23 @@ serve(async (req) => {
       });
     }
 
+    if (isVendorManager && !isVendorOwner) {
+      return new Response(JSON.stringify({ error: "Only the vendor company owner can manage the team." }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     const loadTeamPayload = async () => {
       const [{ data: linkedUsers, error: linkedUsersError }, { data: pendingInvites, error: pendingInvitesError }] = await Promise.all([
         supabase
-          .from("profiles")
-          .select("user_id, display_name, first_name, last_name, email, phone, avatar_url, vendor_portal_role")
+          .from("vendor_invitations")
+          .select("created_user_id, vendor_portal_role, invited_at, accepted_at")
           .eq("vendor_id", normalizedVendorId)
-          .eq("role", "vendor")
-          .order("created_at", { ascending: true }),
+          .eq("status", "accepted")
+          .not("created_user_id", "is", null)
+          .order("accepted_at", { ascending: false, nullsFirst: false })
+          .order("invited_at", { ascending: false }),
         supabase
           .from("vendor_invitations")
           .select("id, email, invited_at, expires_at, status, vendor_portal_role, created_user_id")
@@ -131,9 +156,24 @@ serve(async (req) => {
       if (linkedUsersError) throw linkedUsersError;
       if (pendingInvitesError) throw pendingInvitesError;
 
-      const linkedUserIds = ((linkedUsers || []) as any[])
-        .map((entry) => String(entry.user_id || "").trim())
+      const acceptedMembershipRows = ((linkedUsers || []) as any[]);
+      const membershipByUserId = new Map<string, string>();
+      acceptedMembershipRows.forEach((entry: any) => {
+        const userId = String(entry.created_user_id || "").trim();
+        if (!userId || membershipByUserId.has(userId)) return;
+        membershipByUserId.set(userId, normalizeRole(entry.vendor_portal_role));
+      });
+
+      const linkedUserIds = Array.from(membershipByUserId.keys())
         .filter(Boolean);
+
+      const { data: linkedProfiles, error: linkedProfilesError } = linkedUserIds.length > 0
+        ? await supabase
+            .from("profiles")
+            .select("user_id, display_name, first_name, last_name, email, phone, avatar_url")
+            .in("user_id", linkedUserIds)
+        : { data: [], error: null as any };
+      if (linkedProfilesError) throw linkedProfilesError;
 
       const lastLoginByUserId = new Map<string, { login_time: string | null; login_method: string | null; app_source: string | null }>();
       if (linkedUserIds.length > 0) {
@@ -156,7 +196,7 @@ serve(async (req) => {
       }
 
       return {
-        linkedUsers: ((linkedUsers || []) as any[]).map((entry) => ({
+        linkedUsers: ((linkedProfiles || []) as any[]).map((entry) => ({
           last_login_at: lastLoginByUserId.get(String(entry.user_id))?.login_time || null,
           last_login_method: lastLoginByUserId.get(String(entry.user_id))?.login_method || null,
           last_login_app_source: lastLoginByUserId.get(String(entry.user_id))?.app_source || null,
@@ -169,7 +209,7 @@ serve(async (req) => {
           email: entry.email || null,
           phone: entry.phone || null,
           avatar_url: entry.avatar_url || null,
-          vendor_portal_role: normalizeRole(entry.vendor_portal_role),
+          vendor_portal_role: normalizeRole(membershipByUserId.get(String(entry.user_id))),
         })),
         pendingInvites: ((pendingInvites || []) as any[]).map((invite) => ({
           id: String(invite.id),
@@ -199,12 +239,31 @@ serve(async (req) => {
       }
 
       const nextRole = normalizeRole(vendorPortalRole);
-      const { error: updateError } = await supabase
-        .from("profiles")
-        .update({ vendor_portal_role: nextRole })
-        .eq("user_id", normalizedTargetUserId)
+      const { data: targetMembership, error: targetMembershipError } = await supabase
+        .from("vendor_invitations")
+        .select("vendor_portal_role")
         .eq("vendor_id", normalizedVendorId)
-        .eq("role", "vendor");
+        .eq("created_user_id", normalizedTargetUserId)
+        .eq("status", "accepted")
+        .order("accepted_at", { ascending: false, nullsFirst: false })
+        .order("invited_at", { ascending: false })
+        .maybeSingle();
+      if (targetMembershipError) throw targetMembershipError;
+
+      const currentTargetRole = normalizeRole(targetMembership?.vendor_portal_role);
+      if (!isInternalBuilderUser && (currentTargetRole === "owner" || nextRole === "owner")) {
+        return new Response(JSON.stringify({ error: "Only BuilderLYNK can reassign the company owner." }), {
+          status: 403,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        });
+      }
+
+      const { error: updateError } = await supabase
+        .from("vendor_invitations")
+        .update({ vendor_portal_role: nextRole })
+        .eq("vendor_id", normalizedVendorId)
+        .eq("created_user_id", normalizedTargetUserId)
+        .eq("status", "accepted");
       if (updateError) throw updateError;
 
       return new Response(JSON.stringify({ success: true, ...(await loadTeamPayload()) }), {

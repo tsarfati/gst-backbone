@@ -3,6 +3,7 @@ import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
 import { useToast } from '@/hooks/use-toast';
+import { getAuthEntryContext } from '@/utils/authEntryContext';
 
 interface Company {
   id: string;
@@ -157,16 +158,34 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
       // Preserve the currently selected workspace when possible so refreshes
       // do not unexpectedly jump to a different company for external users.
       if (companies.length > 0) {
+        const authEntryContext = getAuthEntryContext();
         const activeCompanyId = currentCompany?.id;
         const preferredCompanyId = profile?.current_company_id;
+        const internalCompanies = companies.filter((company) => {
+          const companyRole = String(company.role || '').toLowerCase();
+          return companyRole && companyRole !== 'vendor' && companyRole !== 'design_professional';
+        });
         const activeCompany = activeCompanyId
           ? companies.find(c => c.company_id === activeCompanyId)
           : undefined;
         const preferredCompany = preferredCompanyId
           ? companies.find(c => c.company_id === preferredCompanyId)
           : undefined;
+        const activeInternalCompany =
+          activeCompany &&
+          !['vendor', 'design_professional'].includes(String(activeCompany.role || '').toLowerCase())
+            ? activeCompany
+            : undefined;
+        const preferredInternalCompany =
+          preferredCompany &&
+          !['vendor', 'design_professional'].includes(String(preferredCompany.role || '').toLowerCase())
+            ? preferredCompany
+            : undefined;
 
-        const companyToSet = activeCompany || preferredCompany || companies[0];
+        const companyToSet =
+          authEntryContext === 'builder' && internalCompanies.length > 0
+            ? activeInternalCompany || preferredInternalCompany || internalCompanies[0]
+            : activeCompany || preferredCompany || companies[0];
 
         // Fetch full company details
         const { data: companyData, error: companyError } = await supabase

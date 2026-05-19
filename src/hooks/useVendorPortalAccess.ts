@@ -2,6 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { normalizeVendorPortalRole, type VendorPortalRole } from "@/lib/vendorPortalRoles";
+import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
 
 type VendorJobAccessRow = {
   can_view_job_details?: boolean | null;
@@ -52,7 +53,7 @@ const COMPANY_WIDE_VENDOR_CAPS: VendorRoleCaps = {
   canAccessBills: true,
   canAccessCompliance: true,
   canAccessSettings: true,
-  canManageUsers: true,
+  canManageUsers: false,
   canViewJobDetails: true,
   canSubmitBills: true,
   canViewPlans: true,
@@ -74,31 +75,34 @@ const COMPANY_WIDE_VENDOR_CAPS: VendorRoleCaps = {
 
 export function useVendorPortalAccess(jobId?: string) {
   const { user, profile } = useAuth();
-  const authMetadata = (user?.user_metadata || {}) as Record<string, any>;
-  const effectiveVendorId = useMemo(
-    () =>
-      String(
-        profile?.vendor_id ||
-        authMetadata.vendor_id ||
-        "",
-      ).trim() || null,
-    [profile?.vendor_id, authMetadata.vendor_id],
-  );
-  const [loading, setLoading] = useState(Boolean(jobId && effectiveVendorId));
+  const {
+    vendorId: effectiveVendorId,
+    vendorPortalRole: activeVendorPortalRole,
+    loading: vendorContextLoading,
+  } = useActiveVendorPortalVendor();
+  const [loading, setLoading] = useState(Boolean(jobId));
   const [jobAccess, setJobAccess] = useState<VendorJobAccessRow | null>(null);
 
   const internalRole = useMemo<VendorPortalRole>(() => {
-    const profileRole = String(profile?.vendor_portal_role || "").trim();
+    const profileRole = String(activeVendorPortalRole || profile?.vendor_portal_role || "").trim();
     if (profileRole) return normalizeVendorPortalRole(profileRole);
     return profile?.approved_by === profile?.user_id ? "owner" : "basic_user";
-  }, [profile?.approved_by, profile?.user_id, profile?.vendor_portal_role]);
+  }, [activeVendorPortalRole, profile?.approved_by, profile?.user_id, profile?.vendor_portal_role]);
 
-  const roleCaps = COMPANY_WIDE_VENDOR_CAPS;
+  const roleCaps = useMemo<VendorRoleCaps>(() => ({
+    ...COMPANY_WIDE_VENDOR_CAPS,
+    canManageUsers: internalRole === "owner",
+  }), [internalRole]);
 
   useEffect(() => {
     let ignore = false;
 
     async function loadJobAccess() {
+      if (vendorContextLoading) {
+        setLoading(true);
+        return;
+      }
+
       if (!jobId || !effectiveVendorId) {
         setJobAccess(null);
         setLoading(false);
@@ -143,7 +147,7 @@ export function useVendorPortalAccess(jobId?: string) {
     return () => {
       ignore = true;
     };
-  }, [effectiveVendorId, jobId]);
+  }, [effectiveVendorId, jobId, vendorContextLoading]);
 
   const effectiveJobAccess = useMemo(() => {
     const assignment = jobAccess || {};

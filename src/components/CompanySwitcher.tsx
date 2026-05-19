@@ -1,5 +1,5 @@
-import React, { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState } from 'react';
+import { useLocation, useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -24,14 +24,32 @@ import { Building2, Check, ChevronDown } from 'lucide-react';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
+import { getAuthEntryContext } from '@/utils/authEntryContext';
 
 export function CompanySwitcher() {
   const { currentCompany, userCompanies, loading, switchCompany } = useCompany();
   const { user } = useAuth();
   const navigate = useNavigate();
+  const location = useLocation();
   const [showConfirmDialog, setShowConfirmDialog] = useState(false);
   const [pendingCompanyId, setPendingCompanyId] = useState<string | null>(null);
   const [pendingCompanyName, setPendingCompanyName] = useState<string>('');
+  const authEntryContext = getAuthEntryContext();
+  const isExternalPortalRoute =
+    location.pathname.startsWith('/vendor') || location.pathname.startsWith('/design-professional');
+
+  const visibleCompanies = useMemo(() => {
+    if (authEntryContext === 'builder' && !isExternalPortalRoute) {
+      const internalCompanies = userCompanies.filter((company) => {
+        const role = String(company.role || '').toLowerCase();
+        return role !== 'vendor' && role !== 'design_professional';
+      });
+
+      return internalCompanies.length > 0 ? internalCompanies : userCompanies;
+    }
+
+    return userCompanies;
+  }, [authEntryContext, isExternalPortalRoute, userCompanies]);
 
   const handleCompanySwitch = (companyId: string, companyName: string) => {
     // Don't show confirmation if switching to the same company
@@ -58,7 +76,7 @@ export function CompanySwitcher() {
     setPendingCompanyName('');
   };
 
-  if (!user || loading || !currentCompany || userCompanies.length === 0) {
+  if (!user || loading || !currentCompany || visibleCompanies.length === 0) {
     return (
       <div className="flex items-center gap-2 px-3 py-2">
         <Building2 className="h-4 w-4 text-muted-foreground" />
@@ -68,7 +86,7 @@ export function CompanySwitcher() {
   }
 
   // Show company switcher only if user has access to multiple companies
-  if (userCompanies.length === 1) {
+  if (visibleCompanies.length === 1) {
     return (
       <div className="flex items-center gap-2 px-3 py-2">
         <Avatar className="h-6 w-6">
@@ -113,7 +131,7 @@ export function CompanySwitcher() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        {userCompanies.map((company) => (
+        {visibleCompanies.map((company) => (
           <DropdownMenuItem
             key={company.company_id}
             onClick={() => handleCompanySwitch(company.company_id, company.company_name)}

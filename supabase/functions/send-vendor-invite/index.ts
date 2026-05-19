@@ -1,7 +1,7 @@
 import { serve } from "https://deno.land/std@0.190.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.39.3";
 import { Resend } from "https://esm.sh/resend@4.0.0";
-import { BUILDERLYNK_EMAIL_LOGO_URL } from "../_shared/emailAssets.ts";
+import { BUILDERLYNK_EMAIL_LOGO_URL, resolveCompanyLogoEmailUrl } from "../_shared/emailAssets.ts";
 import { EMAIL_FROM, resolveBuilderlynkFrom } from "../_shared/emailFrom.ts";
 import { sendTransactionalEmailWithFallback } from "../_shared/transactionalEmail.ts";
 
@@ -39,6 +39,11 @@ const escapeHtml = (value: string): string =>
     .replace(/>/g, "&gt;")
     .replace(/"/g, "&quot;")
     .replace(/'/g, "&#039;");
+
+const isInternalRole = (value: unknown) => {
+  const normalized = String(value || "").trim().toLowerCase();
+  return !!normalized && normalized !== "vendor" && normalized !== "design_professional" && normalized !== "employee";
+};
 
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
@@ -85,6 +90,50 @@ const handler = async (req: Request): Promise<Response> => {
       return normalized === "owner" ? "owner" : "basic_user";
     })();
 
+    const { data: requesterProfile, error: requesterProfileError } = await supabase
+      .from("profiles")
+      .select("user_id, role")
+      .eq("user_id", authData.user.id)
+      .maybeSingle();
+    if (requesterProfileError) throw requesterProfileError;
+
+    const requesterRole = String(requesterProfile?.role || "").trim().toLowerCase();
+    const { data: requesterVendorMembership, error: requesterVendorMembershipError } = await supabase
+      .from("vendor_invitations")
+      .select("vendor_id, vendor_portal_role, created_user_id, status")
+      .eq("vendor_id", String(vendorId || "").trim())
+      .eq("created_user_id", authData.user.id)
+      .eq("status", "accepted")
+      .order("accepted_at", { ascending: false, nullsFirst: false })
+      .order("invited_at", { ascending: false })
+      .limit(1)
+      .maybeSingle();
+    if (requesterVendorMembershipError) throw requesterVendorMembershipError;
+
+    const isVendorOwner =
+      requesterRole === "vendor" &&
+      String(requesterVendorMembership?.vendor_id || "").trim() === String(vendorId || "").trim() &&
+      String(requesterVendorMembership?.vendor_portal_role || "").trim().toLowerCase() === "owner";
+
+    const { data: builderAccessRows, error: builderAccessError } = await supabase
+      .from("user_company_access")
+      .select("company_id, role, is_active")
+      .eq("user_id", authData.user.id)
+      .eq("company_id", companyId)
+      .eq("is_active", true);
+    if (builderAccessError) throw builderAccessError;
+
+    const isInternalBuilderUser = ((builderAccessRows || []) as any[]).some((row) => {
+      return isInternalRole(row.role);
+    });
+
+    if (!isVendorOwner && !isInternalBuilderUser) {
+      return new Response(JSON.stringify({ error: "Only the vendor company owner can invite coworkers." }), {
+        status: 403,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
     if (replaceInviteId) {
       const { error: revokePriorInviteError } = await supabase
         .from("vendor_invitations")
@@ -101,14 +150,15 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    let resolvedInviteRole = normalizedRole;
+    let resolvedInviteRole = isInternalBuilderUser ? normalizedRole : "basic_user";
     if (!vendorPortalRole) {
       const [{ count: existingVendorUserCount, error: existingVendorUserError }, { count: pendingInviteCount, error: pendingInviteError }] = await Promise.all([
         supabase
-          .from("profiles")
-          .select("user_id", { count: "exact", head: true })
+          .from("vendor_invitations")
+          .select("id", { count: "exact", head: true })
           .eq("vendor_id", vendorId)
-          .eq("role", "vendor"),
+          .eq("status", "accepted")
+          .not("created_user_id", "is", null),
         supabase
           .from("vendor_invitations")
           .select("id", { count: "exact", head: true })
@@ -173,7 +223,7 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("id", companyId)
       .single();
 
-    const companyLogo = companyRow?.logo_url ? escapeHtml(companyRow.logo_url) : null;
+    const companyLogo = resolveCompanyLogoEmailUrl((companyRow as any)?.logo_url);
 
     // Send the email
     const emailResponse = await sendTransactionalEmailWithFallback({

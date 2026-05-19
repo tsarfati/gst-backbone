@@ -18,6 +18,11 @@ const isDesignProfessionalVendorType = (value: unknown) => {
   return normalized === "design_professional" || normalized === "design professional";
 };
 
+const isInternalRole = (value: unknown) => {
+  const normalized = safeString(value).toLowerCase();
+  return !!normalized && normalized !== "vendor" && normalized !== "design_professional";
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -33,69 +38,104 @@ serve(async (req) => {
 
     const supabase = createClient(supabaseUrl, serviceRoleKey);
 
-    const { token, userId, firstName, lastName } = await req.json();
+    const { token, userId, firstName, lastName, companyId } = await req.json();
 
     const inviteToken = safeString(token);
     const authUserId = safeString(userId);
     const normalizedFirstName = safeString(firstName);
     const normalizedLastName = safeString(lastName);
+    const requestedCompanyId = safeString(companyId);
 
-    if (!inviteToken || !authUserId) {
+    if ((!inviteToken && !requestedCompanyId) || !authUserId) {
       return new Response(
-        JSON.stringify({ error: "Missing invitation token or user id" }),
+        JSON.stringify({ error: "Missing invitation token/company or user id" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } },
       );
     }
 
-    let invitation: any = null;
+    const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(authUserId);
+    if (authUserError) throw authUserError;
+
+    const actualEmail = safeString(authUserData.user?.email).toLowerCase();
+    if (!actualEmail) {
+      return new Response(
+        JSON.stringify({ error: "Signed-in user does not have a valid email address" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } },
+      );
+    }
+
+    const invitationSelectWithRole = `
+      id,
+      vendor_id,
+      company_id,
+      invited_by,
+      email,
+      status,
+      expires_at,
+      accepted_at,
+      created_user_id,
+      vendor_portal_role,
+      vendor:vendors(id, name, vendor_type)
+    `;
+    const invitationSelectWithoutRole = `
+      id,
+      vendor_id,
+      company_id,
+      invited_by,
+      email,
+      status,
+      expires_at,
+      accepted_at,
+      created_user_id,
+      vendor:vendors(id, name, vendor_type)
+    `;
+
+    const loadInvitations = async (selectSql: string) => {
+      if (inviteToken) {
+        const result = await supabase
+          .from("vendor_invitations")
+          .select(selectSql)
+          .eq("token", inviteToken)
+          .limit(1);
+        return result;
+      }
+
+      const result = await supabase
+        .from("vendor_invitations")
+        .select(selectSql)
+        .eq("company_id", requestedCompanyId)
+        .eq("email", actualEmail)
+        .in("status", ["pending", "accepted"])
+        .order("invited_at", { ascending: false })
+        .limit(10);
+      return result;
+    };
+
+    let invitationRows: any[] | null = null;
     let invitationError: any = null;
 
-    const invitationWithRole = await supabase
-      .from("vendor_invitations")
-      .select(`
-        id,
-        vendor_id,
-        company_id,
-        invited_by,
-        email,
-        status,
-        expires_at,
-        accepted_at,
-        created_user_id,
-        vendor_portal_role,
-        vendor:vendors(id, name, vendor_type)
-      `)
-      .eq("token", inviteToken)
-      .maybeSingle();
-
+    const invitationWithRole = await loadInvitations(invitationSelectWithRole);
     if (invitationWithRole.error && isMissingColumnError(invitationWithRole.error, "vendor_portal_role")) {
-      const invitationWithoutRole = await supabase
-        .from("vendor_invitations")
-        .select(`
-          id,
-          vendor_id,
-          company_id,
-          invited_by,
-          email,
-          status,
-          expires_at,
-          accepted_at,
-          created_user_id,
-          vendor:vendors(id, name, vendor_type)
-        `)
-        .eq("token", inviteToken)
-        .maybeSingle();
-      invitation = invitationWithoutRole.data;
+      const invitationWithoutRole = await loadInvitations(invitationSelectWithoutRole);
+      invitationRows = invitationWithoutRole.data || null;
       invitationError = invitationWithoutRole.error;
     } else {
-      invitation = invitationWithRole.data;
+      invitationRows = invitationWithRole.data || null;
       invitationError = invitationWithRole.error;
     }
 
     if (invitationError) throw invitationError;
+
+    const invitationCandidates = Array.isArray(invitationRows) ? invitationRows : [];
+    const invitation = invitationCandidates.find((row: any) => {
+      const status = safeString(row?.status).toLowerCase();
+      const createdUserId = safeString(row?.created_user_id);
+      return status === "pending" || (status === "accepted" && createdUserId === authUserId);
+    }) || null;
+
     if (!invitation) {
       return new Response(
-        JSON.stringify({ error: "Invalid or expired invitation link" }),
+        JSON.stringify({ error: inviteToken ? "Invalid or expired invitation link" : "No active vendor invitation found for this company" }),
         { status: 404, headers: { "Content-Type": "application/json", ...corsHeaders } },
       );
     }
@@ -117,11 +157,7 @@ serve(async (req) => {
       );
     }
 
-    const { data: authUserData, error: authUserError } = await supabase.auth.admin.getUserById(authUserId);
-    if (authUserError) throw authUserError;
-
     const invitedEmail = safeString((invitation as any).email).toLowerCase();
-    const actualEmail = safeString(authUserData.user?.email).toLowerCase();
     if (!actualEmail || actualEmail !== invitedEmail) {
       return new Response(
         JSON.stringify({ error: "Signed-in user does not match this invitation email" }),
@@ -138,6 +174,31 @@ serve(async (req) => {
     const rawVendorPortalRole = safeString((invitation as any).vendor_portal_role).toLowerCase();
     const vendorPortalRole = rawVendorPortalRole === "owner" ? "owner" : "basic_user";
 
+    const { data: existingProfile, error: existingProfileError } = await supabase
+      .from("profiles")
+      .select("role, current_company_id, default_company_id, vendor_id, vendor_portal_role")
+      .eq("user_id", authUserId)
+      .maybeSingle();
+    if (existingProfileError) throw existingProfileError;
+
+    const { data: existingAccessRows, error: existingAccessError } = await supabase
+      .from("user_company_access")
+      .select("company_id, role, is_active")
+      .eq("user_id", authUserId)
+      .eq("is_active", true);
+    if (existingAccessError) throw existingAccessError;
+
+    const internalAccessRows = ((existingAccessRows || []) as any[]).filter((row: any) =>
+      isInternalRole(row?.role),
+    );
+    const hasInternalWorkspace = internalAccessRows.length > 0 || isInternalRole(existingProfile?.role);
+    const preferredInternalCompanyId =
+      internalAccessRows.find((row: any) => String(row?.company_id || "") === safeString(existingProfile?.current_company_id))?.company_id
+      || internalAccessRows.find((row: any) => String(row?.company_id || "") === safeString(existingProfile?.default_company_id))?.company_id
+      || internalAccessRows[0]?.company_id
+      || null;
+    const preservedRole = isInternalRole(existingProfile?.role) ? safeString(existingProfile?.role) : null;
+
     const notesPayload = {
       requestType: "external_access_signup",
       requestedRole: externalRole,
@@ -148,31 +209,40 @@ serve(async (req) => {
       vendorId: linkedVendorId,
       requestedAt: approvedAt,
       email: invitedEmail,
-      source: "rfp_vendor_invitation",
+      source: "vendor_portal_invitation",
     };
 
     const existingUserMetadata = authUserData.user?.user_metadata || {};
     const existingAppMetadata = authUserData.user?.app_metadata || {};
+    const metadataRole = hasInternalWorkspace
+      ? preservedRole || safeString(existingUserMetadata.role) || safeString(existingAppMetadata.role)
+      : externalRole;
+    const metadataCurrentCompanyId = hasInternalWorkspace
+      ? safeString(preferredInternalCompanyId || existingProfile?.current_company_id || existingProfile?.default_company_id || existingUserMetadata.current_company_id || existingAppMetadata.current_company_id) || null
+      : linkedCompanyId;
+    const metadataDefaultCompanyId = hasInternalWorkspace
+      ? safeString(preferredInternalCompanyId || existingProfile?.default_company_id || existingProfile?.current_company_id || existingUserMetadata.default_company_id || existingAppMetadata.default_company_id) || null
+      : linkedCompanyId;
     const { error: authMetadataError } = await supabase.auth.admin.updateUserById(authUserId, {
       user_metadata: {
         ...existingUserMetadata,
         first_name: normalizedFirstName || existingUserMetadata.first_name || null,
         last_name: normalizedLastName || existingUserMetadata.last_name || null,
         is_vendor: externalRole === "vendor",
-        vendor_id: linkedVendorId,
-        current_company_id: linkedCompanyId,
-        default_company_id: linkedCompanyId,
-        role: externalRole,
-        vendor_portal_role: vendorPortalRole,
+        vendor_id: hasInternalWorkspace ? (existingUserMetadata.vendor_id ?? null) : linkedVendorId,
+        current_company_id: metadataCurrentCompanyId,
+        default_company_id: metadataDefaultCompanyId,
+        role: metadataRole || null,
+        vendor_portal_role: hasInternalWorkspace ? (existingUserMetadata.vendor_portal_role ?? null) : vendorPortalRole,
       },
       app_metadata: {
         ...existingAppMetadata,
         is_vendor: externalRole === "vendor",
-        vendor_id: linkedVendorId,
-        current_company_id: linkedCompanyId,
-        default_company_id: linkedCompanyId,
-        role: externalRole,
-        vendor_portal_role: vendorPortalRole,
+        vendor_id: hasInternalWorkspace ? (existingAppMetadata.vendor_id ?? null) : linkedVendorId,
+        current_company_id: metadataCurrentCompanyId,
+        default_company_id: metadataDefaultCompanyId,
+        role: metadataRole || null,
+        vendor_portal_role: hasInternalWorkspace ? (existingAppMetadata.vendor_portal_role ?? null) : vendorPortalRole,
       },
     });
     if (authMetadataError) throw authMetadataError;
@@ -183,14 +253,14 @@ serve(async (req) => {
       first_name: normalizedFirstName || null,
       last_name: normalizedLastName || null,
       display_name: displayName,
-      role: externalRole,
-      current_company_id: linkedCompanyId,
-      default_company_id: linkedCompanyId,
+      role: hasInternalWorkspace ? (preservedRole || existingProfile?.role || externalRole) : externalRole,
+      current_company_id: hasInternalWorkspace ? (metadataCurrentCompanyId || null) : linkedCompanyId,
+      default_company_id: hasInternalWorkspace ? (metadataDefaultCompanyId || null) : linkedCompanyId,
       status: "approved",
       approved_at: approvedAt,
       approved_by: (invitation as any).invited_by || authUserId,
-      vendor_id: linkedVendorId,
-      vendor_portal_role: vendorPortalRole,
+      vendor_id: hasInternalWorkspace ? (existingProfile?.vendor_id || null) : linkedVendorId,
+      vendor_portal_role: hasInternalWorkspace ? (existingProfile?.vendor_portal_role || null) : vendorPortalRole,
     };
 
     let { error: profileError } = await supabase
@@ -232,10 +302,10 @@ serve(async (req) => {
       const { error: updateAccessRequestError } = await supabase
         .from("company_access_requests")
         .update({
-          status: "approved",
+          status: "pending",
           requested_at: approvedAt,
-          reviewed_at: approvedAt,
-          reviewed_by: (invitation as any).invited_by || authUserId,
+          reviewed_at: null,
+          reviewed_by: null,
           notes: JSON.stringify(notesPayload),
         })
         .eq("id", existingAccessRequest.id);
@@ -246,10 +316,8 @@ serve(async (req) => {
         .insert({
           user_id: authUserId,
           company_id: linkedCompanyId,
-          status: "approved",
+          status: "pending",
           requested_at: approvedAt,
-          reviewed_at: approvedAt,
-          reviewed_by: (invitation as any).invited_by || authUserId,
           notes: JSON.stringify(notesPayload),
       });
       if (insertAccessRequestError) throw insertAccessRequestError;
