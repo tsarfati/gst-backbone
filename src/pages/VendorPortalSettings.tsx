@@ -12,14 +12,18 @@ import { useVendorPortalData } from "@/hooks/useVendorPortalData";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
-import { ArrowLeft } from "lucide-react";
+import { useVendorPortalTeam } from "@/hooks/useVendorPortalTeam";
+import { getVendorPortalRoleLabel, VENDOR_PORTAL_ROLE_OPTIONS, type VendorPortalRole } from "@/lib/vendorPortalRoles";
+import UserAvatar from "@/components/UserAvatar";
+import { supabase } from "@/integrations/supabase/client";
+import { ArrowLeft, Plus } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 
 export default function VendorPortalSettings() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { currentCompany } = useCompany();
-  useVendorPortalAccess();
+  const { roleCaps } = useVendorPortalAccess();
   const {
     loading,
     settingsForm,
@@ -28,9 +32,23 @@ export default function VendorPortalSettings() {
     saveCompanySettings,
     savePaymentSettings,
     uploadVendorLogo,
+    vendorInfo,
   } = useVendorPortalData();
+  const {
+    loading: teamLoading,
+    linkedUsers,
+    pendingInvites,
+    loadTeam,
+    updateRole,
+    revokeInvite,
+  } = useVendorPortalTeam(vendorInfo?.id || null);
   const [savingCompany, setSavingCompany] = useState(false);
   const [savingPayment, setSavingPayment] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<VendorPortalRole>("basic_user");
+  const [sendingInvite, setSendingInvite] = useState(false);
+  const [updatingVendorPortalUserId, setUpdatingVendorPortalUserId] = useState<string | null>(null);
+  const [processingInviteId, setProcessingInviteId] = useState<string | null>(null);
   const [paymentType, setPaymentType] = useState(paymentMethod?.type || "check");
   const [checkDelivery, setCheckDelivery] = useState(paymentMethod?.check_delivery || "mail");
   const [bankName, setBankName] = useState(paymentMethod?.bank_name || "");
@@ -80,6 +98,11 @@ export default function VendorPortalSettings() {
     setAccountNumber(paymentMethod?.account_number || "");
     setConfirmAccountNumber(paymentMethod?.account_number || "");
   }, [paymentMethod]);
+
+  useEffect(() => {
+    if (!roleCaps.canManageUsers || !vendorInfo?.id) return;
+    void loadTeam();
+  }, [roleCaps.canManageUsers, vendorInfo?.id, loadTeam]);
 
   const saveCompany = async () => {
     try {
@@ -138,6 +161,92 @@ export default function VendorPortalSettings() {
     }
   };
 
+  const sendCoworkerInvite = async () => {
+    const normalizedEmail = inviteEmail.trim().toLowerCase();
+    if (!vendorInfo?.id || !normalizedEmail) {
+      toast({ title: "Email required", description: "Enter the coworker email address to invite.", variant: "destructive" });
+      return;
+    }
+
+    try {
+      setSendingInvite(true);
+      const { data, error } = await supabase.functions.invoke("send-vendor-invite", {
+        body: {
+          vendorId: vendorInfo.id,
+          vendorName: settingsForm.name || vendorInfo.name,
+          vendorEmail: normalizedEmail,
+          vendorPortalRole: inviteRole,
+          companyId: currentCompany?.id,
+          companyName: currentCompany?.display_name || currentCompany?.name,
+          invitedBy: currentCompany?.created_by,
+          baseUrl: window.location.origin,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      setInviteEmail("");
+      setInviteRole(linkedUsers.length === 0 && pendingInvites.length === 0 ? "owner" : "basic_user");
+      await loadTeam();
+      toast({ title: "Invitation sent", description: `An invitation has been sent to ${normalizedEmail}.` });
+    } catch (error: any) {
+      toast({ title: "Invite failed", description: error?.message || "Could not send the vendor portal invite.", variant: "destructive" });
+    } finally {
+      setSendingInvite(false);
+    }
+  };
+
+  const handleUpdateRole = async (targetUserId: string, nextRole: VendorPortalRole) => {
+    try {
+      setUpdatingVendorPortalUserId(targetUserId);
+      await updateRole(targetUserId, nextRole);
+      toast({ title: "Role updated", description: "Vendor coworker permissions updated." });
+    } catch (error: any) {
+      toast({ title: "Role update failed", description: error?.message || "Could not update this coworker role.", variant: "destructive" });
+    } finally {
+      setUpdatingVendorPortalUserId(null);
+    }
+  };
+
+  const handleRevokeInvite = async (inviteId: string) => {
+    try {
+      setProcessingInviteId(inviteId);
+      await revokeInvite(inviteId);
+      toast({ title: "Invite revoked", description: "The pending coworker invite was revoked." });
+    } catch (error: any) {
+      toast({ title: "Revoke failed", description: error?.message || "Could not revoke this invite.", variant: "destructive" });
+    } finally {
+      setProcessingInviteId(null);
+    }
+  };
+
+  const handleResendInvite = async (invite: any) => {
+    if (!vendorInfo?.id) return;
+    try {
+      setProcessingInviteId(invite.id);
+      const { data, error } = await supabase.functions.invoke("send-vendor-invite", {
+        body: {
+          vendorId: vendorInfo.id,
+          vendorName: settingsForm.name || vendorInfo.name,
+          vendorEmail: invite.email,
+          vendorPortalRole: invite.vendor_portal_role,
+          replaceInviteId: invite.id,
+          companyId: currentCompany?.id,
+          companyName: currentCompany?.display_name || currentCompany?.name,
+          invitedBy: currentCompany?.created_by,
+          baseUrl: window.location.origin,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      await loadTeam();
+      toast({ title: "Invite resent", description: `A fresh invitation has been sent to ${invite.email}.` });
+    } catch (error: any) {
+      toast({ title: "Resend failed", description: error?.message || "Could not resend this invite.", variant: "destructive" });
+    } finally {
+      setProcessingInviteId(null);
+    }
+  };
+
   if (loading) {
     return <PremiumLoadingScreen text="Loading vendor settings..." />;
   }
@@ -153,10 +262,11 @@ export default function VendorPortalSettings() {
       </div>
 
       <Tabs defaultValue="overview" className="w-full">
-        <TabsList className="grid w-full max-w-[520px] grid-cols-3">
+        <TabsList className={`grid w-full ${roleCaps.canManageUsers ? "max-w-[700px] grid-cols-4" : "max-w-[520px] grid-cols-3"}`}>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="taxes">Taxes</TabsTrigger>
           <TabsTrigger value="payment">Payment</TabsTrigger>
+          {roleCaps.canManageUsers && <TabsTrigger value="team">Team</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="overview" className="pt-4">
@@ -315,6 +425,145 @@ export default function VendorPortalSettings() {
             </CardContent>
           </Card>
         </TabsContent>
+
+        {roleCaps.canManageUsers && (
+          <TabsContent value="team" className="pt-4">
+            <Card>
+              <CardHeader><CardTitle>Vendor Portal Team</CardTitle></CardHeader>
+              <CardContent className="space-y-6">
+                <div className="rounded-lg border p-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <Plus className="h-4 w-4 text-muted-foreground" />
+                    <p className="font-medium">Invite coworker</p>
+                  </div>
+                  <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_auto]">
+                    <Input
+                      type="email"
+                      value={inviteEmail}
+                      onChange={(event) => setInviteEmail(event.target.value)}
+                      placeholder="name@vendorcompany.com"
+                      autoComplete="email"
+                    />
+                    <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as VendorPortalRole)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
+                          <SelectItem key={option.value} value={option.value}>
+                            {option.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <Button onClick={sendCoworkerInvite} disabled={sendingInvite}>
+                      {sendingInvite ? "Sending..." : "Send Invite"}
+                    </Button>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {VENDOR_PORTAL_ROLE_OPTIONS.find((option) => option.value === inviteRole)?.description}
+                  </p>
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">Active users</p>
+                    <span className="text-sm text-muted-foreground">{linkedUsers.length}</span>
+                  </div>
+                  {teamLoading && linkedUsers.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      <span className="loading-dots">Loading team</span>
+                    </div>
+                  ) : linkedUsers.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      No coworker accounts are linked yet.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {linkedUsers.map((portalUser, index) => (
+                        <div key={portalUser.user_id} className="flex items-center justify-between rounded-lg border p-3">
+                          <div className="flex min-w-0 items-center gap-3">
+                            <UserAvatar src={portalUser.avatar_url} name={portalUser.name} className="h-10 w-10" />
+                            <div className="min-w-0">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="truncate font-medium">{portalUser.name}</p>
+                                {index === 0 && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">Primary</span>}
+                                <span className="rounded-full border px-2 py-0.5 text-xs">{getVendorPortalRoleLabel(portalUser.vendor_portal_role)}</span>
+                              </div>
+                              <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                                {portalUser.email && <span>{portalUser.email}</span>}
+                                {portalUser.phone && <span>{portalUser.phone}</span>}
+                              </div>
+                            </div>
+                          </div>
+                          <div className="w-[220px]">
+                            <Select
+                              value={portalUser.vendor_portal_role}
+                              onValueChange={(value) => handleUpdateRole(portalUser.user_id, value as VendorPortalRole)}
+                              disabled={updatingVendorPortalUserId === portalUser.user_id}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2">
+                    <p className="font-medium">Pending invites</p>
+                    <span className="text-sm text-muted-foreground">{pendingInvites.length}</span>
+                  </div>
+                  {teamLoading && pendingInvites.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      <span className="loading-dots">Loading pending invites</span>
+                    </div>
+                  ) : pendingInvites.length === 0 ? (
+                    <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                      No coworker invites are pending right now.
+                    </div>
+                  ) : (
+                    <div className="space-y-3">
+                      {pendingInvites.map((invite) => (
+                        <div key={invite.id} className="flex items-center justify-between rounded-lg border p-3">
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="font-medium">{invite.email}</p>
+                              <span className="rounded-full border px-2 py-0.5 text-xs">{getVendorPortalRoleLabel(invite.vendor_portal_role)}</span>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                              <span>Invited {new Date(invite.invited_at || "").toLocaleDateString()}</span>
+                              <span>Expires {new Date(invite.expires_at || "").toLocaleDateString()}</span>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Button variant="ghost" size="sm" disabled={processingInviteId === invite.id} onClick={() => handleResendInvite(invite)}>
+                              Resend
+                            </Button>
+                            <Button variant="ghost" size="sm" disabled={processingInviteId === invite.id} onClick={() => handleRevokeInvite(invite.id)}>
+                              Revoke
+                            </Button>
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </CardContent>
+            </Card>
+          </TabsContent>
+        )}
 
       </Tabs>
     </div>

@@ -54,6 +54,7 @@ serve(async (req) => {
         expires_at,
         accepted_at,
         created_user_id,
+        vendor_portal_role,
         vendor:vendors(id, name, vendor_type)
       `)
       .eq("token", inviteToken)
@@ -102,6 +103,7 @@ serve(async (req) => {
     const displayName = [normalizedFirstName, normalizedLastName].filter(Boolean).join(" ").trim() || invitedEmail;
     const linkedVendorId = safeString((invitation as any).vendor_id) || null;
     const linkedCompanyId = safeString((invitation as any).company_id) || null;
+    const vendorPortalRole = safeString((invitation as any).vendor_portal_role) || "basic_user";
 
     const notesPayload = {
       requestType: "external_access_signup",
@@ -128,6 +130,7 @@ serve(async (req) => {
         current_company_id: linkedCompanyId,
         default_company_id: linkedCompanyId,
         role: externalRole,
+        vendor_portal_role: vendorPortalRole,
       },
       app_metadata: {
         ...existingAppMetadata,
@@ -136,6 +139,7 @@ serve(async (req) => {
         current_company_id: linkedCompanyId,
         default_company_id: linkedCompanyId,
         role: externalRole,
+        vendor_portal_role: vendorPortalRole,
       },
     });
     if (authMetadataError) throw authMetadataError;
@@ -155,6 +159,7 @@ serve(async (req) => {
         approved_at: approvedAt,
         approved_by: (invitation as any).invited_by || authUserId,
         vendor_id: linkedVendorId,
+        vendor_portal_role: vendorPortalRole,
       }, { onConflict: "user_id" });
     if (profileError) throw profileError;
 

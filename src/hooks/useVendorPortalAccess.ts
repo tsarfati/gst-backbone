@@ -1,15 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
-
-export type VendorPortalRole =
-  | "owner"
-  | "admin"
-  | "accounting"
-  | "project_contact"
-  | "estimator"
-  | "compliance_manager"
-  | "basic_user";
+import { normalizeVendorPortalRole, type VendorPortalRole } from "@/lib/vendorPortalRoles";
 
 type VendorJobAccessRow = {
   can_view_job_details?: boolean | null;
@@ -232,12 +224,6 @@ const ROLE_CAPS: Record<VendorPortalRole, VendorRoleCaps> = {
   },
 };
 
-const normalizeVendorRole = (value: unknown): VendorPortalRole => {
-  const normalized = String(value || "").trim().toLowerCase();
-  if (normalized in ROLE_CAPS) return normalized as VendorPortalRole;
-  return "basic_user";
-};
-
 export function useVendorPortalAccess(jobId?: string) {
   const { user, profile } = useAuth();
   const authMetadata = (user?.user_metadata || {}) as Record<string, any>;
@@ -255,7 +241,7 @@ export function useVendorPortalAccess(jobId?: string) {
 
   const internalRole = useMemo<VendorPortalRole>(() => {
     const profileRole = String(profile?.vendor_portal_role || "").trim();
-    if (profileRole) return normalizeVendorRole(profileRole);
+    if (profileRole) return normalizeVendorPortalRole(profileRole);
     return profile?.approved_by === profile?.user_id ? "owner" : "basic_user";
   }, [profile?.approved_by, profile?.user_id, profile?.vendor_portal_role]);
 

@@ -3,6 +3,8 @@ import { useParams, useNavigate } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle, Eye, EyeOff, Plus, Send, Loader2 } from "lucide-react";
@@ -26,6 +28,8 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import { ensureSubcontractVendorJobAccess } from "@/utils/vendorJobAccess";
+import { useVendorPortalTeam } from "@/hooks/useVendorPortalTeam";
+import { getVendorPortalRoleLabel, VENDOR_PORTAL_ROLE_OPTIONS, type VendorPortalRole } from "@/lib/vendorPortalRoles";
 
 type VendorAccessPresetKey =
   | "billing_only"
@@ -183,11 +187,14 @@ export default function VendorDetails() {
   const [viewingVoidedCheck, setViewingVoidedCheck] = useState<any>(null);
   const { hasElevatedAccess } = useActionPermissions();
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [inviteEmail, setInviteEmail] = useState("");
+  const [inviteRole, setInviteRole] = useState<VendorPortalRole>("basic_user");
   const [sendingInvite, setSendingInvite] = useState(false);
-  const [pendingInvite, setPendingInvite] = useState<any>(null);
   const [vendorPortalLinked, setVendorPortalLinked] = useState(false);
   const [linkedVendorUserId, setLinkedVendorUserId] = useState<string | null>(null);
   const [linkedVendorAvatarUrl, setLinkedVendorAvatarUrl] = useState<string | null>(null);
+  const [updatingVendorPortalUserId, setUpdatingVendorPortalUserId] = useState<string | null>(null);
+  const [processingInviteId, setProcessingInviteId] = useState<string | null>(null);
   const [scopeEditorOpen, setScopeEditorOpen] = useState(false);
   const [scopeEditorLoading, setScopeEditorLoading] = useState(false);
   const [scopeEditorAssignment, setScopeEditorAssignment] = useState<any>(null);
@@ -208,6 +215,18 @@ export default function VendorDetails() {
       .filter((entry) => entry.name.trim() || entry.email.trim());
   }, [vendor?.email_contacts]);
   const primaryVendorEmail = String(vendor?.email || normalizedEmailContacts[0]?.email || '').trim();
+  const isDesignProfessionalVendor = String(vendor?.vendor_type || '').toLowerCase() === 'design_professional';
+  const {
+    loading: vendorPortalTeamLoading,
+    linkedUsers: linkedVendorUsers,
+    pendingInvites,
+    loadTeam: loadVendorPortalTeam,
+    updateRole: updateVendorPortalRole,
+    revokeInvite: revokeVendorPortalInvite,
+  } = useVendorPortalTeam(isDesignProfessionalVendor ? null : vendor?.id || null);
+  const latestPendingInvite = pendingInvites[0] || null;
+  const linkedVendorUserCount = linkedVendorUsers.length;
+  const pendingVendorInviteCount = pendingInvites.length;
   const designProfessionalMemberIds = useMemo(
     () => designProfessionalMembers.map((member) => member.user_id).filter(Boolean),
     [designProfessionalMembers]
@@ -302,7 +321,6 @@ export default function VendorDetails() {
             fetchPaymentMethods(data.id);
             fetchComplianceDocuments(data.id);
             fetchSubcontracts(data.id);
-            fetchPendingInvite(data.id);
             fetchDesignProfessionalCompanyContext(data);
             fetchVendorPortalLinkStatus(data);
           }
@@ -506,46 +524,13 @@ export default function VendorDetails() {
       }
     };
 
-    const fetchPendingInvite = async (vendorId: string) => {
-      try {
-        const { data, error } = await supabase
-          .from('vendor_invitations')
-          .select('*')
-          .eq('vendor_id', vendorId)
-          .eq('status', 'pending')
-          .gt('expires_at', new Date().toISOString())
-          .order('invited_at', { ascending: false })
-          .limit(1)
-          .maybeSingle();
-
-        if (!error && data) {
-          setPendingInvite(data);
-        }
-      } catch (error) {
-        console.error('Error loading pending invite:', error);
-      }
-    };
-
     const fetchVendorPortalLinkStatus = async (vendorRecord: any) => {
       try {
         if (String(vendorRecord?.vendor_type || '').toLowerCase() === 'design_professional') {
           setVendorPortalLinked(designProfessionalMembers.length > 0 || !!linkedDesignCompany);
           setLinkedVendorUserId(null);
+          setLinkedVendorAvatarUrl(null);
           return;
-        }
-
-        const { data, error } = await supabase
-          .from("profiles")
-          .select("user_id, avatar_url")
-          .eq("vendor_id", vendorRecord.id)
-          .eq("role", "vendor")
-          .limit(1)
-          .maybeSingle();
-
-        if (!error) {
-          setVendorPortalLinked(!!data?.user_id);
-          setLinkedVendorUserId(data?.user_id ? String(data.user_id) : null);
-          setLinkedVendorAvatarUrl(data?.avatar_url ? String(data.avatar_url) : null);
         }
       } catch (error) {
         console.error("Error loading vendor portal link status:", error);
@@ -696,6 +681,19 @@ export default function VendorDetails() {
     if (String(vendor.vendor_type || '').toLowerCase() !== 'design_professional') return;
     setVendorPortalLinked(designProfessionalMembers.length > 0 || !!linkedDesignCompany);
   }, [vendor, designProfessionalMembers.length, linkedDesignCompany]);
+
+  useEffect(() => {
+    if (isDesignProfessionalVendor || !vendor?.id) return;
+    void loadVendorPortalTeam();
+  }, [isDesignProfessionalVendor, vendor?.id, loadVendorPortalTeam]);
+
+  useEffect(() => {
+    if (isDesignProfessionalVendor) return;
+    const primaryLinkedUser = linkedVendorUsers[0] || null;
+    setVendorPortalLinked(linkedVendorUsers.length > 0);
+    setLinkedVendorUserId(primaryLinkedUser?.user_id || null);
+    setLinkedVendorAvatarUrl(primaryLinkedUser?.avatar_url || null);
+  }, [isDesignProfessionalVendor, linkedVendorUsers]);
 
   const handleAssignJob = async () => {
     if (!vendor?.id || !selectedAssignJobId || !user?.id) return;
@@ -891,6 +889,12 @@ export default function VendorDetails() {
 
   const canViewSensitiveData = hasElevatedAccess();
 
+  const openInviteDialog = () => {
+    setInviteEmail(primaryVendorEmail);
+    setInviteRole(linkedVendorUsers.length === 0 && pendingInvites.length === 0 ? "owner" : "basic_user");
+    setInviteDialogOpen(true);
+  };
+
   const toggleUnmask = (methodId: string) => {
     if (!canViewSensitiveData) return;
     
@@ -906,10 +910,12 @@ export default function VendorDetails() {
   };
 
   const handleSendInvite = async () => {
-    if (!primaryVendorEmail) {
+    const normalizedInviteEmail = inviteEmail.trim().toLowerCase();
+
+    if (!normalizedInviteEmail) {
       toast({
         title: "No email",
-        description: "This vendor does not have an email address configured",
+        description: "Enter the coworker email address you want to invite.",
         variant: "destructive",
       });
       return;
@@ -922,7 +928,8 @@ export default function VendorDetails() {
         body: {
           vendorId: vendor.id,
           vendorName: vendor.name,
-          vendorEmail: primaryVendorEmail,
+          vendorEmail: normalizedInviteEmail,
+          vendorPortalRole: inviteRole,
           companyId: currentCompany?.id,
           companyName: currentCompany?.name,
           invitedBy: user?.id,
@@ -943,25 +950,12 @@ export default function VendorDetails() {
 
       toast({
         title: "Invitation Sent",
-        description: `An invitation has been sent to ${primaryVendorEmail}`,
+        description: `An invitation has been sent to ${normalizedInviteEmail}`,
       });
       
       setInviteDialogOpen(false);
-      
-      // Refresh pending invite status
-      const { data: inviteData } = await supabase
-        .from('vendor_invitations')
-        .select('*')
-        .eq('vendor_id', vendor.id)
-        .eq('status', 'pending')
-        .gt('expires_at', new Date().toISOString())
-        .order('invited_at', { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      
-      if (inviteData) {
-        setPendingInvite(inviteData);
-      }
+      setInviteEmail(primaryVendorEmail);
+      await loadVendorPortalTeam();
     } catch (err: any) {
       console.error('Error sending invite:', err);
       toast({
@@ -971,6 +965,82 @@ export default function VendorDetails() {
       });
     } finally {
       setSendingInvite(false);
+    }
+  };
+
+  const handleUpdateVendorPortalRole = async (targetUserId: string, nextRole: VendorPortalRole) => {
+    try {
+      setUpdatingVendorPortalUserId(targetUserId);
+      await updateVendorPortalRole(targetUserId, nextRole);
+      toast({
+        title: "Role updated",
+        description: "Vendor portal role updated successfully.",
+      });
+    } catch (error: any) {
+      console.error("Error updating vendor portal role:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update vendor portal role.",
+        variant: "destructive",
+      });
+    } finally {
+      setUpdatingVendorPortalUserId(null);
+    }
+  };
+
+  const handleRevokeVendorInvite = async (inviteId: string) => {
+    try {
+      setProcessingInviteId(inviteId);
+      await revokeVendorPortalInvite(inviteId);
+      toast({
+        title: "Invite revoked",
+        description: "The pending vendor portal invite was revoked.",
+      });
+    } catch (error: any) {
+      console.error("Error revoking vendor portal invite:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to revoke vendor portal invite.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingInviteId(null);
+    }
+  };
+
+  const handleResendVendorInvite = async (invite: any) => {
+    try {
+      setProcessingInviteId(String(invite.id));
+      const { data, error } = await supabase.functions.invoke('send-vendor-invite', {
+        body: {
+          vendorId: vendor.id,
+          vendorName: vendor.name,
+          vendorEmail: invite.email,
+          vendorPortalRole: invite.vendor_portal_role || "basic_user",
+          replaceInviteId: invite.id,
+          companyId: currentCompany?.id,
+          companyName: currentCompany?.name,
+          invitedBy: user?.id,
+          baseUrl: window.location.origin,
+        }
+      });
+
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      await loadVendorPortalTeam();
+      toast({
+        title: "Invitation resent",
+        description: `A fresh invite was sent to ${invite.email}.`,
+      });
+    } catch (error: any) {
+      console.error("Error resending vendor invite:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to resend invitation.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingInviteId(null);
     }
   };
 
@@ -1051,11 +1121,13 @@ export default function VendorDetails() {
                   >
                     {String(vendor.vendor_type || '').toLowerCase() === 'design_professional'
                       ? 'DesignProLYNK Linked'
-                      : 'Vendor Portal Linked'}
+                      : `${linkedVendorUserCount} Vendor Portal User${linkedVendorUserCount === 1 ? '' : 's'}`}
                   </Badge>
                 )}
-                {!vendorPortalLinked && pendingInvite && (
-                  <Badge variant="secondary">Vendor Portal Invite Pending</Badge>
+                {!vendorPortalLinked && latestPendingInvite && (
+                  <Badge variant="secondary">
+                    {pendingVendorInviteCount} Invite{pendingVendorInviteCount === 1 ? '' : 's'} Pending
+                  </Badge>
                 )}
                 {linkedDesignCompany && String(vendor.vendor_type || '').toLowerCase() === 'design_professional' && (
                   <Badge variant="outline">
@@ -1067,14 +1139,10 @@ export default function VendorDetails() {
           </div>
         </div>
         <div className="flex gap-2">
-          {primaryVendorEmail && (
-            <Button 
-              variant="outline" 
-              onClick={() => setInviteDialogOpen(true)}
-              disabled={!!pendingInvite}
-            >
+          {!isDesignProfessionalVendor && (
+            <Button variant="outline" onClick={openInviteDialog}>
               <Send className="h-4 w-4 mr-2" />
-              {pendingInvite ? 'Invitation Pending' : 'Invite to Portal'}
+              Invite Portal User
             </Button>
           )}
           <Button variant="outline" onClick={() => navigate(`/vendors/${id}/edit`)}>
@@ -1085,19 +1153,48 @@ export default function VendorDetails() {
       </div>
 
       {/* Invite Vendor Dialog */}
-      <Dialog open={inviteDialogOpen} onOpenChange={setInviteDialogOpen}>
+      <Dialog open={inviteDialogOpen && !isDesignProfessionalVendor} onOpenChange={setInviteDialogOpen}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Invite Vendor to Portal</DialogTitle>
+            <DialogTitle>Invite Vendor Portal User</DialogTitle>
             <DialogDescription>
-              Send an invitation to {vendor.name} to create their own vendor portal account. 
-              They will be able to view projects, submit bids, and manage their documents.
+              Send an invitation to an individual coworker at {vendor.name}. Each person gets their own login under this vendor company.
             </DialogDescription>
           </DialogHeader>
           
-          <div className="py-4">
-            <p className="text-sm text-muted-foreground mb-2">Invitation will be sent to:</p>
-            <p className="font-medium">{primaryVendorEmail}</p>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="vendor-portal-invite-email">Coworker email</Label>
+              <Input
+                id="vendor-portal-invite-email"
+                type="email"
+                value={inviteEmail}
+                onChange={(event) => setInviteEmail(event.target.value)}
+                placeholder="name@vendorcompany.com"
+                autoComplete="email"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="vendor-portal-invite-role">Portal role</Label>
+              <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as VendorPortalRole)}>
+                <SelectTrigger id="vendor-portal-invite-role">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                {VENDOR_PORTAL_ROLE_OPTIONS.find((option) => option.value === inviteRole)?.description}
+              </p>
+            </div>
+            <p className="text-sm text-muted-foreground">
+              This user will sign up under the same vendor company and can collaborate using their own login.
+            </p>
           </div>
 
           <DialogFooter>
@@ -1151,7 +1248,11 @@ export default function VendorDetails() {
             <CardContent className="p-4">
               <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Portal Status</p>
               <p className="mt-1 text-sm font-semibold">
-                {vendorPortalLinked ? 'Linked to vendor portal' : pendingInvite ? 'Invitation pending' : 'Not linked'}
+                {vendorPortalLinked
+                  ? `${linkedVendorUserCount} active user${linkedVendorUserCount === 1 ? '' : 's'}`
+                  : latestPendingInvite
+                    ? `${pendingVendorInviteCount} invite${pendingVendorInviteCount === 1 ? '' : 's'} pending`
+                    : 'Not linked'}
               </p>
             </CardContent>
           </Card>
@@ -1174,6 +1275,152 @@ export default function VendorDetails() {
             </CardContent>
           </Card>
         </div>
+
+        {!isDesignProfessionalVendor && (
+          <Card>
+            <CardHeader>
+              <div className="flex flex-wrap items-center justify-between gap-3">
+                <div className="space-y-1">
+                  <CardTitle>Vendor Portal Users</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Manage the individual people at this vendor company who can log in to the vendor portal.
+                  </p>
+                </div>
+                <Button variant="outline" size="sm" onClick={openInviteDialog}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  Invite Coworker
+                </Button>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-foreground">Active portal users</p>
+                  <Badge variant="outline">{linkedVendorUserCount}</Badge>
+                </div>
+                {vendorPortalTeamLoading && linkedVendorUsers.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                    <span className="loading-dots">Loading vendor portal users</span>
+                  </div>
+                ) : linkedVendorUsers.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                    No portal users are linked yet. Invite the first coworker to create the vendor portal account.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {linkedVendorUsers.map((portalUser, index) => (
+                      <div key={portalUser.user_id} className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="flex min-w-0 items-center gap-3">
+                          <UserAvatar
+                            src={portalUser.avatar_url}
+                            name={portalUser.name}
+                            className="h-10 w-10"
+                          />
+                          <div className="min-w-0">
+                            <div className="flex flex-wrap items-center gap-2">
+                              <p className="truncate font-medium">{portalUser.name}</p>
+                              {index === 0 && <Badge variant="secondary">Primary</Badge>}
+                              <Badge variant="outline">{getVendorPortalRoleLabel(portalUser.vendor_portal_role)}</Badge>
+                            </div>
+                            <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                              {portalUser.email && <span className="truncate">{portalUser.email}</span>}
+                              {portalUser.phone && <span>{portalUser.phone}</span>}
+                            </div>
+                          </div>
+                        </div>
+                        <div className="flex flex-col items-end gap-2">
+                          <div className="w-[180px]">
+                            <Select
+                              value={portalUser.vendor_portal_role}
+                              onValueChange={(value) => handleUpdateVendorPortalRole(portalUser.user_id, value as VendorPortalRole)}
+                              disabled={updatingVendorPortalUserId === portalUser.user_id}
+                            >
+                              <SelectTrigger>
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
+                                  <SelectItem key={option.value} value={option.value}>
+                                    {option.label}
+                                  </SelectItem>
+                                ))}
+                              </SelectContent>
+                            </Select>
+                          </div>
+                          {hasElevatedAccess() && (
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() =>
+                                navigate(`/settings/users/${portalUser.user_id}`, {
+                                  state: { fromCompanyManagement: true },
+                                })
+                              }
+                            >
+                              View User
+                            </Button>
+                          )}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+
+              <div className="space-y-3">
+                <div className="flex items-center gap-2">
+                  <p className="text-sm font-medium text-foreground">Pending invites</p>
+                  <Badge variant="outline">{pendingVendorInviteCount}</Badge>
+                </div>
+                {vendorPortalTeamLoading && pendingInvites.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                    <span className="loading-dots">Loading pending invites</span>
+                  </div>
+                ) : pendingInvites.length === 0 ? (
+                  <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                    No coworker invites are currently pending.
+                  </div>
+                ) : (
+                  <div className="space-y-3">
+                    {pendingInvites.map((invite) => (
+                      <div key={invite.id} className="flex items-center justify-between rounded-lg border p-3">
+                        <div className="min-w-0">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="font-medium">{invite.email}</p>
+                            <Badge variant="outline">{getVendorPortalRoleLabel(invite.vendor_portal_role)}</Badge>
+                          </div>
+                          <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
+                            <span>Invited {new Date(invite.invited_at).toLocaleDateString()}</span>
+                            <span>Expires {new Date(invite.expires_at).toLocaleDateString()}</span>
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Badge variant="secondary">Pending</Badge>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={processingInviteId === invite.id}
+                            onClick={() => handleResendVendorInvite(invite)}
+                          >
+                            Resend
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            disabled={processingInviteId === invite.id}
+                            onClick={() => handleRevokeVendorInvite(invite.id)}
+                          >
+                            Revoke
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Overview Section */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -26,6 +26,8 @@ interface VendorInviteRequest {
   companyName: string;
   invitedBy: string;
   baseUrl: string;
+  vendorPortalRole?: string;
+  replaceInviteId?: string | null;
 }
 
 const BUILDERLYNK_EMAIL_LOGO = BUILDERLYNK_EMAIL_LOGO_URL;
@@ -69,13 +71,66 @@ const handler = async (req: Request): Promise<Response> => {
       });
     }
 
-    const { vendorId, vendorName, vendorEmail, companyId, companyName, invitedBy, baseUrl }: VendorInviteRequest = await req.json();
+    const { vendorId, vendorName, vendorEmail, companyId, companyName, invitedBy, baseUrl, vendorPortalRole, replaceInviteId }: VendorInviteRequest = await req.json();
 
     if (!vendorEmail) {
       return new Response(
         JSON.stringify({ error: "Vendor email is required" }),
         { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
+    }
+
+    const normalizedRole = (() => {
+      const normalized = String(vendorPortalRole || "").trim().toLowerCase();
+      return [
+        "owner",
+        "admin",
+        "accounting",
+        "project_contact",
+        "estimator",
+        "compliance_manager",
+        "basic_user",
+      ].includes(normalized)
+        ? normalized
+        : "basic_user";
+    })();
+
+    if (replaceInviteId) {
+      const { error: revokePriorInviteError } = await supabase
+        .from("vendor_invitations")
+        .update({ status: "revoked" })
+        .eq("id", replaceInviteId)
+        .eq("vendor_id", vendorId)
+        .eq("status", "pending");
+      if (revokePriorInviteError) {
+        console.error("Error revoking prior invite before resend:", revokePriorInviteError);
+        return new Response(
+          JSON.stringify({ error: "Failed to resend invitation" }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+    }
+
+    let resolvedInviteRole = normalizedRole;
+    if (!vendorPortalRole) {
+      const [{ count: existingVendorUserCount, error: existingVendorUserError }, { count: pendingInviteCount, error: pendingInviteError }] = await Promise.all([
+        supabase
+          .from("profiles")
+          .select("user_id", { count: "exact", head: true })
+          .eq("vendor_id", vendorId)
+          .eq("role", "vendor"),
+        supabase
+          .from("vendor_invitations")
+          .select("id", { count: "exact", head: true })
+          .eq("vendor_id", vendorId)
+          .eq("status", "pending")
+          .gt("expires_at", new Date().toISOString()),
+      ]);
+      if (existingVendorUserError) throw existingVendorUserError;
+      if (pendingInviteError) throw pendingInviteError;
+      const existingCount = Number(existingVendorUserCount || 0);
+      const activePendingCount = Number(pendingInviteCount || 0);
+      resolvedInviteRole = existingCount === 0 && activePendingCount === 0 ? "owner" : "basic_user";
     }
 
     // Check if there's already a pending invitation
@@ -103,7 +158,8 @@ const handler = async (req: Request): Promise<Response> => {
         company_id: companyId,
         email: vendorEmail,
         invited_by: invitedBy,
-        status: 'pending'
+        status: 'pending',
+        vendor_portal_role: resolvedInviteRole,
       })
       .select()
       .single();
