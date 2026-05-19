@@ -34,6 +34,7 @@ import JobSubmittals from "@/components/JobSubmittals";
 import JobSecurityCameras from "@/components/JobSecurityCameras";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
+import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
 
 interface Job {
   id: string;
@@ -95,6 +96,7 @@ export default function JobDetails() {
   const navigate = useNavigate();
   const { toast } = useToast();
   const { user, profile } = useAuth();
+  const { vendorId: activeVendorId } = useActiveVendorPortalVendor();
   const { currentCompany, switchCompany } = useCompany();
   const permissions = useActionPermissions();
   const { hasAccess } = useMenuPermissions();
@@ -412,7 +414,7 @@ export default function JobDetails() {
     let ignore = false;
 
     async function loadVendorModules() {
-      if (!isVendorView || !id || !profile?.vendor_id) {
+      if (!isVendorView || !id || !activeVendorId) {
         setVendorRfps([]);
         setVendorSubcontracts([]);
         return;
@@ -436,7 +438,7 @@ export default function JobDetails() {
                 job_id
               )
             `)
-            .eq("vendor_id", profile.vendor_id)
+            .eq("vendor_id", activeVendorId)
             .eq("rfp.job_id", id)
             .order("invited_at", { ascending: false });
 
@@ -451,7 +453,7 @@ export default function JobDetails() {
             const { data: bidRows, error: bidError } = await supabase
               .from("bids")
               .select("id, rfp_id, bid_amount, status, submitted_at")
-              .eq("vendor_id", profile.vendor_id)
+              .eq("vendor_id", activeVendorId)
               .in("rfp_id", rfpIds);
 
             if (bidError) throw bidError;
@@ -507,7 +509,7 @@ export default function JobDetails() {
           const { data, error } = await supabase
             .from("subcontracts")
             .select("id, name, status, contract_amount, contract_negotiation_status, signature_status")
-            .eq("vendor_id", profile.vendor_id)
+            .eq("vendor_id", activeVendorId)
             .eq("job_id", id)
             .order("created_at", { ascending: false });
 
@@ -540,7 +542,7 @@ export default function JobDetails() {
     effectiveJobAccess.canViewSubcontracts,
     id,
     isVendorView,
-    profile?.vendor_id,
+    activeVendorId,
   ]);
 
   useEffect(() => {
@@ -604,7 +606,7 @@ export default function JobDetails() {
   };
 
   const submitVendorBid = async () => {
-    if (!selectedVendorRfp || !profile?.vendor_id || !currentCompany?.id) return;
+    if (!selectedVendorRfp || !activeVendorId || !currentCompany?.id) return;
     const amount = Number(vendorBidForm.bid_amount);
     if (!Number.isFinite(amount) || amount <= 0) {
       toast({
@@ -623,7 +625,7 @@ export default function JobDetails() {
           {
             rfp_id: selectedVendorRfp.id,
             company_id: currentCompany.id,
-            vendor_id: profile.vendor_id,
+            vendor_id: activeVendorId,
             bid_amount: amount,
             proposed_timeline: vendorBidForm.proposed_timeline.trim() || null,
             notes: vendorBidForm.notes.trim() || null,

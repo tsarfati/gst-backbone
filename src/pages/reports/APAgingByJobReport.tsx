@@ -136,30 +136,14 @@ export default function APAgingByJobReport() {
     try {
       setLoading(true);
 
-      const { data: vendorRows, error: vendorError } = await supabase
-        .from("vendors")
-        .select("id, name")
-        .eq("company_id", currentCompany.id);
-
-      if (vendorError) throw vendorError;
-
-      const vendorIds = (vendorRows || []).map((vendor: any) => vendor.id).filter(Boolean);
-      const vendorNameById = new Map<string, string>(
-        (vendorRows || []).map((vendor: any) => [vendor.id, vendor.name || "Unknown Vendor"])
-      );
-
-      if (!vendorIds.length) {
-        setInvoiceRows([]);
-        return;
-      }
-
       const invoiceQuery = supabase
         .from("invoices")
-        .select("id, vendor_id, job_id, invoice_number, issue_date, due_date, amount, status, jobs(id, name)")
-        .in("vendor_id", vendorIds)
+        .select("id, vendor_id, job_id, invoice_number, issue_date, due_date, amount, status, jobs(id, name), vendors!inner(name, company_id)")
         // Include paid rows here because some partially paid bills were previously
         // marked as paid. We filter true zero-balance bills after payment lines load.
         .in("status", AP_AGING_CANDIDATE_STATUSES);
+
+      invoiceQuery.eq("vendors.company_id", currentCompany.id);
 
       const { data: invoiceData, error: invoiceError } = await invoiceQuery.order("due_date", { ascending: true });
       if (invoiceError) throw invoiceError;
@@ -248,7 +232,7 @@ export default function APAgingByJobReport() {
               id: `${invoice.id}-${allocation.job_id || "no-job"}`,
               job_id: allocation.job_id || null,
               job_name: allocation.job_name,
-              vendor_name: vendorNameById.get(invoice.vendor_id) || "Unknown Vendor",
+              vendor_name: invoice.vendors?.name || "Unknown Vendor",
               invoice_number: invoice.invoice_number || "(No invoice #)",
               issue_date: invoice.issue_date || null,
               due_date: invoice.due_date || null,

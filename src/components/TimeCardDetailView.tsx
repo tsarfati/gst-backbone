@@ -229,6 +229,13 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId, onT
         return await resolveStorageUrl('punch-photos', url);
       };
 
+      const punchInPhotoSource = timeCardData.punch_in_photo_url || punchIn?.photo_url || null;
+      const punchOutPhotoSource = timeCardData.punch_out_photo_url || punchOut?.photo_url || null;
+      const [resolvedPunchInPhotoUrl, resolvedPunchOutPhotoUrl] = await Promise.all([
+        normalizePhotoUrl(punchInPhotoSource),
+        normalizePhotoUrl(punchOutPhotoSource),
+      ]);
+
       // Use profile data
       const employeeProfile = profileData.data;
 
@@ -246,28 +253,32 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId, onT
         punch_in_location_lng: Number(timeCardData.punch_in_location_lng) || Number(punchIn?.longitude) || null,
         punch_out_location_lat: Number(timeCardData.punch_out_location_lat) || Number(punchOut?.latitude) || null,
         punch_out_location_lng: Number(timeCardData.punch_out_location_lng) || Number(punchOut?.longitude) || null,
-        punch_in_photo_url: await normalizePhotoUrl(timeCardData.punch_in_photo_url || punchIn?.photo_url || null),
-        punch_out_photo_url: await normalizePhotoUrl(timeCardData.punch_out_photo_url || punchOut?.photo_url || null),
+        punch_in_photo_url: resolvedPunchInPhotoUrl,
+        punch_out_photo_url: resolvedPunchOutPhotoUrl,
       };
 
-      // Persist backfilled cost code if we resolved it and it was missing
-      if (!timeCardData.cost_code_id && resolvedCostCodeId) {
-        await supabase
-          .from('time_cards')
-          .update({ cost_code_id: resolvedCostCodeId })
-          .eq('id', timeCardId);
-      }
-
       setTimeCard(data as any);
+      setLoading(false);
       
       // Check for latest change request (prefer pending)
-      const { data: changeRequests } = await supabase
-        .from('time_card_change_requests')
-        .select('id, status, reason, created_at, requested_at, original_punch_in_time, original_punch_out_time, original_job_id, original_cost_code_id, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id')
-        .eq('time_card_id', timeCardId)
-        .order('requested_at', { ascending: false })
-        .order('created_at', { ascending: false })
-        .limit(3);
+      const [changeRequestResult, settingsResult] = await Promise.all([
+        supabase
+          .from('time_card_change_requests')
+          .select('id, status, reason, created_at, requested_at, original_punch_in_time, original_punch_out_time, original_job_id, original_cost_code_id, proposed_punch_in_time, proposed_punch_out_time, proposed_job_id, proposed_cost_code_id')
+          .eq('time_card_id', timeCardId)
+          .order('requested_at', { ascending: false })
+          .order('created_at', { ascending: false })
+          .limit(3),
+        timeCardData.job_id
+          ? supabase
+              .from('job_punch_clock_settings')
+              .select('enable_distance_warning, max_distance_from_job_meters')
+              .eq('job_id', timeCardData.job_id)
+              .limit(1)
+          : Promise.resolve({ data: null } as any),
+      ]);
+
+      const changeRequests = changeRequestResult.data;
       
       const pendingCR = (changeRequests || []).find((cr: any) => cr.status === 'pending') || null;
       const latestCR = pendingCR || (changeRequests && changeRequests[0]) || null;
@@ -313,11 +324,7 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId, onT
       
       // Load distance warning settings if job exists
       if (timeCardData.job_id) {
-        const { data: settingsRows } = await supabase
-          .from('job_punch_clock_settings')
-          .select('enable_distance_warning, max_distance_from_job_meters')
-          .eq('job_id', timeCardData.job_id)
-          .limit(1);
+        const settingsRows = settingsResult.data;
         const settings = settingsRows?.[0] || null;
           
         if (settings) {

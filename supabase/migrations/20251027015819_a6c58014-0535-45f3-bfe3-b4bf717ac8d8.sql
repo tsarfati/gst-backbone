@@ -61,26 +61,48 @@ VALUES ('job-permits', 'job-permits', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Create storage policies for job permits
-CREATE POLICY "Users can view job permit files"
-  ON storage.objects
-  FOR SELECT
-  USING (bucket_id = 'job-permits');
+DO $$
+BEGIN
+  BEGIN
+    DROP POLICY IF EXISTS "Users can view job permit files" ON storage.objects;
+    CREATE POLICY "Users can view job permit files"
+      ON storage.objects
+      FOR SELECT
+      USING (bucket_id = 'job-permits');
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
-CREATE POLICY "Users can upload job permit files"
-  ON storage.objects
-  FOR INSERT
-  WITH CHECK (
-    bucket_id = 'job-permits' AND
-    auth.uid() IS NOT NULL
-  );
+  BEGIN
+    DROP POLICY IF EXISTS "Users can upload job permit files" ON storage.objects;
+    CREATE POLICY "Users can upload job permit files"
+      ON storage.objects
+      FOR INSERT
+      WITH CHECK (
+        bucket_id = 'job-permits' AND
+        auth.uid() IS NOT NULL
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
-CREATE POLICY "Users can delete their job permit files"
-  ON storage.objects
-  FOR DELETE
-  USING (
-    bucket_id = 'job-permits' AND
-    auth.uid() IS NOT NULL
-  );
+  BEGIN
+    DROP POLICY IF EXISTS "Users can delete their job permit files" ON storage.objects;
+    CREATE POLICY "Users can delete their job permit files"
+      ON storage.objects
+      FOR DELETE
+      USING (
+        bucket_id = 'job-permits' AND
+        auth.uid() IS NOT NULL
+      );
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
+END;
+$$;
 
 -- Create indexes for better performance
 CREATE INDEX idx_job_permits_job_id ON public.job_permits(job_id);

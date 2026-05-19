@@ -29,6 +29,13 @@ VALUES
 ON CONFLICT (role, menu_item) DO NOTHING;
 
 -- Insert default landing page for vendor role
+WITH seed_actor AS (
+  SELECT user_id
+  FROM profiles
+  WHERE role = 'admin'
+  LIMIT 1
+)
 INSERT INTO role_default_pages (role, default_page, created_by)
-SELECT 'vendor', '/dashboard', (SELECT user_id FROM profiles WHERE role = 'admin' LIMIT 1)
+SELECT 'vendor', '/dashboard', seed_actor.user_id
+FROM seed_actor
 WHERE NOT EXISTS (SELECT 1 FROM role_default_pages WHERE role = 'vendor');

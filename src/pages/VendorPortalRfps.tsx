@@ -12,6 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { useVendorPortalData } from "@/hooks/useVendorPortalData";
 import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
+import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
 import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import RfpPlanPageNoteViewer, { type RfpPlanPageNoteViewerNote } from "@/components/RfpPlanPageNoteViewer";
@@ -316,6 +317,7 @@ export default function VendorPortalRfps() {
   const { id: routeRfpId, sheetId: routeSheetId } = useParams<{ id?: string; sheetId?: string }>();
   const { toast } = useToast();
   const { user, profile } = useAuth();
+  const { vendorId: activeVendorId } = useActiveVendorPortalVendor();
   const { loading, rfps } = useVendorPortalData();
   const { roleCaps } = useVendorPortalAccess();
 
@@ -492,7 +494,7 @@ export default function VendorPortalRfps() {
                 tax_amount,
                 discount_amount
               `)
-              .eq("vendor_id", profile.vendor_id)
+              .eq("vendor_id", activeVendorId)
               .in("rfp_id", rfpIds)
               .order("version_number", { ascending: false })
           : { data: [], error: null };
@@ -923,7 +925,7 @@ export default function VendorPortalRfps() {
   };
 
   const ensureBidRecord = useCallback(async (rfp: DetailedVendorRfp) => {
-    if (!profile?.vendor_id || !rfp.company_id) {
+    if (!activeVendorId || !rfp.company_id) {
       throw new Error("Missing vendor or company context for this RFP.");
     }
 
@@ -935,7 +937,7 @@ export default function VendorPortalRfps() {
       .from("bids")
       .insert({
         rfp_id: rfp.rfp_id,
-        vendor_id: profile.vendor_id,
+        vendor_id: activeVendorId,
         company_id: rfp.company_id,
         bid_amount: 0,
         status: "draft",
@@ -945,7 +947,7 @@ export default function VendorPortalRfps() {
 
     if (error) throw error;
     return String(data.id);
-  }, [profile?.vendor_id]);
+  }, [activeVendorId]);
 
   const loadCommunications = useCallback(async () => {
     if (!selectedDetailRfp?.my_bid?.id) {
@@ -1120,7 +1122,7 @@ export default function VendorPortalRfps() {
           .from("bids")
           .insert({
             rfp_id: selectedRfpForBid.rfp_id,
-            vendor_id: profile.vendor_id,
+            vendor_id: activeVendorId,
             company_id: selectedRfpForBid.company_id,
             bid_amount: amount,
             proposed_timeline: bidForm.proposed_timeline.trim() || null,

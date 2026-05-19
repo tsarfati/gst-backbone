@@ -8,19 +8,39 @@ DROP POLICY IF EXISTS "Public can read punch-photos" ON storage.objects;
 
 -- Ensure authenticated users can read from these buckets based on company membership
 -- Receipts: authenticated users with company access can read
-CREATE POLICY "Authenticated users can read receipts"
-ON storage.objects FOR SELECT
-TO authenticated
-USING (bucket_id = 'receipts');
+DO $$
+BEGIN
+  BEGIN
+    DROP POLICY IF EXISTS "Authenticated users can read receipts" ON storage.objects;
+    CREATE POLICY "Authenticated users can read receipts"
+    ON storage.objects FOR SELECT
+    TO authenticated
+    USING (bucket_id = 'receipts');
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
--- Punch-photos: authenticated users can read
-CREATE POLICY "Authenticated users can read punch-photos"
-ON storage.objects FOR SELECT
-TO authenticated
-USING (bucket_id = 'punch-photos');
+  BEGIN
+    DROP POLICY IF EXISTS "Authenticated users can read punch-photos" ON storage.objects;
+    CREATE POLICY "Authenticated users can read punch-photos"
+    ON storage.objects FOR SELECT
+    TO authenticated
+    USING (bucket_id = 'punch-photos');
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
 
--- Credit-card-attachments: authenticated users can read
-CREATE POLICY "Authenticated users can read credit-card-attachments"
-ON storage.objects FOR SELECT
-TO authenticated
-USING (bucket_id = 'credit-card-attachments');
+  BEGIN
+    DROP POLICY IF EXISTS "Authenticated users can read credit-card-attachments" ON storage.objects;
+    CREATE POLICY "Authenticated users can read credit-card-attachments"
+    ON storage.objects FOR SELECT
+    TO authenticated
+    USING (bucket_id = 'credit-card-attachments');
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
+END;
+$$;

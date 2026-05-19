@@ -7,10 +7,21 @@ SET amount = 2160.00,
 WHERE id = 'fa4734e1-2368-4b64-8482-58dc95fe4e95';
 
 -- Create distribution records for the merged bill
-INSERT INTO invoice_cost_distributions (invoice_id, cost_code_id, amount, percentage)
-VALUES 
-  ('fa4734e1-2368-4b64-8482-58dc95fe4e95', 'e62ea3e1-977a-44c9-bb87-78678dcd7009', 1080.00, 50),
-  ('fa4734e1-2368-4b64-8482-58dc95fe4e95', '0f47ca8a-9a3e-4940-af27-e611b0d4a40a', 1080.00, 50);
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM invoices
+    WHERE id = 'fa4734e1-2368-4b64-8482-58dc95fe4e95'
+  ) THEN
+    INSERT INTO invoice_cost_distributions (invoice_id, cost_code_id, amount, percentage)
+    VALUES 
+      ('fa4734e1-2368-4b64-8482-58dc95fe4e95', 'e62ea3e1-977a-44c9-bb87-78678dcd7009', 1080.00, 50),
+      ('fa4734e1-2368-4b64-8482-58dc95fe4e95', '0f47ca8a-9a3e-4940-af27-e611b0d4a40a', 1080.00, 50)
+    ON CONFLICT DO NOTHING;
+  END IF;
+END;
+$$;
 
 -- Move the document to the first invoice (if not already there)
 UPDATE invoice_documents 

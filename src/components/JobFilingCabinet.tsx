@@ -25,6 +25,7 @@ import FileShareModal from "./FileShareModal";
 import FileCabinetPreviewModal from "./FileCabinetPreviewModal";
 import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 import { useMenuPermissions } from "@/hooks/useMenuPermissions";
+import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
 
 interface Folder {
   id: string;
@@ -86,6 +87,7 @@ const formatDateTime = (value?: string | null) => {
 export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const { currentCompany } = useCompany();
   const { user, profile } = useAuth();
+  const { vendorId: activeVendorId } = useActiveVendorPortalVendor();
   const { toast } = useToast();
   const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
 
@@ -195,7 +197,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
       };
     }
 
-    if (!profile?.vendor_id) {
+    if (!activeVendorId) {
       const denied = {
         allowed: false,
         accessLevel: "view_only" as const,
@@ -217,7 +219,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
         allowed_filing_cabinet_folder_ids,
         allowed_filing_cabinet_file_ids
       `)
-      .eq('vendor_id', profile.vendor_id)
+      .eq('vendor_id', activeVendorId)
       .eq('job_id', jobId)
       .maybeSingle();
 
@@ -242,7 +244,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
     };
     setVendorCabinetAccess({ loading: false, ...resolved });
     return resolved;
-  }, [isVendorPortalUser, profile?.vendor_id, jobId]);
+  }, [isVendorPortalUser, activeVendorId, jobId]);
 
   const loadFolders = useCallback(async (access?: { allowedFolderIds: string[] | null; allowed: boolean }) => {
     if (!companyId) return;

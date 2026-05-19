@@ -1,10 +1,17 @@
 -- Insert Axria customer (using first admin user as created_by)
+WITH seed_actor AS (
+  SELECT user_id
+  FROM public.profiles
+  WHERE role = 'admin'
+  LIMIT 1
+)
 INSERT INTO public.customers (company_id, name, display_name, created_by) 
 SELECT 
   'f64fff8d-16f4-4a07-81b3-e470d7e2d560', 
   'Axria', 
   'Axria',
-  (SELECT user_id FROM public.profiles WHERE role = 'admin' LIMIT 1)
+  seed_actor.user_id
+FROM seed_actor
 WHERE NOT EXISTS (
   SELECT 1 FROM public.customers WHERE name = 'Axria' AND company_id = 'f64fff8d-16f4-4a07-81b3-e470d7e2d560'
 );

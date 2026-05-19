@@ -14,8 +14,20 @@ DELETE FROM cost_codes
 WHERE company_id = 'bb37e820-68d3-41f4-af72-596a5bc30d93';
 
 -- Delete chart of accounts
-DELETE FROM chart_of_accounts 
-WHERE company_id = 'bb37e820-68d3-41f4-af72-596a5bc30d93';
+DO $$
+BEGIN
+  IF EXISTS (
+    SELECT 1
+    FROM information_schema.columns
+    WHERE table_schema = 'public'
+      AND table_name = 'chart_of_accounts'
+      AND column_name = 'company_id'
+  ) THEN
+    DELETE FROM chart_of_accounts 
+    WHERE company_id = 'bb37e820-68d3-41f4-af72-596a5bc30d93';
+  END IF;
+END;
+$$;
 
 -- Delete user company access
 DELETE FROM user_company_access 

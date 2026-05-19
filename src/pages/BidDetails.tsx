@@ -400,8 +400,17 @@ export default function BidDetails() {
         return;
       }
 
-      if (bidData.vendor?.logo_url) {
-        const logoDisplayUrl = await resolveStorageUrl("receipts", bidData.vendor.logo_url as unknown as string);
+      const vendorLogoPromise = bidData.vendor?.logo_url
+        ? resolveStorageUrl("receipts", bidData.vendor.logo_url as unknown as string)
+        : Promise.resolve<string | null>(null);
+
+      const [
+        logoDisplayUrl,
+      ] = await Promise.all([
+        vendorLogoPromise,
+      ]);
+
+      if (logoDisplayUrl && bidData.vendor) {
         bidData.vendor = {
           ...bidData.vendor,
           logo_display_url: logoDisplayUrl,
@@ -425,9 +434,11 @@ export default function BidDetails() {
         comparison_notes: bidData.comparison_notes || "",
       });
 
-      await loadCommunications(bidData.id, bidData.vendor_id);
-      await loadBidEmails(bidData.id);
-      await loadAttachments(bidData.id);
+      await Promise.all([
+        loadCommunications(bidData.id, bidData.vendor_id),
+        loadBidEmails(bidData.id),
+        loadAttachments(bidData.id),
+      ]);
     } catch (error) {
       console.error("Error loading bid:", error);
       toast({ title: "Error", description: "Failed to load bid details", variant: "destructive" });

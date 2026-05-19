@@ -29,23 +29,17 @@ import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import DemoRequest from "@/pages/DemoRequest";
 import TaskDetails from "@/pages/TaskDetails";
 
-import Dashboard from "./pages/Dashboard";
 import UploadReceipts from "./pages/UploadReceipts";
 import UncodedReceipts from "./pages/UncodedReceipts";
-import Jobs from "./pages/Jobs";
-import JobDetails from "./pages/JobDetails";
 import JobEdit from "./pages/JobEdit";
 import JobBudget from "./pages/JobBudget";
 import DeliveryTickets from "./pages/DeliveryTickets";
-import Vendors from "./pages/Vendors";
 import VendorDetails from "./pages/VendorDetails";
 import VendorEdit from "./pages/VendorEdit";
 import VendorReports from "./pages/VendorReports";
 import UserEdit from "./pages/UserEdit";
 import UserDetails from "./pages/UserDetails";
 import AppSettings from "./pages/AppSettings";
-import UserSettings from "./pages/UserSettings";
-import Bills from "./pages/Bills";
 import Auth from "./pages/Auth";
 import NotFound from "./pages/NotFound";
 import AllEmployees from "./pages/AllEmployees";
@@ -58,21 +52,17 @@ import EmployeeQRCardsReport from "./pages/reports/EmployeeQRCardsReport";
 import PunchClockAttemptAuditReport from "./pages/reports/PunchClockAttemptAuditReport";
 
 import TimeSheets from "./pages/TimeSheets";
-import TimecardReports from "./pages/TimecardReports";
 import PunchClockSettings from "./pages/PunchClockSettings";
 import AllMessages from "./pages/AllMessages";
-import PlanViewer from "./pages/PlanViewer";
 import TeamChat from "./pages/TeamChat";
 import Announcements from "./pages/Announcements";
 import AllTasks from "./pages/AllTasks";
 import CalendarPage from "./pages/CalendarPage";
-import BillDetails from "./pages/BillDetails";
 import BillEdit from "./pages/BillEdit";
 import PaymentHistory from "./pages/PaymentHistory";
 import PaymentDetails from "./pages/PaymentDetails";
 import PaymentEdit from "./pages/PaymentEdit";
 import PaymentReports from "./pages/PaymentReports";
-import CreditCardTransactionReport from "./pages/CreditCardTransactionReport";
 import GeneralLedger from "./pages/GeneralLedger";
 import AddBill from "./pages/AddBill";
 import AddJob from "./pages/AddJob";
@@ -102,7 +92,6 @@ import SubcontractDetails from "./pages/SubcontractDetails";
 import SubcontractEdit from "./pages/SubcontractEdit";
 import AddChangeOrder from "./pages/AddChangeOrder";
 import JobReports from "./pages/JobReports";
-import CompanyFiles from "./pages/CompanyFiles";
 import CompanyContracts from "./pages/CompanyContracts";
 import CompanyPermits from "./pages/CompanyPermits";
 import CompanyInsurance from "./pages/CompanyInsurance";
@@ -115,7 +104,6 @@ import CreditCardDetails from "./pages/CreditCardDetails";
 import CreditCardEdit from "./pages/CreditCardEdit";
 import CreditCardTransactions from "./pages/CreditCardTransactions";
 import CreditCardMakePayment from "./pages/CreditCardMakePayment";
-import BankingReports from "./pages/BankingReports";
 import BalanceSheet from "./pages/BalanceSheet";
 import JournalEntries from "./pages/JournalEntries";
 import JournalEntryDetails from "./pages/JournalEntryDetails";
@@ -131,13 +119,9 @@ import AddBankAccount from "./pages/AddBankAccount";
 import AddCreditCard from "./pages/AddCreditCard";
 import NewJournalEntry from "./pages/NewJournalEntry";
 import ConstructionDashboard from "./pages/ConstructionDashboard";
-import ConstructionReports from "./pages/ConstructionReports";
-import RFPs from "./pages/RFPs";
 import AddRFP from "./pages/AddRFP";
-import RFPDetails from "./pages/RFPDetails";
 import BidComparison from "./pages/BidComparison";
 import AddBid from "./pages/AddBid";
-import BidDetails from "./pages/BidDetails";
 import ConstructionSubmittals from "./pages/ConstructionSubmittals";
 import AddScoringCriterion from "./pages/AddScoringCriterion";
 import ProjectCostTransactionHistory from "./pages/reports/ProjectCostTransactionHistory";
@@ -146,7 +130,6 @@ import SubcontractSummaryReport from "./pages/reports/SubcontractSummaryReport";
 import SubcontractDetailsByVendor from "./pages/reports/SubcontractDetailsByVendor";
 import ProjectCostBudgetStatus from "./pages/reports/ProjectCostBudgetStatus";
 import CommittedCostDetails from "./pages/reports/CommittedCostDetails";
-import APAgingByJobReport from "./pages/reports/APAgingByJobReport";
 
 import ManualPunchOut from "./pages/ManualPunchOut";
 import ManualTimeEntry from "./pages/ManualTimeEntry";
@@ -155,7 +138,6 @@ import CustomerDetails from "./pages/CustomerDetails";
 import CustomerEdit from "./pages/CustomerEdit";
 import ARInvoices from "./pages/ARInvoices";
 import ARPayments from "./pages/ARPayments";
-import ReceivablesReports from "./pages/ReceivablesReports";
 import ReceivablesDashboard from "./pages/ReceivablesDashboard";
 import AddARInvoice from "./pages/AddARInvoice";
 import ARInvoiceDetails from "./pages/ARInvoiceDetails";
@@ -172,6 +154,7 @@ import VendorPortalRfps from "./pages/VendorPortalRfps";
 import VendorPortalCompliance from "./pages/VendorPortalCompliance";
 import VendorPortalSettings from "./pages/VendorPortalSettings";
 import VendorPortalMessages from "./pages/VendorPortalMessages";
+import VendorPortalChooser from "./pages/VendorPortalChooser";
 import DesignProfessionalDashboard from "./pages/DesignProfessionalDashboard";
 import DesignProfessionalJobs from "./pages/DesignProfessionalJobs";
 import DesignProfessionalCompanySettings from "./pages/DesignProfessionalCompanySettings";
@@ -189,6 +172,28 @@ import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
+import { getAuthEntryContext } from "@/utils/authEntryContext";
+
+const LazyTimecardReports = React.lazy(() => import("./pages/TimecardReports"));
+const LazyPlanViewer = React.lazy(() => import("./pages/PlanViewer"));
+const LazyBillDetails = React.lazy(() => import("./pages/BillDetails"));
+const LazyCreditCardTransactionReport = React.lazy(() => import("./pages/CreditCardTransactionReport"));
+const LazyCompanyFiles = React.lazy(() => import("./pages/CompanyFiles"));
+const LazyBankingReports = React.lazy(() => import("./pages/BankingReports"));
+const LazyConstructionReports = React.lazy(() => import("./pages/ConstructionReports"));
+const LazyRFPDetails = React.lazy(() => import("./pages/RFPDetails"));
+const LazyBidDetails = React.lazy(() => import("./pages/BidDetails"));
+const LazyAPAgingByJobReport = React.lazy(() => import("./pages/reports/APAgingByJobReport"));
+const LazyReceivablesReports = React.lazy(() => import("./pages/ReceivablesReports"));
+const LazyDashboard = React.lazy(() => import("./pages/Dashboard"));
+const LazyConstructionDashboard = React.lazy(() => import("./pages/ConstructionDashboard"));
+const LazyJobs = React.lazy(() => import("./pages/Jobs"));
+const LazyJobDetails = React.lazy(() => import("./pages/JobDetails"));
+const LazyVendors = React.lazy(() => import("./pages/Vendors"));
+const LazyBills = React.lazy(() => import("./pages/Bills"));
+const LazyUserSettings = React.lazy(() => import("./pages/UserSettings"));
+const LazyCompanySettingsPage = React.lazy(() => import("./pages/CompanySettingsPage"));
+const LazyRFPs = React.lazy(() => import("./pages/RFPs"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -198,6 +203,14 @@ const queryClient = new QueryClient({
     },
   },
 });
+
+function RouteSuspense({ children, text = "Loading page..." }: { children: React.ReactNode; text?: string }) {
+  return (
+    <React.Suspense fallback={<PremiumLoadingScreen text={text} />}>
+      {children}
+    </React.Suspense>
+  );
+}
 
 // Protected Route Component that must be inside AuthProvider
 function ProtectedRoute({ children }: { children: React.ReactNode }) {
@@ -217,6 +230,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
 function DashboardEntryRoute() {
   const { user, profile } = useAuth();
   const { currentCompany, userCompanies, loading: companyLoading } = useCompany();
+  const location = useLocation();
   const [resolvedExternalRole, setResolvedExternalRole] = React.useState<'vendor' | 'design_professional' | null>(null);
   const [resolvingExternalRole, setResolvingExternalRole] = React.useState(false);
   const role = String(profile?.role || '').toLowerCase();
@@ -227,7 +241,20 @@ function DashboardEntryRoute() {
     !!authMetadata.vendor_id ||
     authMetadata.is_vendor === true ||
     authMetadata.is_vendor === 'true';
+  const authEntryContext = getAuthEntryContext();
+  const onExternalPortalPath =
+    location.pathname.startsWith('/vendor') ||
+    location.pathname.startsWith('/design-professional');
   const companyAccessRole = userCompanies.length === 1 ? String(userCompanies[0]?.role || '').toLowerCase() : '';
+  const hasInternalWorkspace =
+    currentCompanyType === 'construction' ||
+    userCompanies.some((company) => {
+      const companyRole = String(company.role || '').toLowerCase();
+      return companyRole !== 'vendor' && companyRole !== 'design_professional';
+    }) ||
+    ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(role);
+  const shouldPreferVendorPortal =
+    authEntryContext === 'vendor' && (!hasInternalWorkspace || onExternalPortalPath);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -239,8 +266,14 @@ function DashboardEntryRoute() {
         return;
       }
 
+      if (authEntryContext === 'builder') {
+        setResolvedExternalRole(null);
+        setResolvingExternalRole(false);
+        return;
+      }
+
       const directRole =
-        role === 'vendor' || role === 'design_professional'
+        (role === 'vendor' || role === 'design_professional') && (!hasInternalWorkspace || shouldPreferVendorPortal)
           ? (role as 'vendor' | 'design_professional')
           : null;
       if (directRole) {
@@ -249,26 +282,32 @@ function DashboardEntryRoute() {
         return;
       }
 
-      if (currentCompanyType === 'vendor') {
+      if (currentCompanyType === 'vendor' && !hasInternalWorkspace) {
         setResolvedExternalRole('vendor');
         setResolvingExternalRole(false);
         return;
       }
 
-      if (currentCompanyType === 'design_professional') {
+      if (currentCompanyType === 'design_professional' && !hasInternalWorkspace) {
         setResolvedExternalRole('design_professional');
         setResolvingExternalRole(false);
         return;
       }
 
-      if (companyAccessRole === 'vendor' || companyAccessRole === 'design_professional') {
+      if ((companyAccessRole === 'vendor' || companyAccessRole === 'design_professional') && !hasInternalWorkspace) {
         setResolvedExternalRole(companyAccessRole as 'vendor' | 'design_professional');
         setResolvingExternalRole(false);
         return;
       }
 
-      if (hasVendorIdentity) {
+      if (hasVendorIdentity && !hasInternalWorkspace) {
         setResolvedExternalRole('vendor');
+        setResolvingExternalRole(false);
+        return;
+      }
+
+      if ((!shouldPreferVendorPortal || authEntryContext === 'builder') && hasInternalWorkspace) {
+        setResolvedExternalRole(null);
         setResolvingExternalRole(false);
         return;
       }
@@ -326,7 +365,7 @@ function DashboardEntryRoute() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, role, currentCompanyType, companyAccessRole, hasVendorIdentity]);
+  }, [user?.id, role, currentCompanyType, companyAccessRole, hasVendorIdentity, hasInternalWorkspace, authEntryContext, shouldPreferVendorPortal]);
 
   if (companyLoading || resolvingExternalRole) {
     return <PremiumLoadingScreen text="Loading your workspace..." />;
@@ -336,10 +375,14 @@ function DashboardEntryRoute() {
     return <Navigate to="/design-professional/dashboard" replace />;
   }
   if (resolvedExternalRole === 'vendor') {
-    return <Navigate to="/vendor/dashboard" replace />;
+    return <Navigate to={authEntryContext === 'vendor' ? "/vendor/dashboard" : "/vendor/select"} replace />;
   }
 
-  return <Dashboard />;
+  return (
+    <RouteSuspense text="Loading dashboard...">
+      <LazyDashboard />
+    </RouteSuspense>
+  );
 }
 
 function OrganizationOwnerRoute({ children }: { children: React.ReactNode }) {
@@ -551,6 +594,11 @@ function AuthenticatedRoutes() {
               <Route path="dashboard" element={<DashboardEntryRoute />} />
               <Route path="design-professional-dashboard" element={<Navigate to="/design-professional/dashboard" replace />} />
               <Route path="vendor-dashboard" element={<Navigate to="/vendor/dashboard" replace />} />
+              <Route path="vendor/select" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <VendorPortalChooser />
+                </RoleGuard>
+              } />
               <Route path="vendor/dashboard" element={
                 <RoleGuard allowedRoles={['vendor']}>
                   <VendorPortalDashboard />
@@ -563,7 +611,9 @@ function AuthenticatedRoutes() {
               } />
               <Route path="vendor/jobs/:id" element={
                 <RoleGuard allowedRoles={['vendor']}>
-                  <JobDetails />
+                  <RouteSuspense text="Loading job...">
+                    <LazyJobDetails />
+                  </RouteSuspense>
                 </RoleGuard>
               } />
               <Route path="vendor/bills" element={
@@ -653,7 +703,9 @@ function AuthenticatedRoutes() {
               } />
               <Route path="design-professional/jobs/:id" element={
                 <RoleGuard allowedRoles={['design_professional']}>
-                  <JobDetails />
+                  <RouteSuspense text="Loading job...">
+                    <LazyJobDetails />
+                  </RouteSuspense>
                 </RoleGuard>
               } />
               <Route path="design-professional/jobs/rfis" element={
@@ -708,11 +760,17 @@ function AuthenticatedRoutes() {
                   </MenuPermissionRoute>
                 } />
               </Route>
-              <Route path="construction/dashboard" element={<ConstructionDashboard />} />
+              <Route path="construction/dashboard" element={
+                <RouteSuspense text="Loading dashboard...">
+                  <LazyConstructionDashboard />
+                </RouteSuspense>
+              } />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
                 <Route path="construction/reports" element={
                   <MenuPermissionRoute menuKey="construction-reports-view">
-                    <ConstructionReports />
+                    <RouteSuspense text="Loading report center...">
+                      <LazyConstructionReports />
+                    </RouteSuspense>
                   </MenuPermissionRoute>
                 } />
                 <Route path="construction/reports/cost-history" element={
@@ -747,23 +805,41 @@ function AuthenticatedRoutes() {
                 } />
                 <Route path="construction/reports/ap-aging-by-job" element={
                   <MenuPermissionRoute menuKey="construction-reports-ap-aging-by-job-view" fallbackMenuKeys={["construction-reports-view"]}>
-                    <APAgingByJobReport />
+                    <RouteSuspense text="Loading AP aging report...">
+                      <LazyAPAgingByJobReport />
+                    </RouteSuspense>
                   </MenuPermissionRoute>
                 } />
               </Route>
-              <Route path="construction/rfps" element={<RFPs />} />
+              <Route path="construction/rfps" element={
+                <RouteSuspense text="Loading RFPs...">
+                  <LazyRFPs />
+                </RouteSuspense>
+              } />
               <Route path="construction/submittals" element={<ConstructionSubmittals />} />
               <Route path="construction/rfps/add" element={<AddRFP />} />
-              <Route path="construction/rfps/:id" element={<RFPDetails />} />
+              <Route path="construction/rfps/:id" element={
+                <RouteSuspense text="Loading RFP...">
+                  <LazyRFPDetails />
+                </RouteSuspense>
+              } />
               <Route path="construction/rfps/:id/edit" element={<AddRFP />} />
               <Route path="construction/rfps/:id/compare" element={<BidComparison />} />
               <Route path="construction/rfps/:rfpId/bids/add" element={<AddBid />} />
-              <Route path="construction/bids/:id" element={<BidDetails />} />
+              <Route path="construction/bids/:id" element={
+                <RouteSuspense text="Loading bid...">
+                  <LazyBidDetails />
+                </RouteSuspense>
+              } />
               <Route path="construction/rfps/:rfpId/criteria/add" element={<AddScoringCriterion />} />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
                 <Route path="reports/project-cost-transaction-history" element={<ProjectCostTransactionHistory />} />
               </Route>
-              <Route path="jobs" element={<Jobs />} />
+              <Route path="jobs" element={
+                <RouteSuspense text="Loading jobs...">
+                  <LazyJobs />
+                </RouteSuspense>
+              } />
               <Route path="jobs/add" element={<AddJob />} />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
                 <Route path="jobs/cost-codes" element={<CostCodes />} />
@@ -771,26 +847,42 @@ function AuthenticatedRoutes() {
                 <Route path="jobs/cost-setup" element={<JobCostSetup />} />
                 <Route path="jobs/reports" element={<JobReports />} />
               </Route>
-              <Route path="jobs/:id" element={<JobDetails />} />
+              <Route path="jobs/:id" element={
+                <RouteSuspense text="Loading job...">
+                  <LazyJobDetails />
+                </RouteSuspense>
+              } />
               <Route path="jobs/:id/edit" element={<JobEdit />} />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
                 <Route path="jobs/:id/cost-budget" element={<JobCostBudget />} />
                 <Route path="jobs/:id/budget" element={<JobBudget />} />
               </Route>
-              <Route path="plans/:planId" element={<PlanViewer />} />
+              <Route path="plans/:planId" element={
+                <RouteSuspense text="Loading plan viewer...">
+                  <LazyPlanViewer />
+                </RouteSuspense>
+              } />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
                 <Route path="delivery-tickets" element={<DeliveryTickets />} />
                 <Route path="jobs/:jobId/delivery-tickets" element={<DeliveryTickets />} />
               </Route>
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
-                <Route path="vendors" element={<Vendors />} />
+                <Route path="vendors" element={
+                  <RouteSuspense text="Loading vendors...">
+                    <LazyVendors />
+                  </RouteSuspense>
+                } />
                 <Route path="vendors/add" element={<VendorEdit />} />
                 <Route path="vendors/reports" element={<VendorReports />} />
                 <Route path="vendors/:id" element={<VendorDetails />} />
                 <Route path="vendors/:id/edit" element={<VendorEdit />} />
               </Route>
               <Route path="settings" element={<Navigate to="/settings/company?tab=overview" replace />} />
-              <Route path="settings/company" element={<CompanySettingsPage />} />
+              <Route path="settings/company" element={
+                <RouteSuspense text="Loading settings...">
+                  <LazyCompanySettingsPage />
+                </RouteSuspense>
+              } />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/settings/company" />}>
                 <Route path="settings/company/chart-of-accounts" element={<ChartOfAccounts />} />
                 <Route path="settings/company/job-cost-setup" element={<JobCostSetupStandalone />} />
@@ -815,7 +907,11 @@ function AuthenticatedRoutes() {
               <Route path="theme-settings" element={<ThemeSettings />} />
               
               <Route path="profile-settings" element={<ProfileSettings />} />
-              <Route path="settings/users" element={<UserSettings />} />
+              <Route path="settings/users" element={
+                <RouteSuspense text="Loading users...">
+                  <LazyUserSettings />
+                </RouteSuspense>
+              } />
               <Route path="settings/users/:userId" element={<UserDetails />} />
               <Route path="settings/users/:userId/edit" element={<UserEdit />} />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
@@ -867,7 +963,9 @@ function AuthenticatedRoutes() {
                 <Route path="punch-clock/reports" element={
                   <PunchClockFeatureRoute>
                     <MenuPermissionRoute menuKey="timecard-reports-view">
-                      <TimecardReports />
+                      <RouteSuspense text="Loading timecard reports...">
+                        <LazyTimecardReports />
+                      </RouteSuspense>
                     </MenuPermissionRoute>
                   </PunchClockFeatureRoute>
                 } />
@@ -893,7 +991,9 @@ function AuthenticatedRoutes() {
                 <Route path="bills/add" element={<Navigate to="/invoices/add" replace />} />
                 <Route path="bills/:id" element={
                   <MenuPermissionRoute menuKey="bills-view" fallbackMenuKeys={['bills']}>
-                    <BillDetails />
+                    <RouteSuspense text="Loading bill...">
+                      <LazyBillDetails />
+                    </RouteSuspense>
                   </MenuPermissionRoute>
                 } />
                 <Route path="bills/:id/edit" element={
@@ -913,7 +1013,11 @@ function AuthenticatedRoutes() {
                     <PaymentReports />
                   </MenuPermissionRoute>
                 } />
-                <Route path="bills/credit-card-transaction-report" element={<CreditCardTransactionReport />} />
+                <Route path="bills/credit-card-transaction-report" element={
+                  <RouteSuspense text="Loading credit card report...">
+                    <LazyCreditCardTransactionReport />
+                  </RouteSuspense>
+                } />
                 <Route path="payables/payment-history" element={<PaymentHistory />} />
                 <Route path="payables/payments/:id" element={<PaymentDetails />} />
                 <Route path="payables/payments/:id/edit" element={
@@ -941,11 +1045,17 @@ function AuthenticatedRoutes() {
                 <Route path="purchase-orders" element={<PurchaseOrders />} />
                 <Route path="purchase-orders/add" element={<AddPurchaseOrder />} />
                 {/* Legacy routes for backwards compatibility */}
-                <Route path="invoices" element={<Bills />} />
+                <Route path="invoices" element={
+                  <RouteSuspense text="Loading bills...">
+                    <LazyBills />
+                  </RouteSuspense>
+                } />
                 <Route path="invoices/add" element={<AddBill />} />
                 <Route path="invoices/:id" element={
                   <MenuPermissionRoute menuKey="bills-view" fallbackMenuKeys={['bills']}>
-                    <BillDetails />
+                    <RouteSuspense text="Loading bill...">
+                      <LazyBillDetails />
+                    </RouteSuspense>
                   </MenuPermissionRoute>
                 } />
                 <Route path="invoices/:id/edit" element={
@@ -960,22 +1070,40 @@ function AuthenticatedRoutes() {
                   </MenuPermissionRoute>
                 } />
               </Route>
-              <Route path="company-files" element={<CompanyFiles />} />
-              <Route path="company-files/jobs" element={<CompanyFiles />} />
-              <Route path="company-files/dropbox" element={<CompanyFiles />} />
+              <Route path="company-files" element={
+                <RouteSuspense text="Loading files...">
+                  <LazyCompanyFiles />
+                </RouteSuspense>
+              } />
+              <Route path="company-files/jobs" element={
+                <RouteSuspense text="Loading files...">
+                  <LazyCompanyFiles />
+                </RouteSuspense>
+              } />
+              <Route path="company-files/dropbox" element={
+                <RouteSuspense text="Loading files...">
+                  <LazyCompanyFiles />
+                </RouteSuspense>
+              } />
               <Route path="design-professional/company-files" element={
                 <RoleGuard allowedRoles={['design_professional']}>
-                  <CompanyFiles />
+                  <RouteSuspense text="Loading files...">
+                    <LazyCompanyFiles />
+                  </RouteSuspense>
                 </RoleGuard>
               } />
               <Route path="design-professional/company-files/jobs" element={
                 <RoleGuard allowedRoles={['design_professional']}>
-                  <CompanyFiles />
+                  <RouteSuspense text="Loading files...">
+                    <LazyCompanyFiles />
+                  </RouteSuspense>
                 </RoleGuard>
               } />
               <Route path="design-professional/company-files/dropbox" element={
                 <RoleGuard allowedRoles={['design_professional']}>
-                  <CompanyFiles />
+                  <RouteSuspense text="Loading files...">
+                    <LazyCompanyFiles />
+                  </RouteSuspense>
                 </RoleGuard>
               } />
               <Route path="company-files/contracts" element={<CompanyContracts />} />
@@ -996,7 +1124,9 @@ function AuthenticatedRoutes() {
                 <Route path="payables/credit-cards/:id/make-payment" element={<CreditCardMakePayment />} />
                 <Route path="banking/reports" element={
                   <MenuPermissionRoute menuKey="banking-reports-view">
-                    <BankingReports />
+                    <RouteSuspense text="Loading banking reports...">
+                      <LazyBankingReports />
+                    </RouteSuspense>
                   </MenuPermissionRoute>
                 } />
                 <Route path="banking/balance-sheet" element={
@@ -1034,7 +1164,9 @@ function AuthenticatedRoutes() {
                 <Route path="receivables/payments" element={<ARPayments />} />
                 <Route path="receivables/reports" element={
                   <MenuPermissionRoute menuKey="receivables-reports-view">
-                    <ReceivablesReports />
+                    <RouteSuspense text="Loading receivables reports...">
+                      <LazyReceivablesReports />
+                    </RouteSuspense>
                   </MenuPermissionRoute>
                 } />
               </Route>

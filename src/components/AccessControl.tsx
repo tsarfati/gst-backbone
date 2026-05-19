@@ -7,6 +7,7 @@ import { AccountStatusScreen } from '@/components/AccountStatusScreen';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import { supabase } from '@/integrations/supabase/client';
 import { useSettings } from '@/contexts/SettingsContext';
+import { getAuthEntryContext } from '@/utils/authEntryContext';
 
 interface AccessControlProps {
   children: React.ReactNode;
@@ -62,15 +63,35 @@ export function AccessControl({ children }: AccessControlProps) {
   const inviteAutoAcceptFlag = typeof window !== 'undefined'
     ? window.sessionStorage.getItem('pending_invite_auto_accept') === '1'
     : false;
+  const authEntryContext = getAuthEntryContext();
+  const onExternalPortalPath =
+    location.pathname.startsWith('/vendor') ||
+    location.pathname.startsWith('/design-professional');
   const role = String(profile?.role || '').toLowerCase();
   const vendorPortalRole = String((profile as any)?.vendor_portal_role || '').toLowerCase();
   const hasVendorIdentity = !!(profile as any)?.vendor_id || ['owner', 'admin', 'basic_user'].includes(vendorPortalRole);
+  const hasInternalWorkspace =
+    userCompanies.some((company) => {
+      const companyRole = String(company.role || '').toLowerCase();
+      return companyRole !== 'vendor' && companyRole !== 'design_professional';
+    }) ||
+    ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(role);
   const externalRequestedRole = externalPortalContext.requestedRole;
   const effectiveExternalRole =
     role === 'vendor' || role === 'design_professional'
       ? role
       : externalRequestedRole;
-  const isExternalUser = role === 'vendor' || role === 'design_professional' || hasVendorIdentity || !!externalRequestedRole;
+  const shouldPreferVendorPortal =
+    authEntryContext === 'vendor' &&
+    (onExternalPortalPath || !hasInternalWorkspace) &&
+    (!!externalRequestedRole || role === 'vendor' || role === 'design_professional');
+  const isExternalUser =
+    authEntryContext === 'builder'
+      ? false
+      : (role === 'vendor' && (!hasInternalWorkspace || shouldPreferVendorPortal)) ||
+        (role === 'design_professional' && (!hasInternalWorkspace || shouldPreferVendorPortal)) ||
+        (!!externalRequestedRole && !hasInternalWorkspace) ||
+        (hasVendorIdentity && !hasInternalWorkspace);
   const hasCompanyLinkContext =
     !!profile?.current_company_id ||
     !!(profile as any)?.default_company_id ||
@@ -409,10 +430,18 @@ export function AccessControl({ children }: AccessControlProps) {
     if (isExternalUser) {
       const allowExternal =
         location.pathname === '/profile-settings' ||
+        location.pathname.startsWith('/vendor/select') ||
         location.pathname.startsWith('/vendor/') ||
         location.pathname.startsWith('/design-professional/');
       if (!allowExternal) {
-        navigate(effectiveExternalRole === 'design_professional' ? '/design-professional/dashboard' : '/vendor/dashboard', { replace: true });
+        navigate(
+          effectiveExternalRole === 'design_professional'
+            ? '/design-professional/dashboard'
+            : authEntryContext === 'vendor'
+              ? '/vendor/dashboard'
+              : '/vendor/select',
+          { replace: true },
+        );
         return;
       }
     }

@@ -4,6 +4,7 @@ import { uploadFileWithProgress } from "@/utils/storageUtils";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
+import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
 
 export interface VendorPortalCompanySummary {
   id: string;
@@ -191,15 +192,7 @@ export function useVendorPortalData() {
   });
 
   const authMetadata = (user?.user_metadata || {}) as Record<string, any>;
-  const effectiveVendorId = useMemo(
-    () =>
-      String(
-        profile?.vendor_id ||
-        authMetadata.vendor_id ||
-        '',
-      ).trim() || null,
-    [profile?.vendor_id, authMetadata.vendor_id],
-  );
+  const { vendorId: effectiveVendorId, loading: vendorContextLoading } = useActiveVendorPortalVendor();
   const authDeclaresVendor = authMetadata.is_vendor === true || authMetadata.is_vendor === 'true';
 
   const isVendorUser = useMemo(
@@ -216,6 +209,11 @@ export function useVendorPortalData() {
   }, [effectiveVendorId]);
 
   const reload = useCallback(async () => {
+    if (vendorContextLoading) {
+      setLoading(true);
+      return;
+    }
+
     if (!effectiveVendorId) {
       setVendorInfo(null);
       setJobs([]);
@@ -550,7 +548,7 @@ export function useVendorPortalData() {
     } finally {
       setLoading(false);
     }
-  }, [effectiveVendorId, currentCompany?.logo_url]);
+  }, [effectiveVendorId, currentCompany?.logo_url, vendorContextLoading]);
 
   useEffect(() => {
     void reload();
@@ -576,8 +574,17 @@ export function useVendorPortalData() {
       .update(payload)
       .eq("id", effectiveVendorId);
     if (error) throw error;
-    await syncLinkedBuilderVendorRecords();
     await reload();
+    try {
+      await syncLinkedBuilderVendorRecords();
+      await reload();
+      return { syncWarning: null as string | null };
+    } catch (error: any) {
+      console.warn("Vendor settings saved, but linked vendor sync failed:", error);
+      return {
+        syncWarning: error?.message || "Linked vendor records could not be synced right now.",
+      };
+    }
   }, [effectiveVendorId, settingsForm, syncLinkedBuilderVendorRecords, reload]);
 
   const savePaymentSettings = useCallback(async (next: {

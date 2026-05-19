@@ -140,11 +140,29 @@ INSERT INTO storage.buckets (id, name, public) VALUES ('task-attachments', 'task
 ON CONFLICT (id) DO NOTHING;
 
 -- Storage policies for task attachments
-CREATE POLICY "Users can view task attachment files" ON storage.objects
-  FOR SELECT USING (bucket_id = 'task-attachments');
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "Users can view task attachment files" ON storage.objects;
+  CREATE POLICY "Users can view task attachment files" ON storage.objects
+    FOR SELECT USING (bucket_id = 'task-attachments');
+EXCEPTION
+  WHEN duplicate_object OR insufficient_privilege THEN NULL;
+END $$;
 
-CREATE POLICY "Users can upload task attachment files" ON storage.objects
-  FOR INSERT WITH CHECK (bucket_id = 'task-attachments' AND auth.uid() IS NOT NULL);
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "Users can upload task attachment files" ON storage.objects;
+  CREATE POLICY "Users can upload task attachment files" ON storage.objects
+    FOR INSERT WITH CHECK (bucket_id = 'task-attachments' AND auth.uid() IS NOT NULL);
+EXCEPTION
+  WHEN duplicate_object OR insufficient_privilege THEN NULL;
+END $$;
 
-CREATE POLICY "Users can delete task attachment files" ON storage.objects
-  FOR DELETE USING (bucket_id = 'task-attachments' AND auth.uid() IS NOT NULL);
+DO $$
+BEGIN
+  DROP POLICY IF EXISTS "Users can delete task attachment files" ON storage.objects;
+  CREATE POLICY "Users can delete task attachment files" ON storage.objects
+    FOR DELETE USING (bucket_id = 'task-attachments' AND auth.uid() IS NOT NULL);
+EXCEPTION
+  WHEN duplicate_object OR insufficient_privilege THEN NULL;
+END $$;

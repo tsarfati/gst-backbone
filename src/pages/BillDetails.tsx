@@ -278,85 +278,133 @@ export default function BillDetails() {
         }
 
         setBill(data || null);
-        
-        // Load documents
+        setLoading(false);
+
+        // Load related bill data in the background so the page can render faster.
         if (data?.id) {
-          const { data: documentsData } = await supabase
-            .from('invoice_documents')
-            .select('*')
-            .eq('invoice_id', data.id)
-            .order('uploaded_at', { ascending: false });
-          
+          const [
+            documentsResult,
+            paymentLinesResult,
+            distributionsResult,
+            payablesSettingsResult,
+            subcontractTotalsResult,
+            vendorProfileRowsResult,
+            vendorReplyRowsResult,
+            complianceResult,
+          ] = await Promise.all([
+            supabase
+              .from('invoice_documents')
+              .select('*')
+              .eq('invoice_id', data.id)
+              .order('uploaded_at', { ascending: false }),
+            supabase
+              .from('payment_invoice_lines')
+              .select(`
+                id,
+                amount_paid,
+                created_at,
+                payments:payment_id (
+                  id,
+                  payment_number,
+                  payment_date,
+                  payment_method,
+                  status,
+                  amount
+                )
+              `)
+              .eq('invoice_id', data.id),
+            supabase
+              .from('invoice_cost_distributions')
+              .select(`
+                id,
+                cost_code_id,
+                amount,
+                percentage,
+                cost_codes (
+                  id,
+                  code,
+                  description,
+                  type,
+                  job_id,
+                  jobs (id, name)
+                )
+              `)
+              .eq('invoice_id', data.id),
+            companyId
+              ? supabase
+                  .from('payables_settings')
+                  .select('require_bill_distribution_before_approval')
+                  .eq('company_id', companyId)
+                  .maybeSingle()
+              : Promise.resolve({ data: null } as any),
+            data?.subcontract_id
+              ? fetchCommitmentTotals(data.subcontract_id, data.id)
+              : Promise.resolve(),
+            data?.vendor_id
+              ? supabase
+                  .from('profiles')
+                  .select('user_id, display_name, first_name, last_name, role')
+                  .eq('vendor_id', data.vendor_id)
+                  .eq('role', 'vendor')
+                  .limit(1)
+              : Promise.resolve({ data: null, error: null } as any),
+            data?.vendor_id
+              ? supabase
+                  .from('messages')
+                  .select('content, created_at, attachment_url, from_user_id')
+                  .eq('thread_id', data.id)
+                  .eq('attachment_type', 'bill_vendor_thread')
+                  .order('created_at', { ascending: false })
+                  .limit(10)
+              : Promise.resolve({ data: null, error: null } as any),
+            data?.vendor_id
+              ? supabase
+                  .from('vendor_compliance_documents')
+                  .select('*')
+                  .eq('vendor_id', data.vendor_id)
+                  .eq('is_required', true)
+              : Promise.resolve({ data: null, error: null } as any),
+          ]);
+
+          const documentsData = documentsResult.data;
           if (documentsData) {
             setDocuments(documentsData);
           }
-          
-          // Fetch payments made on this bill
-          const { data: paymentLines } = await supabase
-            .from('payment_invoice_lines')
-            .select(`
-              id,
-              amount_paid,
-              created_at,
-              payments:payment_id (
-                id,
-                payment_number,
-                payment_date,
-                payment_method,
-                status,
-                amount
-              )
-            `)
-            .eq('invoice_id', data.id);
-          
+
+          const payablesSettings = payablesSettingsResult.data as any;
+          const requiresDistributionBeforeApproval =
+            payablesSettings?.require_bill_distribution_before_approval ?? true;
+          setRequireBillDistributionBeforeApproval(requiresDistributionBeforeApproval);
+
+          const paymentLines = paymentLinesResult.data;
           if (paymentLines && paymentLines.length > 0) {
-             setPaymentsReceived(paymentLines);
-             const paid = getEffectivePaidByInvoice(paymentLines as any[]).get(data.id) || 0;
-             setTotalPaid(paid);
-             const remaining = Number(data.amount || 0) - paid;
-             setBalanceDue(remaining);
-             
-             // Auto-correct status: if fully paid but status isn't 'paid', update it
-             if (remaining <= 0.01 && data.status !== 'paid') {
-               await supabase
-                 .from('invoices')
-                 .update({ status: 'paid' })
-                 .eq('id', data.id);
-               setBill(prev => prev ? { ...prev, status: 'paid' } : null);
-             } else if (paid > 0 && remaining > 0.01 && data.status === 'paid') {
-               await supabase
-                 .from('invoices')
-                 .update({ status: 'pending_payment' })
-                 .eq('id', data.id);
-               setBill(prev => prev ? { ...prev, status: 'pending_payment' } : null);
-             }
-           } else {
-             setPaymentsReceived([]);
-             setTotalPaid(0);
-             setBalanceDue(Number(data.amount || 0));
-           }
-          
-          // Load cost distributions
-           // NOTE: invoice_cost_distributions does not have a direct jobs relationship;
-           // we derive the job via cost_codes.job_id.
-           const { data: distData } = await supabase
-             .from('invoice_cost_distributions')
-             .select(`
-               id,
-               cost_code_id,
-               amount,
-               percentage,
-               cost_codes (
-                 id,
-                 code,
-                 description,
-                 type,
-                 job_id,
-                 jobs (id, name)
-               )
-             `)
-             .eq('invoice_id', data.id);
-           
+            setPaymentsReceived(paymentLines);
+            const paid = getEffectivePaidByInvoice(paymentLines as any[]).get(data.id) || 0;
+            setTotalPaid(paid);
+            const remaining = Number(data.amount || 0) - paid;
+            setBalanceDue(remaining);
+
+            if (remaining <= 0.01 && data.status !== 'paid') {
+              await supabase
+                .from('invoices')
+                .update({ status: 'paid' })
+                .eq('id', data.id);
+              setBill(prev => prev ? { ...prev, status: 'paid' } : null);
+            } else if (paid > 0 && remaining > 0.01 && data.status === 'paid') {
+              await supabase
+                .from('invoices')
+                .update({ status: 'pending_payment' })
+                .eq('id', data.id);
+              setBill(prev => prev ? { ...prev, status: 'pending_payment' } : null);
+            }
+          } else {
+            setPaymentsReceived([]);
+            setTotalPaid(0);
+            setBalanceDue(Number(data.amount || 0));
+          }
+
+          const distData = distributionsResult.data;
+
            if (distData && distData.length > 0) {
              setDistributions(distData);
              
@@ -397,20 +445,10 @@ export default function BillDetails() {
            } else {
              setDistributions([]);
            }
-        }
-        
-        // If this is a subcontract invoice, fetch commitment totals
-        if (data?.subcontract_id) {
-          await fetchCommitmentTotals(data.subcontract_id, data.id);
-        }
 
         if (data?.vendor_id) {
-          const { data: vendorProfileRows, error: vendorProfileError } = await supabase
-            .from('profiles')
-            .select('user_id, display_name, first_name, last_name, role')
-            .eq('vendor_id', data.vendor_id)
-            .eq('role', 'vendor')
-            .limit(1);
+          const vendorProfileRows = vendorProfileRowsResult.data;
+          const vendorProfileError = vendorProfileRowsResult.error;
 
           if (!vendorProfileError && vendorProfileRows && vendorProfileRows.length > 0) {
             const vendorProfile = vendorProfileRows[0] as any;
@@ -426,13 +464,8 @@ export default function BillDetails() {
             setLinkedVendorPortalUser(null);
           }
 
-          const { data: vendorReplyRows, error: vendorReplyError } = await supabase
-            .from('messages')
-            .select('content, created_at, attachment_url, from_user_id')
-            .eq('thread_id', data.id)
-            .eq('attachment_type', 'bill_vendor_thread')
-            .order('created_at', { ascending: false })
-            .limit(10);
+          const vendorReplyRows = vendorReplyRowsResult.data;
+          const vendorReplyError = vendorReplyRowsResult.error;
 
           if (!vendorReplyError && vendorReplyRows) {
             const vendorUserIds = new Set(
@@ -455,10 +488,21 @@ export default function BillDetails() {
           setLinkedVendorPortalUser(null);
           setLatestVendorConversationReply(null);
         }
-        
-        // Check vendor compliance warnings if vendor exists
+
         if (data?.vendor_id) {
-          await checkVendorCompliance(data.vendor_id);
+          const complianceData = complianceResult.data;
+          const complianceError = complianceResult.error;
+          if (!complianceError) {
+            const hasWarnings = complianceData?.some((doc: any) => {
+              const isExpired = doc.expiration_date && new Date(doc.expiration_date) < new Date();
+              const isMissing = !doc.is_uploaded;
+              return isExpired || isMissing;
+            }) || false;
+            setVendorHasWarnings(hasWarnings);
+          } else {
+            setVendorHasWarnings(false);
+          }
+        }
         }
       }
     } catch (error) {
@@ -514,31 +558,6 @@ export default function BillDetails() {
       }
     } catch (error) {
       console.error('Error fetching commitment totals:', error);
-    }
-  };
-
-  const checkVendorCompliance = async (vendorId: string) => {
-    try {
-      const { data: complianceData, error } = await supabase
-        .from('vendor_compliance_documents')
-        .select('*')
-        .eq('vendor_id', vendorId)
-        .eq('is_required', true);
-
-      if (error) {
-        console.error('Error checking vendor compliance:', error);
-        return;
-      }
-
-      const hasWarnings = complianceData?.some(doc => {
-        const isExpired = doc.expiration_date && new Date(doc.expiration_date) < new Date();
-        const isMissing = !doc.is_uploaded;
-        return isExpired || isMissing;
-      }) || false;
-
-      setVendorHasWarnings(hasWarnings);
-    } catch (error) {
-      console.error('Error checking vendor compliance:', error);
     }
   };
 

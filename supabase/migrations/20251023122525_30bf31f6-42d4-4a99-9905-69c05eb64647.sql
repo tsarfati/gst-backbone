@@ -9,36 +9,56 @@ BEGIN
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Public read credit-card-attachments'
   ) THEN
-    CREATE POLICY "Public read credit-card-attachments"
-    ON storage.objects
-    FOR SELECT
-    USING (bucket_id = 'credit-card-attachments');
+    BEGIN
+      CREATE POLICY "Public read credit-card-attachments"
+      ON storage.objects
+      FOR SELECT
+      USING (bucket_id = 'credit-card-attachments');
+    EXCEPTION
+      WHEN duplicate_object OR insufficient_privilege THEN
+        NULL;
+    END;
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Auth insert credit-card-attachments'
   ) THEN
-    CREATE POLICY "Auth insert credit-card-attachments"
-    ON storage.objects
-    FOR INSERT TO authenticated
-    WITH CHECK (bucket_id = 'credit-card-attachments');
+    BEGIN
+      CREATE POLICY "Auth insert credit-card-attachments"
+      ON storage.objects
+      FOR INSERT TO authenticated
+      WITH CHECK (bucket_id = 'credit-card-attachments');
+    EXCEPTION
+      WHEN duplicate_object OR insufficient_privilege THEN
+        NULL;
+    END;
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Auth update credit-card-attachments'
   ) THEN
-    CREATE POLICY "Auth update credit-card-attachments"
-    ON storage.objects
-    FOR UPDATE TO authenticated
-    USING (bucket_id = 'credit-card-attachments');
+    BEGIN
+      CREATE POLICY "Auth update credit-card-attachments"
+      ON storage.objects
+      FOR UPDATE TO authenticated
+      USING (bucket_id = 'credit-card-attachments');
+    EXCEPTION
+      WHEN duplicate_object OR insufficient_privilege THEN
+        NULL;
+    END;
   END IF;
 
   IF NOT EXISTS (
     SELECT 1 FROM pg_policies WHERE schemaname = 'storage' AND tablename = 'objects' AND policyname = 'Auth delete credit-card-attachments'
   ) THEN
-    CREATE POLICY "Auth delete credit-card-attachments"
-    ON storage.objects
-    FOR DELETE TO authenticated
-    USING (bucket_id = 'credit-card-attachments');
+    BEGIN
+      CREATE POLICY "Auth delete credit-card-attachments"
+      ON storage.objects
+      FOR DELETE TO authenticated
+      USING (bucket_id = 'credit-card-attachments');
+    EXCEPTION
+      WHEN duplicate_object OR insufficient_privilege THEN
+        NULL;
+    END;
   END IF;
 END $$;

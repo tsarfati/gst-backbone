@@ -18,11 +18,19 @@ export function useRoleBasedRouting() {
   const location = useLocation();
   const isInviteAuthRoute = location.pathname === '/auth' && new URLSearchParams(location.search).has('invite');
   const authEntryContext = getAuthEntryContext();
+  const onExternalPortalPath =
+    location.pathname.startsWith('/vendor') ||
+    location.pathname.startsWith('/design-professional');
   const externalRoles = new Set(['vendor', 'design_professional']);
   const internalCompanyRole =
     userCompanies
       .map((company) => String(company?.role || '').toLowerCase())
       .find((companyRole) => companyRole && !externalRoles.has(companyRole)) || null;
+  const shouldPreferInternalWorkspace = authEntryContext === 'builder' && !!internalCompanyRole;
+  const shouldPreferVendorPortal =
+    authEntryContext === 'vendor' &&
+    (onExternalPortalPath || !internalCompanyRole) &&
+    (profile?.role === 'vendor' || profile?.role === 'design_professional');
 
   // Prefer active-company role, then profile role, then any company role we can infer.
   const effectiveRole =
@@ -30,7 +38,7 @@ export function useRoleBasedRouting() {
     profile?.role ||
     (userCompanies.length > 0 ? userCompanies[0].role : null);
   const routingRole =
-    authEntryContext === 'builder' && internalCompanyRole
+    shouldPreferInternalWorkspace
       ? internalCompanyRole
       : effectiveRole;
 
@@ -88,9 +96,13 @@ export function useRoleBasedRouting() {
         }
 
         // For vendors/design professionals, redirect to their portal
-        if (routingRole === 'vendor' || routingRole === 'design_professional') {
+        if (
+          authEntryContext === 'vendor' &&
+          (routingRole === 'vendor' || routingRole === 'design_professional') &&
+          !shouldPreferInternalWorkspace
+        ) {
           if (location.pathname === '/auth' || location.pathname === '/') {
-            let target = '/vendor/dashboard';
+            let target = authEntryContext === 'vendor' ? '/vendor/dashboard' : '/vendor/select';
             const vendorId = (profile as any)?.vendor_id as string | null | undefined;
             if (vendorId) {
               const { data: vendorData } = await supabase
@@ -141,5 +153,5 @@ export function useRoleBasedRouting() {
     };
 
     fetchDefaultPage();
-  }, [routingRole, isSuperAdmin, isTenantOwner, tenantLoading, companyLoading, hasAccess, navigate, location.pathname, location.search, isInviteAuthRoute, profile?.status]);
+  }, [routingRole, isSuperAdmin, isTenantOwner, tenantLoading, companyLoading, hasAccess, navigate, location.pathname, location.search, isInviteAuthRoute, profile?.status, shouldPreferInternalWorkspace, shouldPreferVendorPortal]);
 }

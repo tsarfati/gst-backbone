@@ -5,6 +5,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import { useVendorPortalData } from "@/hooks/useVendorPortalData";
 import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
+import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
 import { ArrowLeft, Download, FilePlus2, Paperclip, Trash2 } from "lucide-react";
 import { useNavigate } from "react-router-dom";
 import { Input } from "@/components/ui/input";
@@ -20,7 +21,8 @@ import ZoomableDocumentPreview from "@/components/ZoomableDocumentPreview";
 
 export default function VendorPortalBills() {
   const navigate = useNavigate();
-  const { user, profile } = useAuth();
+  const { user } = useAuth();
+  const { vendorId: activeVendorId } = useActiveVendorPortalVendor();
   const { toast } = useToast();
   const { loading, invoices, jobs, vendorInfo, paymentMethod, reload } = useVendorPortalData();
   const { roleCaps } = useVendorPortalAccess();
@@ -151,7 +153,7 @@ export default function VendorPortalBills() {
   };
 
   const createVendorInvoice = async () => {
-    if (!profile?.vendor_id || !user?.id) return;
+    if (!activeVendorId || !user?.id) return;
 
     const validLineItems = invoiceForm.lineItems
       .map((item) => ({ description: item.description.trim(), amount: Number(item.amount) }))
@@ -176,7 +178,7 @@ export default function VendorPortalBills() {
       const { data: insertedInvoice, error } = await supabase
         .from("invoices")
         .insert({
-          vendor_id: profile.vendor_id,
+          vendor_id: activeVendorId,
           created_by: user.id,
           amount: validLineItems.reduce((sum, item) => sum + item.amount, 0),
           invoice_number: invoiceForm.invoiceNumber || null,

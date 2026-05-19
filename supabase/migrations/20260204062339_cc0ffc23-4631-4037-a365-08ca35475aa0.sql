@@ -4,6 +4,16 @@ VALUES ('email-assets', 'email-assets', true)
 ON CONFLICT (id) DO NOTHING;
 
 -- Allow public read access to email assets
-CREATE POLICY "Email assets are publicly accessible"
-ON storage.objects FOR SELECT
-USING (bucket_id = 'email-assets');
+DO $$
+BEGIN
+  BEGIN
+    DROP POLICY IF EXISTS "Email assets are publicly accessible" ON storage.objects;
+    CREATE POLICY "Email assets are publicly accessible"
+    ON storage.objects FOR SELECT
+    USING (bucket_id = 'email-assets');
+  EXCEPTION
+    WHEN duplicate_object OR insufficient_privilege THEN
+      NULL;
+  END;
+END;
+$$;
