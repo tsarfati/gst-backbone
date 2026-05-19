@@ -3,11 +3,21 @@ import { Building2, Droplets, FileText, Flame, HardHat, Wrench, Wind, Zap } from
 export interface PlanDisciplineSource {
   plan_name?: string | null;
   plan_number?: string | null;
+  discipline?: string | null;
 }
 
 export function getPlanDisciplineKey(plan: PlanDisciplineSource) {
+  const discipline = String(plan.discipline || "").toLowerCase().trim();
   const text = `${plan.plan_name || ""} ${plan.plan_number || ""}`.toLowerCase();
   const planNo = (plan.plan_number || "").toLowerCase();
+
+  if (/\b(plumb|plumbing|sanitary|waste|vent|domestic water)\b/.test(discipline)) return "plumbing";
+  if (/\b(electrical|power|lighting|low voltage|telecom)\b/.test(discipline)) return "electrical";
+  if (/\b(mechanical|hvac|duct|air handling)\b/.test(discipline)) return "mechanical";
+  if (/\b(fire protection|sprinkler|fire alarm)\b/.test(discipline)) return "fire";
+  if (/\b(structural|foundation|steel|framing)\b/.test(discipline)) return "structural";
+  if (/\b(civil|site|grading|utility plan)\b/.test(discipline)) return "civil";
+  if (/\b(architect|architectural|floor plan|elevation|section|detail|general)\b/.test(discipline)) return "architectural";
 
   if (
     /\b(plumb|plumbing|sanitary|waste|vent|domestic water)\b/.test(text) ||
