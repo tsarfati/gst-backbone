@@ -403,6 +403,27 @@ serve(async (req: Request): Promise<Response> => {
       if (profileInsertError) throw profileInsertError;
     }
 
+    const existingUserMetadata = userData.user.user_metadata || {};
+    const existingAppMetadata = userData.user.app_metadata || {};
+    const metadataRole = pendingInvite.custom_role_id ? "employee" : baseRole;
+    const { error: authMetadataError } = await supabaseAdmin.auth.admin.updateUserById(userData.user.id, {
+      user_metadata: {
+        ...existingUserMetadata,
+        role: metadataRole,
+        current_company_id: pendingInvite.company_id,
+        default_company_id: pendingInvite.company_id,
+        custom_role_id: pendingInvite.custom_role_id ?? null,
+      },
+      app_metadata: {
+        ...existingAppMetadata,
+        role: metadataRole,
+        current_company_id: pendingInvite.company_id,
+        default_company_id: pendingInvite.company_id,
+        custom_role_id: pendingInvite.custom_role_id ?? null,
+      },
+    });
+    if (authMetadataError) throw authMetadataError;
+
     // Mark invitation accepted in both tracking tables
     await supabaseAdmin
       .from("pending_user_invites")

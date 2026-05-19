@@ -400,7 +400,6 @@ export default function UserManagement() {
       await supabase
         .from('notifications')
         .delete()
-        .eq('user_id', user.id)
         .eq('type', `intake_queue:${userId}`);
 
       const { error: notifyError } = await supabase.functions.invoke('notify-user-approved', {
@@ -446,7 +445,6 @@ export default function UserManagement() {
         await supabase
           .from('notifications')
           .delete()
-          .eq('user_id', user.id)
           .eq('type', `intake_queue:${userId}`);
       }
 

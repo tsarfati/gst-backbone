@@ -228,7 +228,6 @@ export default function CompanyAccessApproval() {
       await supabase
         .from('notifications')
         .delete()
-        .eq('user_id', user.id)
         .eq('type', `intake_queue:${userId}`);
 
       toast({

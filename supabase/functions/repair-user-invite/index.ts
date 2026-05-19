@@ -283,6 +283,27 @@ serve(async (req: Request): Promise<Response> => {
       .eq("user_id", profile.user_id);
     if (profileUpdateError) throw profileUpdateError;
 
+    const metadataRole = customRoleId ? "employee" : baseRole;
+    const existingUserMetadata = authUser?.user_metadata || {};
+    const existingAppMetadata = authUser?.app_metadata || {};
+    const { error: authMetadataError } = await supabaseAdmin.auth.admin.updateUserById(profile.user_id, {
+      user_metadata: {
+        ...existingUserMetadata,
+        role: metadataRole,
+        current_company_id: companyId,
+        default_company_id: companyId,
+        custom_role_id: customRoleId,
+      },
+      app_metadata: {
+        ...existingAppMetadata,
+        role: metadataRole,
+        current_company_id: companyId,
+        default_company_id: companyId,
+        custom_role_id: customRoleId,
+      },
+    });
+    if (authMetadataError) throw authMetadataError;
+
     const { error: pendingInviteUpdateError } = await supabaseAdmin
       .from("pending_user_invites")
       .update({ accepted_at: nowIso, updated_at: nowIso })
