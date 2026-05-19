@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Loader2 } from "lucide-react";
 import { cn } from "@/lib/utils";
+import { loadPdfDocumentWithFallback } from "@/utils/loadPdfDocument";
 
 // Bundle worker locally (avoids relying on external CDNs that may be blocked)
 import pdfWorkerUrl from "pdfjs-dist/build/pdf.worker.min.mjs?url";
@@ -358,13 +359,7 @@ export default function SinglePagePdfViewer({
         const pdfjs = await import("pdfjs-dist");
         (pdfjs as any).GlobalWorkerOptions.workerSrc = pdfWorkerUrl;
 
-        loadingTask = (pdfjs as any).getDocument({
-          url,
-          withCredentials: false,
-          disableAutoFetch: false,
-          disableStream: false,
-          rangeChunkSize: 1024 * 1024,
-        });
+        loadingTask = await loadPdfDocumentWithFallback(pdfjs as any, url);
 
         const pdf = await loadingTask.promise;
 
