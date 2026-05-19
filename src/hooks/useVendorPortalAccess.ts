@@ -52,7 +52,7 @@ const COMPANY_WIDE_VENDOR_CAPS: VendorRoleCaps = {
   canAccessJobs: true,
   canAccessBills: true,
   canAccessCompliance: true,
-  canAccessSettings: true,
+  canAccessSettings: false,
   canManageUsers: false,
   canViewJobDetails: true,
   canSubmitBills: true,
@@ -91,6 +91,7 @@ export function useVendorPortalAccess(jobId?: string) {
 
   const roleCaps = useMemo<VendorRoleCaps>(() => ({
     ...COMPANY_WIDE_VENDOR_CAPS,
+    canAccessSettings: internalRole === "owner",
     canManageUsers: internalRole === "owner",
   }), [internalRole]);
 

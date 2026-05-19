@@ -13,7 +13,7 @@ import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import { useCompany } from "@/contexts/CompanyContext";
 import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
 import { useVendorPortalTeam } from "@/hooks/useVendorPortalTeam";
-import { getVendorPortalRoleLabel, VENDOR_PORTAL_ROLE_OPTIONS, type VendorPortalRole } from "@/lib/vendorPortalRoles";
+import { getVendorPortalRoleLabel, type VendorPortalRole } from "@/lib/vendorPortalRoles";
 import UserAvatar from "@/components/UserAvatar";
 import { supabase } from "@/integrations/supabase/client";
 import { ArrowLeft, Plus } from "lucide-react";
@@ -43,6 +43,7 @@ export default function VendorPortalSettings() {
     revokeInvite,
   } = useVendorPortalTeam(vendorInfo?.id || null);
   const [savingCompany, setSavingCompany] = useState(false);
+  const [activeTab, setActiveTab] = useState("overview");
   const [savingPayment, setSavingPayment] = useState(false);
   const [inviteEmail, setInviteEmail] = useState("");
   const [inviteRole, setInviteRole] = useState<VendorPortalRole>("basic_user");
@@ -63,6 +64,13 @@ export default function VendorPortalSettings() {
   const [uploadLogoProgress, setUploadLogoProgress] = useState(0);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const voidedCheckInputRef = useRef<HTMLInputElement | null>(null);
+
+  useEffect(() => {
+    if (loading) return;
+    if (!roleCaps.canAccessSettings) {
+      navigate("/vendor/dashboard", { replace: true });
+    }
+  }, [loading, navigate, roleCaps.canAccessSettings]);
 
   useEffect(() => {
     if (!currentCompany?.id) {
@@ -175,7 +183,7 @@ export default function VendorPortalSettings() {
           vendorId: vendorInfo.id,
           vendorName: settingsForm.name || vendorInfo.name,
           vendorEmail: normalizedEmail,
-          vendorPortalRole: inviteRole,
+          vendorPortalRole: "basic_user",
           companyId: currentCompany?.id,
           companyName: currentCompany?.display_name || currentCompany?.name,
           baseUrl: window.location.origin,
@@ -184,7 +192,7 @@ export default function VendorPortalSettings() {
       if (error) throw error;
       if (data?.error) throw new Error(data.error);
       setInviteEmail("");
-      setInviteRole(linkedUsers.length === 0 && pendingInvites.length === 0 ? "owner" : "basic_user");
+      setInviteRole("basic_user");
       await loadTeam();
       toast({ title: "Invitation sent", description: `An invitation has been sent to ${normalizedEmail}.` });
     } catch (error: any) {
@@ -227,7 +235,7 @@ export default function VendorPortalSettings() {
           vendorId: vendorInfo.id,
           vendorName: settingsForm.name || vendorInfo.name,
           vendorEmail: invite.email,
-          vendorPortalRole: invite.vendor_portal_role,
+          vendorPortalRole: "basic_user",
           replaceInviteId: invite.id,
           companyId: currentCompany?.id,
           companyName: currentCompany?.display_name || currentCompany?.name,
@@ -249,17 +257,28 @@ export default function VendorPortalSettings() {
     return <PremiumLoadingScreen text="Loading vendor settings..." />;
   }
 
+  if (!roleCaps.canAccessSettings) {
+    return <PremiumLoadingScreen text="Redirecting..." />;
+  }
+
   return (
     <div className="p-6 space-y-6">
-      <div className="space-y-1">
-        <Button variant="ghost" className="px-0" onClick={() => navigate("/vendor/dashboard")}>
-          <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Dashboard
-        </Button>
-        <h1 className="text-2xl font-bold text-foreground">Profile</h1>
+      <div className="flex items-start justify-between gap-4">
+        <div className="space-y-1">
+          <Button variant="ghost" className="px-0" onClick={() => navigate("/vendor/dashboard")}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to Dashboard
+          </Button>
+          <h1 className="text-2xl font-bold text-foreground">Profile</h1>
+        </div>
+        {(activeTab === "overview" || activeTab === "taxes") && (
+          <Button onClick={saveCompany} disabled={savingCompany}>
+            {savingCompany ? "Saving..." : "Save Settings"}
+          </Button>
+        )}
       </div>
 
-      <Tabs defaultValue="overview" className="w-full">
+      <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
         <TabsList className={`grid w-full ${roleCaps.canManageUsers ? "max-w-[700px] grid-cols-4" : "max-w-[520px] grid-cols-3"}`}>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="taxes">Taxes</TabsTrigger>
@@ -318,8 +337,6 @@ export default function VendorPortalSettings() {
                 <div className="space-y-2"><Label>State</Label><Input value={settingsForm.state} onChange={(e) => setSettingsForm((prev) => ({ ...prev, state: e.target.value }))} /></div>
                 <div className="space-y-2"><Label>Zip Code</Label><Input value={settingsForm.zip_code} onChange={(e) => setSettingsForm((prev) => ({ ...prev, zip_code: e.target.value }))} /></div>
               </div>
-
-              <div className="flex justify-end"><Button onClick={saveCompany} disabled={savingCompany}>{savingCompany ? "Saving..." : "Save Company Settings"}</Button></div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -329,7 +346,6 @@ export default function VendorPortalSettings() {
             <CardHeader><CardTitle>Tax Information</CardTitle></CardHeader>
             <CardContent className="space-y-4">
               <div className="space-y-2"><Label>Tax ID / EIN</Label><Input value={settingsForm.tax_id} onChange={(e) => setSettingsForm((prev) => ({ ...prev, tax_id: e.target.value }))} /></div>
-              <div className="flex justify-end"><Button onClick={saveCompany} disabled={savingCompany}>{savingCompany ? "Saving..." : "Save Tax Settings"}</Button></div>
             </CardContent>
           </Card>
         </TabsContent>
@@ -442,25 +458,16 @@ export default function VendorPortalSettings() {
                       placeholder="name@vendorcompany.com"
                       autoComplete="email"
                     />
-                    <Select value={inviteRole} onValueChange={(value) => setInviteRole(value as VendorPortalRole)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
-                          <SelectItem key={option.value} value={option.value}>
-                            {option.label}
-                          </SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    <div className="flex h-10 items-center rounded-md border px-3 text-sm text-muted-foreground">
+                      Vendor Employee
+                    </div>
                     <Button onClick={sendCoworkerInvite} disabled={sendingInvite}>
                       {sendingInvite ? "Sending..." : "Send Invite"}
                     </Button>
                   </div>
-              <p className="text-xs text-muted-foreground">
-                {VENDOR_PORTAL_ROLE_OPTIONS.find((option) => option.value === inviteRole)?.description} This label does not change the vendor portal access shared by BuilderLYNK.
-              </p>
+                  <p className="text-xs text-muted-foreground">
+                    Invite coworkers as vendor employees. Company owner assignment stays managed by BuilderLYNK. This label does not change the vendor portal access shared by BuilderLYNK.
+                  </p>
                 </div>
 
                 <div className="space-y-3">
@@ -478,14 +485,13 @@ export default function VendorPortalSettings() {
                     </div>
                   ) : (
                     <div className="space-y-3">
-                      {linkedUsers.map((portalUser, index) => (
+                      {linkedUsers.map((portalUser) => (
                         <div key={portalUser.user_id} className="flex items-center justify-between rounded-lg border p-3">
                           <div className="flex min-w-0 items-center gap-3">
                             <UserAvatar src={portalUser.avatar_url} name={portalUser.name} className="h-10 w-10" />
                             <div className="min-w-0">
                               <div className="flex flex-wrap items-center gap-2">
                                 <p className="truncate font-medium">{portalUser.name}</p>
-                                {index === 0 && <span className="rounded-full bg-secondary px-2 py-0.5 text-xs text-secondary-foreground">Primary</span>}
                                 <span className="rounded-full border px-2 py-0.5 text-xs">{getVendorPortalRoleLabel(portalUser.vendor_portal_role)}</span>
                               </div>
                               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
@@ -495,22 +501,20 @@ export default function VendorPortalSettings() {
                             </div>
                           </div>
                           <div className="w-[220px]">
-                            <Select
-                              value={portalUser.vendor_portal_role}
-                              onValueChange={(value) => handleUpdateRole(portalUser.user_id, value as VendorPortalRole)}
-                              disabled={updatingVendorPortalUserId === portalUser.user_id}
-                            >
-                              <SelectTrigger>
-                                <SelectValue />
-                              </SelectTrigger>
-                              <SelectContent>
-                                {VENDOR_PORTAL_ROLE_OPTIONS.map((option) => (
-                                  <SelectItem key={option.value} value={option.value}>
-                                    {option.label}
-                                  </SelectItem>
-                                ))}
-                              </SelectContent>
-                            </Select>
+                            {portalUser.vendor_portal_role === "owner" ? (
+                              <div className="flex h-10 items-center justify-end text-sm text-muted-foreground">
+                                Company owner
+                              </div>
+                            ) : (
+                              <Button
+                                variant="outline"
+                                className="w-full"
+                                onClick={() => handleUpdateRole(portalUser.user_id, "basic_user")}
+                                disabled={updatingVendorPortalUserId === portalUser.user_id}
+                              >
+                                Vendor Employee
+                              </Button>
+                            )}
                           </div>
                         </div>
                       ))}

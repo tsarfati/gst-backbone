@@ -354,7 +354,7 @@ export default function VendorDashboard() {
   useEffect(() => {
     const requestedTab = searchParams.get('tab');
     if (requestedTab && ['rfps', 'documents', 'invoices', 'messages', 'rfis', 'submittals', 'photos', 'settings', 'help'].includes(requestedTab)) {
-      setActiveTab(requestedTab);
+      setActiveTab(requestedTab === 'settings' && !canAccessVendorSettings ? 'documents' : requestedTab);
       return;
     }
     if (location.pathname.includes('/vendor/compliance')) {
@@ -364,7 +364,13 @@ export default function VendorDashboard() {
     if (location.pathname.includes('/vendor/dashboard') || location.pathname.includes('/design-professional/dashboard')) {
       setActiveTab(String(vendorInfo?.vendor_type || '').toLowerCase() === 'design_professional' ? 'rfis' : 'invoices');
     }
-  }, [location.pathname, searchParams, vendorInfo?.vendor_type]);
+  }, [canAccessVendorSettings, location.pathname, searchParams, vendorInfo?.vendor_type]);
+
+  useEffect(() => {
+    if (activeTab === 'settings' && !canAccessVendorSettings) {
+      setActiveTab('documents');
+    }
+  }, [activeTab, canAccessVendorSettings]);
 
   useEffect(() => {
     if (activeTab !== 'rfps') return;
@@ -380,10 +386,11 @@ export default function VendorDashboard() {
 
   useEffect(() => {
     if (!user?.id || loading) return;
+    if (!canAccessVendorSettings) return;
     const key = `vendor-onboarding-seen:${user.id}`;
     const seen = localStorage.getItem(key);
     if (!seen) setShowOnboarding(true);
-  }, [user?.id, loading]);
+  }, [canAccessVendorSettings, user?.id, loading]);
 
   useEffect(() => {
     setVendorCompanyForm({
@@ -1094,6 +1101,7 @@ export default function VendorDashboard() {
   const incompleteChecklist = onboardingChecklist.filter((item) => !item.done);
   const isOnboardingReady = incompleteChecklist.length === 0;
   const canSubmitFirstInvoice = canSubmitBills && isOnboardingReady;
+  const canAccessVendorSettings = roleCaps.canAccessSettings;
   const hasCompanyInfo = Boolean(
     vendorInfo?.name?.trim() &&
     vendorInfo?.email?.trim() &&
@@ -1781,10 +1789,12 @@ export default function VendorDashboard() {
             <HelpCircle className="h-4 w-4 mr-2" />
             Help
           </Button>
-          <Button variant="outline" onClick={() => setActiveTab('settings')}>
-            <Settings2 className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
+          {canAccessVendorSettings && (
+            <Button variant="outline" onClick={() => setActiveTab('settings')}>
+              <Settings2 className="h-4 w-4 mr-2" />
+              Settings
+            </Button>
+          )}
           {isDesignProfessionalVendor ? (
             <Button variant="outline" onClick={() => navigate('/jobs')}>
               <ClipboardList className="h-4 w-4 mr-2" />
@@ -1799,7 +1809,7 @@ export default function VendorDashboard() {
         </div>
       </div>
 
-      {!isDesignProfessionalVendor && onboardingChecklist.length > 0 && (
+      {!isDesignProfessionalVendor && canAccessVendorSettings && onboardingChecklist.length > 0 && (
         <Card className={isOnboardingReady ? 'border-green-500/40 bg-green-500/5' : 'border-yellow-500/40 bg-yellow-500/5'}>
           <CardHeader className="pb-2">
             <CardTitle className="text-base flex items-center gap-2">
@@ -2070,10 +2080,12 @@ export default function VendorDashboard() {
               </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="settings" className="flex items-center gap-2">
-            <Settings2 className="h-4 w-4" />
-            Settings
-          </TabsTrigger>
+          {canAccessVendorSettings && (
+            <TabsTrigger value="settings" className="flex items-center gap-2">
+              <Settings2 className="h-4 w-4" />
+              Settings
+            </TabsTrigger>
+          )}
           <TabsTrigger value="help" className="flex items-center gap-2">
             <HelpCircle className="h-4 w-4" />
             Help
@@ -2860,6 +2872,11 @@ export default function VendorDashboard() {
               <CardDescription>Manage your vendor company profile, compliance, taxes, and payment preferences.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-6">
+              {!canAccessVendorSettings ? (
+                <div className="rounded-md border border-dashed p-6 text-sm text-muted-foreground">
+                  Only the company owner can view and manage vendor company settings.
+                </div>
+              ) : (
               <Tabs value={settingsTab} onValueChange={(value) => setSettingsTab(value as typeof settingsTab)} className="w-full">
                 <TabsList className="grid w-full grid-cols-4">
                   <TabsTrigger value="overview">Overview</TabsTrigger>
@@ -3092,6 +3109,7 @@ export default function VendorDashboard() {
                   </div>
                 </TabsContent>
               </Tabs>
+              )}
             </CardContent>
           </Card>
         </TabsContent>
@@ -3323,7 +3341,7 @@ export default function VendorDashboard() {
       </Dialog>
 
       <Dialog
-        open={showOnboarding}
+        open={canAccessVendorSettings && showOnboarding}
         onOpenChange={(open) => {
           if (!open && user?.id) {
             localStorage.setItem(`vendor-onboarding-seen:${user.id}`, '1');

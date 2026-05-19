@@ -7,7 +7,7 @@ import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle, Eye, EyeOff, Plus, Send, Loader2 } from "lucide-react";
+import { ArrowLeft, Edit, Building, FileText, Mail, Phone, CreditCard, FileIcon, Upload, ExternalLink, Briefcase, AlertTriangle, Eye, EyeOff, Plus, Send, Loader2, KeyRound, Ban, Trash2, ShieldAlert } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -28,7 +28,7 @@ import {
 import { ScrollArea } from "@/components/ui/scroll-area";
 import UrlPdfInlinePreview from "@/components/UrlPdfInlinePreview";
 import { ensureSubcontractVendorJobAccess } from "@/utils/vendorJobAccess";
-import { useVendorPortalTeam } from "@/hooks/useVendorPortalTeam";
+import { useVendorPortalTeam, type VendorPortalTeamUser } from "@/hooks/useVendorPortalTeam";
 import { getVendorPortalRoleLabel, VENDOR_PORTAL_ROLE_OPTIONS, type VendorPortalRole } from "@/lib/vendorPortalRoles";
 
 type VendorAccessPresetKey =
@@ -195,6 +195,9 @@ export default function VendorDetails() {
   const [linkedVendorAvatarUrl, setLinkedVendorAvatarUrl] = useState<string | null>(null);
   const [updatingVendorPortalUserId, setUpdatingVendorPortalUserId] = useState<string | null>(null);
   const [processingInviteId, setProcessingInviteId] = useState<string | null>(null);
+  const [selectedPortalUser, setSelectedPortalUser] = useState<VendorPortalTeamUser | null>(null);
+  const [portalUserDetailOpen, setPortalUserDetailOpen] = useState(false);
+  const [processingPortalUserAction, setProcessingPortalUserAction] = useState<string | null>(null);
   const [scopeEditorOpen, setScopeEditorOpen] = useState(false);
   const [scopeEditorLoading, setScopeEditorLoading] = useState(false);
   const [scopeEditorAssignment, setScopeEditorAssignment] = useState<any>(null);
@@ -223,6 +226,9 @@ export default function VendorDetails() {
     loadTeam: loadVendorPortalTeam,
     updateRole: updateVendorPortalRole,
     revokeInvite: revokeVendorPortalInvite,
+    resetPassword: resetVendorPortalPassword,
+    setMembershipStatus: setVendorPortalMembershipStatus,
+    removeUser: removeVendorPortalUser,
   } = useVendorPortalTeam(isDesignProfessionalVendor ? null : vendor?.id || null);
   const latestPendingInvite = pendingInvites[0] || null;
   const linkedVendorUserCount = linkedVendorUsers.length;
@@ -695,6 +701,15 @@ export default function VendorDetails() {
     setLinkedVendorAvatarUrl(primaryLinkedUser?.avatar_url || null);
   }, [isDesignProfessionalVendor, linkedVendorUsers]);
 
+  useEffect(() => {
+    if (!selectedPortalUser) return;
+    const refreshedPortalUser = linkedVendorUsers.find((user) => user.user_id === selectedPortalUser.user_id) || null;
+    setSelectedPortalUser(refreshedPortalUser);
+    if (!refreshedPortalUser) {
+      setPortalUserDetailOpen(false);
+    }
+  }, [linkedVendorUsers, selectedPortalUser]);
+
   const handleAssignJob = async () => {
     if (!vendor?.id || !selectedAssignJobId || !user?.id) return;
     try {
@@ -910,6 +925,17 @@ export default function VendorDetails() {
     return details.join(" • ");
   };
 
+  const formatPortalMembershipStatus = (value?: string | null) => {
+    const normalized = String(value || "").trim().toLowerCase();
+    if (normalized === "suspended") return "Temporarily Blocked";
+    return "Active";
+  };
+
+  const openPortalUserDetail = (portalUser: VendorPortalTeamUser) => {
+    setSelectedPortalUser(portalUser);
+    setPortalUserDetailOpen(true);
+  };
+
   const toggleUnmask = (methodId: string) => {
     if (!canViewSensitiveData) return;
     
@@ -930,7 +956,7 @@ export default function VendorDetails() {
     if (!normalizedInviteEmail) {
       toast({
         title: "No email",
-        description: "Enter the coworker email address you want to invite.",
+        description: "Enter the vendor email address you want to invite.",
         variant: "destructive",
       });
       return;
@@ -1057,6 +1083,70 @@ export default function VendorDetails() {
     }
   };
 
+  const handleResetVendorPortalPassword = async (portalUser: VendorPortalTeamUser) => {
+    try {
+      setProcessingPortalUserAction(`reset:${portalUser.user_id}`);
+      await resetVendorPortalPassword(portalUser.user_id);
+      toast({
+        title: "Password reset sent",
+        description: `A reset email was sent to ${portalUser.email || portalUser.name}.`,
+      });
+    } catch (error: any) {
+      console.error("Error resetting vendor portal password:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to send password reset.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingPortalUserAction(null);
+    }
+  };
+
+  const handleToggleVendorPortalBlock = async (portalUser: VendorPortalTeamUser) => {
+    const nextStatus = String(portalUser.membership_status || "").toLowerCase() === "suspended" ? "accepted" : "suspended";
+    try {
+      setProcessingPortalUserAction(`status:${portalUser.user_id}`);
+      await setVendorPortalMembershipStatus(portalUser.user_id, nextStatus as "accepted" | "suspended");
+      toast({
+        title: nextStatus === "suspended" ? "User blocked" : "User unblocked",
+        description: nextStatus === "suspended"
+          ? "This user can no longer access this vendor portal until unblocked."
+          : "This user can access this vendor portal again.",
+      });
+    } catch (error: any) {
+      console.error("Error updating vendor portal membership status:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to update user access.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingPortalUserAction(null);
+    }
+  };
+
+  const handleRemoveVendorPortalUser = async (portalUser: VendorPortalTeamUser) => {
+    try {
+      setProcessingPortalUserAction(`remove:${portalUser.user_id}`);
+      await removeVendorPortalUser(portalUser.user_id);
+      toast({
+        title: "User removed",
+        description: "This person was removed from this vendor portal.",
+      });
+      setPortalUserDetailOpen(false);
+    } catch (error: any) {
+      console.error("Error removing vendor portal user:", error);
+      toast({
+        title: "Error",
+        description: error?.message || "Failed to remove user from this vendor portal.",
+        variant: "destructive",
+      });
+    } finally {
+      setProcessingPortalUserAction(null);
+    }
+  };
+
   const maskAccountNumber = (accountNumber: string, methodId: string) => {
     if (!accountNumber) return '****';
     if (unmaskedMethods.has(methodId)) return accountNumber;
@@ -1169,21 +1259,18 @@ export default function VendorDetails() {
       <Dialog open={vendorPortalDialogOpen && !isDesignProfessionalVendor} onOpenChange={setVendorPortalDialogOpen}>
         <DialogContent className="max-w-5xl">
           <DialogHeader>
-            <DialogTitle>Vendor Portal</DialogTitle>
-            <DialogDescription>
-              Manage the individual people at {vendor.name} who can log in to the vendor portal, label them by company role, and review recent login activity.
-            </DialogDescription>
+            <DialogTitle>{vendor.name} Vendor Portal User Management</DialogTitle>
           </DialogHeader>
           <ScrollArea className="max-h-[75vh] pr-4">
             <div className="space-y-6 py-2">
               <Card>
                 <CardHeader className="pb-3">
-                  <CardTitle className="text-base">Invite coworker</CardTitle>
+                  <CardTitle className="text-base">Add vendor portal user</CardTitle>
                 </CardHeader>
                 <CardContent className="space-y-4">
                   <div className="grid gap-4 md:grid-cols-[minmax(0,1fr)_220px_auto] md:items-start">
                     <div className="space-y-2">
-                      <Label htmlFor="vendor-portal-invite-email">Coworker email</Label>
+                      <Label htmlFor="vendor-portal-invite-email">Vendor email</Label>
                       <Input
                         id="vendor-portal-invite-email"
                         type="email"
@@ -1244,11 +1331,14 @@ export default function VendorDetails() {
                     </div>
                   ) : linkedVendorUsers.length === 0 ? (
                     <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                      No portal users are linked yet. Invite the first coworker to create the vendor portal account.
+                      No portal users are linked yet. Add the first vendor email to create the vendor portal account.
                     </div>
                   ) : (
                     linkedVendorUsers.map((portalUser) => (
-                      <div key={portalUser.user_id} className="flex flex-col gap-3 rounded-lg border p-4 lg:flex-row lg:items-start lg:justify-between">
+                      <div
+                        key={portalUser.user_id}
+                        className="flex flex-col gap-3 rounded-lg border p-4 lg:flex-row lg:items-start lg:justify-between"
+                      >
                         <div className="flex min-w-0 items-start gap-3">
                           <UserAvatar
                             src={portalUser.avatar_url}
@@ -1261,6 +1351,9 @@ export default function VendorDetails() {
                               <Badge variant={portalUser.vendor_portal_role === "owner" ? "default" : "outline"}>
                                 {getVendorPortalRoleLabel(portalUser.vendor_portal_role)}
                               </Badge>
+                              <Badge variant={String(portalUser.membership_status || "").toLowerCase() === "suspended" ? "destructive" : "secondary"}>
+                                {formatPortalMembershipStatus(portalUser.membership_status)}
+                              </Badge>
                             </div>
                             <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                               {portalUser.email && <span className="truncate">{portalUser.email}</span>}
@@ -1271,13 +1364,20 @@ export default function VendorDetails() {
                             </div>
                           </div>
                         </div>
-                        <div className="flex flex-col gap-2 lg:items-end">
-                          <div className="w-full lg:w-[190px]">
-                            <Select
-                              value={portalUser.vendor_portal_role}
-                              onValueChange={(value) => handleUpdateVendorPortalRole(portalUser.user_id, value as VendorPortalRole)}
-                              disabled={updatingVendorPortalUserId === portalUser.user_id}
+                          <div className="flex flex-col gap-2 lg:items-end">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openPortalUserDetail(portalUser)}
                             >
+                              Manage User
+                            </Button>
+                            <div className="w-full lg:w-[190px]">
+                              <Select
+                                value={portalUser.vendor_portal_role}
+                                onValueChange={(value) => handleUpdateVendorPortalRole(portalUser.user_id, value as VendorPortalRole)}
+                                disabled={updatingVendorPortalUserId === portalUser.user_id}
+                              >
                               <SelectTrigger>
                                 <SelectValue />
                               </SelectTrigger>
@@ -1290,20 +1390,21 @@ export default function VendorDetails() {
                               </SelectContent>
                             </Select>
                           </div>
-                          {hasElevatedAccess() && (
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() =>
-                                navigate(`/settings/users/${portalUser.user_id}`, {
-                                  state: { fromCompanyManagement: true },
-                                })
-                              }
-                            >
-                              View User
-                            </Button>
-                          )}
-                        </div>
+                            {hasElevatedAccess() && (
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  navigate(`/settings/users/${portalUser.user_id}`, {
+                                    state: { fromCompanyManagement: true },
+                                  });
+                                }}
+                              >
+                                View User
+                              </Button>
+                            )}
+                          </div>
                       </div>
                     ))
                   )}
@@ -1324,7 +1425,7 @@ export default function VendorDetails() {
                     </div>
                   ) : pendingInvites.length === 0 ? (
                     <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-                      No coworker invites are currently pending.
+                      No vendor portal invites are currently pending.
                     </div>
                   ) : (
                     pendingInvites.map((invite) => (
@@ -1370,6 +1471,100 @@ export default function VendorDetails() {
               Close
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={portalUserDetailOpen} onOpenChange={setPortalUserDetailOpen}>
+        <DialogContent className="max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Portal User Details</DialogTitle>
+            <DialogDescription>
+              Review login activity and manage this vendor portal user.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedPortalUser ? (
+            <div className="space-y-6">
+              <div className="flex items-start gap-4 rounded-lg border p-4">
+                <UserAvatar
+                  src={selectedPortalUser.avatar_url}
+                  name={selectedPortalUser.name}
+                  className="h-12 w-12"
+                />
+                <div className="min-w-0 space-y-2">
+                  <div className="flex flex-wrap items-center gap-2">
+                    <p className="font-semibold">{selectedPortalUser.name}</p>
+                    <Badge variant={selectedPortalUser.vendor_portal_role === "owner" ? "default" : "outline"}>
+                      {getVendorPortalRoleLabel(selectedPortalUser.vendor_portal_role)}
+                    </Badge>
+                    <Badge variant={String(selectedPortalUser.membership_status || "").toLowerCase() === "suspended" ? "destructive" : "secondary"}>
+                      {formatPortalMembershipStatus(selectedPortalUser.membership_status)}
+                    </Badge>
+                  </div>
+                  <div className="space-y-1 text-sm text-muted-foreground">
+                    {selectedPortalUser.email ? <p>{selectedPortalUser.email}</p> : null}
+                    {selectedPortalUser.phone ? <p>{selectedPortalUser.phone}</p> : null}
+                    <p>Last login: {formatPortalLoginDetails(selectedPortalUser)}</p>
+                    {selectedPortalUser.invited_at ? <p>Invited: {formatPortalTimestamp(selectedPortalUser.invited_at)}</p> : null}
+                    {selectedPortalUser.accepted_at ? <p>Registered: {formatPortalTimestamp(selectedPortalUser.accepted_at)}</p> : null}
+                  </div>
+                </div>
+              </div>
+
+              <div className="grid gap-3 md:grid-cols-3">
+                <Button
+                  variant="outline"
+                  disabled={processingPortalUserAction === `reset:${selectedPortalUser.user_id}`}
+                  onClick={() => handleResetVendorPortalPassword(selectedPortalUser)}
+                >
+                  <KeyRound className="mr-2 h-4 w-4" />
+                  Reset Password
+                </Button>
+                <Button
+                  variant="outline"
+                  disabled={processingPortalUserAction === `status:${selectedPortalUser.user_id}`}
+                  onClick={() => handleToggleVendorPortalBlock(selectedPortalUser)}
+                >
+                  <Ban className="mr-2 h-4 w-4" />
+                  {String(selectedPortalUser.membership_status || "").toLowerCase() === "suspended" ? "Unblock User" : "Temporarily Block"}
+                </Button>
+                <Button
+                  variant="destructive"
+                  disabled={processingPortalUserAction === `remove:${selectedPortalUser.user_id}`}
+                  onClick={() => handleRemoveVendorPortalUser(selectedPortalUser)}
+                >
+                  <Trash2 className="mr-2 h-4 w-4" />
+                  Remove User
+                </Button>
+              </div>
+
+              <div className="rounded-lg border p-4">
+                <div className="mb-3 flex items-center gap-2">
+                  <ShieldAlert className="h-4 w-4 text-muted-foreground" />
+                  <p className="font-medium">Login Audit</p>
+                </div>
+                {selectedPortalUser.recent_logins && selectedPortalUser.recent_logins.length > 0 ? (
+                  <div className="space-y-3">
+                    {selectedPortalUser.recent_logins.map((login, index) => (
+                      <div key={`${login.login_time || "login"}:${index}`} className="rounded-md border p-3 text-sm">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <span className="font-medium">{formatPortalTimestamp(login.login_time)}</span>
+                          {login.login_method ? <Badge variant="outline">{login.login_method}</Badge> : null}
+                          {login.app_source ? <Badge variant="secondary">{login.app_source}</Badge> : null}
+                          {login.success === false ? <Badge variant="destructive">Failed</Badge> : <Badge variant="secondary">Successful</Badge>}
+                        </div>
+                        <div className="mt-2 space-y-1 text-xs text-muted-foreground">
+                          {login.ip_address ? <p>IP: {login.ip_address}</p> : null}
+                          {login.user_agent ? <p className="break-words">User Agent: {login.user_agent}</p> : null}
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <p className="text-sm text-muted-foreground">No login audit records were found for this user yet.</p>
+                )}
+              </div>
+            </div>
+          ) : null}
         </DialogContent>
       </Dialog>
 

@@ -21,6 +21,8 @@ import { useVendorPortalData } from '@/hooks/useVendorPortalData';
 import { supabase } from '@/integrations/supabase/client';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import builderLynkIcon from '@/assets/builderlynk-icon-shield.png';
+import { getAuthEntryContext } from '@/utils/authEntryContext';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 
 type CompanyType = 'construction' | 'design_professional' | 'vendor';
 type WorkspaceLogoUpdatedDetail = {
@@ -358,6 +360,7 @@ export function AppSidebar() {
   const { tenantMember, isSuperAdmin } = useTenant();
   const { currentCompany, refreshCompanies } = useCompany();
   const { hasAccess, loading } = useMenuPermissions();
+  const activeCompanyRole = useActiveCompanyRole();
   const { toast } = useToast();
   const { showLockedMenuItems, lockedMenuUpgradeMessage } = useTierNavigationSettings();
   const { roleCaps: vendorRoleCaps } = useVendorPortalAccess();
@@ -371,8 +374,11 @@ export function AppSidebar() {
   const logoInputRef = useRef<HTMLInputElement | null>(null);
   const lastWorkspaceCompanyIdRef = useRef<string | null>(null);
   const profileRole = String(profile?.role || '').trim().toLowerCase();
-  const effectiveRole = String(tenantMember?.role || profile?.role || '').trim().toLowerCase();
-  const isExternalUser = profileRole === 'vendor' || profileRole === 'design_professional';
+  const effectiveRole = String(activeCompanyRole || tenantMember?.role || profile?.role || '').trim().toLowerCase();
+  const authEntryContext = getAuthEntryContext();
+  const isExternalUser =
+    authEntryContext === 'vendor' &&
+    (profileRole === 'vendor' || profileRole === 'design_professional');
   const isDesignProfessionalRoute = location.pathname.startsWith('/design-professional');
   const isVendorRoute = location.pathname === '/vendor' || location.pathname.startsWith('/vendor/');
   const companyTypeFromCurrentCompany: CompanyType =
@@ -384,13 +390,17 @@ export function AppSidebar() {
   const isDesignProfessionalWorkspace =
     isDesignProfessionalRoute ||
     companyTypeFromCurrentCompany === 'design_professional' ||
-    profileRole === 'design_professional';
-  const isVendorWorkspace = isVendorRoute || profileRole === 'vendor';
+    (authEntryContext === 'vendor' && profileRole === 'design_professional');
+  const isVendorWorkspace =
+    isVendorRoute ||
+    (authEntryContext === 'vendor' && profileRole === 'vendor');
   const workspaceCompanyType: CompanyType =
     isVendorWorkspace
       ? 'vendor'
       : isDesignProfessionalWorkspace
       ? 'design_professional'
+      : authEntryContext === 'builder'
+      ? 'construction'
       : companyTypeFromCurrentCompany;
   const sidebarCategories = isDesignProfessionalWorkspace
     ? designProfessionalNavigationCategories
@@ -714,7 +724,9 @@ export function AppSidebar() {
           <SidebarGroup>
             <SidebarGroupContent>
               <SidebarMenu>
-                {vendorNavigationItems.map((item) => {
+                {vendorNavigationItems
+                  .filter((item) => item.name !== "Settings" || vendorRoleCaps.canAccessSettings)
+                  .map((item) => {
                   const isActive = isItemRouteActive({ href: item.href }, item.name);
                   return (
                     <SidebarMenuItem key={item.name}>
@@ -947,18 +959,19 @@ export default function Layout() {
   const { profile, signOut } = useAuth();
   const { currentCompany } = useCompany();
   const { loading: settingsLoading } = useSettings();
-  const effectiveRole = String(profile?.role || '').trim().toLowerCase();
+  const activeCompanyRole = useActiveCompanyRole();
+  const effectiveRole = String(activeCompanyRole || profile?.role || '').trim().toLowerCase();
+  const authEntryContext = getAuthEntryContext();
   const isVendorRoute = location.pathname === '/vendor' || location.pathname.startsWith('/vendor/');
   const isDesignProfessionalRoute = location.pathname.startsWith('/design-professional');
   const isExternalUser =
     isVendorRoute ||
     isDesignProfessionalRoute ||
-    effectiveRole === 'vendor' ||
-    effectiveRole === 'design_professional';
+    (authEntryContext === 'vendor' && (effectiveRole === 'vendor' || effectiveRole === 'design_professional'));
   const profileSettingsHref =
-    isVendorRoute || effectiveRole === 'vendor'
+    isVendorRoute || (authEntryContext === 'vendor' && effectiveRole === 'vendor')
       ? '/vendor/profile-settings'
-      : isDesignProfessionalRoute || effectiveRole === 'design_professional'
+      : isDesignProfessionalRoute || (authEntryContext === 'vendor' && effectiveRole === 'design_professional')
       ? '/design-professional/profile-settings'
       : '/profile-settings';
   const isPunchClockPage = location.pathname === '/time-tracking';

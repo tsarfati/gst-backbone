@@ -9,9 +9,20 @@ export interface VendorPortalTeamUser {
   phone: string | null;
   avatar_url: string | null;
   vendor_portal_role: VendorPortalRole;
+  membership_status?: string | null;
+  invited_at?: string | null;
+  accepted_at?: string | null;
   last_login_at?: string | null;
   last_login_method?: string | null;
   last_login_app_source?: string | null;
+  recent_logins?: Array<{
+    login_time: string | null;
+    login_method: string | null;
+    app_source?: string | null;
+    ip_address?: string | null;
+    user_agent?: string | null;
+    success?: boolean | null;
+  }>;
 }
 
 export interface VendorPortalTeamInvite {
@@ -93,6 +104,46 @@ export function useVendorPortalTeam(vendorId?: string | null) {
     applyPayload(data || {});
   }, [applyPayload, vendorId]);
 
+  const resetPassword = useCallback(async (targetUserId: string) => {
+    if (!vendorId) return;
+    const { data, error } = await supabase.functions.invoke("manage-vendor-portal-users", {
+      body: {
+        action: "reset_password",
+        vendorId,
+        targetUserId,
+      },
+    });
+    if (error) throw error;
+    applyPayload(data || {});
+  }, [applyPayload, vendorId]);
+
+  const setMembershipStatus = useCallback(async (targetUserId: string, membershipStatus: "accepted" | "suspended") => {
+    if (!vendorId) return;
+    const { data, error } = await supabase.functions.invoke("manage-vendor-portal-users", {
+      body: {
+        action: "set_membership_status",
+        vendorId,
+        targetUserId,
+        membershipStatus,
+      },
+    });
+    if (error) throw error;
+    applyPayload(data || {});
+  }, [applyPayload, vendorId]);
+
+  const removeUser = useCallback(async (targetUserId: string) => {
+    if (!vendorId) return;
+    const { data, error } = await supabase.functions.invoke("manage-vendor-portal-users", {
+      body: {
+        action: "remove_user",
+        vendorId,
+        targetUserId,
+      },
+    });
+    if (error) throw error;
+    applyPayload(data || {});
+  }, [applyPayload, vendorId]);
+
   return {
     loading,
     linkedUsers,
@@ -100,6 +151,9 @@ export function useVendorPortalTeam(vendorId?: string | null) {
     loadTeam,
     updateRole,
     revokeInvite,
+    resetPassword,
+    setMembershipStatus,
+    removeUser,
     setLinkedUsers,
     setPendingInvites,
   };
