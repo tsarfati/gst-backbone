@@ -255,6 +255,13 @@ function DashboardEntryRoute() {
       return companyRole !== 'vendor' && companyRole !== 'design_professional';
     }) ||
     ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(role);
+  const hasOnlyExternalWorkspace =
+    !hasInternalWorkspace &&
+    userCompanies.length > 0 &&
+    userCompanies.every((company) => {
+      const companyRole = String(company.role || '').toLowerCase();
+      return companyRole === 'vendor' || companyRole === 'design_professional';
+    });
   const shouldPreferVendorPortal =
     authEntryContext === 'vendor' &&
     (!!pinnedVendorPortalCompanyId || onExternalPortalPath || !hasInternalWorkspace);
@@ -372,6 +379,10 @@ function DashboardEntryRoute() {
 
   if (companyLoading || resolvingExternalRole) {
     return <PremiumLoadingScreen text="Loading your workspace..." />;
+  }
+
+  if (authEntryContext === 'builder' && hasOnlyExternalWorkspace) {
+    return <Navigate to="/vendor/select" replace />;
   }
 
   if (resolvedExternalRole === 'design_professional') {

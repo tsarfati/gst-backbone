@@ -81,6 +81,13 @@ export function AccessControl({ children }: AccessControlProps) {
       return companyRole !== 'vendor' && companyRole !== 'design_professional';
     }) ||
     ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(role);
+  const hasOnlyExternalWorkspace =
+    !hasInternalWorkspace &&
+    userCompanies.length > 0 &&
+    userCompanies.every((company) => {
+      const companyRole = String(company.role || '').toLowerCase();
+      return companyRole === 'vendor' || companyRole === 'design_professional';
+    });
   const externalRequestedRole = externalPortalContext.requestedRole;
   const effectiveExternalRole =
     role === 'vendor' || role === 'design_professional'
@@ -451,6 +458,17 @@ export function AccessControl({ children }: AccessControlProps) {
     // If profile is known and not completed, redirect to profile completion
     if (profile && profile.profile_completed === false && !shouldUseExternalPortalFlow && !hasEstablishedInternalWorkspace) {
       navigate('/profile-completion', { replace: true });
+      return;
+    }
+
+    if (
+      authEntryContext === 'builder' &&
+      hasOnlyExternalWorkspace &&
+      !location.pathname.startsWith('/vendor/select') &&
+      !location.pathname.startsWith('/vendor/') &&
+      !location.pathname.startsWith('/design-professional/')
+    ) {
+      navigate('/vendor/select', { replace: true });
       return;
     }
 
