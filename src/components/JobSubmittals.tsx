@@ -21,6 +21,7 @@ import DragDropUpload from "@/components/DragDropUpload";
 interface JobSubmittalsProps {
   jobId: string;
   canCreate?: boolean;
+  companyId?: string | null;
 }
 
 type SubmittalStatus = Enums<"submittal_status">;
@@ -45,18 +46,10 @@ const getErrorMessage = (error: unknown): string => {
 
 const isMissingTableError = (error: PostgrestError) => error.code === "42P01";
 
-type UserCompanyAccessProfileRow = {
-  user_id: string;
-  profiles: {
-    user_id: string;
-    first_name: string;
-    last_name: string;
-  } | null;
-};
-
-export default function JobSubmittals({ jobId, canCreate = true }: JobSubmittalsProps) {
+export default function JobSubmittals({ jobId, canCreate = true, companyId = null }: JobSubmittalsProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const effectiveCompanyId = companyId || currentCompany?.id || null;
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [submittals, setSubmittals] = useState<Submittal[]>([]);
@@ -110,12 +103,18 @@ export default function JobSubmittals({ jobId, canCreate = true }: JobSubmittals
   });
 
   const fetchSubmittals = useCallback(async () => {
+    if (!effectiveCompanyId) {
+      setSubmittals([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("submittals")
         .select("*")
         .eq("job_id", jobId)
-        .eq("company_id", currentCompany?.id ?? "")
+        .eq("company_id", effectiveCompanyId)
         .order("created_at", { ascending: false });
 
       if (error) {
@@ -134,32 +133,49 @@ export default function JobSubmittals({ jobId, canCreate = true }: JobSubmittals
     } finally {
       setLoading(false);
     }
-  }, [currentCompany?.id, jobId]);
+  }, [effectiveCompanyId, jobId]);
 
   const fetchCompanyUsers = useCallback(async () => {
+    if (!effectiveCompanyId) {
+      setCompanyUsers([]);
+      return;
+    }
+
     try {
-      const { data, error } = await supabase
+      const { data: accessRows, error: accessError } = await supabase
         .from("user_company_access")
-        .select("user_id, profiles(user_id, first_name, last_name)")
-        .eq("company_id", currentCompany?.id ?? "")
+        .select("user_id")
+        .eq("company_id", effectiveCompanyId)
         .eq("is_active", true);
 
-      if (error) throw error;
-      const rows = (data || []) as unknown as UserCompanyAccessProfileRow[];
-      const users = rows
-        .map((row) => row.profiles)
-        .filter((profile): profile is Profile => Boolean(profile));
-      setCompanyUsers(users);
+      if (accessError) throw accessError;
+
+      const userIds = (accessRows || [])
+        .map((item) => item.user_id)
+        .filter((value): value is string => Boolean(value));
+
+      if (userIds.length === 0) {
+        setCompanyUsers([]);
+        return;
+      }
+
+      const { data: profileRows, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name")
+        .in("user_id", userIds);
+
+      if (profileError) throw profileError;
+      setCompanyUsers((profileRows || []) as Profile[]);
     } catch (error) {
       console.error("Error loading company users:", error);
     }
-  }, [currentCompany?.id]);
+  }, [effectiveCompanyId]);
 
   useEffect(() => {
-    if (!currentCompany?.id) return;
+    if (!effectiveCompanyId) return;
     void fetchSubmittals();
     void fetchCompanyUsers();
-  }, [currentCompany?.id, fetchCompanyUsers, fetchSubmittals]);
+  }, [effectiveCompanyId, fetchCompanyUsers, fetchSubmittals]);
 
   const userNameById = useMemo(() => {
     const map: Record<string, string> = {};
@@ -192,7 +208,7 @@ export default function JobSubmittals({ jobId, canCreate = true }: JobSubmittals
   const uploadCreateAttachmentFile = async (submittalId: string, file: File) => {
     const fileExt = file.name.split(".").pop();
     const fileName = `${crypto.randomUUID()}.${fileExt}`;
-    const filePath = `${currentCompany?.id}/submittals/${submittalId}/${fileName}`;
+    const filePath = `${effectiveCompanyId}/submittals/${submittalId}/${fileName}`;
 
     const { error: uploadError } = await supabase.storage
       .from("company-files")
@@ -225,7 +241,7 @@ export default function JobSubmittals({ jobId, canCreate = true }: JobSubmittals
       const { data, error } = await supabase
         .from("submittals")
         .insert({
-          company_id: currentCompany?.id,
+          company_id: effectiveCompanyId,
           job_id: jobId,
           submittal_number: createForm.submittal_number.trim(),
           title: createForm.title.trim(),

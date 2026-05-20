@@ -928,9 +928,9 @@ export default function JobPhotoAlbum({
 
       if (error) throw error;
 
-      if (currentCompany?.id) {
+      if (effectiveCompanyId) {
         await createMentionNotifications({
-          companyId: currentCompany.id,
+          companyId: effectiveCompanyId,
           actorUserId: user.id,
           actorName,
           content: newComment.trim(),
@@ -1224,10 +1224,10 @@ export default function JobPhotoAlbum({
         successCount++;
 
         // Sync to Google Drive
-        if (currentCompany) {
+        if (effectiveCompanyId) {
           const { data: urlData } = supabase.storage.from('punch-photos').getPublicUrl(fileName);
           syncFileToGoogleDrive({
-            companyId: currentCompany.id,
+            companyId: effectiveCompanyId,
             jobId,
             category: 'photos',
             fileUrl: urlData.publicUrl,
@@ -1408,7 +1408,7 @@ export default function JobPhotoAlbum({
   }, [groupedPhotos]);
 
   const saveDefaultPhotoView = () => {
-    const storageKey = `job-photo-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+    const storageKey = `job-photo-view-mode:${effectiveCompanyId || 'default'}:${user?.id || 'anon'}`;
     window.localStorage.setItem(storageKey, photoViewMode);
     setSavedDefaultPhotoView(photoViewMode);
     toast({
@@ -1602,7 +1602,7 @@ export default function JobPhotoAlbum({
                           className="h-7 w-7 mr-1"
                           onClick={() => {
                             setAlbumViewMode(opt.value);
-                            const storageKey = `job-album-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+                            const storageKey = `job-album-view-mode:${effectiveCompanyId || 'default'}:${user?.id || 'anon'}`;
                             window.localStorage.setItem(storageKey, opt.value);
                             setSavedDefaultAlbumView(opt.value);
                             toast({
@@ -1800,7 +1800,7 @@ export default function JobPhotoAlbum({
                               className="h-7 w-7 mr-1"
                               onClick={() => {
                                 setPhotoViewMode(opt.value);
-                                const storageKey = `job-photo-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+                                const storageKey = `job-photo-view-mode:${effectiveCompanyId || 'default'}:${user?.id || 'anon'}`;
                                 window.localStorage.setItem(storageKey, opt.value);
                                 setSavedDefaultPhotoView(opt.value);
                                 toast({
@@ -2247,7 +2247,7 @@ export default function JobPhotoAlbum({
                   <MentionInput
                     value={newComment}
                     onValueChange={setNewComment}
-                    companyId={currentCompany?.id}
+                    companyId={effectiveCompanyId}
                     jobId={jobId}
                     currentUserId={user?.id}
                     placeholder="Add a comment..."

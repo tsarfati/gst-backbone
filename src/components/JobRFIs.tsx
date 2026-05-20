@@ -25,6 +25,7 @@ import { loadEmailSenderPreview, type EmailSenderPreview } from "@/utils/emailSe
 interface JobRFIsProps {
   jobId: string;
   canCreate?: boolean;
+  companyId?: string | null;
 }
 
 interface RFI {
@@ -69,9 +70,10 @@ interface RFIAttachment {
   uploaded_at: string;
 }
 
-export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
+export default function JobRFIs({ jobId, canCreate = true, companyId = null }: JobRFIsProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const effectiveCompanyId = companyId || currentCompany?.id || null;
   const [rfis, setRfis] = useState<RFI[]>([]);
   const [companyUsers, setCompanyUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -158,12 +160,18 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     [profile?.first_name, profile?.last_name].filter(Boolean).join(" ").trim() || profile?.email || "Assigned user";
 
   const fetchRFIs = useCallback(async () => {
+    if (!effectiveCompanyId) {
+      setRfis([]);
+      setLoading(false);
+      return;
+    }
+
     try {
       const { data, error } = await supabase
         .from("rfis")
         .select("*")
         .eq("job_id", jobId)
-        .eq("company_id", currentCompany?.id)
+        .eq("company_id", effectiveCompanyId)
         .order("created_at", { ascending: false });
 
       if (error) throw error;
@@ -174,30 +182,49 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     } finally {
       setLoading(false);
     }
-  }, [currentCompany?.id, jobId]);
+  }, [effectiveCompanyId, jobId]);
 
   const fetchCompanyUsers = useCallback(async () => {
+    if (!effectiveCompanyId) {
+      setCompanyUsers([]);
+      return;
+    }
+
     try {
-      const { data, error } = await supabase
+      const { data: accessRows, error: accessError } = await supabase
         .from("user_company_access")
-        .select("user_id, profiles(user_id, first_name, last_name, email)")
-        .eq("company_id", currentCompany?.id)
+        .select("user_id")
+        .eq("company_id", effectiveCompanyId)
         .eq("is_active", true);
 
-      if (error) throw error;
-      const users = data?.map((item) => (item as any).profiles).filter(Boolean) as Profile[];
-      setCompanyUsers(users);
+      if (accessError) throw accessError;
+
+      const userIds = (accessRows || [])
+        .map((item) => item.user_id)
+        .filter((value): value is string => Boolean(value));
+
+      if (userIds.length === 0) {
+        setCompanyUsers([]);
+        return;
+      }
+
+      const { data: profileRows, error: profileError } = await supabase
+        .from("profiles")
+        .select("user_id, first_name, last_name, email")
+        .in("user_id", userIds);
+
+      if (profileError) throw profileError;
+      setCompanyUsers((profileRows || []) as Profile[]);
     } catch (error) {
       console.error("Error fetching company users:", error);
     }
-  }, [currentCompany?.id]);
+  }, [effectiveCompanyId]);
 
   useEffect(() => {
-    if (currentCompany?.id) {
-      void fetchRFIs();
-      void fetchCompanyUsers();
-    }
-  }, [currentCompany?.id, fetchCompanyUsers, fetchRFIs]);
+    if (!effectiveCompanyId) return;
+    void fetchRFIs();
+    void fetchCompanyUsers();
+  }, [effectiveCompanyId, fetchCompanyUsers, fetchRFIs]);
 
   useEffect(() => {
     if (!submitDialogOpen) return;
@@ -205,7 +232,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     const loadInviteSenderPreview = async () => {
       const preview = await loadEmailSenderPreview({
         userId: user?.id,
-        companyId: currentCompany?.id,
+        companyId: effectiveCompanyId,
         companyName: currentCompany?.name,
         noUserDescription: "BuilderLYNK will send the RFI email because no authenticated sender was found.",
         userDescription: "This RFI email will send from your personal email settings first.",
@@ -217,7 +244,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     };
 
     void loadInviteSenderPreview();
-  }, [submitDialogOpen, user?.id, currentCompany?.id]);
+  }, [submitDialogOpen, user?.id, effectiveCompanyId, currentCompany?.name]);
 
   const fetchRFIDetails = async (rfi: RFI) => {
     try {
@@ -275,7 +302,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     for (const file of createAttachments) {
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `${currentCompany?.id}/rfis/${rfiId}/${fileName}`;
+      const filePath = `${effectiveCompanyId}/rfis/${rfiId}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("company-files")
@@ -393,7 +420,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
         .from("rfis")
         .insert({
           job_id: jobId,
-          company_id: currentCompany?.id,
+          company_id: effectiveCompanyId,
           created_by: user?.id,
           rfi_number: formData.rfi_number,
           subject: formData.subject,
@@ -502,7 +529,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
           dueDate: rfi.due_date,
           recipientName: getCompanyUserName(assignedProfile),
           recipientEmail: assignedProfile.email,
-          companyId: currentCompany?.id,
+          companyId: effectiveCompanyId,
           companyName: currentCompany?.name,
           message: submitMessage,
           baseUrl: getPublicAuthOrigin(),
@@ -587,7 +614,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
         .from("rfi_messages")
         .insert({
           rfi_id: selectedRfi.id,
-          company_id: currentCompany?.id,
+          company_id: effectiveCompanyId,
           user_id: user?.id,
           message: newMessage,
           is_internal: false,
@@ -595,9 +622,9 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
 
       if (error) throw error;
 
-      if (currentCompany?.id && user?.id) {
+      if (effectiveCompanyId && user?.id) {
         await createMentionNotifications({
-          companyId: currentCompany.id,
+          companyId: effectiveCompanyId,
           actorUserId: user.id,
           actorName,
           content: newMessage.trim(),
@@ -625,7 +652,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
     try {
       const fileExt = file.name.split(".").pop();
       const fileName = `${crypto.randomUUID()}.${fileExt}`;
-      const filePath = `${currentCompany?.id}/rfis/${selectedRfi.id}/${fileName}`;
+      const filePath = `${effectiveCompanyId}/rfis/${selectedRfi.id}/${fileName}`;
 
       const { error: uploadError } = await supabase.storage
         .from("company-files")
@@ -1293,7 +1320,7 @@ export default function JobRFIs({ jobId, canCreate = true }: JobRFIsProps) {
                       <MentionTextarea
                         value={newMessage}
                         onValueChange={setNewMessage}
-                        companyId={currentCompany?.id}
+                        companyId={effectiveCompanyId}
                         jobId={jobId}
                         currentUserId={user?.id}
                         placeholder="Type your message... (use @ to tag teammates)"

@@ -520,12 +520,31 @@ export default function JobDetails() {
       if (effectiveJobAccess.canViewSubcontracts) {
         try {
           setVendorSubcontractsLoading(true);
-          const { data, error } = await supabase
+          let { data, error } = await supabase
             .from("subcontracts")
             .select("id, name, status, contract_amount, contract_negotiation_status, signature_status")
             .eq("vendor_id", activeVendorId)
             .eq("job_id", id)
             .order("created_at", { ascending: false });
+
+          if (error) {
+            const fallback = await supabase
+              .from("subcontracts")
+              .select("id, name, status, contract_amount")
+              .eq("vendor_id", activeVendorId)
+              .eq("job_id", id)
+              .order("created_at", { ascending: false });
+
+            data = fallback.data
+              ? (fallback.data as Array<Omit<VendorSubcontract, "contract_negotiation_status" | "signature_status">>)
+                  .map((row) => ({
+                    ...row,
+                    contract_negotiation_status: null,
+                    signature_status: null,
+                  }))
+              : null;
+            error = fallback.error;
+          }
 
           if (error) throw error;
           if (!ignore) {
@@ -1239,7 +1258,7 @@ export default function JobDetails() {
           </TabsContent>}
 
           {visibleTabs.includes("rfis") && <TabsContent value="rfis" className="p-6">
-            <JobRFIs jobId={id!} canCreate={!isVendorView || effectiveJobAccess.canSubmitRfis} />
+            <JobRFIs jobId={id!} canCreate={!isVendorView || effectiveJobAccess.canSubmitRfis} companyId={job?.company_id || null} />
           </TabsContent>}
 
           {visibleTabs.includes("rfps") && <TabsContent value="rfps" className="p-6">
@@ -1405,7 +1424,7 @@ export default function JobDetails() {
           </TabsContent>}
 
           {visibleTabs.includes("submittals") && <TabsContent value="submittals" className="p-6">
-            <JobSubmittals jobId={id!} canCreate={!isVendorView || effectiveJobAccess.canSubmitSubmittals} />
+            <JobSubmittals jobId={id!} canCreate={!isVendorView || effectiveJobAccess.canSubmitSubmittals} companyId={job?.company_id || null} />
           </TabsContent>}
 
           <TabsContent value="billing" className="p-6">
