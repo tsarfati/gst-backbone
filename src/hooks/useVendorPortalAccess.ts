@@ -77,6 +77,7 @@ export function useVendorPortalAccess(jobId?: string) {
   const { user, profile } = useAuth();
   const {
     vendorId: effectiveVendorId,
+    vendorIds: effectiveVendorIds,
     vendorPortalRole: activeVendorPortalRole,
     loading: vendorContextLoading,
   } = useActiveVendorPortalVendor();
@@ -104,7 +105,7 @@ export function useVendorPortalAccess(jobId?: string) {
         return;
       }
 
-      if (!jobId || !effectiveVendorId) {
+      if (!jobId || effectiveVendorIds.length === 0) {
         setJobAccess(null);
         setLoading(false);
         return;
@@ -129,16 +130,37 @@ export function useVendorPortalAccess(jobId?: string) {
           can_access_filing_cabinet,
           can_upload_compliance_docs
         `)
-        .eq("vendor_id", effectiveVendorId)
+        .in("vendor_id", effectiveVendorIds)
         .eq("job_id", jobId)
-        .maybeSingle();
+        .limit(20);
 
       if (!ignore) {
         if (error) {
           console.error("Failed to load vendor job access:", error);
           setJobAccess(null);
         } else {
-          setJobAccess((data as VendorJobAccessRow | null) || null);
+          const rows = ((data || []) as VendorJobAccessRow[]);
+          if (rows.length === 0) {
+            setJobAccess(null);
+          } else {
+            const merged = rows.reduce<VendorJobAccessRow>((acc, row) => ({
+              can_view_job_details: !!acc.can_view_job_details || !!row.can_view_job_details,
+              can_submit_bills: !!acc.can_submit_bills || !!row.can_submit_bills,
+              can_view_plans: !!acc.can_view_plans || !!row.can_view_plans,
+              can_view_rfis: !!acc.can_view_rfis || !!row.can_view_rfis,
+              can_submit_rfis: !!acc.can_submit_rfis || !!row.can_submit_rfis,
+              can_view_submittals: !!acc.can_view_submittals || !!row.can_view_submittals,
+              can_submit_submittals: !!acc.can_submit_submittals || !!row.can_submit_submittals,
+              can_view_photos: !!acc.can_view_photos || !!row.can_view_photos,
+              can_view_rfps: !!acc.can_view_rfps || !!row.can_view_rfps,
+              can_submit_bids: !!acc.can_submit_bids || !!row.can_submit_bids,
+              can_view_subcontracts: !!acc.can_view_subcontracts || !!row.can_view_subcontracts,
+              can_access_messages: !!acc.can_access_messages || !!row.can_access_messages,
+              can_access_filing_cabinet: !!acc.can_access_filing_cabinet || !!row.can_access_filing_cabinet,
+              can_upload_compliance_docs: !!acc.can_upload_compliance_docs || !!row.can_upload_compliance_docs,
+            }), {});
+            setJobAccess(merged);
+          }
         }
         setLoading(false);
       }
@@ -148,7 +170,7 @@ export function useVendorPortalAccess(jobId?: string) {
     return () => {
       ignore = true;
     };
-  }, [effectiveVendorId, jobId, vendorContextLoading]);
+  }, [effectiveVendorIds, jobId, vendorContextLoading]);
 
   const effectiveJobAccess = useMemo(() => {
     const assignment = jobAccess || {};

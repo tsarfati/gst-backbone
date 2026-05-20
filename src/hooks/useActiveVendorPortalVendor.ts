@@ -5,6 +5,7 @@ import { useCompany } from "@/contexts/CompanyContext";
 
 type VendorPortalVendorContext = {
   vendorId: string | null;
+  vendorIds: string[];
   companyId: string | null;
   vendorPortalRole: string | null;
   loading: boolean;
@@ -25,6 +26,7 @@ export function useActiveVendorPortalVendor(): VendorPortalVendorContext {
   );
   const activeCompanyId = String(currentCompany?.id || profile?.current_company_id || "").trim() || null;
   const [vendorId, setVendorId] = useState<string | null>(fallbackVendorId);
+  const [vendorIds, setVendorIds] = useState<string[]>(fallbackVendorId ? [fallbackVendorId] : []);
   const [vendorPortalRole, setVendorPortalRole] = useState<string | null>(
     String(profile?.vendor_portal_role || "").trim() || null,
   );
@@ -36,6 +38,7 @@ export function useActiveVendorPortalVendor(): VendorPortalVendorContext {
     async function resolveVendorId() {
       if (!user?.id) {
         setVendorId(fallbackVendorId);
+        setVendorIds(fallbackVendorId ? [fallbackVendorId] : []);
         setVendorPortalRole(String(profile?.vendor_portal_role || "").trim() || null);
         setLoading(false);
         return;
@@ -43,6 +46,7 @@ export function useActiveVendorPortalVendor(): VendorPortalVendorContext {
 
       if (!activeCompanyId) {
         setVendorId(fallbackVendorId);
+        setVendorIds(fallbackVendorId ? [fallbackVendorId] : []);
         setVendorPortalRole(String(profile?.vendor_portal_role || "").trim() || null);
         setLoading(false);
         return;
@@ -74,14 +78,27 @@ export function useActiveVendorPortalVendor(): VendorPortalVendorContext {
           );
         });
 
+        const inviteVendorIds = Array.from(
+          new Set(
+            ((inviteRows || []) as any[])
+              .map((row: any) => String(row?.vendor_id || "").trim())
+              .filter(Boolean),
+          ),
+        );
+        const combinedVendorIds = Array.from(
+          new Set([...(fallbackVendorId ? [fallbackVendorId] : []), ...inviteVendorIds]),
+        );
+
         if (!ignore) {
           setVendorId(String(bestInvite?.vendor_id || "").trim() || fallbackVendorId);
+          setVendorIds(combinedVendorIds);
           setVendorPortalRole(String(bestInvite?.vendor_portal_role || "").trim() || String(profile?.vendor_portal_role || "").trim() || null);
         }
       } catch (error) {
         console.error("Failed to resolve active vendor portal vendor:", error);
         if (!ignore) {
           setVendorId(fallbackVendorId);
+          setVendorIds(fallbackVendorId ? [fallbackVendorId] : []);
           setVendorPortalRole(String(profile?.vendor_portal_role || "").trim() || null);
         }
       } finally {
@@ -98,6 +115,7 @@ export function useActiveVendorPortalVendor(): VendorPortalVendorContext {
 
   return {
     vendorId,
+    vendorIds,
     companyId: activeCompanyId,
     vendorPortalRole,
     loading,

@@ -97,7 +97,7 @@ export default function JobDetails() {
   const location = useLocation();
   const { toast } = useToast();
   const { user, profile } = useAuth();
-  const { vendorId: activeVendorId } = useActiveVendorPortalVendor();
+  const { vendorId: activeVendorId, vendorIds: activeVendorIds } = useActiveVendorPortalVendor();
   const { currentCompany, switchCompany } = useCompany();
   const permissions = useActionPermissions();
   const { hasAccess } = useMenuPermissions();
@@ -428,7 +428,7 @@ export default function JobDetails() {
     let ignore = false;
 
     async function loadVendorModules() {
-      if (!isVendorView || !id || !activeVendorId) {
+      if (!isVendorView || !id || activeVendorIds.length === 0) {
         setVendorRfps([]);
         setVendorSubcontracts([]);
         return;
@@ -452,7 +452,7 @@ export default function JobDetails() {
                 job_id
               )
             `)
-            .eq("vendor_id", activeVendorId)
+            .in("vendor_id", activeVendorIds)
             .eq("rfp.job_id", id)
             .order("invited_at", { ascending: false });
 
@@ -467,7 +467,7 @@ export default function JobDetails() {
             const { data: bidRows, error: bidError } = await supabase
               .from("bids")
               .select("id, rfp_id, bid_amount, status, submitted_at")
-              .eq("vendor_id", activeVendorId)
+              .in("vendor_id", activeVendorIds)
               .in("rfp_id", rfpIds);
 
             if (bidError) throw bidError;
@@ -485,23 +485,23 @@ export default function JobDetails() {
           }
 
           if (!ignore) {
-            setVendorRfps(
-              ((invitedRows || []) as any[])
-                .map((row) => {
-                  if (!row?.rfp?.id) return null;
-                  return {
-                    id: String(row.rfp.id),
-                    rfp_number: String(row.rfp.rfp_number || ""),
-                    title: String(row.rfp.title || "Untitled RFP"),
-                    status: String(row.rfp.status || "draft"),
-                    due_date: row.rfp.due_date || null,
-                    created_at: String(row.rfp.created_at),
-                    response_status: row.response_status || null,
-                    my_bid: bidByRfpId.get(String(row.rfp.id)) || null,
-                  } as JobRfp;
-                })
-                .filter((value): value is JobRfp => Boolean(value)),
-            );
+            const deduped = new Map<string, JobRfp>();
+            ((invitedRows || []) as any[]).forEach((row) => {
+              if (!row?.rfp?.id) return;
+              const rfpId = String(row.rfp.id);
+              if (deduped.has(rfpId)) return;
+              deduped.set(rfpId, {
+                id: rfpId,
+                rfp_number: String(row.rfp.rfp_number || ""),
+                title: String(row.rfp.title || "Untitled RFP"),
+                status: String(row.rfp.status || "draft"),
+                due_date: row.rfp.due_date || null,
+                created_at: String(row.rfp.created_at),
+                response_status: row.response_status || null,
+                my_bid: bidByRfpId.get(rfpId) || null,
+              });
+            });
+            setVendorRfps(Array.from(deduped.values()));
           }
         } catch (error) {
           console.error("Error loading vendor RFPs:", error);
@@ -523,7 +523,7 @@ export default function JobDetails() {
           let { data, error } = await supabase
             .from("subcontracts")
             .select("id, name, status, contract_amount, contract_negotiation_status, signature_status")
-            .eq("vendor_id", activeVendorId)
+            .in("vendor_id", activeVendorIds)
             .eq("job_id", id)
             .order("created_at", { ascending: false });
 
@@ -531,7 +531,7 @@ export default function JobDetails() {
             const fallback = await supabase
               .from("subcontracts")
               .select("id, name, status, contract_amount")
-              .eq("vendor_id", activeVendorId)
+              .in("vendor_id", activeVendorIds)
               .eq("job_id", id)
               .order("created_at", { ascending: false });
 
@@ -575,7 +575,7 @@ export default function JobDetails() {
     effectiveJobAccess.canViewSubcontracts,
     id,
     isVendorView,
-    activeVendorId,
+    activeVendorIds,
   ]);
 
   useEffect(() => {

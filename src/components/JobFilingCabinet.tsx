@@ -88,7 +88,7 @@ const formatDateTime = (value?: string | null) => {
 export default function JobFilingCabinet({ jobId, companyId: providedCompanyId }: JobFilingCabinetProps) {
   const { currentCompany } = useCompany();
   const { user, profile } = useAuth();
-  const { vendorId: activeVendorId } = useActiveVendorPortalVendor();
+  const { vendorId: activeVendorId, vendorIds: activeVendorIds } = useActiveVendorPortalVendor();
   const { toast } = useToast();
   const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
 
@@ -200,7 +200,7 @@ export default function JobFilingCabinet({ jobId, companyId: providedCompanyId }
       };
     }
 
-    if (!activeVendorId) {
+    if (activeVendorIds.length === 0) {
       const denied = {
         allowed: false,
         accessLevel: "view_only" as const,
@@ -222,11 +222,12 @@ export default function JobFilingCabinet({ jobId, companyId: providedCompanyId }
         allowed_filing_cabinet_folder_ids,
         allowed_filing_cabinet_file_ids
       `)
-      .eq('vendor_id', activeVendorId)
+      .in('vendor_id', activeVendorIds)
       .eq('job_id', jobId)
-      .maybeSingle();
+      .limit(20);
 
-    if (error || !data) {
+    const rows = ((data || []) as any[]);
+    if (error || rows.length === 0) {
       const denied = {
         allowed: false,
         accessLevel: "view_only" as const,
@@ -238,16 +239,28 @@ export default function JobFilingCabinet({ jobId, companyId: providedCompanyId }
       return denied;
     }
 
+    const folderIds = Array.from(
+      new Set(
+        rows.flatMap((row: any) => Array.isArray(row.allowed_filing_cabinet_folder_ids) ? row.allowed_filing_cabinet_folder_ids : []),
+      ),
+    );
+    const fileIds = Array.from(
+      new Set(
+        rows.flatMap((row: any) => Array.isArray(row.allowed_filing_cabinet_file_ids) ? row.allowed_filing_cabinet_file_ids : []),
+      ),
+    );
     const resolved = {
-      allowed: !!(data as any).can_access_filing_cabinet,
-      accessLevel: ((data as any).filing_cabinet_access_level || "view_only") as "view_only" | "read_write",
-      canDownload: !!(data as any).can_download_filing_cabinet_files,
-      allowedFolderIds: ((data as any).allowed_filing_cabinet_folder_ids as string[] | null) || null,
-      allowedFileIds: ((data as any).allowed_filing_cabinet_file_ids as string[] | null) || null,
+      allowed: rows.some((row: any) => !!row.can_access_filing_cabinet),
+      accessLevel: rows.some((row: any) => row.filing_cabinet_access_level === "read_write")
+        ? "read_write"
+        : "view_only" as "view_only" | "read_write",
+      canDownload: rows.some((row: any) => !!row.can_download_filing_cabinet_files),
+      allowedFolderIds: folderIds.length > 0 ? folderIds : null,
+      allowedFileIds: fileIds.length > 0 ? fileIds : null,
     };
     setVendorCabinetAccess({ loading: false, ...resolved });
     return resolved;
-  }, [isVendorPortalUser, activeVendorId, jobId]);
+  }, [isVendorPortalUser, activeVendorIds, jobId]);
 
   const loadFolders = useCallback(async (access?: { allowedFolderIds: string[] | null; allowed: boolean }) => {
     if (!companyId) return;
