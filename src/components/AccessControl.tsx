@@ -40,7 +40,7 @@ const parseInviteFunctionError = async (error: any) => {
 
 export function AccessControl({ children }: AccessControlProps) {
   const { user, profile, loading: authLoading, refreshProfile } = useAuth();
-  const { userCompanies, loading: companyLoading } = useCompany();
+  const { currentCompany, userCompanies, loading: companyLoading } = useCompany();
   const { hasTenantAccess, hasPendingRequest, isSuperAdmin, loading: tenantLoading } = useTenant();
   const { loading: settingsLoading } = useSettings();
   const navigate = useNavigate();
