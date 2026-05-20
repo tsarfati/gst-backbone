@@ -48,6 +48,33 @@ export function UserPinSettings({ userId, currentPin, userName }: UserPinSetting
     setLoading(true);
 
     try {
+      const { data: duplicateProfiles, error: duplicateLookupError } = await supabase
+        .from('profiles')
+        .select('user_id, display_name, first_name, last_name')
+        .eq('pin_code', pin)
+        .neq('user_id', userId)
+        .limit(1);
+
+      if (duplicateLookupError) throw duplicateLookupError;
+
+      const duplicateProfile = (duplicateProfiles || [])[0] as
+        | { user_id: string; display_name?: string | null; first_name?: string | null; last_name?: string | null }
+        | undefined;
+
+      if (duplicateProfile) {
+        const duplicateName =
+          duplicateProfile.display_name
+          || `${duplicateProfile.first_name || ''} ${duplicateProfile.last_name || ''}`.trim()
+          || 'another user';
+
+        toast({
+          title: "PIN Already In Use",
+          description: `This PIN is already assigned to ${duplicateName}. PINs must be unique.`,
+          variant: "destructive",
+        });
+        return;
+      }
+
       const { error } = await supabase
         .from('profiles')
         .update({ pin_code: pin })

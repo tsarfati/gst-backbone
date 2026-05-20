@@ -128,6 +128,9 @@ export default function VendorLogin() {
   const vendorSignupHref = form.companyId
     ? `/vendor-signup?company=${encodeURIComponent(form.companyId)}`
     : "/vendor-signup";
+  const vendorLoginHref = form.companyId
+    ? `/vendor-login?company=${encodeURIComponent(form.companyId)}`
+    : "/vendor-login";
 
   const onSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
@@ -221,7 +224,7 @@ export default function VendorLogin() {
                   type="button"
                   variant="outline"
                   size="sm"
-                  onClick={() => void signOut()}
+                  onClick={() => void signOut(vendorLoginHref)}
                 >
                   Sign Out First
                 </Button>

@@ -661,37 +661,85 @@ async function validatePin(supabaseAdmin: any, pin: string) {
   pin = pin.trim();
   
   // Check profiles table (all employees now live here)
-  const { data: profileData, error: profileError } = await supabaseAdmin
+  const { data: profileRows, error: profileError } = await supabaseAdmin
     .from('profiles')
     .select('user_id, first_name, last_name, role, current_company_id, avatar_url, punch_clock_access')
     .eq('pin_code', pin)
-    .maybeSingle();
+    .neq('punch_clock_access', false);
 
-  if (profileData && !profileError) {
-    // Check punch_clock_access
-    if (profileData.punch_clock_access === false) {
-      return null; // User does not have punch clock access
+  if (profileError) {
+    console.error('validatePin profiles error', profileError);
+    return null;
+  }
+
+  const candidateProfiles = (profileRows || []) as any[];
+
+  if (candidateProfiles.length > 0) {
+    const candidateUserIds = candidateProfiles
+      .map((profile) => String(profile.user_id || '').trim())
+      .filter(Boolean);
+
+    const { data: accessRows, error: accessError } = await supabaseAdmin
+      .from('user_company_access')
+      .select('user_id, company_id, role, granted_at, is_active')
+      .in('user_id', candidateUserIds)
+      .or('is_active.eq.true,is_active.is.null');
+
+    if (accessError) {
+      console.error('validatePin access error', accessError);
+      return null;
     }
-    
+
+    const activeAccessByUserId = new Map<string, any[]>();
+    ((accessRows || []) as any[]).forEach((row) => {
+      const resolvedUserId = String(row.user_id || '').trim();
+      if (!resolvedUserId) return;
+      const existingRows = activeAccessByUserId.get(resolvedUserId) || [];
+      existingRows.push(row);
+      activeAccessByUserId.set(resolvedUserId, existingRows);
+    });
+
+    const activeProfiles = candidateProfiles.filter((profile) => {
+      const resolvedUserId = String(profile.user_id || '').trim();
+      return resolvedUserId && (activeAccessByUserId.get(resolvedUserId)?.length || 0) > 0;
+    });
+
+    if (activeProfiles.length === 0) {
+      return null;
+    }
+
+    const selectedProfile = activeProfiles.sort((a, b) => {
+      const aCompanyMatch = a.current_company_id && (activeAccessByUserId.get(String(a.user_id)) || []).some((row) => row.company_id === a.current_company_id) ? 1 : 0;
+      const bCompanyMatch = b.current_company_id && (activeAccessByUserId.get(String(b.user_id)) || []).some((row) => row.company_id === b.current_company_id) ? 1 : 0;
+      if (aCompanyMatch !== bCompanyMatch) return bCompanyMatch - aCompanyMatch;
+      return String(a.user_id || '').localeCompare(String(b.user_id || ''));
+    })[0];
+
+    const selectedAccessRows = activeAccessByUserId.get(String(selectedProfile.user_id)) || [];
+    const selectedCompanyId =
+      selectedProfile.current_company_id && selectedAccessRows.some((row) => row.company_id === selectedProfile.current_company_id)
+        ? selectedProfile.current_company_id
+        : String(selectedAccessRows[0]?.company_id || '').trim() || null;
+
     // Get tenant_id from their current company for tenant isolation
     let tenant_id: string | null = null;
-    if (profileData.current_company_id) {
+    if (selectedCompanyId) {
       const { data: companyData } = await supabaseAdmin
         .from('companies')
         .select('tenant_id')
-        .eq('id', profileData.current_company_id)
+        .eq('id', selectedCompanyId)
         .maybeSingle();
       tenant_id = companyData?.tenant_id || null;
     }
     
     return {
-      user_id: profileData.user_id,
-      first_name: profileData.first_name,
-      last_name: profileData.last_name,
-      role: profileData.role,
+      user_id: selectedProfile.user_id,
+      first_name: selectedProfile.first_name,
+      last_name: selectedProfile.last_name,
+      role: selectedProfile.role,
       is_pin_employee: false, // Legacy field, all employees are now profile-based
-      existing_avatar: profileData.avatar_url,
-      company_id: profileData.current_company_id,
+      existing_avatar: selectedProfile.avatar_url,
+      company_id: selectedCompanyId,
       tenant_id
     };
   }

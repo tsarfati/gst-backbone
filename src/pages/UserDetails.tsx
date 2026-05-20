@@ -383,7 +383,15 @@ export default function UserDetails() {
     try {
       const [profileRes, accessRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
-        viewedCompanyId ? supabase.from('user_company_access').select('role').eq('user_id', userId!).eq('company_id', viewedCompanyId).eq('is_active', true).maybeSingle() : Promise.resolve({ data: null, error: null })
+        viewedCompanyId
+          ? supabase
+              .from('user_company_access')
+              .select('role')
+              .eq('user_id', userId!)
+              .eq('company_id', viewedCompanyId)
+              .or('is_active.eq.true,is_active.is.null')
+              .maybeSingle()
+          : Promise.resolve({ data: null, error: null })
       ]);
 
       if (profileRes.data) {
@@ -1266,7 +1274,7 @@ export default function UserDetails() {
         .update({ is_active: false })
         .eq('user_id', userId)
         .eq('company_id', viewedCompanyId)
-        .eq('is_active', true)
+        .or('is_active.eq.true,is_active.is.null')
         .select('id');
 
       if (error) throw error;
@@ -1287,6 +1295,28 @@ export default function UserDetails() {
         }
 
         throw new Error('No active company access row was removed for this user.');
+      }
+
+      const { count: remainingActiveAccessCount, error: remainingActiveAccessCountError } = await supabase
+        .from('user_company_access')
+        .select('id', { count: 'exact', head: true })
+        .eq('user_id', userId)
+        .or('is_active.eq.true,is_active.is.null');
+
+      if (remainingActiveAccessCountError) throw remainingActiveAccessCountError;
+
+      if (!remainingActiveAccessCount || remainingActiveAccessCount === 0) {
+        const { error: clearPinError } = await supabase
+          .from('profiles')
+          .update({
+            pin_code: null,
+            punch_clock_access: false,
+          })
+          .eq('user_id', userId);
+
+        if (clearPinError) {
+          console.warn('Failed to clear PIN after removing final company access:', clearPinError);
+        }
       }
 
       toast({ title: 'User removed', description: 'The user has been removed from this company.' });

@@ -585,7 +585,7 @@ export default function UserSettings() {
         .from('user_company_access')
         .select('user_id, role')
         .eq('company_id', currentCompany.id)
-        .eq('is_active', true);
+        .or('is_active.eq.true,is_active.is.null');
 
       if (companyError) throw companyError;
 

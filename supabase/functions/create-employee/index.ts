@@ -73,6 +73,36 @@ Deno.serve(async (req) => {
 
     if (existingUser) {
       userId = existingUser.id;
+
+      if (pin_code) {
+        const normalizedPin = String(pin_code).trim();
+        const { data: duplicateProfiles, error: duplicatePinError } = await adminClient
+          .from("profiles")
+          .select("user_id, display_name, first_name, last_name")
+          .eq("pin_code", normalizedPin)
+          .neq("user_id", userId)
+          .limit(1);
+
+        if (duplicatePinError) {
+          return new Response(JSON.stringify({ error: duplicatePinError.message }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if ((duplicateProfiles || []).length > 0) {
+          const duplicateProfile = (duplicateProfiles || [])[0] as any;
+          const duplicateName =
+            duplicateProfile?.display_name
+            || `${duplicateProfile?.first_name || ""} ${duplicateProfile?.last_name || ""}`.trim()
+            || "another user";
+
+          return new Response(JSON.stringify({ error: `PIN already in use by ${duplicateName}` }), {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
       
       // Check if profile already exists
       const { data: existingProfile } = await adminClient
@@ -131,6 +161,35 @@ Deno.serve(async (req) => {
         }
       }
     } else {
+      if (pin_code) {
+        const normalizedPin = String(pin_code).trim();
+        const { data: duplicateProfiles, error: duplicatePinError } = await adminClient
+          .from("profiles")
+          .select("user_id, display_name, first_name, last_name")
+          .eq("pin_code", normalizedPin)
+          .limit(1);
+
+        if (duplicatePinError) {
+          return new Response(JSON.stringify({ error: duplicatePinError.message }), {
+            status: 400,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+
+        if ((duplicateProfiles || []).length > 0) {
+          const duplicateProfile = (duplicateProfiles || [])[0] as any;
+          const duplicateName =
+            duplicateProfile?.display_name
+            || `${duplicateProfile?.first_name || ""} ${duplicateProfile?.last_name || ""}`.trim()
+            || "another user";
+
+          return new Response(JSON.stringify({ error: `PIN already in use by ${duplicateName}` }), {
+            status: 409,
+            headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+      }
+
       // Create new auth user with a random password (they'll use PIN to login)
       const tempPassword = crypto.randomUUID() + "Aa1!";
       

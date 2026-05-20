@@ -83,20 +83,6 @@ export default function AllEmployees() {
 
       const userIds = Array.from(new Set((accessData || []).map(a => a.user_id).filter(Boolean)));
 
-      const { data: companyProfilesFallback, error: companyProfilesError } = await supabase
-        .from('profiles')
-        .select('user_id, first_name, last_name, display_name, avatar_url, role, custom_role_id, pin_code, phone, punch_clock_access, pm_lynk_access, created_at')
-        .eq('current_company_id', currentCompany.id)
-        .not('role', 'in', '("vendor","design_professional")');
-
-      if (companyProfilesError) throw companyProfilesError;
-
-      for (const profile of companyProfilesFallback || []) {
-        if (profile.user_id && !userIds.includes(profile.user_id)) {
-          userIds.push(profile.user_id);
-        }
-      }
-
       if (userIds.length === 0) {
         setEmployees([]);
         setLoading(false);

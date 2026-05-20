@@ -119,12 +119,6 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         .eq('company_id', currentCompany.id)
         .or('is_active.eq.true,is_active.is.null');
 
-      const { data: companyProfiles } = await supabase
-        .from('profiles')
-        .select('user_id')
-        .eq('current_company_id', currentCompany.id)
-        .not('role', 'in', '("vendor","design_professional")');
-
       const { data: pinEmployees } = await supabase
         .from('pin_employees')
         .select('id')
@@ -133,7 +127,6 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
       
       const companyUserIds = Array.from(new Set([
         ...(companyUsers || []).map((u: any) => u.user_id),
-        ...(companyProfiles || []).map((p: any) => p.user_id),
         ...(pinEmployees || []).map((p: any) => p.id),
       ].filter(Boolean)));
       if (companyUserIds.length === 0) {

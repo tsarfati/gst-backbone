@@ -14,7 +14,7 @@ interface AuthContextType {
   signIn: (email: string, password: string) => Promise<{ error: any }>;
   signUp: (email: string, password: string, firstName?: string, lastName?: string) => Promise<{ error: any }>;
   signInWithGoogle: () => Promise<{ error: any }>;
-  signOut: () => Promise<void>;
+  signOut: (redirectTo?: string) => Promise<void>;
   refreshProfile: () => Promise<void>;
   setProfile: React.Dispatch<React.SetStateAction<any | null>>;
 }
@@ -259,7 +259,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return { error: null } as any;
   };
 
-  const signOut = async () => {
+  const signOut = async (redirectTo?: string) => {
     // Clear local state first to prevent race conditions with LandingPage redirect
     await flushPendingNonDirectMessageReadWrites();
     safeLocalStorage.set(LOGOUT_IN_PROGRESS_KEY, '1');
@@ -268,8 +268,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     setProfile(null);
     await supabase.auth.signOut();
-    // Navigate to landing page after logout
-    navigate('/', { replace: true });
+    navigate(redirectTo || '/', { replace: true });
   };
 
   const refreshProfile = async () => {
