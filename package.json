@@ -10,7 +10,10 @@
     "lint": "eslint .",
     "preview": "vite preview",
     "test:db": "supabase test db",
-    "test:db:rls:users": "supabase test db supabase/tests/rls_user_access.sql"
+    "test:db:rls:users": "supabase test db supabase/tests/rls_user_access.sql",
+    "test:smoke": "playwright test",
+    "test:smoke:headed": "playwright test --headed",
+    "test:smoke:list": "playwright test --list"
   },
   "dependencies": {
     "@capacitor/android": "^7.4.3",
@@ -96,6 +99,7 @@
   },
   "devDependencies": {
     "@eslint/js": "^9.32.0",
+    "@playwright/test": "^1.60.0",
     "@tailwindcss/typography": "^0.5.16",
     "@types/node": "^22.16.5",
     "@types/react": "^18.3.23",
