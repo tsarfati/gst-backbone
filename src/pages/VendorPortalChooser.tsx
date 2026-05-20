@@ -9,6 +9,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { supabase } from "@/integrations/supabase/client";
 import { setAuthEntryContext } from "@/utils/authEntryContext";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
+import { setVendorPortalCompanyId } from "@/utils/vendorPortalSession";
 
 type VendorPortalOption = {
   company_id: string;
@@ -107,6 +108,7 @@ export default function VendorPortalChooser() {
     try {
       setSwitchingCompanyId(companyId);
       setAuthEntryContext("vendor");
+      setVendorPortalCompanyId(companyId);
       await switchCompany(companyId);
       navigate("/vendor/dashboard", { replace: true });
     } finally {

@@ -59,7 +59,6 @@ export default function VendorPortalSettings() {
   const [accountNumber, setAccountNumber] = useState(paymentMethod?.account_number || "");
   const [confirmAccountNumber, setConfirmAccountNumber] = useState(paymentMethod?.account_number || "");
   const [voidedCheckFile, setVoidedCheckFile] = useState<File | null>(null);
-  const [workspaceLogoOverride, setWorkspaceLogoOverride] = useState<string | null>(null);
   const [uploadingLogo, setUploadingLogo] = useState(false);
   const [uploadLogoProgress, setUploadLogoProgress] = useState(0);
   const logoInputRef = useRef<HTMLInputElement | null>(null);
@@ -72,28 +71,9 @@ export default function VendorPortalSettings() {
     }
   }, [loading, navigate, roleCaps.canAccessSettings]);
 
-  useEffect(() => {
-    if (!currentCompany?.id) {
-      setWorkspaceLogoOverride(null);
-      return;
-    }
-    setWorkspaceLogoOverride(window.localStorage.getItem(`workspace-logo:${currentCompany.id}`));
-
-    const handleWorkspaceLogoUpdated = (event: Event) => {
-      const detail = (event as CustomEvent<{ companyId: string; storagePath: string }>).detail;
-      if (!detail?.companyId || detail.companyId !== currentCompany.id) return;
-      setWorkspaceLogoOverride(detail.storagePath);
-    };
-
-    window.addEventListener("workspace-logo-updated", handleWorkspaceLogoUpdated as EventListener);
-    return () => {
-      window.removeEventListener("workspace-logo-updated", handleWorkspaceLogoUpdated as EventListener);
-    };
-  }, [currentCompany?.id]);
-
   const resolvedCompanyLogo = useMemo(
-    () => resolveCompanyLogoUrl(workspaceLogoOverride || currentCompany?.logo_url || settingsForm.logo_url),
-    [workspaceLogoOverride, currentCompany?.logo_url, settingsForm.logo_url],
+    () => resolveCompanyLogoUrl(settingsForm.logo_url),
+    [settingsForm.logo_url],
   );
 
   useEffect(() => {

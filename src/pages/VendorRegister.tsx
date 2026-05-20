@@ -11,6 +11,8 @@ import builderlynkLogo from '@/assets/builderlynk-icon-shield.png';
 import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
+import { setAuthEntryContext } from '@/utils/authEntryContext';
+import { setVendorPortalCompanyId } from '@/utils/vendorPortalSession';
 
 interface Invitation {
   id: string;
@@ -67,6 +69,7 @@ export default function VendorRegister() {
   const token = searchParams.get('token');
   const rfpId = searchParams.get('rfpId');
   const vendorId = searchParams.get('vendorId');
+  const isConfirmedReturn = searchParams.get('confirmed') === '1';
 
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -137,13 +140,21 @@ export default function VendorRegister() {
   };
 
   useEffect(() => {
+    setAuthEntryContext('vendor');
+  }, []);
+
+  useEffect(() => {
+    setVendorPortalCompanyId(invitation?.company_id || null);
+  }, [invitation?.company_id]);
+
+  useEffect(() => {
     if (token) {
       validateToken();
     } else {
       setError('No invitation token provided');
       setLoading(false);
     }
-  }, [token, rfpId, vendorId]);
+  }, [token, rfpId, vendorId, isConfirmedReturn]);
 
   const validateToken = async () => {
     try {
@@ -267,7 +278,7 @@ export default function VendorRegister() {
         email: invitation!.email,
         password: formData.password,
         options: {
-          emailRedirectTo: `${getPublicAuthOrigin()}/`,
+          emailRedirectTo: `${getPublicAuthOrigin()}/vendor-register?token=${encodeURIComponent(token || '')}&confirmed=1`,
           data: {
             first_name: formData.firstName,
             last_name: formData.lastName,
@@ -343,6 +354,25 @@ export default function VendorRegister() {
 
   if (loading) {
     return <PremiumLoadingScreen text="Validating invitation..." />;
+  }
+
+  if (isConfirmedReturn) {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-[#030B20] p-4">
+        <Card className="w-full max-w-md border-slate-700 bg-[#071231] text-slate-100">
+          <CardContent className="pt-6 text-center">
+            <CheckCircle className="h-16 w-16 mx-auto text-green-500 mb-4" />
+            <h2 className="text-xl font-semibold mb-2">Email Confirmed</h2>
+            <p className="text-slate-300 mb-6">
+              Your vendor account email has been confirmed. Continue to this company&apos;s vendor portal sign in.
+            </p>
+            <Button onClick={() => navigate(vendorLoginHref)}>
+              Go to Login
+            </Button>
+          </CardContent>
+        </Card>
+      </div>
+    );
   }
 
   if (error) {

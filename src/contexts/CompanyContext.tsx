@@ -4,6 +4,7 @@ import { useAuth } from './AuthContext';
 import { useTenant } from './TenantContext';
 import { useToast } from '@/hooks/use-toast';
 import { getAuthEntryContext } from '@/utils/authEntryContext';
+import { getVendorPortalCompanyId } from '@/utils/vendorPortalSession';
 
 interface Company {
   id: string;
@@ -159,6 +160,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
       // do not unexpectedly jump to a different company for external users.
       if (companies.length > 0) {
         const authEntryContext = getAuthEntryContext();
+        const vendorPortalCompanyId = getVendorPortalCompanyId();
         const activeCompanyId = currentCompany?.id;
         const preferredCompanyId = profile?.current_company_id;
         const internalCompanies = companies.filter((company) => {
@@ -181,11 +183,15 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
           !['vendor', 'design_professional'].includes(String(preferredCompany.role || '').toLowerCase())
             ? preferredCompany
             : undefined;
+        const pinnedVendorPortalCompany =
+          authEntryContext === 'vendor' && vendorPortalCompanyId
+            ? companies.find((company) => company.company_id === vendorPortalCompanyId)
+            : undefined;
 
         const companyToSet =
           authEntryContext === 'builder' && internalCompanies.length > 0
             ? activeInternalCompany || preferredInternalCompany || internalCompanies[0]
-            : activeCompany || preferredCompany || companies[0];
+            : pinnedVendorPortalCompany || activeCompany || preferredCompany || companies[0];
 
         // Fetch full company details
         const { data: companyData, error: companyError } = await supabase

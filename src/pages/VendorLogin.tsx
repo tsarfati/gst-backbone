@@ -12,6 +12,7 @@ import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
 import builderlynkLogo from "@/assets/builderlynk-icon-shield.png";
 import { useAuth } from "@/contexts/AuthContext";
 import { setAuthEntryContext } from "@/utils/authEntryContext";
+import { setVendorPortalCompanyId } from "@/utils/vendorPortalSession";
 
 type PublicCompany = {
   id: string;
@@ -56,6 +57,14 @@ export default function VendorLogin() {
     email: "",
     password: "",
   });
+
+  useEffect(() => {
+    setAuthEntryContext("vendor");
+  }, []);
+
+  useEffect(() => {
+    setVendorPortalCompanyId(form.companyId || null);
+  }, [form.companyId]);
 
   useEffect(() => {
     const loadCompanies = async () => {
@@ -139,6 +148,7 @@ export default function VendorLogin() {
 
     try {
       setAuthEntryContext("vendor");
+      setVendorPortalCompanyId(form.companyId || null);
       const { error: signInError } = await signIn(form.email.trim(), form.password);
       if (signInError) throw signInError;
 

@@ -11,6 +11,8 @@ import { useToast } from "@/hooks/use-toast";
 import builderlynkLogo from "@/assets/builderlynk-icon-shield.png";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
+import { setAuthEntryContext } from "@/utils/authEntryContext";
+import { setVendorPortalCompanyId } from "@/utils/vendorPortalSession";
 
 type PublicCompany = {
   id: string;
@@ -78,6 +80,14 @@ export default function VendorSignup() {
     password: "",
     confirmPassword: "",
   });
+
+  useEffect(() => {
+    setAuthEntryContext("vendor");
+  }, []);
+
+  useEffect(() => {
+    setVendorPortalCompanyId(form.companyId || preselectedCompanyId || null);
+  }, [form.companyId, preselectedCompanyId]);
 
   useEffect(() => {
     const loadCompanies = async () => {

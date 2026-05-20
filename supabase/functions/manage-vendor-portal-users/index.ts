@@ -450,6 +450,97 @@ serve(async (req) => {
         .in("status", ["accepted", "suspended"]);
       if (removeError) throw removeError;
 
+      const { data: accessRequestRows, error: accessRequestRowsError } = await supabase
+        .from("company_access_requests")
+        .select("id, notes, status")
+        .eq("company_id", vendorRecord.company_id)
+        .eq("user_id", normalizedTargetUserId)
+        .in("status", ["approved", "pending"]);
+      if (accessRequestRowsError) throw accessRequestRowsError;
+
+      const removableAccessRequestIds = ((accessRequestRows || []) as any[])
+        .filter((row: any) => {
+          try {
+            const parsed = row?.notes ? JSON.parse(row.notes) : null;
+            const requestedRole = String(parsed?.requestedRole || "").trim().toLowerCase();
+            const requestType = String(parsed?.requestType || "").trim().toLowerCase();
+            return requestedRole === "vendor" || requestType === "external_access_signup";
+          } catch {
+            return false;
+          }
+        })
+        .map((row: any) => String(row.id || "").trim())
+        .filter(Boolean);
+
+      if (removableAccessRequestIds.length > 0) {
+        const { error: deleteAccessRequestsError } = await supabase
+          .from("company_access_requests")
+          .delete()
+          .in("id", removableAccessRequestIds);
+        if (deleteAccessRequestsError) throw deleteAccessRequestsError;
+      }
+
+      const { error: deactivateCompanyAccessError } = await supabase
+        .from("user_company_access")
+        .update({ is_active: false })
+        .eq("company_id", vendorRecord.company_id)
+        .eq("user_id", normalizedTargetUserId)
+        .eq("role", "vendor")
+        .or("is_active.eq.true,is_active.is.null");
+      if (deactivateCompanyAccessError) throw deactivateCompanyAccessError;
+
+      const { data: remainingVendorMemberships, error: remainingVendorMembershipsError } = await supabase
+        .from("vendor_invitations")
+        .select("id")
+        .eq("created_user_id", normalizedTargetUserId)
+        .in("status", ["pending", "accepted", "suspended"])
+        .limit(1);
+      if (remainingVendorMembershipsError) throw remainingVendorMembershipsError;
+
+      if (!remainingVendorMemberships || remainingVendorMemberships.length === 0) {
+        const { error: clearProfileVendorError } = await supabase
+          .from("profiles")
+          .update({
+            vendor_id: null,
+            vendor_portal_role: null,
+          })
+          .eq("user_id", normalizedTargetUserId);
+        if (clearProfileVendorError) throw clearProfileVendorError;
+      }
+
+      const [{ data: remainingCompanyAccess, error: remainingCompanyAccessError }, { data: remainingAccessRequests, error: remainingAccessRequestsError }] = await Promise.all([
+        supabase
+          .from("user_company_access")
+          .select("company_id")
+          .eq("user_id", normalizedTargetUserId)
+          .or("is_active.eq.true,is_active.is.null")
+          .limit(1),
+        supabase
+          .from("company_access_requests")
+          .select("id")
+          .eq("user_id", normalizedTargetUserId)
+          .in("status", ["approved", "pending"])
+          .limit(1),
+      ]);
+      if (remainingCompanyAccessError) throw remainingCompanyAccessError;
+      if (remainingAccessRequestsError) throw remainingAccessRequestsError;
+
+      const noRemainingAccess =
+        (!remainingVendorMemberships || remainingVendorMemberships.length === 0) &&
+        (!remainingCompanyAccess || remainingCompanyAccess.length === 0) &&
+        (!remainingAccessRequests || remainingAccessRequests.length === 0);
+
+      if (noRemainingAccess) {
+        try {
+          const { error: deleteUserError } = await supabase.auth.admin.deleteUser(normalizedTargetUserId);
+          if (deleteUserError) {
+            console.warn("Vendor portal user auth delete skipped:", deleteUserError.message);
+          }
+        } catch (deleteUserError) {
+          console.warn("Vendor portal user auth delete failed:", deleteUserError);
+        }
+      }
+
       return new Response(JSON.stringify({ success: true, ...(await loadTeamPayload()) }), {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },

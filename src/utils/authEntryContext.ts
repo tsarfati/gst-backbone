@@ -1,3 +1,5 @@
+import { clearVendorPortalCompanyId } from "@/utils/vendorPortalSession";
+
 export type AuthEntryContext = "builder" | "vendor";
 
 const AUTH_ENTRY_CONTEXT_KEY = "builderlynk_auth_entry_context";
@@ -16,6 +18,9 @@ export const setAuthEntryContext = (context: AuthEntryContext) => {
   if (typeof window === "undefined") return;
   try {
     window.sessionStorage.setItem(AUTH_ENTRY_CONTEXT_KEY, context);
+    if (context === "builder") {
+      clearVendorPortalCompanyId();
+    }
   } catch {
     // ignore storage errors
   }
@@ -25,6 +30,7 @@ export const clearAuthEntryContext = () => {
   if (typeof window === "undefined") return;
   try {
     window.sessionStorage.removeItem(AUTH_ENTRY_CONTEXT_KEY);
+    clearVendorPortalCompanyId();
   } catch {
     // ignore storage errors
   }

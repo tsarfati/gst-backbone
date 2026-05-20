@@ -167,7 +167,7 @@ const buildVendorPortalJob = (
 
 export function useVendorPortalData() {
   const { user, profile } = useAuth();
-  const { currentCompany, refreshCompanies } = useCompany();
+  const { currentCompany } = useCompany();
 
   const [loading, setLoading] = useState(true);
   const [vendorInfo, setVendorInfo] = useState<any>(null);
@@ -250,7 +250,7 @@ export function useVendorPortalData() {
         city: vendor?.city || "",
         state: vendor?.state || "",
         zip_code: vendor?.zip_code || "",
-        logo_url: vendor?.logo_url || currentCompany?.logo_url || "",
+        logo_url: vendor?.logo_url || "",
         tax_id: vendor?.tax_id || "",
       });
 
@@ -552,7 +552,7 @@ export function useVendorPortalData() {
     } finally {
       setLoading(false);
     }
-  }, [effectiveVendorId, currentCompany?.logo_url, vendorContextLoading]);
+  }, [effectiveVendorId, vendorContextLoading]);
 
   useEffect(() => {
     void reload();
@@ -655,13 +655,6 @@ export function useVendorPortalData() {
     const storagePath = `company-logos/${path}`;
     setSettingsForm((prev) => ({ ...prev, logo_url: storagePath }));
     setVendorInfo((prev: any) => (prev ? { ...prev, logo_url: storagePath } : prev));
-    window.localStorage.setItem(`workspace-logo:${currentCompany.id}`, storagePath);
-    window.dispatchEvent(new CustomEvent("workspace-logo-updated", {
-      detail: {
-        companyId: currentCompany.id,
-        storagePath,
-      },
-    }));
     const { data: updatedVendorRows, error: updateError } = await supabase
       .from("vendors")
       .update({ logo_url: storagePath })
@@ -671,23 +664,13 @@ export function useVendorPortalData() {
     if (!updatedVendorRows || updatedVendorRows.length === 0) {
       throw new Error("Vendor logo update did not persist.");
     }
-    if (currentCompany?.id) {
-      const { data: updatedCompanyRows, error: companyLogoError } = await supabase
-        .from("companies")
-        .update({ logo_url: storagePath })
-        .eq("id", currentCompany.id)
-        .eq("company_type", "vendor")
-        .select("id, logo_url");
-      if (companyLogoError) {
-        console.warn("Unable to mirror vendor logo to vendor home company:", companyLogoError.message);
-      } else if (!updatedCompanyRows || updatedCompanyRows.length === 0) {
-        console.warn("Vendor home company logo mirror did not update any rows.");
-      }
-      await refreshCompanies();
+    try {
+      await syncLinkedBuilderVendorRecords();
+    } catch (error) {
+      console.warn("Vendor logo saved, but linked builder vendor sync failed:", error);
     }
-    await syncLinkedBuilderVendorRecords();
     await reload();
-  }, [effectiveVendorId, currentCompany?.id, refreshCompanies, syncLinkedBuilderVendorRecords, reload]);
+  }, [effectiveVendorId, currentCompany?.id, syncLinkedBuilderVendorRecords, reload]);
 
   const uploadComplianceDocument = useCallback(async (
     docType: string,

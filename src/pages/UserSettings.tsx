@@ -668,12 +668,36 @@ export default function UserSettings() {
         new Set(((companyVendors || []) as any[]).map((vendor) => String(vendor.id || '').trim()).filter(Boolean))
       );
 
+      const { data: activeVendorPortalMemberships, error: activeVendorPortalMembershipsError } = companyVendorIds.length > 0
+        ? await supabase
+            .from('vendor_invitations')
+            .select('vendor_id, created_user_id, status')
+            .in('vendor_id', companyVendorIds)
+            .in('status', ['accepted', 'suspended'])
+            .not('created_user_id', 'is', null)
+        : { data: [], error: null };
+
+      if (activeVendorPortalMembershipsError) throw activeVendorPortalMembershipsError;
+
+      const activeVendorPortalUserIds = new Set(
+        ((activeVendorPortalMemberships || []) as any[])
+          .map((row: any) => String(row.created_user_id || '').trim())
+          .filter(Boolean)
+      );
+      const vendorIdByUserId = new Map<string, string>();
+      ((activeVendorPortalMemberships || []) as any[]).forEach((row: any) => {
+        const userId = String(row.created_user_id || '').trim();
+        const vendorId = String(row.vendor_id || '').trim();
+        if (!userId || !vendorId || vendorIdByUserId.has(userId)) return;
+        vendorIdByUserId.set(userId, vendorId);
+      });
+
       const existingProfileUserIds = new Set((regularUsers || []).map((user: any) => String(user.user_id || '')));
-      const { data: linkedVendorProfiles, error: linkedVendorProfilesError } = companyVendorIds.length > 0
+      const { data: linkedVendorProfiles, error: linkedVendorProfilesError } = activeVendorPortalUserIds.size > 0
         ? await supabase
             .from('profiles')
             .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role, vendor_id, current_company_id')
-            .in('vendor_id', companyVendorIds)
+            .in('user_id', Array.from(activeVendorPortalUserIds))
             .order('created_at', { ascending: false })
         : { data: [], error: null };
 
@@ -690,6 +714,9 @@ export default function UserSettings() {
         const linkedUserId = String(user.user_id || '').trim();
         if (linkedUserId) {
           roleMap.set(linkedUserId, 'vendor');
+          if (!user.vendor_id) {
+            user.vendor_id = vendorIdByUserId.get(linkedUserId) || null;
+          }
         }
       });
 
@@ -1104,10 +1131,10 @@ export default function UserSettings() {
   };
 
   const getExternalUsers = (role: typeof EXTERNAL_ACCESS_ROLES[number]) => {
-    if (role === 'vendor') {
-      return users.filter((u) => u.role === role);
-    }
-    return users.filter((u) => u.role === role && (u.status === 'approved' || u.external_access_state === 'active'));
+    return users.filter((u) => {
+      if (u.role !== role) return false;
+      return u.status === 'approved' || u.external_access_state === 'active';
+    });
   };
 
   const getPendingExternalUsers = (role: typeof EXTERNAL_ACCESS_ROLES[number]) =>
