@@ -62,6 +62,22 @@ const isDesignProfessionalVendorType = (value: string | null | undefined) => {
   return normalized === 'design_professional' || normalized === 'design professional';
 };
 
+const parseFunctionInvokeError = async (error: any) => {
+  let payload: any = null;
+  try {
+    if (typeof error?.context?.json === 'function') {
+      payload = await error.context.json();
+    }
+  } catch {
+    payload = null;
+  }
+
+  return {
+    message: payload?.error || payload?.message || error?.message || 'Failed to complete the request.',
+    code: payload?.code || null,
+  };
+};
+
 export default function VendorRegister() {
   const [searchParams] = useSearchParams();
   const navigate = useNavigate();
@@ -79,6 +95,7 @@ export default function VendorRegister() {
   const [invitedVendorType, setInvitedVendorType] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('Please sign in to continue to this company\'s vendor portal.');
   const [alreadyAccepted, setAlreadyAccepted] = useState(false);
   const [resetSending, setResetSending] = useState(false);
 
@@ -318,67 +335,45 @@ export default function VendorRegister() {
     try {
       setSubmitting(true);
 
-      // Create the user account
-      const { data: authData, error: signUpError } = await supabase.auth.signUp({
-        email: invitation!.email,
-        password: formData.password,
-        options: {
-          emailRedirectTo: `${getPublicAuthOrigin()}/vendor-register?token=${encodeURIComponent(token || '')}&confirmed=1`,
-          data: {
-            first_name: formData.firstName,
-            last_name: formData.lastName,
-            is_vendor: true,
-            vendor_id: invitation!.vendor_id
-          }
-        }
-      });
-
-      if (signUpError) throw signUpError;
-
-      const authUser = authData.user;
-      const identityCount = Array.isArray((authUser as any)?.identities)
-        ? (authUser as any).identities.length
-        : 0;
-
-      if (authUser && identityCount === 0) {
-        toast({
-          title: 'Account already exists',
-          description: 'This email already has a BuilderLYNK account. Sign in to this company vendor portal instead.',
-        });
-        navigate(vendorLoginHref, { replace: true });
-        return;
-      }
-
-      if (authUser) {
-        const { data: finalizeData, error: finalizeError } = await supabase.functions.invoke(
-          'finalize-vendor-invite-registration',
-          {
-            body: {
-              token,
-              userId: authUser.id,
-              firstName: formData.firstName,
-              lastName: formData.lastName,
-            },
+      const { data: createData, error: createError } = await supabase.functions.invoke(
+        'create-vendor-invite-account',
+        {
+          body: {
+            token,
+            firstName: formData.firstName,
+            lastName: formData.lastName,
+            password: formData.password,
           },
-        );
+        },
+      );
 
-        if (finalizeError) {
-          throw finalizeError;
+      if (createError) {
+        const parsed = await parseFunctionInvokeError(createError);
+        if (parsed.code === 'email_already_registered') {
+          toast({
+            title: 'Account already exists',
+            description: 'This email already has a BuilderLYNK account. Sign in to this company vendor portal instead.',
+          });
+          navigate(vendorLoginHref, { replace: true });
+          return;
         }
-
-        if (!finalizeData?.success) {
-          throw new Error('Failed to finalize vendor invitation registration');
-        }
-
-        setSuccess(true);
-        toast({
-          title: 'Account created!',
-          description: 'Please check your email to verify your account'
-        });
+        throw new Error(parsed.message);
       }
+
+      if (!createData?.success) {
+        throw new Error('Failed to create vendor account');
+      }
+
+      setSuccessMessage('Your vendor portal account is ready. Sign in to continue.');
+      setSuccess(true);
+      toast({
+        title: 'Account created!',
+        description: 'Your vendor portal account is ready. Sign in to continue.',
+      });
     } catch (err: any) {
       console.error('Error creating account:', err);
-      const errorMessage = String(err?.message || '').toLowerCase();
+      const parsedError = await parseFunctionInvokeError(err);
+      const errorMessage = String(parsedError.message || err?.message || '').toLowerCase();
       if (errorMessage.includes('already registered') || errorMessage.includes('already exists')) {
         toast({
           title: 'Account already exists',
@@ -389,7 +384,7 @@ export default function VendorRegister() {
       }
       toast({
         title: 'Error',
-        description: err.message || 'Failed to create account',
+        description: parsedError.message || err.message || 'Failed to create account',
         variant: 'destructive'
       });
     } finally {
@@ -445,7 +440,7 @@ export default function VendorRegister() {
             <CheckCircle className="h-16 w-16 mx-auto text-green-500 mb-4" />
             <h2 className="text-xl font-semibold mb-2">Account Created!</h2>
             <p className="text-slate-300 mb-6">
-              Please check your email ({invitation?.email}) to verify your account before logging in.
+              {successMessage}
             </p>
             <Button onClick={() => navigate(vendorLoginHref)}>
               Go to Login
@@ -537,7 +532,7 @@ export default function VendorRegister() {
               <Input
                 id="companyName"
                 name="company_name"
-                value={invitedVendorName}
+                value={invitedVendorName || (invitation?.vendor as any)?.name || ''}
                 readOnly
                 className="bg-slate-800 border-slate-600"
               />
