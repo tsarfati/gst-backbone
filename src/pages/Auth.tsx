@@ -79,6 +79,11 @@ export default function Auth() {
   const designProInviteCompanyId = searchParams.get('company');
   const designProInviteJobId = searchParams.get('job');
   const authEntryContext = getAuthEntryContext();
+  const currentCompanyType = String((currentCompany as any)?.company_type || '').toLowerCase();
+  const currentCompanyIsInternal =
+    !!currentCompany &&
+    currentCompanyType !== 'vendor' &&
+    currentCompanyType !== 'design_professional';
   const hasInternalWorkspace = userCompanies.some((company) => {
     const companyRole = String(company.role || '').toLowerCase();
     return companyRole !== 'vendor' && companyRole !== 'design_professional';
@@ -214,6 +219,11 @@ export default function Auth() {
       return;
     }
 
+    if (authEntryContext === 'builder' && currentCompanyIsInternal) {
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
     if (
       authEntryContext === 'builder' &&
       !hasInternalWorkspace &&
@@ -242,7 +252,7 @@ export default function Auth() {
     } else {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace, hasInternalWorkspace, userCompanies.length, authEntryContext, singleWorkspace, singleWorkspaceRole]);
+  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace, hasInternalWorkspace, userCompanies.length, authEntryContext, singleWorkspace, singleWorkspaceRole, currentCompanyIsInternal]);
 
   useEffect(() => {
     const maxInviteAttempts = 6;

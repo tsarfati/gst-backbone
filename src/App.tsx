@@ -237,6 +237,10 @@ function DashboardEntryRoute() {
   const role = String(profile?.role || '').toLowerCase();
   const authMetadata = (user?.user_metadata || {}) as Record<string, any>;
   const currentCompanyType = String(currentCompany?.company_type || '').toLowerCase();
+  const currentCompanyIsInternal =
+    !!currentCompany &&
+    currentCompanyType !== 'vendor' &&
+    currentCompanyType !== 'design_professional';
   const hasVendorIdentity =
     !!(profile as any)?.vendor_id ||
     !!authMetadata.vendor_id ||
@@ -378,6 +382,14 @@ function DashboardEntryRoute() {
     return <PremiumLoadingScreen text="Loading your workspace..." />;
   }
 
+  if (authEntryContext === 'builder' && currentCompanyIsInternal) {
+    return (
+      <RouteSuspense text="Loading dashboard...">
+        <LazyDashboard />
+      </RouteSuspense>
+    );
+  }
+
   if (
     authEntryContext === 'builder' &&
     !hasInternalWorkspace &&
@@ -387,7 +399,7 @@ function DashboardEntryRoute() {
     return <Navigate to={companyAccessRole === 'design_professional' ? "/design-professional/dashboard" : "/vendor/dashboard"} replace />;
   }
 
-  if (authEntryContext === 'builder' && !hasInternalWorkspace && userCompanies.length > 1) {
+  if (authEntryContext === 'builder' && !currentCompanyIsInternal && !hasInternalWorkspace && userCompanies.length > 1) {
     return <Navigate to="/workspace/select" replace />;
   }
 

@@ -30,6 +30,14 @@ const isInternalRole = (value: unknown) => {
   return !!normalized && normalized !== "vendor" && normalized !== "design_professional" && normalized !== "employee";
 };
 
+const applyVendorIdFilter = (query: any, vendorIds: string[]) => {
+  const normalizedVendorIds = Array.from(new Set(vendorIds.map((value) => String(value || "").trim()).filter(Boolean)));
+  if (normalizedVendorIds.length <= 1) {
+    return query.eq("vendor_id", normalizedVendorIds[0] || "");
+  }
+  return query.in("vendor_id", normalizedVendorIds);
+};
+
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -83,7 +91,7 @@ serve(async (req) => {
 
     const { data: vendorRecord, error: vendorError } = await supabase
       .from("vendors")
-      .select("id, company_id")
+      .select("id, company_id, email, name")
       .eq("id", normalizedVendorId)
       .maybeSingle();
     if (vendorError) throw vendorError;
@@ -94,6 +102,37 @@ serve(async (req) => {
       });
     }
 
+    const normalizedVendorEmail = String(vendorRecord?.email || "").trim().toLowerCase();
+    const normalizedVendorName = String(vendorRecord?.name || "").trim().toLowerCase();
+
+    let relatedVendorIds = [normalizedVendorId];
+    if (vendorRecord?.company_id && (normalizedVendorEmail || normalizedVendorName)) {
+      let siblingQuery = supabase
+        .from("vendors")
+        .select("id, email, name")
+        .eq("company_id", vendorRecord.company_id)
+        .eq("is_active", true);
+
+      if (normalizedVendorEmail) {
+        siblingQuery = siblingQuery.eq("email", vendorRecord.email);
+      } else if (normalizedVendorName) {
+        siblingQuery = siblingQuery.eq("name", vendorRecord.name);
+      }
+
+      const { data: siblingVendorRows, error: siblingVendorError } = await siblingQuery;
+      if (siblingVendorError) throw siblingVendorError;
+
+      relatedVendorIds = Array.from(
+        new Set(
+          [normalizedVendorId].concat(
+            ((siblingVendorRows || []) as any[])
+              .map((row: any) => String(row?.id || "").trim())
+              .filter(Boolean),
+          ),
+        ),
+      );
+    }
+
     const { data: requesterProfile, error: requesterProfileError } = await supabase
       .from("profiles")
       .select("user_id, role")
@@ -102,17 +141,19 @@ serve(async (req) => {
     if (requesterProfileError) throw requesterProfileError;
 
     const requesterRole = String(requesterProfile?.role || "").trim().toLowerCase();
-    const { data: requesterVendorMembership, error: requesterVendorMembershipError } = await supabase
-      .from("vendor_invitations")
-      .select("vendor_id, vendor_portal_role, created_user_id, status")
-      .eq("vendor_id", normalizedVendorId)
-      .eq("created_user_id", requesterUserId)
-      .eq("status", "accepted")
-      .order("accepted_at", { ascending: false, nullsFirst: false })
-      .order("invited_at", { ascending: false })
-      .limit(1)
-      .maybeSingle();
+    const { data: requesterVendorMembershipRows, error: requesterVendorMembershipError } = await applyVendorIdFilter(
+      supabase
+        .from("vendor_invitations")
+        .select("vendor_id, vendor_portal_role, created_user_id, status")
+        .eq("created_user_id", requesterUserId)
+        .eq("status", "accepted")
+        .order("accepted_at", { ascending: false, nullsFirst: false })
+        .order("invited_at", { ascending: false })
+        .limit(10),
+      relatedVendorIds,
+    );
     if (requesterVendorMembershipError) throw requesterVendorMembershipError;
+    const requesterVendorMembership = ((requesterVendorMembershipRows || []) as any[])[0] || null;
 
     const isVendorManager =
       requesterRole === "vendor" &&
@@ -131,7 +172,28 @@ serve(async (req) => {
       return isInternalRole(row.role);
     });
 
-    if (!isVendorManager && !isInternalBuilderUser) {
+    const { data: targetCompany, error: targetCompanyError } = await supabase
+      .from("companies")
+      .select("id, tenant_id")
+      .eq("id", vendorRecord.company_id)
+      .maybeSingle();
+    if (targetCompanyError) throw targetCompanyError;
+
+    let isTenantInternalBuilderUser = false;
+    if (!isInternalBuilderUser && isInternalRole(requesterRole) && targetCompany?.tenant_id) {
+      const { data: tenantMembership, error: tenantMembershipError } = await supabase
+        .from("tenant_members" as any)
+        .select("tenant_id, user_id, role")
+        .eq("tenant_id", targetCompany.tenant_id)
+        .eq("user_id", requesterUserId)
+        .maybeSingle();
+      if (tenantMembershipError) throw tenantMembershipError;
+      isTenantInternalBuilderUser = !!tenantMembership;
+    }
+
+    const hasInternalBuilderAccess = isInternalBuilderUser || isTenantInternalBuilderUser;
+
+    if (!isVendorManager && !hasInternalBuilderAccess) {
       return new Response(JSON.stringify({ error: "Forbidden" }), {
         status: 403,
         headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -147,21 +209,25 @@ serve(async (req) => {
 
     const loadTeamPayload = async () => {
       const [{ data: linkedUsers, error: linkedUsersError }, { data: pendingInvites, error: pendingInvitesError }] = await Promise.all([
-        supabase
-          .from("vendor_invitations")
-          .select("created_user_id, vendor_portal_role, invited_at, accepted_at, status")
-          .eq("vendor_id", normalizedVendorId)
-          .in("status", ["accepted", "suspended"])
-          .not("created_user_id", "is", null)
-          .order("accepted_at", { ascending: false, nullsFirst: false })
-          .order("invited_at", { ascending: false }),
-        supabase
-          .from("vendor_invitations")
-          .select("id, email, invited_at, expires_at, status, vendor_portal_role, created_user_id")
-          .eq("vendor_id", normalizedVendorId)
-          .eq("status", "pending")
-          .gt("expires_at", new Date().toISOString())
-          .order("invited_at", { ascending: false }),
+        applyVendorIdFilter(
+          supabase
+            .from("vendor_invitations")
+            .select("created_user_id, vendor_portal_role, invited_at, accepted_at, status")
+            .in("status", ["accepted", "suspended"])
+            .not("created_user_id", "is", null)
+            .order("accepted_at", { ascending: false, nullsFirst: false })
+            .order("invited_at", { ascending: false }),
+          relatedVendorIds,
+        ),
+        applyVendorIdFilter(
+          supabase
+            .from("vendor_invitations")
+            .select("id, email, invited_at, expires_at, status, vendor_portal_role, created_user_id")
+            .eq("status", "pending")
+            .gt("expires_at", new Date().toISOString())
+            .order("invited_at", { ascending: false }),
+          relatedVendorIds,
+        ),
       ]);
 
       if (linkedUsersError) throw linkedUsersError;
@@ -281,31 +347,36 @@ serve(async (req) => {
       }
 
       const nextRole = normalizeRole(vendorPortalRole);
-      const { data: targetMembership, error: targetMembershipError } = await supabase
-        .from("vendor_invitations")
-        .select("vendor_portal_role")
-        .eq("vendor_id", normalizedVendorId)
-        .eq("created_user_id", normalizedTargetUserId)
-        .eq("status", "accepted")
-        .order("accepted_at", { ascending: false, nullsFirst: false })
-        .order("invited_at", { ascending: false })
-        .maybeSingle();
+      const { data: targetMembershipRows, error: targetMembershipError } = await applyVendorIdFilter(
+        supabase
+          .from("vendor_invitations")
+          .select("vendor_portal_role")
+          .eq("created_user_id", normalizedTargetUserId)
+          .eq("status", "accepted")
+          .order("accepted_at", { ascending: false, nullsFirst: false })
+          .order("invited_at", { ascending: false })
+          .limit(10),
+        relatedVendorIds,
+      );
       if (targetMembershipError) throw targetMembershipError;
+      const targetMembership = ((targetMembershipRows || []) as any[])[0] || null;
 
       const currentTargetRole = normalizeRole(targetMembership?.vendor_portal_role);
-      if (!isInternalBuilderUser && (currentTargetRole === "owner" || nextRole === "owner")) {
+      if (!hasInternalBuilderAccess && (currentTargetRole === "owner" || nextRole === "owner")) {
         return new Response(JSON.stringify({ error: "Only BuilderLYNK can reassign the company owner." }), {
           status: 403,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         });
       }
 
-      const { error: updateError } = await supabase
-        .from("vendor_invitations")
-        .update({ vendor_portal_role: nextRole })
-        .eq("vendor_id", normalizedVendorId)
-        .eq("created_user_id", normalizedTargetUserId)
-        .eq("status", "accepted");
+      const { error: updateError } = await applyVendorIdFilter(
+        supabase
+          .from("vendor_invitations")
+          .update({ vendor_portal_role: nextRole })
+          .eq("created_user_id", normalizedTargetUserId)
+          .eq("status", "accepted"),
+        relatedVendorIds,
+      );
       if (updateError) throw updateError;
 
       return new Response(JSON.stringify({ success: true, ...(await loadTeamPayload()) }), {
@@ -382,31 +453,36 @@ serve(async (req) => {
         });
       }
 
-      const { data: targetMembership, error: targetMembershipError } = await supabase
-        .from("vendor_invitations")
-        .select("vendor_portal_role, status")
-        .eq("vendor_id", normalizedVendorId)
-        .eq("created_user_id", normalizedTargetUserId)
-        .in("status", ["accepted", "suspended"])
-        .order("accepted_at", { ascending: false, nullsFirst: false })
-        .order("invited_at", { ascending: false })
-        .maybeSingle();
+      const { data: targetMembershipRows, error: targetMembershipError } = await applyVendorIdFilter(
+        supabase
+          .from("vendor_invitations")
+          .select("vendor_portal_role, status")
+          .eq("created_user_id", normalizedTargetUserId)
+          .in("status", ["accepted", "suspended"])
+          .order("accepted_at", { ascending: false, nullsFirst: false })
+          .order("invited_at", { ascending: false })
+          .limit(10),
+        relatedVendorIds,
+      );
       if (targetMembershipError) throw targetMembershipError;
+      const targetMembership = ((targetMembershipRows || []) as any[])[0] || null;
 
       const currentTargetRole = normalizeRole(targetMembership?.vendor_portal_role);
-      if (!isInternalBuilderUser && currentTargetRole === "owner") {
+      if (!hasInternalBuilderAccess && currentTargetRole === "owner") {
         return new Response(JSON.stringify({ error: "Only BuilderLYNK can block or unblock the company owner." }), {
           status: 403,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         });
       }
 
-      const { error: statusError } = await supabase
-        .from("vendor_invitations")
-        .update({ status: normalizedMembershipStatus })
-        .eq("vendor_id", normalizedVendorId)
-        .eq("created_user_id", normalizedTargetUserId)
-        .in("status", ["accepted", "suspended"]);
+      const { error: statusError } = await applyVendorIdFilter(
+        supabase
+          .from("vendor_invitations")
+          .update({ status: normalizedMembershipStatus })
+          .eq("created_user_id", normalizedTargetUserId)
+          .in("status", ["accepted", "suspended"]),
+        relatedVendorIds,
+      );
       if (statusError) throw statusError;
 
       return new Response(JSON.stringify({ success: true, ...(await loadTeamPayload()) }), {
@@ -423,31 +499,36 @@ serve(async (req) => {
         });
       }
 
-      const { data: targetMembership, error: targetMembershipError } = await supabase
-        .from("vendor_invitations")
-        .select("vendor_portal_role")
-        .eq("vendor_id", normalizedVendorId)
-        .eq("created_user_id", normalizedTargetUserId)
-        .in("status", ["accepted", "suspended"])
-        .order("accepted_at", { ascending: false, nullsFirst: false })
-        .order("invited_at", { ascending: false })
-        .maybeSingle();
+      const { data: targetMembershipRows, error: targetMembershipError } = await applyVendorIdFilter(
+        supabase
+          .from("vendor_invitations")
+          .select("vendor_portal_role")
+          .eq("created_user_id", normalizedTargetUserId)
+          .in("status", ["accepted", "suspended"])
+          .order("accepted_at", { ascending: false, nullsFirst: false })
+          .order("invited_at", { ascending: false })
+          .limit(10),
+        relatedVendorIds,
+      );
       if (targetMembershipError) throw targetMembershipError;
+      const targetMembership = ((targetMembershipRows || []) as any[])[0] || null;
 
       const currentTargetRole = normalizeRole(targetMembership?.vendor_portal_role);
-      if (!isInternalBuilderUser && currentTargetRole === "owner") {
+      if (!hasInternalBuilderAccess && currentTargetRole === "owner") {
         return new Response(JSON.stringify({ error: "Only BuilderLYNK can remove the company owner." }), {
           status: 403,
           headers: { "Content-Type": "application/json", ...corsHeaders },
         });
       }
 
-      const { error: removeError } = await supabase
-        .from("vendor_invitations")
-        .update({ status: "revoked" })
-        .eq("vendor_id", normalizedVendorId)
-        .eq("created_user_id", normalizedTargetUserId)
-        .in("status", ["accepted", "suspended"]);
+      const { error: removeError } = await applyVendorIdFilter(
+        supabase
+          .from("vendor_invitations")
+          .update({ status: "revoked" })
+          .eq("created_user_id", normalizedTargetUserId)
+          .in("status", ["accepted", "suspended"]),
+        relatedVendorIds,
+      );
       if (removeError) throw removeError;
 
       const { data: accessRequestRows, error: accessRequestRowsError } = await supabase
@@ -555,12 +636,14 @@ serve(async (req) => {
         });
       }
 
-      const { error: revokeError } = await supabase
-        .from("vendor_invitations")
-        .update({ status: "revoked" })
-        .eq("id", normalizedInviteId)
-        .eq("vendor_id", normalizedVendorId)
-        .eq("status", "pending");
+      const { error: revokeError } = await applyVendorIdFilter(
+        supabase
+          .from("vendor_invitations")
+          .update({ status: "revoked" })
+          .eq("id", normalizedInviteId)
+          .eq("status", "pending"),
+        relatedVendorIds,
+      );
       if (revokeError) throw revokeError;
 
       return new Response(JSON.stringify({ success: true, ...(await loadTeamPayload()) }), {

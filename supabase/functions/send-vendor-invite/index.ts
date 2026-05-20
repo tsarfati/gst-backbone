@@ -78,6 +78,13 @@ const handler = async (req: Request): Promise<Response> => {
 
     const { vendorId, vendorName, vendorEmail, companyId, companyName, baseUrl, vendorPortalRole, replaceInviteId }: VendorInviteRequest = await req.json();
 
+    if (!companyId) {
+      return new Response(
+        JSON.stringify({ error: "Company is required" }),
+        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+      );
+    }
+
     if (!vendorEmail) {
       return new Response(
         JSON.stringify({ error: "Vendor email is required" }),
@@ -127,8 +134,27 @@ const handler = async (req: Request): Promise<Response> => {
       return isInternalRole(row.role);
     });
 
-    if (!isVendorOwner && !isInternalBuilderUser) {
-      return new Response(JSON.stringify({ error: "Only the vendor company owner can invite coworkers." }), {
+    const { data: targetCompany, error: targetCompanyError } = await supabase
+      .from("companies")
+      .select("id, tenant_id, logo_url")
+      .eq("id", companyId)
+      .maybeSingle();
+    if (targetCompanyError) throw targetCompanyError;
+
+    let isTenantInternalBuilderUser = false;
+    if (!isInternalBuilderUser && isInternalRole(requesterRole) && targetCompany?.tenant_id) {
+      const { data: tenantMembership, error: tenantMembershipError } = await supabase
+        .from("tenant_members" as any)
+        .select("tenant_id, user_id, role")
+        .eq("tenant_id", targetCompany.tenant_id)
+        .eq("user_id", authData.user.id)
+        .maybeSingle();
+      if (tenantMembershipError) throw tenantMembershipError;
+      isTenantInternalBuilderUser = !!tenantMembership;
+    }
+
+    if (!isVendorOwner && !isInternalBuilderUser && !isTenantInternalBuilderUser) {
+      return new Response(JSON.stringify({ error: "Only the vendor company owner or an internal BuilderLYNK user can invite coworkers." }), {
         status: 403,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
@@ -150,7 +176,7 @@ const handler = async (req: Request): Promise<Response> => {
       }
     }
 
-    let resolvedInviteRole = isInternalBuilderUser ? normalizedRole : "basic_user";
+    let resolvedInviteRole = (isInternalBuilderUser || isTenantInternalBuilderUser) ? normalizedRole : "basic_user";
     if (!vendorPortalRole) {
       const [{ count: existingVendorUserCount, error: existingVendorUserError }, { count: pendingInviteCount, error: pendingInviteError }] = await Promise.all([
         supabase
@@ -174,42 +200,69 @@ const handler = async (req: Request): Promise<Response> => {
     }
 
     // Check if there's already a pending invitation
-    const { data: existingInvite } = await supabase
+    const { data: existingInvite, error: existingInviteError } = await supabase
       .from('vendor_invitations')
       .select('id, status, expires_at')
       .eq('vendor_id', vendorId)
       .eq('email', vendorEmail)
       .eq('status', 'pending')
       .gt('expires_at', new Date().toISOString())
-      .single();
+      .maybeSingle();
 
-    if (existingInvite) {
+    if (existingInviteError) {
+      console.error("Error checking for existing vendor invitation:", existingInviteError);
       return new Response(
-        JSON.stringify({ error: "An active invitation already exists for this vendor" }),
-        { status: 400, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        JSON.stringify({ error: "Failed to validate existing invitations" }),
+        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
       );
     }
 
-    // Create the invitation
-    const { data: invitation, error: insertError } = await supabase
-      .from('vendor_invitations')
-      .insert({
-        vendor_id: vendorId,
-        company_id: companyId,
-        email: vendorEmail,
-        invited_by: authData.user.id,
-        status: 'pending',
-        vendor_portal_role: resolvedInviteRole,
-      })
-      .select()
-      .single();
+    let invitation = existingInvite;
 
-    if (insertError) {
-      console.error("Error creating invitation:", insertError);
-      return new Response(
-        JSON.stringify({ error: "Failed to create invitation" }),
-        { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
-      );
+    if (existingInvite) {
+      const { data: refreshedInvite, error: refreshedInviteError } = await supabase
+        .from('vendor_invitations')
+        .update({
+          invited_by: authData.user.id,
+          vendor_portal_role: resolvedInviteRole,
+          expires_at: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
+        })
+        .eq('id', existingInvite.id)
+        .select()
+        .single();
+
+      if (refreshedInviteError) {
+        console.error("Error refreshing existing invitation:", refreshedInviteError);
+        return new Response(
+          JSON.stringify({ error: "Failed to refresh the existing invitation" }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      invitation = refreshedInvite;
+    } else {
+      const { data: createdInvitation, error: insertError } = await supabase
+        .from('vendor_invitations')
+        .insert({
+          vendor_id: vendorId,
+          company_id: companyId,
+          email: vendorEmail,
+          invited_by: authData.user.id,
+          status: 'pending',
+          vendor_portal_role: resolvedInviteRole,
+        })
+        .select()
+        .single();
+
+      if (insertError) {
+        console.error("Error creating invitation:", insertError);
+        return new Response(
+          JSON.stringify({ error: "Failed to create invitation" }),
+          { status: 500, headers: { "Content-Type": "application/json", ...corsHeaders } }
+        );
+      }
+
+      invitation = createdInvitation;
     }
 
     // Create the invitation link
@@ -217,13 +270,7 @@ const handler = async (req: Request): Promise<Response> => {
     const escapedCompanyName = escapeHtml(companyName);
     const escapedVendorName = escapeHtml(vendorName || vendorEmail);
 
-    const { data: companyRow } = await supabase
-      .from("companies")
-      .select("logo_url")
-      .eq("id", companyId)
-      .single();
-
-    const companyLogo = resolveCompanyLogoEmailUrl((companyRow as any)?.logo_url);
+    const companyLogo = resolveCompanyLogoEmailUrl((targetCompany as any)?.logo_url);
 
     // Send the email
     const emailResponse = await sendTransactionalEmailWithFallback({
