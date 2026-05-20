@@ -464,11 +464,12 @@ export function AccessControl({ children }: AccessControlProps) {
     if (
       authEntryContext === 'builder' &&
       hasOnlyExternalWorkspace &&
+      location.pathname !== '/auth' &&
       !location.pathname.startsWith('/vendor/select') &&
       !location.pathname.startsWith('/vendor/') &&
       !location.pathname.startsWith('/design-professional/')
     ) {
-      navigate('/vendor/select', { replace: true });
+      navigate('/auth?portalRequired=1', { replace: true });
       return;
     }
 

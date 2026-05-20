@@ -382,7 +382,7 @@ function DashboardEntryRoute() {
   }
 
   if (authEntryContext === 'builder' && hasOnlyExternalWorkspace) {
-    return <Navigate to="/vendor/select" replace />;
+    return <Navigate to="/auth?portalRequired=1" replace />;
   }
 
   if (resolvedExternalRole === 'design_professional') {
