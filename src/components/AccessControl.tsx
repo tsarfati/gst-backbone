@@ -103,6 +103,13 @@ export function AccessControl({ children }: AccessControlProps) {
     !!(profile as any)?.default_company_id ||
     hasVendorIdentity ||
     !!externalPortalContext.homeCompanyId;
+  const hasEstablishedInternalWorkspace =
+    hasTenantAccess ||
+    isSuperAdmin ||
+    !!currentCompany?.id ||
+    userCompanies.length > 0 ||
+    !!profile?.current_company_id ||
+    !!(profile as any)?.default_company_id;
   const shouldBypassPendingStatusSplash =
     !!profile &&
     hasCompanyLinkContext &&
@@ -429,6 +436,10 @@ export function AccessControl({ children }: AccessControlProps) {
         );
         return;
       }
+      if (hasEstablishedInternalWorkspace) {
+        navigate('/dashboard', { replace: true });
+        return;
+      }
       if (profile?.profile_completed) {
         navigate('/', { replace: true });
         return;
@@ -438,7 +449,7 @@ export function AccessControl({ children }: AccessControlProps) {
     }
 
     // If profile is known and not completed, redirect to profile completion
-    if (profile && profile.profile_completed === false && !shouldUseExternalPortalFlow) {
+    if (profile && profile.profile_completed === false && !shouldUseExternalPortalFlow && !hasEstablishedInternalWorkspace) {
       navigate('/profile-completion', { replace: true });
       return;
     }

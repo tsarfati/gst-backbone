@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useRoleBasedRouting } from '@/hooks/useRoleBasedRouting';
+import { useCompany } from '@/contexts/CompanyContext';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 import { setAuthEntryContext } from '@/utils/authEntryContext';
@@ -69,6 +70,7 @@ export default function Auth() {
   const designProInviteAttemptCountRef = useRef(0);
   
   const { signIn, signUp, signInWithGoogle, user, profile, refreshProfile } = useAuth();
+  const { userCompanies, currentCompany, loading: companyLoading } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -76,6 +78,11 @@ export default function Auth() {
   const designProJobInviteToken = searchParams.get('jobInvite');
   const designProInviteCompanyId = searchParams.get('company');
   const designProInviteJobId = searchParams.get('job');
+  const hasEstablishedWorkspace =
+    !!currentCompany ||
+    userCompanies.length > 0 ||
+    !!profile?.current_company_id ||
+    !!(profile as any)?.default_company_id;
   
   // Use role-based routing after successful auth
   useRoleBasedRouting();
@@ -181,6 +188,7 @@ export default function Auth() {
   useEffect(() => {
     if (isRecoveryMode) return;
     if (!user) return;
+    if (companyLoading) return;
     // Do not trap users on /auth while invite acceptance retries.
     // Only pause redirect while an accept attempt is actively running.
     if ((inviteToken && inviteAccepting) || (designProJobInviteToken && designProJobInviteAccepting)) return;
@@ -215,12 +223,12 @@ export default function Auth() {
     }
 
     // User is authenticated — redirect away from auth page
-    if (profile?.profile_completed === false) {
+    if (profile?.profile_completed === false && !hasEstablishedWorkspace) {
       navigate('/profile-completion', { replace: true });
     } else {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting]);
+  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace]);
 
   useEffect(() => {
     const maxInviteAttempts = 6;

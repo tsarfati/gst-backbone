@@ -11,9 +11,11 @@ import { User, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { getAuthEntryContext } from '@/utils/authEntryContext';
 import { getVendorPortalCompanyId } from '@/utils/vendorPortalSession';
+import { useCompany } from '@/contexts/CompanyContext';
 
 export default function ProfileCompletion() {
   const { user, profile, refreshProfile } = useAuth();
+  const { userCompanies, currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -31,6 +33,11 @@ export default function ProfileCompletion() {
   const [loading, setLoading] = useState(false);
   const authEntryContext = getAuthEntryContext();
   const pinnedVendorPortalCompanyId = getVendorPortalCompanyId();
+  const hasEstablishedWorkspace =
+    !!currentCompany ||
+    userCompanies.length > 0 ||
+    !!profile?.current_company_id ||
+    !!(profile as any)?.default_company_id;
   const allowedRoles = new Set([
     'admin',
     'controller',
@@ -68,6 +75,11 @@ export default function ProfileCompletion() {
       return;
     }
 
+    if (hasEstablishedWorkspace) {
+      navigate('/dashboard', { replace: true });
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       first_name:
@@ -90,7 +102,7 @@ export default function ProfileCompletion() {
       nickname: prev.nickname || profile?.nickname || '',
       birthday: prev.birthday || profile?.birthday || '',
     }));
-  }, [authEntryContext, pinnedVendorPortalCompanyId, profile, user?.user_metadata, navigate]);
+  }, [authEntryContext, pinnedVendorPortalCompanyId, profile, user?.user_metadata, navigate, hasEstablishedWorkspace]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
