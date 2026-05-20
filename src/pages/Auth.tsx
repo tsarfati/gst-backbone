@@ -10,12 +10,12 @@ import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
-import { useRoleBasedRouting } from '@/hooks/useRoleBasedRouting';
 import { useCompany } from '@/contexts/CompanyContext';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 import { setAuthEntryContext } from '@/utils/authEntryContext';
 import { getAuthEntryContext } from '@/utils/authEntryContext';
+import { setVendorPortalCompanyId } from '@/utils/vendorPortalSession';
 
 type InvitePreview = {
   companyName: string;
@@ -79,13 +79,10 @@ export default function Auth() {
   const designProInviteCompanyId = searchParams.get('company');
   const designProInviteJobId = searchParams.get('job');
   const authEntryContext = getAuthEntryContext();
-  const hasInternalWorkspace =
-    !!currentCompany && String(currentCompany.company_type || '').toLowerCase() === 'construction' ||
-    userCompanies.some((company) => {
-      const companyRole = String(company.role || '').toLowerCase();
-      return companyRole !== 'vendor' && companyRole !== 'design_professional';
-    }) ||
-    ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(String(profile?.role || '').toLowerCase());
+  const hasInternalWorkspace = userCompanies.some((company) => {
+    const companyRole = String(company.role || '').toLowerCase();
+    return companyRole !== 'vendor' && companyRole !== 'design_professional';
+  });
   const hasOnlyExternalWorkspace =
     !hasInternalWorkspace &&
     userCompanies.length > 0 &&
@@ -93,15 +90,14 @@ export default function Auth() {
       const companyRole = String(company.role || '').toLowerCase();
       return companyRole === 'vendor' || companyRole === 'design_professional';
     });
+  const singleWorkspace = userCompanies.length === 1 ? userCompanies[0] : null;
+  const singleWorkspaceRole = String(singleWorkspace?.role || '').toLowerCase();
   const hasEstablishedWorkspace =
     !!currentCompany ||
     userCompanies.length > 0 ||
     !!profile?.current_company_id ||
     !!(profile as any)?.default_company_id;
   
-  // Use role-based routing after successful auth
-  useRoleBasedRouting();
-
   useEffect(() => {
     if (!inviteToken) {
       setInvitePreview(null);
@@ -218,7 +214,24 @@ export default function Auth() {
       return;
     }
 
-    if (authEntryContext === 'builder' && (hasOnlyExternalWorkspace || userCompanies.length > 1)) {
+    if (
+      authEntryContext === 'builder' &&
+      !hasInternalWorkspace &&
+      singleWorkspace &&
+      (singleWorkspaceRole === 'vendor' || singleWorkspaceRole === 'design_professional')
+    ) {
+      setAuthEntryContext('vendor');
+      setVendorPortalCompanyId(singleWorkspace.company_id);
+      navigate(
+        singleWorkspaceRole === 'design_professional'
+          ? '/design-professional/dashboard'
+          : '/vendor/dashboard',
+        { replace: true },
+      );
+      return;
+    }
+
+    if (authEntryContext === 'builder' && !hasInternalWorkspace && userCompanies.length > 1) {
       navigate('/workspace/select', { replace: true });
       return;
     }
@@ -229,7 +242,7 @@ export default function Auth() {
     } else {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace, hasOnlyExternalWorkspace, userCompanies.length, authEntryContext]);
+  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace, hasInternalWorkspace, userCompanies.length, authEntryContext, singleWorkspace, singleWorkspaceRole]);
 
   useEffect(() => {
     const maxInviteAttempts = 6;

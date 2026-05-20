@@ -248,13 +248,10 @@ function DashboardEntryRoute() {
     location.pathname.startsWith('/vendor') ||
     location.pathname.startsWith('/design-professional');
   const companyAccessRole = userCompanies.length === 1 ? String(userCompanies[0]?.role || '').toLowerCase() : '';
-  const hasInternalWorkspace =
-    currentCompanyType === 'construction' ||
-    userCompanies.some((company) => {
-      const companyRole = String(company.role || '').toLowerCase();
-      return companyRole !== 'vendor' && companyRole !== 'design_professional';
-    }) ||
-    ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(role);
+  const hasInternalWorkspace = userCompanies.some((company) => {
+    const companyRole = String(company.role || '').toLowerCase();
+    return companyRole !== 'vendor' && companyRole !== 'design_professional';
+  });
   const hasOnlyExternalWorkspace =
     !hasInternalWorkspace &&
     userCompanies.length > 0 &&
@@ -381,7 +378,16 @@ function DashboardEntryRoute() {
     return <PremiumLoadingScreen text="Loading your workspace..." />;
   }
 
-  if (authEntryContext === 'builder' && (hasOnlyExternalWorkspace || userCompanies.length > 1)) {
+  if (
+    authEntryContext === 'builder' &&
+    !hasInternalWorkspace &&
+    userCompanies.length === 1 &&
+    (companyAccessRole === 'vendor' || companyAccessRole === 'design_professional')
+  ) {
+    return <Navigate to={companyAccessRole === 'design_professional' ? "/design-professional/dashboard" : "/vendor/dashboard"} replace />;
+  }
+
+  if (authEntryContext === 'builder' && !hasInternalWorkspace && userCompanies.length > 1) {
     return <Navigate to="/workspace/select" replace />;
   }
 

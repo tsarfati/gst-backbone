@@ -46,13 +46,10 @@ export function RoleGuard({
     authMetadata.is_vendor === 'true';
   const authEntryContext = getAuthEntryContext();
   const pinnedVendorPortalCompanyId = getVendorPortalCompanyId();
-  const hasInternalWorkspace =
-    currentCompanyType === 'construction' ||
-    userCompanies.some((company) => {
-      const companyRole = normalizeRole(company?.role);
-      return companyRole && companyRole !== 'vendor' && companyRole !== 'design_professional';
-    }) ||
-    ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(profileRole || '');
+  const hasInternalWorkspace = userCompanies.some((company) => {
+    const companyRole = normalizeRole(company?.role);
+    return companyRole && companyRole !== 'vendor' && companyRole !== 'design_professional';
+  });
   const shouldPreferVendorPortal =
     authEntryContext === 'vendor' &&
     (!!pinnedVendorPortalCompanyId ||

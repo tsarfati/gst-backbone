@@ -79,8 +79,7 @@ export function AccessControl({ children }: AccessControlProps) {
     userCompanies.some((company) => {
       const companyRole = String(company.role || '').toLowerCase();
       return companyRole !== 'vendor' && companyRole !== 'design_professional';
-    }) ||
-    ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(role);
+    });
   const hasOnlyExternalWorkspace =
     !hasInternalWorkspace &&
     userCompanies.length > 0 &&
@@ -88,6 +87,13 @@ export function AccessControl({ children }: AccessControlProps) {
       const companyRole = String(company.role || '').toLowerCase();
       return companyRole === 'vendor' || companyRole === 'design_professional';
     });
+  const singleWorkspaceRole =
+    userCompanies.length === 1 ? String(userCompanies[0]?.role || '').toLowerCase() : '';
+  const shouldAutoEnterSingleExternalWorkspace =
+    authEntryContext === 'builder' &&
+    !hasInternalWorkspace &&
+    userCompanies.length === 1 &&
+    (singleWorkspaceRole === 'vendor' || singleWorkspaceRole === 'design_professional');
   const externalRequestedRole = externalPortalContext.requestedRole;
   const effectiveExternalRole =
     role === 'vendor' || role === 'design_professional'
@@ -98,12 +104,13 @@ export function AccessControl({ children }: AccessControlProps) {
     (!!pinnedVendorPortalCompanyId || onExternalPortalPath || !hasInternalWorkspace) &&
     (!!externalRequestedRole || !!hasVendorIdentity || role === 'vendor' || role === 'design_professional');
   const isExternalUser =
-    authEntryContext === 'builder'
+    shouldAutoEnterSingleExternalWorkspace ||
+    ((authEntryContext === 'builder'
       ? false
       : (role === 'vendor' && shouldPreferVendorPortal) ||
         (role === 'design_professional' && shouldPreferVendorPortal) ||
         (!!externalRequestedRole && shouldPreferVendorPortal) ||
-        (hasVendorIdentity && shouldPreferVendorPortal);
+        (hasVendorIdentity && shouldPreferVendorPortal)));
   const shouldUseExternalPortalFlow = hasPinnedVendorPortalEntry || shouldPreferVendorPortal || isExternalUser;
   const hasCompanyLinkContext =
     !!profile?.current_company_id ||
@@ -113,8 +120,7 @@ export function AccessControl({ children }: AccessControlProps) {
   const hasEstablishedInternalWorkspace =
     hasTenantAccess ||
     isSuperAdmin ||
-    !!currentCompany?.id ||
-    userCompanies.length > 0 ||
+    hasInternalWorkspace ||
     !!profile?.current_company_id ||
     !!(profile as any)?.default_company_id;
   const shouldBypassPendingStatusSplash =
@@ -473,7 +479,7 @@ export function AccessControl({ children }: AccessControlProps) {
         navigate(
           effectiveExternalRole === 'design_professional'
             ? '/design-professional/dashboard'
-            : authEntryContext === 'vendor'
+            : authEntryContext === 'vendor' || shouldAutoEnterSingleExternalWorkspace
               ? '/vendor/dashboard'
               : '/vendor/select',
           { replace: true },

@@ -10,6 +10,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { setAuthEntryContext } from "@/utils/authEntryContext";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import { setVendorPortalCompanyId } from "@/utils/vendorPortalSession";
+import builderlynkIcon from "@/assets/builderlynk-hero-logo-new.png";
 
 type WorkspaceRole = "internal" | "vendor" | "design_professional";
 
@@ -154,110 +155,120 @@ export default function VendorPortalChooser() {
   }
 
   return (
-    <div className="min-h-screen bg-background p-6">
-      <div className="mx-auto max-w-6xl space-y-8">
-        <div className="space-y-2">
-          <h1 className="text-3xl font-bold text-foreground">Choose a Workspace</h1>
-          <p className="text-sm text-muted-foreground">
-            Select which company and workspace you want to enter for this session.
-          </p>
-        </div>
-
-        {options.length === 0 ? (
-          <Card>
-            <CardContent className="py-14 text-center text-sm text-muted-foreground">
-              No workspaces are linked to this login yet.
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="space-y-8">
-            {internalOptions.length > 0 && (
-              <section className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-semibold">BuilderLYNK Workspaces</h2>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {internalOptions.map((option) => (
-                    <Card key={`${option.workspace_role}:${option.company_id}`} className="border-border/70">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="flex items-center gap-3 text-lg">
-                          {option.company_logo_url ? (
-                            <img src={option.company_logo_url} alt={option.company_name} className="h-10 w-auto max-w-[140px] object-contain" />
-                          ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-foreground">
-                              <Building2 className="h-5 w-5" />
+    <div className="min-h-screen bg-background">
+      <div className="min-h-screen bg-black/35 px-4 py-10 backdrop-blur-[2px]">
+        <Card className="mx-auto w-full max-w-6xl animate-fade-in border-border/70 shadow-2xl">
+          <CardHeader className="space-y-4 text-center">
+            <div className="flex justify-center">
+              <img
+                src={builderlynkIcon}
+                alt="BuilderLYNK"
+                className="h-16 w-auto drop-shadow-lg"
+              />
+            </div>
+            <div className="space-y-2">
+              <CardTitle className="text-3xl font-bold text-foreground">Choose a Workspace</CardTitle>
+              <p className="mx-auto max-w-2xl text-sm text-muted-foreground">
+                Select which company and workspace you want to enter for this session.
+              </p>
+            </div>
+          </CardHeader>
+          <CardContent className="max-h-[72vh] overflow-y-auto">
+            {options.length === 0 ? (
+              <div className="py-14 text-center text-sm text-muted-foreground">
+                No workspaces are linked to this login yet.
+              </div>
+            ) : (
+              <div className="space-y-8">
+                {internalOptions.length > 0 && (
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5 text-primary" />
+                      <h2 className="text-xl font-semibold">BuilderLYNK Workspaces</h2>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {internalOptions.map((option) => (
+                        <Card key={`${option.workspace_role}:${option.company_id}`} className="border-border/70">
+                          <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-3 text-lg">
+                              {option.company_logo_url ? (
+                                <img src={option.company_logo_url} alt={option.company_name} className="h-10 w-auto max-w-[140px] object-contain" />
+                              ) : (
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-foreground">
+                                  <Building2 className="h-5 w-5" />
+                                </div>
+                              )}
+                              <span className="min-w-0 truncate">{option.company_name}</span>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <ShieldCheck className="h-4 w-4" />
+                              {roleLabel(option)}
                             </div>
-                          )}
-                          <span className="min-w-0 truncate">{option.company_name}</span>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <ShieldCheck className="h-4 w-4" />
-                          {roleLabel(option)}
-                        </div>
-                        <Button
-                          className="w-full"
-                          onClick={() => void openWorkspace(option)}
-                          disabled={openingWorkspaceId === option.company_id}
-                        >
-                          {openingWorkspaceId === option.company_id ? "Opening..." : "Open BuilderLYNK Workspace"}
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </section>
-            )}
+                            <Button
+                              className="w-full"
+                              onClick={() => void openWorkspace(option)}
+                              disabled={openingWorkspaceId === option.company_id}
+                            >
+                              {openingWorkspaceId === option.company_id ? "Opening..." : "Open BuilderLYNK Workspace"}
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </section>
+                )}
 
-            {externalOptions.length > 0 && (
-              <section className="space-y-4">
-                <div className="flex items-center gap-2">
-                  <Briefcase className="h-5 w-5 text-primary" />
-                  <h2 className="text-xl font-semibold">External Portals</h2>
-                </div>
-                <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-                  {externalOptions.map((option) => (
-                    <Card key={`${option.workspace_role}:${option.company_id}`} className="border-border/70">
-                      <CardHeader className="pb-3">
-                        <CardTitle className="flex items-center gap-3 text-lg">
-                          {option.company_logo_url ? (
-                            <img src={option.company_logo_url} alt={option.company_name} className="h-10 w-auto max-w-[140px] object-contain" />
-                          ) : (
-                            <div className="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-foreground">
-                              <Building2 className="h-5 w-5" />
+                {externalOptions.length > 0 && (
+                  <section className="space-y-4">
+                    <div className="flex items-center gap-2">
+                      <Briefcase className="h-5 w-5 text-primary" />
+                      <h2 className="text-xl font-semibold">External Portals</h2>
+                    </div>
+                    <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                      {externalOptions.map((option) => (
+                        <Card key={`${option.workspace_role}:${option.company_id}`} className="border-border/70">
+                          <CardHeader className="pb-3">
+                            <CardTitle className="flex items-center gap-3 text-lg">
+                              {option.company_logo_url ? (
+                                <img src={option.company_logo_url} alt={option.company_name} className="h-10 w-auto max-w-[140px] object-contain" />
+                              ) : (
+                                <div className="flex h-10 w-10 items-center justify-center rounded-lg border text-muted-foreground">
+                                  <Building2 className="h-5 w-5" />
+                                </div>
+                              )}
+                              <span className="min-w-0 truncate">{option.company_name}</span>
+                            </CardTitle>
+                          </CardHeader>
+                          <CardContent className="space-y-4">
+                            <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                              <Briefcase className="h-4 w-4" />
+                              {roleLabel(option)}
                             </div>
-                          )}
-                          <span className="min-w-0 truncate">{option.company_name}</span>
-                        </CardTitle>
-                      </CardHeader>
-                      <CardContent className="space-y-4">
-                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                          <Briefcase className="h-4 w-4" />
-                          {roleLabel(option)}
-                        </div>
-                        <Button
-                          className="w-full"
-                          onClick={() => void openWorkspace(option)}
-                          disabled={openingWorkspaceId === option.company_id}
-                        >
-                          {openingWorkspaceId === option.company_id
-                            ? "Opening..."
-                            : option.workspace_role === "design_professional"
-                            ? "Open Design Portal"
-                            : "Open Vendor Portal"}
-                          <ArrowRight className="ml-2 h-4 w-4" />
-                        </Button>
-                      </CardContent>
-                    </Card>
-                  ))}
-                </div>
-              </section>
+                            <Button
+                              className="w-full"
+                              onClick={() => void openWorkspace(option)}
+                              disabled={openingWorkspaceId === option.company_id}
+                            >
+                              {openingWorkspaceId === option.company_id
+                                ? "Opening..."
+                                : option.workspace_role === "design_professional"
+                                ? "Open Design Portal"
+                                : "Open Vendor Portal"}
+                              <ArrowRight className="ml-2 h-4 w-4" />
+                            </Button>
+                          </CardContent>
+                        </Card>
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </div>
             )}
-          </div>
-        )}
+          </CardContent>
+        </Card>
       </div>
     </div>
   );
