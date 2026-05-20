@@ -14,6 +14,7 @@ import { useRoleBasedRouting } from '@/hooks/useRoleBasedRouting';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 import { setAuthEntryContext } from '@/utils/authEntryContext';
+import { getAuthEntryContext } from '@/utils/authEntryContext';
 
 type InvitePreview = {
   companyName: string;
@@ -184,6 +185,26 @@ export default function Auth() {
     // Only pause redirect while an accept attempt is actively running.
     if ((inviteToken && inviteAccepting) || (designProJobInviteToken && designProJobInviteAccepting)) return;
     
+    const authEntryContext = getAuthEntryContext();
+
+    // Keep vendor/design-professional flows inside their portal even when
+    // profile completion is still pending.
+    if (
+      authEntryContext === 'vendor' &&
+      (String(profile?.role || '').toLowerCase() === 'vendor' ||
+        String(profile?.role || '').toLowerCase() === 'design_professional' ||
+        !!(profile as any)?.vendor_id ||
+        !!(profile as any)?.vendor_portal_role)
+    ) {
+      navigate(
+        String(profile?.role || '').toLowerCase() === 'design_professional'
+          ? '/design-professional/dashboard'
+          : '/vendor/dashboard',
+        { replace: true },
+      );
+      return;
+    }
+
     // User is authenticated — redirect away from auth page
     if (profile?.profile_completed === false) {
       navigate('/profile-completion', { replace: true });

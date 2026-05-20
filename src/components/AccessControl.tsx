@@ -87,6 +87,7 @@ export function AccessControl({ children }: AccessControlProps) {
     authEntryContext === 'vendor' &&
     (!!pinnedVendorPortalCompanyId || onExternalPortalPath || !hasInternalWorkspace) &&
     (!!externalRequestedRole || !!hasVendorIdentity || role === 'vendor' || role === 'design_professional');
+  const shouldUseExternalPortalFlow = shouldPreferVendorPortal || isExternalUser;
   const isExternalUser =
     authEntryContext === 'builder'
       ? false
@@ -425,7 +426,7 @@ export function AccessControl({ children }: AccessControlProps) {
     }
 
     // If profile is known and not completed, redirect to profile completion
-    if (profile && profile.profile_completed === false) {
+    if (profile && profile.profile_completed === false && !shouldUseExternalPortalFlow) {
       navigate('/profile-completion', { replace: true });
       return;
     }
@@ -536,7 +537,7 @@ export function AccessControl({ children }: AccessControlProps) {
     if (!initialized) {
       setInitialized(true);
     }
-  }, [user?.id, profile?.profile_completed, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, profile?.status, profile?.role, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute, pendingExternalAccess, shouldBypassPendingStatusSplash, effectiveExternalRole, isExternalUser, pinnedVendorPortalCompanyId]);
+  }, [user?.id, profile?.profile_completed, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, profile?.status, profile?.role, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute, pendingExternalAccess, shouldBypassPendingStatusSplash, effectiveExternalRole, isExternalUser, pinnedVendorPortalCompanyId, shouldUseExternalPortalFlow]);
 
   // Show account status splash screens
   if (autoAcceptingInvite) {

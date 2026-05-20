@@ -75,6 +75,8 @@ export default function VendorRegister() {
   const [submitting, setSubmitting] = useState(false);
   const [invitation, setInvitation] = useState<Invitation | null>(null);
   const [companyBranding, setCompanyBranding] = useState<PublicCompanyBranding | null>(null);
+  const [invitedVendorName, setInvitedVendorName] = useState('');
+  const [invitedVendorType, setInvitedVendorType] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [success, setSuccess] = useState(false);
   const [alreadyAccepted, setAlreadyAccepted] = useState(false);
@@ -87,7 +89,7 @@ export default function VendorRegister() {
     confirmPassword: ''
   });
 
-  const vendorType = String((invitation?.vendor as any)?.vendor_type || '').toLowerCase();
+  const vendorType = String(invitedVendorType || (invitation?.vendor as any)?.vendor_type || '').toLowerCase();
   const isDesignProfessional = vendorType === 'design_professional';
   const companyName = companyBranding?.display_name || companyBranding?.name || (invitation?.company as any)?.name || 'BuilderLYNK';
   const selectedSignupLogoUrl = useMemo(
@@ -139,7 +141,7 @@ export default function VendorRegister() {
     setCompanyBranding(brandedCompany || null);
   };
 
-  const hydrateInvitationVendorName = async (vendorId: string) => {
+  const hydrateInvitationVendorDetails = async (vendorId: string) => {
     const normalizedVendorId = String(vendorId || '').trim();
     if (!normalizedVendorId) return;
 
@@ -151,6 +153,9 @@ export default function VendorRegister() {
         .maybeSingle();
 
       if (vendorError || !vendorRow?.id) return;
+
+      setInvitedVendorName(String(vendorRow.name || '').trim());
+      setInvitedVendorType(String(vendorRow.vendor_type || '').trim() || null);
 
       setInvitation((prev) => {
         if (!prev) return prev;
@@ -203,7 +208,7 @@ export default function VendorRegister() {
         .eq('token', token)
         .single();
 
-      if (error || !data) {
+    if (error || !data) {
         setError('Invalid or expired invitation link');
         setLoading(false);
         return;
@@ -212,7 +217,13 @@ export default function VendorRegister() {
       if (data.status !== 'pending') {
         if (data.status === 'accepted' && (data as any).created_user_id) {
           setInvitation(data as unknown as Invitation);
+          setInvitedVendorName(String((data as any)?.vendor?.name || '').trim());
+          setInvitedVendorType(String((data as any)?.vendor?.vendor_type || '').trim() || null);
           setAlreadyAccepted(true);
+          const resolvedVendorId = String((data as any)?.vendor_id || vendorId || '').trim();
+          if (resolvedVendorId) {
+            await hydrateInvitationVendorDetails(resolvedVendorId);
+          }
           if ((data as any)?.company_id) {
             await loadCompanyBranding((data as any).company_id);
           }
@@ -231,8 +242,11 @@ export default function VendorRegister() {
       }
 
       setInvitation(data as unknown as Invitation);
-      if (!(data as any)?.vendor?.name && (data as any)?.vendor_id) {
-        await hydrateInvitationVendorName((data as any).vendor_id);
+      setInvitedVendorName(String((data as any)?.vendor?.name || '').trim());
+      setInvitedVendorType(String((data as any)?.vendor?.vendor_type || '').trim() || null);
+      const resolvedVendorId = String((data as any)?.vendor_id || vendorId || '').trim();
+      if (resolvedVendorId) {
+        await hydrateInvitationVendorDetails(resolvedVendorId);
       }
 
       if (rfpId && vendorId) {
@@ -500,7 +514,7 @@ export default function VendorRegister() {
           <CardDescription className="text-slate-300">
             {brandedHeaderSubtitle}
             <br />
-            Invited entity: <strong className="text-slate-100">{(invitation?.vendor as any)?.name}</strong>
+            Invited entity: <strong className="text-slate-100">{invitedVendorName || 'Loading vendor...'}</strong>
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -523,7 +537,7 @@ export default function VendorRegister() {
               <Input
                 id="companyName"
                 name="company_name"
-                value={(invitation?.vendor as any)?.name || ''}
+                value={invitedVendorName}
                 readOnly
                 className="bg-slate-800 border-slate-600"
               />
