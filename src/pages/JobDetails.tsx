@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -94,6 +94,7 @@ interface VendorSubcontract {
 export default function JobDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const { vendorId: activeVendorId } = useActiveVendorPortalVendor();
@@ -146,8 +147,10 @@ export default function JobDetails() {
   const [jobSiteLynkLaunching, setJobSiteLynkLaunching] = useState(false);
   const [jobSiteLynkReady, setJobSiteLynkReady] = useState(false);
   const [jobSiteLynkError, setJobSiteLynkError] = useState<string | null>(null);
-  const isVendorView = String(profile?.role || "").toLowerCase() === "vendor";
-  const isDesignProfessionalView = String(profile?.role || "").toLowerCase() === "design_professional";
+  const isVendorRoute = location.pathname.startsWith("/vendor/");
+  const isDesignProfessionalRoute = location.pathname.startsWith("/design-professional/");
+  const isVendorView = isVendorRoute || String(profile?.role || "").toLowerCase() === "vendor";
+  const isDesignProfessionalView = isDesignProfessionalRoute || String(profile?.role || "").toLowerCase() === "design_professional";
   const isExternalView = isDesignProfessionalView || isVendorView;
   const {
     loading: vendorAccessLoading,
@@ -192,6 +195,7 @@ export default function JobDetails() {
         ...(showSecurityCamerasTab ? ["security-cameras"] : []),
         "visitor-logs",
       ];
+  const vendorCanOpenJob = !isVendorView || visibleTabs.length > 0;
   useEffect(() => {
     const fetchJob = async () => {
       if (!id) {
@@ -199,11 +203,21 @@ export default function JobDetails() {
         return;
       }
 
-      if (jobAccessLoading) {
+      if (!isVendorView && jobAccessLoading) {
         return;
       }
 
-      if (!isPrivileged && !hasGlobalJobAccess && !canAccessJob(id)) {
+      if (isVendorView) {
+        if (vendorAccessLoading) {
+          return;
+        }
+
+        if (!vendorCanOpenJob) {
+          setJob(null);
+          setLoading(false);
+          return;
+        }
+      } else if (!isPrivileged && !hasGlobalJobAccess && !canAccessJob(id)) {
         setJob(null);
         setLoading(false);
         return;
@@ -287,7 +301,7 @@ export default function JobDetails() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [id, toast, jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged, currentCompany?.id]);
+  }, [id, toast, jobAccessLoading, canAccessJob, hasGlobalJobAccess, isPrivileged, currentCompany?.id, isVendorView, vendorAccessLoading, vendorCanOpenJob]);
 
   useEffect(() => {
     const loadTargetCompanies = async () => {
