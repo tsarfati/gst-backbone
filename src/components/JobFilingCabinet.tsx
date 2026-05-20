@@ -61,6 +61,7 @@ interface OwnerProfile {
 
 interface JobFilingCabinetProps {
   jobId: string;
+  companyId?: string | null;
 }
 
 const SYSTEM_FOLDERS = ["Plans", "Delivery Tickets", "Permits"];
@@ -84,7 +85,7 @@ const formatDateTime = (value?: string | null) => {
   return parsed.toLocaleString();
 };
 
-export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
+export default function JobFilingCabinet({ jobId, companyId: providedCompanyId }: JobFilingCabinetProps) {
   const { currentCompany } = useCompany();
   const { user, profile } = useAuth();
   const { vendorId: activeVendorId } = useActiveVendorPortalVendor();
@@ -142,7 +143,7 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   });
   const [ownerProfilesById, setOwnerProfilesById] = useState<Record<string, OwnerProfile>>({});
 
-  const companyId = currentCompany?.id;
+  const companyId = providedCompanyId || currentCompany?.id || null;
   const hasExpandedFolders = expandedFolders.size > 0;
   const isVendorPortalUser = profile?.role === "vendor" || profile?.role === "design_professional";
   const roleCanViewCabinet = hasAccess("jobs-view-filing-cabinet");
@@ -150,7 +151,9 @@ export default function JobFilingCabinet({ jobId }: JobFilingCabinetProps) {
   const roleCanDeleteCabinet = hasAccess("jobs-delete-files");
   const roleCanDownloadCabinet = hasAccess("jobs-download-files");
   const roleCanShareCabinet = hasAccess("jobs-share-files");
-  const vendorCanAccessCabinet = (!isVendorPortalUser || vendorCabinetAccess.allowed) && roleCanViewCabinet;
+  const vendorCanAccessCabinet = isVendorPortalUser
+    ? vendorCabinetAccess.allowed
+    : roleCanViewCabinet;
   const vendorCanWriteCabinet = (!isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.accessLevel === "read_write")) && roleCanUploadCabinet;
   const vendorCanDownloadCabinet = (!isVendorPortalUser || (vendorCabinetAccess.allowed && vendorCabinetAccess.canDownload)) && roleCanDownloadCabinet;
   const vendorCanDeleteCabinet = vendorCanWriteCabinet && roleCanDeleteCabinet;

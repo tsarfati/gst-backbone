@@ -1235,7 +1235,7 @@ export default function JobDetails() {
           </TabsContent>
 
           {visibleTabs.includes("plans") && <TabsContent value="plans" className="p-6">
-            <JobPlans jobId={id!} canUpload={!isVendorView} />
+            <JobPlans jobId={id!} companyId={job.company_id || null} canUpload={!isVendorView} />
           </TabsContent>}
 
           {visibleTabs.includes("rfis") && <TabsContent value="rfis" className="p-6">
@@ -1413,7 +1413,7 @@ export default function JobDetails() {
           </TabsContent>
 
           {visibleTabs.includes("filing-cabinet") && <TabsContent value="filing-cabinet" className="p-6">
-            <JobFilingCabinet jobId={id!} />
+            <JobFilingCabinet jobId={id!} companyId={job.company_id || null} />
           </TabsContent>}
 
 
@@ -1424,6 +1424,7 @@ export default function JobDetails() {
           {visibleTabs.includes("photo-album") && <TabsContent value="photo-album" className="p-6">
             <JobPhotoAlbum
               jobId={id!}
+              companyId={job.company_id || null}
               jobSiteLynkConfigured={!isExternalView && jobSiteLynkConfigured}
               jobSiteLynkProjectId={job?.jobsitelynk_project_id || null}
               onOpenJobSiteLynk={() => void openJobSiteLynk()}

@@ -208,6 +208,7 @@ function ResolvedImage({
 
 interface JobPhotoAlbumProps {
   jobId: string;
+  companyId?: string | null;
   jobSiteLynkConfigured?: boolean;
   jobSiteLynkProjectId?: string | null;
   onOpenJobSiteLynk?: () => void;
@@ -215,6 +216,7 @@ interface JobPhotoAlbumProps {
 
 export default function JobPhotoAlbum({
   jobId,
+  companyId: providedCompanyId,
   jobSiteLynkConfigured = false,
   jobSiteLynkProjectId = null,
   onOpenJobSiteLynk,
@@ -224,6 +226,7 @@ export default function JobPhotoAlbum({
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const effectiveCompanyId = providedCompanyId || currentCompany?.id || null;
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
   const [albums, setAlbums] = useState<PhotoAlbum[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string>('');
@@ -329,7 +332,7 @@ export default function JobPhotoAlbum({
   }, [jobId]);
 
   useEffect(() => {
-    const companyScopedKey = `job-photo-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+    const companyScopedKey = `job-photo-view-mode:${effectiveCompanyId || 'default'}:${user?.id || 'anon'}`;
     const fallbackKey = `job-photo-view-mode:default:${user?.id || 'anon'}`;
     const stored = window.localStorage.getItem(companyScopedKey) || window.localStorage.getItem(fallbackKey);
     if (stored === 'cards' || stored === 'compact' || stored === 'super-compact') {
@@ -341,10 +344,10 @@ export default function JobPhotoAlbum({
     } else {
       setSavedDefaultPhotoView('cards');
     }
-  }, [currentCompany?.id, user?.id]);
+  }, [effectiveCompanyId, user?.id]);
 
   useEffect(() => {
-    const companyScopedKey = `job-album-view-mode:${currentCompany?.id || 'default'}:${user?.id || 'anon'}`;
+    const companyScopedKey = `job-album-view-mode:${effectiveCompanyId || 'default'}:${user?.id || 'anon'}`;
     const fallbackKey = `job-album-view-mode:default:${user?.id || 'anon'}`;
     const stored = window.localStorage.getItem(companyScopedKey) || window.localStorage.getItem(fallbackKey);
     if (stored === 'regular' || stored === 'small') {
@@ -356,7 +359,7 @@ export default function JobPhotoAlbum({
     } else {
       setSavedDefaultAlbumView('regular');
     }
-  }, [currentCompany?.id, user?.id]);
+  }, [effectiveCompanyId, user?.id]);
 
   const [resolvedDetailUrl, setResolvedDetailUrl] = useState<string | null>(null);
 
@@ -577,6 +580,9 @@ export default function JobPhotoAlbum({
           profiles(first_name, last_name, display_name, avatar_url)
         `)
         .eq('job_id', jobId);
+      if (effectiveCompanyId) {
+        query = query.eq('company_id', effectiveCompanyId);
+      }
 
       if (selectedAlbumId) {
         query = query.eq('album_id', selectedAlbumId);
@@ -600,10 +606,15 @@ export default function JobPhotoAlbum({
 
   const loadAlbums = async () => {
     try {
+      if (!effectiveCompanyId) {
+        setAlbums([]);
+        return;
+      }
       const { data, error } = await supabase
         .from('photo_albums')
         .select('*')
         .eq('job_id', jobId)
+        .eq('company_id', effectiveCompanyId)
         .order('is_auto_employee_album', { ascending: false })
         .order('created_at', { ascending: true });
 

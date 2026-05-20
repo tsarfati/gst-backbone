@@ -28,6 +28,7 @@ import { PlanDisciplineIcon } from "@/components/plans/PlanDisciplineIcon";
 
 interface JobPlansProps {
   jobId: string;
+  companyId?: string | null;
   canUpload?: boolean;
 }
 
@@ -174,7 +175,7 @@ function parsePlanMetadataFromFileName(fileName: string) {
   };
 }
 
-export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
+export default function JobPlans({ jobId, companyId: providedCompanyId, canUpload = true }: JobPlansProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const navigate = useNavigate();
@@ -204,6 +205,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
   const [rfpLinksDialogTitle, setRfpLinksDialogTitle] = useState("");
   const [rfpLinksDialogRefs, setRfpLinksDialogRefs] = useState<RfpAttachmentReference[]>([]);
   const { currentView, defaultView, setCurrentView, setDefaultView } = useUnifiedViewPreference("job-plans-view", "icons");
+  const effectiveCompanyId = providedCompanyId || currentCompany?.id || null;
 
   const [formData, setFormData] = useState(INITIAL_PLAN_FORM);
   const [infoFormData, setInfoFormData] = useState({
@@ -220,7 +222,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
     [...planList].sort((a, b) => new Date(b.uploaded_at).getTime() - new Date(a.uploaded_at).getTime());
 
   const ensurePlansFolderId = async () => {
-    if (!currentCompany?.id || !user?.id) {
+    if (!effectiveCompanyId || !user?.id) {
       throw new Error("Missing company or user context");
     }
 
@@ -228,7 +230,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       .from("job_folders")
       .select("id")
       .eq("job_id", jobId)
-      .eq("company_id", currentCompany.id)
+      .eq("company_id", effectiveCompanyId)
       .ilike("name", PLAN_SYSTEM_FOLDER_NAME)
       .maybeSingle();
 
@@ -239,7 +241,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       .from("job_folders")
       .select("sort_order")
       .eq("job_id", jobId)
-      .eq("company_id", currentCompany.id)
+      .eq("company_id", effectiveCompanyId)
       .order("sort_order", { ascending: false })
       .limit(1)
       .maybeSingle();
@@ -248,7 +250,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       .from("job_folders")
       .insert({
         job_id: jobId,
-        company_id: currentCompany.id,
+        company_id: effectiveCompanyId,
         name: PLAN_SYSTEM_FOLDER_NAME,
         is_system_folder: true,
         sort_order: Number(maxSortFolder?.sort_order || 0) + 1,
@@ -268,11 +270,11 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
     previousCabinetPath?: string | null;
     onProgress?: (percent: number) => void;
   }) => {
-    if (!currentCompany?.id || !user?.id) return;
+    if (!effectiveCompanyId || !user?.id) return;
 
     const folderId = await ensurePlansFolderId();
     const extension = params.file.name.split(".").pop() || "pdf";
-    const newPath = `${currentCompany.id}/${jobId}/${folderId}/plan-${params.planId}-${generatePlanFileId()}.${extension}`;
+    const newPath = `${effectiveCompanyId}/${jobId}/${folderId}/plan-${params.planId}-${generatePlanFileId()}.${extension}`;
 
     await uploadFileWithProgress({
       bucketName: "job-filing-cabinet",
@@ -308,7 +310,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
     } else {
       const { error: insertCabinetError } = await supabase.from("job_files").insert({
         job_id: jobId,
-        company_id: currentCompany.id,
+        company_id: effectiveCompanyId,
         folder_id: folderId,
         file_name: params.fileName,
         original_file_name: params.fileName,
@@ -344,18 +346,18 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
   };
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (effectiveCompanyId) {
       fetchPlans();
     }
-  }, [jobId, currentCompany?.id]);
+  }, [jobId, effectiveCompanyId]);
 
   useEffect(() => {
-    if (!currentCompany?.id) return;
+    if (!effectiveCompanyId) return;
     const loadRfps = async () => {
       const { data, error } = await supabase
         .from("rfps")
         .select("id, rfp_number, title, job_id, status")
-        .eq("company_id", currentCompany.id)
+        .eq("company_id", effectiveCompanyId)
         .order("created_at", { ascending: false });
       if (error) {
         console.error("Error loading RFP targets:", error);
@@ -364,15 +366,15 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       setRfpTargets((data || []) as RfpAttachmentTarget[]);
     };
     void loadRfps();
-  }, [currentCompany?.id]);
+  }, [effectiveCompanyId]);
 
   useEffect(() => {
-    if (!currentCompany?.id) return;
+    if (!effectiveCompanyId) return;
     const loadAttachmentCounts = async () => {
       const { data, error } = await supabase
         .from("rfp_attachments")
         .select("file_url, rfp_id, rfps!inner(id, rfp_number, title, status, job_id, jobs(name))")
-        .eq("company_id", currentCompany.id);
+        .eq("company_id", effectiveCompanyId);
       if (error) {
         console.error("Error loading plan RFP attachment counts:", error);
         return;
@@ -396,7 +398,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
       setRfpAttachmentRefsByUrl(refsByUrl);
     };
     void loadAttachmentCounts();
-  }, [currentCompany?.id]);
+  }, [effectiveCompanyId]);
 
   const fetchPlans = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
@@ -404,7 +406,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
         .from("job_plans")
         .select("*")
         .eq("job_id", jobId)
-        .eq("company_id", currentCompany?.id)
+        .eq("company_id", effectiveCompanyId)
         .order("uploaded_at", { ascending: false });
 
       if (error) throw error;
@@ -542,7 +544,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
         const newPlanPayload = {
           id: newPlanId,
           job_id: jobId,
-          company_id: currentCompany?.id,
+          company_id: effectiveCompanyId,
           uploaded_by: user?.id,
           plan_name: formData.plan_name,
           plan_number: formData.plan_number || null,
@@ -632,7 +634,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
           void indexPlanPagesOnce({
             planId: savedPlan!.id,
             planUrl: savedPlan!.file_url,
-            companyId: currentCompany?.id,
+            companyId: effectiveCompanyId,
           })
             .then((result) => {
               if (!result.skipped && result.successCount > 0) {
@@ -787,7 +789,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
   });
 
   const attachPlanToRfp = async () => {
-    if (!currentCompany?.id || !user?.id || !selectedRfpId || !attachingPlan) return;
+    if (!effectiveCompanyId || !user?.id || !selectedRfpId || !attachingPlan) return;
     try {
       setAttachingToRfp(true);
       const { data: existingRows, error: existingError } = await supabase
@@ -807,7 +809,7 @@ export default function JobPlans({ jobId, canUpload = true }: JobPlansProps) {
 
       const { error } = await supabase.from("rfp_attachments").insert({
         rfp_id: selectedRfpId,
-        company_id: currentCompany.id,
+        company_id: effectiveCompanyId,
         file_name: attachingPlan.file_name,
         file_url: attachingPlan.file_url,
         file_size: attachingPlan.file_size ?? null,
