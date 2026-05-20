@@ -12,6 +12,7 @@ const SUBCONTRACT_VENDOR_ACCESS_DEFAULTS = {
   can_upload_compliance_docs: true,
   can_view_photos: true,
   can_view_rfps: false,
+  can_view_all_job_bids: false,
   can_submit_bids: false,
   can_view_subcontracts: true,
   can_access_messages: true,

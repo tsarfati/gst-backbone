@@ -32,6 +32,7 @@ export interface VendorPortalJob {
   can_submit_submittals: boolean;
   can_view_photos: boolean;
   can_view_rfps: boolean;
+  can_view_all_job_bids?: boolean;
   can_submit_bids: boolean;
   can_view_subcontracts: boolean;
   can_access_messages: boolean;
@@ -54,6 +55,8 @@ export interface VendorPortalInvoice {
 
 export interface VendorPortalRfpInvite {
   id: string;
+  has_invite: boolean;
+  can_view_all_job_bids?: boolean;
   company_id: string | null;
   rfp_id: string;
   invited_at: string | null;
@@ -158,6 +161,7 @@ const buildVendorPortalJob = (
     can_submit_submittals: !!row.can_submit_submittals,
     can_view_photos: !!row.can_view_photos,
     can_view_rfps: !!row.can_view_rfps,
+    can_view_all_job_bids: !!row.can_view_all_job_bids,
     can_submit_bids: !!row.can_submit_bids,
     can_view_subcontracts: !!row.can_view_subcontracts,
     can_access_messages: !!row.can_access_messages,
@@ -339,6 +343,7 @@ export function useVendorPortalData() {
             can_submit_submittals,
             can_view_photos,
             can_view_rfps,
+            can_view_all_job_bids,
             can_submit_bids,
             can_view_subcontracts,
             can_access_messages,
@@ -434,10 +439,11 @@ export function useVendorPortalData() {
           can_submit_rfis: false,
           can_view_submittals: false,
           can_submit_submittals: false,
-          can_view_photos: false,
-          can_view_rfps: true,
-          can_submit_bids: true,
-          can_view_subcontracts: false,
+              can_view_photos: false,
+              can_view_rfps: true,
+              can_view_all_job_bids: false,
+              can_submit_bids: true,
+              can_view_subcontracts: false,
           can_access_messages: false,
         });
       });
@@ -494,13 +500,82 @@ export function useVendorPortalData() {
       });
       setInvoices(resolvedInvoices);
 
-      const resolvedRfps = ((invitedRfpRows || []) as any[]).flatMap((row: any) => {
+      const invitedByRfpId = new Map<string, any>();
+      ((invitedRfpRows || []) as any[]).forEach((row: any) => {
         const rfp = row?.rfp;
-        if (!rfp?.id) return [];
-        const companyId = String(row.company_id || rfp?.job?.company_id || '') || null;
+        if (!rfp?.id) return;
+        const rfpId = String(rfp.id);
+        if (!invitedByRfpId.has(rfpId)) {
+          invitedByRfpId.set(rfpId, row);
+        }
+      });
+
+      const jobsWithFullRfpView = Array.from(jobMap.values())
+        .filter((job) => job.can_view_rfps)
+        .map((job) => job.id)
+        .filter(Boolean);
+
+      let visibleJobRfps: any[] = [];
+      if (jobsWithFullRfpView.length > 0) {
+        const { data: visibleRfpRows, error: visibleRfpError } = await supabase
+          .from("rfps")
+          .select(`
+            id,
+            rfp_number,
+            title,
+            description,
+            scope_of_work,
+            status,
+            issue_date,
+            due_date,
+            job:jobs(id, name, company_id)
+          `)
+          .in("job_id", jobsWithFullRfpView)
+          .order("created_at", { ascending: false });
+        if (visibleRfpError) throw visibleRfpError;
+        visibleJobRfps = (visibleRfpRows || []) as any[];
+      }
+
+      const resolvedRfpsById = new Map<string, VendorPortalRfpInvite>();
+
+      visibleJobRfps.forEach((rfp: any) => {
+        if (!rfp?.id) return;
+        const invite = invitedByRfpId.get(String(rfp.id));
+        const companyId = String(invite?.company_id || rfp?.job?.company_id || '') || null;
+        const jobAccess = rfp?.job?.id ? jobMap.get(String(rfp.job.id)) : null;
         const company = companyId ? companySummaryById.get(companyId) : null;
-        return [{
+        resolvedRfpsById.set(String(rfp.id), {
+          id: String(invite?.id || `job-rfp:${rfp.id}`),
+          has_invite: !!invite?.id,
+          can_view_all_job_bids: !!jobAccess?.can_view_all_job_bids,
+          company_id: companyId,
+          rfp_id: String(rfp.id),
+          invited_at: invite?.invited_at || null,
+          last_viewed_at: invite?.last_viewed_at || null,
+          response_status: invite?.response_status || null,
+          rfp_number: rfp.rfp_number || null,
+          title: String(rfp.title || "Untitled RFP"),
+          description: rfp.description || null,
+          scope_of_work: rfp.scope_of_work || null,
+          status: rfp.status || null,
+          issue_date: rfp.issue_date || null,
+          due_date: rfp.due_date || null,
+          job_id: rfp?.job?.id || null,
+          job_name: rfp?.job?.name || null,
+          company_name: company?.name || null,
+        });
+      });
+
+      ((invitedRfpRows || []) as any[]).forEach((row: any) => {
+        const rfp = row?.rfp;
+        if (!rfp?.id) return;
+        const companyId = String(row.company_id || rfp?.job?.company_id || '') || null;
+        const jobAccess = rfp?.job?.id ? jobMap.get(String(rfp.job.id)) : null;
+        const company = companyId ? companySummaryById.get(companyId) : null;
+        resolvedRfpsById.set(String(rfp.id), {
           id: String(row.id),
+          has_invite: true,
+          can_view_all_job_bids: !!jobAccess?.can_view_all_job_bids,
           company_id: companyId,
           rfp_id: String(rfp.id),
           invited_at: row.invited_at || null,
@@ -516,9 +591,10 @@ export function useVendorPortalData() {
           job_id: rfp?.job?.id || null,
           job_name: rfp?.job?.name || null,
           company_name: company?.name || null,
-        } as VendorPortalRfpInvite];
+        });
       });
-      setRfps(resolvedRfps);
+
+      setRfps(Array.from(resolvedRfpsById.values()));
 
       if (user?.id) {
         const { data: messageRows, error: messageError } = await supabase

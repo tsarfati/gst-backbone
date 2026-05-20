@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef, useMemo, useCallback, type PointerEvent as ReactPointerEvent } from "react";
-import { useParams, useNavigate, useSearchParams } from "react-router-dom";
+import { useParams, useNavigate, useSearchParams, useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
@@ -381,6 +381,7 @@ const isSelectionVisionQuestion = (question: string) =>
 export default function PlanViewer() {
   const { planId } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const [searchParams, setSearchParams] = useSearchParams();
   const { user } = useAuth();
   const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess(["ai_plan_qa_v1"]);
@@ -2218,6 +2219,14 @@ export default function PlanViewer() {
   };
   const handleBackToJobPlans = () => {
     if (plan?.job_id) {
+      if (location.pathname.startsWith("/vendor/")) {
+        navigate(`/vendor/jobs/${plan.job_id}?tab=plans`);
+        return;
+      }
+      if (location.pathname.startsWith("/design-professional/")) {
+        navigate(`/design-professional/jobs/${plan.job_id}?tab=plans`);
+        return;
+      }
       navigate(`/jobs/${plan.job_id}?tab=plans`);
       return;
     }

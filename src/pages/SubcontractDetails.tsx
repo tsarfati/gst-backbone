@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { useNavigate, useParams } from "react-router-dom";
+import { useNavigate, useParams, useLocation } from "react-router-dom";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -21,13 +21,19 @@ import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import FileShareModal from "@/components/FileShareModal";
 import { downloadGeneratedSubcontractDocument, generateSubcontractPDF } from "@/utils/subcontractPdfGenerator";
+import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
 
 export default function SubcontractDetails() {
   const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { toast } = useToast();
   const { user, profile } = useAuth();
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
+  const { vendorIds: activeVendorIds, loading: vendorContextLoading } = useActiveVendorPortalVendor();
+  const isVendorRoute = location.pathname.startsWith('/vendor/');
+  const isDesignProfessionalRoute = location.pathname.startsWith('/design-professional/');
+  const isExternalPortalRoute = isVendorRoute || isDesignProfessionalRoute;
   
   const [subcontract, setSubcontract] = useState<any>(null);
   const [loading, setLoading] = useState(true);
@@ -53,10 +59,10 @@ export default function SubcontractDetails() {
   });
 
   useEffect(() => {
-    if (id && !websiteJobAccessLoading) {
+    if (id && !websiteJobAccessLoading && (!isVendorRoute || !vendorContextLoading)) {
       fetchSubcontract();
     }
-  }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+  }, [id, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(","), isVendorRoute, vendorContextLoading, activeVendorIds.join(",")]);
 
   const isDocxTemplate = (template?: { template_format?: string | null; template_file_type?: string | null; template_file_name?: string | null; template_file_url?: string | null }) => {
     const fileType = String(template?.template_file_type || '').toLowerCase();
@@ -104,7 +110,35 @@ export default function SubcontractDetails() {
 
       if (error) throw error;
 
-      if (!canAccessAssignedJobOnly([data?.jobs?.id], isPrivileged, allowedJobIds)) {
+      if (isExternalPortalRoute) {
+        if (!data?.jobs?.id || activeVendorIds.length === 0) {
+          toast({
+            title: "Access denied",
+            description: "You do not have access to this subcontract",
+            variant: "destructive",
+          });
+          setSubcontract(null);
+          return;
+        }
+
+        const { data: vendorAccessRows, error: vendorAccessError } = await supabase
+          .from('vendor_job_access' as any)
+          .select('id')
+          .in('vendor_id', activeVendorIds)
+          .eq('job_id', data.jobs.id)
+          .eq('can_view_subcontracts', true)
+          .limit(1);
+
+        if (vendorAccessError || !vendorAccessRows || vendorAccessRows.length === 0) {
+          toast({
+            title: "Access denied",
+            description: "You do not have access to this subcontract",
+            variant: "destructive",
+          });
+          setSubcontract(null);
+          return;
+        }
+      } else if (!canAccessAssignedJobOnly([data?.jobs?.id], isPrivileged, allowedJobIds)) {
         toast({
           title: "Access denied",
           description: "You do not have access to this subcontract",
@@ -340,7 +374,9 @@ export default function SubcontractDetails() {
     }
   };
 
-  const isPrivilegedCompanyUser = ['admin', 'controller', 'company_admin', 'owner', 'super_admin'].includes(String(profile?.role || '').toLowerCase());
+  const isPrivilegedCompanyUser =
+    !isExternalPortalRoute &&
+    ['admin', 'controller', 'company_admin', 'owner', 'super_admin'].includes(String(profile?.role || '').toLowerCase());
 
   const createContractEvent = async (eventType: string, eventNote: string, metadata: Record<string, any> = {}) => {
     if (!subcontract?.id) return;
@@ -524,7 +560,10 @@ export default function SubcontractDetails() {
       <div className="p-6">
         <div className="text-center py-12">
           <p className="text-muted-foreground">Subcontract not found</p>
-          <Button onClick={() => navigate('/subcontracts')} className="mt-4">
+          <Button
+            onClick={() => navigate(isVendorRoute ? '/vendor/jobs' : isDesignProfessionalRoute ? '/design-professional/jobs' : '/subcontracts')}
+            className="mt-4"
+          >
             Back to Subcontracts
           </Button>
         </div>
@@ -640,10 +679,12 @@ export default function SubcontractDetails() {
             <Download className="h-4 w-4 mr-2" />
             Commit Status Report
           </Button>
-          <Button onClick={() => navigate(`/subcontracts/${id}/edit`)}>
-            <Edit className="h-4 w-4 mr-2" />
-            Edit
-          </Button>
+          {!isExternalPortalRoute && (
+            <Button onClick={() => navigate(`/subcontracts/${id}/edit`)}>
+              <Edit className="h-4 w-4 mr-2" />
+              Edit
+            </Button>
+          )}
         </div>
       </div>
 
@@ -1080,10 +1121,12 @@ export default function SubcontractDetails() {
       <Card>
         <CardHeader className="flex flex-row items-center justify-between">
           <CardTitle>Change Orders</CardTitle>
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            Add Change Order
-          </Button>
+          {!isExternalPortalRoute && (
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              Add Change Order
+            </Button>
+          )}
         </CardHeader>
         <CardContent>
           {changeOrders.length === 0 ? (
@@ -1139,7 +1182,7 @@ export default function SubcontractDetails() {
                   <TableRow 
                     key={invoice.id}
                     className="cursor-pointer hover:bg-primary/10"
-                    onClick={() => navigate(`/invoices/${invoice.id}`)}
+                    onClick={() => navigate(isVendorRoute ? `/vendor/bills/${invoice.id}` : `/invoices/${invoice.id}`)}
                   >
                     <TableCell className="font-medium">{invoice.invoice_number || invoice.id.substring(0, 8)}</TableCell>
                     <TableCell>{format(new Date(invoice.issue_date), 'MMM d, yyyy')}</TableCell>

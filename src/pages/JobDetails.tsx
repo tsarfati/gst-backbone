@@ -124,6 +124,7 @@ export default function JobDetails() {
   });
   const [contractFeedbackDialogOpen, setContractFeedbackDialogOpen] = useState(false);
   const [signatureUploadDialogOpen, setSignatureUploadDialogOpen] = useState(false);
+  const [subcontractDetailDialogOpen, setSubcontractDetailDialogOpen] = useState(false);
   const [selectedVendorSubcontract, setSelectedVendorSubcontract] = useState<VendorSubcontract | null>(null);
   const [feedbackNotes, setFeedbackNotes] = useState("");
   const [submittingContractAction, setSubmittingContractAction] = useState(false);
@@ -442,6 +443,7 @@ export default function JobDetails() {
             .select(`
               invited_at,
               response_status,
+              vendor_id,
               rfp:rfps!inner(
                 id,
                 rfp_number,
@@ -458,8 +460,30 @@ export default function JobDetails() {
 
           if (invitedError) throw invitedError;
 
-          const rfpIds = ((invitedRows || []) as any[])
-            .map((row) => row?.rfp?.id as string | undefined)
+          let allVisibleRfps: any[] = ((invitedRows || []) as any[])
+            .map((row) => row?.rfp)
+            .filter(Boolean);
+
+          if (effectiveJobAccess.canViewRfps) {
+            const { data: allJobRfps, error: allJobRfpsError } = await supabase
+              .from("rfps")
+              .select("id, rfp_number, title, status, due_date, created_at, job_id")
+              .eq("job_id", id)
+              .order("created_at", { ascending: false });
+
+            if (allJobRfpsError) throw allJobRfpsError;
+            allVisibleRfps = (allJobRfps || []) as any[];
+          }
+
+          const invitationByRfpId = new Map<string, any>();
+          ((invitedRows || []) as any[]).forEach((row) => {
+            const rfpId = row?.rfp?.id ? String(row.rfp.id) : null;
+            if (!rfpId || invitationByRfpId.has(rfpId)) return;
+            invitationByRfpId.set(rfpId, row);
+          });
+
+          const rfpIds = allVisibleRfps
+            .map((row) => row?.id as string | undefined)
             .filter((value): value is string => Boolean(value));
 
           let bidByRfpId = new Map<string, JobRfp["my_bid"]>();
@@ -486,18 +510,19 @@ export default function JobDetails() {
 
           if (!ignore) {
             const deduped = new Map<string, JobRfp>();
-            ((invitedRows || []) as any[]).forEach((row) => {
-              if (!row?.rfp?.id) return;
-              const rfpId = String(row.rfp.id);
+            allVisibleRfps.forEach((rfpRow: any) => {
+              if (!rfpRow?.id) return;
+              const rfpId = String(rfpRow.id);
               if (deduped.has(rfpId)) return;
+              const inviteRow = invitationByRfpId.get(rfpId);
               deduped.set(rfpId, {
                 id: rfpId,
-                rfp_number: String(row.rfp.rfp_number || ""),
-                title: String(row.rfp.title || "Untitled RFP"),
-                status: String(row.rfp.status || "draft"),
-                due_date: row.rfp.due_date || null,
-                created_at: String(row.rfp.created_at),
-                response_status: row.response_status || null,
+                rfp_number: String(rfpRow.rfp_number || ""),
+                title: String(rfpRow.title || "Untitled RFP"),
+                status: String(rfpRow.status || "draft"),
+                due_date: rfpRow.due_date || null,
+                created_at: String(rfpRow.created_at),
+                response_status: inviteRow?.response_status || null,
                 my_bid: bidByRfpId.get(rfpId) || null,
               });
             });
@@ -523,7 +548,6 @@ export default function JobDetails() {
           let { data, error } = await supabase
             .from("subcontracts")
             .select("id, name, status, contract_amount, contract_negotiation_status, signature_status")
-            .in("vendor_id", activeVendorIds)
             .eq("job_id", id)
             .order("created_at", { ascending: false });
 
@@ -531,7 +555,6 @@ export default function JobDetails() {
             const fallback = await supabase
               .from("subcontracts")
               .select("id, name, status, contract_amount")
-              .in("vendor_id", activeVendorIds)
               .eq("job_id", id)
               .order("created_at", { ascending: false });
 
@@ -638,6 +661,10 @@ export default function JobDetails() {
     setVendorBidDialogOpen(true);
   };
 
+  const openVendorRfpDetails = (rfp: JobRfp) => {
+    navigate(`/vendor/rfps/${rfp.id}`);
+  };
+
   const submitVendorBid = async () => {
     if (!selectedVendorRfp || !activeVendorId || !currentCompany?.id) return;
     const amount = Number(vendorBidForm.bid_amount);
@@ -705,6 +732,19 @@ export default function JobDetails() {
     setSelectedVendorSubcontract(subcontract);
     setFeedbackNotes("");
     setContractFeedbackDialogOpen(true);
+  };
+
+  const openSubcontractDetailDialog = (subcontract: VendorSubcontract) => {
+    if (isVendorRoute) {
+      navigate(`/vendor/subcontracts/${subcontract.id}`);
+      return;
+    }
+    if (isDesignProfessionalRoute) {
+      navigate(`/design-professional/subcontracts/${subcontract.id}`);
+      return;
+    }
+    setSelectedVendorSubcontract(subcontract);
+    setSubcontractDetailDialogOpen(true);
   };
 
   const submitContractFeedback = async () => {
@@ -1279,7 +1319,12 @@ export default function JobDetails() {
                   ) : (
                     <div className="space-y-3">
                       {vendorRfps.map((rfp) => (
-                        <div key={rfp.id} className="rounded-lg border p-4">
+                        <button
+                          key={rfp.id}
+                          type="button"
+                          className="w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/60 hover:bg-muted/40"
+                          onClick={() => openVendorRfpDetails(rfp)}
+                        >
                           <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                             <div className="space-y-1">
                               <div className="font-medium text-foreground">{rfp.title}</div>
@@ -1304,16 +1349,23 @@ export default function JobDetails() {
                               ) : effectiveJobAccess.canSubmitBids ? (
                                 "No bid has been submitted from this vendor account yet."
                               ) : (
-                                "Bid submission is not enabled for this vendor assignment."
+                                "Open this RFP to review details and attachments."
                               )}
                             </div>
                             {effectiveJobAccess.canSubmitBids && (
-                              <Button size="sm" variant="outline" onClick={() => openVendorBidDialog(rfp)}>
+                              <Button
+                                size="sm"
+                                variant="outline"
+                                onClick={(event) => {
+                                  event.stopPropagation();
+                                  openVendorBidDialog(rfp);
+                                }}
+                              >
                                 {rfp.my_bid ? "Update Bid" : "Submit Bid"}
                               </Button>
                             )}
                           </div>
-                        </div>
+                        </button>
                       ))}
                     </div>
                   )}
@@ -1389,7 +1441,12 @@ export default function JobDetails() {
                 ) : (
                   <div className="space-y-3">
                     {vendorSubcontracts.map((subcontract) => (
-                      <div key={subcontract.id} className="rounded-lg border p-4">
+                      <button
+                        key={subcontract.id}
+                        type="button"
+                        className="w-full rounded-lg border p-4 text-left transition-colors hover:border-primary/60 hover:bg-muted/40"
+                        onClick={() => openSubcontractDetailDialog(subcontract)}
+                      >
                         <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
                           <div className="space-y-1">
                             <div className="font-medium text-foreground">{subcontract.name}</div>
@@ -1405,17 +1462,31 @@ export default function JobDetails() {
                         </div>
                         <div className="mt-3 flex flex-wrap gap-2">
                           {effectiveJobAccess.canNegotiateContracts && (
-                            <Button size="sm" variant="outline" onClick={() => openFeedbackDialog(subcontract)}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openFeedbackDialog(subcontract);
+                              }}
+                            >
                               Submit Feedback
                             </Button>
                           )}
                           {effectiveJobAccess.canUploadSignedContracts && (
-                            <Button size="sm" variant="outline" onClick={() => openSignatureDialog(subcontract)}>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              onClick={(event) => {
+                                event.stopPropagation();
+                                openSignatureDialog(subcontract);
+                              }}
+                            >
                               Upload Signed Contract
                             </Button>
                           )}
                         </div>
-                      </div>
+                      </button>
                     ))}
                   </div>
                 )}
@@ -1572,6 +1643,62 @@ export default function JobDetails() {
               {submittingVendorBid ? "Saving..." : selectedVendorRfp?.my_bid ? "Update Bid" : "Submit Bid"}
             </Button>
           </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={subcontractDetailDialogOpen} onOpenChange={setSubcontractDetailDialogOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>{selectedVendorSubcontract?.name || "Subcontract"}</DialogTitle>
+            <DialogDescription>
+              Review the current subcontract summary and status for this job.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="rounded-lg border p-3">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Contract Amount</div>
+                <div className="mt-1 text-base font-medium text-foreground">
+                  ${Number(selectedVendorSubcontract?.contract_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                </div>
+              </div>
+              <div className="rounded-lg border p-3">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Status</div>
+                <div className="mt-2 flex flex-wrap gap-2">
+                  {selectedVendorSubcontract?.status ? <Badge variant="outline" className="capitalize">{selectedVendorSubcontract.status}</Badge> : <Badge variant="outline">No status</Badge>}
+                  {selectedVendorSubcontract?.contract_negotiation_status ? <Badge variant="secondary" className="capitalize">{selectedVendorSubcontract.contract_negotiation_status}</Badge> : null}
+                  {selectedVendorSubcontract?.signature_status ? <Badge variant="secondary" className="capitalize">{selectedVendorSubcontract.signature_status}</Badge> : null}
+                </div>
+              </div>
+            </div>
+
+            {(effectiveJobAccess.canNegotiateContracts || effectiveJobAccess.canUploadSignedContracts) && (
+              <div className="flex flex-wrap gap-2">
+                {effectiveJobAccess.canNegotiateContracts && selectedVendorSubcontract && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSubcontractDetailDialogOpen(false);
+                      openFeedbackDialog(selectedVendorSubcontract);
+                    }}
+                  >
+                    Submit Feedback
+                  </Button>
+                )}
+                {effectiveJobAccess.canUploadSignedContracts && selectedVendorSubcontract && (
+                  <Button
+                    variant="outline"
+                    onClick={() => {
+                      setSubcontractDetailDialogOpen(false);
+                      openSignatureDialog(selectedVendorSubcontract);
+                    }}
+                  >
+                    Upload Signed Contract
+                  </Button>
+                )}
+              </div>
+            )}
+          </div>
         </DialogContent>
       </Dialog>
 

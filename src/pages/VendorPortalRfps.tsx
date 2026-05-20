@@ -63,8 +63,28 @@ type VendorBidAttachment = {
   uploaded_at?: string | null;
 };
 
+type ComparisonBid = {
+  id: string;
+  vendor_id: string | null;
+  vendor_name: string;
+  vendor_logo_url: string | null;
+  version_number: number;
+  bid_amount: number;
+  proposed_timeline: string | null;
+  notes: string | null;
+  status: string;
+  submitted_at: string | null;
+  shipping_included: boolean;
+  shipping_amount: number;
+  taxes_included: boolean;
+  tax_amount: number;
+  discount_amount: number;
+  attachments: VendorBidAttachment[];
+};
+
 type DetailedVendorRfp = {
   invite_id: string;
+  has_invite: boolean;
   company_id: string | null;
   rfp_id: string;
   invited_at: string | null;
@@ -80,8 +100,10 @@ type DetailedVendorRfp = {
   job_id: string | null;
   job_name: string | null;
   company_name: string | null;
+  can_view_all_job_bids: boolean;
   attachments: RfpAttachment[];
   plan_pages: DetailedPlanPage[];
+  comparison_bids: ComparisonBid[];
   unread_builder_replies: number;
   latest_builder_reply_at: string | null;
   latest_activity_at: string | null;
@@ -290,6 +312,13 @@ function calculateBidSummary(form: BidFormState) {
   };
 }
 
+function computeComparisonBidTotal(bid: ComparisonBid) {
+  const discountedBase = Math.max(0, Number(bid.bid_amount || 0) - Number(bid.discount_amount || 0));
+  const shippingAmount = bid.shipping_included ? 0 : Number(bid.shipping_amount || 0);
+  const taxAmount = bid.taxes_included ? 0 : Number(bid.tax_amount || 0);
+  return Math.max(0, discountedBase + shippingAmount + taxAmount);
+}
+
 function AttachmentPreviewTile({ attachment }: { attachment: RfpAttachment }) {
   if (attachment.preview_url && isLikelyImageFile(attachment.file_name, attachment.file_type)) {
     return (
@@ -340,7 +369,7 @@ export default function VendorPortalRfps() {
   const communicationFileInputRef = useRef<HTMLInputElement | null>(null);
 
   const loadDetails = useCallback(async () => {
-    if (!profile?.vendor_id || rfps.length === 0) {
+    if (!activeVendorId || rfps.length === 0) {
       setDetailedRfps([]);
       return;
     }
@@ -530,6 +559,66 @@ export default function VendorPortalRfps() {
           }
         }
 
+        const readOnlyBidRfpIds = Array.from(
+          new Set(rfps.filter((rfp) => !!rfp.can_view_all_job_bids).map((rfp) => rfp.rfp_id).filter(Boolean)),
+        );
+
+        const { data: comparisonBidRows, error: comparisonBidsError } = readOnlyBidRfpIds.length > 0
+          ? await supabase
+              .from("bids")
+              .select(`
+                id,
+                rfp_id,
+                vendor_id,
+                version_number,
+                bid_amount,
+                proposed_timeline,
+                notes,
+                status,
+                submitted_at,
+                shipping_included,
+                shipping_amount,
+                taxes_included,
+                tax_amount,
+                discount_amount,
+                vendor:vendors(id, name, logo_url)
+              `)
+              .in("rfp_id", readOnlyBidRfpIds)
+              .order("submitted_at", { ascending: false })
+          : { data: [], error: null };
+
+        if (comparisonBidsError) {
+          console.error("VendorPortalRfps: error loading bid comparison rows", comparisonBidsError);
+        }
+
+        const comparisonBidIds = ((comparisonBidRows || []) as any[]).map((row) => String(row.id)).filter(Boolean);
+        if (comparisonBidIds.length > 0) {
+          const { data: comparisonAttachmentRows, error: comparisonAttachmentError } = await supabase
+            .from("bid_attachments")
+            .select("id, bid_id, file_name, file_url, attachment_type, description, uploaded_at")
+            .in("bid_id", comparisonBidIds)
+            .neq("attachment_type", "vendor_message")
+            .order("uploaded_at", { ascending: false });
+
+          if (comparisonAttachmentError) {
+            console.error("VendorPortalRfps: error loading bid comparison attachments", comparisonAttachmentError);
+          } else {
+            (comparisonAttachmentRows || []).forEach((row: any) => {
+              const key = String(row.bid_id);
+              const list = attachmentsByBidId.get(key) || [];
+              list.push({
+                id: String(row.id),
+                file_name: String(row.file_name || "Attachment"),
+                file_url: String(row.file_url || ""),
+                attachment_type: row.attachment_type || null,
+                description: row.description || null,
+                uploaded_at: row.uploaded_at || null,
+              });
+              attachmentsByBidId.set(key, list);
+            });
+          }
+        }
+
         const bidByRfp = new Map<string, DetailedVendorRfp["my_bid"]>();
         const bidVersionsByRfp = new Map<string, DetailedVendorRfp["bid_versions"]>();
         ((myBidsData || []) as any[]).forEach((row) => {
@@ -565,6 +654,33 @@ export default function VendorPortalRfps() {
               attachments: attachmentsByBidId.get(String(row.id)) || [],
             });
           }
+        });
+
+        const comparisonBidsByRfp = new Map<string, ComparisonBid[]>();
+        ((comparisonBidRows || []) as any[]).forEach((row) => {
+          const rfpKey = String(row.rfp_id || "");
+          if (!rfpKey) return;
+          const list = comparisonBidsByRfp.get(rfpKey) || [];
+          const joinedVendor = pickJoinedRow<any>(row.vendor);
+          list.push({
+            id: String(row.id),
+            vendor_id: row.vendor_id ? String(row.vendor_id) : null,
+            vendor_name: String(joinedVendor?.name || "Vendor"),
+            vendor_logo_url: joinedVendor?.logo_url || null,
+            version_number: Number(row.version_number || 1),
+            bid_amount: Number(row.bid_amount || 0),
+            proposed_timeline: row.proposed_timeline || null,
+            notes: row.notes || null,
+            status: String(row.status || "submitted"),
+            submitted_at: row.submitted_at ? String(row.submitted_at) : null,
+            shipping_included: !!row.shipping_included,
+            shipping_amount: Number(row.shipping_amount || 0),
+            taxes_included: !!row.taxes_included,
+            tax_amount: Number(row.tax_amount || 0),
+            discount_amount: Number(row.discount_amount || 0),
+            attachments: attachmentsByBidId.get(String(row.id)) || [],
+          });
+          comparisonBidsByRfp.set(rfpKey, list);
         });
 
         const bidIds = ((myBidsData || []) as any[]).map((row) => String(row.id)).filter(Boolean);
@@ -645,6 +761,7 @@ export default function VendorPortalRfps() {
       setDetailedRfps(
         rfps.map((rfp) => ({
           invite_id: rfp.id,
+          has_invite: rfp.has_invite,
           company_id: rfp.company_id,
           rfp_id: rfp.rfp_id,
           invited_at: rfp.invited_at,
@@ -660,8 +777,10 @@ export default function VendorPortalRfps() {
           job_id: rfp.job_id,
           job_name: rfp.job_name,
           company_name: rfp.company_name,
+          can_view_all_job_bids: !!rfp.can_view_all_job_bids,
           attachments: attachmentsByRfp.get(rfp.rfp_id) || [],
           plan_pages: planPagesByRfp.get(rfp.rfp_id) || [],
+          comparison_bids: comparisonBidsByRfp.get(rfp.rfp_id) || [],
           unread_builder_replies: (() => {
             const bid = bidByRfp.get(rfp.rfp_id);
             const summary = bid ? communicationSummaryByBidId.get(bid.id) : null;
@@ -694,7 +813,7 @@ export default function VendorPortalRfps() {
     } finally {
       setDetailsLoading(false);
     }
-  }, [profile?.vendor_id, rfps, user?.id]);
+  }, [activeVendorId, rfps, user?.id]);
 
   useEffect(() => {
     void loadDetails();
@@ -710,6 +829,7 @@ export default function VendorPortalRfps() {
 
   const openRfps = useMemo(
     () => detailedRfps.filter((rfp) => {
+      if (!rfp.has_invite) return false;
       const status = String(rfp.status || "").toLowerCase();
       return status !== "closed" && status !== "awarded" && status !== "cancelled";
     }),
@@ -717,7 +837,7 @@ export default function VendorPortalRfps() {
   );
 
   const respondedRfpCount = useMemo(
-    () => detailedRfps.filter((rfp) => ["submitted", "declined"].includes(String(rfp.response_status || "").toLowerCase())).length,
+    () => detailedRfps.filter((rfp) => rfp.has_invite && ["submitted", "declined"].includes(String(rfp.response_status || "").toLowerCase())).length,
     [detailedRfps],
   );
   const selectedDetailRfp = useMemo(
@@ -751,8 +871,16 @@ export default function VendorPortalRfps() {
     [communications],
   );
   const visibleRfps = useMemo(
-    () => (routeRfpId ? (selectedDetailRfp ? [selectedDetailRfp] : []) : detailedRfps),
+    () => (
+      routeRfpId
+        ? (selectedDetailRfp ? [selectedDetailRfp] : [])
+        : detailedRfps.filter((rfp) => rfp.has_invite)
+    ),
     [routeRfpId, selectedDetailRfp, detailedRfps],
+  );
+  const canSubmitForRfp = useCallback(
+    (rfp: DetailedVendorRfp) => roleCaps.canSubmitBids && rfp.has_invite,
+    [roleCaps.canSubmitBids],
   );
   const bidSummary = useMemo(() => calculateBidSummary(bidForm), [bidForm]);
   const selectedDetailBidSummary = useMemo(
@@ -1038,7 +1166,7 @@ export default function VendorPortalRfps() {
 
   useEffect(() => {
     const markViewed = async () => {
-      if (!routeRfpId || !selectedDetailRfp?.invite_id) return;
+      if (!routeRfpId || !selectedDetailRfp?.has_invite || !selectedDetailRfp?.invite_id) return;
 
       const normalizedStatus = String(selectedDetailRfp.response_status || "").toLowerCase();
       const shouldMarkViewed =
@@ -1080,7 +1208,7 @@ export default function VendorPortalRfps() {
   ]);
 
   const submitVendorBid = async () => {
-    if (!selectedRfpForBid || !profile?.vendor_id || !selectedRfpForBid.company_id) return;
+    if (!selectedRfpForBid || !selectedRfpForBid.has_invite || !activeVendorId || !selectedRfpForBid.company_id) return;
 
     const amount = Number(bidForm.bid_amount);
     if (!Number.isFinite(amount) || amount <= 0) {
@@ -1172,15 +1300,17 @@ export default function VendorPortalRfps() {
         if (attachmentError) throw attachmentError;
       }
 
-      const { error: inviteUpdateError } = await supabase
-        .from("rfp_invited_vendors")
-        .update({
-          response_status: "submitted",
-          last_viewed_at: new Date().toISOString(),
-        })
-        .eq("id", selectedRfpForBid.invite_id);
-      if (inviteUpdateError) {
-        console.warn("VendorPortalRfps: unable to update invite response status", inviteUpdateError);
+      if (selectedRfpForBid.has_invite) {
+        const { error: inviteUpdateError } = await supabase
+          .from("rfp_invited_vendors")
+          .update({
+            response_status: "submitted",
+            last_viewed_at: new Date().toISOString(),
+          })
+          .eq("id", selectedRfpForBid.invite_id);
+        if (inviteUpdateError) {
+          console.warn("VendorPortalRfps: unable to update invite response status", inviteUpdateError);
+        }
       }
 
       toast({
@@ -1219,7 +1349,7 @@ export default function VendorPortalRfps() {
         .insert({
           bid_id: bidId,
           company_id: selectedDetailRfp.company_id,
-          vendor_id: profile?.vendor_id,
+          vendor_id: activeVendorId,
           user_id: user.id,
           message_type: "vendor",
           message,
@@ -1491,6 +1621,7 @@ export default function VendorPortalRfps() {
                 <h1 className="text-2xl font-bold text-foreground">{selectedDetailRfp.title}</h1>
                 {selectedDetailRfp.rfp_number ? <Badge variant="outline">{selectedDetailRfp.rfp_number}</Badge> : null}
                 <Badge variant={responseKey === "submitted" ? "default" : "secondary"}>{responseLabel}</Badge>
+                {!selectedDetailRfp.has_invite ? <Badge variant="outline">View Only</Badge> : null}
               </div>
               <div className="flex flex-wrap items-center gap-3 text-sm text-muted-foreground">
                 {selectedDetailRfp.company_name ? <span>{selectedDetailRfp.company_name}</span> : null}
@@ -1503,10 +1634,12 @@ export default function VendorPortalRfps() {
                 <p className="max-w-5xl text-sm text-muted-foreground whitespace-pre-wrap">{selectedDetailRfp.description}</p>
               ) : null}
             </div>
-            <Button onClick={() => openBidDialog(selectedDetailRfp)}>
-              <FileText className="mr-2 h-4 w-4" />
-              {selectedDetailRfp.my_bid ? "Update Bid" : "Submit Bid"}
-            </Button>
+            {canSubmitForRfp(selectedDetailRfp) ? (
+              <Button onClick={() => openBidDialog(selectedDetailRfp)}>
+                <FileText className="mr-2 h-4 w-4" />
+                {selectedDetailRfp.my_bid ? "Update Bid" : "Submit Bid"}
+              </Button>
+            ) : null}
           </div>
         </div>
 
@@ -1643,6 +1776,90 @@ export default function VendorPortalRfps() {
                 )}
               </CardContent>
             </Card>
+
+            {selectedDetailRfp.can_view_all_job_bids ? (
+              <Card>
+                <CardHeader className="pb-3">
+                  <CardTitle>Bid Comparison</CardTitle>
+                  <CardDescription>
+                    Read-only bid visibility enabled by the builder for this vendor assignment.
+                  </CardDescription>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  {selectedDetailRfp.comparison_bids.length === 0 ? (
+                    <p className="text-sm text-muted-foreground">No bids have been submitted for this RFP yet.</p>
+                  ) : (
+                    selectedDetailRfp.comparison_bids
+                      .slice()
+                      .sort((a, b) => computeComparisonBidTotal(a) - computeComparisonBidTotal(b))
+                      .map((bid, index) => (
+                        <div key={bid.id} className="rounded-lg border bg-background p-4 space-y-3">
+                          <div className="flex flex-wrap items-start justify-between gap-3">
+                            <div className="space-y-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="font-medium">{bid.vendor_name}</p>
+                                <Badge variant="outline">v{bid.version_number}</Badge>
+                                <Badge variant="secondary">{bid.status}</Badge>
+                                {index === 0 ? <Badge className="bg-emerald-600 hover:bg-emerald-600">Lowest Bid</Badge> : null}
+                              </div>
+                              <div className="text-sm text-muted-foreground">
+                                {bid.submitted_at ? `Submitted ${new Date(bid.submitted_at).toLocaleString()}` : "Draft / pending submission"}
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="text-lg font-semibold">
+                                ${computeComparisonBidTotal(bid).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+                              <p className="text-xs text-muted-foreground">
+                                Base ${Number(bid.bid_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                              </p>
+                            </div>
+                          </div>
+
+                          {(bid.proposed_timeline || bid.notes) ? (
+                            <div className="grid gap-3 md:grid-cols-2">
+                              {bid.proposed_timeline ? (
+                                <div className="rounded-md border bg-muted/20 p-3">
+                                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Timeline</p>
+                                  <p className="mt-1 text-sm whitespace-pre-wrap">{bid.proposed_timeline}</p>
+                                </div>
+                              ) : null}
+                              {bid.notes ? (
+                                <div className="rounded-md border bg-muted/20 p-3">
+                                  <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Bid Notes</p>
+                                  <p className="mt-1 text-sm whitespace-pre-wrap">{bid.notes}</p>
+                                </div>
+                              ) : null}
+                            </div>
+                          ) : null}
+
+                          {bid.attachments.length > 0 ? (
+                            <div className="space-y-2">
+                              <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Bid Attachments</p>
+                              {bid.attachments.map((attachment) => (
+                                <div key={attachment.id} className="flex items-center justify-between gap-3 rounded-md border bg-muted/20 px-3 py-2">
+                                  <div className="min-w-0">
+                                    <p className="truncate text-sm font-medium">{attachment.file_name}</p>
+                                    <p className="text-xs text-muted-foreground">{attachment.attachment_type || "Attachment"}</p>
+                                  </div>
+                                  <Button
+                                    size="sm"
+                                    variant="outline"
+                                    onClick={() => window.open(attachment.file_url, "_blank", "noopener,noreferrer")}
+                                  >
+                                    <Download className="mr-2 h-4 w-4" />
+                                    View
+                                  </Button>
+                                </div>
+                              ))}
+                            </div>
+                          ) : null}
+                        </div>
+                      ))
+                  )}
+                </CardContent>
+              </Card>
+            ) : null}
 
             <Card>
               <CardHeader className="pb-3">
@@ -2311,10 +2528,14 @@ export default function VendorPortalRfps() {
                           Open RFP
                         </Button>
                       ) : null}
-                      <Button onClick={() => openBidDialog(rfp)}>
-                        <FileText className="mr-2 h-4 w-4" />
-                        {rfp.my_bid ? "Update Bid" : "Submit Bid"}
-                      </Button>
+                      {canSubmitForRfp(rfp) ? (
+                        <Button onClick={() => openBidDialog(rfp)}>
+                          <FileText className="mr-2 h-4 w-4" />
+                          {rfp.my_bid ? "Update Bid" : "Submit Bid"}
+                        </Button>
+                      ) : (
+                        <Badge variant="outline">View Only</Badge>
+                      )}
                     </div>
                   </div>
 

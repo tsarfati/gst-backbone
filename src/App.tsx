@@ -632,6 +632,18 @@ function AuthenticatedRoutes() {
                   </RouteSuspense>
                 </RoleGuard>
               } />
+              <Route path="vendor/subcontracts/:id" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <SubcontractDetails />
+                </RoleGuard>
+              } />
+              <Route path="vendor/plans/:planId" element={
+                <RoleGuard allowedRoles={['vendor']}>
+                  <RouteSuspense text="Loading plan viewer...">
+                    <LazyPlanViewer />
+                  </RouteSuspense>
+                </RoleGuard>
+              } />
               <Route path="vendor/bills" element={
                 <RoleGuard allowedRoles={['vendor']}>
                   <VendorPortalBills />
@@ -721,6 +733,18 @@ function AuthenticatedRoutes() {
                 <RoleGuard allowedRoles={['design_professional']}>
                   <RouteSuspense text="Loading job...">
                     <LazyJobDetails />
+                  </RouteSuspense>
+                </RoleGuard>
+              } />
+              <Route path="design-professional/subcontracts/:id" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <SubcontractDetails />
+                </RoleGuard>
+              } />
+              <Route path="design-professional/plans/:planId" element={
+                <RoleGuard allowedRoles={['design_professional']}>
+                  <RouteSuspense text="Loading plan viewer...">
+                    <LazyPlanViewer />
                   </RouteSuspense>
                 </RoleGuard>
               } />

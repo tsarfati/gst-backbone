@@ -14,6 +14,7 @@ type VendorJobAccessRow = {
   can_submit_submittals?: boolean | null;
   can_view_photos?: boolean | null;
   can_view_rfps?: boolean | null;
+  can_view_all_job_bids?: boolean | null;
   can_submit_bids?: boolean | null;
   can_view_subcontracts?: boolean | null;
   can_access_messages?: boolean | null;
@@ -37,6 +38,7 @@ type VendorRoleCaps = {
   canSubmitSubmittals: boolean;
   canViewPhotos: boolean;
   canViewRfps: boolean;
+  canViewAllJobBids: boolean;
   canSubmitBids: boolean;
   canViewSubcontracts: boolean;
   canAccessMessages: boolean;
@@ -63,6 +65,7 @@ const COMPANY_WIDE_VENDOR_CAPS: VendorRoleCaps = {
   canSubmitSubmittals: true,
   canViewPhotos: true,
   canViewRfps: true,
+  canViewAllJobBids: true,
   canSubmitBids: true,
   canViewSubcontracts: true,
   canAccessMessages: true,
@@ -124,6 +127,7 @@ export function useVendorPortalAccess(jobId?: string) {
           can_submit_submittals,
           can_view_photos,
           can_view_rfps,
+          can_view_all_job_bids,
           can_submit_bids,
           can_view_subcontracts,
           can_access_messages,
@@ -153,6 +157,7 @@ export function useVendorPortalAccess(jobId?: string) {
               can_submit_submittals: !!acc.can_submit_submittals || !!row.can_submit_submittals,
               can_view_photos: !!acc.can_view_photos || !!row.can_view_photos,
               can_view_rfps: !!acc.can_view_rfps || !!row.can_view_rfps,
+              can_view_all_job_bids: !!acc.can_view_all_job_bids || !!row.can_view_all_job_bids,
               can_submit_bids: !!acc.can_submit_bids || !!row.can_submit_bids,
               can_view_subcontracts: !!acc.can_view_subcontracts || !!row.can_view_subcontracts,
               can_access_messages: !!acc.can_access_messages || !!row.can_access_messages,
@@ -184,6 +189,7 @@ export function useVendorPortalAccess(jobId?: string) {
       canSubmitSubmittals: roleCaps.canSubmitSubmittals && !!assignment.can_submit_submittals,
       canViewPhotos: roleCaps.canViewPhotos && !!assignment.can_view_photos,
       canViewRfps: roleCaps.canViewRfps && !!assignment.can_view_rfps,
+      canViewAllJobBids: roleCaps.canViewAllJobBids && !!assignment.can_view_all_job_bids,
       canSubmitBids: roleCaps.canSubmitBids && !!assignment.can_submit_bids,
       canViewSubcontracts: roleCaps.canViewSubcontracts && !!assignment.can_view_subcontracts,
       canAccessMessages: roleCaps.canAccessMessages && !!assignment.can_access_messages,

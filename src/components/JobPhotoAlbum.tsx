@@ -44,7 +44,14 @@ interface JobPhoto {
     last_name?: string;
     avatar_url?: string;
     display_name?: string;
-  };
+    email?: string;
+  } | Array<{
+    first_name?: string;
+    last_name?: string;
+    avatar_url?: string;
+    display_name?: string;
+    email?: string;
+  }>;
 }
 
 interface PhotoAlbum {
@@ -68,6 +75,33 @@ interface PhotoComment {
     avatar_url?: string;
   };
 }
+
+type PhotoUploaderProfile = {
+  user_id: string;
+  first_name?: string | null;
+  last_name?: string | null;
+  avatar_url?: string | null;
+  display_name?: string | null;
+  email?: string | null;
+};
+
+const getPhotoProfile = (
+  profiles: JobPhoto['profiles'] | PhotoUploaderProfile | null | undefined,
+): PhotoUploaderProfile | null => {
+  if (!profiles) return null;
+  if (Array.isArray(profiles)) return (profiles[0] as PhotoUploaderProfile | undefined) || null;
+  return profiles as PhotoUploaderProfile;
+};
+
+const hasDisplayablePhotoProfile = (profile: PhotoUploaderProfile | null) => {
+  if (!profile) return false;
+  return Boolean(
+    profile.display_name ||
+    profile.first_name ||
+    profile.last_name ||
+    profile.email,
+  );
+};
 
 type ThumbnailVariant = 'album-cover' | 'photo-grid';
 
@@ -299,6 +333,39 @@ export default function JobPhotoAlbum({
   const [savingRotation, setSavingRotation] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [showImageControls, setShowImageControls] = useState(true);
+
+  const hydratePhotoProfiles = useCallback(async (rows: JobPhoto[]) => {
+    const missingProfileRows = rows.filter((row) => {
+      const profile = getPhotoProfile(row.profiles);
+      return row.uploaded_by && !hasDisplayablePhotoProfile(profile);
+    });
+    if (missingProfileRows.length === 0) return rows;
+
+    const uploaderIds = Array.from(new Set(missingProfileRows.map((row) => row.uploaded_by).filter(Boolean)));
+    if (uploaderIds.length === 0) return rows;
+
+    const { data: profileRows, error: profileError } = await supabase
+      .from('profiles')
+      .select('user_id, first_name, last_name, avatar_url, display_name, email')
+      .in('user_id', uploaderIds);
+
+    if (profileError) {
+      console.error('Error hydrating photo uploader profiles:', profileError);
+      return rows;
+    }
+
+    const profileMap = new Map<string, PhotoUploaderProfile>();
+    ((profileRows || []) as PhotoUploaderProfile[]).forEach((row) => {
+      profileMap.set(String(row.user_id), row);
+    });
+
+    return rows.map((row) => ({
+      ...row,
+      profiles: hasDisplayablePhotoProfile(getPhotoProfile(row.profiles))
+        ? row.profiles
+        : profileMap.get(String(row.uploaded_by)) || row.profiles || undefined,
+    }));
+  }, []);
 
   useEffect(() => {
     loadPhotos();
@@ -582,7 +649,7 @@ export default function JobPhotoAlbum({
         .from('job_photos')
         .select(`
           *,
-          profiles(first_name, last_name, display_name, avatar_url)
+          profiles(first_name, last_name, display_name, avatar_url, email)
         `)
         .eq('job_id', jobId);
       if (effectiveCompanyId) {
@@ -595,21 +662,24 @@ export default function JobPhotoAlbum({
 
       let { data, error } = await query.order('created_at', { ascending: false });
 
-      if ((!data || data.length === 0) && !error && isExternalPortalView) {
-        const fallback = await supabase
+      if ((error || !data || data.length === 0) && isExternalPortalView) {
+        let fallbackQuery = supabase
           .from('job_photos')
-          .select(`
-            *,
-            profiles(first_name, last_name, display_name, avatar_url)
-          `)
-          .eq('job_id', jobId)
-          .order('created_at', { ascending: false });
+          .select('*')
+          .eq('job_id', jobId);
+
+        if (selectedAlbumId) {
+          fallbackQuery = fallbackQuery.eq('album_id', selectedAlbumId);
+        }
+
+        const fallback = await fallbackQuery.order('created_at', { ascending: false });
         data = fallback.data;
         error = fallback.error;
       }
 
       if (error) throw error;
-      setPhotos(data || []);
+      const hydratedRows = await hydratePhotoProfiles((data || []) as JobPhoto[]);
+      setPhotos(hydratedRows);
     } catch (error) {
       console.error('Error loading photos:', error);
       toast({
@@ -636,7 +706,7 @@ export default function JobPhotoAlbum({
         .order('is_auto_employee_album', { ascending: false })
         .order('created_at', { ascending: true });
 
-      if ((!data || data.length === 0) && !error && isExternalPortalView) {
+      if ((error || !data || data.length === 0) && isExternalPortalView) {
         const fallback = await supabase
           .from('photo_albums')
           .select('*')
@@ -1306,8 +1376,9 @@ export default function JobPhotoAlbum({
   };
 
   const getUploaderName = (photo: JobPhoto) =>
-    photo.profiles?.display_name ||
-    `${photo.profiles?.first_name || ''} ${photo.profiles?.last_name || ''}`.trim() ||
+    getPhotoProfile(photo.profiles)?.display_name ||
+    `${getPhotoProfile(photo.profiles)?.first_name || ''} ${getPhotoProfile(photo.profiles)?.last_name || ''}`.trim() ||
+    getPhotoProfile(photo.profiles)?.email ||
     'Unknown User';
 
   const uploaderOptions = useMemo(() => {
@@ -1315,13 +1386,13 @@ export default function JobPhotoAlbum({
     photos.forEach((photo) => {
       const name = getUploaderName(photo);
       const initials =
-        `${photo.profiles?.first_name?.[0] || ''}${photo.profiles?.last_name?.[0] || ''}`.trim() ||
+        `${getPhotoProfile(photo.profiles)?.first_name?.[0] || ''}${getPhotoProfile(photo.profiles)?.last_name?.[0] || ''}`.trim() ||
         (name?.[0] || 'U').toUpperCase();
       if (!unique.has(photo.uploaded_by)) {
         unique.set(photo.uploaded_by, {
           id: photo.uploaded_by,
           name,
-          avatarUrl: photo.profiles?.avatar_url,
+          avatarUrl: getPhotoProfile(photo.profiles)?.avatar_url || undefined,
           initials,
         });
       }
@@ -1952,9 +2023,9 @@ export default function JobPhotoAlbum({
                 {photoViewMode !== 'super-compact' && (
                   <div className="flex items-center gap-2">
                     <Avatar className="h-6 w-6">
-                      <AvatarImage src={photo.profiles?.avatar_url} />
+                      <AvatarImage src={getPhotoProfile(photo.profiles)?.avatar_url || undefined} />
                       <AvatarFallback>
-                        {`${photo.profiles?.first_name?.[0] || ''}${photo.profiles?.last_name?.[0] || ''}`}
+                        {`${getPhotoProfile(photo.profiles)?.first_name?.[0] || ''}${getPhotoProfile(photo.profiles)?.last_name?.[0] || ''}` || getUploaderName(photo).slice(0, 2).toUpperCase()}
                       </AvatarFallback>
                     </Avatar>
                     <div className="flex-1 min-w-0">
@@ -2179,14 +2250,14 @@ export default function JobPhotoAlbum({
               {/* Uploader Info */}
               <div className="flex items-center gap-3">
                 <Avatar className="h-10 w-10">
-                  <AvatarImage src={selectedPhoto.profiles?.avatar_url} />
+                  <AvatarImage src={getPhotoProfile(selectedPhoto.profiles)?.avatar_url || undefined} />
                   <AvatarFallback>
-                    {`${selectedPhoto.profiles?.first_name?.[0] || ''}${selectedPhoto.profiles?.last_name?.[0] || ''}`}
+                    {`${getPhotoProfile(selectedPhoto.profiles)?.first_name?.[0] || ''}${getPhotoProfile(selectedPhoto.profiles)?.last_name?.[0] || ''}` || getUploaderName(selectedPhoto).slice(0, 2).toUpperCase()}
                   </AvatarFallback>
                 </Avatar>
                 <div>
                   <p className="font-medium">
-                    {selectedPhoto.profiles?.display_name || `${selectedPhoto.profiles?.first_name || ''} ${selectedPhoto.profiles?.last_name || ''}`}
+                    {getUploaderName(selectedPhoto)}
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {format(new Date(selectedPhoto.created_at), 'MMM d, yyyy h:mm a')}
@@ -2249,8 +2320,8 @@ export default function JobPhotoAlbum({
                   ) : (
                     comments.map((comment) => (
                       <div key={comment.id} className="flex gap-3">
-                        <Avatar className="h-8 w-8">
-                          <AvatarImage src={comment.profiles?.avatar_url} />
+                          <Avatar className="h-8 w-8">
+                            <AvatarImage src={comment.profiles?.avatar_url} />
                           <AvatarFallback>
                             {comment.profiles?.first_name?.[0]}{comment.profiles?.last_name?.[0]}
                           </AvatarFallback>

@@ -60,6 +60,7 @@ const VENDOR_ACCESS_PRESETS: Record<
       can_upload_compliance_docs: true,
       can_view_photos: false,
       can_view_rfps: false,
+      can_view_all_job_bids: false,
       can_submit_bids: false,
       can_view_subcontracts: false,
       can_access_messages: true,
@@ -83,6 +84,7 @@ const VENDOR_ACCESS_PRESETS: Record<
       can_upload_compliance_docs: true,
       can_view_photos: true,
       can_view_rfps: false,
+      can_view_all_job_bids: false,
       can_submit_bids: false,
       can_view_subcontracts: true,
       can_access_messages: true,
@@ -106,6 +108,7 @@ const VENDOR_ACCESS_PRESETS: Record<
       can_upload_compliance_docs: true,
       can_view_photos: false,
       can_view_rfps: true,
+      can_view_all_job_bids: false,
       can_submit_bids: true,
       can_view_subcontracts: false,
       can_access_messages: true,
@@ -129,6 +132,7 @@ const VENDOR_ACCESS_PRESETS: Record<
       can_upload_compliance_docs: true,
       can_view_photos: true,
       can_view_rfps: true,
+      can_view_all_job_bids: true,
       can_submit_bids: true,
       can_view_subcontracts: true,
       can_access_messages: true,
@@ -270,6 +274,7 @@ export default function VendorDetails() {
         can_upload_compliance_docs: false,
         can_view_photos: false,
         can_view_rfps: false,
+        can_view_all_job_bids: false,
         can_submit_bids: false,
         can_view_subcontracts: false,
         can_access_messages: false,
@@ -510,6 +515,7 @@ export default function VendorDetails() {
             can_upload_compliance_docs,
             can_view_photos,
             can_view_rfps,
+            can_view_all_job_bids,
             can_submit_bids,
             can_view_subcontracts,
             can_access_messages,
@@ -745,6 +751,7 @@ export default function VendorDetails() {
           can_upload_compliance_docs,
           can_view_photos,
           can_view_rfps,
+          can_view_all_job_bids,
           can_submit_bids,
           can_view_subcontracts,
           can_access_messages,
@@ -2234,17 +2241,24 @@ export default function VendorDetails() {
                               />
                             </div>
                             <div className="flex items-center justify-between rounded border p-2">
-                              <Label>View RFPs</Label>
+                              <Label>View All Job RFPs</Label>
                               <Switch
                                 checked={!!assignment.can_view_rfps}
                                 onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_rfps', checked)}
                               />
                             </div>
                             <div className="flex items-center justify-between rounded border p-2">
-                              <Label>Submit Bids</Label>
+                              <Label>Submit Bids When Invited</Label>
                               <Switch
                                 checked={!!assignment.can_submit_bids}
                                 onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_submit_bids', checked)}
+                              />
+                            </div>
+                            <div className="flex items-center justify-between rounded border p-2">
+                              <Label>View All Job Bids</Label>
+                              <Switch
+                                checked={!!assignment.can_view_all_job_bids}
+                                onCheckedChange={(checked) => handleUpdateVendorJobAccess(assignment.id, 'can_view_all_job_bids', checked)}
                               />
                             </div>
                             <div className="flex items-center justify-between rounded border p-2">

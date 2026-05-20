@@ -798,6 +798,14 @@ export default function JobPlans({ jobId, companyId: providedCompanyId, canUploa
   };
 
   const handlePreview = (plan: JobPlan) => {
+    if (location.pathname.startsWith("/vendor/")) {
+      navigate(`/vendor/plans/${plan.id}`);
+      return;
+    }
+    if (location.pathname.startsWith("/design-professional/")) {
+      navigate(`/design-professional/plans/${plan.id}`);
+      return;
+    }
     navigate(`/plans/${plan.id}`);
   };
 
