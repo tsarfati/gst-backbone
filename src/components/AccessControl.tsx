@@ -69,6 +69,9 @@ export function AccessControl({ children }: AccessControlProps) {
   const onExternalPortalPath =
     location.pathname.startsWith('/vendor') ||
     location.pathname.startsWith('/design-professional');
+  const hasPinnedVendorPortalEntry =
+    authEntryContext === 'vendor' &&
+    (!!pinnedVendorPortalCompanyId || onExternalPortalPath);
   const role = String(profile?.role || '').toLowerCase();
   const vendorPortalRole = String((profile as any)?.vendor_portal_role || '').toLowerCase();
   const hasVendorIdentity = !!(profile as any)?.vendor_id || ['owner', 'admin', 'basic_user'].includes(vendorPortalRole);
@@ -94,7 +97,7 @@ export function AccessControl({ children }: AccessControlProps) {
         (role === 'design_professional' && shouldPreferVendorPortal) ||
         (!!externalRequestedRole && shouldPreferVendorPortal) ||
         (hasVendorIdentity && shouldPreferVendorPortal);
-  const shouldUseExternalPortalFlow = shouldPreferVendorPortal || isExternalUser;
+  const shouldUseExternalPortalFlow = hasPinnedVendorPortalEntry || shouldPreferVendorPortal || isExternalUser;
   const hasCompanyLinkContext =
     !!profile?.current_company_id ||
     !!(profile as any)?.default_company_id ||
@@ -417,6 +420,15 @@ export function AccessControl({ children }: AccessControlProps) {
 
     // Handle profile completion route
     if (location.pathname === '/profile-completion') {
+      if (shouldUseExternalPortalFlow) {
+        navigate(
+          effectiveExternalRole === 'design_professional'
+            ? '/design-professional/dashboard'
+            : '/vendor/dashboard',
+          { replace: true },
+        );
+        return;
+      }
       if (profile?.profile_completed) {
         navigate('/', { replace: true });
         return;

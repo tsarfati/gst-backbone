@@ -9,6 +9,8 @@ import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, Loader2 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
+import { getAuthEntryContext } from '@/utils/authEntryContext';
+import { getVendorPortalCompanyId } from '@/utils/vendorPortalSession';
 
 export default function ProfileCompletion() {
   const { user, profile, refreshProfile } = useAuth();
@@ -27,6 +29,8 @@ export default function ProfileCompletion() {
   const [avatarPreview, setAvatarPreview] = useState<string | null>(profile?.avatar_url || null);
   const [isAvatarDragOver, setIsAvatarDragOver] = useState(false);
   const [loading, setLoading] = useState(false);
+  const authEntryContext = getAuthEntryContext();
+  const pinnedVendorPortalCompanyId = getVendorPortalCompanyId();
   const allowedRoles = new Set([
     'admin',
     'controller',
@@ -47,6 +51,23 @@ export default function ProfileCompletion() {
   ]);
 
   useEffect(() => {
+    if (
+      authEntryContext === 'vendor' &&
+      (!!pinnedVendorPortalCompanyId ||
+        String(profile?.role || '').toLowerCase() === 'vendor' ||
+        String(profile?.role || '').toLowerCase() === 'design_professional' ||
+        !!(profile as any)?.vendor_id ||
+        !!(profile as any)?.vendor_portal_role)
+    ) {
+      navigate(
+        String(profile?.role || '').toLowerCase() === 'design_professional'
+          ? '/design-professional/dashboard'
+          : '/vendor/dashboard',
+        { replace: true },
+      );
+      return;
+    }
+
     setFormData((prev) => ({
       ...prev,
       first_name:
@@ -69,7 +90,7 @@ export default function ProfileCompletion() {
       nickname: prev.nickname || profile?.nickname || '',
       birthday: prev.birthday || profile?.birthday || '',
     }));
-  }, [profile?.first_name, profile?.last_name, profile?.phone, profile?.nickname, profile?.birthday, user?.user_metadata]);
+  }, [authEntryContext, pinnedVendorPortalCompanyId, profile, user?.user_metadata, navigate]);
 
   const handleInputChange = (field: string, value: string) => {
     setFormData(prev => ({ ...prev, [field]: value }));
