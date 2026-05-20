@@ -461,22 +461,11 @@ export function AccessControl({ children }: AccessControlProps) {
       return;
     }
 
-    if (
-      authEntryContext === 'builder' &&
-      hasOnlyExternalWorkspace &&
-      location.pathname !== '/auth' &&
-      !location.pathname.startsWith('/vendor/select') &&
-      !location.pathname.startsWith('/vendor/') &&
-      !location.pathname.startsWith('/design-professional/')
-    ) {
-      navigate('/auth?portalRequired=1', { replace: true });
-      return;
-    }
-
     // External users are portal-scoped.
     if (isExternalUser) {
       const allowExternal =
         location.pathname === '/profile-settings' ||
+        location.pathname.startsWith('/workspace/select') ||
         location.pathname.startsWith('/vendor/select') ||
         location.pathname.startsWith('/vendor/') ||
         location.pathname.startsWith('/design-professional/');

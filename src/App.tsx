@@ -381,15 +381,15 @@ function DashboardEntryRoute() {
     return <PremiumLoadingScreen text="Loading your workspace..." />;
   }
 
-  if (authEntryContext === 'builder' && hasOnlyExternalWorkspace) {
-    return <Navigate to="/auth?portalRequired=1" replace />;
+  if (authEntryContext === 'builder' && (hasOnlyExternalWorkspace || userCompanies.length > 1)) {
+    return <Navigate to="/workspace/select" replace />;
   }
 
   if (resolvedExternalRole === 'design_professional') {
     return <Navigate to="/design-professional/dashboard" replace />;
   }
   if (resolvedExternalRole === 'vendor') {
-    return <Navigate to={authEntryContext === 'vendor' ? "/vendor/dashboard" : "/vendor/select"} replace />;
+    return <Navigate to={authEntryContext === 'vendor' ? "/vendor/dashboard" : "/workspace/select"} replace />;
   }
 
   return (
@@ -608,11 +608,7 @@ function AuthenticatedRoutes() {
               <Route path="dashboard" element={<DashboardEntryRoute />} />
               <Route path="design-professional-dashboard" element={<Navigate to="/design-professional/dashboard" replace />} />
               <Route path="vendor-dashboard" element={<Navigate to="/vendor/dashboard" replace />} />
-              <Route path="vendor/select" element={
-                <RoleGuard allowedRoles={['vendor']}>
-                  <VendorPortalChooser />
-                </RoleGuard>
-              } />
+              <Route path="vendor/select" element={<Navigate to="/workspace/select" replace />} />
               <Route path="vendor/dashboard" element={
                 <RoleGuard allowedRoles={['vendor']}>
                   <VendorPortalDashboard />
@@ -1186,6 +1182,13 @@ function AuthenticatedRoutes() {
               </Route>
               <Route path="subscription" element={<SubscriptionPortal />} />
             </Route>
+            <Route path="/workspace/select" element={
+              <ProtectedRoute>
+                <AccessControl>
+                  <VendorPortalChooser />
+                </AccessControl>
+              </ProtectedRoute>
+            } />
             <Route path="*" element={<NotFound />} />
             </Routes>
             </ReceiptProvider>

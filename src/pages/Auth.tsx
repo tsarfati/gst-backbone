@@ -78,7 +78,7 @@ export default function Auth() {
   const designProJobInviteToken = searchParams.get('jobInvite');
   const designProInviteCompanyId = searchParams.get('company');
   const designProInviteJobId = searchParams.get('job');
-  const portalRequired = searchParams.get('portalRequired') === '1';
+  const authEntryContext = getAuthEntryContext();
   const hasInternalWorkspace =
     !!currentCompany && String(currentCompany.company_type || '').toLowerCase() === 'construction' ||
     userCompanies.some((company) => {
@@ -98,12 +98,6 @@ export default function Auth() {
     userCompanies.length > 0 ||
     !!profile?.current_company_id ||
     !!(profile as any)?.default_company_id;
-  const showVendorPortalRequiredMessage =
-    !!user &&
-    !companyLoading &&
-    authEntryContext === 'builder' &&
-    hasOnlyExternalWorkspace &&
-    portalRequired;
   
   // Use role-based routing after successful auth
   useRoleBasedRouting();
@@ -214,8 +208,6 @@ export default function Auth() {
     // Only pause redirect while an accept attempt is actively running.
     if ((inviteToken && inviteAccepting) || (designProJobInviteToken && designProJobInviteAccepting)) return;
     
-    const authEntryContext = getAuthEntryContext();
-
     if (authEntryContext === 'vendor') {
       navigate(
         String(profile?.role || '').toLowerCase() === 'design_professional'
@@ -226,10 +218,8 @@ export default function Auth() {
       return;
     }
 
-    if (authEntryContext === 'builder' && hasOnlyExternalWorkspace) {
-      if (!portalRequired) {
-        navigate('/auth?portalRequired=1', { replace: true });
-      }
+    if (authEntryContext === 'builder' && (hasOnlyExternalWorkspace || userCompanies.length > 1)) {
+      navigate('/workspace/select', { replace: true });
       return;
     }
 
@@ -256,7 +246,7 @@ export default function Auth() {
     } else {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace, hasOnlyExternalWorkspace, portalRequired]);
+  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace, hasOnlyExternalWorkspace, userCompanies.length, authEntryContext]);
 
   useEffect(() => {
     const maxInviteAttempts = 6;
@@ -782,26 +772,6 @@ export default function Auth() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          {showVendorPortalRequiredMessage ? (
-            <div className="space-y-4">
-              <div className="rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
-                This login does not open vendor portals from the main BuilderLYNK website.
-                Use the specific vendor portal login link for the builder company you are working with.
-              </div>
-              <Button
-                type="button"
-                variant="outline"
-                className="w-full"
-                onClick={async () => {
-                  await supabase.auth.signOut({ scope: 'local' });
-                  navigate('/auth', { replace: true });
-                }}
-              >
-                Sign Out
-              </Button>
-            </div>
-          ) : (
-          <>
           {inviteToken && (
             <div className="mb-4 rounded-md border border-amber-200 bg-amber-50 p-3 text-sm text-amber-900">
               {inviteAccepting
@@ -1015,8 +985,6 @@ export default function Auth() {
                 </Button>
               </div>
             </div>
-          )}
-          </>
           )}
         </CardContent>
       </Card>

@@ -143,15 +143,22 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
 
         const { data: allowedCompanies, error: allowedError } = await supabase
           .from('companies')
-          .select('id')
+          .select('id, tenant_id, is_active')
           .in('id', companyIds)
-          .eq('tenant_id', currentTenant.id)
           .eq('is_active', true);
 
         if (allowedError) throw allowedError;
 
-        const allowedSet = new Set((allowedCompanies || []).map(c => c.id));
-        companies = companies.filter(c => allowedSet.has(c.company_id));
+        const companyMeta = new Map((allowedCompanies || []).map(c => [c.id, c]));
+        companies = companies.filter(c => {
+          const companyRole = String(c.role || '').toLowerCase();
+          const meta = companyMeta.get(c.company_id);
+          if (!meta) return false;
+          if (companyRole === 'vendor' || companyRole === 'design_professional') {
+            return meta.is_active === true;
+          }
+          return meta.tenant_id === currentTenant.id;
+        });
       }
 
       setUserCompanies(companies);
@@ -237,7 +244,16 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
       setLoading(true);
 
       // Tenant isolation guard: prevent switching into a different tenant.
-      if (!isSuperAdmin && currentTenant?.id) {
+      const targetAccessRole = String(
+        userCompanies.find((company) => company.company_id === companyId)?.role || ''
+      ).toLowerCase();
+
+      if (
+        !isSuperAdmin &&
+        currentTenant?.id &&
+        targetAccessRole !== 'vendor' &&
+        targetAccessRole !== 'design_professional'
+      ) {
         const { data: companyCheck, error: companyCheckError } = await supabase
           .from('companies')
           .select('id, tenant_id')
