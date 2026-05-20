@@ -223,23 +223,6 @@ export default function Auth() {
       return;
     }
 
-    // Keep vendor/design-professional flows inside their portal even when
-    // profile completion is still pending.
-    if (
-      (String(profile?.role || '').toLowerCase() === 'vendor' ||
-        String(profile?.role || '').toLowerCase() === 'design_professional' ||
-        !!(profile as any)?.vendor_id ||
-        !!(profile as any)?.vendor_portal_role)
-    ) {
-      navigate(
-        String(profile?.role || '').toLowerCase() === 'design_professional'
-          ? '/design-professional/dashboard'
-          : '/vendor/dashboard',
-        { replace: true },
-      );
-      return;
-    }
-
     // User is authenticated — redirect away from auth page
     if (profile?.profile_completed === false && !hasEstablishedWorkspace) {
       navigate('/profile-completion', { replace: true });
