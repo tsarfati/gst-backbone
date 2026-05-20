@@ -78,6 +78,20 @@ export default function Auth() {
   const designProJobInviteToken = searchParams.get('jobInvite');
   const designProInviteCompanyId = searchParams.get('company');
   const designProInviteJobId = searchParams.get('job');
+  const hasInternalWorkspace =
+    !!currentCompany && String(currentCompany.company_type || '').toLowerCase() === 'construction' ||
+    userCompanies.some((company) => {
+      const companyRole = String(company.role || '').toLowerCase();
+      return companyRole !== 'vendor' && companyRole !== 'design_professional';
+    }) ||
+    ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(String(profile?.role || '').toLowerCase());
+  const hasOnlyExternalWorkspace =
+    !hasInternalWorkspace &&
+    userCompanies.length > 0 &&
+    userCompanies.every((company) => {
+      const companyRole = String(company.role || '').toLowerCase();
+      return companyRole === 'vendor' || companyRole === 'design_professional';
+    });
   const hasEstablishedWorkspace =
     !!currentCompany ||
     userCompanies.length > 0 ||
@@ -205,6 +219,11 @@ export default function Auth() {
       return;
     }
 
+    if (authEntryContext === 'builder' && hasOnlyExternalWorkspace) {
+      navigate('/vendor/select', { replace: true });
+      return;
+    }
+
     // Keep vendor/design-professional flows inside their portal even when
     // profile completion is still pending.
     if (
@@ -228,7 +247,7 @@ export default function Auth() {
     } else {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace]);
+  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace, hasOnlyExternalWorkspace]);
 
   useEffect(() => {
     const maxInviteAttempts = 6;
