@@ -266,6 +266,10 @@ function DashboardEntryRoute() {
   const shouldPreferVendorPortal =
     authEntryContext === 'vendor' &&
     (!!pinnedVendorPortalCompanyId || onExternalPortalPath || !hasInternalWorkspace);
+  const shouldBlockOnCompanyLoading =
+    companyLoading &&
+    !currentCompany &&
+    userCompanies.length === 0;
 
   React.useEffect(() => {
     let cancelled = false;
@@ -378,7 +382,7 @@ function DashboardEntryRoute() {
     };
   }, [user?.id, role, currentCompanyType, companyAccessRole, hasVendorIdentity, hasInternalWorkspace, authEntryContext, shouldPreferVendorPortal, pinnedVendorPortalCompanyId]);
 
-  if (companyLoading || resolvingExternalRole) {
+  if (shouldBlockOnCompanyLoading || resolvingExternalRole) {
     return <PremiumLoadingScreen text="Loading your workspace..." />;
   }
 

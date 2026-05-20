@@ -100,7 +100,10 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
     }
 
     try {
-      setLoading(true);
+      const shouldShowFullScreenLoader = !currentCompany && userCompanies.length === 0;
+      if (shouldShowFullScreenLoader) {
+        setLoading(true);
+      }
 
       const { data, error } = await supabase.rpc('get_user_companies', {
         _user_id: user.id
