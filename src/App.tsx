@@ -173,6 +173,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
 import { getAuthEntryContext } from "@/utils/authEntryContext";
+import { getVendorPortalCompanyId } from "@/utils/vendorPortalSession";
 
 const LazyTimecardReports = React.lazy(() => import("./pages/TimecardReports"));
 const LazyPlanViewer = React.lazy(() => import("./pages/PlanViewer"));
@@ -242,6 +243,7 @@ function DashboardEntryRoute() {
     authMetadata.is_vendor === true ||
     authMetadata.is_vendor === 'true';
   const authEntryContext = getAuthEntryContext();
+  const pinnedVendorPortalCompanyId = getVendorPortalCompanyId();
   const onExternalPortalPath =
     location.pathname.startsWith('/vendor') ||
     location.pathname.startsWith('/design-professional');
@@ -254,7 +256,8 @@ function DashboardEntryRoute() {
     }) ||
     ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(role);
   const shouldPreferVendorPortal =
-    authEntryContext === 'vendor' && (!hasInternalWorkspace || onExternalPortalPath);
+    authEntryContext === 'vendor' &&
+    (!!pinnedVendorPortalCompanyId || onExternalPortalPath || !hasInternalWorkspace);
 
   React.useEffect(() => {
     let cancelled = false;
@@ -273,7 +276,7 @@ function DashboardEntryRoute() {
       }
 
       const directRole =
-        (role === 'vendor' || role === 'design_professional') && (!hasInternalWorkspace || shouldPreferVendorPortal)
+        (role === 'vendor' || role === 'design_professional') && shouldPreferVendorPortal
           ? (role as 'vendor' | 'design_professional')
           : null;
       if (directRole) {
@@ -282,31 +285,31 @@ function DashboardEntryRoute() {
         return;
       }
 
-      if (currentCompanyType === 'vendor' && !hasInternalWorkspace) {
+      if (currentCompanyType === 'vendor' && shouldPreferVendorPortal) {
         setResolvedExternalRole('vendor');
         setResolvingExternalRole(false);
         return;
       }
 
-      if (currentCompanyType === 'design_professional' && !hasInternalWorkspace) {
+      if (currentCompanyType === 'design_professional' && shouldPreferVendorPortal) {
         setResolvedExternalRole('design_professional');
         setResolvingExternalRole(false);
         return;
       }
 
-      if ((companyAccessRole === 'vendor' || companyAccessRole === 'design_professional') && !hasInternalWorkspace) {
+      if ((companyAccessRole === 'vendor' || companyAccessRole === 'design_professional') && shouldPreferVendorPortal) {
         setResolvedExternalRole(companyAccessRole as 'vendor' | 'design_professional');
         setResolvingExternalRole(false);
         return;
       }
 
-      if (hasVendorIdentity && !hasInternalWorkspace) {
+      if (hasVendorIdentity && shouldPreferVendorPortal) {
         setResolvedExternalRole('vendor');
         setResolvingExternalRole(false);
         return;
       }
 
-      if ((!shouldPreferVendorPortal || authEntryContext === 'builder') && hasInternalWorkspace) {
+      if (authEntryContext === 'builder' && hasInternalWorkspace) {
         setResolvedExternalRole(null);
         setResolvingExternalRole(false);
         return;
@@ -365,7 +368,7 @@ function DashboardEntryRoute() {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, role, currentCompanyType, companyAccessRole, hasVendorIdentity, hasInternalWorkspace, authEntryContext, shouldPreferVendorPortal]);
+  }, [user?.id, role, currentCompanyType, companyAccessRole, hasVendorIdentity, hasInternalWorkspace, authEntryContext, shouldPreferVendorPortal, pinnedVendorPortalCompanyId]);
 
   if (companyLoading || resolvingExternalRole) {
     return <PremiumLoadingScreen text="Loading your workspace..." />;

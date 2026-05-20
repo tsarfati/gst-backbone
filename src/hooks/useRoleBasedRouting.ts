@@ -7,6 +7,7 @@ import { useMenuPermissions } from '@/hooks/useMenuPermissions';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { supabase } from '@/integrations/supabase/client';
 import { getAuthEntryContext } from '@/utils/authEntryContext';
+import { getVendorPortalCompanyId } from '@/utils/vendorPortalSession';
 
 export function useRoleBasedRouting() {
   const { profile } = useAuth();
@@ -18,6 +19,7 @@ export function useRoleBasedRouting() {
   const location = useLocation();
   const isInviteAuthRoute = location.pathname === '/auth' && new URLSearchParams(location.search).has('invite');
   const authEntryContext = getAuthEntryContext();
+  const pinnedVendorPortalCompanyId = getVendorPortalCompanyId();
   const onExternalPortalPath =
     location.pathname.startsWith('/vendor') ||
     location.pathname.startsWith('/design-professional');
@@ -29,8 +31,7 @@ export function useRoleBasedRouting() {
   const shouldPreferInternalWorkspace = authEntryContext === 'builder' && !!internalCompanyRole;
   const shouldPreferVendorPortal =
     authEntryContext === 'vendor' &&
-    (onExternalPortalPath || !internalCompanyRole) &&
-    (profile?.role === 'vendor' || profile?.role === 'design_professional');
+    (!!pinnedVendorPortalCompanyId || onExternalPortalPath || !internalCompanyRole);
 
   // Prefer active-company role, then profile role, then any company role we can infer.
   const effectiveRole =
@@ -153,5 +154,5 @@ export function useRoleBasedRouting() {
     };
 
     fetchDefaultPage();
-  }, [routingRole, isSuperAdmin, isTenantOwner, tenantLoading, companyLoading, hasAccess, navigate, location.pathname, location.search, isInviteAuthRoute, profile?.status, shouldPreferInternalWorkspace, shouldPreferVendorPortal]);
+  }, [routingRole, isSuperAdmin, isTenantOwner, tenantLoading, companyLoading, hasAccess, navigate, location.pathname, location.search, isInviteAuthRoute, profile?.status, shouldPreferInternalWorkspace, shouldPreferVendorPortal, pinnedVendorPortalCompanyId]);
 }

@@ -7,6 +7,7 @@ import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import { useCompany } from '@/contexts/CompanyContext';
 import { supabase } from '@/integrations/supabase/client';
 import { getAuthEntryContext } from '@/utils/authEntryContext';
+import { getVendorPortalCompanyId } from '@/utils/vendorPortalSession';
 
 interface RoleGuardProps {
   children: React.ReactNode;
@@ -44,6 +45,7 @@ export function RoleGuard({
     authMetadata.is_vendor === true ||
     authMetadata.is_vendor === 'true';
   const authEntryContext = getAuthEntryContext();
+  const pinnedVendorPortalCompanyId = getVendorPortalCompanyId();
   const hasInternalWorkspace =
     currentCompanyType === 'construction' ||
     userCompanies.some((company) => {
@@ -53,7 +55,8 @@ export function RoleGuard({
     ['admin', 'company_admin', 'controller', 'employee', 'project_manager', 'view_only', 'owner', 'super_admin'].includes(profileRole || '');
   const shouldPreferVendorPortal =
     authEntryContext === 'vendor' &&
-    (!hasInternalWorkspace ||
+    (!!pinnedVendorPortalCompanyId ||
+      !hasInternalWorkspace ||
       window.location.pathname.startsWith('/vendor') ||
       window.location.pathname.startsWith('/design-professional'));
 
@@ -75,7 +78,7 @@ export function RoleGuard({
 
       const directRole =
         (profileRole === 'vendor' || profileRole === 'design_professional') &&
-        (!hasInternalWorkspace || shouldPreferVendorPortal)
+        shouldPreferVendorPortal
           ? (profileRole as 'vendor' | 'design_professional')
           : null;
       if (directRole) {
@@ -84,19 +87,19 @@ export function RoleGuard({
         return;
       }
 
-      if ((currentCompanyType === 'vendor' || currentCompanyType === 'design_professional') && !hasInternalWorkspace) {
+      if ((currentCompanyType === 'vendor' || currentCompanyType === 'design_professional') && shouldPreferVendorPortal) {
         setResolvedExternalRole(currentCompanyType as 'vendor' | 'design_professional');
         setResolvingExternalRole(false);
         return;
       }
 
-      if ((singleCompanyAccessRole === 'vendor' || singleCompanyAccessRole === 'design_professional') && !hasInternalWorkspace) {
+      if ((singleCompanyAccessRole === 'vendor' || singleCompanyAccessRole === 'design_professional') && shouldPreferVendorPortal) {
         setResolvedExternalRole(singleCompanyAccessRole as 'vendor' | 'design_professional');
         setResolvingExternalRole(false);
         return;
       }
 
-      if (hasVendorIdentity && !hasInternalWorkspace) {
+      if (hasVendorIdentity && shouldPreferVendorPortal) {
         setResolvedExternalRole('vendor');
         setResolvingExternalRole(false);
         return;
@@ -166,7 +169,7 @@ export function RoleGuard({
     return () => {
       cancelled = true;
     };
-  }, [user?.id, profileRole, currentCompanyType, singleCompanyAccessRole, hasVendorIdentity, hasInternalWorkspace, shouldPreferVendorPortal]);
+  }, [user?.id, profileRole, currentCompanyType, singleCompanyAccessRole, hasVendorIdentity, hasInternalWorkspace, shouldPreferVendorPortal, pinnedVendorPortalCompanyId]);
 
   // Show loading while authentication is in progress
   if (loading || companyLoading) {

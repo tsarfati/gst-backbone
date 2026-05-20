@@ -8,6 +8,7 @@ import { PremiumLoadingScreen } from '@/components/PremiumLoadingScreen';
 import { supabase } from '@/integrations/supabase/client';
 import { useSettings } from '@/contexts/SettingsContext';
 import { getAuthEntryContext } from '@/utils/authEntryContext';
+import { getVendorPortalCompanyId } from '@/utils/vendorPortalSession';
 
 interface AccessControlProps {
   children: React.ReactNode;
@@ -64,6 +65,7 @@ export function AccessControl({ children }: AccessControlProps) {
     ? window.sessionStorage.getItem('pending_invite_auto_accept') === '1'
     : false;
   const authEntryContext = getAuthEntryContext();
+  const pinnedVendorPortalCompanyId = getVendorPortalCompanyId();
   const onExternalPortalPath =
     location.pathname.startsWith('/vendor') ||
     location.pathname.startsWith('/design-professional');
@@ -83,15 +85,15 @@ export function AccessControl({ children }: AccessControlProps) {
       : externalRequestedRole;
   const shouldPreferVendorPortal =
     authEntryContext === 'vendor' &&
-    (onExternalPortalPath || !hasInternalWorkspace) &&
-    (!!externalRequestedRole || role === 'vendor' || role === 'design_professional');
+    (!!pinnedVendorPortalCompanyId || onExternalPortalPath || !hasInternalWorkspace) &&
+    (!!externalRequestedRole || !!hasVendorIdentity || role === 'vendor' || role === 'design_professional');
   const isExternalUser =
     authEntryContext === 'builder'
       ? false
-      : (role === 'vendor' && (!hasInternalWorkspace || shouldPreferVendorPortal)) ||
-        (role === 'design_professional' && (!hasInternalWorkspace || shouldPreferVendorPortal)) ||
-        (!!externalRequestedRole && !hasInternalWorkspace) ||
-        (hasVendorIdentity && !hasInternalWorkspace);
+      : (role === 'vendor' && shouldPreferVendorPortal) ||
+        (role === 'design_professional' && shouldPreferVendorPortal) ||
+        (!!externalRequestedRole && shouldPreferVendorPortal) ||
+        (hasVendorIdentity && shouldPreferVendorPortal);
   const hasCompanyLinkContext =
     !!profile?.current_company_id ||
     !!(profile as any)?.default_company_id ||
@@ -384,7 +386,7 @@ export function AccessControl({ children }: AccessControlProps) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, profile?.role, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, userCompanies.length, externalPortalContext.homeCompanyId]);
+  }, [user?.id, profile?.role, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, userCompanies.length, externalPortalContext.homeCompanyId, pinnedVendorPortalCompanyId]);
 
   useEffect(() => {
     if (authLoading || companyLoading || tenantLoading || settingsLoading) {
@@ -534,7 +536,7 @@ export function AccessControl({ children }: AccessControlProps) {
     if (!initialized) {
       setInitialized(true);
     }
-  }, [user?.id, profile?.profile_completed, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, profile?.status, profile?.role, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute, pendingExternalAccess, shouldBypassPendingStatusSplash, effectiveExternalRole, isExternalUser]);
+  }, [user?.id, profile?.profile_completed, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, profile?.status, profile?.role, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute, pendingExternalAccess, shouldBypassPendingStatusSplash, effectiveExternalRole, isExternalUser, pinnedVendorPortalCompanyId]);
 
   // Show account status splash screens
   if (autoAcceptingInvite) {

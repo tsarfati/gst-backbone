@@ -139,6 +139,34 @@ export default function VendorRegister() {
     setCompanyBranding(brandedCompany || null);
   };
 
+  const hydrateInvitationVendorName = async (vendorId: string) => {
+    const normalizedVendorId = String(vendorId || '').trim();
+    if (!normalizedVendorId) return;
+
+    try {
+      const { data: vendorRow, error: vendorError } = await supabase
+        .from('vendors')
+        .select('id, name, vendor_type')
+        .eq('id', normalizedVendorId)
+        .maybeSingle();
+
+      if (vendorError || !vendorRow?.id) return;
+
+      setInvitation((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          vendor: {
+            name: vendorRow.name || prev.vendor?.name || '',
+            vendor_type: vendorRow.vendor_type || prev.vendor?.vendor_type || null,
+          },
+        };
+      });
+    } catch (vendorLookupError) {
+      console.error('Failed loading vendor name for vendor register:', vendorLookupError);
+    }
+  };
+
   useEffect(() => {
     setAuthEntryContext('vendor');
   }, []);
@@ -203,6 +231,9 @@ export default function VendorRegister() {
       }
 
       setInvitation(data as unknown as Invitation);
+      if (!(data as any)?.vendor?.name && (data as any)?.vendor_id) {
+        await hydrateInvitationVendorName((data as any).vendor_id);
+      }
 
       if (rfpId && vendorId) {
         supabase.functions.invoke('track-rfp-invite-open', {
