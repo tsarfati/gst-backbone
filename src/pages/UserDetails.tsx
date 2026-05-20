@@ -1297,25 +1297,41 @@ export default function UserDetails() {
         throw new Error('No active company access row was removed for this user.');
       }
 
-      const { count: remainingActiveAccessCount, error: remainingActiveAccessCountError } = await supabase
+      const { data: remainingActiveAccessRows, error: remainingActiveAccessCountError } = await supabase
         .from('user_company_access')
-        .select('id', { count: 'exact', head: true })
+        .select('company_id')
         .eq('user_id', userId)
         .or('is_active.eq.true,is_active.is.null');
 
       if (remainingActiveAccessCountError) throw remainingActiveAccessCountError;
 
-      if (!remainingActiveAccessCount || remainingActiveAccessCount === 0) {
-        const { error: clearPinError } = await supabase
+      const remainingCompanyIds = Array.from(
+        new Set(
+          ((remainingActiveAccessRows || []) as Array<{ company_id: string | null }>)
+            .map((row) => String(row.company_id || '').trim())
+            .filter(Boolean),
+        ),
+      );
+
+      const profilePatch: Record<string, any> = {};
+
+      if (user.current_company_id && String(user.current_company_id).trim() === viewedCompanyId) {
+        profilePatch.current_company_id = remainingCompanyIds[0] || null;
+      }
+
+      if (remainingCompanyIds.length === 0) {
+        profilePatch.pin_code = null;
+        profilePatch.punch_clock_access = false;
+      }
+
+      if (Object.keys(profilePatch).length > 0) {
+        const { error: profileCleanupError } = await supabase
           .from('profiles')
-          .update({
-            pin_code: null,
-            punch_clock_access: false,
-          })
+          .update(profilePatch)
           .eq('user_id', userId);
 
-        if (clearPinError) {
-          console.warn('Failed to clear PIN after removing final company access:', clearPinError);
+        if (profileCleanupError) {
+          console.warn('Failed to clean up profile after company removal:', profileCleanupError);
         }
       }
 

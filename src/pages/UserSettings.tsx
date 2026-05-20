@@ -117,6 +117,7 @@ const roleGroupDefs: RoleGroupDef[] = [
 ];
 
 const EXTERNAL_ACCESS_ROLES = ['vendor', 'design_professional'] as const;
+const LEGACY_INTERNAL_FALLBACK_ROLES = ['admin', 'company_admin', 'controller', 'project_manager', 'view_only'] as const;
 
 const parseRequestedRoleFromNotes = (notes?: string | null): string | null => {
   if (!notes) return null;
@@ -591,29 +592,39 @@ export default function UserSettings() {
 
       const roleMap = new Map(companyUsers?.map(u => [u.user_id, u.role]) || []);
 
-      // Fallback for vendor/design professional portal signups: if a durable company
-      // access request exists but the access row is missing, still surface the user
-      // in the external access lists so admins can manage them.
-      const { data: approvedExternalRequests, error: approvedExternalRequestsError } = await supabase
+      // Legacy fallback for users missing user_company_access rows: use approved
+      // company access requests rather than profiles.current_company_id. The profile's
+      // current company is just a workspace pointer and changes as users switch companies.
+      const { data: approvedAccessRequests, error: approvedAccessRequestsError } = await supabase
         .from('company_access_requests')
         .select('user_id, status, notes')
         .eq('company_id', currentCompany.id)
         .eq('status', 'approved');
 
-      if (approvedExternalRequestsError) throw approvedExternalRequestsError;
+      if (approvedAccessRequestsError) throw approvedAccessRequestsError;
 
       const requestedUserIds = new Set<string>();
       const requestBusinessNameByUserId = new Map<string, string>();
       const requestEmailByUserId = new Map<string, string>();
       const requestPendingJobIdsByUserId = new Map<string, string[]>();
-      for (const request of approvedExternalRequests || []) {
+      for (const request of approvedAccessRequests || []) {
+        const requestedUserId = String(request.user_id || '').trim();
         const requestedRole = String(parseRequestedRoleFromNotes(request.notes) || '').trim().toLowerCase();
         const isExternalAccessRequest = EXTERNAL_ACCESS_ROLES.includes(
           requestedRole as typeof EXTERNAL_ACCESS_ROLES[number],
         );
+        const isLegacyInternalRequest = LEGACY_INTERNAL_FALLBACK_ROLES.includes(
+          requestedRole as typeof LEGACY_INTERNAL_FALLBACK_ROLES[number],
+        );
 
-        if (request.user_id && isExternalAccessRequest) {
-          requestedUserIds.add(request.user_id);
+        if (requestedUserId && (isExternalAccessRequest || isLegacyInternalRequest)) {
+          requestedUserIds.add(requestedUserId);
+        }
+
+        if (requestedUserId && requestedRole && !roleMap.has(requestedUserId)) {
+          if (isExternalAccessRequest || isLegacyInternalRequest) {
+            roleMap.set(requestedUserId, requestedRole as UserProfile['role']);
+          }
         }
 
         if (!isExternalAccessRequest) {
@@ -623,20 +634,14 @@ export default function UserSettings() {
         const requestBusinessName = parseBusinessNameFromNotes(request.notes);
         const requestEmail = parseEmailFromNotes(request.notes);
         const pendingJobIds = parsePendingJobIdsFromNotes(request.notes);
-        if (
-          requestedRole &&
-          !roleMap.has(String(request.user_id || '').trim())
-        ) {
-          roleMap.set(request.user_id, requestedRole as UserProfile['role']);
+        if (requestBusinessName) {
+          requestBusinessNameByUserId.set(requestedUserId, requestBusinessName);
         }
-        if (request.user_id && requestBusinessName) {
-          requestBusinessNameByUserId.set(String(request.user_id), requestBusinessName);
+        if (requestEmail) {
+          requestEmailByUserId.set(requestedUserId, requestEmail);
         }
-        if (request.user_id && requestEmail) {
-          requestEmailByUserId.set(String(request.user_id), requestEmail);
-        }
-        if (request.user_id && pendingJobIds.length > 0) {
-          requestPendingJobIdsByUserId.set(String(request.user_id), pendingJobIds);
+        if (pendingJobIds.length > 0) {
+          requestPendingJobIdsByUserId.set(requestedUserId, pendingJobIds);
         }
       }
 
@@ -690,7 +695,7 @@ export default function UserSettings() {
 
       const mergedProfiles = [...(regularUsers || []), ...supplementalVendorProfiles];
       const foundProfileUserIds = new Set(mergedProfiles.map((user: any) => String(user.user_id || '')));
-      const fallbackExternalUsers = (approvedExternalRequests || [])
+      const fallbackExternalUsers = (approvedAccessRequests || [])
         .filter((request: any) => {
           const userId = String(request.user_id || '').trim();
           if (!userId || foundProfileUserIds.has(userId)) return false;
@@ -1083,15 +1088,18 @@ export default function UserSettings() {
   };
 
   const getUsersForCustomRole = (customRoleId: string) => {
-    return users.filter((u) => u.custom_role_id === customRoleId);
+    return users.filter((u) => {
+      if (u.custom_role_id !== customRoleId || u.status !== 'approved') return false;
+      return !roleGroupDefs.some((group) => group.roles.includes(u.role));
+    });
   };
 
   const getUsersForSystemGroup = (roles: string[]) => {
     return users.filter((u) => {
-      const resolvedCustomRole = getCustomRoleForUser(u);
       const isExternalRole = EXTERNAL_ACCESS_ROLES.includes(u.role as typeof EXTERNAL_ACCESS_ROLES[number]);
       if (isExternalRole) return false;
-      return !resolvedCustomRole && roles.includes(u.role);
+      if (u.status !== 'approved') return false;
+      return roles.includes(u.role);
     });
   };
 

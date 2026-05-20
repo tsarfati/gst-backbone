@@ -120,7 +120,7 @@ const handler = async (req: Request): Promise<Response> => {
       .select("company_id, role, is_active")
       .eq("user_id", authData.user.id)
       .eq("company_id", companyId)
-      .eq("is_active", true);
+      .or("is_active.eq.true,is_active.is.null");
     if (builderAccessError) throw builderAccessError;
 
     const isInternalBuilderUser = ((builderAccessRows || []) as any[]).some((row) => {

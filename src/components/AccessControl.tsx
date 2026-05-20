@@ -134,6 +134,8 @@ export function AccessControl({ children }: AccessControlProps) {
         }
 
         const matchedRow = (data || []).find((row: any) => {
+          const status = String(row?.status || '').toLowerCase();
+          if (status === 'rejected') return false;
           try {
             const parsed = row?.notes ? JSON.parse(row.notes) : null;
             return String(parsed?.requestType || '').toLowerCase() === 'external_access_signup';

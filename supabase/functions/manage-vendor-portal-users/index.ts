@@ -124,7 +124,7 @@ serve(async (req) => {
       .select("company_id, role, is_active")
       .eq("user_id", requesterUserId)
       .eq("company_id", vendorRecord.company_id)
-      .eq("is_active", true);
+      .or("is_active.eq.true,is_active.is.null");
     if (builderAccessError) throw builderAccessError;
 
     const isInternalBuilderUser = ((builderAccessRows || []) as any[]).some((row) => {
