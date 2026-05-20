@@ -477,7 +477,7 @@ export default function UserManagement() {
       return (
     <div
       key={u.user_id}
-      onClick={() => navigate(`/settings/users/${u.user_id}`, { state: { fromCompanyManagement: false } })}
+      onClick={() => navigate(`/settings/users/${u.user_id}?companyId=${currentCompany?.id || ''}`, { state: { fromCompanyManagement: false, companyId: currentCompany?.id } })}
       className="flex items-center gap-4 p-4 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
     >
       <UserAvatar avatarUrl={u.avatar_url} name={u.first_name || u.display_name || 'U'} />

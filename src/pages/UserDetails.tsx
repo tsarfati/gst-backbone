@@ -243,6 +243,8 @@ export default function UserDetails() {
   
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
   const fromEmployees = location.state?.fromEmployees || false;
+  const companyIdFromQuery = new URLSearchParams(location.search).get('companyId');
+  const viewedCompanyId = String(companyIdFromQuery || location.state?.companyId || currentCompany?.id || '').trim() || null;
   const normalizedActiveRole = String(activeCompanyRole || "").toLowerCase();
   const canManage = ['admin', 'controller', 'company_admin', 'owner'].includes(normalizedActiveRole);
   const canEditUserEmail = canManage && hasAccess('user-settings-edit-email');
@@ -267,16 +269,16 @@ export default function UserDetails() {
   };
 
   useEffect(() => {
-    if (userId && (currentCompany || isSuperAdmin)) {
+    if (userId && (viewedCompanyId || currentCompany || isSuperAdmin)) {
       fetchUserDetails();
       if (!userFilesFeatureAvailable) {
         setUserFiles([]);
       }
-      if (currentCompany) fetchCustomRoles();
-      if (currentCompany) fetchGroups();
-      if (currentCompany) fetchVendors();
+      if (viewedCompanyId || currentCompany) fetchCustomRoles();
+      if (viewedCompanyId || currentCompany) fetchGroups();
+      if (viewedCompanyId || currentCompany) fetchVendors();
     }
-  }, [userId, currentCompany, isSuperAdmin, tenantMember?.role, tenantMember?.user_id, userFilesFeatureAvailable]);
+  }, [userId, viewedCompanyId, currentCompany, isSuperAdmin, tenantMember?.role, tenantMember?.user_id, userFilesFeatureAvailable]);
 
   useEffect(() => {
     if (!userId || !currentCompany || !user) return;
@@ -381,7 +383,7 @@ export default function UserDetails() {
     try {
       const [profileRes, accessRes] = await Promise.all([
         supabase.from('profiles').select('*').eq('user_id', userId).maybeSingle(),
-        currentCompany ? supabase.from('user_company_access').select('role').eq('user_id', userId!).eq('company_id', currentCompany.id).eq('is_active', true).maybeSingle() : Promise.resolve({ data: null, error: null })
+        viewedCompanyId ? supabase.from('user_company_access').select('role').eq('user_id', userId!).eq('company_id', viewedCompanyId).eq('is_active', true).maybeSingle() : Promise.resolve({ data: null, error: null })
       ]);
 
       if (profileRes.data) {
@@ -427,7 +429,7 @@ export default function UserDetails() {
 
         if (!resolvedUserEmail) {
           try {
-            const response = await supabase.functions.invoke('get-user-email', { body: { userId, companyId: currentCompany?.id } });
+            const response = await supabase.functions.invoke('get-user-email', { body: { userId, companyId: viewedCompanyId } });
             resolvedUserEmail = String(response.data?.email || '').trim().toLowerCase();
           } catch (emailError) {
             console.warn('UserDetails: unable to resolve user email during vendor linkage lookup', emailError);
@@ -1256,16 +1258,36 @@ export default function UserDetails() {
 };
 
   const handleRemoveUser = async () => {
-    if (!currentCompany || !userId) return;
+    if (!viewedCompanyId || !userId) return;
     setRemoving(true);
     try {
-      const { error } = await supabase
+      const { data: updatedRows, error } = await supabase
         .from('user_company_access')
         .update({ is_active: false })
         .eq('user_id', userId)
-        .eq('company_id', currentCompany.id);
+        .eq('company_id', viewedCompanyId)
+        .eq('is_active', true)
+        .select('id');
 
       if (error) throw error;
+      if (!updatedRows || updatedRows.length === 0) {
+        const { data: remainingAccessRow, error: remainingAccessError } = await supabase
+          .from('user_company_access')
+          .select('id, is_active')
+          .eq('user_id', userId)
+          .eq('company_id', viewedCompanyId)
+          .maybeSingle();
+
+        if (remainingAccessError) throw remainingAccessError;
+
+        if (!remainingAccessRow || remainingAccessRow.is_active === false) {
+          toast({ title: 'User already removed', description: 'This user no longer has access to this company.' });
+          navigate('/settings/users');
+          return;
+        }
+
+        throw new Error('No active company access row was removed for this user.');
+      }
 
       toast({ title: 'User removed', description: 'The user has been removed from this company.' });
       navigate('/settings/users');

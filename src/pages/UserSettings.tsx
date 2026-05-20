@@ -591,23 +591,6 @@ export default function UserSettings() {
 
       const roleMap = new Map(companyUsers?.map(u => [u.user_id, u.role]) || []);
 
-      const { data: companyProfilesFallback, error: companyProfilesFallbackError } = await supabase
-        .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role, vendor_id, current_company_id')
-        .eq('current_company_id', currentCompany.id)
-        .not('role', 'in', '("vendor","design_professional")');
-
-      if (companyProfilesFallbackError) throw companyProfilesFallbackError;
-
-      for (const profileRow of companyProfilesFallback || []) {
-        const fallbackUserId = String(profileRow.user_id || '').trim();
-        const fallbackRole = String(profileRow.role || '').trim().toLowerCase();
-        if (!fallbackUserId) continue;
-        if (!roleMap.has(fallbackUserId) && fallbackRole) {
-          roleMap.set(fallbackUserId, fallbackRole as UserProfile['role']);
-        }
-      }
-
       // Fallback for vendor/design professional portal signups: if a durable company
       // access request exists but the access row is missing, still surface the user
       // in the external access lists so admins can manage them.
@@ -624,16 +607,24 @@ export default function UserSettings() {
       const requestEmailByUserId = new Map<string, string>();
       const requestPendingJobIdsByUserId = new Map<string, string[]>();
       for (const request of approvedExternalRequests || []) {
-        if (request.user_id) {
+        const requestedRole = String(parseRequestedRoleFromNotes(request.notes) || '').trim().toLowerCase();
+        const isExternalAccessRequest = EXTERNAL_ACCESS_ROLES.includes(
+          requestedRole as typeof EXTERNAL_ACCESS_ROLES[number],
+        );
+
+        if (request.user_id && isExternalAccessRequest) {
           requestedUserIds.add(request.user_id);
         }
-        const requestedRole = String(parseRequestedRoleFromNotes(request.notes) || '').trim().toLowerCase();
+
+        if (!isExternalAccessRequest) {
+          continue;
+        }
+
         const requestBusinessName = parseBusinessNameFromNotes(request.notes);
         const requestEmail = parseEmailFromNotes(request.notes);
         const pendingJobIds = parsePendingJobIdsFromNotes(request.notes);
         if (
           requestedRole &&
-          EXTERNAL_ACCESS_ROLES.includes(requestedRole as typeof EXTERNAL_ACCESS_ROLES[number]) &&
           !roleMap.has(String(request.user_id || '').trim())
         ) {
           roleMap.set(request.user_id, requestedRole as UserProfile['role']);
@@ -673,9 +664,6 @@ export default function UserSettings() {
       );
 
       const existingProfileUserIds = new Set((regularUsers || []).map((user: any) => String(user.user_id || '')));
-      const supplementalInternalProfiles = ((companyProfilesFallback || []) as any[]).filter(
-        (user) => !existingProfileUserIds.has(String(user.user_id || ''))
-      );
       const { data: linkedVendorProfiles, error: linkedVendorProfilesError } = companyVendorIds.length > 0
         ? await supabase
             .from('profiles')
@@ -688,7 +676,6 @@ export default function UserSettings() {
 
       const mergedExistingProfileUserIds = new Set([
         ...existingProfileUserIds,
-        ...supplementalInternalProfiles.map((user: any) => String(user.user_id || '')),
       ]);
       const supplementalVendorProfiles = ((linkedVendorProfiles || []) as any[]).filter(
         (user) => !mergedExistingProfileUserIds.has(String(user.user_id || ''))
@@ -701,7 +688,7 @@ export default function UserSettings() {
         }
       });
 
-      const mergedProfiles = [...(regularUsers || []), ...supplementalInternalProfiles, ...supplementalVendorProfiles];
+      const mergedProfiles = [...(regularUsers || []), ...supplementalVendorProfiles];
       const foundProfileUserIds = new Set(mergedProfiles.map((user: any) => String(user.user_id || '')));
       const fallbackExternalUsers = (approvedExternalRequests || [])
         .filter((request: any) => {
@@ -1336,7 +1323,7 @@ export default function UserSettings() {
                                   return (
                                 <div
                                   key={user.id}
-                                  onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                                  onClick={() => navigate(`/settings/users/${user.user_id}?companyId=${currentCompany?.id || ''}`, { state: { companyId: currentCompany?.id } })}
                                   className="flex items-center gap-4 p-3 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                                 >
                                   <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
@@ -1434,7 +1421,7 @@ export default function UserSettings() {
                                 return (
                                   <div
                                     key={user.id}
-                                    onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                                    onClick={() => navigate(`/settings/users/${user.user_id}?companyId=${currentCompany?.id || ''}`, { state: { companyId: currentCompany?.id } })}
                                     className="flex items-center gap-4 p-3 bg-gradient-to-r from-background to-muted/20 rounded-lg border cursor-pointer transition-all duration-200 hover:border-primary hover:shadow-lg hover:shadow-primary/20"
                                   >
                                     <div className="h-10 w-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 overflow-hidden">
@@ -1518,7 +1505,7 @@ export default function UserSettings() {
                   getExternalUsers('vendor').map((user) => (
                     <div
                       key={user.user_id}
-                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                      onClick={() => navigate(`/settings/users/${user.user_id}?companyId=${currentCompany?.id || ''}`, { state: { companyId: currentCompany?.id } })}
                       className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
                     >
                       <div className="flex min-w-0 items-center gap-3">
@@ -1627,7 +1614,7 @@ export default function UserSettings() {
                   getExternalUsers('design_professional').map((user) => (
                     <div
                       key={user.user_id}
-                      onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                      onClick={() => navigate(`/settings/users/${user.user_id}?companyId=${currentCompany?.id || ''}`, { state: { companyId: currentCompany?.id } })}
                       className="flex items-center justify-between gap-3 rounded-lg border bg-background px-3 py-2 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
                     >
                       <div className="flex min-w-0 items-center gap-3">
@@ -1710,7 +1697,7 @@ export default function UserSettings() {
                             {group.users.map((user) => (
                               <div
                                 key={user.user_id}
-                                onClick={() => navigate(`/settings/users/${user.user_id}`)}
+                                onClick={() => navigate(`/settings/users/${user.user_id}?companyId=${currentCompany?.id || ''}`, { state: { companyId: currentCompany?.id } })}
                                 className="flex items-center justify-between rounded-lg border bg-background p-3 cursor-pointer hover:border-primary hover:bg-primary/10 transition-colors"
                               >
                                 <div className="flex min-w-0 items-center gap-3">

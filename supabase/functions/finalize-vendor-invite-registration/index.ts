@@ -302,10 +302,10 @@ serve(async (req) => {
       const { error: updateAccessRequestError } = await supabase
         .from("company_access_requests")
         .update({
-          status: "pending",
+          status: "approved",
           requested_at: approvedAt,
-          reviewed_at: null,
-          reviewed_by: null,
+          reviewed_at: approvedAt,
+          reviewed_by: (invitation as any).invited_by || authUserId,
           notes: JSON.stringify(notesPayload),
         })
         .eq("id", existingAccessRequest.id);
@@ -316,8 +316,10 @@ serve(async (req) => {
         .insert({
           user_id: authUserId,
           company_id: linkedCompanyId,
-          status: "pending",
+          status: "approved",
           requested_at: approvedAt,
+          reviewed_at: approvedAt,
+          reviewed_by: (invitation as any).invited_by || authUserId,
           notes: JSON.stringify(notesPayload),
       });
       if (insertAccessRequestError) throw insertAccessRequestError;
