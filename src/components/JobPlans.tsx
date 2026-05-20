@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -179,6 +180,7 @@ export default function JobPlans({ jobId, companyId: providedCompanyId, canUploa
   const { user } = useAuth();
   const { currentCompany } = useCompany();
   const navigate = useNavigate();
+  const location = useLocation();
   const [plans, setPlans] = useState<JobPlan[]>([]);
   const [loading, setLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
@@ -206,6 +208,9 @@ export default function JobPlans({ jobId, companyId: providedCompanyId, canUploa
   const [rfpLinksDialogRefs, setRfpLinksDialogRefs] = useState<RfpAttachmentReference[]>([]);
   const { currentView, defaultView, setCurrentView, setDefaultView } = useUnifiedViewPreference("job-plans-view", "icons");
   const effectiveCompanyId = providedCompanyId || currentCompany?.id || null;
+  const isExternalPortalView =
+    location.pathname.startsWith("/vendor/") ||
+    location.pathname.startsWith("/design-professional/");
 
   const [formData, setFormData] = useState(INITIAL_PLAN_FORM);
   const [infoFormData, setInfoFormData] = useState({
@@ -402,12 +407,27 @@ export default function JobPlans({ jobId, companyId: providedCompanyId, canUploa
 
   const fetchPlans = async ({ silent = false }: { silent?: boolean } = {}) => {
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("job_plans")
         .select("*")
         .eq("job_id", jobId)
-        .eq("company_id", effectiveCompanyId)
         .order("uploaded_at", { ascending: false });
+
+      if (effectiveCompanyId) {
+        query = query.eq("company_id", effectiveCompanyId);
+      }
+
+      let { data, error } = await query;
+
+      if ((!data || data.length === 0) && !error && isExternalPortalView) {
+        const fallback = await supabase
+          .from("job_plans")
+          .select("*")
+          .eq("job_id", jobId)
+          .order("uploaded_at", { ascending: false });
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       if (error) throw error;
       const nextPlans = sortPlansCollection((data || []) as JobPlan[]);

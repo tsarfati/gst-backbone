@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useCallback, useMemo } from "react";
+import { useLocation } from "react-router-dom";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -88,6 +89,7 @@ const formatDateTime = (value?: string | null) => {
 export default function JobFilingCabinet({ jobId, companyId: providedCompanyId }: JobFilingCabinetProps) {
   const { currentCompany } = useCompany();
   const { user, profile } = useAuth();
+  const location = useLocation();
   const { vendorId: activeVendorId, vendorIds: activeVendorIds } = useActiveVendorPortalVendor();
   const { toast } = useToast();
   const { hasAccess, loading: permissionsLoading } = useMenuPermissions();
@@ -145,7 +147,11 @@ export default function JobFilingCabinet({ jobId, companyId: providedCompanyId }
 
   const companyId = providedCompanyId || currentCompany?.id || null;
   const hasExpandedFolders = expandedFolders.size > 0;
-  const isVendorPortalUser = profile?.role === "vendor" || profile?.role === "design_professional";
+  const isVendorPortalUser =
+    location.pathname.startsWith("/vendor/") ||
+    location.pathname.startsWith("/design-professional/") ||
+    profile?.role === "vendor" ||
+    profile?.role === "design_professional";
   const roleCanViewCabinet = hasAccess("jobs-view-filing-cabinet");
   const roleCanUploadCabinet = hasAccess("jobs-upload-files");
   const roleCanDeleteCabinet = hasAccess("jobs-delete-files");

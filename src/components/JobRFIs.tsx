@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -73,7 +74,11 @@ interface RFIAttachment {
 export default function JobRFIs({ jobId, canCreate = true, companyId = null }: JobRFIsProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const location = useLocation();
   const effectiveCompanyId = companyId || currentCompany?.id || null;
+  const isExternalPortalView =
+    location.pathname.startsWith("/vendor/") ||
+    location.pathname.startsWith("/design-professional/");
   const [rfis, setRfis] = useState<RFI[]>([]);
   const [companyUsers, setCompanyUsers] = useState<Profile[]>([]);
   const [loading, setLoading] = useState(true);
@@ -167,12 +172,27 @@ export default function JobRFIs({ jobId, canCreate = true, companyId = null }: J
     }
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("rfis")
         .select("*")
         .eq("job_id", jobId)
-        .eq("company_id", effectiveCompanyId)
         .order("created_at", { ascending: false });
+
+      if (effectiveCompanyId) {
+        query = query.eq("company_id", effectiveCompanyId);
+      }
+
+      let { data, error } = await query;
+
+      if ((!data || data.length === 0) && !error && isExternalPortalView) {
+        const fallback = await supabase
+          .from("rfis")
+          .select("*")
+          .eq("job_id", jobId)
+          .order("created_at", { ascending: false });
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       if (error) throw error;
       setRfis(data || []);

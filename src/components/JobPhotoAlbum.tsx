@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
+import { useLocation } from 'react-router-dom';
 import { getStoragePathForDb, resolveStorageUrl, uploadFileWithProgress } from '@/utils/storageUtils';
 import { syncFileToGoogleDrive } from '@/utils/googleDriveSync';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -226,7 +227,11 @@ export default function JobPhotoAlbum({
   const { toast } = useToast();
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const location = useLocation();
   const effectiveCompanyId = providedCompanyId || currentCompany?.id || null;
+  const isExternalPortalView =
+    location.pathname.startsWith("/vendor/") ||
+    location.pathname.startsWith("/design-professional/");
   const [photos, setPhotos] = useState<JobPhoto[]>([]);
   const [albums, setAlbums] = useState<PhotoAlbum[]>([]);
   const [selectedAlbumId, setSelectedAlbumId] = useState<string>('');
@@ -588,7 +593,20 @@ export default function JobPhotoAlbum({
         query = query.eq('album_id', selectedAlbumId);
       }
 
-      const { data, error } = await query.order('created_at', { ascending: false });
+      let { data, error } = await query.order('created_at', { ascending: false });
+
+      if ((!data || data.length === 0) && !error && isExternalPortalView) {
+        const fallback = await supabase
+          .from('job_photos')
+          .select(`
+            *,
+            profiles(first_name, last_name, display_name, avatar_url)
+          `)
+          .eq('job_id', jobId)
+          .order('created_at', { ascending: false });
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       if (error) throw error;
       setPhotos(data || []);
@@ -610,13 +628,24 @@ export default function JobPhotoAlbum({
         setAlbums([]);
         return;
       }
-      const { data, error } = await supabase
+      let { data, error } = await supabase
         .from('photo_albums')
         .select('*')
         .eq('job_id', jobId)
         .eq('company_id', effectiveCompanyId)
         .order('is_auto_employee_album', { ascending: false })
         .order('created_at', { ascending: true });
+
+      if ((!data || data.length === 0) && !error && isExternalPortalView) {
+        const fallback = await supabase
+          .from('photo_albums')
+          .select('*')
+          .eq('job_id', jobId)
+          .order('is_auto_employee_album', { ascending: false })
+          .order('created_at', { ascending: true });
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       if (error) throw error;
       

@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { useLocation } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -49,7 +50,11 @@ const isMissingTableError = (error: PostgrestError) => error.code === "42P01";
 export default function JobSubmittals({ jobId, canCreate = true, companyId = null }: JobSubmittalsProps) {
   const { user } = useAuth();
   const { currentCompany } = useCompany();
+  const location = useLocation();
   const effectiveCompanyId = companyId || currentCompany?.id || null;
+  const isExternalPortalView =
+    location.pathname.startsWith("/vendor/") ||
+    location.pathname.startsWith("/design-professional/");
   const [loading, setLoading] = useState(true);
   const [tableMissing, setTableMissing] = useState(false);
   const [submittals, setSubmittals] = useState<Submittal[]>([]);
@@ -110,12 +115,27 @@ export default function JobSubmittals({ jobId, canCreate = true, companyId = nul
     }
 
     try {
-      const { data, error } = await supabase
+      let query = supabase
         .from("submittals")
         .select("*")
         .eq("job_id", jobId)
-        .eq("company_id", effectiveCompanyId)
         .order("created_at", { ascending: false });
+
+      if (effectiveCompanyId) {
+        query = query.eq("company_id", effectiveCompanyId);
+      }
+
+      let { data, error } = await query;
+
+      if ((!data || data.length === 0) && !error && isExternalPortalView) {
+        const fallback = await supabase
+          .from("submittals")
+          .select("*")
+          .eq("job_id", jobId)
+          .order("created_at", { ascending: false });
+        data = fallback.data;
+        error = fallback.error;
+      }
 
       if (error) {
         if (isMissingTableError(error)) {
