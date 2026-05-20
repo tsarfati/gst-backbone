@@ -187,10 +187,19 @@ export default function Auth() {
     
     const authEntryContext = getAuthEntryContext();
 
+    if (authEntryContext === 'vendor') {
+      navigate(
+        String(profile?.role || '').toLowerCase() === 'design_professional'
+          ? '/design-professional/dashboard'
+          : '/vendor/dashboard',
+        { replace: true },
+      );
+      return;
+    }
+
     // Keep vendor/design-professional flows inside their portal even when
     // profile completion is still pending.
     if (
-      authEntryContext === 'vendor' &&
       (String(profile?.role || '').toLowerCase() === 'vendor' ||
         String(profile?.role || '').toLowerCase() === 'design_professional' ||
         !!(profile as any)?.vendor_id ||
