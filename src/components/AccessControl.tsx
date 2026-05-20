@@ -87,7 +87,6 @@ export function AccessControl({ children }: AccessControlProps) {
     authEntryContext === 'vendor' &&
     (!!pinnedVendorPortalCompanyId || onExternalPortalPath || !hasInternalWorkspace) &&
     (!!externalRequestedRole || !!hasVendorIdentity || role === 'vendor' || role === 'design_professional');
-  const shouldUseExternalPortalFlow = shouldPreferVendorPortal || isExternalUser;
   const isExternalUser =
     authEntryContext === 'builder'
       ? false
@@ -95,6 +94,7 @@ export function AccessControl({ children }: AccessControlProps) {
         (role === 'design_professional' && shouldPreferVendorPortal) ||
         (!!externalRequestedRole && shouldPreferVendorPortal) ||
         (hasVendorIdentity && shouldPreferVendorPortal);
+  const shouldUseExternalPortalFlow = shouldPreferVendorPortal || isExternalUser;
   const hasCompanyLinkContext =
     !!profile?.current_company_id ||
     !!(profile as any)?.default_company_id ||
