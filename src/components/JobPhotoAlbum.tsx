@@ -652,9 +652,6 @@ export default function JobPhotoAlbum({
           profiles(first_name, last_name, display_name, avatar_url, email)
         `)
         .eq('job_id', jobId);
-      if (effectiveCompanyId) {
-        query = query.eq('company_id', effectiveCompanyId);
-      }
 
       if (selectedAlbumId) {
         query = query.eq('album_id', selectedAlbumId);
@@ -694,15 +691,10 @@ export default function JobPhotoAlbum({
 
   const loadAlbums = async () => {
     try {
-      if (!effectiveCompanyId) {
-        setAlbums([]);
-        return;
-      }
       let { data, error } = await supabase
         .from('photo_albums')
         .select('*')
         .eq('job_id', jobId)
-        .eq('company_id', effectiveCompanyId)
         .order('is_auto_employee_album', { ascending: false })
         .order('created_at', { ascending: true });
 
