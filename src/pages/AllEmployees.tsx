@@ -114,8 +114,9 @@ export default function AllEmployees() {
       // Fetch job assignments
       const { data: jobAccessData } = await supabase
         .from('user_job_access')
-        .select('user_id, job_id, jobs(name)')
-        .in('user_id', userIds);
+        .select('user_id, job_id, jobs!inner(id, name, company_id)')
+        .in('user_id', userIds)
+        .eq('jobs.company_id', currentCompany.id);
 
       const jobsMap = new Map<string, Array<{ id: string; name: string }>>();
       (jobAccessData || []).forEach((ja: any) => {
@@ -128,9 +129,11 @@ export default function AllEmployees() {
 
       const allEmployees: Employee[] = (profilesData || []).map((p: any) => {
         const access = accessByUserId.get(String(p.user_id));
-        const role = p.custom_role_id
-          ? customRoleNameById.get(String(p.custom_role_id)) || access?.role || p.role || 'employee'
-          : access?.role || p.role || 'employee';
+        const companyRole = String(access?.role || '').trim().toLowerCase();
+        const customRoleName = p.custom_role_id
+          ? customRoleNameById.get(String(p.custom_role_id)) || null
+          : null;
+        const role = customRoleName || companyRole || 'employee';
 
         return ({
         id: p.user_id,
@@ -140,7 +143,7 @@ export default function AllEmployees() {
         display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim(),
         role,
         custom_role_id: p.custom_role_id || null,
-        custom_role_name: p.custom_role_id ? customRoleNameById.get(String(p.custom_role_id)) || null : null,
+        custom_role_name: customRoleName,
         avatar_url: p.avatar_url,
         created_at: p.created_at,
         has_pin: !!p.pin_code,
