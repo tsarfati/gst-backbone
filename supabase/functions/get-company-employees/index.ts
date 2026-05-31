@@ -22,12 +22,15 @@ serve(async (req) => {
       return new Response(JSON.stringify({ error: 'company_id required' }), { status: 400, headers: { 'Content-Type': 'application/json', ...corsHeaders } });
     }
 
-    // Get all users with access to this company
+    // Manual time entry should only target actual employee users for this company.
+    // Exclude vendors, design professionals, admins/controllers/PMs, and ignore
+    // legacy current_company_id fallbacks so the roster stays strict.
     const { data: accessRows, error: accessErr } = await supabase
       .from('user_company_access')
       .select('user_id, role, is_active')
       .eq('company_id', company_id)
-      .or('is_active.eq.true,is_active.is.null');
+      .or('is_active.eq.true,is_active.is.null')
+      .eq('role', 'employee');
 
     if (accessErr) throw accessErr;
 
@@ -38,44 +41,26 @@ serve(async (req) => {
     if (userIds.length) {
       const { data: profs, error: profErr } = await supabase
         .from('profiles')
-        .select('user_id, first_name, last_name, display_name, role, current_company_id')
+        .select('user_id, first_name, last_name, display_name, role, current_company_id, punch_clock_access, status')
         .in('user_id', userIds);
       if (profErr) throw profErr;
 
       const roleMap = new Map((accessRows || []).map((r: any) => [r.user_id, r.role]));
-      employees = (profs || []).map((p: any) => ({
-        id: p.user_id,
-        user_id: p.user_id,
-        display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
-        first_name: p.first_name || null,
-        last_name: p.last_name || null,
-        role: roleMap.get(p.user_id) || p.role || 'employee',
-        is_pin: false,
-      }));
-    }
-
-    // Also include profiles whose current_company_id matches but may not have explicit access rows
-    const { data: companyProfiles, error: companyProfilesErr } = await supabase
-      .from('profiles')
-      .select('user_id, first_name, last_name, display_name, role, current_company_id')
-      .eq('current_company_id', company_id);
-    if (companyProfilesErr) throw companyProfilesErr;
-
-    const byId: Record<string, any> = {};
-    for (const emp of employees) byId[emp.user_id] = emp;
-    for (const p of companyProfiles || []) {
-      if (!byId[p.user_id]) {
-        byId[p.user_id] = {
+      employees = (profs || [])
+        .filter((p: any) => String(p.status || '').toLowerCase() === 'approved' && p.punch_clock_access === true)
+        .map((p: any) => ({
           id: p.user_id,
           user_id: p.user_id,
           display_name: p.display_name || `${p.first_name || ''} ${p.last_name || ''}`.trim() || 'Employee',
           first_name: p.first_name || null,
           last_name: p.last_name || null,
-          role: p.role || 'employee',
+          role: roleMap.get(p.user_id) || 'employee',
           is_pin: false,
-        };
-      }
+        }));
     }
+
+    const byId: Record<string, any> = {};
+    for (const emp of employees) byId[emp.user_id] = emp;
 
     const result = Object.values(byId)
       .sort((a: any, b: any) => (a.display_name || '').localeCompare(b.display_name || ''));
