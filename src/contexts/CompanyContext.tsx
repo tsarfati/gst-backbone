@@ -362,6 +362,20 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
     refreshCompanies
   };
 
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as any).__builderCompanyDebug = {
+      loading,
+      currentCompanyId: currentCompany?.id || null,
+      currentCompanyType: currentCompany?.company_type || null,
+      userCompanies: userCompanies.map((company) => ({
+        company_id: company.company_id,
+        role: company.role,
+        company_name: company.company_name,
+      })),
+    };
+  }, [loading, currentCompany?.id, currentCompany?.company_type, userCompanies]);
+
   return (
     <CompanyContext.Provider value={value}>
       {children}

@@ -13,6 +13,56 @@ interface SMSRequest {
   base_url?: string;
 }
 
+interface ResolvedSmsProviderSettings {
+  provider: string;
+  accountSid: string;
+  authToken: string;
+  phoneNumber: string;
+  source: "company" | "builderlynk-default";
+}
+
+const getEnvFirst = (...keys: string[]) => {
+  for (const key of keys) {
+    const value = Deno.env.get(key)?.trim();
+    if (value) return value;
+  }
+  return "";
+};
+
+const resolveSmsProviderSettings = (smsSettings: any): ResolvedSmsProviderSettings | null => {
+  const companyEnabled = smsSettings?.sms_enabled === true;
+  const companyProvider = (smsSettings?.provider || "twilio").trim();
+  const companyAccountSid = (smsSettings?.account_sid || "").trim();
+  const companyAuthToken = (smsSettings?.auth_token || "").trim();
+  const companyPhoneNumber = (smsSettings?.phone_number || "").trim();
+
+  if (companyEnabled && companyProvider === "twilio" && companyAccountSid && companyAuthToken && companyPhoneNumber) {
+    return {
+      provider: "twilio",
+      accountSid: companyAccountSid,
+      authToken: companyAuthToken,
+      phoneNumber: companyPhoneNumber,
+      source: "company",
+    };
+  }
+
+  const defaultAccountSid = getEnvFirst("BUILDERLYNK_TWILIO_ACCOUNT_SID", "TWILIO_ACCOUNT_SID");
+  const defaultAuthToken = getEnvFirst("BUILDERLYNK_TWILIO_AUTH_TOKEN", "TWILIO_AUTH_TOKEN");
+  const defaultPhoneNumber = getEnvFirst("BUILDERLYNK_TWILIO_PHONE_NUMBER", "TWILIO_PHONE_NUMBER");
+
+  if (defaultAccountSid && defaultAuthToken && defaultPhoneNumber) {
+    return {
+      provider: "twilio",
+      accountSid: defaultAccountSid,
+      authToken: defaultAuthToken,
+      phoneNumber: defaultPhoneNumber,
+      source: "builderlynk-default",
+    };
+  }
+
+  return null;
+};
+
 const handler = async (req: Request): Promise<Response> => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
@@ -68,11 +118,12 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Failed to fetch SMS settings");
     }
 
-    // Check if SMS is enabled
-    if (!smsSettings?.sms_enabled) {
-      console.log("SMS is not enabled for this company");
+    const providerSettings = resolveSmsProviderSettings(smsSettings);
+
+    if (!providerSettings) {
+      console.log("SMS is not configured for this company and no BuilderLYNK default SMS account is available");
       return new Response(
-        JSON.stringify({ message: "SMS not enabled for this company" }),
+        JSON.stringify({ message: "SMS is not configured" }),
         {
           status: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -116,18 +167,18 @@ const handler = async (req: Request): Promise<Response> => {
       .replace(/\{\{checkout_link\}\}/g, checkoutUrl);
 
     // Send SMS using Twilio
-    if (smsSettings.provider === 'twilio') {
-      const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${smsSettings.account_sid}/Messages.json`;
+    if (providerSettings.provider === 'twilio') {
+      const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${providerSettings.accountSid}/Messages.json`;
       
       const formData = new URLSearchParams();
       formData.append('To', phone_number);
-      formData.append('From', smsSettings.phone_number);
+      formData.append('From', providerSettings.phoneNumber);
       formData.append('Body', message);
 
       const twilioResponse = await fetch(twilioUrl, {
         method: 'POST',
         headers: {
-          'Authorization': 'Basic ' + btoa(`${smsSettings.account_sid}:${smsSettings.auth_token}`),
+          'Authorization': 'Basic ' + btoa(`${providerSettings.accountSid}:${providerSettings.authToken}`),
           'Content-Type': 'application/x-www-form-urlencoded',
         },
         body: formData,
@@ -140,13 +191,14 @@ const handler = async (req: Request): Promise<Response> => {
         throw new Error(`Twilio API error: ${twilioResult.message || 'Unknown error'}`);
       }
 
-      console.log("SMS sent successfully via Twilio:", twilioResult.sid);
+      console.log(`SMS sent successfully via Twilio (${providerSettings.source}):`, twilioResult.sid);
 
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: "SMS sent successfully",
-          sid: twilioResult.sid
+          sid: twilioResult.sid,
+          provider_source: providerSettings.source,
         }),
         {
           status: 200,

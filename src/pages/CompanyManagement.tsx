@@ -567,18 +567,6 @@ export default function CompanyManagement() {
 
       if (companyError) throw companyError;
 
-      // Grant admin access to the creator
-      const { error: accessError } = await supabase
-        .from('user_company_access')
-        .insert({
-          user_id: user.id,
-          company_id: companyData.id,
-          role: 'admin',
-          granted_by: user.id
-        });
-
-      if (accessError) throw accessError;
-
       // Update the current user's profile to set the new company as current
       const { error: profileError } = await supabase
         .from('profiles')
@@ -591,7 +579,7 @@ export default function CompanyManagement() {
 
       toast({
         title: "Success",
-        description: "Company created successfully and you've been added as admin"
+        description: "Company created successfully"
       });
 
       setShowCreateCompanyDialog(false);

@@ -8,7 +8,7 @@ interface PremiumLoadingScreenProps {
   text?: string;
 }
 
-export function PremiumLoadingScreen({ text: _text }: PremiumLoadingScreenProps) {
+export function PremiumLoadingScreen({ text }: PremiumLoadingScreenProps) {
   const logoFallbacks = [
     builderLynkShield,
     builderLynkIcon,
@@ -24,7 +24,7 @@ export function PremiumLoadingScreen({ text: _text }: PremiumLoadingScreenProps)
 
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <div className="flex flex-col items-center gap-4">
+      <div className="flex flex-col items-center gap-4" data-loader-text={text || "Loading"}>
         <div
           className="relative"
           style={{
@@ -81,7 +81,7 @@ export function PremiumLoadingScreen({ text: _text }: PremiumLoadingScreenProps)
           </div>
         </div>
 
-        <LoadingDotsText label="Loading" className="text-lg text-[#9CA3AF]" />
+        <LoadingDotsText label={text || "Loading"} className="text-lg text-[#9CA3AF]" />
       </div>
     </div>
   );

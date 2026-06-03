@@ -21,6 +21,7 @@ import MultiFileUploadDropzone from '@/components/MultiFileUploadDropzone';
 import { AVATAR_LIBRARY, AVATAR_LIBRARY_CATEGORY_LABELS, type AvatarLibraryAlbumId, type AvatarLibraryCategory, type CustomAvatarEntry } from '@/components/avatarLibrary';
 import { useSystemAvatarLibraries } from '@/hooks/useSystemAvatarLibraries';
 import { useMenuPermissions } from '@/hooks/useMenuPermissions';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 
 
 interface ThemeSettingsProps {
@@ -43,13 +44,17 @@ export default function ThemeSettings({
   const { currentCompany } = useCompany();
   const { isSuperAdmin } = useTenant();
   const { hasAccess, permissions } = useMenuPermissions();
+  const activeCompanyRole = useActiveCompanyRole();
   const { libraries: systemAvatarLibraries } = useSystemAvatarLibraries(currentCompany?.id);
   const [uploading, setUploading] = useState(false);
   const [avatarUploading, setAvatarUploading] = useState(false);
   const [selectedAvatarAlbum, setSelectedAvatarAlbum] = useState<AvatarLibraryAlbumId>('nintendo');
   const [activeTab, setActiveTab] = useState('general');
+  const normalizedRole = String(activeCompanyRole || '').trim().toLowerCase();
+  const hasPrivilegedThemeAccess =
+    isSuperAdmin || ['owner', 'admin', 'company_admin', 'controller'].includes(normalizedRole);
   const canAccessThemeTab = (tabPermissionBase: string) => {
-    if (isSuperAdmin) return true;
+    if (hasPrivilegedThemeAccess) return true;
     const viewKey = `${tabPermissionBase}-view`;
     if (typeof permissions[viewKey] === 'boolean') {
       return hasAccess(viewKey);

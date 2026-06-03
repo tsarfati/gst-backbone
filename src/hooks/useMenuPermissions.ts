@@ -36,6 +36,14 @@ const isAppRole = (value: unknown): value is AppRole => {
   return APP_ROLES.includes(value as AppRole);
 };
 
+const canonicalizeRole = (value: unknown): AppRole | null => {
+  if (typeof value !== "string") return null;
+  const normalized = value.trim().toLowerCase();
+  if (!normalized) return null;
+  if (normalized === "owner") return "admin";
+  return isAppRole(normalized) ? normalized : null;
+};
+
 export function useMenuPermissions() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
@@ -44,8 +52,7 @@ export function useMenuPermissions() {
   const activeCompanyRole = useActiveCompanyRole();
 
   const effectiveRole = useMemo<AppRole | null>(() => {
-    const role = activeCompanyRole ?? profile?.role ?? null;
-    return role && isAppRole(role) ? role : null;
+    return canonicalizeRole(activeCompanyRole ?? profile?.role ?? null);
   }, [activeCompanyRole, profile?.role]);
 
   const effectiveCustomRoleId = useMemo(

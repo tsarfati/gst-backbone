@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -9,6 +9,8 @@ import { useTenant } from '@/contexts/TenantContext';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { Loader2, Building2, CheckCircle, Mail } from 'lucide-react';
+import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
+import { clearAuthEntryContext, setAuthEntryContext } from '@/utils/authEntryContext';
 
 interface TenantRequestModalProps {
   open: boolean;
@@ -27,14 +29,54 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
   const [notes, setNotes] = useState('');
   const [loading, setLoading] = useState(false);
   const [signupEmail, setSignupEmail] = useState('');
+  const [flowSessionReady, setFlowSessionReady] = useState(false);
+  const [openingUserId, setOpeningUserId] = useState<string | null>(null);
   
-  const { user, signUp, signIn, signInWithGoogle } = useAuth();
+  const { user, signIn, signInWithGoogle } = useAuth();
   const { refreshTenant } = useTenant();
   const { toast } = useToast();
+  const newOrgRedirectUrl = useMemo(
+    () => `${getPublicAuthOrigin()}/auth?type=signup&new_org=1`,
+    [],
+  );
+  const isFreshFlowUser = !!user && user.id !== openingUserId;
 
   // If user is authenticated and email confirmed, go to request step
   // If on confirm-email step, stay there until they manually proceed
-  const currentStep = user && step !== 'confirm-email' ? (step === 'auth' ? 'request' : step) : step;
+  const currentStep =
+    flowSessionReady && isFreshFlowUser && step !== 'confirm-email'
+      ? (step === 'auth' ? 'request' : step)
+      : step;
+
+  useEffect(() => {
+    if (!open) {
+      setFlowSessionReady(false);
+      setOpeningUserId(null);
+      return;
+    }
+
+    let cancelled = false;
+    const prepareCleanFlow = async () => {
+      setLoading(true);
+      setOpeningUserId(user?.id ?? null);
+      try {
+        clearAuthEntryContext();
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch (error) {
+        console.warn('Failed to clear local auth session before new organization flow:', error);
+      } finally {
+        if (!cancelled) {
+          setFlowSessionReady(true);
+          setLoading(false);
+        }
+      }
+    };
+
+    prepareCleanFlow();
+    return () => {
+      cancelled = true;
+    };
+  }, [open]);
 
   const resetForm = () => {
     setStep('auth');
@@ -46,6 +88,8 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
     setTenantName('');
     setNotes('');
     setSignupEmail('');
+    setFlowSessionReady(false);
+    setOpeningUserId(null);
   };
 
   const validateForm = () => {
@@ -70,8 +114,21 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
     }
     
     setLoading(true);
-
-    const { error } = await signUp(email, password, firstName, lastName);
+    setAuthEntryContext('builder');
+    const { error } = await supabase.auth.signUp({
+      email: email.trim().toLowerCase(),
+      password,
+      options: {
+        emailRedirectTo: newOrgRedirectUrl,
+        data: {
+          first_name: firstName,
+          last_name: lastName,
+          full_name: `${firstName || ''} ${lastName || ''}`.trim(),
+          phone: phone.trim(),
+          signup_intent: 'new_organization',
+        },
+      },
+    });
     
     if (error) {
       toast({
@@ -80,18 +137,11 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
         variant: 'destructive',
       });
     } else {
-      // Update profile with phone number after signup
-      setTimeout(async () => {
-        try {
-          const { data: { user: currentUser } } = await supabase.auth.getUser();
-          if (currentUser) {
-            await supabase.from('profiles').update({ phone }).eq('user_id', currentUser.id);
-          }
-        } catch (err) {
-          console.error('Failed to update phone:', err);
-        }
-      }, 1000);
-      
+      try {
+        await supabase.auth.signOut({ scope: 'local' });
+      } catch (error) {
+        console.warn('Failed to clear local session after new organization signup:', error);
+      }
       // Store email for display and go to confirm-email step
       setSignupEmail(email);
       setStep('confirm-email');
@@ -106,6 +156,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
   const handleSignIn = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
+    setAuthEntryContext('builder');
 
     const { error } = await signIn(email, password);
     
@@ -123,6 +174,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
 
   const handleGoogleSignIn = async () => {
     setLoading(true);
+    setAuthEntryContext('builder');
     const { error } = await signInWithGoogle();
     
     if (error) {
@@ -194,6 +246,11 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
             </DialogHeader>
             
             <div className="mt-4 space-y-4">
+              {!flowSessionReady ? (
+                <div className="py-10 flex items-center justify-center">
+                  <Loader2 className="h-6 w-6 animate-spin text-primary" />
+                </div>
+              ) : (
               <div className="space-y-4">
                 <div className="grid grid-cols-2 gap-4">
                   <div className="space-y-2">
@@ -259,6 +316,7 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
                   Continue with Google
                 </Button>
               </div>
+              )}
             </div>
           </>
         )}
@@ -285,9 +343,9 @@ export function TenantRequestModal({ open, onOpenChange }: TenantRequestModalPro
                 onClick={() => setStep('request')} 
                 className="w-full text-white"
                 style={{ backgroundColor: brandBlue }}
-                disabled={!user}
+                disabled={!isFreshFlowUser}
               >
-                {user ? "I've Confirmed My Email - Continue" : "Waiting for confirmation..."}
+                {isFreshFlowUser ? "I've Confirmed My Email - Continue" : "Waiting for confirmation..."}
               </Button>
               
               <p className="text-xs text-center text-muted-foreground">

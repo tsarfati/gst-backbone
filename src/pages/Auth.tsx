@@ -11,6 +11,7 @@ import { useToast } from '@/components/ui/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Loader2, Eye, EyeOff, CheckCircle, ArrowLeft } from 'lucide-react';
 import { useCompany } from '@/contexts/CompanyContext';
+import { useTenant } from '@/contexts/TenantContext';
 import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 import { getPublicAuthOrigin } from '@/utils/publicAuthOrigin';
 import { setAuthEntryContext } from '@/utils/authEntryContext';
@@ -71,6 +72,7 @@ export default function Auth() {
   
   const { signIn, signUp, signInWithGoogle, user, profile, refreshProfile } = useAuth();
   const { userCompanies, currentCompany, loading: companyLoading } = useCompany();
+  const { hasTenantAccess, hasPendingRequest } = useTenant();
   const { toast } = useToast();
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
@@ -78,6 +80,7 @@ export default function Auth() {
   const designProJobInviteToken = searchParams.get('jobInvite');
   const designProInviteCompanyId = searchParams.get('company');
   const designProInviteJobId = searchParams.get('job');
+  const isNewOrgFlow = searchParams.get('new_org') === '1';
   const authEntryContext = getAuthEntryContext();
   const currentCompanyType = String((currentCompany as any)?.company_type || '').toLowerCase();
   const currentCompanyIsInternal =
@@ -208,6 +211,11 @@ export default function Auth() {
     // Do not trap users on /auth while invite acceptance retries.
     // Only pause redirect while an accept attempt is actively running.
     if ((inviteToken && inviteAccepting) || (designProJobInviteToken && designProJobInviteAccepting)) return;
+
+    if (isNewOrgFlow && !hasTenantAccess && !hasPendingRequest) {
+      navigate('/tenant-request', { replace: true });
+      return;
+    }
     
     if (authEntryContext === 'vendor') {
       navigate(
@@ -252,7 +260,7 @@ export default function Auth() {
     } else {
       navigate('/dashboard', { replace: true });
     }
-  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace, hasInternalWorkspace, userCompanies.length, authEntryContext, singleWorkspace, singleWorkspaceRole, currentCompanyIsInternal]);
+  }, [user, profile, isRecoveryMode, navigate, inviteToken, inviteAccepting, designProJobInviteToken, designProJobInviteAccepting, companyLoading, hasEstablishedWorkspace, hasInternalWorkspace, userCompanies.length, authEntryContext, singleWorkspace, singleWorkspaceRole, currentCompanyIsInternal, isNewOrgFlow, hasTenantAccess, hasPendingRequest]);
 
   useEffect(() => {
     const maxInviteAttempts = 6;

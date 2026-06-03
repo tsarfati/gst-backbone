@@ -128,6 +128,44 @@ export function AccessControl({ children }: AccessControlProps) {
     hasCompanyLinkContext &&
     !hasTenantAccess &&
     userCompanies.length === 0;
+  const shouldWaitForTenant =
+    tenantLoading &&
+    !hasEstablishedInternalWorkspace &&
+    !isSuperAdmin;
+  const loadingReasons = [
+    authLoading ? 'auth' : null,
+    companyLoading ? 'company' : null,
+    shouldWaitForTenant ? 'tenant' : null,
+    settingsLoading ? 'settings' : null,
+    pendingExternalAccessLoading ? 'pendingExternal' : null,
+    checking ? 'checking' : null,
+  ].filter(Boolean);
+
+  const debugRedirect = (reason: string, target: string) => {
+    if (!import.meta.env.DEV) return;
+    console.warn('[AccessControl redirect]', {
+      from: `${location.pathname}${location.search}`,
+      to: target,
+      reason,
+      userId: user?.id || null,
+      profileRole: profile?.role || null,
+      profileStatus: profile?.status || null,
+      profileCompleted: profile?.profile_completed ?? null,
+      currentCompanyId: currentCompany?.id || null,
+      profileCurrentCompanyId: profile?.current_company_id || null,
+      userCompanies: userCompanies.map((company) => ({
+        company_id: company.company_id,
+        role: company.role,
+      })),
+      hasTenantAccess,
+      hasPendingRequest,
+      isSuperAdmin,
+      authEntryContext,
+      pendingExternalAccess,
+      shouldUseExternalPortalFlow,
+      hasEstablishedInternalWorkspace,
+    });
+  };
 
   useEffect(() => {
     let cancelled = false;
@@ -332,6 +370,12 @@ export function AccessControl({ children }: AccessControlProps) {
       const isExternalRole = role === 'vendor' || role === 'design_professional';
       const hasHomeWorkspaceLink = !!profile?.current_company_id || !!(profile as any)?.default_company_id;
 
+      if (authEntryContext === 'builder' && !isExternalRole && !hasVendorIdentity) {
+        setPendingExternalAccess(false);
+        setPendingExternalAccessLoading(false);
+        return;
+      }
+
       if (isExternalRole && userCompanies.length === 0 && !hasHomeWorkspaceLink) {
         setPendingExternalAccess(true);
         setPendingExternalAccessLoading(false);
@@ -410,10 +454,10 @@ export function AccessControl({ children }: AccessControlProps) {
     return () => {
       cancelled = true;
     };
-  }, [user?.id, profile?.role, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, userCompanies.length, externalPortalContext.homeCompanyId, pinnedVendorPortalCompanyId]);
+  }, [user?.id, profile?.role, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, userCompanies.length, externalPortalContext.homeCompanyId, pinnedVendorPortalCompanyId, authEntryContext, hasVendorIdentity]);
 
   useEffect(() => {
-    if (authLoading || companyLoading || tenantLoading || settingsLoading) {
+    if (authLoading || companyLoading || shouldWaitForTenant || settingsLoading) {
       return;
     }
 
@@ -426,7 +470,10 @@ export function AccessControl({ children }: AccessControlProps) {
 
     // If no user, redirect to auth
     if (!user) {
-      if (location.pathname !== '/auth') navigate('/auth', { replace: true });
+      if (location.pathname !== '/auth') {
+        debugRedirect('no-user', '/auth');
+        navigate('/auth', { replace: true });
+      }
       return;
     }
 
@@ -441,6 +488,9 @@ export function AccessControl({ children }: AccessControlProps) {
     // Handle profile completion route
     if (location.pathname === '/profile-completion') {
       if (shouldUseExternalPortalFlow) {
+        debugRedirect('profile-completion-external-flow', effectiveExternalRole === 'design_professional'
+          ? '/design-professional/dashboard'
+          : '/vendor/dashboard');
         navigate(
           effectiveExternalRole === 'design_professional'
             ? '/design-professional/dashboard'
@@ -450,11 +500,13 @@ export function AccessControl({ children }: AccessControlProps) {
         return;
       }
       if (hasEstablishedInternalWorkspace) {
+        debugRedirect('profile-completion-established-workspace', '/dashboard');
         navigate('/dashboard', { replace: true });
         return;
       }
       if (profile?.profile_completed) {
-        navigate('/', { replace: true });
+        debugRedirect('profile-completion-already-complete', '/dashboard');
+        navigate('/dashboard', { replace: true });
         return;
       }
       setChecking(false);
@@ -463,6 +515,7 @@ export function AccessControl({ children }: AccessControlProps) {
 
     // If profile is known and not completed, redirect to profile completion
     if (profile && profile.profile_completed === false && !shouldUseExternalPortalFlow && !hasEstablishedInternalWorkspace) {
+      debugRedirect('incomplete-profile', '/profile-completion');
       navigate('/profile-completion', { replace: true });
       return;
     }
@@ -476,6 +529,12 @@ export function AccessControl({ children }: AccessControlProps) {
         location.pathname.startsWith('/vendor/') ||
         location.pathname.startsWith('/design-professional/');
       if (!allowExternal) {
+        debugRedirect('external-user-route-enforcement',
+          effectiveExternalRole === 'design_professional'
+            ? '/design-professional/dashboard'
+            : authEntryContext === 'vendor' || shouldAutoEnterSingleExternalWorkspace
+              ? '/vendor/dashboard'
+              : '/vendor/select');
         navigate(
           effectiveExternalRole === 'design_professional'
             ? '/design-professional/dashboard'
@@ -529,7 +588,8 @@ export function AccessControl({ children }: AccessControlProps) {
     // Handle tenant request route
     if (location.pathname === '/tenant-request') {
       if (hasTenantAccess) {
-        navigate('/', { replace: true });
+        debugRedirect('tenant-request-has-access', '/dashboard');
+        navigate('/dashboard', { replace: true });
         return;
       }
       setChecking(false);
@@ -539,6 +599,7 @@ export function AccessControl({ children }: AccessControlProps) {
     // If no tenant access and no pending request, redirect to tenant request
     if (!hasTenantAccess && !hasPendingRequest && profile && !pendingExternalAccess && !hasCompanyLinkContext) {
       if (location.pathname !== '/tenant-request') {
+        debugRedirect('missing-tenant-access', '/tenant-request');
         navigate('/tenant-request', { replace: true });
       }
       return;
@@ -546,6 +607,7 @@ export function AccessControl({ children }: AccessControlProps) {
 
     // If has pending request but no tenant access, stay on tenant-request
     if (!hasTenantAccess && hasPendingRequest && location.pathname !== '/tenant-request' && !pendingExternalAccess && !hasCompanyLinkContext) {
+      debugRedirect('pending-tenant-request', '/tenant-request');
       navigate('/tenant-request', { replace: true });
       return;
     }
@@ -557,7 +619,8 @@ export function AccessControl({ children }: AccessControlProps) {
     // If on company-request and user already has access, send to home
     if (location.pathname === '/company-request') {
       if (hasApprovedAccess) {
-        navigate('/', { replace: true });
+        debugRedirect('company-request-has-approved-access', '/dashboard');
+        navigate('/dashboard', { replace: true });
         return;
       }
       setChecking(false);
@@ -566,7 +629,10 @@ export function AccessControl({ children }: AccessControlProps) {
 
     // If user lacks company access, force them to company-request
     if (!hasApprovedAccess && profile && hasTenantAccess) {
-      if (location.pathname !== '/company-request') navigate('/company-request', { replace: true });
+      if (location.pathname !== '/company-request') {
+        debugRedirect('missing-company-access', '/company-request');
+        navigate('/company-request', { replace: true });
+      }
       return;
     }
 
@@ -574,15 +640,41 @@ export function AccessControl({ children }: AccessControlProps) {
     if (!initialized) {
       setInitialized(true);
     }
-  }, [user?.id, profile?.profile_completed, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, profile?.status, profile?.role, userCompanies.length, authLoading, companyLoading, tenantLoading, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute, pendingExternalAccess, shouldBypassPendingStatusSplash, effectiveExternalRole, isExternalUser, pinnedVendorPortalCompanyId, shouldUseExternalPortalFlow]);
+  }, [user?.id, profile?.profile_completed, profile?.current_company_id, (profile as any)?.default_company_id, (profile as any)?.vendor_id, (profile as any)?.vendor_portal_role, profile?.status, profile?.role, userCompanies.length, authLoading, companyLoading, shouldWaitForTenant, settingsLoading, hasTenantAccess, hasPendingRequest, isSuperAdmin, location.pathname, location.search, isInviteAuthRoute, pendingExternalAccess, shouldBypassPendingStatusSplash, effectiveExternalRole, isExternalUser, pinnedVendorPortalCompanyId, shouldUseExternalPortalFlow]);
 
   // Show account status splash screens
   if (autoAcceptingInvite) {
     return <PremiumLoadingScreen text="Applying invitation..." />;
   }
 
-  if (authLoading || companyLoading || tenantLoading || settingsLoading || pendingExternalAccessLoading || checking) {
-    return <PremiumLoadingScreen text="Loading your workspace..." />;
+  if (authLoading || companyLoading || shouldWaitForTenant || settingsLoading || pendingExternalAccessLoading || checking) {
+    if (import.meta.env.DEV) {
+      console.warn('[AccessControl loading]', {
+        authLoading,
+        companyLoading,
+        tenantLoading,
+        shouldWaitForTenant,
+        settingsLoading,
+        pendingExternalAccessLoading,
+        checking,
+        hasTenantAccess,
+        hasPendingRequest,
+        isSuperAdmin,
+        currentCompanyId: currentCompany?.id || null,
+        profileCurrentCompanyId: profile?.current_company_id || null,
+        userCompaniesCount: userCompanies.length,
+        authEntryContext,
+      });
+    }
+    return (
+      <PremiumLoadingScreen
+        text={
+          import.meta.env.DEV && loadingReasons.length > 0
+            ? `Loading your workspace (${loadingReasons.join(', ')})...`
+            : "Loading your workspace..."
+        }
+      />
+    );
   }
 
   if (

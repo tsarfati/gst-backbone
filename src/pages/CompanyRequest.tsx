@@ -101,7 +101,7 @@ export default function CompanyRequest() {
       // Refresh companies and switch to the new company
       await refreshCompanies();
       await switchCompany(companyData.id);
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (error: any) {
       console.error('Error creating company:', error);
       toast({
@@ -120,7 +120,7 @@ export default function CompanyRequest() {
     setSelectingCompany(companyId);
     try {
       await switchCompany(companyId);
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     } catch (error: any) {
       console.error('Error selecting company:', error);
       toast({

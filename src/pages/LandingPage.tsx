@@ -21,6 +21,7 @@ import { TawkToChat } from '@/components/TawkToChat';
 import { setAuthEntryContext } from '@/utils/authEntryContext';
 import punchClockLynkLogo from '@/assets/punchclock-lynk-logo.png';
 import pmLynkLogo from '@/assets/pm-lynk-logo.png';
+import visitorLynkLogo from '@/assets/visitor-lynk-logo.png';
 import {
   Shield,
   Users,
@@ -32,7 +33,8 @@ import {
   Building2,
   Zap,
   Target,
-  TrendingUp
+  TrendingUp,
+  UserRoundCheck
 } from 'lucide-react';
 import { CountUpStat } from '@/components/CountUpStat';
 
@@ -154,7 +156,7 @@ export default function LandingPage() {
   useEffect(() => {
     if (!loading && user) {
       setAuthEntryContext('builder');
-      navigate('/auth', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [user, loading, navigate]);
 
@@ -282,6 +284,7 @@ export default function LandingPage() {
               <Link to="/design-pro-lynk" className="text-white/80 hover:text-white transition-colors font-medium">DesignProLYNK</Link>
               <Link to="/punch-clock-lynk" className="text-white/80 hover:text-white transition-colors font-medium">Punch Clock Lynk</Link>
               <Link to="/pm-lynk" className="text-white/80 hover:text-white transition-colors font-medium">PM Lynk</Link>
+              <Link to="/visitor-lynk" className="text-white/80 hover:text-white transition-colors font-medium">VisitorLYNK</Link>
               <Link to="/contact" className="text-white/80 hover:text-white transition-colors font-medium">Contact</Link>
             </div>
             <div className="flex items-center gap-3">
@@ -600,21 +603,21 @@ export default function LandingPage() {
         </div>
       </section>
 
-      {/* Mobile Apps Section */}
+      {/* LYNK Family Section */}
       <section className="py-24" style={{ backgroundColor: darkBg }}>
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <AnimatedSection animation="fade-up">
             <div className="text-center mb-16">
               <h2 className="text-3xl sm:text-5xl font-bold text-white mb-4">
-                Take BuilderLYNK <span className="text-[#E88A2D]">On the Go</span>
+                Explore the <span className="text-[#E88A2D]">LYNK Family</span>
               </h2>
               <p className="text-xl text-gray-400 max-w-2xl mx-auto">
-                Download our companion mobile apps for field teams and project managers.
+                Focused product experiences for time tracking, field operations, and visitor management.
               </p>
             </div>
           </AnimatedSection>
 
-          <div className="grid md:grid-cols-2 gap-10 max-w-4xl mx-auto">
+          <div className="grid md:grid-cols-2 xl:grid-cols-3 gap-10 max-w-6xl mx-auto">
             {/* Punch Clock LYNK */}
             <AnimatedSection animation="fade-right" delay={100}>
               <Link
@@ -640,7 +643,7 @@ export default function LandingPage() {
             </AnimatedSection>
 
             {/* PM LYNK */}
-            <AnimatedSection animation="fade-left" delay={200}>
+            <AnimatedSection animation="fade-up" delay={200}>
               <Link
                 to="/pm-lynk"
                 className="rounded-2xl border border-white/10 p-8 hover:border-[#E88A2D]/50 hover:shadow-xl hover:shadow-[#E88A2D]/10 transition-all duration-500 group text-center h-full flex flex-col"
@@ -658,6 +661,33 @@ export default function LandingPage() {
                   The project manager's mobile companion. Scan receipts, manage delivery tickets, log visitors, and communicate with your team — anywhere on the jobsite.
                 </p>
                 <span className="inline-flex items-center gap-1 text-[#E88A2D] font-semibold text-sm group-hover:gap-2 transition-all">
+                  Learn More <ArrowRight className="w-4 h-4" />
+                </span>
+              </Link>
+            </AnimatedSection>
+
+            <AnimatedSection animation="fade-left" delay={300}>
+              <Link
+                to="/visitor-lynk"
+                className="rounded-2xl border border-white/10 p-8 hover:border-[#A7F542]/50 hover:shadow-xl hover:shadow-[#A7F542]/10 transition-all duration-500 group text-center h-full flex flex-col"
+                style={{ backgroundColor: darkCardBg }}
+              >
+                <img
+                  src={visitorLynkLogo}
+                  alt="VisitorLYNK"
+                  className="h-28 w-auto mx-auto mb-6 drop-shadow-lg group-hover:scale-105 transition-transform duration-300"
+                />
+                <h3 className="text-2xl font-bold text-white mb-2">
+                  Visitor<span className="text-[#A7F542]">LYNK</span>
+                </h3>
+                <p className="text-gray-400 mb-4 text-sm leading-relaxed flex-1">
+                  Branded jobsite visitor check-in with QR posters, onsite logs, photo capture, and clean accountability for every guest who walks through the gate.
+                </p>
+                <div className="inline-flex items-center justify-center gap-2 text-[#A7F542] font-semibold text-sm mb-4">
+                  <UserRoundCheck className="w-4 h-4" />
+                  Start light, expand later
+                </div>
+                <span className="inline-flex items-center gap-1 text-[#A7F542] font-semibold text-sm group-hover:gap-2 transition-all justify-center">
                   Learn More <ArrowRight className="w-4 h-4" />
                 </span>
               </Link>
@@ -701,6 +731,7 @@ export default function LandingPage() {
                 <li><Link to="/design-pro-lynk" className="hover:text-white transition-colors">DesignProLYNK</Link></li>
                 <li><Link to="/punch-clock-lynk" className="hover:text-white transition-colors">Punch Clock LYNK</Link></li>
                 <li><Link to="/pm-lynk" className="hover:text-white transition-colors">PM LYNK</Link></li>
+                <li><Link to="/visitor-lynk" className="hover:text-white transition-colors">VisitorLYNK</Link></li>
                 <li><a href="https://jobsitelynk.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">JobSiteLYNK</a></li>
                 <li><a href="https://residentlynk.com" target="_blank" rel="noopener noreferrer" className="hover:text-white transition-colors">ResidentLYNK</a></li>
               </ul>

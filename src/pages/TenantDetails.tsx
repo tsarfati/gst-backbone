@@ -11,6 +11,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from '@/components/ui/dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import CompanySmsSettings from '@/components/CompanySmsSettings';
 import { useTenant } from '@/contexts/TenantContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
@@ -163,6 +164,8 @@ export default function TenantDetails() {
   const [settingPassword, setSettingPassword] = useState(false);
   const [newPassword, setNewPassword] = useState('');
   const [impersonatingOrg, setImpersonatingOrg] = useState(false);
+  const [smsCompanyDialogOpen, setSmsCompanyDialogOpen] = useState(false);
+  const [selectedSmsCompany, setSelectedSmsCompany] = useState<TenantCompany | null>(null);
 
   const parseFunctionError = async (error: any) => {
     try {
@@ -174,6 +177,11 @@ export default function TenantDetails() {
       // ignore parse failure
     }
     return error?.message || 'Request failed';
+  };
+
+  const openCompanySmsSettings = (company: TenantCompany) => {
+    setSelectedSmsCompany(company);
+    setSmsCompanyDialogOpen(true);
   };
 
   const ensureFunctionAuth = async () => {
@@ -1140,6 +1148,7 @@ export default function TenantDetails() {
                         <TableHead>Location</TableHead>
                         <TableHead>Status</TableHead>
                         <TableHead>Created</TableHead>
+                        <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -1158,6 +1167,15 @@ export default function TenantDetails() {
                           </TableCell>
                           <TableCell>
                             {new Date(company.created_at).toLocaleDateString()}
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              onClick={() => openCompanySmsSettings(company)}
+                            >
+                              SMS Settings
+                            </Button>
                           </TableCell>
                         </TableRow>
                       ))}
@@ -1346,6 +1364,23 @@ export default function TenantDetails() {
               </TabsContent>
             </Tabs>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={smsCompanyDialogOpen} onOpenChange={setSmsCompanyDialogOpen}>
+        <DialogContent className="max-w-3xl">
+          <DialogHeader>
+            <DialogTitle>Company SMS Settings</DialogTitle>
+            <DialogDescription>
+              Manage SMS credentials for {selectedSmsCompany?.display_name || selectedSmsCompany?.name || 'the selected company'} from Super Admin.
+            </DialogDescription>
+          </DialogHeader>
+          {selectedSmsCompany ? (
+            <CompanySmsSettings
+              companyId={selectedSmsCompany.id}
+              companyName={selectedSmsCompany.display_name || selectedSmsCompany.name}
+            />
+          ) : null}
         </DialogContent>
       </Dialog>
     </div>

@@ -8,7 +8,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/hooks/use-toast';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { User, Loader2 } from 'lucide-react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { getAuthEntryContext } from '@/utils/authEntryContext';
 import { getVendorPortalCompanyId } from '@/utils/vendorPortalSession';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -18,6 +18,7 @@ export default function ProfileCompletion() {
   const { userCompanies, currentCompany } = useCompany();
   const { toast } = useToast();
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [formData, setFormData] = useState({
@@ -56,6 +57,16 @@ export default function ProfileCompletion() {
     'suspended',
     'inactive',
   ]);
+  const hasRequiredAvatar = Boolean(avatarFile || profile?.avatar_url || avatarPreview);
+  const isFormComplete =
+    !!formData.first_name.trim() &&
+    !!formData.last_name.trim() &&
+    !!formData.phone.trim() &&
+    !!formData.birthday &&
+    hasRequiredAvatar;
+  const isNewOrgIntent =
+    searchParams.get('new_org') === '1' ||
+    String((user?.user_metadata as any)?.signup_intent || '').toLowerCase() === 'new_organization';
 
   useEffect(() => {
     if (
@@ -162,8 +173,7 @@ export default function ProfileCompletion() {
     if (!user) return;
 
     // Validate required fields
-    const hasExistingAvatar = Boolean(profile?.avatar_url || avatarPreview);
-    if (!formData.first_name.trim() || !formData.last_name.trim() || !formData.phone.trim() || !formData.birthday || (!avatarFile && !hasExistingAvatar)) {
+    if (!isFormComplete) {
       toast({
         title: 'Required Fields Missing',
         description: 'Please fill in first name, last name, phone number, birthday, and profile picture.',
@@ -242,7 +252,9 @@ export default function ProfileCompletion() {
         ? '/design-professional/dashboard'
         : resolvedRole === 'vendor'
           ? '/vendor/dashboard'
-          : '/company-request';
+          : isNewOrgIntent
+            ? '/tenant-request'
+            : '/company-request';
       navigate(targetPath, { replace: true });
     } catch (error: any) {
       console.error('Error completing profile:', error);
@@ -403,7 +415,11 @@ export default function ProfileCompletion() {
               />
             </div>
 
-            <Button type="submit" className="w-full" disabled={loading}>
+            <Button
+              type="submit"
+              className={`w-full transition-all ${isFormComplete && !loading ? 'opacity-100' : 'opacity-55'}`}
+              disabled={loading || !isFormComplete}
+            >
               {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
               Complete Profile
             </Button>

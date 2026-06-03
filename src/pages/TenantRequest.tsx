@@ -23,7 +23,7 @@ export default function TenantRequest() {
 
   useEffect(() => {
     if (!tenantLoading && hasTenantAccess) {
-      navigate('/', { replace: true });
+      navigate('/dashboard', { replace: true });
     }
   }, [hasTenantAccess, tenantLoading, navigate]);
 

@@ -20,10 +20,20 @@ interface SmsSettings {
   phone_number: string;
 }
 
-export default function CompanySmsSettings() {
+interface CompanySmsSettingsProps {
+  companyId?: string | null;
+  companyName?: string | null;
+}
+
+export default function CompanySmsSettings({
+  companyId,
+  companyName,
+}: CompanySmsSettingsProps) {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { settings: appSettings } = useSettings();
+  const resolvedCompanyId = companyId ?? currentCompany?.id ?? null;
+  const resolvedCompanyName = companyName ?? currentCompany?.display_name ?? currentCompany?.name ?? 'this company';
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const autoSaveReadyRef = useRef(false);
@@ -36,10 +46,12 @@ export default function CompanySmsSettings() {
   });
 
   useEffect(() => {
-    if (currentCompany?.id) {
+    if (resolvedCompanyId) {
       loadSettings();
+    } else {
+      setLoading(false);
     }
-  }, [currentCompany?.id]);
+  }, [resolvedCompanyId]);
 
   const loadSettings = async () => {
     try {
@@ -47,7 +59,7 @@ export default function CompanySmsSettings() {
       const { data, error } = await supabase
         .from('company_sms_settings')
         .select('*')
-        .eq('company_id', currentCompany!.id)
+        .eq('company_id', resolvedCompanyId!)
         .maybeSingle();
 
       if (error && error.code !== 'PGRST116') throw error;
@@ -80,7 +92,7 @@ export default function CompanySmsSettings() {
       setSaving(true);
 
       const payload = {
-        company_id: currentCompany!.id,
+        company_id: resolvedCompanyId!,
         sms_enabled: settings.sms_enabled,
         provider: settings.provider,
         account_sid: settings.account_sid,
@@ -127,14 +139,28 @@ export default function CompanySmsSettings() {
   };
 
   useEffect(() => {
-    if (!appSettings.autoSave || loading || saving || !currentCompany?.id || !autoSaveReadyRef.current) return;
+    if (!appSettings.autoSave || loading || saving || !resolvedCompanyId || !autoSaveReadyRef.current) return;
 
     const timer = setTimeout(() => {
       void handleSave(false);
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [settings, appSettings.autoSave, loading, saving, currentCompany?.id]);
+  }, [settings, appSettings.autoSave, loading, saving, resolvedCompanyId]);
+
+  if (!resolvedCompanyId) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <MessageSquare className="h-5 w-5" />
+            SMS/Text Messaging Configuration
+          </CardTitle>
+          <CardDescription>Select a company before configuring SMS settings.</CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
 
   if (loading) {
     return (
@@ -153,7 +179,7 @@ export default function CompanySmsSettings() {
             SMS/Text Messaging Configuration
           </CardTitle>
           <CardDescription>
-            Configure SMS provider settings for sending text messages. Each company can use their own API keys.
+            Configure SMS provider settings for sending text messages for {resolvedCompanyName}. These settings are super-admin controlled.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">

@@ -137,13 +137,16 @@ export default function CompanySettingsPage() {
   const [integrationsComponentError, setIntegrationsComponentError] = useState<string | null>(null);
 
   const currentUserCompany = userCompanies.find((uc) => uc.company_id === currentCompany?.id);
-  const canManageCompanyUsers =
-    isSuperAdmin || ['admin', 'company_admin', 'controller'].includes(String(currentUserCompany?.role || '').toLowerCase());
-  const canViewCompanySettings = isSuperAdmin || hasAccess('company-settings-view') || hasAccess('company-settings');
-  const canEditCompanySettings = isSuperAdmin || hasAccess('company-settings-edit');
+  const normalizedCompanyRole = String(currentUserCompany?.role || '').trim().toLowerCase();
+  const hasPrivilegedCompanySettingsAccess =
+    isSuperAdmin || ['owner', 'admin', 'company_admin', 'controller'].includes(normalizedCompanyRole);
+  const canManageCompanyUsers = hasPrivilegedCompanySettingsAccess;
+  const canViewCompanySettings =
+    hasPrivilegedCompanySettingsAccess || hasAccess('company-settings-view') || hasAccess('company-settings');
+  const canEditCompanySettings = hasPrivilegedCompanySettingsAccess || hasAccess('company-settings-edit');
 
   const canAccessCompanyTab = (tabPermissionBase: string) => {
-    if (isSuperAdmin) return true;
+    if (hasPrivilegedCompanySettingsAccess) return true;
     const viewKey = `${tabPermissionBase}-view`;
     if (typeof permissions[viewKey] === 'boolean') {
       return hasAccess(viewKey);
@@ -155,7 +158,7 @@ export default function CompanySettingsPage() {
   };
 
   const canEditCompanyTab = (tabPermissionBase: string) => {
-    if (isSuperAdmin) return true;
+    if (hasPrivilegedCompanySettingsAccess) return true;
     const editKey = `${tabPermissionBase}-edit`;
     if (typeof permissions[editKey] === 'boolean') {
       return hasAccess(editKey);
@@ -177,7 +180,7 @@ export default function CompanySettingsPage() {
   ].filter((tab) => canAccessCompanyTab(tab.permissionKey));
 
   const canAccessJobsSubtab = (permissionKey: string) => {
-    if (isSuperAdmin) return true;
+    if (hasPrivilegedCompanySettingsAccess) return true;
     if (typeof permissions[`${permissionKey}-view`] === 'boolean') {
       return hasAccess(`${permissionKey}-view`);
     }
@@ -188,7 +191,7 @@ export default function CompanySettingsPage() {
   };
 
   const canEditJobsSubtab = (permissionKey: string) => {
-    if (isSuperAdmin) return true;
+    if (hasPrivilegedCompanySettingsAccess) return true;
     if (typeof permissions[`${permissionKey}-edit`] === 'boolean') {
       return hasAccess(`${permissionKey}-edit`);
     }

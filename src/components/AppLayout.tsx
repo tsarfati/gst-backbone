@@ -995,10 +995,6 @@ export default function Layout() {
     await signOut();
   };
 
-  if (currentCompany?.id && settingsLoading) {
-    return <PremiumLoadingScreen />;
-  }
-
   return (
     <SidebarProvider>
       <div className="flex h-screen w-full overflow-hidden">

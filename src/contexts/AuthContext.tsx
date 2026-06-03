@@ -57,6 +57,30 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const LOGOUT_IN_PROGRESS_KEY = 'builderlynk_logout_in_progress';
+  const buildFallbackProfile = (authUser: User) => {
+    const metadata = (authUser.user_metadata || {}) as Record<string, any>;
+    return {
+      user_id: authUser.id,
+      email: authUser.email || null,
+      first_name: metadata.first_name || metadata.firstName || null,
+      last_name: metadata.last_name || metadata.lastName || null,
+      display_name:
+        metadata.display_name ||
+        metadata.full_name ||
+        [metadata.first_name || metadata.firstName, metadata.last_name || metadata.lastName]
+          .filter(Boolean)
+          .join(' ')
+          .trim() ||
+        authUser.email ||
+        null,
+      phone: metadata.phone || null,
+      role: metadata.role || null,
+      status: 'active',
+      profile_completed: Boolean(metadata.profile_completed),
+      current_company_id: null,
+      avatar_url: metadata.avatar_url || null,
+    };
+  };
 
   const logLoginAttempt = async (userId: string, success: boolean, method: string) => {
     try {
@@ -138,15 +162,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
                 await logLoginAttempt(session.user.id, true, method);
               }
               
-              const { data: profileData } = await supabase
+              const { data: profileData, error: profileError } = await supabase
                 .from('profiles')
                 .select('*')
                 .eq('user_id', session.user.id)
-                .single();
-              setProfile(profileData);
+                .maybeSingle();
+              if (profileError) {
+                console.error('Error fetching profile:', profileError);
+                setProfile(buildFallbackProfile(session.user));
+                return;
+              }
+              setProfile(profileData || buildFallbackProfile(session.user));
             } catch (error) {
               console.error('Error fetching profile:', error);
-              setProfile(null);
+              setProfile(buildFallbackProfile(session.user));
             }
           }, 0);
         } else {
@@ -167,15 +196,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         // Fetch user profile for existing session
         setTimeout(async () => {
           try {
-            const { data: profileData } = await supabase
+            const { data: profileData, error: profileError } = await supabase
               .from('profiles')
               .select('*')
               .eq('user_id', session.user.id)
-              .single();
-            setProfile(profileData);
+              .maybeSingle();
+            if (profileError) {
+              console.error('Error fetching profile:', profileError);
+              setProfile(buildFallbackProfile(session.user));
+              return;
+            }
+            setProfile(profileData || buildFallbackProfile(session.user));
           } catch (error) {
             console.error('Error fetching profile:', error);
-            setProfile(null);
+            setProfile(buildFallbackProfile(session.user));
           }
         }, 0);
       } else {
@@ -187,6 +221,34 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     return () => subscription.unsubscribe();
   }, []);
 
+  useEffect(() => {
+    if (!loading) return;
+
+    const timeoutId = window.setTimeout(async () => {
+      try {
+        const { data: { session: fallbackSession } } = await supabase.auth.getSession();
+        if (fallbackSession?.user) {
+          setSession(fallbackSession);
+          setUser(fallbackSession.user);
+          setProfile((prev) => prev || buildFallbackProfile(fallbackSession.user));
+        } else {
+          setSession(null);
+          setUser(null);
+          setProfile(null);
+        }
+      } catch (error) {
+        console.error('Auth watchdog failed to recover session state:', error);
+        setSession(null);
+        setUser(null);
+        setProfile(null);
+      } finally {
+        setLoading(false);
+      }
+    }, 4000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loading]);
+
   const signIn = async (email: string, password: string) => {
     const normalizedEmail = email.trim().toLowerCase();
     const normalizedPassword = password;
@@ -194,6 +256,13 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       email: normalizedEmail,
       password: normalizedPassword,
     });
+
+    if (data?.session) {
+      setSession(data.session);
+      setUser(data.user);
+      setProfile((prev) => prev || buildFallbackProfile(data.user));
+      setLoading(false);
+    }
     
     // Log login attempt only on actual sign-in action
     if (data?.user) {
@@ -268,20 +337,29 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     setSession(null);
     setProfile(null);
     await supabase.auth.signOut();
-    navigate(redirectTo || '/', { replace: true });
+    const safeRedirectTo = typeof redirectTo === 'string' && redirectTo.trim().length > 0
+      ? redirectTo
+      : '/';
+    navigate(safeRedirectTo, { replace: true });
   };
 
   const refreshProfile = async () => {
     if (!user) return;
     try {
-      const { data: profileData } = await supabase
+      const { data: profileData, error: profileError } = await supabase
         .from('profiles')
         .select('*')
         .eq('user_id', user.id)
-        .single();
-      setProfile(profileData);
+        .maybeSingle();
+      if (profileError) {
+        console.error('Error refreshing profile:', profileError);
+        setProfile(buildFallbackProfile(user));
+        return;
+      }
+      setProfile(profileData || buildFallbackProfile(user));
     } catch (error) {
       console.error('Error refreshing profile:', error);
+      setProfile(buildFallbackProfile(user));
     }
   };
 
@@ -297,6 +375,20 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
     refreshProfile,
     setProfile,
   };
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as any).__builderAuthDebug = {
+      loading,
+      userId: user?.id || null,
+      userEmail: user?.email || null,
+      hasSession: !!session,
+      profileUserId: profile?.user_id || null,
+      profileRole: profile?.role || null,
+      profileCompleted: profile?.profile_completed ?? null,
+      currentCompanyId: profile?.current_company_id || null,
+    };
+  }, [loading, user?.id, user?.email, session, profile?.user_id, profile?.role, profile?.profile_completed, profile?.current_company_id]);
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
 }

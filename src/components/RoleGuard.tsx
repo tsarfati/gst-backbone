@@ -23,7 +23,7 @@ export function RoleGuard({
   redirectTo = '/'
 }: RoleGuardProps) {
   const { profile, loading, user } = useAuth();
-  const { isSuperAdmin } = useTenant();
+  const { isSuperAdmin, tenantMember } = useTenant();
   const activeCompanyRole = useActiveCompanyRole();
   const { currentCompany, userCompanies, loading: companyLoading } = useCompany();
   const [resolvedExternalRole, setResolvedExternalRole] = React.useState<'vendor' | 'design_professional' | null>(null);
@@ -34,11 +34,34 @@ export function RoleGuard({
     return r.length ? r : null;
   };
 
-  const profileRole = normalizeRole(profile?.role);
-  const activeRole = normalizeRole(activeCompanyRole);
+  const canonicalizeRole = (role?: string | null) => {
+    const normalized = normalizeRole(role);
+    if (!normalized) return null;
+    if (normalized === 'owner') return 'admin';
+    return normalized;
+  };
+
+  const profileRole = canonicalizeRole(profile?.role);
+  const activeRole = canonicalizeRole(activeCompanyRole);
   const authMetadata = (user?.user_metadata || {}) as Record<string, any>;
   const currentCompanyType = normalizeRole(String(currentCompany?.company_type || ''));
-  const singleCompanyAccessRole = userCompanies.length === 1 ? normalizeRole(userCompanies[0]?.role) : null;
+  const singleCompanyAccessRole = userCompanies.length === 1 ? canonicalizeRole(userCompanies[0]?.role) : null;
+  const fallbackInternalCompanyRole = React.useMemo(() => {
+    const currentCompanyId = currentCompany?.id ?? profile?.current_company_id ?? null;
+    const preferredAccess = currentCompanyId
+      ? userCompanies.find((company) => company.company_id === currentCompanyId)
+      : null;
+    const preferredRole = canonicalizeRole(preferredAccess?.role);
+    if (preferredRole && preferredRole !== 'vendor' && preferredRole !== 'design_professional') {
+      return preferredRole;
+    }
+
+    const firstInternalRole = userCompanies
+      .map((company) => canonicalizeRole(company.role))
+      .find((role) => role && role !== 'vendor' && role !== 'design_professional');
+
+    return firstInternalRole || null;
+  }, [currentCompany?.id, profile?.current_company_id, userCompanies]);
   const hasVendorIdentity =
     !!(profile as any)?.vendor_id ||
     !!authMetadata.vendor_id ||
@@ -183,11 +206,6 @@ export function RoleGuard({
     return <>{children}</>;
   }
 
-  // If profile is not loaded yet, show loading
-  if (!profile) {
-    return <PremiumLoadingScreen text="Loading your profile..." />;
-  }
-
   if (resolvingExternalRole) {
     return <PremiumLoadingScreen text="Loading your access..." />;
   }
@@ -196,13 +214,22 @@ export function RoleGuard({
   const effectiveRole =
     resolvedExternalRole === 'vendor' || resolvedExternalRole === 'design_professional'
       ? resolvedExternalRole
-      : normalizeRole(activeRole || profileRole);
+      : canonicalizeRole(
+          activeRole ||
+          profileRole ||
+          fallbackInternalCompanyRole ||
+          (tenantMember?.role === 'owner' || tenantMember?.role === 'admin'
+            ? 'admin'
+            : tenantMember?.role === 'member'
+              ? 'employee'
+              : null),
+        );
   const normalizedAllowedRoles = allowedRoles.map((r) => r.trim().toLowerCase());
 
   // Debug logging for development only
   if (import.meta.env.DEV) {
     console.log('RoleGuard - Active company role:', activeCompanyRole);
-    console.log('RoleGuard - Profile role:', profile.role);
+    console.log('RoleGuard - Profile role:', profile?.role);
     console.log('RoleGuard - Effective role:', effectiveRole);
     console.log('RoleGuard - Allowed roles:', normalizedAllowedRoles);
     console.log('RoleGuard - Has access:', !!effectiveRole && normalizedAllowedRoles.includes(effectiveRole));
@@ -210,6 +237,21 @@ export function RoleGuard({
 
   // If user role is not in allowed roles, redirect
   if (!effectiveRole || !normalizedAllowedRoles.includes(effectiveRole)) {
+    const hasWorkspaceContext = !!currentCompany?.id || userCompanies.length > 0 || !!tenantMember;
+    if (!effectiveRole && hasWorkspaceContext) {
+      if (import.meta.env.DEV) {
+        console.warn('RoleGuard fallback allow due to workspace context without resolved role', {
+          currentCompanyId: currentCompany?.id || null,
+          userCompanies: userCompanies.map((company) => ({
+            company_id: company.company_id,
+            role: company.role,
+          })),
+          profileRole,
+          activeRole,
+        });
+      }
+      return <>{children}</>;
+    }
     if (import.meta.env.DEV) {
       console.warn('Access denied - Effective role:', effectiveRole, 'Allowed roles:', normalizedAllowedRoles);
     }

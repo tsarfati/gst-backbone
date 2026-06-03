@@ -161,6 +161,17 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [user?.id]);
 
+  useEffect(() => {
+    if (!loading) return;
+
+    const timeoutId = window.setTimeout(() => {
+      console.warn('TenantContext watchdog cleared a stuck tenant loading state.');
+      setLoading(false);
+    }, 4000);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [loading]);
+
   const value = {
     currentTenant,
     tenantMember,
@@ -173,6 +184,19 @@ export const TenantProvider: React.FC<TenantProviderProps> = ({ children }) => {
     pendingRequest,
     refreshTenant
   };
+
+  useEffect(() => {
+    if (!import.meta.env.DEV) return;
+    (window as any).__builderTenantDebug = {
+      loading,
+      isSuperAdmin,
+      hasTenantAccess: !!currentTenant,
+      tenantId: currentTenant?.id || null,
+      tenantRole: tenantMember?.role || null,
+      hasPendingRequest,
+      pendingRequestId: pendingRequest?.id || null,
+    };
+  }, [loading, isSuperAdmin, currentTenant?.id, tenantMember?.role, hasPendingRequest, pendingRequest?.id]);
 
   return (
     <TenantContext.Provider value={value}>

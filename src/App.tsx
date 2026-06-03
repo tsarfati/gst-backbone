@@ -25,6 +25,8 @@ import ContactPage from "@/pages/ContactPage";
 import PunchClockLynkLanding from "@/pages/PunchClockLynkLanding";
 import PMLynkLanding from "@/pages/PMLynkLanding";
 import DesignProLynkLanding from "@/pages/DesignProLynkLanding";
+import VisitorLynkLanding from "@/pages/VisitorLynkLanding";
+import VisitorLynkStart from "@/pages/VisitorLynkStart";
 import PrivacyPolicy from "@/pages/PrivacyPolicy";
 import DemoRequest from "@/pages/DemoRequest";
 import TaskDetails from "@/pages/TaskDetails";
@@ -218,7 +220,7 @@ function ProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, loading } = useAuth();
   
   if (loading) {
-    return <PremiumLoadingScreen />;
+    return <PremiumLoadingScreen text="Authenticating your session..." />;
   }
   
   if (!user) {
@@ -424,16 +426,19 @@ function DashboardEntryRoute() {
 function OrganizationOwnerRoute({ children }: { children: React.ReactNode }) {
   const { tenantMember, isSuperAdmin, loading } = useTenant();
   const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess(['organization_management']);
+  const tenantRole = String(tenantMember?.role || '').trim().toLowerCase();
+  const hasOrganizationAdminAccess =
+    isSuperAdmin || tenantRole === 'owner' || tenantRole === 'admin';
 
   if (loading || featureLoading) {
-    return <PremiumLoadingScreen />;
+    return <PremiumLoadingScreen text="Loading organization access..." />;
   }
 
-  if (!isSuperAdmin && tenantMember?.role !== 'owner') {
+  if (!hasOrganizationAdminAccess) {
     return <Navigate to="/settings/company" replace />;
   }
 
-  if (!hasFeature('organization_management')) {
+  if (!hasFeature('organization_management') && !hasOrganizationAdminAccess) {
     return <Navigate to="/settings/company" replace />;
   }
 
@@ -444,7 +449,7 @@ function CompanyOwnerOnlyRoute({ children }: { children: React.ReactNode }) {
   const { tenantMember, isSuperAdmin, loading } = useTenant();
 
   if (loading) {
-    return <PremiumLoadingScreen />;
+    return <PremiumLoadingScreen text="Loading company ownership..." />;
   }
 
   if (!isSuperAdmin && tenantMember?.role !== 'owner') {
@@ -458,7 +463,7 @@ function PunchClockFeatureRoute({ children }: { children: React.ReactNode }) {
   const { hasFeature, loading } = useCompanyFeatureAccess(['punch_clock_app']);
 
   if (loading) {
-    return <PremiumLoadingScreen />;
+    return <PremiumLoadingScreen text="Loading Punch Clock access..." />;
   }
 
   if (!hasFeature('punch_clock_app')) {
@@ -472,7 +477,7 @@ function PMLynkFeatureRoute({ children }: { children: React.ReactNode }) {
   const { hasFeature, loading } = useCompanyFeatureAccess(['pm_lynk']);
 
   if (loading) {
-    return <PremiumLoadingScreen />;
+    return <PremiumLoadingScreen text="Loading PM LYNK access..." />;
   }
 
   if (!hasFeature('pm_lynk')) {
@@ -496,7 +501,7 @@ function MenuPermissionRoute({
   const { hasAccess, loading } = useMenuPermissions();
 
   if (loading) {
-    return <PremiumLoadingScreen />;
+    return <PremiumLoadingScreen text="Loading menu access..." />;
   }
 
   if (!hasAccess(menuKey) && !fallbackMenuKeys.some((key) => hasAccess(key))) {
@@ -517,7 +522,7 @@ function CompanyTypeRoute({
   const { isSuperAdmin } = useTenant();
 
   if (loading) {
-    return <PremiumLoadingScreen />;
+    return <PremiumLoadingScreen text="Loading company type..." />;
   }
 
   if (isSuperAdmin) {
@@ -540,44 +545,31 @@ function CompanyTypeRoute({
 
 function PublicRoutes() {
   return (
-    <AuthProvider>
-      <TenantProvider>
-        <CompanyProvider>
-          <SettingsProvider>
-            <ReceiptProvider>
-              <Routes>
-                <Route path="/" element={<LandingPage />} />
-                <Route path="/contact" element={<ContactPage />} />
-                <Route path="/punch-clock-lynk" element={<PunchClockLynkLanding />} />
-                <Route path="/pm-lynk" element={<PMLynkLanding />} />
-                <Route path="/design-pro-lynk" element={<DesignProLynkLanding />} />
-                <Route path="/privacy" element={<PrivacyPolicy />} />
-                <Route path="/demo" element={<DemoRequest />} />
-                <Route path="/auth" element={<Auth />} />
-                <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
-                <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
-                <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
-                <Route path="/vendor-register" element={<VendorRegister />} />
-                <Route path="/vendor-signup" element={<VendorSignup />} />
-                <Route path="/vendor-login" element={<VendorLogin />} />
-                <Route path="/design-professional-signup" element={<DesignProfessionalSignup />} />
-                <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
-              </Routes>
-            </ReceiptProvider>
-          </SettingsProvider>
-        </CompanyProvider>
-      </TenantProvider>
-    </AuthProvider>
+    <Routes>
+      <Route path="/" element={<LandingPage />} />
+      <Route path="/contact" element={<ContactPage />} />
+      <Route path="/punch-clock-lynk" element={<PunchClockLynkLanding />} />
+      <Route path="/pm-lynk" element={<PMLynkLanding />} />
+      <Route path="/design-pro-lynk" element={<DesignProLynkLanding />} />
+      <Route path="/visitor-lynk" element={<VisitorLynkLanding />} />
+      <Route path="/visitor-lynk/start" element={<VisitorLynkStart />} />
+      <Route path="/privacy" element={<PrivacyPolicy />} />
+      <Route path="/demo" element={<DemoRequest />} />
+      <Route path="/auth" element={<Auth />} />
+      <Route path="/employee-dashboard" element={<EmployeeDashboard />} />
+      <Route path="/visitor/:qrCode" element={<VisitorLogin />} />
+      <Route path="/visitor/checkout/:token" element={<VisitorCheckout />} />
+      <Route path="/vendor-register" element={<VendorRegister />} />
+      <Route path="/vendor-signup" element={<VendorSignup />} />
+      <Route path="/vendor-login" element={<VendorLogin />} />
+      <Route path="/design-professional-signup" element={<DesignProfessionalSignup />} />
+      <Route path="/jobs/:id/visitor-logs/*" element={<JobVisitorLogs />} />
+    </Routes>
   );
 }
 
 function AuthenticatedRoutes() {
   return (
-    <AuthProvider>
-      <TenantProvider>
-        <CompanyProvider>
-          <SettingsProvider>
-            <ReceiptProvider>
               <Routes>
               <Route path="/profile-completion" element={
                 <ProtectedRoute>
@@ -1235,8 +1227,19 @@ function AuthenticatedRoutes() {
                 </AccessControl>
               </ProtectedRoute>
             } />
-            <Route path="*" element={<NotFound />} />
+              <Route path="*" element={<NotFound />} />
             </Routes>
+  );
+}
+
+function AppProviders({ children }: { children: React.ReactNode }) {
+  return (
+    <AuthProvider>
+      <TenantProvider>
+        <CompanyProvider>
+          <SettingsProvider>
+            <ReceiptProvider>
+              {children}
             </ReceiptProvider>
           </SettingsProvider>
         </CompanyProvider>
@@ -1264,12 +1267,16 @@ function AppRoutes() {
   // Landing/auth pages are public and should never show the mobile warning modal.
   const publicExactPaths = [
     '/',
+    '/contact',
+    '/demo',
     '/auth',
     '/privacy',
     '/employee-dashboard',
     '/punch-clock-lynk',
     '/pm-lynk',
     '/design-pro-lynk',
+    '/visitor-lynk',
+    '/visitor-lynk/start',
     '/vendor-register',
     '/vendor-signup',
     '/vendor-login',
@@ -1317,32 +1324,34 @@ function AppRoutes() {
     return () => window.removeEventListener("resize", evaluate);
   }, [isPublicRoute, isDashboardRoute, hasDismissedMobileWarning]);
   
-  if (isPublicRoute) {
-    return <PublicRoutes />;
-  }
-  
   return (
-    <>
-      <Dialog open={showMobileWarning} onOpenChange={setShowMobileWarning}>
-        <DialogContent>
-          <DialogHeader>
-            <DialogTitle>Using BuilderLynk on a Phone</DialogTitle>
-            <DialogDescription>
-              This web app is optimized for desktop. For the best phone experience and faster job management, use PM Lynk on iOS or Android.
-            </DialogDescription>
-          </DialogHeader>
-          <DialogFooter>
-            <Button variant="outline" onClick={handleContinueOnWeb}>
-              Continue on Web
-            </Button>
-            <Button onClick={() => (window.location.href = "/pm-lynk")}>
-              Go to PM Lynk
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
-      <AuthenticatedRoutes />
-    </>
+    <AppProviders>
+      {isPublicRoute ? (
+        <PublicRoutes />
+      ) : (
+        <>
+          <Dialog open={showMobileWarning} onOpenChange={setShowMobileWarning}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Using BuilderLynk on a Phone</DialogTitle>
+                <DialogDescription>
+                  This web app is optimized for desktop. For the best phone experience and faster job management, use PM Lynk on iOS or Android.
+                </DialogDescription>
+              </DialogHeader>
+              <DialogFooter>
+                <Button variant="outline" onClick={handleContinueOnWeb}>
+                  Continue on Web
+                </Button>
+                <Button onClick={() => (window.location.href = "/pm-lynk")}>
+                  Go to PM Lynk
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+          <AuthenticatedRoutes />
+        </>
+      )}
+    </AppProviders>
   );
 }
 
