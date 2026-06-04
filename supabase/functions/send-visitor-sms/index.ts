@@ -21,6 +21,21 @@ interface ResolvedSmsProviderSettings {
   source: "company" | "builderlynk-default";
 }
 
+const normalizePhoneNumber = (value: string): string => {
+  const trimmed = (value || "").trim();
+  if (!trimmed) return "";
+
+  if (trimmed.startsWith("+")) {
+    const normalized = `+${trimmed.slice(1).replace(/\D/g, "")}`;
+    return normalized.length > 1 ? normalized : "";
+  }
+
+  const digits = trimmed.replace(/\D/g, "");
+  if (digits.length === 10) return `+1${digits}`;
+  if (digits.length === 11 && digits.startsWith("1")) return `+${digits}`;
+  return digits ? `+${digits}` : "";
+};
+
 const getEnvFirst = (...keys: string[]) => {
   for (const key of keys) {
     const value = Deno.env.get(key)?.trim();
@@ -75,6 +90,7 @@ const handler = async (req: Request): Promise<Response> => {
     );
 
     const { visitor_log_id, phone_number, job_id, base_url }: SMSRequest = await req.json();
+    const normalizedPhoneNumber = normalizePhoneNumber(phone_number);
 
     console.log("Processing SMS request for visitor:", visitor_log_id);
 
@@ -123,7 +139,27 @@ const handler = async (req: Request): Promise<Response> => {
     if (!providerSettings) {
       console.log("SMS is not configured for this company and no BuilderLYNK default SMS account is available");
       return new Response(
-        JSON.stringify({ message: "SMS is not configured" }),
+        JSON.stringify({
+          message: "SMS is not configured",
+          diagnostics: {
+            company_id: companyId,
+            company_sms_enabled: smsSettings?.sms_enabled === true,
+            company_provider: smsSettings?.provider || null,
+            fallback_account_sid_present: !!getEnvFirst("BUILDERLYNK_TWILIO_ACCOUNT_SID", "TWILIO_ACCOUNT_SID"),
+            fallback_auth_token_present: !!getEnvFirst("BUILDERLYNK_TWILIO_AUTH_TOKEN", "TWILIO_AUTH_TOKEN"),
+            fallback_phone_present: !!getEnvFirst("BUILDERLYNK_TWILIO_PHONE_NUMBER", "TWILIO_PHONE_NUMBER"),
+          },
+        }),
+        {
+          status: 200,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        }
+      );
+    }
+
+    if (!normalizedPhoneNumber) {
+      return new Response(
+        JSON.stringify({ message: "Invalid phone number format" }),
         {
           status: 200,
           headers: { "Content-Type": "application/json", ...corsHeaders },
@@ -171,7 +207,7 @@ const handler = async (req: Request): Promise<Response> => {
       const twilioUrl = `https://api.twilio.com/2010-04-01/Accounts/${providerSettings.accountSid}/Messages.json`;
       
       const formData = new URLSearchParams();
-      formData.append('To', phone_number);
+      formData.append('To', normalizedPhoneNumber);
       formData.append('From', providerSettings.phoneNumber);
       formData.append('Body', message);
 
@@ -199,6 +235,7 @@ const handler = async (req: Request): Promise<Response> => {
           message: "SMS sent successfully",
           sid: twilioResult.sid,
           provider_source: providerSettings.source,
+          normalized_phone_number: normalizedPhoneNumber,
         }),
         {
           status: 200,
@@ -206,14 +243,14 @@ const handler = async (req: Request): Promise<Response> => {
         }
       );
     } else {
-      console.log("Would send SMS to:", phone_number);
+      console.log("Would send SMS to:", normalizedPhoneNumber);
       console.log("Message:", message);
       
       return new Response(
         JSON.stringify({ 
           success: true, 
           message: "SMS provider not configured",
-          preview: { phone_number, message }
+          preview: { phone_number: normalizedPhoneNumber, message }
         }),
         {
           status: 200,

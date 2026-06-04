@@ -8,7 +8,7 @@ import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Textarea } from '@/components/ui/textarea';
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil, ExternalLink, Upload, Minus, RotateCcw } from 'lucide-react';
+import { Camera, Trash2, X, FolderPlus, MapPin, MessageSquare, Send, CheckSquare, Square, Plus, Pencil, ExternalLink, Upload, Minus, RotateCcw, Mail, Download, Link2 } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
@@ -25,6 +25,7 @@ import { ChevronDown, Star } from 'lucide-react';
 import { createMentionNotifications } from '@/utils/mentions';
 import MentionInput from '@/components/MentionInput';
 import jobSiteLynkLogo from '@/assets/jobsitelynk-logo.png';
+import FileShareModal from '@/components/FileShareModal';
 
 interface JobPhoto {
   id: string;
@@ -74,6 +75,13 @@ interface PhotoComment {
     last_name?: string;
     avatar_url?: string;
   };
+}
+
+interface ShareablePhotoFile {
+  id: string;
+  file_name: string;
+  file_url: string;
+  file_size: number | null;
 }
 
 type PhotoUploaderProfile = {
@@ -333,6 +341,7 @@ export default function JobPhotoAlbum({
   const [savingRotation, setSavingRotation] = useState(false);
   const [isSmallScreen, setIsSmallScreen] = useState(false);
   const [showImageControls, setShowImageControls] = useState(true);
+  const [shareFiles, setShareFiles] = useState<ShareablePhotoFile[]>([]);
 
   const hydratePhotoProfiles = useCallback(async (rows: JobPhoto[]) => {
     const missingProfileRows = rows.filter((row) => {
@@ -1103,6 +1112,118 @@ export default function JobPhotoAlbum({
     }
   };
 
+  const getSelectedPhotoRows = useCallback(() => {
+    if (selectedPhotos.size === 0) return [] as JobPhoto[];
+    return photos.filter((photo) => selectedPhotos.has(photo.id));
+  }, [photos, selectedPhotos]);
+
+  const getPhotoFileName = useCallback((photo: JobPhoto) => {
+    const normalizedPath = normalizePunchPhotoPath(photo.photo_url);
+    const fromPath = normalizedPath.split('/').filter(Boolean).pop();
+    if (fromPath) return fromPath;
+    const timestamp = Number.isNaN(new Date(photo.created_at).getTime())
+      ? photo.id
+      : format(new Date(photo.created_at), 'yyyyMMdd-HHmmss');
+    return `job-photo-${timestamp}.jpg`;
+  }, []);
+
+  const toShareablePhotoFile = useCallback((photo: JobPhoto): ShareablePhotoFile => ({
+    id: photo.id,
+    file_name: getPhotoFileName(photo),
+    file_url: normalizePunchPhotoPath(photo.photo_url),
+    file_size: null,
+  }), [getPhotoFileName]);
+
+  const handleBulkShareByEmail = useCallback(() => {
+    const selectedRows = getSelectedPhotoRows();
+    if (selectedRows.length === 0) return;
+    setShareFiles(selectedRows.map(toShareablePhotoFile));
+  }, [getSelectedPhotoRows, toShareablePhotoFile]);
+
+  const handleBulkDownload = useCallback(async () => {
+    const selectedRows = getSelectedPhotoRows();
+    if (selectedRows.length === 0) return;
+
+    try {
+      const JSZip = (await import('jszip')).default;
+      const zip = new JSZip();
+
+      for (const photo of selectedRows) {
+        const filePath = normalizePunchPhotoPath(photo.photo_url);
+        const { data, error } = await supabase.storage
+          .from('punch-photos')
+          .createSignedUrl(filePath, 300);
+
+        if (error || !data?.signedUrl) {
+          throw error || new Error(`Failed to create download link for ${getPhotoFileName(photo)}`);
+        }
+
+        const response = await fetch(data.signedUrl);
+        if (!response.ok) {
+          throw new Error(`Failed to fetch ${getPhotoFileName(photo)}`);
+        }
+
+        zip.file(getPhotoFileName(photo), await response.blob());
+      }
+
+      const blob = await zip.generateAsync({ type: 'blob' });
+      const link = document.createElement('a');
+      link.href = URL.createObjectURL(blob);
+      link.download = `job-photos-${selectedRows.length}-${format(new Date(), 'yyyyMMdd-HHmm')}.zip`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(link.href);
+
+      toast({
+        title: 'Download ready',
+        description: `${selectedRows.length} photo(s) were packaged into a zip download.`,
+      });
+    } catch (error) {
+      console.error('Error downloading selected photos:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to download selected photos',
+        variant: 'destructive',
+      });
+    }
+  }, [getPhotoFileName, getSelectedPhotoRows, toast]);
+
+  const handleCopyDownloadLinks = useCallback(async () => {
+    const selectedRows = getSelectedPhotoRows();
+    if (selectedRows.length === 0) return;
+
+    try {
+      const linkRows = await Promise.all(
+        selectedRows.map(async (photo) => {
+          const filePath = normalizePunchPhotoPath(photo.photo_url);
+          const { data, error } = await supabase.storage
+            .from('punch-photos')
+            .createSignedUrl(filePath, 60 * 60 * 24 * 7);
+
+          if (error || !data?.signedUrl) {
+            throw error || new Error(`Failed to create share link for ${getPhotoFileName(photo)}`);
+          }
+
+          return `${getPhotoFileName(photo)}: ${data.signedUrl}`;
+        })
+      );
+
+      await navigator.clipboard.writeText(linkRows.join('\n'));
+      toast({
+        title: 'Links copied',
+        description: `${selectedRows.length} secure download link(s) copied to your clipboard.`,
+      });
+    } catch (error) {
+      console.error('Error copying photo links:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to copy download links',
+        variant: 'destructive',
+      });
+    }
+  }, [getPhotoFileName, getSelectedPhotoRows, toast]);
+
   const handleAddToAlbum = async () => {
     if (selectedPhotos.size === 0) return;
 
@@ -1730,6 +1851,18 @@ export default function JobPhotoAlbum({
               {selectedPhotos.size} photo(s) selected
             </span>
             <div className="flex gap-2">
+              <Button variant="outline" onClick={() => void handleBulkDownload()}>
+                <Download className="h-4 w-4 mr-2" />
+                Download Selected
+              </Button>
+              <Button variant="outline" onClick={() => void handleCopyDownloadLinks()}>
+                <Link2 className="h-4 w-4 mr-2" />
+                Copy Download Links
+              </Button>
+              <Button variant="outline" onClick={handleBulkShareByEmail}>
+                <Mail className="h-4 w-4 mr-2" />
+                Share by Email
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => {
@@ -2466,6 +2599,16 @@ export default function JobPhotoAlbum({
           </div>
         </DialogContent>
       </Dialog>
+
+      <FileShareModal
+        open={shareFiles.length > 0}
+        onOpenChange={(open) => {
+          if (!open) setShareFiles([]);
+        }}
+        files={shareFiles}
+        jobId={jobId}
+        storageBucket="punch-photos"
+      />
 
       {/* Edit Album Dialog */}
       <Dialog open={showEditAlbumDialog} onOpenChange={setShowEditAlbumDialog}>

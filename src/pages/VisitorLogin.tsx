@@ -47,6 +47,8 @@ interface JobVisitorSettings {
   checkout_show_duration: boolean;
 }
 
+type SmsDeliveryStatus = 'idle' | 'sent' | 'disabled' | 'not-configured' | 'failed';
+
 export default function VisitorLogin() {
   const { qrCode } = useParams();
   const navigate = useNavigate();
@@ -65,6 +67,8 @@ export default function VisitorLogin() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [showConfirmation, setShowConfirmation] = useState(false);
+  const [showSmsNextStep, setShowSmsNextStep] = useState(false);
+  const [smsDeliveryStatus, setSmsDeliveryStatus] = useState<SmsDeliveryStatus>('idle');
   const [showCustomCompany, setShowCustomCompany] = useState(false);
   const [photoDataUrl, setPhotoDataUrl] = useState<string | null>(null);
   const [showCamera, setShowCamera] = useState(false);
@@ -116,6 +120,37 @@ export default function VisitorLogin() {
     // If already hsl(...) or hex or rgb/rgba, return as-is
     if (/^hsl\(/i.test(v) || /^#([0-9a-f]{3}|[0-9a-f]{6})$/i.test(v) || /^rgb\(/i.test(v)) return v;
     return v;
+  };
+
+  const normalizePhoneForSms = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return '';
+
+    if (trimmed.startsWith('+')) {
+      const normalized = `+${trimmed.slice(1).replace(/\D/g, '')}`;
+      return normalized.length > 1 ? normalized : '';
+    }
+
+    const digits = trimmed.replace(/\D/g, '');
+    if (digits.length === 10) return `+1${digits}`;
+    if (digits.length === 11 && digits.startsWith('1')) return `+${digits}`;
+    return digits ? `+${digits}` : '';
+  };
+
+  const resetVisitorForm = () => {
+    setFormData({
+      visitor_name: '',
+      visitor_phone: '',
+      company_name: '',
+      vendor_id: '',
+      purpose_of_visit: '',
+      notes: ''
+    });
+    setPhotoDataUrl(null);
+    setShowCustomCompany(false);
+    setCurrentVisitorLogId(null);
+    setShowSmsNextStep(false);
+    setSmsDeliveryStatus('idle');
   };
 
   const loadJobAndSettings = async () => {
@@ -346,6 +381,7 @@ export default function VisitorLogin() {
   const performCheckIn = async (overridePhotoData?: string) => {
     setSubmitting(true);
     try {
+      const normalizedVisitorPhone = normalizePhoneForSms(formData.visitor_phone);
       let photoUrl: string | null = null;
       const photoToUse = overridePhotoData ?? photoDataUrl;
 
@@ -370,7 +406,7 @@ export default function VisitorLogin() {
       const visitorLogData = {
         job_id: job!.id,
         visitor_name: formData.visitor_name.trim(),
-        visitor_phone: formData.visitor_phone.trim(),
+        visitor_phone: normalizedVisitorPhone || formData.visitor_phone.trim(),
         company_name: selectedSub ? selectedSub.vendor_name : formData.company_name.trim(),
         subcontractor_id: selectedSub ? selectedSub.id : null,
         purpose_of_visit: formData.purpose_of_visit.trim() || null,
@@ -395,18 +431,29 @@ export default function VisitorLogin() {
           const { data: smsResult, error: smsError } = await supabase.functions.invoke('send-visitor-sms', {
             body: {
               visitor_log_id: insertedLog.id,
-              phone_number: formData.visitor_phone.trim(),
+              phone_number: normalizedVisitorPhone || formData.visitor_phone.trim(),
               job_id: job!.id,
               base_url: window.location.origin,
             }
           });
           if (smsError) {
             console.error('Failed to send SMS:', smsError);
+            setSmsDeliveryStatus('failed');
           } else {
             console.log('Visitor SMS response:', smsResult);
+            if (smsResult?.success) {
+              setSmsDeliveryStatus('sent');
+            } else if (smsResult?.message === 'SMS on check-in not enabled') {
+              setSmsDeliveryStatus('disabled');
+            } else if (smsResult?.message === 'SMS is not configured') {
+              setSmsDeliveryStatus('not-configured');
+            } else {
+              setSmsDeliveryStatus('failed');
+            }
           }
         } catch (smsError) {
           console.error('Failed to send SMS:', smsError);
+          setSmsDeliveryStatus('failed');
           // Don't fail the check-in if SMS fails
         }
       }
@@ -441,6 +488,16 @@ export default function VisitorLogin() {
       toast({
         title: "Missing Information",
         description: "Please enter your name and phone number.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const normalizedPhone = normalizePhoneForSms(formData.visitor_phone);
+    if (!normalizedPhone) {
+      toast({
+        title: "Invalid Phone Number",
+        description: "Please enter a valid mobile number so we can text you your check-out link.",
         variant: "destructive",
       });
       return;
@@ -509,6 +566,41 @@ export default function VisitorLogin() {
   const textClass = settings?.text_color ? '' : (isDark ? 'text-white' : 'text-foreground');
   const textStyle = settings?.text_color ? { color: resolveColor(settings.text_color) } : {};
 
+  const smsNextStepCopy = (() => {
+    switch (smsDeliveryStatus) {
+      case 'sent':
+        return {
+          title: 'Check Your Text Messages',
+          body: 'You will receive a text message with your check-out link. When you leave the site, use that link to check out.',
+          tone: 'text-emerald-600',
+        };
+      case 'disabled':
+        return {
+          title: 'Checked In Successfully',
+          body: 'You are checked in, but this job is not currently set to text visitors a check-out link. Please ask site staff if you need help checking out later.',
+          tone: 'text-amber-600',
+        };
+      case 'not-configured':
+        return {
+          title: 'Checked In Successfully',
+          body: 'You are checked in, but texting is not configured for this job right now. Please ask site staff if you need a manual check-out option.',
+          tone: 'text-amber-600',
+        };
+      case 'failed':
+        return {
+          title: 'Checked In Successfully',
+          body: 'You are checked in, but we could not send your text message right now. Please ask site staff before you leave so they can help you check out.',
+          tone: 'text-amber-600',
+        };
+      default:
+        return {
+          title: 'Checked In Successfully',
+          body: 'Your visit was recorded successfully.',
+          tone: 'text-green-600',
+        };
+    }
+  })();
+
   return (
     <div 
       className="min-h-screen flex flex-col"
@@ -546,6 +638,30 @@ export default function VisitorLogin() {
           </CardHeader>
 
           <CardContent>
+            {showSmsNextStep ? (
+              <div className="space-y-5 text-center">
+                <div className="space-y-2">
+                  <div className="text-4xl">📱</div>
+                  <h2 className={`text-xl font-semibold ${smsNextStepCopy.tone}`}>{smsNextStepCopy.title}</h2>
+                  <p className="text-sm text-muted-foreground">
+                    {smsNextStepCopy.body}
+                  </p>
+                </div>
+                <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
+                  Job: <span className="font-medium text-foreground">{job.name}</span>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  className="w-full"
+                  onClick={() => {
+                    resetVisitorForm();
+                  }}
+                >
+                  Back to Check-In
+                </Button>
+              </div>
+            ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
               {/* Visitor Name */}
               <div className="space-y-2">
@@ -703,6 +819,7 @@ export default function VisitorLogin() {
                 )}
               </Button>
             </form>
+            )}
           </CardContent>
         </Card>
       </div>
@@ -771,7 +888,7 @@ export default function VisitorLogin() {
                 className="w-full"
                 onClick={() => {
                   setShowConfirmation(false);
-                  resetVisitorForm();
+                  setShowSmsNextStep(true);
                 }}
               >
                 Continue
@@ -783,16 +900,3 @@ export default function VisitorLogin() {
     </div>
   );
 }
-  const resetVisitorForm = () => {
-    setFormData({
-      visitor_name: '',
-      visitor_phone: '',
-      company_name: '',
-      vendor_id: '',
-      purpose_of_visit: '',
-      notes: ''
-    });
-    setPhotoDataUrl(null);
-    setShowCustomCompany(false);
-    setCurrentVisitorLogId(null);
-  };

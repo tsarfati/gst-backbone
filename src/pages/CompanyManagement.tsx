@@ -114,6 +114,10 @@ export default function CompanyManagement() {
   const [showCompanyDetailDialog, setShowCompanyDetailDialog] = useState(false);
   const [selectedCompanyDetail, setSelectedCompanyDetail] = useState<OrganizationCompany | null>(null);
   const [showCreateCompanyDialog, setShowCreateCompanyDialog] = useState(false);
+  const [showDeleteCompanyDialog, setShowDeleteCompanyDialog] = useState(false);
+  const [companyPendingDeletion, setCompanyPendingDeletion] = useState<OrganizationCompany | null>(null);
+  const [deleteCompanyConfirmName, setDeleteCompanyConfirmName] = useState('');
+  const [deletingCompany, setDeletingCompany] = useState(false);
   const [showCompanyEmailDialog, setShowCompanyEmailDialog] = useState(false);
   const [selectedCompanyForEmail, setSelectedCompanyForEmail] = useState<OrganizationCompany | null>(null);
   const [loadingCompanyEmailSettings, setLoadingCompanyEmailSettings] = useState(false);
@@ -162,8 +166,9 @@ export default function CompanyManagement() {
 
   // Get current user's role in this company
   const currentUserCompany = userCompanies.find(uc => uc.company_id === currentCompany?.id);
-  const isCompanyAdmin = currentUserCompany?.role === 'admin' || currentUserCompany?.role === 'controller';
-  const isOwnerOrAdmin = currentUserCompany?.role === 'admin';
+  const normalizedCurrentUserRole = String(currentUserCompany?.role || '').toLowerCase();
+  const canManageOrganizationCompanies = ['owner', 'admin', 'company_admin', 'controller'].includes(normalizedCurrentUserRole);
+  const canDeleteOrganizationCompanies = ['owner', 'admin'].includes(normalizedCurrentUserRole);
 
   // Helper function to get user IDs that have access to a company
   const getCompanyUserIds = async (companyId: string): Promise<string[]> => {
@@ -639,6 +644,58 @@ export default function CompanyManagement() {
     }
   };
 
+  const openDeleteCompanyDialog = (company: OrganizationCompany) => {
+    setCompanyPendingDeletion(company);
+    setDeleteCompanyConfirmName('');
+    setShowDeleteCompanyDialog(true);
+  };
+
+  const handleDeleteCompany = async () => {
+    if (!companyPendingDeletion) return;
+
+    const requiredName = companyPendingDeletion.display_name || companyPendingDeletion.name || '';
+    if (deleteCompanyConfirmName.trim() !== requiredName) {
+      toast({
+        title: 'Confirmation does not match',
+        description: `Type "${requiredName}" exactly to remove this company.`,
+        variant: 'destructive',
+      });
+      return;
+    }
+
+    setDeletingCompany(true);
+    try {
+      const { error } = await supabase
+        .from('companies')
+        .update({ is_active: false } as any)
+        .eq('id', companyPendingDeletion.id);
+
+      if (error) throw error;
+
+      toast({
+        title: 'Company removed',
+        description: `${requiredName} was removed from this organization.`,
+      });
+
+      setShowDeleteCompanyDialog(false);
+      setShowCompanyDetailDialog(false);
+      setCompanyPendingDeletion(null);
+      setSelectedCompanyDetail(null);
+      setDeleteCompanyConfirmName('');
+      await refreshCompanies();
+      await fetchOrganizationCompanies();
+    } catch (error) {
+      console.error('Error deleting company:', error);
+      toast({
+        title: 'Error',
+        description: 'Failed to remove company from organization.',
+        variant: 'destructive',
+      });
+    } finally {
+      setDeletingCompany(false);
+    }
+  };
+
   const handleRemoveUser = async (userId: string) => {
     if (!currentCompany) return;
 
@@ -1069,7 +1126,16 @@ export default function CompanyManagement() {
                 </div>
               </div>
               <DialogFooter className="gap-2">
-                {isCompanyAdmin && (
+                {canDeleteOrganizationCompanies && (
+                  <Button
+                    variant="destructive"
+                    onClick={() => openDeleteCompanyDialog(selectedCompanyDetail)}
+                  >
+                    <Trash2 className="h-4 w-4 mr-2" />
+                    Delete Company
+                  </Button>
+                )}
+                {canManageOrganizationCompanies && (
                   <Button onClick={startEditFromDetail}>
                     <Edit className="h-4 w-4 mr-2" />
                     Edit Company
@@ -1078,6 +1144,59 @@ export default function CompanyManagement() {
               </DialogFooter>
             </div>
           )}
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={showDeleteCompanyDialog} onOpenChange={setShowDeleteCompanyDialog}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Delete Company</DialogTitle>
+            <DialogDescription>
+              This removes the company from the organization by marking it inactive. Type the company name exactly to confirm.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="rounded-lg border border-destructive/30 bg-destructive/5 p-3 text-sm">
+              <p className="font-medium text-destructive">Company to remove</p>
+              <p className="mt-1 text-foreground">
+                {companyPendingDeletion?.display_name || companyPendingDeletion?.name || '-'}
+              </p>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="delete-company-confirm">
+                Type <span className="font-medium">{companyPendingDeletion?.display_name || companyPendingDeletion?.name || 'the company name'}</span> to confirm
+              </Label>
+              <Input
+                id="delete-company-confirm"
+                value={deleteCompanyConfirmName}
+                onChange={(e) => setDeleteCompanyConfirmName(e.target.value)}
+                placeholder={companyPendingDeletion?.display_name || companyPendingDeletion?.name || ''}
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowDeleteCompanyDialog(false);
+                setCompanyPendingDeletion(null);
+                setDeleteCompanyConfirmName('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={handleDeleteCompany}
+              disabled={
+                deletingCompany ||
+                deleteCompanyConfirmName.trim() !== (companyPendingDeletion?.display_name || companyPendingDeletion?.name || '')
+              }
+            >
+              {deletingCompany ? <Loader2 className="h-4 w-4 mr-2 animate-spin" /> : <Trash2 className="h-4 w-4 mr-2" />}
+              Delete Company
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
 
