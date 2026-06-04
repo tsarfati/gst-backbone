@@ -769,57 +769,12 @@ export default function VisitorLogin() {
                 type="button"
                 variant="outline"
                 className="w-full"
-                onClick={() => setShowConfirmation(false)}
+                onClick={() => {
+                  setShowConfirmation(false);
+                  resetVisitorForm();
+                }}
               >
                 Continue
-              </Button>
-              <Button
-                type="button"
-                onClick={async () => {
-                  if (!currentVisitorLogId) return;
-                  
-                  try {
-                    const { error } = await supabase
-                      .from('visitor_logs')
-                      .update({ check_out_time: new Date().toISOString() })
-                      .eq('id', currentVisitorLogId);
-
-                    if (error) throw error;
-
-                    toast({
-                      title: "Checked Out",
-                      description: "You have been successfully checked out. Have a safe trip!",
-                    });
-
-                    setShowConfirmation(false);
-                    // Reset form
-                    setFormData({
-                      visitor_name: '',
-                      visitor_phone: '',
-                      company_name: '',
-                      vendor_id: '',
-                      purpose_of_visit: '',
-                      notes: ''
-                    });
-                    setPhotoDataUrl(null);
-                    setShowCustomCompany(false);
-                    setCurrentVisitorLogId(null);
-                  } catch (error) {
-                    console.error('Error checking out:', error);
-                    toast({
-                      title: "Checkout Failed",
-                      description: "Failed to check out. Please try again.",
-                      variant: "destructive",
-                    });
-                  }
-                }}
-                className="w-full"
-                style={{ 
-                  backgroundColor: resolveColor(settings?.button_color),
-                  borderColor: resolveColor(settings?.button_color) 
-                }}
-              >
-                Check Out Now
               </Button>
             </div>
           </div>
@@ -828,3 +783,16 @@ export default function VisitorLogin() {
     </div>
   );
 }
+  const resetVisitorForm = () => {
+    setFormData({
+      visitor_name: '',
+      visitor_phone: '',
+      company_name: '',
+      vendor_id: '',
+      purpose_of_visit: '',
+      notes: ''
+    });
+    setPhotoDataUrl(null);
+    setShowCustomCompany(false);
+    setCurrentVisitorLogId(null);
+  };
