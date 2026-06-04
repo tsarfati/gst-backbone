@@ -76,6 +76,7 @@ export default function VisitorLogin() {
   const [isInIframe, setIsInIframe] = useState(false);
   const [isSecure, setIsSecure] = useState(true);
   const [currentVisitorLogId, setCurrentVisitorLogId] = useState<string | null>(null);
+  const [currentCheckoutToken, setCurrentCheckoutToken] = useState<string | null>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const streamRef = useRef<MediaStream | null>(null);
@@ -149,6 +150,7 @@ export default function VisitorLogin() {
     setPhotoDataUrl(null);
     setShowCustomCompany(false);
     setCurrentVisitorLogId(null);
+    setCurrentCheckoutToken(null);
     setShowSmsNextStep(false);
     setSmsDeliveryStatus('idle');
   };
@@ -459,6 +461,7 @@ export default function VisitorLogin() {
       }
 
       setCurrentVisitorLogId(insertedLog.id);
+      setCurrentCheckoutToken(insertedLog.checkout_token || null);
       setShowConfirmation(true);
 
     } catch (error: any) {
@@ -571,25 +574,25 @@ export default function VisitorLogin() {
       case 'sent':
         return {
           title: 'Check Your Text Messages',
-          body: 'You will receive a text message with your check-out link. When you leave the site, use that link to check out.',
+          body: 'You will receive a text message with your check-out link. If you do not want to wait for the text, you can also open your check-out page below.',
           tone: 'text-emerald-600',
         };
       case 'disabled':
         return {
           title: 'Checked In Successfully',
-          body: 'You are checked in, but this job is not currently set to text visitors a check-out link. Please ask site staff if you need help checking out later.',
+          body: 'You are checked in. This job is not currently set to text visitors a check-out link, so use the check-out page below when you leave.',
           tone: 'text-amber-600',
         };
       case 'not-configured':
         return {
           title: 'Checked In Successfully',
-          body: 'You are checked in, but texting is not configured for this job right now. Please ask site staff if you need a manual check-out option.',
+          body: 'You are checked in. Texting is not configured for this job right now, so use the check-out page below when you leave.',
           tone: 'text-amber-600',
         };
       case 'failed':
         return {
           title: 'Checked In Successfully',
-          body: 'You are checked in, but we could not send your text message right now. Please ask site staff before you leave so they can help you check out.',
+          body: 'You are checked in, but we could not send your text message right now. Use the check-out page below when you leave.',
           tone: 'text-amber-600',
         };
       default:
@@ -650,6 +653,19 @@ export default function VisitorLogin() {
                 <div className="rounded-lg border bg-muted/30 p-3 text-sm text-muted-foreground">
                   Job: <span className="font-medium text-foreground">{job.name}</span>
                 </div>
+                {currentCheckoutToken && (
+                  <Button
+                    type="button"
+                    className="w-full"
+                    onClick={() => navigate(`/visitor/checkout/${currentCheckoutToken}`)}
+                    style={{
+                      backgroundColor: resolveColor(settings?.button_color),
+                      borderColor: resolveColor(settings?.button_color)
+                    }}
+                  >
+                    Click Here to Check Out
+                  </Button>
+                )}
                 <Button
                   type="button"
                   variant="outline"
