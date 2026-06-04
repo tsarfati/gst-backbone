@@ -5,6 +5,7 @@ import { Button } from '@/components/ui/button';
 import { Loader2, CheckCircle2, XCircle } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import builderlynkLogo from '@/assets/builderlynk-icon-shield.png';
 
 interface CheckoutSettings {
   checkout_title: string;
@@ -148,6 +149,13 @@ export default function VisitorCheckout() {
     return `${minutes} minute${minutes !== 1 ? 's' : ''}`;
   };
 
+  const PoweredByBuilderLynk = () => (
+    <div className="mt-6 flex items-center justify-center gap-2 border-t pt-4 text-xs text-muted-foreground">
+      <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain opacity-90" />
+      <span>Visitor check-in powered by BuilderLYNK</span>
+    </div>
+  );
+
   if (loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10">
@@ -197,6 +205,7 @@ export default function VisitorCheckout() {
                 Checked out at: {new Date(visitorLog.check_out_time).toLocaleString()}
               </p>
             </div>
+            <PoweredByBuilderLynk />
           </CardContent>
         </Card>
       </div>
@@ -252,6 +261,7 @@ export default function VisitorCheckout() {
           <p className="text-xs text-center text-muted-foreground">
             By checking out, you confirm you are leaving the job site.
           </p>
+          <PoweredByBuilderLynk />
         </CardContent>
       </Card>
     </div>
