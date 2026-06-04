@@ -392,7 +392,7 @@ export default function VisitorLogin() {
       // Send SMS with checkout link if enabled
       if (insertedLog) {
         try {
-          await supabase.functions.invoke('send-visitor-sms', {
+          const { data: smsResult, error: smsError } = await supabase.functions.invoke('send-visitor-sms', {
             body: {
               visitor_log_id: insertedLog.id,
               phone_number: formData.visitor_phone.trim(),
@@ -400,6 +400,11 @@ export default function VisitorLogin() {
               base_url: window.location.origin,
             }
           });
+          if (smsError) {
+            console.error('Failed to send SMS:', smsError);
+          } else {
+            console.log('Visitor SMS response:', smsResult);
+          }
         } catch (smsError) {
           console.error('Failed to send SMS:', smsError);
           // Don't fail the check-in if SMS fails
@@ -759,53 +764,64 @@ export default function VisitorLogin() {
             <p className="text-sm text-muted-foreground text-center">
               You have successfully checked in to {job.name}
             </p>
-            <Button
-              onClick={async () => {
-                if (!currentVisitorLogId) return;
-                
-                try {
-                  const { error } = await supabase
-                    .from('visitor_logs')
-                    .update({ check_out_time: new Date().toISOString() })
-                    .eq('id', currentVisitorLogId);
+            <div className="w-full space-y-2">
+              <Button
+                type="button"
+                variant="outline"
+                className="w-full"
+                onClick={() => setShowConfirmation(false)}
+              >
+                Continue
+              </Button>
+              <Button
+                type="button"
+                onClick={async () => {
+                  if (!currentVisitorLogId) return;
+                  
+                  try {
+                    const { error } = await supabase
+                      .from('visitor_logs')
+                      .update({ check_out_time: new Date().toISOString() })
+                      .eq('id', currentVisitorLogId);
 
-                  if (error) throw error;
+                    if (error) throw error;
 
-                  toast({
-                    title: "Checked Out",
-                    description: "You have been successfully checked out. Have a safe trip!",
-                  });
+                    toast({
+                      title: "Checked Out",
+                      description: "You have been successfully checked out. Have a safe trip!",
+                    });
 
-                  setShowConfirmation(false);
-                  // Reset form
-                  setFormData({
-                    visitor_name: '',
-                    visitor_phone: '',
-                    company_name: '',
-                    vendor_id: '',
-                    purpose_of_visit: '',
-                    notes: ''
-                  });
-                  setPhotoDataUrl(null);
-                  setShowCustomCompany(false);
-                  setCurrentVisitorLogId(null);
-                } catch (error) {
-                  console.error('Error checking out:', error);
-                  toast({
-                    title: "Checkout Failed",
-                    description: "Failed to check out. Please try again.",
-                    variant: "destructive",
-                  });
-                }
-              }}
-              className="w-full"
-              style={{ 
-                backgroundColor: resolveColor(settings?.button_color),
-                borderColor: resolveColor(settings?.button_color) 
-              }}
-            >
-              Don't Forget to Sign Out When You Leave
-            </Button>
+                    setShowConfirmation(false);
+                    // Reset form
+                    setFormData({
+                      visitor_name: '',
+                      visitor_phone: '',
+                      company_name: '',
+                      vendor_id: '',
+                      purpose_of_visit: '',
+                      notes: ''
+                    });
+                    setPhotoDataUrl(null);
+                    setShowCustomCompany(false);
+                    setCurrentVisitorLogId(null);
+                  } catch (error) {
+                    console.error('Error checking out:', error);
+                    toast({
+                      title: "Checkout Failed",
+                      description: "Failed to check out. Please try again.",
+                      variant: "destructive",
+                    });
+                  }
+                }}
+                className="w-full"
+                style={{ 
+                  backgroundColor: resolveColor(settings?.button_color),
+                  borderColor: resolveColor(settings?.button_color) 
+                }}
+              >
+                Check Out Now
+              </Button>
+            </div>
           </div>
         </AlertDialogContent>
       </AlertDialog>

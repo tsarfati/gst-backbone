@@ -1379,6 +1379,7 @@ export default function TenantDetails() {
             <CompanySmsSettings
               companyId={selectedSmsCompany.id}
               companyName={selectedSmsCompany.display_name || selectedSmsCompany.name}
+              forceManualSave
             />
           ) : null}
         </DialogContent>

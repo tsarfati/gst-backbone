@@ -23,11 +23,13 @@ interface SmsSettings {
 interface CompanySmsSettingsProps {
   companyId?: string | null;
   companyName?: string | null;
+  forceManualSave?: boolean;
 }
 
 export default function CompanySmsSettings({
   companyId,
   companyName,
+  forceManualSave = false,
 }: CompanySmsSettingsProps) {
   const { currentCompany } = useCompany();
   const { toast } = useToast();
@@ -138,15 +140,17 @@ export default function CompanySmsSettings({
     }
   };
 
+  const useAutoSave = appSettings.autoSave && !forceManualSave;
+
   useEffect(() => {
-    if (!appSettings.autoSave || loading || saving || !resolvedCompanyId || !autoSaveReadyRef.current) return;
+    if (!useAutoSave || loading || saving || !resolvedCompanyId || !autoSaveReadyRef.current) return;
 
     const timer = setTimeout(() => {
       void handleSave(false);
     }, 800);
 
     return () => clearTimeout(timer);
-  }, [settings, appSettings.autoSave, loading, saving, resolvedCompanyId]);
+  }, [settings, useAutoSave, loading, saving, resolvedCompanyId]);
 
   if (!resolvedCompanyId) {
     return (
@@ -271,7 +275,7 @@ export default function CompanySmsSettings({
             </>
           )}
 
-          {!appSettings.autoSave && (
+          {!useAutoSave && (
             <div className="flex justify-end pt-4">
               <Button onClick={() => void handleSave()} disabled={saving}>
                 {saving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
