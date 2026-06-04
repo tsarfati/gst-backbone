@@ -129,23 +129,6 @@ export default function FileShareModal({ open, onOpenChange, file, files, jobId,
     setSending(true);
 
     try {
-      // Check if user has SMTP configured
-      const { data: emailSettings } = await supabase
-        .from('user_email_settings')
-        .select('*')
-        .eq('user_id', user.id)
-        .maybeSingle();
-
-      if (!emailSettings?.is_configured) {
-        toast({
-          title: "Email not configured",
-          description: "Please configure your SMTP/IMAP settings in Profile Settings to send emails.",
-          variant: "destructive",
-        });
-        setSending(false);
-        return;
-      }
-
       // Generate signed URLs for all files. Attachment-mode URLs are short-lived fetch URLs
       // for the edge function to download; link-mode URLs use the user-selected expiration.
       const fileAttachments = await Promise.all(

@@ -174,8 +174,10 @@ const handler = async (req: Request): Promise<Response> => {
       .eq("job_id", job_id)
       .maybeSingle();
 
-    // Only send if enabled
-    if (!autoLogoutSettings?.send_sms_on_checkin) {
+    const sendSmsOnCheckIn = autoLogoutSettings?.send_sms_on_checkin ?? true;
+
+    // Only skip when the setting exists and is explicitly disabled.
+    if (!sendSmsOnCheckIn) {
       console.log("SMS on check-in is not enabled for this job");
       return new Response(
         JSON.stringify({ message: "SMS on check-in not enabled" }),
@@ -194,7 +196,7 @@ const handler = async (req: Request): Promise<Response> => {
     const jobName = job?.name || "the job site";
     const dateTime = new Date().toLocaleString();
     
-    let message = autoLogoutSettings.sms_message_template || 
+    let message = autoLogoutSettings?.sms_message_template || 
       "Thanks for checking in at {{job_name}} on {{date_time}}. When you leave, tap here to check out: {{checkout_link}}";
     
     message = message
@@ -236,6 +238,7 @@ const handler = async (req: Request): Promise<Response> => {
           sid: twilioResult.sid,
           provider_source: providerSettings.source,
           normalized_phone_number: normalizedPhoneNumber,
+          used_default_job_setting: autoLogoutSettings ? false : true,
         }),
         {
           status: 200,
