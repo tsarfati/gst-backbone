@@ -25,6 +25,11 @@ interface Subcontractor {
   vendor_name: string;
 }
 
+interface HistoricalVisitorCompanyOption {
+  key: string;
+  company_name: string;
+}
+
 interface VisitorSettings {
   background_image_url?: string;
   background_color?: string;
@@ -56,6 +61,7 @@ export default function VisitorLogin() {
 
   const [job, setJob] = useState<Job | null>(null);
   const [subcontractors, setSubcontractors] = useState<Subcontractor[]>([]);
+  const [historicalCompanies, setHistoricalCompanies] = useState<HistoricalVisitorCompanyOption[]>([]);
   const [settings, setSettings] = useState<VisitorSettings | null>(null);
   const [jobSettings, setJobSettings] = useState<JobVisitorSettings>({
     confirmation_title: 'Welcome to the Job Site!',
@@ -155,6 +161,13 @@ export default function VisitorLogin() {
     setSmsDeliveryStatus('idle');
   };
 
+  const getCompanySelectValue = () => {
+    if (showCustomCompany) return 'not_listed';
+    if (formData.vendor_id) return formData.vendor_id;
+    if (formData.company_name.trim()) return `custom:${formData.company_name.trim()}`;
+    return '';
+  };
+
   const loadJobAndSettings = async () => {
     try {
       // Find job by QR code
@@ -184,6 +197,42 @@ export default function VisitorLogin() {
           }
         } catch (err) {
           console.error('Error loading subcontractors:', err);
+        }
+      })();
+
+      (async () => {
+        try {
+          const { data, error } = await supabase
+            .from('visitor_logs')
+            .select('company_name, subcontractor_id')
+            .eq('job_id', jobData.id)
+            .not('company_name', 'is', null)
+            .order('created_at', { ascending: false })
+            .limit(250);
+
+          if (error) throw error;
+
+          const seen = new Set<string>();
+          const options: HistoricalVisitorCompanyOption[] = [];
+
+          for (const row of data || []) {
+            const rawName = String(row.company_name || '').trim();
+            if (!rawName) continue;
+            if (row.subcontractor_id) continue;
+
+            const normalizedKey = rawName.toLowerCase();
+            if (seen.has(normalizedKey)) continue;
+            seen.add(normalizedKey);
+
+            options.push({
+              key: `custom:${rawName}`,
+              company_name: rawName,
+            });
+          }
+
+          setHistoricalCompanies(options);
+        } catch (err) {
+          console.error('Error loading historical visitor companies:', err);
         }
       })();
 
@@ -604,6 +653,16 @@ export default function VisitorLogin() {
     }
   })();
 
+  const subcontractorNameKeys = new Set(
+    subcontractors
+      .map((sub) => String(sub.vendor_name || '').trim().toLowerCase())
+      .filter(Boolean)
+  );
+
+  const dropdownHistoricalCompanies = historicalCompanies.filter(
+    (option) => !subcontractorNameKeys.has(option.company_name.trim().toLowerCase())
+  );
+
   return (
     <div 
       className="min-h-screen flex flex-col"
@@ -719,11 +778,15 @@ export default function VisitorLogin() {
                   <span>Company {settings?.require_company_name ? '*' : ''}</span>
                 </Label>
                 <Select
-                  value={showCustomCompany ? 'not_listed' : formData.vendor_id || ''}
+                  value={getCompanySelectValue()}
                   onValueChange={(value) => {
                     if (value === 'not_listed') {
                       setShowCustomCompany(true);
                       setFormData(prev => ({ ...prev, vendor_id: '', company_name: '' }));
+                    } else if (value.startsWith('custom:')) {
+                      const companyName = value.replace(/^custom:/, '').trim();
+                      setShowCustomCompany(false);
+                      setFormData(prev => ({ ...prev, vendor_id: '', company_name: companyName }));
                     } else {
                       setShowCustomCompany(false);
                       setFormData(prev => ({ ...prev, vendor_id: value, company_name: '' }));
@@ -739,7 +802,12 @@ export default function VisitorLogin() {
                       <SelectItem key={sub.vendor_id} value={sub.vendor_id}>
                         {sub.vendor_name || 'Unknown Vendor'}
                       </SelectItem>
-                     ))}
+                    ))}
+                    {dropdownHistoricalCompanies.map((company) => (
+                      <SelectItem key={company.key} value={company.key}>
+                        {company.company_name}
+                      </SelectItem>
+                    ))}
                     <SelectItem value="not_listed">
                       Not Listed - Other
                     </SelectItem>
