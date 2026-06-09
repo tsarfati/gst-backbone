@@ -11,6 +11,7 @@ import { AlertDialog, AlertDialogContent, AlertDialogDescription, AlertDialogHea
 import { Loader2, Users, MapPin, Phone, Building2, Camera } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useToast } from '@/hooks/use-toast';
+import builderlynkLogo from '@/assets/builderlynk-icon-shield.png';
 
 interface Job {
   id: string;
@@ -166,6 +167,13 @@ export default function VisitorLogin() {
     setShowSmsNextStep(false);
     setSmsDeliveryStatus('idle');
   };
+
+  const PoweredByBuilderLynk = () => (
+    <div className="mt-6 flex items-center justify-center gap-2 border-t pt-4 text-xs text-muted-foreground">
+      <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain opacity-90" />
+      <span>Visitor check-in powered by BuilderLYNK</span>
+    </div>
+  );
 
   const getCompanySelectValue = () => {
     if (showCustomCompany) return 'not_listed';
@@ -761,6 +769,7 @@ export default function VisitorLogin() {
                 >
                   Back to Check-In
                 </Button>
+                <PoweredByBuilderLynk />
               </div>
             ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -918,6 +927,7 @@ export default function VisitorLogin() {
                   'Check In'
                 )}
               </Button>
+              <PoweredByBuilderLynk />
             </form>
             )}
           </CardContent>
@@ -993,6 +1003,9 @@ export default function VisitorLogin() {
               >
                 Continue
               </Button>
+            </div>
+            <div className="w-full">
+              <PoweredByBuilderLynk />
             </div>
           </div>
         </AlertDialogContent>

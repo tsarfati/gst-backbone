@@ -84,7 +84,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     sms_check_enabled: false,
     sms_check_interval_hours: 4,
     send_sms_on_checkin: false,
-    sms_message_template: 'Thanks for checking in at {{job_name}} on {{date_time}}. When you leave, tap here to check out: {{checkout_link}}',
+    sms_message_template: 'BuilderLYNK: Thanks for checking in at {{job_name}} on {{date_time}}. When you leave, tap here to check out: {{checkout_link}}',
     sms_reminder_enabled: false,
     sms_reminder_hours: 4,
     sms_reminder_message: 'You are still checked in at {{job_name}}. If you have left, please check out here: {{checkout_link}}',
@@ -952,7 +952,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                         ...prev, 
                         sms_message_template: e.target.value 
                       }))}
-                      placeholder="Thanks for checking in at {{job_name}} on {{date_time}}..."
+                      placeholder="BuilderLYNK: Thanks for checking in at {{job_name}} on {{date_time}}..."
                       rows={4}
                     />
                     <p className="text-xs text-muted-foreground">

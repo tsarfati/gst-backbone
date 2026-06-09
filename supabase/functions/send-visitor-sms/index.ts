@@ -197,12 +197,16 @@ const handler = async (req: Request): Promise<Response> => {
     const dateTime = new Date().toLocaleString();
     
     let message = autoLogoutSettings?.sms_message_template || 
-      "Thanks for checking in at {{job_name}} on {{date_time}}. When you leave, tap here to check out: {{checkout_link}}";
+      "BuilderLYNK: Thanks for checking in at {{job_name}} on {{date_time}}. When you leave, tap here to check out: {{checkout_link}}";
     
     message = message
       .replace(/\{\{job_name\}\}/g, jobName)
       .replace(/\{\{date_time\}\}/g, dateTime)
       .replace(/\{\{checkout_link\}\}/g, checkoutUrl);
+
+    if (!/builderlynk/i.test(message)) {
+      message = `BuilderLYNK: ${message}`;
+    }
 
     // Send SMS using Twilio
     if (providerSettings.provider === 'twilio') {
