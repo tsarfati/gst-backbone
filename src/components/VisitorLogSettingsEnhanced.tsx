@@ -60,6 +60,8 @@ interface JobVisitorSettings {
   checkout_message: string;
   checkout_show_duration: boolean;
   notes_field_label: string;
+  notes_field_placeholder: string;
+  notes_field_required: boolean;
 }
 
 interface VisitorLogSettingsEnhancedProps {
@@ -110,6 +112,8 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     checkout_message: 'Thank you for visiting. Have a safe trip!',
     checkout_show_duration: true,
     notes_field_label: 'Additional Notes',
+    notes_field_placeholder: 'Any additional information...',
+    notes_field_required: false,
   });
 
   const [loading, setLoading] = useState(true);
@@ -615,21 +619,6 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
 
             <div className="flex items-center justify-between">
               <div className="space-y-0.5">
-                <Label>Require Purpose of Visit</Label>
-                <p className="text-sm text-muted-foreground">
-                  Visitors must specify their purpose
-                </p>
-              </div>
-              <Switch
-                checked={loginSettings.require_purpose_visit}
-                onCheckedChange={(checked) => 
-                  setLoginSettings(prev => ({ ...prev, require_purpose_visit: checked }))
-                }
-              />
-            </div>
-
-            <div className="flex items-center justify-between">
-              <div className="space-y-0.5">
                 <Label>Enable Checkout</Label>
                 <p className="text-sm text-muted-foreground">
                   Allow visitors to check out when leaving
@@ -665,7 +654,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
           <div className="space-y-4">
             <Label className="text-base font-medium">Custom Field Labels (Job Specific)</Label>
             <p className="text-sm text-muted-foreground">
-              Customize the label shown for the freeform notes field on this job's visitor check-in form.
+              Customize the single freeform field shown on this job's visitor check-in form.
             </p>
 
             <div className="space-y-2">
@@ -679,6 +668,34 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
               <p className="text-xs text-muted-foreground">
                 Examples: Scope of Work for the Day, Daily Tasks, Work Being Performed
               </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes-field-placeholder">Field Placeholder</Label>
+              <Input
+                id="notes-field-placeholder"
+                value={jobVisitorSettings.notes_field_placeholder}
+                onChange={(e) => setJobVisitorSettings(prev => ({ ...prev, notes_field_placeholder: e.target.value }))}
+                placeholder="Any additional information..."
+              />
+              <p className="text-xs text-muted-foreground">
+                This text appears inside the field before the visitor types.
+              </p>
+            </div>
+
+            <div className="flex items-center justify-between">
+              <div className="space-y-0.5">
+                <Label>Required</Label>
+                <p className="text-sm text-muted-foreground">
+                  Require visitors to complete this custom field for this job.
+                </p>
+              </div>
+              <Switch
+                checked={jobVisitorSettings.notes_field_required}
+                onCheckedChange={(checked) =>
+                  setJobVisitorSettings(prev => ({ ...prev, notes_field_required: checked }))
+                }
+              />
             </div>
           </div>
 

@@ -51,6 +51,8 @@ interface JobVisitorSettings {
   checkout_message: string;
   checkout_show_duration: boolean;
   notes_field_label: string;
+  notes_field_placeholder: string;
+  notes_field_required: boolean;
 }
 
 type SmsDeliveryStatus = 'idle' | 'sent' | 'disabled' | 'not-configured' | 'failed';
@@ -71,6 +73,8 @@ export default function VisitorLogin() {
     checkout_message: 'Thank you for visiting. Have a safe trip!',
     checkout_show_duration: true,
     notes_field_label: 'Additional Notes',
+    notes_field_placeholder: 'Any additional information...',
+    notes_field_required: false,
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -462,7 +466,7 @@ export default function VisitorLogin() {
         visitor_phone: normalizedVisitorPhone || formData.visitor_phone.trim(),
         company_name: selectedSub ? selectedSub.vendor_name : formData.company_name.trim(),
         subcontractor_id: selectedSub ? selectedSub.id : null,
-        purpose_of_visit: formData.purpose_of_visit.trim() || null,
+        purpose_of_visit: formData.notes.trim() || null,
         notes: formData.notes.trim() || null,
         company_id: (job as any).company_id,
         ...(photoUrl && { visitor_photo_url: photoUrl })
@@ -566,6 +570,15 @@ export default function VisitorLogin() {
       return;
     }
 
+    if (jobSettings.notes_field_required && !formData.notes.trim()) {
+      toast({
+        title: "Missing Information",
+        description: `Please complete the ${jobSettings.notes_field_label?.trim() || 'required field'}.`,
+        variant: "destructive",
+      });
+      return;
+    }
+
     // If photo is required and not yet taken, open the camera and auto-submit after capture
     if (settings?.require_photo && !photoDataUrl) {
       setAutoSubmitAfterPhoto(true);
@@ -664,6 +677,17 @@ export default function VisitorLogin() {
   const dropdownHistoricalCompanies = historicalCompanies.filter(
     (option) => !subcontractorNameKeys.has(option.company_name.trim().toLowerCase())
   );
+
+  const normalizedPhone = normalizePhoneForSms(formData.visitor_phone);
+  const companySatisfied = !settings?.require_company_name || Boolean(formData.vendor_id || formData.company_name.trim());
+  const customFieldSatisfied = !jobSettings.notes_field_required || Boolean(formData.notes.trim());
+  const photoSatisfied = !settings?.require_photo || Boolean(photoDataUrl);
+  const isFormReadyToSubmit =
+    Boolean(formData.visitor_name.trim()) &&
+    Boolean(normalizedPhone) &&
+    companySatisfied &&
+    customFieldSatisfied &&
+    photoSatisfied;
 
   return (
     <div 
@@ -832,34 +856,21 @@ export default function VisitorLogin() {
                 </div>
               )}
 
-              {/* Purpose of Visit */}
-              {settings?.require_purpose_visit && (
-                <div className="space-y-2">
-                  <Label htmlFor="purpose_of_visit" className={textClass} style={textStyle}>Purpose of Visit *</Label>
-                  <Input
-                    id="purpose_of_visit"
-                    value={formData.purpose_of_visit}
-                    onChange={(e) => setFormData(prev => ({ ...prev, purpose_of_visit: e.target.value }))}
-                    placeholder="e.g., Delivery, Inspection, Installation"
-                    className={inputBgClass}
-                    required
-                  />
-                </div>
-              )}
-
               {/* Notes */}
               <div className="space-y-2">
                 <Label htmlFor="notes" className={textClass} style={textStyle}>
                   {jobSettings.notes_field_label?.trim() || 'Additional Notes'}
+                  {jobSettings.notes_field_required ? ' *' : ''}
                 </Label>
                 <Textarea
                   id="notes"
                   value={formData.notes}
                   onChange={(e) => setFormData(prev => ({ ...prev, notes: e.target.value }))}
-                  placeholder="Any additional information..."
+                  placeholder={jobSettings.notes_field_placeholder?.trim() || 'Any additional information...'}
                   className={inputBgClass}
                   rows={3}
                   enableSpeech={false}
+                  required={jobSettings.notes_field_required}
                 />
               </div>
 
@@ -892,7 +903,7 @@ export default function VisitorLogin() {
               <Button
                 type="submit"
                 className="w-full"
-                disabled={submitting}
+                disabled={submitting || !isFormReadyToSubmit}
                 style={{ 
                   backgroundColor: resolveColor(settings?.button_color),
                   borderColor: resolveColor(settings?.button_color)

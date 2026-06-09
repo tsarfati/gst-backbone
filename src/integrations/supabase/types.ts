@@ -5627,6 +5627,8 @@ export type Database = {
           id: string
           job_id: string
           notes_field_label: string | null
+          notes_field_placeholder: string | null
+          notes_field_required: boolean
           updated_at: string
         }
         Insert: {
@@ -5640,6 +5642,8 @@ export type Database = {
           id?: string
           job_id: string
           notes_field_label?: string | null
+          notes_field_placeholder?: string | null
+          notes_field_required?: boolean
           updated_at?: string
         }
         Update: {
@@ -5653,6 +5657,8 @@ export type Database = {
           id?: string
           job_id?: string
           notes_field_label?: string | null
+          notes_field_placeholder?: string | null
+          notes_field_required?: boolean
           updated_at?: string
         }
         Relationships: [
