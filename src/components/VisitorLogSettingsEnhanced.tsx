@@ -59,6 +59,7 @@ interface JobVisitorSettings {
   checkout_title: string;
   checkout_message: string;
   checkout_show_duration: boolean;
+  notes_field_label: string;
 }
 
 interface VisitorLogSettingsEnhancedProps {
@@ -108,6 +109,7 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
     checkout_title: 'Successfully Checked Out',
     checkout_message: 'Thank you for visiting. Have a safe trip!',
     checkout_show_duration: true,
+    notes_field_label: 'Additional Notes',
   });
 
   const [loading, setLoading] = useState(true);
@@ -654,6 +656,29 @@ export function VisitorLogSettingsEnhanced({ jobId }: VisitorLogSettingsEnhanced
                   setLoginSettings(prev => ({ ...prev, require_photo: checked }))
                 }
               />
+            </div>
+          </div>
+
+          <Separator />
+
+          {/* Job-specific field copy */}
+          <div className="space-y-4">
+            <Label className="text-base font-medium">Custom Field Labels (Job Specific)</Label>
+            <p className="text-sm text-muted-foreground">
+              Customize the label shown for the freeform notes field on this job's visitor check-in form.
+            </p>
+
+            <div className="space-y-2">
+              <Label htmlFor="notes-field-label">Notes Field Label</Label>
+              <Input
+                id="notes-field-label"
+                value={jobVisitorSettings.notes_field_label}
+                onChange={(e) => setJobVisitorSettings(prev => ({ ...prev, notes_field_label: e.target.value }))}
+                placeholder="Additional Notes"
+              />
+              <p className="text-xs text-muted-foreground">
+                Examples: Scope of Work for the Day, Daily Tasks, Work Being Performed
+              </p>
             </div>
           </div>
 

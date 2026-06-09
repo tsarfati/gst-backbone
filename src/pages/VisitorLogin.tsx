@@ -50,6 +50,7 @@ interface JobVisitorSettings {
   checkout_title: string;
   checkout_message: string;
   checkout_show_duration: boolean;
+  notes_field_label: string;
 }
 
 type SmsDeliveryStatus = 'idle' | 'sent' | 'disabled' | 'not-configured' | 'failed';
@@ -69,6 +70,7 @@ export default function VisitorLogin() {
     checkout_title: 'Successfully Checked Out',
     checkout_message: 'Thank you for visiting. Have a safe trip!',
     checkout_show_duration: true,
+    notes_field_label: 'Additional Notes',
   });
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -847,7 +849,9 @@ export default function VisitorLogin() {
 
               {/* Notes */}
               <div className="space-y-2">
-                <Label htmlFor="notes" className={textClass} style={textStyle}>Additional Notes</Label>
+                <Label htmlFor="notes" className={textClass} style={textStyle}>
+                  {jobSettings.notes_field_label?.trim() || 'Additional Notes'}
+                </Label>
                 <Textarea
                   id="notes"
                   value={formData.notes}
@@ -855,6 +859,7 @@ export default function VisitorLogin() {
                   placeholder="Any additional information..."
                   className={inputBgClass}
                   rows={3}
+                  enableSpeech={false}
                 />
               </div>
 
