@@ -10,6 +10,10 @@ import { Download, FileText, Calendar, LogOut } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
+import { useCompany } from '@/contexts/CompanyContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { addCompanyLogoToPdf } from '@/utils/reportPdfBranding';
 
 interface VisitorLog {
   id: string;
@@ -31,6 +35,7 @@ interface VisitorReportsPageProps {
 
 export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) {
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [visitors, setVisitors] = useState<VisitorLog[]>([]);
   const [filteredVisitors, setFilteredVisitors] = useState<VisitorLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -196,6 +201,98 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
     window.URL.revokeObjectURL(url);
   };
 
+  const getDateRangeLabel = () => {
+    if (reportType === 'daily') {
+      return `Date Range: ${format(new Date(dailyDate), 'MMMM d, yyyy')}`;
+    }
+
+    if (startDate && endDate) {
+      return `Date Range: ${format(new Date(startDate), 'MMMM d, yyyy')} - ${format(new Date(endDate), 'MMMM d, yyyy')}`;
+    }
+
+    if (startDate) {
+      return `Date Range: From ${format(new Date(startDate), 'MMMM d, yyyy')}`;
+    }
+
+    if (endDate) {
+      return `Date Range: Through ${format(new Date(endDate), 'MMMM d, yyyy')}`;
+    }
+
+    return 'Date Range: All Dates';
+  };
+
+  const exportToPDF = async () => {
+    try {
+      const doc = new jsPDF();
+      const logo = await addCompanyLogoToPdf(doc, currentCompany?.logo_url, { x: 14, y: 12, maxWidth: 60, maxHeight: 22 });
+      const titleX = logo.width > 0 ? 14 + logo.width + 8 : 14;
+      const titleY = logo.height > 0 ? 22 : 20;
+      const companyName = currentCompany?.display_name || currentCompany?.name || 'BuilderLYNK';
+
+      doc.setFontSize(18);
+      doc.text('Visitor Report', titleX, titleY);
+      doc.setFontSize(11);
+      doc.text(`Company: ${companyName}`, titleX, titleY + 8);
+      doc.text(`Job: ${jobName}`, titleX, titleY + 14);
+      doc.text(getDateRangeLabel(), titleX, titleY + 20);
+      doc.text(`Exported: ${format(new Date(), 'yyyy-MM-dd h:mm a')}`, titleX, titleY + 26);
+
+      autoTable(doc, {
+        startY: Math.max(titleY + 34, 52),
+        head: [[
+          'Name',
+          'Phone',
+          'Company',
+          'Check In',
+          'Check Out',
+          'Duration (minutes)',
+          'Purpose',
+        ]],
+        body: filteredVisitors.map((visitor) => {
+          const checkIn = parseISO(visitor.check_in_time);
+          const checkOut = visitor.check_out_time ? parseISO(visitor.check_out_time) : null;
+          const duration = checkOut ? Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60)) : '';
+          return [
+            visitor.visitor_name,
+            visitor.visitor_phone,
+            visitor.company_name || visitor.subcontractor?.company_name || '',
+            format(checkIn, 'yyyy-MM-dd h:mm a'),
+            checkOut ? format(checkOut, 'yyyy-MM-dd h:mm a') : 'Still on site',
+            duration === '' ? 'Still on site' : String(duration),
+            visitor.purpose_of_visit || '',
+          ];
+        }),
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          overflow: 'linebreak',
+          valign: 'top',
+        },
+        headStyles: {
+          fillColor: [24, 58, 95],
+        },
+        columnStyles: {
+          0: { cellWidth: 34 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 34 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 30 },
+          5: { cellWidth: 24 },
+          6: { cellWidth: 32 },
+        },
+      });
+
+      doc.save(`visitor-report-${jobName}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    } catch (error) {
+      console.error('Error exporting visitor report PDF:', error);
+      toast({
+        title: 'Export Failed',
+        description: 'Failed to export visitor report PDF.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const handleCheckOut = async (visitorId: string) => {
     try {
       const { error } = await supabase
@@ -258,10 +355,16 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
             Filter and export visitor data
           </p>
         </div>
-        <Button onClick={exportToCSV} disabled={filteredVisitors.length === 0}>
-          <Download className="mr-2 h-4 w-4" />
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={exportToPDF} disabled={filteredVisitors.length === 0}>
+            <FileText className="mr-2 h-4 w-4" />
+            Export PDF
+          </Button>
+          <Button onClick={exportToCSV} disabled={filteredVisitors.length === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Filters */}

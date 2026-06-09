@@ -11,6 +11,10 @@ import { Search, Filter, Download, Users, Clock, Calendar, Phone, Building2, Map
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { format, parseISO } from 'date-fns';
+import { useCompany } from '@/contexts/CompanyContext';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
+import { addCompanyLogoToPdf } from '@/utils/reportPdfBranding';
 
 interface VisitorLog {
   id: string;
@@ -34,6 +38,7 @@ interface VisitorReportsProps {
 
 export function VisitorReports({ jobId, jobName }: VisitorReportsProps) {
   const { toast } = useToast();
+  const { currentCompany } = useCompany();
   const [visitors, setVisitors] = useState<VisitorLog[]>([]);
   const [filteredVisitors, setFilteredVisitors] = useState<VisitorLog[]>([]);
   const [loading, setLoading] = useState(true);
@@ -221,6 +226,98 @@ export function VisitorReports({ jobId, jobName }: VisitorReportsProps) {
     window.URL.revokeObjectURL(url);
   };
 
+  const getDateRangeLabel = () => {
+    const now = new Date();
+    const today = format(now, 'MMMM d, yyyy');
+    const yesterday = format(new Date(now.getTime() - 24 * 60 * 60 * 1000), 'MMMM d, yyyy');
+    const weekStart = format(new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000), 'MMMM d, yyyy');
+
+    switch (dateFilter) {
+      case 'today':
+        return `Date Range: ${today}`;
+      case 'yesterday':
+        return `Date Range: ${yesterday}`;
+      case 'week':
+        return `Date Range: ${weekStart} - ${today}`;
+      default:
+        return 'Date Range: All Dates';
+    }
+  };
+
+  const exportToPDF = async () => {
+    try {
+      const doc = new jsPDF();
+      const logo = await addCompanyLogoToPdf(doc, currentCompany?.logo_url, { x: 14, y: 12, maxWidth: 60, maxHeight: 22 });
+      const titleX = logo.width > 0 ? 14 + logo.width + 8 : 14;
+      const titleY = logo.height > 0 ? 22 : 20;
+      const companyName = currentCompany?.display_name || currentCompany?.name || 'BuilderLYNK';
+
+      doc.setFontSize(18);
+      doc.text('Visitor Log Report', titleX, titleY);
+      doc.setFontSize(11);
+      doc.text(`Company: ${companyName}`, titleX, titleY + 8);
+      doc.text(`Job: ${jobName}`, titleX, titleY + 14);
+      doc.text(getDateRangeLabel(), titleX, titleY + 20);
+      doc.text(`Exported: ${format(new Date(), 'yyyy-MM-dd h:mm a')}`, titleX, titleY + 26);
+
+      autoTable(doc, {
+        startY: Math.max(titleY + 34, 52),
+        head: [[
+          'Name',
+          'Phone',
+          'Company',
+          'Check In',
+          'Check Out',
+          'Duration',
+          'Purpose',
+          'Notes',
+        ]],
+        body: filteredVisitors.map((visitor) => {
+          const checkIn = parseISO(visitor.check_in_time);
+          const checkOut = visitor.check_out_time ? parseISO(visitor.check_out_time) : null;
+          return [
+            visitor.visitor_name,
+            visitor.visitor_phone,
+            visitor.company_name || visitor.subcontractor?.company_name || '',
+            format(checkIn, 'yyyy-MM-dd h:mm a'),
+            checkOut ? format(checkOut, 'yyyy-MM-dd h:mm a') : 'Still on site',
+            calculateDuration(visitor.check_in_time, visitor.check_out_time),
+            visitor.purpose_of_visit || '',
+            visitor.notes || '',
+          ];
+        }),
+        styles: {
+          fontSize: 8,
+          cellPadding: 2,
+          overflow: 'linebreak',
+          valign: 'top',
+        },
+        headStyles: {
+          fillColor: [24, 58, 95],
+        },
+        columnStyles: {
+          0: { cellWidth: 28 },
+          1: { cellWidth: 26 },
+          2: { cellWidth: 28 },
+          3: { cellWidth: 28 },
+          4: { cellWidth: 28 },
+          5: { cellWidth: 18 },
+          6: { cellWidth: 24 },
+          7: { cellWidth: 30 },
+        },
+      });
+
+      doc.save(`visitor-log-${jobName}-${format(new Date(), 'yyyy-MM-dd')}.pdf`);
+    } catch (error) {
+      console.error('Error exporting visitor log PDF:', error);
+      toast({
+        title: 'Export Failed',
+        description: 'Failed to export visitor log PDF.',
+        variant: 'destructive',
+      });
+    }
+  };
+
   const getVisitorStatus = (visitor: VisitorLog) => {
     return visitor.check_out_time ? 'checked_out' : 'on_site';
   };
@@ -262,10 +359,16 @@ export function VisitorReports({ jobId, jobName }: VisitorReportsProps) {
             Track and manage job site visitors
           </p>
         </div>
-        <Button onClick={exportToCSV} disabled={filteredVisitors.length === 0}>
-          <Download className="mr-2 h-4 w-4" />
-          Export CSV
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={exportToPDF} disabled={filteredVisitors.length === 0}>
+            <FileText className="mr-2 h-4 w-4" />
+            Export PDF
+          </Button>
+          <Button onClick={exportToCSV} disabled={filteredVisitors.length === 0}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+        </div>
       </div>
 
       {/* Quick Stats */}

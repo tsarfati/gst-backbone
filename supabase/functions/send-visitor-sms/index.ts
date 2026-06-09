@@ -21,6 +21,8 @@ interface ResolvedSmsProviderSettings {
   source: "company" | "builderlynk-default";
 }
 
+const DEFAULT_COMPANY_TIME_ZONE = "America/New_York";
+
 const normalizePhoneNumber = (value: string): string => {
   const trimmed = (value || "").trim();
   if (!trimmed) return "";
@@ -42,6 +44,31 @@ const getEnvFirst = (...keys: string[]) => {
     if (value) return value;
   }
   return "";
+};
+
+const formatDateTimeForTimeZone = (value: Date, timeZone?: string | null) => {
+  const resolvedTimeZone = (timeZone || "").trim() || DEFAULT_COMPANY_TIME_ZONE;
+  try {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: resolvedTimeZone,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(value);
+  } catch (_) {
+    return new Intl.DateTimeFormat("en-US", {
+      timeZone: DEFAULT_COMPANY_TIME_ZONE,
+      year: "numeric",
+      month: "numeric",
+      day: "numeric",
+      hour: "numeric",
+      minute: "2-digit",
+      hour12: true,
+    }).format(value);
+  }
 };
 
 const resolveSmsProviderSettings = (smsSettings: any): ResolvedSmsProviderSettings | null => {
@@ -122,6 +149,15 @@ const handler = async (req: Request): Promise<Response> => {
       throw new Error("Company ID not found for job");
     }
 
+    const { data: companyUiSettings } = await supabase
+      .from("company_ui_settings")
+      .select("settings")
+      .eq("company_id", companyId)
+      .is("user_id", null)
+      .maybeSingle();
+
+    const companyTimeZone = (companyUiSettings as any)?.settings?.timeZone || DEFAULT_COMPANY_TIME_ZONE;
+
     // Get company SMS settings
     const { data: smsSettings, error: smsError } = await supabase
       .from("company_sms_settings")
@@ -194,7 +230,7 @@ const handler = async (req: Request): Promise<Response> => {
 
     // Format the message with placeholders replaced
     const jobName = job?.name || "the job site";
-    const dateTime = new Date().toLocaleString();
+    const dateTime = formatDateTimeForTimeZone(new Date(), companyTimeZone);
     
     let message = autoLogoutSettings?.sms_message_template || 
       "BuilderLYNK: Thanks for checking in at {{job_name}} on {{date_time}}. When you leave, tap here to check out: {{checkout_link}}";

@@ -169,10 +169,15 @@ export default function VisitorLogin() {
   };
 
   const PoweredByBuilderLynk = () => (
-    <div className="mt-6 flex items-center justify-center gap-2 border-t pt-4 text-xs text-muted-foreground">
+    <a
+      href="https://builderlynk.com"
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-2 rounded-full border bg-background/90 px-4 py-2 text-xs font-medium text-muted-foreground shadow-sm transition hover:border-primary/40 hover:text-foreground"
+    >
       <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain opacity-90" />
-      <span>Visitor check-in powered by BuilderLYNK</span>
-    </div>
+      <span>Powered by BuilderLYNK</span>
+    </a>
   );
 
   const getCompanySelectValue = () => {
@@ -759,17 +764,6 @@ export default function VisitorLogin() {
                     Click Here to Check Out
                   </Button>
                 )}
-                <Button
-                  type="button"
-                  variant="outline"
-                  className="w-full"
-                  onClick={() => {
-                    resetVisitorForm();
-                  }}
-                >
-                  Back to Check-In
-                </Button>
-                <PoweredByBuilderLynk />
               </div>
             ) : (
             <form onSubmit={handleSubmit} className="space-y-4">
@@ -927,11 +921,13 @@ export default function VisitorLogin() {
                   'Check In'
                 )}
               </Button>
-              <PoweredByBuilderLynk />
             </form>
             )}
           </CardContent>
         </Card>
+      </div>
+      <div className="pb-6 text-center">
+        <PoweredByBuilderLynk />
       </div>
 
       {/* Camera Modal - Auto-opens when photo required */}
@@ -1003,9 +999,6 @@ export default function VisitorLogin() {
               >
                 Continue
               </Button>
-            </div>
-            <div className="w-full">
-              <PoweredByBuilderLynk />
             </div>
           </div>
         </AlertDialogContent>

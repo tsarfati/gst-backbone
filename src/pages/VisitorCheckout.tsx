@@ -150,10 +150,15 @@ export default function VisitorCheckout() {
   };
 
   const PoweredByBuilderLynk = () => (
-    <div className="mt-6 flex items-center justify-center gap-2 border-t pt-4 text-xs text-muted-foreground">
+    <a
+      href="https://builderlynk.com"
+      target="_blank"
+      rel="noreferrer"
+      className="inline-flex items-center gap-2 rounded-full border bg-background/90 px-4 py-2 text-xs font-medium text-muted-foreground shadow-sm transition hover:border-primary/40 hover:text-foreground"
+    >
       <img src={builderlynkLogo} alt="BuilderLYNK" className="h-5 w-auto object-contain opacity-90" />
-      <span>Visitor check-in powered by BuilderLYNK</span>
-    </div>
+      <span>Powered by BuilderLYNK</span>
+    </a>
   );
 
   if (loading) {
@@ -169,7 +174,7 @@ export default function VisitorCheckout() {
 
   if (error) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="text-center py-8">
             <XCircle className="h-12 w-12 text-destructive mx-auto mb-4" />
@@ -177,6 +182,9 @@ export default function VisitorCheckout() {
             <p className="text-muted-foreground">{error}</p>
           </CardContent>
         </Card>
+        <div className="mt-4 text-center">
+          <PoweredByBuilderLynk />
+        </div>
       </div>
     );
   }
@@ -185,7 +193,7 @@ export default function VisitorCheckout() {
     const duration = calculateDuration();
     
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
+      <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
         <Card className="w-full max-w-md">
           <CardContent className="text-center py-8">
             <CheckCircle2 className="h-16 w-16 text-green-600 mx-auto mb-4" />
@@ -205,15 +213,17 @@ export default function VisitorCheckout() {
                 Checked out at: {new Date(visitorLog.check_out_time).toLocaleString()}
               </p>
             </div>
-            <PoweredByBuilderLynk />
           </CardContent>
         </Card>
+        <div className="mt-4 text-center">
+          <PoweredByBuilderLynk />
+        </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
+    <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-primary/10 via-background to-secondary/10 p-4">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Visitor Checkout</CardTitle>
@@ -261,9 +271,11 @@ export default function VisitorCheckout() {
           <p className="text-xs text-center text-muted-foreground">
             By checking out, you confirm you are leaving the job site.
           </p>
-          <PoweredByBuilderLynk />
         </CardContent>
       </Card>
+      <div className="mt-4 text-center">
+        <PoweredByBuilderLynk />
+      </div>
     </div>
   );
 }
