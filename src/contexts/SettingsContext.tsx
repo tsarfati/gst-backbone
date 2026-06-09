@@ -375,7 +375,10 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
     };
 
     loadSettings();
-  }, [currentCompany?.id, user?.id, activeCompanyRole]);
+  // Company theme defaults are scoped to the active company, not to the
+  // user's resolved role. Reloading on role settlement causes a second
+  // paint after login and can overwrite the sidebar color with stale data.
+  }, [currentCompany?.id, user?.id]);
 
   const settingsLoadingForScope = !isLoaded || (currentScopeKey !== null && loadedScopeKey !== currentScopeKey);
 
