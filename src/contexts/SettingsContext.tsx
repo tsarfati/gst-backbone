@@ -224,7 +224,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
       // Clear company defaults immediately when company changes to prevent stale colors
       setCompanyDefaults(null);
 
-      let didLoadFromDb = false;
+      let didResolveScope = false;
 
       if (!currentCompany?.id || !user?.id) {
         // No scope → reset to defaults and REMOVE custom properties so CSS root variables take over
@@ -277,6 +277,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         const { data: rpcTheme } = await supabase.rpc('get_company_theme_defaults', {
           _company_id: currentCompany.id
         });
+        didResolveScope = true;
         if (rpcTheme) {
           companySettings = rpcTheme as Partial<AppSettings>;
         }
@@ -290,6 +291,8 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             .is('user_id', null)
             .order('updated_at', { ascending: false })
             .limit(1);
+
+          didResolveScope = true;
 
           companySettings = ((companyResp?.data?.[0] as any)?.settings || null) as Partial<AppSettings> | null;
         }
@@ -359,15 +362,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
         if (companySettings) {
           // Refresh cache only when we found real company settings.
           localStorage.setItem(cacheKey, JSON.stringify(merged));
-          didLoadFromDb = true;
         }
       } catch (error) {
         console.warn('Error loading settings:', error);
       } finally {
         setIsLoaded(true);
-        // Only allow future saves once we've loaded this company's settings from DB.
-        // If the fetch fails, keep writes blocked to avoid persisting stale/cached colors into the company.
-        loadedScopeKeyRef.current = didLoadFromDb ? currentScopeKey : null;
+        // Allow saves once we've successfully resolved this company's settings scope,
+        // even if there was no existing company_ui_settings row yet. Otherwise a brand
+        // new company can never persist its first custom colors and will keep reverting.
+        loadedScopeKeyRef.current = didResolveScope ? currentScopeKey : null;
         // Mark the current scope as finished loading to prevent first-paint flashes
         // when switching from no-company scope to company scope.
         setLoadedScopeKey(currentScopeKey);
