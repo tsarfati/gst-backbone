@@ -246,7 +246,7 @@ export function VisitorReports({ jobId, jobName }: VisitorReportsProps) {
 
   const exportToPDF = async () => {
     try {
-      const doc = new jsPDF();
+      const doc = new jsPDF({ orientation: 'landscape' });
       const logo = await addCompanyLogoToPdf(doc, currentCompany?.logo_url, { x: 14, y: 12, maxWidth: 60, maxHeight: 22 });
       const titleX = logo.width > 0 ? 14 + logo.width + 8 : 14;
       const titleY = logo.height > 0 ? 22 : 20;
@@ -296,14 +296,14 @@ export function VisitorReports({ jobId, jobName }: VisitorReportsProps) {
           fillColor: [24, 58, 95],
         },
         columnStyles: {
-          0: { cellWidth: 28 },
-          1: { cellWidth: 26 },
-          2: { cellWidth: 28 },
-          3: { cellWidth: 28 },
-          4: { cellWidth: 28 },
-          5: { cellWidth: 18 },
-          6: { cellWidth: 24 },
-          7: { cellWidth: 30 },
+          0: { cellWidth: 32 },
+          1: { cellWidth: 30 },
+          2: { cellWidth: 36 },
+          3: { cellWidth: 30 },
+          4: { cellWidth: 30 },
+          5: { cellWidth: 20 },
+          6: { cellWidth: 44 },
+          7: { cellWidth: 52 },
         },
       });
 
