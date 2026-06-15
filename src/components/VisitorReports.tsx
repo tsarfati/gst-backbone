@@ -197,9 +197,9 @@ export function VisitorReports({ jobId, jobName }: VisitorReportsProps) {
     const csvData = filteredVisitors.map(visitor => {
       const checkIn = parseISO(visitor.check_in_time);
       const checkOut = visitor.check_out_time ? parseISO(visitor.check_out_time) : null;
-      const duration = checkOut ? 
-        `${Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60))} minutes` : 
-        'Still on site';
+      const duration = checkOut
+        ? calculateDuration(visitor.check_in_time, visitor.check_out_time)
+        : 'Still on site';
 
       return [
         visitor.visitor_name,

@@ -166,16 +166,16 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
       'Company',
       'Check In Time',
       'Check Out Time',
-      'Duration (minutes)',
+      'Duration',
       'Purpose',
     ];
 
     const csvData = filteredVisitors.map(visitor => {
       const checkIn = parseISO(visitor.check_in_time);
       const checkOut = visitor.check_out_time ? parseISO(visitor.check_out_time) : null;
-      const duration = checkOut ? 
-        Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60)) : 
-        '';
+      const duration = checkOut
+        ? calculateDuration(visitor.check_in_time, visitor.check_out_time)
+        : '';
 
       return [
         visitor.visitor_name,
@@ -245,20 +245,20 @@ export function VisitorReportsPage({ jobId, jobName }: VisitorReportsPageProps) 
           'Company',
           'Check In',
           'Check Out',
-          'Duration (minutes)',
+          'Duration',
           'Purpose',
         ]],
         body: filteredVisitors.map((visitor) => {
           const checkIn = parseISO(visitor.check_in_time);
           const checkOut = visitor.check_out_time ? parseISO(visitor.check_out_time) : null;
-          const duration = checkOut ? Math.round((checkOut.getTime() - checkIn.getTime()) / (1000 * 60)) : '';
+          const duration = checkOut ? calculateDuration(visitor.check_in_time, visitor.check_out_time) : '';
           return [
             visitor.visitor_name,
             visitor.visitor_phone,
             visitor.company_name || visitor.subcontractor?.company_name || '',
             format(checkIn, 'yyyy-MM-dd h:mm a'),
             checkOut ? format(checkOut, 'yyyy-MM-dd h:mm a') : 'Still on site',
-            duration === '' ? 'Still on site' : String(duration),
+            duration === '' ? 'Still on site' : duration,
             visitor.purpose_of_visit || '',
           ];
         }),
