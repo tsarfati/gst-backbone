@@ -956,7 +956,6 @@ export default function BillDetails() {
             <Edit className="h-4 w-4 mr-2" />
             Edit Bill
           </Button>
-          
           {(bill?.status === 'approved' || bill?.status === 'pending_payment') && (
             <Button onClick={() => navigate('/payables/make-payment', { state: { billId: id } })}>
               <DollarSign className="h-4 w-4 mr-2" />

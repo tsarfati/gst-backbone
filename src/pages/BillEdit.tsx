@@ -6,12 +6,13 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Badge } from "@/components/ui/badge";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Command, CommandEmpty, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
-import { ArrowLeft, Save, Loader2, Upload, FileText, X, AlertCircle, Search, Check, Download } from "lucide-react";
+import { ArrowLeft, Save, Loader2, Upload, FileText, X, AlertCircle, Search, Check, Download, Trash2 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useCompany } from "@/contexts/CompanyContext";
@@ -24,6 +25,7 @@ import BillCostDistribution from "@/components/BillCostDistribution";
 import BillCommunications from "@/components/BillCommunications";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
+import { useActionPermissions } from "@/hooks/useActionPermissions";
 
 interface Vendor {
   id: string;
@@ -71,6 +73,7 @@ export default function BillEdit() {
   const { currentCompany } = useCompany();
   const { profile, user } = useAuth();
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds, canAccessJob } = useWebsiteJobAccess();
+  const { canDelete } = useActionPermissions();
   
   const [bill, setBill] = useState<any>(null);
   const [vendors, setVendors] = useState<Vendor[]>([]);
@@ -92,6 +95,8 @@ export default function BillEdit() {
   const [showMultiDistribution, setShowMultiDistribution] = useState(false);
   const [selectedDocument, setSelectedDocument] = useState<{ kind: 'existing' | 'new'; key: string } | null>(null);
   const [resolvedPreviewUrl, setResolvedPreviewUrl] = useState<string | null>(null);
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [deletingBill, setDeletingBill] = useState(false);
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -552,6 +557,37 @@ export default function BillEdit() {
     if (files.length > 0) handleFileUpload(files);
   };
 
+  const handleDeleteBill = async () => {
+    if (!bill?.id) return;
+
+    try {
+      setDeletingBill(true);
+      const { error } = await supabase
+        .from('invoices')
+        .delete()
+        .eq('id', bill.id);
+
+      if (error) throw error;
+
+      toast({
+        title: "Bill deleted",
+        description: "The bill has been deleted successfully.",
+      });
+
+      setDeleteDialogOpen(false);
+      navigate("/invoices");
+    } catch (error) {
+      console.error('Error deleting bill:', error);
+      toast({
+        title: "Error",
+        description: "Failed to delete bill",
+        variant: "destructive"
+      });
+    } finally {
+      setDeletingBill(false);
+    }
+  };
+
   // Check if attachments can be bypassed based on selected account/code
   const canBypassAttachment = () => {
     const codeAllowsById = (id?: string) => {
@@ -958,6 +994,50 @@ export default function BillEdit() {
             )}
             Save Changes
           </Button>
+          {canDelete('bills') && (
+            <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+              <DialogTrigger asChild>
+                <Button variant="destructive" disabled={saving}>
+                  <Trash2 className="h-4 w-4 mr-2" />
+                  Delete Bill
+                </Button>
+              </DialogTrigger>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Delete this bill?</DialogTitle>
+                  <DialogDescription>
+                    This will permanently delete {bill?.invoice_number ? `bill ${bill.invoice_number}` : "this bill"}.
+                    This action cannot be undone.
+                  </DialogDescription>
+                </DialogHeader>
+                <DialogFooter>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => setDeleteDialogOpen(false)}
+                    disabled={deletingBill}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="destructive"
+                    onClick={() => void handleDeleteBill()}
+                    disabled={deletingBill}
+                  >
+                    {deletingBill ? (
+                      <>
+                        <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                        Deleting...
+                      </>
+                    ) : (
+                      "Delete Bill"
+                    )}
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
+          )}
           {bill?.status === 'draft' && (
             <Button onClick={() => handleSave('pending_approval')} disabled={saving}>
               {saving ? (
