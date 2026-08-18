@@ -9,40 +9,12 @@ const corsHeaders = {
 };
 
 const MANAGER_ROLES = new Set(["owner", "admin", "company_admin", "controller"]);
-const EXTERNAL_ROLES = new Set(["vendor", "design_professional"]);
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 
-const getRolePriority = (role: string) => {
-  switch (role) {
-    case "owner":
-      return 100;
-    case "company_admin":
-    case "admin":
-      return 90;
-    case "controller":
-      return 80;
-    case "project_manager":
-      return 70;
-    case "employee":
-      return 60;
-    case "view_only":
-      return 50;
-    case "design_professional":
-      return 40;
-    case "vendor":
-      return 30;
-    default:
-      return 0;
-  }
-};
-
-const USER_PROFILE_BASE_SELECT =
-  "id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, custom_role_id, role, vendor_id, current_company_id";
-
 type RequestBody = {
-  companyId?: string;
-  includeExternal?: boolean;
+  userId?: string;
+  contextCompanyId?: string;
 };
 
 serve(async (req: Request) => {
@@ -79,10 +51,12 @@ serve(async (req: Request) => {
       });
     }
 
-    const { companyId, includeExternal = false }: RequestBody = await req.json();
-    const normalizedCompanyId = String(companyId || "").trim();
-    if (!normalizedCompanyId) {
-      return new Response(JSON.stringify({ error: "companyId is required" }), {
+    const { userId, contextCompanyId }: RequestBody = await req.json();
+    const normalizedUserId = String(userId || "").trim();
+    const normalizedContextCompanyId = String(contextCompanyId || "").trim();
+
+    if (!normalizedUserId || !normalizedContextCompanyId) {
+      return new Response(JSON.stringify({ error: "userId and contextCompanyId are required" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
@@ -92,7 +66,7 @@ serve(async (req: Request) => {
     const { data: requesterAccessRows, error: requesterAccessError } = await admin
       .from("user_company_access")
       .select("role, is_active")
-      .eq("company_id", normalizedCompanyId)
+      .eq("company_id", normalizedContextCompanyId)
       .eq("user_id", requesterUserId);
 
     if (requesterAccessError) throw requesterAccessError;
@@ -111,53 +85,42 @@ serve(async (req: Request) => {
 
     const { data: accessRows, error: accessError } = await admin
       .from("user_company_access")
-      .select("user_id, role, is_active")
-      .eq("company_id", normalizedCompanyId);
+      .select("id, company_id, role, is_active, granted_at")
+      .eq("user_id", normalizedUserId)
+      .order("granted_at", { ascending: false });
 
     if (accessError) throw accessError;
 
-    const dedupedAccessByUserId = new Map<string, { user_id: string; company_role: string }>();
-    for (const row of accessRows || []) {
-      const userId = String((row as any).user_id || "").trim();
-      const companyRole = normalizeRole((row as any).role);
-      if ((row as any).is_active === false || !userId || !companyRole) continue;
-      if (!includeExternal && EXTERNAL_ROLES.has(companyRole)) continue;
+    const activeRows = (accessRows || []).filter((row: any) => row.is_active !== false);
+    const companyIds = Array.from(
+      new Set(activeRows.map((row: any) => String(row.company_id || "").trim()).filter(Boolean)),
+    );
 
-      const existing = dedupedAccessByUserId.get(userId);
-      if (!existing || getRolePriority(companyRole) >= getRolePriority(existing.company_role)) {
-        dedupedAccessByUserId.set(userId, { user_id: userId, company_role: companyRole });
-      }
-    }
+    const { data: companyRows, error: companyError } = companyIds.length > 0
+      ? await admin
+          .from("companies")
+          .select("id, name, display_name")
+          .in("id", companyIds)
+      : { data: [], error: null };
 
-    const userIds = Array.from(dedupedAccessByUserId.keys());
-    if (userIds.length === 0) {
-      return new Response(JSON.stringify({ users: [] }), {
+    if (companyError) throw companyError;
+
+    const companyById = new Map((companyRows || []).map((company: any) => [String(company.id), company]));
+
+    return new Response(
+      JSON.stringify({
+        accesses: activeRows.map((row: any) => ({
+          ...row,
+          company: companyById.get(String(row.company_id || "").trim()) || null,
+        })),
+      }),
+      {
         status: 200,
         headers: { "Content-Type": "application/json", ...corsHeaders },
-      });
-    }
-
-    const { data: profiles, error: profilesError } = await admin
-      .from("profiles")
-      .select(USER_PROFILE_BASE_SELECT)
-      .in("user_id", userIds)
-      .order("created_at", { ascending: false });
-
-    if (profilesError) throw profilesError;
-
-    const users = (profiles || []).map((profile: any) => ({
-      ...profile,
-      company_role: dedupedAccessByUserId.get(String(profile.user_id || "").trim())?.company_role || normalizeRole(profile.role) || "employee",
-      punch_clock_access: Boolean(profile?.punch_clock_access),
-      pm_lynk_access: Boolean(profile?.pm_lynk_access),
-    }));
-
-    return new Response(JSON.stringify({ users }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+      },
+    );
   } catch (error: any) {
-    console.error("get-company-users error", error);
+    console.error("get-user-company-access error", error);
     return new Response(JSON.stringify({ error: error?.message || "Unexpected error" }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },

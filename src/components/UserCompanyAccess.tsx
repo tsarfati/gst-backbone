@@ -19,7 +19,7 @@ interface CompanyAccess {
   id: string;
   company_id: string;
   role: string;
-  is_active: boolean;
+  is_active: boolean | null;
   granted_at: string;
   company?: {
     id: string;
@@ -34,11 +34,56 @@ interface Company {
   display_name?: string;
 }
 
+const normalizeCompanyKey = (value?: string | null) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\b(llc|inc|corp|corporation|co|company)\b/g, ' ')
+    .replace(/\s+/g, ' ');
+
+const areCompanyNamesEquivalent = (left?: string | null, right?: string | null) => {
+  const normalizedLeft = normalizeCompanyKey(left);
+  const normalizedRight = normalizeCompanyKey(right);
+
+  if (!normalizedLeft || !normalizedRight) return false;
+  if (normalizedLeft === normalizedRight) return true;
+
+  const leftTokens = normalizedLeft.split(' ').filter(Boolean);
+  const rightTokens = normalizedRight.split(' ').filter(Boolean);
+  const shorterTokens = leftTokens.length <= rightTokens.length ? leftTokens : rightTokens;
+  const longerTokens = leftTokens.length <= rightTokens.length ? rightTokens : leftTokens;
+
+  if (shorterTokens.length < 2) return false;
+
+  return shorterTokens.every((token, index) => longerTokens[index] === token);
+};
+
+const getRolePriority = (role?: string | null) => {
+  switch (String(role || '').trim().toLowerCase()) {
+    case 'owner':
+      return 100;
+    case 'company_admin':
+    case 'admin':
+      return 90;
+    case 'controller':
+      return 80;
+    case 'project_manager':
+      return 70;
+    case 'employee':
+      return 60;
+    case 'view_only':
+      return 50;
+    default:
+      return 0;
+  }
+};
+
 export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const { currentTenant } = useTenant();
-  const { userCompanies } = useCompany();
+  const { userCompanies, currentCompany } = useCompany();
   const [companyAccesses, setCompanyAccesses] = useState<CompanyAccess[]>([]);
   const [allCompanies, setAllCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -64,20 +109,27 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
 
   const fetchCompanyAccesses = async () => {
     try {
-      const { data, error } = await supabase
-        .from('user_company_access')
-        .select(`
-          *,
-          company:companies(id, name, display_name)
-        `)
-        .eq('user_id', userId)
-        .eq('is_active', true)
-        .order('granted_at', { ascending: false });
+      const { data: accessRows, error: accessError } = await supabase
+        .functions.invoke('get-user-company-access', {
+          body: {
+            userId,
+            contextCompanyId: currentCompany?.id,
+          },
+        });
 
-      if (error) throw error;
-      setCompanyAccesses(data || []);
-    } catch (error) {
+      if (accessError) throw accessError;
+      setCompanyAccesses((((accessRows as any)?.accesses) || []) as CompanyAccess[]);
+    } catch (error: any) {
       console.error('Error fetching company accesses:', error);
+      console.error(`Error fetching company accesses details: ${JSON.stringify({
+        message: error?.message || null,
+        details: error?.details || null,
+        hint: error?.hint || null,
+        code: error?.code || null,
+        name: error?.name || null,
+        status: error?.status || null,
+        userId,
+      })}`);
       toast({
         title: "Error",
         description: "Failed to load company access information",
@@ -227,6 +279,28 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
     return roleOptions.find(r => r.value === role)?.label || role;
   };
 
+  const normalizedCompanyAccesses = companyAccesses.reduce<CompanyAccess[]>((acc, access) => {
+    const existingIndex = acc.findIndex((existingAccess) =>
+      existingAccess.company_id === access.company_id ||
+      areCompanyNamesEquivalent(
+        existingAccess.company?.display_name || existingAccess.company?.name,
+        access.company?.display_name || access.company?.name,
+      ),
+    );
+
+    if (existingIndex === -1) {
+      acc.push(access);
+      return acc;
+    }
+
+    const existingAccess = acc[existingIndex];
+    if (getRolePriority(access.role) >= getRolePriority(existingAccess.role)) {
+      acc[existingIndex] = access;
+    }
+
+    return acc;
+  }, []);
+
   const availableCompanies = allCompanies.filter(
     company => !companyAccesses.some(access => access.company_id === company.id)
   );
@@ -309,7 +383,7 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
           </TableRow>
         </TableHeader>
         <TableBody>
-          {companyAccesses.length === 0 ? (
+          {normalizedCompanyAccesses.length === 0 ? (
             <TableRow>
               <TableCell colSpan={4} className="text-center py-8">
                 <div className="flex flex-col items-center gap-2">
@@ -322,7 +396,7 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
               </TableCell>
             </TableRow>
           ) : (
-            companyAccesses.map((access) => (
+            normalizedCompanyAccesses.map((access) => (
               <TableRow key={access.id}>
                 <TableCell>
                   <div className="flex items-center gap-2">

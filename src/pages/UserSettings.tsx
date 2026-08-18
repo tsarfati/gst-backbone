@@ -176,6 +176,10 @@ const isVisibleUserStatus = (status?: string | null) => {
 };
 
 const getResolvedUserId = (value?: string | null) => String(value || '').trim();
+const isUuid = (value?: string | null) =>
+  /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(
+    String(value || '').trim(),
+  );
 
 const parseRequestedRoleFromNotes = (notes?: string | null): string | null => {
   if (!notes) return null;
@@ -217,13 +221,14 @@ const parsePendingJobIdsFromNotes = (notes?: string | null): string[] => {
     const inviteRows = Array.isArray(parsed?.pendingJobInvites) ? parsed.pendingJobInvites : [];
     return inviteRows
       .map((invite: any) => String(invite?.jobId || '').trim())
-      .filter(Boolean);
+      .filter((jobId) => isUuid(jobId));
   } catch {
     return [];
   }
 };
 
 const normalizeCompanyKey = (value?: string | null) => String(value || '').trim().toLowerCase();
+const USER_PROFILE_BASE_SELECT = 'id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, custom_role_id, role, vendor_id, current_company_id';
 
 export default function UserSettings() {
   const [users, setUsers] = useState<UserProfile[]>([]);
@@ -305,17 +310,93 @@ export default function UserSettings() {
     try {
       const { data, error } = await supabase
         .from('custom_roles')
-        .select('id, role_name, role_key, color')
+        .select('id, role_name, role_key, color, is_active')
         .eq('company_id', currentCompany.id)
-        .or('is_active.eq.true,is_active.is.null')
         .order('role_name');
 
-      if (error) throw error;
-      setCustomRoles((data as CustomRole[]) || []);
+      if (error) {
+        const fallback = await supabase
+          .from('custom_roles')
+          .select('id, role_name, role_key, color')
+          .eq('company_id', currentCompany.id)
+          .order('role_name');
+
+        if (fallback.error) throw fallback.error;
+        setCustomRoles((fallback.data as CustomRole[]) || []);
+        return;
+      }
+
+      setCustomRoles(
+        ((data || []) as Array<CustomRole & { is_active?: boolean | null }>).filter(
+          (role) => role.is_active !== false,
+        ),
+      );
     } catch (error) {
       console.error('Error fetching custom roles:', error);
+      console.error(`Error fetching custom roles details: ${JSON.stringify({
+        message: (error as any)?.message || null,
+        details: (error as any)?.details || null,
+        hint: (error as any)?.hint || null,
+        code: (error as any)?.code || null,
+        name: (error as any)?.name || null,
+        status: (error as any)?.status || null,
+        contextCompanyId: currentCompany?.id || null,
+      })}`);
       setCustomRoles([]);
     }
+  };
+
+  const fetchUsersDirectFallback = async () => {
+    if (!currentCompany) {
+      return [] as Array<Record<string, any>>;
+    }
+
+    const { data: companyAccess, error: companyAccessError } = await supabase
+      .from('user_company_access')
+      .select('user_id, role, is_active')
+      .eq('company_id', currentCompany.id)
+      .eq('is_active', true);
+
+    if (companyAccessError) {
+      throw companyAccessError;
+    }
+
+    const accessRows = (companyAccess || [])
+      .filter((row: any) => isUuid(row?.user_id))
+      .map((row: any) => ({
+        user_id: String(row.user_id).trim(),
+        company_role: normalizeRole(row.role) || 'employee',
+      }));
+
+    if (accessRows.length === 0) {
+      return [] as Array<Record<string, any>>;
+    }
+
+    const roleByUserId = new Map<string, string>();
+    accessRows.forEach((row) => {
+      const existingRole = roleByUserId.get(row.user_id);
+      if (!existingRole || getRolePriority(row.company_role) >= getRolePriority(existingRole)) {
+        roleByUserId.set(row.user_id, row.company_role);
+      }
+    });
+
+    const { data: profilesData, error: profilesError } = await supabase
+      .from('profiles')
+      .select(USER_PROFILE_BASE_SELECT)
+      .in('user_id', Array.from(roleByUserId.keys()))
+      .order('created_at', { ascending: false });
+
+    if (profilesError) {
+      throw profilesError;
+    }
+
+    return ((profilesData || []) as any[]).map((profile) => ({
+      ...profile,
+      role: roleByUserId.get(String(profile.user_id || '').trim()) || profile.role || 'employee',
+      company_role: roleByUserId.get(String(profile.user_id || '').trim()) || profile.role || 'employee',
+      punch_clock_access: Boolean((profile as any).punch_clock_access),
+      pm_lynk_access: Boolean((profile as any).pm_lynk_access),
+    }));
   };
 
    const performInvitationRepair = async (invitation: Invitation, options?: { silent?: boolean }) => {
@@ -648,11 +729,13 @@ export default function UserSettings() {
         },
       });
 
-      if (companyUsersError) throw companyUsersError;
-
-      const internalCompanyUsers = Array.isArray(companyUsersResponse?.users)
+      let internalCompanyUsers = Array.isArray(companyUsersResponse?.users)
         ? companyUsersResponse.users
         : [];
+
+      if (companyUsersError || internalCompanyUsers.length === 0) {
+        internalCompanyUsers = await fetchUsersDirectFallback();
+      }
 
       internalCompanyUsers.forEach((user: any) => {
         const userId = getResolvedUserId(user.user_id);
@@ -668,6 +751,57 @@ export default function UserSettings() {
           internalCompanyUserIds.add(userId);
         }
       });
+
+      if (internalCompanyUsers.length > 0) {
+        const internalCompanyIds = Array.from(
+          new Set(
+            internalCompanyUsers
+              .map((user: any) => String(user.current_company_id || '').trim())
+              .filter((companyId) => isUuid(companyId)),
+          ),
+        );
+
+        const { data: internalCompanyRows, error: internalCompanyRowsError } = internalCompanyIds.length > 0
+          ? await supabase
+              .from('companies')
+              .select('id, name, display_name, logo_url')
+              .in('id', internalCompanyIds)
+          : { data: [], error: null };
+
+        if (internalCompanyRowsError) throw internalCompanyRowsError;
+
+        const internalCompanyById = new Map(
+          ((internalCompanyRows || []) as any[]).map((company) => [String(company.id), company]),
+        );
+
+        const basicUsers = internalCompanyUsers
+          .map((user: any) => {
+            const userRole = resolveUserRole(roleMap.get(getResolvedUserId(user.user_id)), user.role);
+            const companyRecord = user.current_company_id
+              ? internalCompanyById.get(String(user.current_company_id))
+              : null;
+
+            return {
+              ...user,
+              role: userRole,
+              has_pin: !!user.pin_code,
+              jobs: [],
+              punch_clock_access: Boolean(user.punch_clock_access),
+              pm_lynk_access: Boolean(user.pm_lynk_access),
+              company_name:
+                String(companyRecord?.display_name || companyRecord?.name || '').trim() || null,
+              company_logo_url: resolveCompanyLogoUrl(companyRecord?.logo_url || null),
+            };
+          })
+          .sort((a, b) => {
+            const nameA = a.display_name || `${a.first_name || ''} ${a.last_name || ''}`.trim();
+            const nameB = b.display_name || `${b.first_name || ''} ${b.last_name || ''}`.trim();
+            return nameA.localeCompare(nameB);
+          });
+
+        setUsers(basicUsers as any);
+        return;
+      }
 
       // Legacy fallback for users missing user_company_access rows: use approved
       // company access requests rather than profiles.current_company_id. The profile's
@@ -687,6 +821,9 @@ export default function UserSettings() {
       const requestPendingJobIdsByUserId = new Map<string, string[]>();
       for (const request of approvedAccessRequests || []) {
         const requestedUserId = String(request.user_id || '').trim();
+        if (!isUuid(requestedUserId)) {
+          continue;
+        }
         const requestedRole = String(parseRequestedRoleFromNotes(request.notes) || '').trim().toLowerCase();
         const isExternalAccessRequest = isExternalAccessRole(requestedRole);
         const isInternalRequest = INTERNAL_REQUEST_FALLBACK_ROLES.includes(
@@ -737,7 +874,7 @@ export default function UserSettings() {
       const { data: fallbackProfiles, error: fallbackProfilesError } = fallbackProfileUserIds.length > 0
         ? await supabase
             .from('profiles')
-            .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role, vendor_id, current_company_id')
+            .select(USER_PROFILE_BASE_SELECT)
             .in('user_id', fallbackProfileUserIds)
             .order('created_at', { ascending: false })
         : { data: [], error: null };
@@ -778,13 +915,13 @@ export default function UserSettings() {
       const activeVendorPortalUserIds = new Set(
         ((activeVendorPortalMemberships || []) as any[])
           .map((row: any) => String(row.created_user_id || '').trim())
-          .filter(Boolean)
+          .filter((userId) => isUuid(userId))
       );
       const vendorIdByUserId = new Map<string, string>();
       ((activeVendorPortalMemberships || []) as any[]).forEach((row: any) => {
         const userId = String(row.created_user_id || '').trim();
         const vendorId = String(row.vendor_id || '').trim();
-        if (!userId || !vendorId || vendorIdByUserId.has(userId)) return;
+        if (!isUuid(userId) || !isUuid(vendorId) || vendorIdByUserId.has(userId)) return;
         vendorIdByUserId.set(userId, vendorId);
       });
 
@@ -792,7 +929,7 @@ export default function UserSettings() {
       const { data: linkedVendorProfiles, error: linkedVendorProfilesError } = activeVendorPortalUserIds.size > 0
         ? await supabase
             .from('profiles')
-            .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role, vendor_id, current_company_id')
+            .select(USER_PROFILE_BASE_SELECT)
             .in('user_id', Array.from(activeVendorPortalUserIds))
             .order('created_at', { ascending: false })
         : { data: [], error: null };
@@ -867,14 +1004,14 @@ export default function UserSettings() {
         new Set(
           allRegularUsers
             .map((user: any) => String(user.vendor_id || '').trim())
-            .filter(Boolean)
+            .filter((vendorId) => isUuid(vendorId))
         )
       );
       const companyIds = Array.from(
         new Set(
           allRegularUsers
             .map((user: any) => String(user.current_company_id || '').trim())
-            .filter(Boolean)
+            .filter((companyId) => isUuid(companyId))
         )
       );
 
@@ -910,7 +1047,7 @@ export default function UserSettings() {
             ? String(user.user_id)
             : null;
         })
-        .filter(Boolean) as string[];
+        .filter((userId): userId is string => isUuid(userId)) as string[];
 
       const externalVendorIds = Array.from(
         new Set(
@@ -925,7 +1062,7 @@ export default function UserSettings() {
 
       const pendingJobIds = Array.from(
         new Set(
-          Array.from(requestPendingJobIdsByUserId.values()).flat().filter(Boolean),
+          Array.from(requestPendingJobIdsByUserId.values()).flat().filter((jobId) => isUuid(jobId)),
         ),
       );
 
@@ -1132,6 +1269,15 @@ export default function UserSettings() {
       setUsers(usersWithJobs as any);
     } catch (error) {
       console.error('Error fetching users:', error);
+      console.error(`Error fetching users details: ${JSON.stringify({
+        message: (error as any)?.message || null,
+        details: (error as any)?.details || null,
+        hint: (error as any)?.hint || null,
+        code: (error as any)?.code || null,
+        name: (error as any)?.name || null,
+        status: (error as any)?.status || null,
+        contextCompanyId: currentCompany?.id || null,
+      })}`);
       toast({
         title: 'Error',
         description: 'Failed to load users',

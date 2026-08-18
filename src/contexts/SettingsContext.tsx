@@ -309,7 +309,7 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
             .select('user_id, role, granted_at')
             .eq('company_id', currentCompany.id)
             .eq('is_active', true)
-            .in('role', ['admin', 'company_admin', 'controller', 'owner'] as any)
+            .in('role', ['admin', 'company_admin', 'controller'] as any)
             .order('granted_at', { ascending: false });
 
           const legacyUserIds = (legacyAccessRows || []).map((row) => row.user_id).filter(Boolean);

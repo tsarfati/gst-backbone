@@ -9,40 +9,14 @@ const corsHeaders = {
 };
 
 const MANAGER_ROLES = new Set(["owner", "admin", "company_admin", "controller"]);
-const EXTERNAL_ROLES = new Set(["vendor", "design_professional"]);
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
-
-const getRolePriority = (role: string) => {
-  switch (role) {
-    case "owner":
-      return 100;
-    case "company_admin":
-    case "admin":
-      return 90;
-    case "controller":
-      return 80;
-    case "project_manager":
-      return 70;
-    case "employee":
-      return 60;
-    case "view_only":
-      return 50;
-    case "design_professional":
-      return 40;
-    case "vendor":
-      return 30;
-    default:
-      return 0;
-  }
-};
-
-const USER_PROFILE_BASE_SELECT =
-  "id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, custom_role_id, role, vendor_id, current_company_id";
+const normalizeId = (value: unknown) => String(value || "").trim();
 
 type RequestBody = {
+  userId?: string;
   companyId?: string;
-  includeExternal?: boolean;
+  jobIds?: string[];
 };
 
 serve(async (req: Request) => {
@@ -79,10 +53,15 @@ serve(async (req: Request) => {
       });
     }
 
-    const { companyId, includeExternal = false }: RequestBody = await req.json();
-    const normalizedCompanyId = String(companyId || "").trim();
-    if (!normalizedCompanyId) {
-      return new Response(JSON.stringify({ error: "companyId is required" }), {
+    const { userId, companyId, jobIds }: RequestBody = await req.json();
+    const normalizedUserId = normalizeId(userId);
+    const normalizedCompanyId = normalizeId(companyId);
+    const requestedJobIds = Array.isArray(jobIds)
+      ? Array.from(new Set(jobIds.map((jobId) => normalizeId(jobId)).filter(Boolean)))
+      : [];
+
+    if (!normalizedUserId || !normalizedCompanyId) {
+      return new Response(JSON.stringify({ error: "userId and companyId are required" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
@@ -109,55 +88,68 @@ serve(async (req: Request) => {
       });
     }
 
-    const { data: accessRows, error: accessError } = await admin
+    const { data: targetAccessRows, error: targetAccessError } = await admin
       .from("user_company_access")
-      .select("user_id, role, is_active")
-      .eq("company_id", normalizedCompanyId);
+      .select("company_id, is_active")
+      .eq("company_id", normalizedCompanyId)
+      .eq("user_id", normalizedUserId);
 
-    if (accessError) throw accessError;
+    if (targetAccessError) throw targetAccessError;
 
-    const dedupedAccessByUserId = new Map<string, { user_id: string; company_role: string }>();
-    for (const row of accessRows || []) {
-      const userId = String((row as any).user_id || "").trim();
-      const companyRole = normalizeRole((row as any).role);
-      if ((row as any).is_active === false || !userId || !companyRole) continue;
-      if (!includeExternal && EXTERNAL_ROLES.has(companyRole)) continue;
-
-      const existing = dedupedAccessByUserId.get(userId);
-      if (!existing || getRolePriority(companyRole) >= getRolePriority(existing.company_role)) {
-        dedupedAccessByUserId.set(userId, { user_id: userId, company_role: companyRole });
-      }
-    }
-
-    const userIds = Array.from(dedupedAccessByUserId.keys());
-    if (userIds.length === 0) {
-      return new Response(JSON.stringify({ users: [] }), {
-        status: 200,
+    const targetHasCompanyAccess = (targetAccessRows || []).some((row: any) => row.is_active !== false);
+    if (!targetHasCompanyAccess) {
+      return new Response(JSON.stringify({ error: "Target user does not have access to this company" }), {
+        status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    const { data: profiles, error: profilesError } = await admin
-      .from("profiles")
-      .select(USER_PROFILE_BASE_SELECT)
-      .in("user_id", userIds)
-      .order("created_at", { ascending: false });
+    const { data: companyJobsData, error: companyJobsError } = await admin
+      .from("jobs")
+      .select("id")
+      .eq("company_id", normalizedCompanyId)
+      .eq("is_active", true);
 
-    if (profilesError) throw profilesError;
+    if (companyJobsError) throw companyJobsError;
 
-    const users = (profiles || []).map((profile: any) => ({
-      ...profile,
-      company_role: dedupedAccessByUserId.get(String(profile.user_id || "").trim())?.company_role || normalizeRole(profile.role) || "employee",
-      punch_clock_access: Boolean(profile?.punch_clock_access),
-      pm_lynk_access: Boolean(profile?.pm_lynk_access),
-    }));
+    const companyJobIds = Array.from(
+      new Set((companyJobsData || []).map((row: any) => normalizeId(row.id)).filter(Boolean)),
+    );
+    const allowedJobIds = requestedJobIds.filter((jobId) => companyJobIds.includes(jobId));
 
-    return new Response(JSON.stringify({ users }), {
-      status: 200,
-      headers: { "Content-Type": "application/json", ...corsHeaders },
-    });
+    if (companyJobIds.length > 0) {
+      const { error: deleteError } = await admin
+        .from("user_job_access")
+        .delete()
+        .eq("user_id", normalizedUserId)
+        .in("job_id", companyJobIds);
+
+      if (deleteError) throw deleteError;
+    }
+
+    if (allowedJobIds.length > 0) {
+      const rows = allowedJobIds.map((jobId) => ({
+        user_id: normalizedUserId,
+        job_id: jobId,
+        granted_by: requesterUserId,
+      }));
+
+      const { error: insertError } = await admin.from("user_job_access").insert(rows);
+      if (insertError) throw insertError;
+    }
+
+    return new Response(
+      JSON.stringify({
+        success: true,
+        assignedJobIds: allowedJobIds,
+      }),
+      {
+        status: 200,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      },
+    );
   } catch (error: any) {
-    console.error("get-company-users error", error);
+    console.error("update-user-website-job-access error", error);
     return new Response(JSON.stringify({ error: error?.message || "Unexpected error" }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },

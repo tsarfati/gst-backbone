@@ -9,40 +9,14 @@ const corsHeaders = {
 };
 
 const MANAGER_ROLES = new Set(["owner", "admin", "company_admin", "controller"]);
-const EXTERNAL_ROLES = new Set(["vendor", "design_professional"]);
 
 const normalizeRole = (value: unknown) => String(value || "").trim().toLowerCase();
 
-const getRolePriority = (role: string) => {
-  switch (role) {
-    case "owner":
-      return 100;
-    case "company_admin":
-    case "admin":
-      return 90;
-    case "controller":
-      return 80;
-    case "project_manager":
-      return 70;
-    case "employee":
-      return 60;
-    case "view_only":
-      return 50;
-    case "design_professional":
-      return 40;
-    case "vendor":
-      return 30;
-    default:
-      return 0;
-  }
-};
-
-const USER_PROFILE_BASE_SELECT =
-  "id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, custom_role_id, role, vendor_id, current_company_id";
-
 type RequestBody = {
+  userId?: string;
   companyId?: string;
-  includeExternal?: boolean;
+  field?: "punch_clock_access" | "pm_lynk_access";
+  value?: boolean;
 };
 
 serve(async (req: Request) => {
@@ -79,10 +53,19 @@ serve(async (req: Request) => {
       });
     }
 
-    const { companyId, includeExternal = false }: RequestBody = await req.json();
+    const { userId, companyId, field, value }: RequestBody = await req.json();
+    const normalizedUserId = String(userId || "").trim();
     const normalizedCompanyId = String(companyId || "").trim();
-    if (!normalizedCompanyId) {
-      return new Response(JSON.stringify({ error: "companyId is required" }), {
+
+    if (!normalizedUserId || !normalizedCompanyId || !field) {
+      return new Response(JSON.stringify({ error: "userId, companyId, and field are required" }), {
+        status: 400,
+        headers: { "Content-Type": "application/json", ...corsHeaders },
+      });
+    }
+
+    if (field !== "punch_clock_access" && field !== "pm_lynk_access") {
+      return new Response(JSON.stringify({ error: "Unsupported field" }), {
         status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
@@ -109,55 +92,37 @@ serve(async (req: Request) => {
       });
     }
 
-    const { data: accessRows, error: accessError } = await admin
+    const { data: targetAccessRows, error: targetAccessError } = await admin
       .from("user_company_access")
-      .select("user_id, role, is_active")
-      .eq("company_id", normalizedCompanyId);
+      .select("company_id, is_active")
+      .eq("company_id", normalizedCompanyId)
+      .eq("user_id", normalizedUserId);
 
-    if (accessError) throw accessError;
+    if (targetAccessError) throw targetAccessError;
 
-    const dedupedAccessByUserId = new Map<string, { user_id: string; company_role: string }>();
-    for (const row of accessRows || []) {
-      const userId = String((row as any).user_id || "").trim();
-      const companyRole = normalizeRole((row as any).role);
-      if ((row as any).is_active === false || !userId || !companyRole) continue;
-      if (!includeExternal && EXTERNAL_ROLES.has(companyRole)) continue;
-
-      const existing = dedupedAccessByUserId.get(userId);
-      if (!existing || getRolePriority(companyRole) >= getRolePriority(existing.company_role)) {
-        dedupedAccessByUserId.set(userId, { user_id: userId, company_role: companyRole });
-      }
-    }
-
-    const userIds = Array.from(dedupedAccessByUserId.keys());
-    if (userIds.length === 0) {
-      return new Response(JSON.stringify({ users: [] }), {
-        status: 200,
+    const targetHasCompanyAccess = (targetAccessRows || []).some((row: any) => row.is_active !== false);
+    if (!targetHasCompanyAccess) {
+      return new Response(JSON.stringify({ error: "Target user does not have access to this company" }), {
+        status: 400,
         headers: { "Content-Type": "application/json", ...corsHeaders },
       });
     }
 
-    const { data: profiles, error: profilesError } = await admin
+    const { data, error } = await admin
       .from("profiles")
-      .select(USER_PROFILE_BASE_SELECT)
-      .in("user_id", userIds)
-      .order("created_at", { ascending: false });
+      .update({ [field]: Boolean(value) })
+      .eq("user_id", normalizedUserId)
+      .select(`user_id, ${field}`)
+      .maybeSingle();
 
-    if (profilesError) throw profilesError;
+    if (error) throw error;
 
-    const users = (profiles || []).map((profile: any) => ({
-      ...profile,
-      company_role: dedupedAccessByUserId.get(String(profile.user_id || "").trim())?.company_role || normalizeRole(profile.role) || "employee",
-      punch_clock_access: Boolean(profile?.punch_clock_access),
-      pm_lynk_access: Boolean(profile?.pm_lynk_access),
-    }));
-
-    return new Response(JSON.stringify({ users }), {
+    return new Response(JSON.stringify({ success: true, profile: data }), {
       status: 200,
       headers: { "Content-Type": "application/json", ...corsHeaders },
     });
   } catch (error: any) {
-    console.error("get-company-users error", error);
+    console.error("update-user-app-access error", error);
     return new Response(JSON.stringify({ error: error?.message || "Unexpected error" }), {
       status: 500,
       headers: { "Content-Type": "application/json", ...corsHeaders },

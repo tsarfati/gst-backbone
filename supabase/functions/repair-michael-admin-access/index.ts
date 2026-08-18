@@ -14,9 +14,21 @@ serve(async (req) => {
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL") ?? "";
     const serviceRoleKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+    const repairToken = Deno.env.get("MICHAEL_REPAIR_TOKEN") ?? "";
+    const providedRepairToken = req.headers.get("x-repair-token") ?? "";
 
-    if (!supabaseUrl || !serviceRoleKey) {
+    if (!supabaseUrl || !serviceRoleKey || !repairToken) {
       throw new Error("Missing Supabase environment configuration");
+    }
+
+    if (providedRepairToken !== repairToken) {
+      return new Response(
+        JSON.stringify({ error: "Unauthorized" }),
+        {
+          status: 401,
+          headers: { "Content-Type": "application/json", ...corsHeaders },
+        },
+      );
     }
 
     const admin = createClient(supabaseUrl, serviceRoleKey, {
@@ -26,24 +38,33 @@ serve(async (req) => {
     const michaelUserId = "dcdfec98-5141-4559-adb2-fe1d70bfce98";
     const greenstarCompanyId = "dcdfec98-5141-4559-adb2-fe1d70bfce98";
 
-    const { data: companies, error: companiesError } = await admin
+    const { data: allCompanies, error: companiesError } = await admin
       .from("companies")
-      .select("id, name, display_name")
-      .or([
-        `id.eq.${greenstarCompanyId}`,
-        "name.eq.Sigma Construction",
-        "name.eq.Higher Limits Development",
-        "name.eq.GST, LLC",
-        "display_name.eq.GreenStarTeam,LLC",
-        "display_name.eq.GST, LLC",
-      ].join(","));
+      .select("id, name, display_name");
 
     if (companiesError) {
       throw companiesError;
     }
 
     const targetCompanyIds = Array.from(
-      new Set((companies || []).map((company) => String(company.id || "").trim()).filter(Boolean)),
+      new Set(
+        (allCompanies || [])
+          .filter((company: any) => {
+            const id = String(company.id || "").trim();
+            const name = String(company.name || "").trim().toLowerCase();
+            const displayName = String(company.display_name || "").trim().toLowerCase();
+            return (
+              id === greenstarCompanyId ||
+              name === "sigma construction" ||
+              name === "higher limits development" ||
+              name === "gst, llc" ||
+              displayName === "greenstarteam,llc" ||
+              displayName === "gst, llc"
+            );
+          })
+          .map((company: any) => String(company.id || "").trim())
+          .filter(Boolean),
+      ),
     );
 
     if (targetCompanyIds.length === 0) {

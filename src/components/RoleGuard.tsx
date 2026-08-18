@@ -237,7 +237,21 @@ export function RoleGuard({
 
   // If user role is not in allowed roles, redirect
   if (!effectiveRole || !normalizedAllowedRoles.includes(effectiveRole)) {
-    const hasWorkspaceContext = !!currentCompany?.id || userCompanies.length > 0 || !!tenantMember;
+    const hasWorkspaceContext =
+      !!currentCompany?.id ||
+      userCompanies.length > 0 ||
+      !!profile?.current_company_id ||
+      !!tenantMember;
+    const shouldWaitForWorkspaceResolution =
+      !effectiveRole &&
+      !hasWorkspaceContext &&
+      !!user?.id &&
+      authEntryContext === 'builder';
+
+    if (shouldWaitForWorkspaceResolution) {
+      return <PremiumLoadingScreen text="Loading your workspace..." />;
+    }
+
     if (!effectiveRole && hasWorkspaceContext) {
       if (import.meta.env.DEV) {
         console.warn('RoleGuard fallback allow due to workspace context without resolved role', {

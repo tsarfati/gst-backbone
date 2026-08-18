@@ -50,6 +50,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import AvatarLibraryDialog from "@/components/AvatarLibraryDialog";
 import UserJobAccess from "@/components/UserJobAccess";
 import UserCompanyAccess from "@/components/UserCompanyAccess";
+import UserWebsiteJobAssignments from "@/components/UserWebsiteJobAssignments";
 import { UserPinSettings } from "@/components/UserPinSettings";
 import DocumentPreviewModal from "@/components/DocumentPreviewModal";
 import {
@@ -225,6 +226,7 @@ export default function UserDetails() {
   const [filesLoading, setFilesLoading] = useState(false);
   const [userFilesFeatureAvailable, setUserFilesFeatureAvailable] = useState(true);
   const [uploadingUserFile, setUploadingUserFile] = useState(false);
+  const [updatingAppAccessKey, setUpdatingAppAccessKey] = useState<'punch_clock_access' | 'pm_lynk_access' | null>(null);
   const ADD_ROLE_OPTION_VALUE = "__add_role__";
   const [uploadingAvatar, setUploadingAvatar] = useState(false);
   const [showAvatarLibrary, setShowAvatarLibrary] = useState(false);
@@ -244,7 +246,12 @@ export default function UserDetails() {
   const fromCompanyManagement = location.state?.fromCompanyManagement || false;
   const fromEmployees = location.state?.fromEmployees || false;
   const companyIdFromQuery = new URLSearchParams(location.search).get('companyId');
-  const viewedCompanyId = String(companyIdFromQuery || location.state?.companyId || currentCompany?.id || '').trim() || null;
+  const viewedCompanyId = String(
+    currentCompany?.id ||
+    location.state?.companyId ||
+    companyIdFromQuery ||
+    ''
+  ).trim() || null;
   const normalizedActiveRole = String(activeCompanyRole || "").toLowerCase();
   const canManage = ['admin', 'controller', 'company_admin', 'owner'].includes(normalizedActiveRole);
   const canManageCompanyAccess =
@@ -859,6 +866,44 @@ export default function UserDetails() {
     }
   };
 
+  const handleAppAccessToggle = async (
+    field: 'punch_clock_access' | 'pm_lynk_access',
+    checked: boolean,
+    label: string,
+  ) => {
+    if (!user?.user_id || !currentCompany?.id) return;
+
+    setUpdatingAppAccessKey(field);
+    try {
+      const { data, error } = await supabase.functions.invoke('update-user-app-access', {
+        body: {
+          userId: user.user_id,
+          companyId: currentCompany.id,
+          field,
+          value: checked,
+        },
+      });
+
+      if (error) throw error;
+
+      const persistedValue = Boolean((data as any)?.profile?.[field]);
+      setUser((prev) => (prev ? { ...prev, [field]: persistedValue } : null));
+      toast({
+        title: 'Updated',
+        description: `${label} access ${persistedValue ? 'enabled' : 'disabled'}`,
+      });
+    } catch (error: any) {
+      console.error(`Error updating ${field}:`, error);
+      toast({
+        title: 'Error',
+        description: error?.message || `Failed to update ${label} access`,
+        variant: 'destructive',
+      });
+    } finally {
+      setUpdatingAppAccessKey(null);
+    }
+  };
+
   const handleOpenPreview = (file: UserProfileFile) => {
     setPreviewDoc({
       fileName: file.file_name,
@@ -1434,8 +1479,7 @@ export default function UserDetails() {
   const isVendorUser = user.role === 'vendor';
   const isDesignProfessionalUser = user.role === 'design_professional';
   const isExternalAccessUser = isVendorUser || isDesignProfessionalUser;
-  const isEmployeeLikeRole = ['employee'].includes(String(user.role || '').toLowerCase());
-  const shouldShowWebsiteJobAccess = !isVendorUser && !isEmployeeLikeRole;
+  const shouldShowWebsiteJobAccess = !isVendorUser;
   const assignedCustomRole = user.custom_role_id ? customRoles.find((r) => r.id === user.custom_role_id) : null;
 
   const getAppLabel = (source?: string) => {
@@ -2215,7 +2259,7 @@ export default function UserDetails() {
       </Card>
 
       {/* Mobile Apps */}
-      {canManage && ['admin', 'controller', 'project_manager', 'employee'].includes(user.role) && (
+      {canManage && ['admin', 'company_admin', 'controller', 'project_manager', 'employee', 'owner'].includes(user.role) && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
@@ -2249,13 +2293,8 @@ export default function UserDetails() {
                     </div>
                     <Switch
                       checked={user.punch_clock_access !== false}
-                      onCheckedChange={async (checked) => {
-                        const { error } = await supabase.from('profiles').update({ punch_clock_access: checked }).eq('user_id', user.user_id);
-                        if (!error) {
-                          setUser(prev => prev ? { ...prev, punch_clock_access: checked } : null);
-                          toast({ title: "Updated", description: `Punch Clock access ${checked ? 'enabled' : 'disabled'}` });
-                        }
-                      }}
+                      disabled={updatingAppAccessKey !== null}
+                      onCheckedChange={(checked) => handleAppAccessToggle('punch_clock_access', checked, 'Punch Clock')}
                     />
                   </div>
                   <div className="flex items-center justify-between p-3 border rounded-lg">
@@ -2265,13 +2304,8 @@ export default function UserDetails() {
                     </div>
                     <Switch
                       checked={user.pm_lynk_access === true}
-                      onCheckedChange={async (checked) => {
-                        const { error } = await supabase.from('profiles').update({ pm_lynk_access: checked }).eq('user_id', user.user_id);
-                        if (!error) {
-                          setUser(prev => prev ? { ...prev, pm_lynk_access: checked } : null);
-                          toast({ title: "Updated", description: `PM Lynk access ${checked ? 'enabled' : 'disabled'}` });
-                        }
-                      }}
+                      disabled={updatingAppAccessKey !== null}
+                      onCheckedChange={(checked) => handleAppAccessToggle('pm_lynk_access', checked, 'PM Lynk')}
                     />
                   </div>
                 </div>
@@ -2352,40 +2386,10 @@ export default function UserDetails() {
 
       {!isVendorUser && (
         shouldShowWebsiteJobAccess && (
-          <Card>
-            <CardHeader>
-              <CardTitle className="flex items-center gap-2">
-                <Briefcase className="h-5 w-5" />
-                Website / PM Job Access
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              {userJobs.length === 0 ? (
-                <p className="text-sm text-muted-foreground">
-                  This user does not currently have any BuilderLink website or PM job access.
-                </p>
-              ) : (
-                <div className="space-y-2">
-                  {userJobs.map((job) => (
-                    <div key={job.id} className="flex items-center justify-between gap-3 rounded-md border p-3">
-                      <span className="font-medium">{job.name}</span>
-                      <div className="flex items-center gap-2">
-                        {job.sources.includes('project_team') && (
-                          <Badge variant="outline">Project Team</Badge>
-                        )}
-                        {job.sources.includes('job_access') && (
-                          <Badge variant="outline">Job Access</Badge>
-                        )}
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-              <p className="text-xs text-muted-foreground mt-3">
-                This is view-only and reflects BuilderLink website / PM access. Punch Clock assignments are managed separately below.
-              </p>
-            </CardContent>
-          </Card>
+          <UserWebsiteJobAssignments
+            userId={userId!}
+            canManage={canManage}
+          />
         )
       )}
 

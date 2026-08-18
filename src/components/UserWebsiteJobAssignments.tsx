@@ -4,7 +4,6 @@ import { Badge } from "@/components/ui/badge";
 import { useToast } from "@/hooks/use-toast";
 import { supabase } from "@/integrations/supabase/client";
 import { useCompany } from "@/contexts/CompanyContext";
-import { useAuth } from "@/contexts/AuthContext";
 import { Building2, Loader2 } from "lucide-react";
 
 interface UserWebsiteJobAssignmentsProps {
@@ -18,27 +17,36 @@ interface Job {
   status?: string;
 }
 
-export default function UserWebsiteJobAssignments({ userId, canManage = true }: UserWebsiteJobAssignmentsProps) {
+export default function UserWebsiteJobAssignments({
+  userId,
+  canManage = true,
+}: UserWebsiteJobAssignmentsProps) {
   const { currentCompany } = useCompany();
-  const { profile } = useAuth();
   const { toast } = useToast();
+  const effectiveCompanyId = String(currentCompany?.id || "").trim() || null;
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [jobs, setJobs] = useState<Job[]>([]);
   const [jobAccess, setJobAccess] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
-    loadData();
-  }, [userId, currentCompany?.id]);
+    void loadData();
+  }, [userId, effectiveCompanyId]);
 
   const loadData = async () => {
-    if (!currentCompany?.id) return;
+    if (!effectiveCompanyId) {
+      setJobs([]);
+      setJobAccess({});
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
     try {
       const { data: jobsData, error: jobsError } = await supabase
         .from("jobs")
         .select("id, name, status")
-        .eq("company_id", currentCompany.id)
+        .eq("company_id", effectiveCompanyId)
         .eq("is_active", true)
         .order("name");
 
@@ -46,6 +54,7 @@ export default function UserWebsiteJobAssignments({ userId, canManage = true }: 
 
       const companyJobs = (jobsData as Job[]) || [];
       const companyJobIds = companyJobs.map((job) => job.id);
+      setJobs(companyJobs);
 
       let accessData: Array<{ job_id: string }> = [];
       if (companyJobIds.length > 0) {
@@ -64,68 +73,39 @@ export default function UserWebsiteJobAssignments({ userId, canManage = true }: 
         nextMap[row.job_id] = true;
       });
 
-      setJobs(companyJobs);
       setJobAccess(nextMap);
     } catch (error) {
       console.error("Error loading website job access:", error);
-      toast({
-        title: "Error",
-        description: "Failed to load website job assignments",
-        variant: "destructive",
-      });
+      setJobAccess({});
     } finally {
       setLoading(false);
     }
   };
 
   const persistJobAccess = async (nextAccess: Record<string, boolean>, showSuccessToast = false) => {
-    if (!currentCompany?.id) return;
+    if (!effectiveCompanyId) return;
     setSaving(true);
     try {
-      const { data: companyJobsData, error: companyJobsError } = await supabase
-        .from("jobs")
-        .select("id")
-        .eq("company_id", currentCompany.id)
-        .eq("is_active", true)
-        .order("id");
-
-      if (companyJobsError) throw companyJobsError;
-
-      const companyJobIds = (companyJobsData || []).map((row: any) => row.id).filter(Boolean);
-      if (companyJobIds.length === 0) {
-        if (showSuccessToast) {
-          toast({
-            title: "Saved",
-            description: "Website / PM Lynk job access updated successfully",
-          });
-        }
-        return;
-      }
-
-      const { error: deleteError } = await supabase
-        .from("user_job_access")
-        .delete()
-        .eq("user_id", userId)
-        .in("job_id", companyJobIds);
-      if (deleteError) throw deleteError;
-
-      const rows = Object.entries(nextAccess)
+      const requestedJobIds = Object.entries(nextAccess)
         .filter(([_, checked]) => checked)
-        .filter(([jobId]) => companyJobIds.includes(jobId))
-        .map(([jobId]) => ({
-          user_id: userId,
-          job_id: jobId,
-          granted_by: profile?.user_id,
-        }));
+        .map(([jobId]) => jobId);
 
-      if (rows.length > 0) {
-        const { error: insertError } = await supabase.from("user_job_access").insert(rows);
-        if (insertError) throw insertError;
-      }
+      const { data, error } = await supabase.functions.invoke("update-user-website-job-access", {
+        body: {
+          userId,
+          companyId: effectiveCompanyId,
+          jobIds: requestedJobIds,
+        },
+      });
+      if (error) throw error;
 
       const refreshedMap: Record<string, boolean> = {};
-      rows.forEach((row) => {
-        refreshedMap[row.job_id] = true;
+      const assignedJobIds = Array.isArray((data as any)?.assignedJobIds)
+        ? ((data as any).assignedJobIds as string[])
+        : requestedJobIds;
+
+      assignedJobIds.forEach((jobId) => {
+        refreshedMap[jobId] = true;
       });
       setJobAccess(refreshedMap);
 

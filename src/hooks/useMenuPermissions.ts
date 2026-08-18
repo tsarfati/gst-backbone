@@ -47,13 +47,23 @@ const canonicalizeRole = (value: unknown): AppRole | null => {
 export function useMenuPermissions() {
   const { profile } = useAuth();
   const { isSuperAdmin } = useTenant();
-  const { currentCompany, loading: companyLoading } = useCompany();
+  const { currentCompany, userCompanies, loading: companyLoading } = useCompany();
   const { hasFeature, loading: featureLoading } = useCompanyFeatureAccess();
   const activeCompanyRole = useActiveCompanyRole();
 
+  const fallbackInternalRole = useMemo<AppRole | null>(() => {
+    for (const company of userCompanies) {
+      const role = canonicalizeRole(company?.role);
+      if (role && role !== "vendor" && role !== "design_professional") {
+        return role;
+      }
+    }
+    return null;
+  }, [userCompanies]);
+
   const effectiveRole = useMemo<AppRole | null>(() => {
-    return canonicalizeRole(activeCompanyRole ?? profile?.role ?? null);
-  }, [activeCompanyRole, profile?.role]);
+    return canonicalizeRole(activeCompanyRole ?? fallbackInternalRole ?? profile?.role ?? null);
+  }, [activeCompanyRole, fallbackInternalRole, profile?.role]);
 
   const effectiveCustomRoleId = useMemo(
     () => (effectiveRole === "employee" ? profile?.custom_role_id ?? null : null),

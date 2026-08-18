@@ -26,6 +26,57 @@ import { useAuth } from '@/contexts/AuthContext';
 import { cn } from '@/lib/utils';
 import { getAuthEntryContext } from '@/utils/authEntryContext';
 
+const normalizeRole = (role?: string | null) => String(role || '').trim().toLowerCase();
+
+const getRolePriority = (role?: string | null) => {
+  switch (normalizeRole(role)) {
+    case 'owner':
+      return 100;
+    case 'company_admin':
+    case 'admin':
+      return 90;
+    case 'controller':
+      return 80;
+    case 'project_manager':
+      return 70;
+    case 'employee':
+      return 60;
+    case 'view_only':
+      return 50;
+    case 'design_professional':
+      return 40;
+    case 'vendor':
+      return 30;
+    default:
+      return 0;
+  }
+};
+
+const normalizeCompanyKey = (value?: string | null) =>
+  String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[.,]/g, ' ')
+    .replace(/\b(llc|inc|corp|corporation|co|company)\b/g, ' ')
+    .replace(/\s+/g, ' ');
+
+const areCompanyNamesEquivalent = (left?: string | null, right?: string | null) => {
+  const normalizedLeft = normalizeCompanyKey(left);
+  const normalizedRight = normalizeCompanyKey(right);
+
+  if (!normalizedLeft || !normalizedRight) return false;
+  if (normalizedLeft === normalizedRight) return true;
+
+  const leftTokens = normalizedLeft.split(' ').filter(Boolean);
+  const rightTokens = normalizedRight.split(' ').filter(Boolean);
+  const shorterTokens = leftTokens.length <= rightTokens.length ? leftTokens : rightTokens;
+  const longerTokens = leftTokens.length <= rightTokens.length ? rightTokens : leftTokens;
+
+  if (shorterTokens.length < 2) return false;
+
+  return shorterTokens.every((token, index) => longerTokens[index] === token);
+};
+
 export function CompanySwitcher() {
   const { currentCompany, userCompanies, loading, switchCompany } = useCompany();
   const { user } = useAuth();
@@ -39,17 +90,57 @@ export function CompanySwitcher() {
     location.pathname.startsWith('/vendor') || location.pathname.startsWith('/design-professional');
 
   const visibleCompanies = useMemo(() => {
-    if (authEntryContext === 'builder' && !isExternalPortalRoute) {
-      const internalCompanies = userCompanies.filter((company) => {
-        const role = String(company.role || '').toLowerCase();
-        return role !== 'vendor' && role !== 'design_professional';
-      });
+    const sourceCompanies =
+      authEntryContext === 'builder' && !isExternalPortalRoute
+        ? (() => {
+            const internalCompanies = userCompanies.filter((company) => {
+              const role = normalizeRole(company.role);
+              return role !== 'vendor' && role !== 'design_professional';
+            });
 
-      return internalCompanies.length > 0 ? internalCompanies : userCompanies;
-    }
+            return internalCompanies.length > 0 ? internalCompanies : userCompanies;
+          })()
+        : userCompanies;
 
-    return userCompanies;
-  }, [authEntryContext, isExternalPortalRoute, userCompanies]);
+    const dedupedCompanies: typeof sourceCompanies = [];
+    sourceCompanies.forEach((company) => {
+      const existingIndex = dedupedCompanies.findIndex((existingCompany) =>
+        areCompanyNamesEquivalent(existingCompany.company_name, company.company_name),
+      );
+      const existing = existingIndex >= 0 ? dedupedCompanies[existingIndex] : undefined;
+
+      if (!existing) {
+        dedupedCompanies.push(company);
+        return;
+      }
+
+      const currentCompanyId = currentCompany?.id || null;
+      const existingIsCurrent = existing.company_id === currentCompanyId;
+      const nextIsCurrent = company.company_id === currentCompanyId;
+      if (nextIsCurrent && !existingIsCurrent) {
+        dedupedCompanies[existingIndex] = company;
+        return;
+      }
+
+      if (existingIsCurrent && !nextIsCurrent) {
+        return;
+      }
+
+      const nextRolePriority = getRolePriority(company.role);
+      const existingRolePriority = getRolePriority(existing.role);
+      const nextNameLength = normalizeCompanyKey(company.company_name).length;
+      const existingNameLength = normalizeCompanyKey(existing.company_name).length;
+
+      if (
+        nextRolePriority > existingRolePriority ||
+        (nextRolePriority === existingRolePriority && nextNameLength > existingNameLength)
+      ) {
+        dedupedCompanies[existingIndex] = company;
+      }
+    });
+
+    return dedupedCompanies;
+  }, [authEntryContext, currentCompany?.id, isExternalPortalRoute, userCompanies]);
 
   const handleCompanySwitch = (companyId: string, companyName: string) => {
     // Don't show confirmation if switching to the same company

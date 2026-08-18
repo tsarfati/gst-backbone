@@ -956,21 +956,21 @@ function AuthenticatedRoutes() {
               
               <Route path="profile-settings" element={<ProfileSettings />} />
               <Route path="settings/users" element={
-                <MenuPermissionRoute menuKey="user-settings">
+                <RoleGuard allowedRoles={['admin', 'company_admin', 'controller', 'project_manager']}>
                   <RouteSuspense text="Loading users...">
                     <LazyUserSettings />
                   </RouteSuspense>
-                </MenuPermissionRoute>
+                </RoleGuard>
               } />
               <Route path="settings/users/:userId" element={
-                <MenuPermissionRoute menuKey="user-settings">
+                <RoleGuard allowedRoles={['admin', 'company_admin', 'controller', 'project_manager']}>
                   <UserDetails />
-                </MenuPermissionRoute>
+                </RoleGuard>
               } />
               <Route path="settings/users/:userId/edit" element={
-                <MenuPermissionRoute menuKey="user-settings">
+                <RoleGuard allowedRoles={['admin', 'company_admin', 'controller', 'project_manager']}>
                   <UserEdit />
-                </MenuPermissionRoute>
+                </RoleGuard>
               } />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
                 <Route path="employees" element={<AllEmployees />} />
