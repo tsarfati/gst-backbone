@@ -247,6 +247,10 @@ export default function UserDetails() {
   const viewedCompanyId = String(companyIdFromQuery || location.state?.companyId || currentCompany?.id || '').trim() || null;
   const normalizedActiveRole = String(activeCompanyRole || "").toLowerCase();
   const canManage = ['admin', 'controller', 'company_admin', 'owner'].includes(normalizedActiveRole);
+  const canManageCompanyAccess =
+    isSuperAdmin ||
+    tenantMember?.role === 'owner' ||
+    ['admin', 'company_admin', 'owner'].includes(normalizedActiveRole);
   const canEditUserEmail = canManage && hasAccess('user-settings-edit-email');
   const canChangeUserPassword = canManage && hasAccess('user-settings-change-password');
 
@@ -304,6 +308,12 @@ export default function UserDetails() {
       setVendorJobs([]);
     }
   }, [selectedVendorId, currentCompany?.id]);
+
+  useEffect(() => {
+    if (!selectedGroupId) return;
+    if (groups.some((group) => group.id === selectedGroupId)) return;
+    setSelectedGroupId(null);
+  }, [groups, selectedGroupId]);
 
   useEffect(() => {
     return () => {
@@ -2325,8 +2335,8 @@ export default function UserDetails() {
         </DialogContent>
       </Dialog>
 
-      {/* Company Access - Only show when accessed from Company Management */}
-      {fromCompanyManagement && (
+      {/* Company Access */}
+      {canManageCompanyAccess && !isVendorUser && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">

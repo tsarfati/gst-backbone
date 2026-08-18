@@ -135,11 +135,15 @@ export function SettingsProvider({ children }: { children: ReactNode }) {
 
   // Get the user's role for the CURRENT company from user_company_access
   const activeCompanyRole = useMemo(() => {
-    const companyId = currentCompany?.id ?? profile?.current_company_id ?? null;
+    const currentCompanyId = currentCompany?.id ?? null;
+    const currentAccess = currentCompanyId
+      ? userCompanies.find((uc) => uc.company_id === currentCompanyId)
+      : null;
+    const companyId = currentAccess?.company_id ?? userCompanies[0]?.company_id ?? null;
     if (!companyId) return null;
     const access = userCompanies.find((uc) => uc.company_id === companyId);
     return access?.role ?? null;
-  }, [currentCompany?.id, profile?.current_company_id, userCompanies]);
+  }, [currentCompany?.id, userCompanies]);
 
   const isCompanyAdminRole = useMemo(() => {
     const scopedRole = (activeCompanyRole || '').toLowerCase();

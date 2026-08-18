@@ -362,7 +362,7 @@ const file = new File([blob], fileName, { type: 'image/jpeg' });
         const { error: insertError } = await (supabase
           .from('receipts') as any)
           .insert({
-            company_id: currentCompany?.id || user?.id,
+            company_id: currentCompany?.id,
             created_by: user?.id,
             file_name: file.name,
             file_url: fileUrl,

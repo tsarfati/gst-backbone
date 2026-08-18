@@ -9,6 +9,7 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
+import { useCompany } from '@/contexts/CompanyContext';
 
 interface UserCompanyAccessProps {
   userId: string;
@@ -37,6 +38,7 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
   const { toast } = useToast();
   const { user: currentUser } = useAuth();
   const { currentTenant } = useTenant();
+  const { userCompanies } = useCompany();
   const [companyAccesses, setCompanyAccesses] = useState<CompanyAccess[]>([]);
   const [allCompanies, setAllCompanies] = useState<Company[]>([]);
   const [loading, setLoading] = useState(true);
@@ -58,7 +60,7 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
     if (currentTenant?.id) {
       fetchAllCompanies();
     }
-  }, [userId, currentTenant?.id]);
+  }, [userId, currentTenant?.id, userCompanies.map((company) => company.company_id).join(',')]);
 
   const fetchCompanyAccesses = async () => {
     try {
@@ -91,14 +93,27 @@ export default function UserCompanyAccess({ userId }: UserCompanyAccessProps) {
       setAllCompanies([]);
       return;
     }
+
+    const accessibleCompanyIds = Array.from(
+      new Set(
+        (userCompanies || [])
+          .map((company) => String(company.company_id || '').trim())
+          .filter(Boolean),
+      ),
+    );
+
+    if (accessibleCompanyIds.length === 0) {
+      setAllCompanies([]);
+      return;
+    }
     
     try {
-      // Only fetch companies belonging to the current tenant
       const { data, error } = await supabase
         .from('companies')
         .select('id, name, display_name')
         .eq('is_active', true)
         .eq('tenant_id', currentTenant.id)
+        .in('id', accessibleCompanyIds)
         .order('name');
 
       if (error) throw error;

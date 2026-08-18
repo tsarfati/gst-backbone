@@ -33,6 +33,52 @@ interface UserCompanyAccess {
   role: string;
 }
 
+const normalizeCompanyRole = (role?: string | null) => String(role || '').trim().toLowerCase();
+
+const getCompanyRolePriority = (role?: string | null) => {
+  switch (normalizeCompanyRole(role)) {
+    case 'owner':
+      return 100;
+    case 'company_admin':
+    case 'admin':
+      return 90;
+    case 'controller':
+      return 80;
+    case 'project_manager':
+      return 70;
+    case 'employee':
+      return 60;
+    case 'view_only':
+      return 50;
+    case 'design_professional':
+      return 40;
+    case 'vendor':
+      return 30;
+    default:
+      return 0;
+  }
+};
+
+const dedupeCompanyAccessRows = (rows: UserCompanyAccess[]) => {
+  const deduped = new Map<string, UserCompanyAccess>();
+
+  for (const row of rows) {
+    const companyId = String(row.company_id || '').trim();
+    if (!companyId) continue;
+
+    const existing = deduped.get(companyId);
+    if (!existing || getCompanyRolePriority(row.role) >= getCompanyRolePriority(existing.role)) {
+      deduped.set(companyId, {
+        ...row,
+        company_id: companyId,
+        role: normalizeCompanyRole(row.role),
+      });
+    }
+  }
+
+  return Array.from(deduped.values());
+};
+
 interface CompanyContextType {
   currentCompany: Company | null;
   userCompanies: UserCompanyAccess[];
@@ -139,20 +185,35 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
           .filter(Boolean) as unknown as UserCompanyAccess[];
       }
 
-      // Tenant isolation: if the user belongs to a tenant, only show companies in that tenant.
-      // (Super admins can see across tenants.)
-      if (!isSuperAdmin && currentTenant?.id && companies.length > 0) {
-        const companyIds = companies.map(c => c.company_id);
+      const companyIds = Array.from(new Set(companies.map((c) => c.company_id).filter(Boolean)));
+      let companyMeta = new Map<string, { id: string; tenant_id: string | null; is_active: boolean; name?: string | null; display_name?: string | null }>();
 
+      if (companyIds.length > 0) {
         const { data: allowedCompanies, error: allowedError } = await supabase
           .from('companies')
-          .select('id, tenant_id, is_active')
-          .in('id', companyIds)
-          .eq('is_active', true);
+          .select('id, tenant_id, is_active, name, display_name')
+          .in('id', companyIds);
 
         if (allowedError) throw allowedError;
 
-        const companyMeta = new Map((allowedCompanies || []).map(c => [c.id, c]));
+        companyMeta = new Map((allowedCompanies || []).map((company) => [company.id, company]));
+        companies = companies
+          .filter((company) => {
+            const meta = companyMeta.get(company.company_id);
+            return !!meta && meta.is_active === true;
+          })
+          .map((company) => {
+            const meta = companyMeta.get(company.company_id);
+            return {
+              ...company,
+              company_name: meta?.display_name || meta?.name || company.company_name,
+            };
+          });
+      }
+
+      // Tenant isolation: if the user belongs to a tenant, only show companies in that tenant.
+      // (Super admins can see across tenants.)
+      if (!isSuperAdmin && currentTenant?.id && companies.length > 0) {
         companies = companies.filter(c => {
           const companyRole = String(c.role || '').toLowerCase();
           const meta = companyMeta.get(c.company_id);
@@ -164,6 +225,7 @@ export const CompanyProvider: React.FC<CompanyProviderProps> = ({ children }) =>
         });
       }
 
+      companies = dedupeCompanyAccessRows(companies);
       setUserCompanies(companies);
 
       // Preserve the currently selected workspace when possible so refreshes

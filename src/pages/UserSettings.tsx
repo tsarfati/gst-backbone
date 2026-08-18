@@ -35,7 +35,7 @@ interface UserProfile {
   company_logo_url?: string | null;
   vendor_id?: string | null;
   current_company_id?: string | null;
-  role: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
+  role: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor' | 'owner';
   created_at: string;
   pin_code?: string;
   jobs?: { id: string; name: string; }[];
@@ -116,8 +116,66 @@ const roleGroupDefs: RoleGroupDef[] = [
   { key: 'view_only', label: 'View Only', icon: <UserCheck className="h-5 w-5" />, roles: ['view_only'] },
 ];
 
+const INTERNAL_ACCESS_ROLES = ['admin', 'company_admin', 'owner', 'controller', 'project_manager', 'employee', 'view_only'] as const;
+const INTERNAL_PROFILE_ROLES = ['admin', 'company_admin', 'controller', 'project_manager', 'employee', 'view_only'] as const;
 const EXTERNAL_ACCESS_ROLES = ['vendor', 'design_professional'] as const;
-const LEGACY_INTERNAL_FALLBACK_ROLES = ['admin', 'company_admin', 'controller', 'project_manager', 'view_only'] as const;
+const INTERNAL_REQUEST_FALLBACK_ROLES = ['admin', 'company_admin', 'owner', 'controller', 'project_manager', 'employee', 'view_only'] as const;
+
+const normalizeRole = (role?: string | null) => {
+  const value = String(role || '').trim().toLowerCase();
+  return value || null;
+};
+
+const getRolePriority = (role?: string | null) => {
+  switch (normalizeRole(role)) {
+    case 'owner':
+      return 100;
+    case 'company_admin':
+    case 'admin':
+      return 90;
+    case 'controller':
+      return 80;
+    case 'project_manager':
+      return 70;
+    case 'employee':
+      return 60;
+    case 'view_only':
+      return 50;
+    case 'design_professional':
+      return 40;
+    case 'vendor':
+      return 30;
+    default:
+      return 0;
+  }
+};
+
+const isInternalAccessRole = (role?: string | null): role is typeof INTERNAL_ACCESS_ROLES[number] =>
+  !!role && INTERNAL_ACCESS_ROLES.includes(role as typeof INTERNAL_ACCESS_ROLES[number]);
+
+const isExternalAccessRole = (role?: string | null): role is typeof EXTERNAL_ACCESS_ROLES[number] =>
+  !!role && EXTERNAL_ACCESS_ROLES.includes(role as typeof EXTERNAL_ACCESS_ROLES[number]);
+
+const resolveUserRole = (companyRole?: string | null, profileRole?: string | null): UserProfile['role'] => {
+  const normalizedCompanyRole = normalizeRole(companyRole);
+  if (isInternalAccessRole(normalizedCompanyRole) || isExternalAccessRole(normalizedCompanyRole)) {
+    return normalizedCompanyRole;
+  }
+
+  const normalizedProfileRole = normalizeRole(profileRole);
+  if (isInternalAccessRole(normalizedProfileRole) || isExternalAccessRole(normalizedProfileRole)) {
+    return normalizedProfileRole;
+  }
+
+  return 'employee';
+};
+
+const isVisibleUserStatus = (status?: string | null) => {
+  const normalizedStatus = String(status || '').trim().toLowerCase();
+  return !normalizedStatus || normalizedStatus === 'approved' || normalizedStatus === 'active';
+};
+
+const getResolvedUserId = (value?: string | null) => String(value || '').trim();
 
 const parseRequestedRoleFromNotes = (notes?: string | null): string | null => {
   if (!notes) return null;
@@ -581,16 +639,35 @@ export default function UserSettings() {
 
     try {
       setLoading(true);
-      // Get users that have access to the current company WITH their roles
-      const { data: companyUsers, error: companyError } = await supabase
-        .from('user_company_access')
-        .select('user_id, role')
-        .eq('company_id', currentCompany.id)
-        .or('is_active.eq.true,is_active.is.null');
+      const roleMap = new Map<string, UserProfile['role']>();
+      const internalCompanyUserIds = new Set<string>();
+      const { data: companyUsersResponse, error: companyUsersError } = await supabase.functions.invoke('get-company-users', {
+        body: {
+          companyId: currentCompany.id,
+          includeExternal: false,
+        },
+      });
 
-      if (companyError) throw companyError;
+      if (companyUsersError) throw companyUsersError;
 
-      const roleMap = new Map(companyUsers?.map(u => [u.user_id, u.role]) || []);
+      const internalCompanyUsers = Array.isArray(companyUsersResponse?.users)
+        ? companyUsersResponse.users
+        : [];
+
+      internalCompanyUsers.forEach((user: any) => {
+        const userId = getResolvedUserId(user.user_id);
+        const nextRole = normalizeRole(user.company_role || user.role) as UserProfile['role'] | null;
+        if (!userId || !nextRole) return;
+
+        const existingRole = roleMap.get(userId);
+        if (!existingRole || getRolePriority(nextRole) >= getRolePriority(existingRole)) {
+          roleMap.set(userId, nextRole);
+        }
+
+        if (isInternalAccessRole(nextRole)) {
+          internalCompanyUserIds.add(userId);
+        }
+      });
 
       // Legacy fallback for users missing user_company_access rows: use approved
       // company access requests rather than profiles.current_company_id. The profile's
@@ -604,25 +681,28 @@ export default function UserSettings() {
       if (approvedAccessRequestsError) throw approvedAccessRequestsError;
 
       const requestedUserIds = new Set<string>();
+      const internalFallbackUserIds = new Set<string>();
       const requestBusinessNameByUserId = new Map<string, string>();
       const requestEmailByUserId = new Map<string, string>();
       const requestPendingJobIdsByUserId = new Map<string, string[]>();
       for (const request of approvedAccessRequests || []) {
         const requestedUserId = String(request.user_id || '').trim();
         const requestedRole = String(parseRequestedRoleFromNotes(request.notes) || '').trim().toLowerCase();
-        const isExternalAccessRequest = EXTERNAL_ACCESS_ROLES.includes(
-          requestedRole as typeof EXTERNAL_ACCESS_ROLES[number],
-        );
-        const isLegacyInternalRequest = LEGACY_INTERNAL_FALLBACK_ROLES.includes(
-          requestedRole as typeof LEGACY_INTERNAL_FALLBACK_ROLES[number],
+        const isExternalAccessRequest = isExternalAccessRole(requestedRole);
+        const isInternalRequest = INTERNAL_REQUEST_FALLBACK_ROLES.includes(
+          requestedRole as typeof INTERNAL_REQUEST_FALLBACK_ROLES[number],
         );
 
-        if (requestedUserId && (isExternalAccessRequest || isLegacyInternalRequest)) {
+        if (requestedUserId && isExternalAccessRequest) {
           requestedUserIds.add(requestedUserId);
         }
 
+        if (requestedUserId && isInternalRequest && !internalCompanyUserIds.has(requestedUserId)) {
+          internalFallbackUserIds.add(requestedUserId);
+        }
+
         if (requestedUserId && requestedRole && !roleMap.has(requestedUserId)) {
-          if (isExternalAccessRequest || isLegacyInternalRequest) {
+          if (isExternalAccessRequest || isInternalRequest) {
             roleMap.set(requestedUserId, requestedRole as UserProfile['role']);
           }
         }
@@ -645,16 +725,32 @@ export default function UserSettings() {
         }
       }
 
-      const userIds = Array.from(new Set([...Array.from(roleMap.keys()), ...Array.from(requestedUserIds)]));
+      const internalUserIds = Array.from(new Set([...internalCompanyUserIds, ...internalFallbackUserIds]));
+      const externalRequestUserIds = Array.from(requestedUserIds);
+      const userIds = Array.from(new Set([...internalUserIds, ...externalRequestUserIds]));
 
-      // Fetch regular users
-      const { data: regularUsers, error: profilesError } = await supabase
-        .from('profiles')
-        .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role, vendor_id, current_company_id')
-        .in('user_id', userIds)
-        .order('created_at', { ascending: false });
+      const fetchedInternalUserIds = new Set(
+        internalCompanyUsers.map((user: any) => getResolvedUserId(user.user_id)).filter(Boolean),
+      );
+      const fallbackProfileUserIds = userIds.filter((userId) => !fetchedInternalUserIds.has(userId));
 
-      if (profilesError) throw profilesError;
+      const { data: fallbackProfiles, error: fallbackProfilesError } = fallbackProfileUserIds.length > 0
+        ? await supabase
+            .from('profiles')
+            .select('id, user_id, first_name, last_name, display_name, avatar_url, created_at, pin_code, has_global_job_access, status, phone, punch_clock_access, pm_lynk_access, custom_role_id, role, vendor_id, current_company_id')
+            .in('user_id', fallbackProfileUserIds)
+            .order('created_at', { ascending: false })
+        : { data: [], error: null };
+
+      if (fallbackProfilesError) throw fallbackProfilesError;
+
+      const regularUsers = [
+        ...internalCompanyUsers.map((user: any) => ({
+          ...user,
+          role: user.company_role || user.role,
+        })),
+        ...((fallbackProfiles || []) as any[]),
+      ];
 
       const { data: companyVendors, error: companyVendorsError } = await supabase
         .from('vendors')
@@ -809,10 +905,8 @@ export default function UserSettings() {
 
       const externalUserIds = allRegularUsers
         .map((user: any) => {
-          const profileRole = String(user.role || '').trim().toLowerCase();
-          const resolvedRole = roleMap.get(user.user_id)
-            || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : null);
-          return resolvedRole && EXTERNAL_ACCESS_ROLES.includes(resolvedRole as typeof EXTERNAL_ACCESS_ROLES[number])
+          const resolvedRole = resolveUserRole(roleMap.get(getResolvedUserId(user.user_id)), user.role);
+          return isExternalAccessRole(resolvedRole)
             ? String(user.user_id)
             : null;
         })
@@ -822,9 +916,7 @@ export default function UserSettings() {
         new Set(
           allRegularUsers
             .map((user: any) => {
-              const profileRole = String(user.role || '').trim().toLowerCase();
-              const resolvedRole = roleMap.get(user.user_id)
-                || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : null);
+              const resolvedRole = resolveUserRole(roleMap.get(getResolvedUserId(user.user_id)), user.role);
               return resolvedRole === 'vendor' ? String(user.vendor_id || '').trim() : '';
             })
             .filter(Boolean)
@@ -894,9 +986,7 @@ export default function UserSettings() {
       const activeJobsByExternalUserId = new Map<string, { id: string; name: string }[]>();
       const userIdsByVendorId = new Map<string, string[]>();
       allRegularUsers.forEach((user: any) => {
-        const profileRole = String(user.role || '').trim().toLowerCase();
-        const resolvedRole = roleMap.get(user.user_id)
-          || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : null);
+        const resolvedRole = resolveUserRole(roleMap.get(getResolvedUserId(user.user_id)), user.role);
         if (resolvedRole === 'vendor' && user.vendor_id) {
           const vendorId = String(user.vendor_id);
           const existingUserIds = userIdsByVendorId.get(vendorId) || [];
@@ -950,12 +1040,10 @@ export default function UserSettings() {
         lastLoginByUserId.set(resolvedUserId, resolvedLoginTime);
       });
 
-      // Fetch jobs for regular users and determine PIN status
-      // Also fetch latest punch selfie as avatar fallback for users without avatars
+      // Fetch jobs for regular users and determine PIN status.
+      // Avoid per-user avatar fallback queries here; they make this page slow.
       const usersWithJobs = await Promise.all(allRegularUsers.map(async (user) => {
-        const profileRole = String((user as any).role || '').trim().toLowerCase();
-        const userRole = roleMap.get(user.user_id)
-          || (EXTERNAL_ACCESS_ROLES.includes(profileRole as typeof EXTERNAL_ACCESS_ROLES[number]) ? profileRole : 'employee');
+        const userRole = resolveUserRole(roleMap.get(getResolvedUserId(user.user_id)), (user as any).role);
         const hasPin = !!user.pin_code;
         const vendorRecord = user.vendor_id ? vendorById.get(String(user.vendor_id)) : null;
         const companyRecord = user.current_company_id ? companyById.get(String(user.current_company_id)) : null;
@@ -986,27 +1074,9 @@ export default function UserSettings() {
         // External portal users do not need punch-clock avatar fallbacks here.
         // Skipping those extra queries keeps vendor/design-professional access
         // tabs from loading slowly.
-        let effectiveAvatarUrl = user.avatar_url;
-        if (!effectiveAvatarUrl && !EXTERNAL_ACCESS_ROLES.includes(userRole as typeof EXTERNAL_ACCESS_ROLES[number])) {
-          const { data: punchData, error: punchError } = await supabase
-            .from('time_cards')
-            .select('punch_in_photo_url, punch_out_photo_url')
-            .eq('user_id', user.user_id)
-            .not('punch_in_photo_url', 'is', null)
-            .order('created_at', { ascending: false })
-            .limit(1);
-
-          if (punchError) {
-            console.warn(`[AvatarFallback] Error for ${user.first_name} ${user.last_name}:`, punchError);
-          } else if (punchData && punchData.length > 0) {
-            const rawUrl = punchData[0].punch_out_photo_url || punchData[0].punch_in_photo_url || null;
-            if (rawUrl) {
-              effectiveAvatarUrl = await resolveStorageUrl('punch-photos', rawUrl);
-            }
-          }
-        }
+        const effectiveAvatarUrl = user.avatar_url;
         
-        if (EXTERNAL_ACCESS_ROLES.includes(userRole as typeof EXTERNAL_ACCESS_ROLES[number])) {
+        if (isExternalAccessRole(userRole)) {
           const requestEmail = requestEmailByUserId.get(String(user.user_id));
           return {
             ...user,
@@ -1116,16 +1186,17 @@ export default function UserSettings() {
 
   const getUsersForCustomRole = (customRoleId: string) => {
     return users.filter((u) => {
-      if (u.custom_role_id !== customRoleId || u.status !== 'approved') return false;
-      return !roleGroupDefs.some((group) => group.roles.includes(u.role));
+      if (u.custom_role_id !== customRoleId || !isVisibleUserStatus(u.status)) return false;
+      return getCustomRoleForUser(u) !== null;
     });
   };
 
   const getUsersForSystemGroup = (roles: string[]) => {
     return users.filter((u) => {
+      if (u.custom_role_id && getCustomRoleForUser(u)) return false;
       const isExternalRole = EXTERNAL_ACCESS_ROLES.includes(u.role as typeof EXTERNAL_ACCESS_ROLES[number]);
       if (isExternalRole) return false;
-      if (u.status !== 'approved') return false;
+      if (!isVisibleUserStatus(u.status)) return false;
       return roles.includes(u.role);
     });
   };

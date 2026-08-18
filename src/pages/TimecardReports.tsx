@@ -246,11 +246,14 @@ export default function TimecardReports() {
   };
 
   const loadCompany = async () => {
+    const companyId = currentCompany?.id ?? null;
+    if (!companyId) return;
+
     try {
       const { data, error } = await supabase
         .from('companies')
         .select('*')
-        .eq('id', profile?.current_company_id || user?.id)
+        .eq('id', companyId)
         .single();
 
       if (error) throw error;

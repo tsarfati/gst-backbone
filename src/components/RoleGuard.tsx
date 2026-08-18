@@ -47,7 +47,7 @@ export function RoleGuard({
   const currentCompanyType = normalizeRole(String(currentCompany?.company_type || ''));
   const singleCompanyAccessRole = userCompanies.length === 1 ? canonicalizeRole(userCompanies[0]?.role) : null;
   const fallbackInternalCompanyRole = React.useMemo(() => {
-    const currentCompanyId = currentCompany?.id ?? profile?.current_company_id ?? null;
+    const currentCompanyId = currentCompany?.id ?? null;
     const preferredAccess = currentCompanyId
       ? userCompanies.find((company) => company.company_id === currentCompanyId)
       : null;
@@ -61,7 +61,7 @@ export function RoleGuard({
       .find((role) => role && role !== 'vendor' && role !== 'design_professional');
 
     return firstInternalRole || null;
-  }, [currentCompany?.id, profile?.current_company_id, userCompanies]);
+  }, [currentCompany?.id, userCompanies]);
   const hasVendorIdentity =
     !!(profile as any)?.vendor_id ||
     !!authMetadata.vendor_id ||

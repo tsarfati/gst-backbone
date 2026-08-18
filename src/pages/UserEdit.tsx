@@ -141,6 +141,12 @@ export default function UserEdit() {
     }
   }, [selectedJobId]);
 
+  useEffect(() => {
+    if (!selectedGroupId) return;
+    if (groups.some((group) => group.id === selectedGroupId)) return;
+    setSelectedGroupId(null);
+  }, [groups, selectedGroupId]);
+
   const fetchUser = async () => {
     if (!userId) return;
 

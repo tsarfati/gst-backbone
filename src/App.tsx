@@ -956,12 +956,22 @@ function AuthenticatedRoutes() {
               
               <Route path="profile-settings" element={<ProfileSettings />} />
               <Route path="settings/users" element={
-                <RouteSuspense text="Loading users...">
-                  <LazyUserSettings />
-                </RouteSuspense>
+                <MenuPermissionRoute menuKey="user-settings">
+                  <RouteSuspense text="Loading users...">
+                    <LazyUserSettings />
+                  </RouteSuspense>
+                </MenuPermissionRoute>
               } />
-              <Route path="settings/users/:userId" element={<UserDetails />} />
-              <Route path="settings/users/:userId/edit" element={<UserEdit />} />
+              <Route path="settings/users/:userId" element={
+                <MenuPermissionRoute menuKey="user-settings">
+                  <UserDetails />
+                </MenuPermissionRoute>
+              } />
+              <Route path="settings/users/:userId/edit" element={
+                <MenuPermissionRoute menuKey="user-settings">
+                  <UserEdit />
+                </MenuPermissionRoute>
+              } />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
                 <Route path="employees" element={<AllEmployees />} />
                 <Route path="employees/add" element={<AddEmployee />} />
@@ -1359,7 +1369,7 @@ function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
-        <BrowserRouter>
+        <BrowserRouter future={{ v7_startTransition: true, v7_relativeSplatPath: true }}>
           <TooltipProvider>
             <Toaster />
             <AppRoutes />

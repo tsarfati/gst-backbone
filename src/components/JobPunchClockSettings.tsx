@@ -175,11 +175,15 @@ export default function JobPunchClockSettings() {
 
   const saveJobSettings = async () => {
     if (!selectedJobId) return;
+    if (!currentCompany?.id) {
+      toast({ title: 'Error', description: 'No active company selected.', variant: 'destructive' });
+      return;
+    }
     try {
       setSaving(true);
       const payload = {
         job_id: selectedJobId,
-        company_id: profile?.current_company_id || user?.id,
+        company_id: currentCompany.id,
         punch_time_window_start: settings.punch_time_window_start,
         punch_time_window_end: settings.punch_time_window_end,
         earliest_punch_start_time: settings.earliest_punch_start_time,

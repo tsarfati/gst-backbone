@@ -36,7 +36,7 @@ const navigationCategories = [
     icon: LayoutDashboard,
     companyTypes: ['construction', 'design_professional'] as CompanyType[],
     items: [
-      { name: "Dashboard", href: "/", menuKey: "dashboard", employeeHidden: true },
+      { name: "Dashboard", href: "/", menuKey: "dashboard" },
     ],
     collapsible: false,
   },

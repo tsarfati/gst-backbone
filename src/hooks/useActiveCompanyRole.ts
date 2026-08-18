@@ -8,7 +8,6 @@ import { useTenant } from "@/contexts/TenantContext";
  * Falls back to null when company context hasn't loaded or no company is selected.
  */
 export function useActiveCompanyRole(): string | null {
-  const { profile } = useAuth();
   const { currentCompany, userCompanies } = useCompany();
   const { tenantMember } = useTenant();
 
@@ -16,7 +15,11 @@ export function useActiveCompanyRole(): string | null {
     // Tenant owners should always be treated as owner in the app role model.
     if (tenantMember?.role === "owner") return "owner";
 
-    const companyId = currentCompany?.id ?? profile?.current_company_id ?? null;
+    const currentCompanyId = currentCompany?.id ?? null;
+    const currentAccess = currentCompanyId
+      ? userCompanies.find((uc) => uc.company_id === currentCompanyId)
+      : null;
+    const companyId = currentAccess?.company_id ?? userCompanies[0]?.company_id ?? null;
     if (!companyId) return null;
 
     const access = userCompanies.find((uc) => uc.company_id === companyId);
@@ -24,5 +27,5 @@ export function useActiveCompanyRole(): string | null {
 
     // Normalize to avoid mismatch due to casing/whitespace from DB.
     return role ? role.trim().toLowerCase() : null;
-  }, [tenantMember?.role, currentCompany?.id, profile?.current_company_id, userCompanies]);
+  }, [tenantMember?.role, currentCompany?.id, userCompanies]);
 }

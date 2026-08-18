@@ -141,6 +141,11 @@ export function useMenuPermissions() {
     // Super admins have access to everything
     if (isSuperAdmin) return true;
 
+    // Employees should never see or enter User Management directly.
+    if (effectiveRole === 'employee' && menuItem === 'user-settings') {
+      return false;
+    }
+
     const companyType = currentCompany?.company_type === 'design_professional'
       ? 'design_professional'
       : 'construction';
