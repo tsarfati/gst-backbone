@@ -411,11 +411,24 @@ export default function UserDetails() {
           : Promise.resolve({ data: null, error: null })
       ]);
 
+      if (profileRes.error) throw profileRes.error;
+      if (accessRes.error) throw accessRes.error;
+
+      if (viewedCompanyId && !isSuperAdmin && !accessRes.data) {
+        toast({
+          title: "Access denied",
+          description: "This user is not assigned to the active company.",
+          variant: "destructive",
+        });
+        navigate('/settings/users');
+        return;
+      }
+
       if (profileRes.data) {
-      const role = accessRes.data?.role || profileRes.data.role;
-      const isTenantOwnerProfile = tenantMember?.role === 'owner' && tenantMember?.user_id === profileRes.data.user_id;
-      const effectiveRole = isTenantOwnerProfile ? 'owner' : role;
-      setCompanyRole(accessRes.data?.role || null);
+        const role = accessRes.data?.role || profileRes.data.role;
+        const isTenantOwnerProfile = tenantMember?.role === 'owner' && tenantMember?.user_id === profileRes.data.user_id;
+        const effectiveRole = isTenantOwnerProfile ? 'owner' : role;
+        setCompanyRole(accessRes.data?.role || null);
         
         // Fallback avatar: use latest punch selfie if no avatar set
         let avatarUrl = profileRes.data.avatar_url;
