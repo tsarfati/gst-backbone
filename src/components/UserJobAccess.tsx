@@ -239,63 +239,25 @@ export default function UserJobAccess({
     if (!currentCompany?.id) return;
     setSaving(true);
     try {
-      const currentUserId = (await supabase.auth.getUser()).data.user?.id || userId;
-      const companyJobIds = jobs.map((job) => job.id);
-
-      const jobEntries = Object.entries(userJobAccess)
+      const assignedJobs = Object.entries(userJobAccess)
         .filter(([_, hasAccess]) => hasAccess)
-        .filter(([jobId]) => companyJobIds.includes(jobId))
-        .map(([jobId]) => ({
-          user_id: userId,
-          job_id: jobId,
-          granted_by: currentUserId
-        }));
-
-      const assignedJobs = jobEntries.map((entry) => entry.job_id);
+        .map(([jobId]) => jobId);
       const assignedCostCodes = Array.from(new Set(
         Object.entries(userJobCostCodes)
           .filter(([jobId]) => assignedJobs.includes(jobId))
           .flatMap(([_, ccIds]) => ccIds)
       ));
 
-      const { error: settingsError } = await supabase
-        .from('employee_timecard_settings')
-        .upsert({
+      const { error } = await supabase.functions.invoke('update-user-punch-clock-access', {
+        body: {
           user_id: userId,
-          company_id: currentCompany.id,
-          assigned_jobs: assignedJobs,
-          assigned_cost_codes: assignedCostCodes,
-          created_by: currentUserId
-        }, { onConflict: 'user_id,company_id' });
-      if (settingsError) throw settingsError;
-
-      if (companyJobIds.length > 0) {
-        const { error: deleteCostCodeError } = await supabase
-          .from('user_job_cost_codes')
-          .delete()
-          .eq('user_id', userId)
-          .in('job_id', companyJobIds);
-        if (deleteCostCodeError) throw deleteCostCodeError;
-      }
-
-      const costCodeEntries: { user_id: string; job_id: string; cost_code_id: string; granted_by: string | undefined }[] = [];
-      Object.entries(userJobCostCodes).forEach(([jobId, ccIds]) => {
-        if (userJobAccess[jobId]) {
-          ccIds.forEach(ccId => {
-            costCodeEntries.push({
-              user_id: userId,
-              job_id: jobId,
-              cost_code_id: ccId,
-              granted_by: currentUserId
-            });
-          });
-        }
+          userId,
+          companyId: currentCompany.id,
+          assignedJobs,
+          assignedCostCodes,
+        },
       });
-
-      if (costCodeEntries.length > 0) {
-        const { error } = await supabase.from('user_job_cost_codes').insert(costCodeEntries);
-        if (error) throw error;
-      }
+      if (error) throw error;
 
       toast({
         title: "Success",

@@ -1138,13 +1138,20 @@ export default function UserEdit() {
                   </TableHeader>
                   <TableBody>
                     {loginHistory.slice(0, 20).map((entry, index) => {
-                      const appSource = (entry as any).app_source || 'builderlynk_web';
-                      const appLabel = appSource === 'punch_clock' ? 'Punch Clock' 
-                        : appSource === 'pmlynk' ? 'PM Lynk' 
-                        : 'BuilderLynk Web';
-                      const appVariant = appSource === 'punch_clock' ? 'secondary' 
-                        : appSource === 'pmlynk' ? 'default' 
-                        : 'outline';
+                      const appSource = String((entry as any).app_source || 'builderlynk_web')
+                        .trim()
+                        .toLowerCase()
+                        .replace(/[-\s]/g, '_');
+                      const appLabel = appSource === 'punch_clock'
+                        ? 'Punch Clock'
+                        : appSource === 'pmlynk' || appSource === 'pm_lynk'
+                          ? 'PM Lynk'
+                          : 'BuilderLynk Web';
+                      const appVariant = appSource === 'punch_clock'
+                        ? 'secondary'
+                        : appSource === 'pmlynk' || appSource === 'pm_lynk'
+                          ? 'default'
+                          : 'outline';
                       return (
                         <TableRow key={index}>
                           <TableCell>{new Date(entry.login_time).toLocaleString()}</TableCell>

@@ -1482,15 +1482,19 @@ export default function UserDetails() {
   const shouldShowWebsiteJobAccess = !isVendorUser;
   const assignedCustomRole = user.custom_role_id ? customRoles.find((r) => r.id === user.custom_role_id) : null;
 
+  const normalizeAppSource = (source?: string) => String(source || '').trim().toLowerCase().replace(/[-\s]/g, '_');
+
   const getAppLabel = (source?: string) => {
-    if (source === 'punch_clock') return 'Punch Clock';
-    if (source === 'pmlynk') return 'PM Lynk';
+    const normalizedSource = normalizeAppSource(source);
+    if (normalizedSource === 'punch_clock') return 'Punch Clock';
+    if (normalizedSource === 'pmlynk' || normalizedSource === 'pm_lynk') return 'PM Lynk';
     return 'BuilderLynk Web';
   };
 
   const getAppBadgeVariant = (source?: string) => {
-    if (source === 'punch_clock') return 'secondary';
-    if (source === 'pmlynk') return 'default';
+    const normalizedSource = normalizeAppSource(source);
+    if (normalizedSource === 'punch_clock') return 'secondary';
+    if (normalizedSource === 'pmlynk' || normalizedSource === 'pm_lynk') return 'default';
     return 'outline';
   };
 
