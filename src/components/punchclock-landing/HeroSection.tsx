@@ -46,7 +46,7 @@ export function HeroSection({ onGetStarted }: HeroSectionProps) {
                 className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg"
                 style={{ backgroundColor: '#E88A2D' }}
               >
-                Start Free Trial <ArrowRight className="w-5 h-5" />
+                Contact Us to Get Set Up <ArrowRight className="w-5 h-5" />
               </button>
               <div className="flex gap-2">
                 <a

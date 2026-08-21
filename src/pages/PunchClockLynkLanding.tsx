@@ -15,7 +15,7 @@ import { FooterSection } from '@/components/punchclock-landing/FooterSection';
 
 export default function PunchClockLynkLanding() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'signUp'>('signUp');
+  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'contact'>('contact');
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [scrollY, setScrollY] = useState(0);
@@ -45,7 +45,7 @@ export default function PunchClockLynkLanding() {
   }
 
   const handleGetStarted = () => {
-    setAuthModalMode('signUp');
+    setAuthModalMode('contact');
     setShowAuthModal(true);
   };
 

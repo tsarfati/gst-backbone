@@ -32,6 +32,7 @@ import JobProjectTeam from "@/components/JobProjectTeam";
 import JobExportModal from "@/components/JobExportModal";
 import JobSubmittals from "@/components/JobSubmittals";
 import JobSecurityCameras from "@/components/JobSecurityCameras";
+import JobScheduleTab from "@/components/JobScheduleTab";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { useVendorPortalAccess } from "@/hooks/useVendorPortalAccess";
 import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
@@ -185,6 +186,7 @@ export default function JobDetails() {
         "details",
         "cost-budget",
         "forecasting",
+        "schedule",
         "committed-costs",
         "billing",
         "plans",
@@ -1078,6 +1080,13 @@ export default function JobDetails() {
               Forecasting
             </TabsTrigger>}
             {!isExternalView && <TabsTrigger 
+              value="schedule"
+              className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
+            >
+              <Clock className="h-4 w-4 mr-2" />
+              Schedule
+            </TabsTrigger>}
+            {!isExternalView && <TabsTrigger 
               value="committed-costs" 
               className="rounded-none border-b-2 border-transparent px-2.5 py-2 data-[state=active]:border-primary data-[state=active]:bg-transparent hover:text-foreground"
             >
@@ -1292,6 +1301,16 @@ export default function JobDetails() {
           <TabsContent value="forecasting" className="p-6">
             <JobForecastingView />
           </TabsContent>
+
+          {!isExternalView && <TabsContent value="schedule" className="p-6">
+            <JobScheduleTab
+              jobId={id!}
+              companyId={job.company_id || null}
+              canEdit={permissions.canEditJobs() && canManageDesignProfessionalJob && !isVendorView}
+              jobStartDate={job.start_date || null}
+              jobEndDate={job.end_date || null}
+            />
+          </TabsContent>}
 
           {visibleTabs.includes("plans") && <TabsContent value="plans" className="p-6">
             <JobPlans jobId={id!} companyId={job.company_id || null} canUpload={!isVendorView} />

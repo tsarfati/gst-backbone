@@ -39,6 +39,35 @@ interface DistributionLineItem {
   amount: string;
 }
 
+const getErrorMessage = (error: unknown) => {
+  if (!error) return "Unknown error";
+  if (typeof error === "string") return error;
+
+  const err = error as {
+    message?: string;
+    details?: string | null;
+    hint?: string | null;
+    code?: string | null;
+    step?: string;
+    error?: string;
+  };
+
+  const parts = [
+    err.step ? `[${err.step}]` : null,
+    err.message || err.error || null,
+    err.details || null,
+    err.hint || null,
+    err.code ? `(code: ${err.code})` : null,
+  ].filter(Boolean);
+
+  return parts.join(" ") || "Unknown error";
+};
+
+const normalizeOptionalDate = (value?: string | null) => {
+  const trimmed = String(value || "").trim();
+  return trimmed ? trimmed : null;
+};
+
 export default function AddBill() {
   const navigate = useNavigate();
   const { toast } = useToast();
@@ -1007,6 +1036,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       }
 
       const companyId = currentCompany?.id || profile?.current_company_id;
+      const normalizedDraftIssueDate = normalizeOptionalDate(formData.issueDate);
+      const normalizedDraftDueDate = normalizeOptionalDate(formData.dueDate);
       const { data: namingSettings } = await supabase
         .from('file_upload_settings')
         .select('bill_naming_pattern')
@@ -1024,8 +1055,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
           purchase_order_id: formData.purchase_order_id || null,
           amount: parseFloat(formData.amount || '0') || 0,
           invoice_number: formData.invoice_number || null,
-          issue_date: formData.issueDate || null,
-          due_date: formData.dueDate || null,
+          issue_date: normalizedDraftIssueDate,
+          due_date: normalizedDraftDueDate,
           payment_terms: formData.payment_terms || null,
           description: formData.description || null,
           internal_notes: formData.internal_notes || null,
@@ -1172,6 +1203,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
           dueDate = calculatedDueDate.toISOString().split('T')[0];
         }
       }
+      const normalizedIssueDate = normalizeOptionalDate(formData.issueDate);
+      const normalizedDueDate = normalizeOptionalDate(dueDate);
 
       // Get project manager for the job and check if approval is required
       let assignedToPm = null;
@@ -1248,8 +1281,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
               cost_code_id: null,
               amount: amt,
               invoice_number: formData.invoice_number || null,
-              issue_date: formData.issueDate,
-              due_date: dueDate,
+              issue_date: normalizedIssueDate,
+              due_date: normalizedDueDate,
               payment_terms: formData.use_terms ? formData.payment_terms : null,
               description: formData.description,
               internal_notes: formData.internal_notes || null,
@@ -1277,7 +1310,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                 reason: `Attached coded receipt: ${attachedReceipt.filename}`,
                 changed_by: user.data.user!.id
               }));
-              await supabase.from('invoice_audit_trail').insert(auditRows);
+              const { error: auditError } = await supabase.from('invoice_audit_trail').insert(auditRows);
+              if (auditError) throw { ...auditError, step: 'pending-coding-audit-trail' };
             }
           }
         } else {
@@ -1307,8 +1341,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
               cost_code_id: null, // Will be distributed via invoice_cost_distributions
               amount: totalAmount,
               invoice_number: formData.invoice_number || null,
-              issue_date: formData.issueDate,
-              due_date: dueDate,
+              issue_date: normalizedIssueDate,
+              due_date: normalizedDueDate,
               payment_terms: formData.use_terms ? formData.payment_terms : null,
               description: formData.description,
               internal_notes: formData.internal_notes || null,
@@ -1323,7 +1357,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             .select('id')
             .single();
 
-          if (error) throw error;
+          if (error) throw { ...error, step: 'non-commitment-invoice-insert' };
           
           if (inserted) {
             insertedInvoiceIds = [inserted.id];
@@ -1340,10 +1374,10 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
               .from('invoice_cost_distributions')
               .insert(distributions);
             
-            if (distError) throw distError;
+            if (distError) throw { ...distError, step: 'non-commitment-distributions-insert' };
             
             if (attachedReceipt) {
-              await supabase.from('invoice_audit_trail').insert({
+              const { error: auditError } = await supabase.from('invoice_audit_trail').insert({
                 invoice_id: inserted.id,
                 change_type: 'update',
                 field_name: 'attachment',
@@ -1352,6 +1386,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                 reason: `Attached coded receipt: ${attachedReceipt.filename}`,
                 changed_by: user.data.user!.id
               });
+              if (auditError) throw { ...auditError, step: 'non-commitment-audit-trail' };
             }
           }
         }
@@ -1377,8 +1412,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
               retainage_percentage: retainagePercentage,
               retainage_amount: totalRetainageAmount,
               invoice_number: formData.invoice_number || null,
-              issue_date: formData.issueDate,
-              due_date: dueDate,
+              issue_date: normalizedIssueDate,
+              due_date: normalizedDueDate,
               payment_terms: formData.use_terms ? formData.payment_terms : null,
               description: formData.description,
               internal_notes: formData.internal_notes || null,
@@ -1393,7 +1428,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             .select('id')
             .single();
 
-          if (error) throw error;
+          if (error) throw { ...error, step: 'commitment-distributed-invoice-insert' };
           
           if (inserted) {
             insertedInvoiceIds = [inserted.id];
@@ -1410,11 +1445,11 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
               .from('invoice_cost_distributions')
               .insert(distributions);
             
-            if (distError) throw distError;
+            if (distError) throw { ...distError, step: 'commitment-distributions-insert' };
 
             // Add audit trail for attached receipt
             if (attachedReceipt) {
-              await supabase.from('invoice_audit_trail').insert({
+              const { error: auditError } = await supabase.from('invoice_audit_trail').insert({
                 invoice_id: inserted.id,
                 change_type: 'update',
                 field_name: 'attachment',
@@ -1423,6 +1458,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                 reason: `Attached coded receipt: ${attachedReceipt.filename}`,
                 changed_by: user.data.user!.id
               });
+              if (auditError) throw { ...auditError, step: 'commitment-distributed-audit-trail' };
             }
           }
         } else {
@@ -1443,8 +1479,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             purchase_order_id: formData.is_commitment && formData.commitment_type === 'purchase_order' ? formData.purchase_order_id : null,
             amount: parseFloat(formData.amount),
             invoice_number: formData.invoice_number || null,
-            issue_date: formData.issueDate,
-            due_date: dueDate,
+            issue_date: normalizedIssueDate,
+            due_date: normalizedDueDate,
             payment_terms: formData.use_terms ? formData.payment_terms : null,
             description: formData.description,
             internal_notes: formData.internal_notes || null,
@@ -1460,7 +1496,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
           })
           .select('id');
 
-        if (error) throw error;
+        if (error) throw { ...error, step: 'commitment-single-invoice-insert' };
         
         if (inserted && inserted.length) {
           insertedInvoiceIds = [inserted[0].id];
@@ -1468,7 +1504,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
 
         // Add audit trail for attached receipt
         if (attachedReceipt && inserted && inserted.length) {
-          await supabase.from('invoice_audit_trail').insert({
+          const { error: auditError } = await supabase.from('invoice_audit_trail').insert({
             invoice_id: inserted[0].id,
             change_type: 'update',
             field_name: 'attachment',
@@ -1477,6 +1513,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
             reason: `Attached coded receipt: ${attachedReceipt.filename}`,
             changed_by: user.data.user.id
           });
+          if (auditError) throw { ...auditError, step: 'commitment-single-audit-trail' };
         }
         }
       }
@@ -1519,7 +1556,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
 
           // Create document records for each invoice
           for (const invoiceId of insertedInvoiceIds) {
-            await supabase.from('invoice_documents').insert({
+            const { error: documentError } = await supabase.from('invoice_documents').insert({
               invoice_id: invoiceId,
               file_url: fileUrl,
               file_name: displayName,
@@ -1527,6 +1564,7 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
               file_size: file.size,
               uploaded_by: user.data.user.id
             });
+            if (documentError) throw { ...documentError, step: 'invoice-documents-insert' };
           }
         }
       }
@@ -1544,10 +1582,12 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
       
       navigate("/invoices");
     } catch (error) {
+      const errorMessage = getErrorMessage(error);
       console.error('Error creating bill:', error);
+      console.error('Error creating bill details:', errorMessage, error);
       toast({
         title: "Error",
-        description: "Failed to create bill",
+        description: errorMessage,
         variant: "destructive"
       });
     }

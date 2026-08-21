@@ -12,10 +12,10 @@ export function CtaSection({ onGetStarted }: CtaSectionProps) {
       <div className="max-w-2xl mx-auto px-4 text-center">
         <AnimatedSection animation="fade-up">
           <h2 className="text-3xl sm:text-4xl font-bold text-white mb-4 tracking-tight">
-            Ready to try it?
+            Ready to get your team set up?
           </h2>
           <p className="text-gray-400 mb-8">
-            Start a free trial or schedule a personalized demo with our team.
+            Contact us and we will create your account structure, enable access, and help you launch cleanly.
           </p>
           <div className="flex flex-wrap justify-center gap-3">
             <button
@@ -23,7 +23,7 @@ export function CtaSection({ onGetStarted }: CtaSectionProps) {
               className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg"
               style={{ backgroundColor: '#E88A2D' }}
             >
-              Start Free Trial <ArrowRight className="w-5 h-5" />
+              Contact Us to Get Set Up <ArrowRight className="w-5 h-5" />
             </button>
             <Link
               to="/demo"

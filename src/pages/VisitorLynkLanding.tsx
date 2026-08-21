@@ -62,7 +62,7 @@ const features = [
 
 export default function VisitorLynkLanding() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'signUp'>('signUp');
+  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'contact'>('contact');
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [scrollY, setScrollY] = useState(0);
@@ -92,7 +92,7 @@ export default function VisitorLynkLanding() {
   }
 
   const handleGetStarted = () => {
-    setAuthModalMode('signUp');
+    setAuthModalMode('contact');
     setShowAuthModal(true);
   };
 

@@ -2,7 +2,6 @@ import { useState, useEffect, useRef } from 'react';
 import { useNavigate, Link, useLocation } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { AuthModal } from '@/components/AuthModal';
-import { TenantRequestModal } from '@/components/TenantRequestModal';
 import { useAuth } from '@/contexts/AuthContext';
 import { AnimatedSection } from '@/components/AnimatedSection';
 import { useParallax } from '@/hooks/useScrollAnimation';
@@ -42,8 +41,7 @@ const heroVideos = [heroVideo2Intro, heroVideo3, heroVideo1, heroVideo4, heroVid
 
 export default function LandingPage() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'signUp'>('signUp');
-  const [showTenantRequestModal, setShowTenantRequestModal] = useState(false);
+  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'contact'>('contact');
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -396,13 +394,13 @@ export default function LandingPage() {
           <div className="flex flex-col sm:flex-row items-center justify-center gap-3">
             <button 
               onClick={() => {
-                setAuthModalMode('signUp');
+                setAuthModalMode('contact');
                 setShowAuthModal(true);
               }}
               className="text-base md:text-lg px-8 py-1.5 md:px-10 md:py-2 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.6)] transition-all duration-300 rounded-lg"
               style={{ backgroundColor: '#E88A2D' }}
             >
-              Start Building Today <ArrowRight className="ml-2 w-5 h-5 inline" />
+              Contact Us to Get Set Up <ArrowRight className="ml-2 w-5 h-5 inline" />
             </button>
             <button
               onClick={() => {
@@ -588,15 +586,18 @@ export default function LandingPage() {
               Ready to Transform Your Business?
             </h2>
             <p className="text-xl text-gray-400 mb-10 max-w-2xl mx-auto">
-              Join construction companies already using BuilderLYNK to streamline their operations 
-              and boost profitability.
+              Reach out to get your company set up in BuilderLYNK. We will create your organization,
+              provision access, and help you get started the right way.
             </p>
             <Button 
               size="lg" 
-              onClick={() => setShowTenantRequestModal(true)}
+              onClick={() => {
+                setAuthModalMode('contact');
+                setShowAuthModal(true);
+              }}
               className="text-xl px-12 py-8 bg-[#E88A2D] hover:bg-[#d67a20] text-white font-bold shadow-2xl hover:shadow-[#E88A2D]/40 hover:scale-105 transition-all duration-300"
             >
-              Get Started Today
+              Contact Us to Get Set Up
               <ArrowRight className="ml-3 h-6 w-6" />
             </Button>
           </AnimatedSection>
@@ -752,7 +753,6 @@ export default function LandingPage() {
 
       {/* Modals */}
       <AuthModal open={showAuthModal} onOpenChange={setShowAuthModal} initialMode={authModalMode} />
-      <TenantRequestModal open={showTenantRequestModal} onOpenChange={setShowTenantRequestModal} />
       <TawkToChat />
     </div>
   );

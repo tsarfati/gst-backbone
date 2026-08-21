@@ -14,7 +14,7 @@ const darkCardBg = '#1a1f2e';
 
 export default function PMLynkLanding() {
   const [showAuthModal, setShowAuthModal] = useState(false);
-  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'signUp'>('signUp');
+  const [authModalMode, setAuthModalMode] = useState<'signIn' | 'contact'>('contact');
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const [scrollY, setScrollY] = useState(0);
@@ -77,7 +77,7 @@ export default function PMLynkLanding() {
   ];
 
   const handleGetStarted = () => {
-    setAuthModalMode('signUp');
+    setAuthModalMode('contact');
     setShowAuthModal(true);
   };
 
@@ -121,7 +121,7 @@ export default function PMLynkLanding() {
                   className="px-10 py-4 text-white font-bold rounded-lg inline-flex items-center gap-2 transition-all duration-200 hover:brightness-110 text-lg"
                   style={{ backgroundColor: '#E88A2D' }}
                 >
-                  Start Free Trial <ArrowRight className="w-5 h-5" />
+                  Contact Us to Get Set Up <ArrowRight className="w-5 h-5" />
                 </button>
               </div>
 
@@ -195,17 +195,17 @@ export default function PMLynkLanding() {
               Manage your projects from anywhere.
             </h2>
             <p className="text-lg text-gray-400 mb-8">
-              Sign up for a free BuilderLYNK account and start using PM LYNK today.
+              Contact us to get PM LYNK set up for your company. We will create the account structure and send access to your team.
             </p>
             <button
               onClick={() => {
-                setAuthModalMode('signUp');
+                setAuthModalMode('contact');
                 setShowAuthModal(true);
               }}
               className="text-lg px-10 py-4 text-white font-bold shadow-2xl hover:scale-105 hover:shadow-[0_0_30px_rgba(232,138,45,0.5)] transition-all duration-300 rounded-full inline-flex items-center gap-2"
               style={{ backgroundColor: '#E88A2D' }}
             >
-              Start Free Trial <ArrowRight className="w-5 h-5" />
+              Contact Us to Get Set Up <ArrowRight className="w-5 h-5" />
             </button>
           </AnimatedSection>
         </div>

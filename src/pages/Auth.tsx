@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
+import { Link } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -137,8 +138,7 @@ export default function Auth() {
     };
   }, [inviteToken]);
 
-  // Invitation links should default to Sign Up for first-time users.
-  // Users can still switch to Sign In manually if they already have an account.
+  // Invitation links still support account creation for admin-invited users.
   useEffect(() => {
     if (inviteToken && !user) {
       setActiveTab('signup');
@@ -782,7 +782,7 @@ export default function Auth() {
           <CardDescription>
             {inviteToken
               ? `${invitePreview?.companyName || 'A company'} invited you to join their team on BuilderLYNK. Create your account to continue.`
-              : 'Sign in to your account or create a new one'}
+              : 'Sign in to your BuilderLYNK account. Need access? Contact us and we will get your company set up.'}
           </CardDescription>
         </CardHeader>
         <CardContent>
@@ -799,13 +799,12 @@ export default function Auth() {
             </div>
           )}
           <Tabs value={activeTab} onValueChange={setActiveTab}>
-            <TabsList className={`grid w-full ${inviteToken ? 'grid-cols-1' : 'grid-cols-2'}`}>
-              {!inviteToken && <TabsTrigger value="signin">Sign In</TabsTrigger>}
-              <TabsTrigger value="signup">Sign Up</TabsTrigger>
+            <TabsList className={`grid w-full ${inviteToken ? 'grid-cols-2' : 'grid-cols-1'}`}>
+              <TabsTrigger value="signin">Sign In</TabsTrigger>
+              {inviteToken && <TabsTrigger value="signup">Accept Invite</TabsTrigger>}
             </TabsList>
             
-            {!inviteToken && (
-              <TabsContent value="signin" className="animate-fade-in">
+            <TabsContent value="signin" className="animate-fade-in">
               <form onSubmit={handleSignIn} className="space-y-4">
                 <div className="space-y-2">
                   <Label htmlFor="signin-email">Email</Label>
@@ -893,109 +892,99 @@ export default function Auth() {
                   Continue with Google
                 </Button>
               </form>
+            </TabsContent>
+            
+            {inviteToken && (
+              <TabsContent value="signup" className="animate-fade-in">
+                <form onSubmit={handleSignUp} className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="first-name">First Name</Label>
+                      <Input
+                        id="first-name"
+                        value={firstName}
+                        onChange={(e) => setFirstName(e.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="last-name">Last Name</Label>
+                      <Input
+                        id="last-name"
+                        value={lastName}
+                        onChange={(e) => setLastName(e.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-email">Email</Label>
+                    <Input
+                      id="signup-email"
+                      type="email"
+                      value={email}
+                      onChange={(e) => setEmail(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-password">Password</Label>
+                    <div className="relative">
+                      <Input
+                        id="signup-password"
+                        type={showPassword ? 'text' : 'password'}
+                        value={password}
+                        onChange={(e) => setPassword(e.target.value)}
+                        required
+                        className="pr-10"
+                      />
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                      >
+                        {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                      </button>
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label htmlFor="signup-confirm-password">Confirm Password</Label>
+                    <Input
+                      id="signup-confirm-password"
+                      type={showPassword ? 'text' : 'password'}
+                      value={confirmPassword}
+                      onChange={(e) => setConfirmPassword(e.target.value)}
+                      required
+                    />
+                  </div>
+                  <Button 
+                    type="submit" 
+                    className="w-full" 
+                    disabled={loading}
+                    style={{ backgroundColor: '#E88A2D' }}
+                  >
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Accept Invite and Create Account
+                  </Button>
+                  <div className="text-center text-sm text-muted-foreground">or</div>
+                  <Button 
+                    type="button" 
+                    variant="outline" 
+                    className="w-full" 
+                    onClick={handleGoogleSignIn}
+                    disabled={loading}
+                  >
+                    {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Continue with Google
+                  </Button>
+                </form>
               </TabsContent>
             )}
-            
-            <TabsContent value="signup" className="animate-fade-in">
-              <form onSubmit={handleSignUp} className="space-y-4">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label htmlFor="first-name">First Name</Label>
-                    <Input
-                      id="first-name"
-                      value={firstName}
-                      onChange={(e) => setFirstName(e.target.value)}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label htmlFor="last-name">Last Name</Label>
-                    <Input
-                      id="last-name"
-                      value={lastName}
-                      onChange={(e) => setLastName(e.target.value)}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-email">Email</Label>
-                  <Input
-                    id="signup-email"
-                    type="email"
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    required
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-password">Password</Label>
-                  <div className="relative">
-                    <Input
-                      id="signup-password"
-                      type={showPassword ? 'text' : 'password'}
-                      value={password}
-                      onChange={(e) => setPassword(e.target.value)}
-                      required
-                      className="pr-10"
-                    />
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-                    >
-                      {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
-                    </button>
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label htmlFor="signup-confirm-password">Confirm Password</Label>
-                  <Input
-                    id="signup-confirm-password"
-                    type={showPassword ? 'text' : 'password'}
-                    value={confirmPassword}
-                    onChange={(e) => setConfirmPassword(e.target.value)}
-                    required
-                  />
-                </div>
-                <Button 
-                  type="submit" 
-                  className="w-full" 
-                  disabled={loading}
-                  style={{ backgroundColor: '#E88A2D' }}
-                >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Sign Up
-                </Button>
-                <div className="text-center text-sm text-muted-foreground">or</div>
-                <Button 
-                  type="button" 
-                  variant="outline" 
-                  className="w-full" 
-                  onClick={handleGoogleSignIn}
-                  disabled={loading}
-                >
-                  {loading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                  Continue with Google
-                </Button>
-              </form>
-            </TabsContent>
           </Tabs>
           {!inviteToken && (
             <div className="mt-5 border-t pt-4 space-y-3">
-              <p className="text-center text-sm text-muted-foreground">Choose account type</p>
+              <p className="text-center text-sm text-muted-foreground">Need a new BuilderLYNK account?</p>
               <div className="grid gap-2">
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => setActiveTab('signup')}
-                >
-                  Builder / Contractor Account
-                </Button>
-                <Button
-                  type="button"
-                  variant="outline"
-                  onClick={() => navigate('/design-professional-signup')}
-                >
-                  Design Professional (Architect / Engineer)
+                <Button asChild type="button" variant="outline">
+                  <Link to="/contact">Contact us to get set up</Link>
                 </Button>
               </div>
             </div>
