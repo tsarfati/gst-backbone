@@ -148,12 +148,6 @@ export default function VisitorLynkLanding() {
                 >
                   Start VisitorLYNK <ArrowRight className="w-5 h-5" />
                 </button>
-                <Link
-                  to="/visitor-lynk/start"
-                  className="px-10 py-4 rounded-lg inline-flex items-center gap-2 text-lg font-semibold text-white border border-white/15 bg-white/5 hover:bg-white/10 transition-colors"
-                >
-                  Plan Your Rollout
-                </Link>
               </div>
 
               <div className="flex flex-wrap gap-6 text-sm text-white/60">

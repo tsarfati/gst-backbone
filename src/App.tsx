@@ -553,7 +553,7 @@ function PublicRoutes() {
       <Route path="/pm-lynk" element={<PMLynkLanding />} />
       <Route path="/design-pro-lynk" element={<DesignProLynkLanding />} />
       <Route path="/visitor-lynk" element={<VisitorLynkLanding />} />
-      <Route path="/visitor-lynk/start" element={<VisitorLynkStart />} />
+      <Route path="/visitor-lynk/start" element={<Navigate to="/visitor-lynk" replace />} />
       <Route path="/privacy" element={<PrivacyPolicy />} />
       <Route path="/demo" element={<DemoRequest />} />
       <Route path="/auth" element={<Auth />} />
