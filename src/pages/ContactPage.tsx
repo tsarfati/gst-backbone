@@ -18,7 +18,7 @@ export default function ContactPage() {
 
   const darkBg = '#0f1419';
   const darkCardBg = '#1a1f2e';
-  const supportEmail = 'support@builderlink.com';
+  const supportEmail = 'support@builderlynk.com';
 
   useEffect(() => {
     window.scrollTo({ top: 0, left: 0, behavior: 'auto' });
