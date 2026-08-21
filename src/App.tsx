@@ -121,6 +121,7 @@ import AddBankAccount from "./pages/AddBankAccount";
 import AddCreditCard from "./pages/AddCreditCard";
 import NewJournalEntry from "./pages/NewJournalEntry";
 import ConstructionDashboard from "./pages/ConstructionDashboard";
+import ConstructionSchedule from "./pages/ConstructionSchedule";
 import AddRFP from "./pages/AddRFP";
 import BidComparison from "./pages/BidComparison";
 import AddBid from "./pages/AddBid";
@@ -814,6 +815,11 @@ function AuthenticatedRoutes() {
                 </RouteSuspense>
               } />
               <Route element={<CompanyTypeRoute allowedTypes={['construction']} redirectTo="/construction/dashboard" />}>
+                <Route path="construction/schedule" element={
+                  <MenuPermissionRoute menuKey="jobs" redirectTo="/construction/dashboard">
+                    <ConstructionSchedule />
+                  </MenuPermissionRoute>
+                } />
                 <Route path="construction/reports" element={
                   <MenuPermissionRoute menuKey="construction-reports-view">
                     <RouteSuspense text="Loading report center...">

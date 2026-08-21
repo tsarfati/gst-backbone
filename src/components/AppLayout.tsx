@@ -47,6 +47,7 @@ const navigationCategories = [
       items: [
         { name: "Dashboard", href: "/construction/dashboard", menuKey: "jobs" },
         { name: "Jobs", href: "/jobs", menuKey: "jobs" },
+        { name: "Schedule", href: "/construction/schedule", menuKey: "jobs" },
         { name: "Subcontracts", href: "/subcontracts", menuKey: "vendors", companyTypes: ['construction'] as CompanyType[] },
         { name: "RFPs & Bids", href: "/construction/rfps", menuKey: "jobs" },
         { name: "Submittals", href: "/construction/submittals", menuKey: "jobs" },
