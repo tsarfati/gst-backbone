@@ -625,7 +625,7 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
               },
             ] as const;
           });
-          const teamOptions = Array.from(new Map([...projectTeamOptions, ...punchClockOptions]).values()).sort((a, b) => a.name.localeCompare(b.name)) as any;
+          const teamOptions = Array.from(new Map([...projectTeamOptions, ...punchClockOptions] as [string, any][]).values()).sort((a, b) => a.name.localeCompare(b.name));
           const nextAssignmentMap: Record<string, string[]> = {};
           (((assignmentsResult.data || []) as any[]) || []).forEach((row) => {
             const key = String(row.schedule_item_id);
