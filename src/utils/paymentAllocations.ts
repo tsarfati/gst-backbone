@@ -5,6 +5,23 @@ type PaymentLineLike = {
   payments?: { amount?: number | string | null } | null;
 };
 
+type PayableInvoiceLike = {
+  amount?: number | string | null;
+  retainage_amount?: number | string | null;
+};
+
+const roundCurrency = (amount: number) => Math.round(amount * 100) / 100;
+
+export function getInvoiceNetPayable(invoice: PayableInvoiceLike) {
+  const grossAmount = Number(invoice.amount || 0);
+  const retainageAmount = Number(invoice.retainage_amount || 0);
+  return roundCurrency(Math.max(0, grossAmount - retainageAmount));
+}
+
+export function getInvoiceRemainingPayable(invoice: PayableInvoiceLike, amountPaid: number) {
+  return roundCurrency(Math.max(0, getInvoiceNetPayable(invoice) - Number(amountPaid || 0)));
+}
+
 export function getEffectivePaidByInvoice(paymentLines: PaymentLineLike[] = []) {
   const linesByPaymentId = new Map<string, PaymentLineLike[]>();
   const paidByInvoiceId = new Map<string, number>();
