@@ -41,7 +41,7 @@ import BillInternalNotes from "@/components/BillInternalNotes";
 import FileShareModal from "@/components/FileShareModal";
 import BillVendorThread from "@/components/BillVendorThread";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
-import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
+import { getEffectivePaidByInvoice, getInvoiceNetPayable, getInvoiceRemainingPayable } from "@/utils/paymentAllocations";
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -301,6 +301,7 @@ export default function BillDetails() {
               .from('payment_invoice_lines')
               .select(`
                 id,
+                invoice_id,
                 amount_paid,
                 created_at,
                 payments:payment_id (
@@ -381,7 +382,7 @@ export default function BillDetails() {
             setPaymentsReceived(paymentLines);
             const paid = getEffectivePaidByInvoice(paymentLines as any[]).get(data.id) || 0;
             setTotalPaid(paid);
-            const remaining = Number(data.amount || 0) - paid;
+            const remaining = getInvoiceRemainingPayable(data, paid);
             setBalanceDue(remaining);
 
             if (remaining <= 0.01 && data.status !== 'paid') {
@@ -400,7 +401,7 @@ export default function BillDetails() {
           } else {
             setPaymentsReceived([]);
             setTotalPaid(0);
-            setBalanceDue(Number(data.amount || 0));
+            setBalanceDue(getInvoiceNetPayable(data));
           }
 
           const distData = distributionsResult.data;
@@ -1278,13 +1279,15 @@ export default function BillDetails() {
                       <p className="text-sm text-muted-foreground">Amount Paid</p>
                       <p className="font-medium text-2xl text-green-600">${totalPaid.toLocaleString()}</p>
                     </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Balance Due</p>
-                      <p className={`font-medium text-2xl ${balanceDue > 0 ? 'text-orange-600' : 'text-green-600'}`}>
-                        ${balanceDue.toLocaleString()}
-                      </p>
-                    </div>
                   </>
+                )}
+                {(totalPaid > 0 || Number(bill?.retainage_amount || 0) > 0) && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Remaining Payable</p>
+                    <p className={`font-medium text-2xl ${balanceDue > 0 ? 'text-orange-600' : 'text-green-600'}`}>
+                      ${balanceDue.toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                    </p>
+                  </div>
                 )}
                 <div>
                   <p className="text-sm text-muted-foreground">Status</p>

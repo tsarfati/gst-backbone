@@ -35,7 +35,7 @@ import DragDropUpload from "@/components/DragDropUpload";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
-import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
+import { getEffectivePaidByInvoice, getInvoiceNetPayable, getInvoiceRemainingPayable } from "@/utils/paymentAllocations";
 
 interface Vendor {
   id: string;
@@ -77,6 +77,8 @@ interface Invoice {
   chart_account_id?: string;
   amount_paid?: number;
   balance_due?: number;
+  retainage_amount?: number;
+  retainage_percentage?: number;
 }
 
 interface Payment {
@@ -261,10 +263,12 @@ export default function MakePayment() {
       
       // Fetch payments made on each invoice to calculate balance due
       const invoiceIds = (invoicesData || []).map(inv => inv.id);
-      const { data: paymentLinesData } = await supabase
+      const { data: paymentLinesData, error: paymentLinesError } = await supabase
         .from('payment_invoice_lines')
-        .select('invoice_id, payment_id, amount_paid, payments(amount)')
+        .select('invoice_id, payment_id, amount_paid, payments:payment_id(amount)')
         .in('invoice_id', invoiceIds);
+
+      if (paymentLinesError) throw paymentLinesError;
       
       // Fetch distributions with job info for invoices that might not have direct job_id
       const { data: distributions } = await supabase
@@ -302,7 +306,7 @@ export default function MakePayment() {
       })
       .map(invoice => {
         const amountPaid = paidByInvoice.get(invoice.id) || 0;
-        const balanceDue = Number(invoice.amount) - amountPaid;
+        const balanceDue = getInvoiceRemainingPayable(invoice, amountPaid);
         
         // Use direct job if available, otherwise get from distributions
         let jobInfo = invoice.jobs;
@@ -777,7 +781,7 @@ export default function MakePayment() {
         for (const invoiceId of selectedInvoices) {
           const { data: invoice } = await supabase
             .from('invoices')
-            .select('amount')
+            .select('amount, retainage_amount')
             .eq('id', invoiceId)
             .single();
           
@@ -788,7 +792,7 @@ export default function MakePayment() {
           
           if (invoice && allPaymentLines) {
             const totalPaidForInvoice = allPaymentLines.reduce((sum, pl) => sum + (Number(pl.amount_paid) || 0), 0);
-            if (totalPaidForInvoice >= Number(invoice.amount) - 0.01) {
+            if (totalPaidForInvoice >= getInvoiceNetPayable(invoice) - 0.01) {
               await supabase
                 .from('invoices')
                 .update({ status: 'paid' })
@@ -1478,8 +1482,9 @@ export default function MakePayment() {
                       <TableHead>Description</TableHead>
                       <TableHead>Due Date</TableHead>
                       <TableHead>Bill Amount</TableHead>
+                      <TableHead>Retainage</TableHead>
                       <TableHead>Paid</TableHead>
-                      <TableHead>Balance Due</TableHead>
+                      <TableHead>Remaining Payable</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -1514,6 +1519,11 @@ export default function MakePayment() {
                           <TableCell className="max-w-xs truncate">{invoice.description}</TableCell>
                           <TableCell>{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A'}</TableCell>
                           <TableCell className="font-medium">${invoice.amount.toFixed(2)}</TableCell>
+                          <TableCell>
+                            {Number(invoice.retainage_amount || 0) > 0 ? (
+                              <span className="text-orange-600">-${Number(invoice.retainage_amount).toFixed(2)}</span>
+                            ) : '-'}
+                          </TableCell>
                           <TableCell>
                             {invoice.amount_paid && invoice.amount_paid > 0 ? (
                               <span className="text-green-600">${invoice.amount_paid.toFixed(2)}</span>

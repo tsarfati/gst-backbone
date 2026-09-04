@@ -20,7 +20,7 @@ import { useActionPermissions } from "@/hooks/useActionPermissions";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
-import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
+import { getEffectivePaidByInvoice, getInvoiceNetPayable, getInvoiceRemainingPayable } from "@/utils/paymentAllocations";
 
 type SortColumn = 'vendor_name' | 'job_name' | 'amount' | 'issue_date' | 'due_date' | 'status';
 type SortDirection = 'asc' | 'desc';
@@ -32,6 +32,7 @@ interface Bill {
   vendor_name: string;
   vendor_logo_url: string | null;
   amount: number;
+  retainage_amount?: number;
   amount_paid?: number;
   balance_due?: number;
   status: string;
@@ -376,8 +377,9 @@ export default function Bills() {
           vendor_name: (bill.vendors as any)?.name || 'Unknown Vendor',
           vendor_logo_url: (bill.vendors as any)?.logo_url || null,
           amount: bill.amount,
+          retainage_amount: Number(bill.retainage_amount || 0),
           amount_paid: 0,
-          balance_due: bill.amount,
+          balance_due: getInvoiceNetPayable(bill),
           status: bill.status,
           issue_date: bill.issue_date,
           due_date: bill.due_date,
@@ -398,7 +400,7 @@ export default function Bills() {
         if (invoiceIds.length > 0) {
           const { data: paymentLines, error: paymentLinesError } = await supabase
             .from('payment_invoice_lines')
-            .select('invoice_id, payment_id, amount_paid, payments(amount)')
+            .select('invoice_id, payment_id, amount_paid, payments:payment_id(amount)')
             .in('invoice_id', invoiceIds);
 
           if (paymentLinesError) throw paymentLinesError;
@@ -410,7 +412,7 @@ export default function Bills() {
 
           finalBills = formattedBills.map((bill) => {
             const totalPaid = totalPaidByInvoiceId.get(bill.id) || 0;
-            const remainingBalance = Number(bill.amount || 0) - totalPaid;
+            const remainingBalance = getInvoiceRemainingPayable(bill, totalPaid);
 
             if (totalPaid > 0 && remainingBalance <= 0.01) {
               idsFullyPaid.push(bill.id);
