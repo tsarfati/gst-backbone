@@ -42,6 +42,7 @@ import ZoomableDocumentPreview from '@/components/ZoomableDocumentPreview';
 import { downloadRfpPlanPagesPdf } from '@/utils/rfpPlanPagesPdf';
 import RfpPlanPageNoteViewer, { type RfpPlanPageNoteViewerNote } from '@/components/RfpPlanPageNoteViewer';
 import { PlanDisciplineIcon } from '@/components/plans/PlanDisciplineIcon';
+import { useVendorPortalAccess } from '@/hooks/useVendorPortalAccess';
 
 interface ComplianceDocument {
   id: string;
@@ -210,6 +211,9 @@ export default function VendorDashboard() {
   const { profile, user } = useAuth();
   const { currentCompany } = useCompany();
   const { toast } = useToast();
+  const { roleCaps } = useVendorPortalAccess();
+  const canAccessVendorSettings = roleCaps.canAccessSettings;
+  
   
   const [loading, setLoading] = useState(true);
   const [vendorInfo, setVendorInfo] = useState<any>(null);
@@ -1101,7 +1105,7 @@ export default function VendorDashboard() {
   const incompleteChecklist = onboardingChecklist.filter((item) => !item.done);
   const isOnboardingReady = incompleteChecklist.length === 0;
   const canSubmitFirstInvoice = canSubmitBills && isOnboardingReady;
-  const canAccessVendorSettings = roleCaps.canAccessSettings;
+  // canAccessVendorSettings declared near top of component
   const hasCompanyInfo = Boolean(
     vendorInfo?.name?.trim() &&
     vendorInfo?.email?.trim() &&

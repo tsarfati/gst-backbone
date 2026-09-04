@@ -383,6 +383,7 @@ export default function RFPDetails() {
   const [previewPlanPage, setPreviewPlanPage] = useState<RfpPlanPage | null>(null);
   const [rfpAttachDialogOpen, setRfpAttachDialogOpen] = useState(false);
   const [rfpTargets, setRfpTargets] = useState<RfpAttachmentTarget[]>([]);
+  const [rfpAttachmentRefsByUrl, setRfpAttachmentRefsByUrl] = useState<Record<string, RfpAttachmentTarget[]>>({});
   const [selectedTargetRfpId, setSelectedTargetRfpId] = useState('');
   const [attachmentToCopy, setAttachmentToCopy] = useState<RfpAttachment | null>(null);
   const [copyingAttachmentToRfp, setCopyingAttachmentToRfp] = useState(false);
