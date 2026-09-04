@@ -96,11 +96,14 @@ interface UserProfile {
   pin_code?: string;
   punch_clock_access?: boolean;
   pm_lynk_access?: boolean;
+  current_company_id?: string | null;
 }
 
 interface Vendor {
   id: string;
   name: string;
+  email?: string;
+  phone?: string;
 }
 
 interface Job {

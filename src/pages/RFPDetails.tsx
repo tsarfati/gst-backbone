@@ -123,6 +123,8 @@ function pickJoinedRow<T>(value: T | T[] | null | undefined): T | null {
 
 interface Bid {
   id: string;
+  rfp_id?: string;
+  vendor_id?: string;
   bid_amount: number;
   proposed_timeline: string | null;
   notes: string | null;
