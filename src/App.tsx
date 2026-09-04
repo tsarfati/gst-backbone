@@ -324,12 +324,6 @@ function DashboardEntryRoute() {
         return;
       }
 
-      if (authEntryContext === 'builder' && hasInternalWorkspace) {
-        setResolvedExternalRole(null);
-        setResolvingExternalRole(false);
-        return;
-      }
-
       setResolvingExternalRole(true);
       try {
         const { data, error } = await supabase

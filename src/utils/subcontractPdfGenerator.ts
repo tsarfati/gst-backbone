@@ -158,12 +158,13 @@ export const generateSubcontractPDF = async (
       .single();
 
     if (subError) throw subError;
+    const subcontractAny = subcontract as any;
 
     // Fetch company data
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .select('*')
-      .eq('id', subcontract.job.company_id)
+      .eq('id', subcontractAny.job.company_id)
       .single();
 
     if (companyError) throw companyError;
@@ -188,44 +189,44 @@ export const generateSubcontractPDF = async (
       throw new Error(`Subcontract template not found. Please create it in PDF Template Settings (Company Settings > PDF Templates).`);
     }
 
-    const contractAmountValue = typeof subcontract.contract_amount === 'number'
-      ? subcontract.contract_amount
-      : parseFloat(subcontract.contract_amount || '0');
+    const contractAmountValue = typeof subcontractAny.contract_amount === 'number'
+      ? subcontractAny.contract_amount
+      : parseFloat(subcontractAny.contract_amount || '0');
 
     const placeholderValues = {
       '{contractor_name}': company.name || '',
       '{contractor_address}': company.address || '',
       '{contractor_phone}': company.phone || '',
       '{contractor_email}': company.email || '',
-      '{contractor_signer_name}': subcontract.company_signer_name || '',
-      '{contractor_signer_title}': subcontract.company_signer_title || '',
-      '{subcontractor_name}': subcontract.vendor.name || '',
-      '{subcontractor_signer_name}': subcontract.subcontractor_signer_name || subcontract.vendor.contact_person || '',
-      '{subcontractor_signer_position}': subcontract.subcontractor_signer_title || subcontract.vendor.contact_title || '',
-      '{subcontractor_signer_title}': subcontract.subcontractor_signer_title || subcontract.vendor.contact_title || '',
-      '{subcontractor_contact_phone}': subcontract.vendor.phone || '',
-      '{subcontractor_address}': subcontract.vendor.address || '',
-      '{subcontractor_city}': subcontract.vendor.city || '',
-      '{subcontractor_state}': subcontract.vendor.state || '',
-      '{subcontractor_zip_code}': subcontract.vendor.zip_code || '',
-      '{subcontractor_phone}': subcontract.vendor.phone || '',
-      '{subcontractor_email}': subcontract.vendor.email || '',
-      '{contract_name}': subcontract.name || '',
-      '{contract_number}': subcontract.subcontract_number || subcontract.name || '',
-      '{subcontract_number}': subcontract.subcontract_number || '',
-      '{subcontract_description}': subcontract.description || '',
+      '{contractor_signer_name}': subcontractAny.company_signer_name || '',
+      '{contractor_signer_title}': subcontractAny.company_signer_title || '',
+      '{subcontractor_name}': subcontractAny.vendor.name || '',
+      '{subcontractor_signer_name}': subcontractAny.subcontractor_signer_name || subcontractAny.vendor.contact_person || '',
+      '{subcontractor_signer_position}': subcontractAny.subcontractor_signer_title || subcontractAny.vendor.contact_title || '',
+      '{subcontractor_signer_title}': subcontractAny.subcontractor_signer_title || subcontractAny.vendor.contact_title || '',
+      '{subcontractor_contact_phone}': subcontractAny.vendor.phone || '',
+      '{subcontractor_address}': subcontractAny.vendor.address || '',
+      '{subcontractor_city}': subcontractAny.vendor.city || '',
+      '{subcontractor_state}': subcontractAny.vendor.state || '',
+      '{subcontractor_zip_code}': subcontractAny.vendor.zip_code || '',
+      '{subcontractor_phone}': subcontractAny.vendor.phone || '',
+      '{subcontractor_email}': subcontractAny.vendor.email || '',
+      '{contract_name}': subcontractAny.name || '',
+      '{contract_number}': subcontractAny.subcontract_number || subcontractAny.name || '',
+      '{subcontract_number}': subcontractAny.subcontract_number || '',
+      '{subcontract_description}': subcontractAny.description || '',
       '{contract_amount}': `$${contractAmountValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       '{contract_amount_numeric}': `$${contractAmountValue.toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`,
       '{contract_amount_written}': formatCurrencyAsWords(contractAmountValue),
-      '{job_name}': subcontract.job.name || '',
-      '{job_number}': subcontract.job.project_number || '',
-      '{job_address}': subcontract.job.address || '',
-      '{architect}': subcontract.job.architect || '',
-      '{start_date}': subcontract.start_date ? format(new Date(subcontract.start_date), 'MM/dd/yyyy') : '',
-      '{end_date}': subcontract.end_date ? format(new Date(subcontract.end_date), 'MM/dd/yyyy') : '',
-      '{scope_of_work}': subcontract.scope_of_work || '',
-      '{payment_terms}': subcontract.apply_retainage ? `Net 30, ${subcontract.retainage_percentage}% retainage` : 'Net 30',
-      '{retainage_percentage}': subcontract.retainage_percentage ? `${subcontract.retainage_percentage}%` : 'N/A',
+      '{job_name}': subcontractAny.job.name || '',
+      '{job_number}': subcontractAny.job.project_number || '',
+      '{job_address}': subcontractAny.job.address || '',
+      '{architect}': subcontractAny.job.architect || '',
+      '{start_date}': subcontractAny.start_date ? format(new Date(subcontractAny.start_date), 'MM/dd/yyyy') : '',
+      '{end_date}': subcontractAny.end_date ? format(new Date(subcontractAny.end_date), 'MM/dd/yyyy') : '',
+      '{scope_of_work}': subcontractAny.scope_of_work || '',
+      '{payment_terms}': subcontractAny.apply_retainage ? `Net 30, ${subcontractAny.retainage_percentage}% retainage` : 'Net 30',
+      '{retainage_percentage}': subcontractAny.retainage_percentage ? `${subcontractAny.retainage_percentage}%` : 'N/A',
       '{date}': format(new Date(), 'MM/dd/yyyy'),
       '{contract_month}': format(new Date(), 'MMMM'),
       '{contract_day_number}': format(new Date(), 'd'),
@@ -237,14 +238,14 @@ export const generateSubcontractPDF = async (
       '{company_address}': company.address || '',
       '{company_phone}': company.phone || '',
       '{company_email}': company.email || '',
-      '{company_signer_name}': subcontract.company_signer_name || '',
-      '{company_signer_title}': subcontract.company_signer_title || '',
-      '{contractor_contact_phone}': subcontract.vendor.phone || '',
-      '{contractor_city}': subcontract.vendor.city || '',
-      '{contractor_state}': subcontract.vendor.state || '',
-      '{contractor_zip_code}': subcontract.vendor.zip_code || '',
-      '{contractor_contact_name}': subcontract.vendor.contact_person || '',
-      '{contractor_contact_position}': subcontract.vendor.contact_title || '',
+      '{company_signer_name}': subcontractAny.company_signer_name || '',
+      '{company_signer_title}': subcontractAny.company_signer_title || '',
+      '{contractor_contact_phone}': subcontractAny.vendor.phone || '',
+      '{contractor_city}': subcontractAny.vendor.city || '',
+      '{contractor_state}': subcontractAny.vendor.state || '',
+      '{contractor_zip_code}': subcontractAny.vendor.zip_code || '',
+      '{contractor_contact_name}': subcontractAny.vendor.contact_person || '',
+      '{contractor_contact_position}': subcontractAny.vendor.contact_title || '',
     };
 
     const templateFileType = String(template?.template_file_type || '').toLowerCase();

@@ -123,6 +123,8 @@ function pickJoinedRow<T>(value: T | T[] | null | undefined): T | null {
 
 interface Bid {
   id: string;
+  rfp_id?: string;
+  vendor_id?: string;
   bid_amount: number;
   proposed_timeline: string | null;
   notes: string | null;
@@ -381,6 +383,7 @@ export default function RFPDetails() {
   const [previewPlanPage, setPreviewPlanPage] = useState<RfpPlanPage | null>(null);
   const [rfpAttachDialogOpen, setRfpAttachDialogOpen] = useState(false);
   const [rfpTargets, setRfpTargets] = useState<RfpAttachmentTarget[]>([]);
+  const [rfpAttachmentRefsByUrl, setRfpAttachmentRefsByUrl] = useState<Record<string, any[]>>({});
   const [selectedTargetRfpId, setSelectedTargetRfpId] = useState('');
   const [attachmentToCopy, setAttachmentToCopy] = useState<RfpAttachment | null>(null);
   const [copyingAttachmentToRfp, setCopyingAttachmentToRfp] = useState(false);
@@ -1811,7 +1814,7 @@ export default function RFPDetails() {
 
       setInviteDialogOpen(false);
       setSelectedVendors([]);
-      setQuickInviteForm({ name: '', email: '' });
+      setQuickInviteForm({ firstName: '', lastName: '', companyName: '', email: '' });
       setQuickInviteVendorType('Contractor');
       loadInvitedVendors();
     } catch (error: any) {

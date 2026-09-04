@@ -1055,7 +1055,7 @@ export default function EmployeeDashboard() {
             <ArrowLeft className="h-4 w-4 mr-2" />
             Back to Punch Clock
           </Button>
-          <Button variant="outline" onClick={signOut} className="w-full sm:w-auto">
+          <Button variant="outline" onClick={() => signOut()} className="w-full sm:w-auto">
             Sign Out
           </Button>
         </div>

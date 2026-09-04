@@ -52,7 +52,7 @@ export const renderEmailTemplatePreview = (
   let rendered = String(template || "");
 
   Object.entries(sampleValues).forEach(([key, value]) => {
-    rendered = rendered.replaceAll(`{{${key}}}`, value);
+    rendered = rendered.replace(new RegExp(`\\{\\{${key}\\}\\}`, 'g'), value);
   });
 
   return rendered.replace(/\{\{[\w_]+\}\}/g, "[placeholder]");

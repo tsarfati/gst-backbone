@@ -96,11 +96,14 @@ interface UserProfile {
   pin_code?: string;
   punch_clock_access?: boolean;
   pm_lynk_access?: boolean;
+  current_company_id?: string | null;
 }
 
 interface Vendor {
   id: string;
   name: string;
+  email?: string;
+  phone?: string;
 }
 
 interface Job {
@@ -1395,7 +1398,7 @@ export default function UserDetails() {
       if (Object.keys(profilePatch).length > 0) {
         const { error: profileCleanupError } = await supabase
           .from('profiles')
-          .update(profilePatch)
+          .update(profilePatch as any)
           .eq('user_id', userId);
 
         if (profileCleanupError) {

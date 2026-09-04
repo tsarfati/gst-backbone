@@ -566,7 +566,7 @@ export default function JobDetails() {
                     ...row,
                     contract_negotiation_status: null,
                     signature_status: null,
-                  }))
+                  })) as any
               : null;
             error = fallback.error;
           }

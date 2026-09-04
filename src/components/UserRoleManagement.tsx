@@ -15,14 +15,14 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   display_name: string;
-  role: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
+  role: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor' | 'owner';
   custom_role_id?: string;
   email?: string;
   avatar_url?: string;
   default_page?: string;
 }
 
-const INTERNAL_ROLES = ['admin', 'controller', 'company_admin', 'project_manager', 'employee', 'view_only'] as const;
+const INTERNAL_ROLES = ['admin', 'controller', 'company_admin', 'project_manager', 'employee', 'view_only', 'owner'] as const;
 
 interface CustomRole {
   id: string;

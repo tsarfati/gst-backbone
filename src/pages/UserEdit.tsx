@@ -31,7 +31,7 @@ interface UserProfile {
   first_name: string;
   last_name: string;
   display_name: string;
-  role: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor';
+  role: 'admin' | 'controller' | 'project_manager' | 'design_professional' | 'employee' | 'view_only' | 'company_admin' | 'vendor' | 'owner';
   status: string;
   avatar_url?: string;
   has_global_job_access: boolean;
@@ -46,6 +46,8 @@ interface UserProfile {
 interface Vendor {
   id: string;
   name: string;
+  email?: string;
+  phone?: string;
 }
 
 interface EmployeeGroup {

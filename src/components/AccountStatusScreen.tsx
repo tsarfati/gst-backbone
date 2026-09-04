@@ -20,7 +20,7 @@ export function AccountStatusScreen({ status }: AccountStatusScreenProps) {
           <p className="text-muted-foreground">
             Your account is pending admin approval. You will receive an email once your access is approved.
           </p>
-          <Button variant="outline" onClick={signOut} className="gap-2">
+          <Button variant="outline" onClick={() => signOut()} className="gap-2">
             <LogOut className="h-4 w-4" />
             Sign Out
           </Button>
@@ -39,7 +39,7 @@ export function AccountStatusScreen({ status }: AccountStatusScreenProps) {
         <p className="text-muted-foreground">
           Your account has been suspended. Please contact your HR department or system administrator for assistance.
         </p>
-        <Button variant="outline" onClick={signOut} className="gap-2">
+        <Button variant="outline" onClick={() => signOut()} className="gap-2">
           <LogOut className="h-4 w-4" />
           Sign Out
         </Button>
