@@ -150,7 +150,7 @@ export default function CompanyRequest() {
             <Card className="mb-8">
               <CardHeader className="flex flex-row items-center justify-between">
                 <CardTitle className="text-xl">Welcome back!</CardTitle>
-                <Button variant="outline" onClick={signOut}>
+                <Button variant="outline" onClick={() => signOut()}>
                   Log Out
                 </Button>
               </CardHeader>
@@ -234,7 +234,7 @@ export default function CompanyRequest() {
           <Card className="mb-8">
             <CardHeader className="flex flex-row items-center justify-between">
               <CardTitle className="text-xl">Your Profile</CardTitle>
-              <Button variant="outline" onClick={signOut}>
+              <Button variant="outline" onClick={() => signOut()}>
                 Log Out
               </Button>
             </CardHeader>
