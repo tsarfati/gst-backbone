@@ -164,7 +164,7 @@ export const generateSubcontractPDF = async (
     const { data: company, error: companyError } = await supabase
       .from('companies')
       .select('*')
-      .eq('id', subcontract.job.company_id)
+      .eq('id', subcontractAny.job.company_id)
       .single();
 
     if (companyError) throw companyError;
@@ -189,7 +189,6 @@ export const generateSubcontractPDF = async (
       throw new Error(`Subcontract template not found. Please create it in PDF Template Settings (Company Settings > PDF Templates).`);
     }
 
-    const subcontractAny = subcontract as any;
     const contractAmountValue = typeof subcontractAny.contract_amount === 'number'
       ? subcontractAny.contract_amount
       : parseFloat(subcontractAny.contract_amount || '0');
