@@ -158,6 +158,7 @@ export const generateSubcontractPDF = async (
       .single();
 
     if (subError) throw subError;
+    const subcontractAny = subcontract as any;
 
     // Fetch company data
     const { data: company, error: companyError } = await supabase

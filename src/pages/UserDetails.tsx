@@ -1398,7 +1398,7 @@ export default function UserDetails() {
       if (Object.keys(profilePatch).length > 0) {
         const { error: profileCleanupError } = await supabase
           .from('profiles')
-          .update(profilePatch)
+          .update(profilePatch as any)
           .eq('user_id', userId);
 
         if (profileCleanupError) {

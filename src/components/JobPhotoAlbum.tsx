@@ -679,7 +679,7 @@ export default function JobPhotoAlbum({
         }
 
         const fallback = await fallbackQuery.order('created_at', { ascending: false });
-        data = fallback.data;
+        data = fallback.data as any;
         error = fallback.error;
       }
 

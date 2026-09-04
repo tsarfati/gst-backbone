@@ -759,7 +759,7 @@ export default function UserSettings() {
               .map((user: any) => String(user.current_company_id || '').trim())
               .filter((companyId) => isUuid(companyId)),
           ),
-        );
+        ) as string[];
 
         const { data: internalCompanyRows, error: internalCompanyRowsError } = internalCompanyIds.length > 0
           ? await supabase

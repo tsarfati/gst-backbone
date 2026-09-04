@@ -1813,7 +1813,7 @@ export default function RFPDetails() {
 
       setInviteDialogOpen(false);
       setSelectedVendors([]);
-      setQuickInviteForm({ name: '', email: '' });
+      setQuickInviteForm({ firstName: '', lastName: '', companyName: '', email: '' });
       setQuickInviteVendorType('Contractor');
       loadInvitedVendors();
     } catch (error: any) {

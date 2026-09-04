@@ -1627,7 +1627,7 @@ export default function TaskDetails() {
     if (entry.kind === 'attachment') return 'Attachment';
     if (entry.kind === 'comment') return 'Comment';
     if (entry.kind === 'email') return 'Email';
-    return entry.kind;
+    return (entry as any).kind;
   };
 
   useEffect(() => {
