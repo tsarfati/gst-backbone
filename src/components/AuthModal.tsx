@@ -30,6 +30,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'contact' }: AuthM
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
   const [contactCompany, setContactCompany] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactMessage, setContactMessage] = useState('');
@@ -50,6 +51,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'contact' }: AuthM
     setEmail('');
     setPassword('');
     setContactName('');
+    setContactPhone('');
     setContactCompany('');
     setContactEmail('');
     setContactMessage('');
@@ -92,10 +94,10 @@ export function AuthModal({ open, onOpenChange, initialMode = 'contact' }: AuthM
   const handleContactSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!contactName.trim() || !contactEmail.trim() || !contactMessage.trim()) {
+    if (!contactName.trim() || !contactPhone.trim() || !contactEmail.trim() || !contactMessage.trim()) {
       toast({
         title: 'Missing fields',
-        description: 'Please complete your name, email, and message.',
+        description: 'Please complete your name, phone number, email, and message.',
         variant: 'destructive',
       });
       return;
@@ -107,6 +109,7 @@ export function AuthModal({ open, onOpenChange, initialMode = 'contact' }: AuthM
         <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #111827;">
           <h2 style="margin: 0 0 16px;">BuilderLYNK Setup Request</h2>
           <p style="margin: 0 0 8px;"><strong>Name:</strong> ${escapeHtml(contactName.trim())}</p>
+          <p style="margin: 0 0 8px;"><strong>Phone:</strong> ${escapeHtml(contactPhone.trim())}</p>
           <p style="margin: 0 0 8px;"><strong>Email:</strong> ${escapeHtml(contactEmail.trim())}</p>
           <p style="margin: 0 0 8px;"><strong>Company:</strong> ${escapeHtml(contactCompany.trim() || 'Not provided')}</p>
           <p style="margin: 16px 0 8px;"><strong>Message:</strong></p>
@@ -440,6 +443,21 @@ export function AuthModal({ open, onOpenChange, initialMode = 'contact' }: AuthM
                         className={`h-12 px-4 border-gray-300 rounded-lg ${inputFocusClass}`}
                       />
                     </div>
+                  </div>
+                  <div className="space-y-2 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.45s' }}>
+                    <Label htmlFor="contact-phone" className="text-foreground font-semibold">
+                      Phone Number
+                    </Label>
+                    <Input
+                      id="contact-phone"
+                      type="tel"
+                      placeholder="(555) 555-5555"
+                      value={contactPhone}
+                      onChange={(e) => setContactPhone(e.target.value)}
+                      autoComplete="tel"
+                      required
+                      className={`h-12 px-4 border-gray-300 rounded-lg ${inputFocusClass}`}
+                    />
                   </div>
                   <div className="space-y-2 animate-[fade-in_0.4s_ease-out_forwards] opacity-0" style={{ animationDelay: '0.45s' }}>
                     <Label htmlFor="contact-email" className="text-foreground font-semibold">

@@ -11,6 +11,7 @@ import builderlynkIcon from '@/assets/builderlynk-hero-logo-new.png';
 
 export default function ContactPage() {
   const [contactName, setContactName] = useState('');
+  const [contactPhone, setContactPhone] = useState('');
   const [contactEmail, setContactEmail] = useState('');
   const [contactMessage, setContactMessage] = useState('');
   const [sendingContact, setSendingContact] = useState(false);
@@ -34,7 +35,7 @@ export default function ContactPage() {
 
   const handleSubmitContact = async (event: React.FormEvent<HTMLFormElement>) => {
     event.preventDefault();
-    if (!contactName.trim() || !contactEmail.trim() || !contactMessage.trim()) {
+    if (!contactName.trim() || !contactPhone.trim() || !contactEmail.trim() || !contactMessage.trim()) {
       toast({
         title: 'Missing fields',
         description: 'Please complete all required fields.',
@@ -49,6 +50,7 @@ export default function ContactPage() {
         <div style="font-family: Arial, sans-serif; max-width: 640px; margin: 0 auto; color: #111827;">
           <h2 style="margin: 0 0 16px;">BuilderLYNK Website Contact Form</h2>
           <p style="margin: 0 0 8px;"><strong>Name:</strong> ${escapeHtml(contactName.trim())}</p>
+          <p style="margin: 0 0 8px;"><strong>Phone:</strong> ${escapeHtml(contactPhone.trim())}</p>
           <p style="margin: 0 0 8px;"><strong>Email:</strong> ${escapeHtml(contactEmail.trim())}</p>
           <p style="margin: 16px 0 8px;"><strong>Message:</strong></p>
           <div style="white-space: pre-wrap; line-height: 1.5; border: 1px solid #e5e7eb; border-radius: 8px; padding: 12px;">
@@ -71,6 +73,7 @@ export default function ContactPage() {
         description: "Thanks. We'll get back to you soon.",
       });
       setContactName('');
+      setContactPhone('');
       setContactEmail('');
       setContactMessage('');
     } catch (error: any) {
@@ -129,7 +132,7 @@ export default function ContactPage() {
             style={{ backgroundColor: darkCardBg }}
           >
             <form onSubmit={handleSubmitContact} className="space-y-5">
-              <div className="grid sm:grid-cols-2 gap-4">
+              <div className="grid sm:grid-cols-3 gap-4">
                 <div className="space-y-2">
                   <Label htmlFor="contact-name" className="text-white">Name</Label>
                   <Input
@@ -138,6 +141,19 @@ export default function ContactPage() {
                     value={contactName}
                     onChange={(e) => setContactName(e.target.value)}
                     placeholder="Your name"
+                    className="bg-background/60 border-white/20 text-white placeholder:text-gray-500"
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="contact-phone" className="text-white">Phone Number</Label>
+                  <Input
+                    id="contact-phone"
+                    type="tel"
+                    required
+                    value={contactPhone}
+                    onChange={(e) => setContactPhone(e.target.value)}
+                    placeholder="(555) 555-5555"
+                    autoComplete="tel"
                     className="bg-background/60 border-white/20 text-white placeholder:text-gray-500"
                   />
                 </div>
