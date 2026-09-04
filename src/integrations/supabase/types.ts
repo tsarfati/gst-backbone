@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "13.0.5"
+    PostgrestVersion: "14.5"
   }
   public: {
     Tables: {
@@ -5422,6 +5422,263 @@ export type Database = {
           },
         ]
       }
+      job_schedule_dependencies: {
+        Row: {
+          company_id: string
+          created_at: string
+          dependency_type: string
+          id: string
+          job_id: string
+          lag_days: number
+          predecessor_item_id: string
+          successor_item_id: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          dependency_type?: string
+          id?: string
+          job_id: string
+          lag_days?: number
+          predecessor_item_id: string
+          successor_item_id: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          dependency_type?: string
+          id?: string
+          job_id?: string
+          lag_days?: number
+          predecessor_item_id?: string
+          successor_item_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_schedule_dependencies_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_dependencies_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_schedule_dependencies_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_dependencies_predecessor_item_id_fkey"
+            columns: ["predecessor_item_id"]
+            isOneToOne: false
+            referencedRelation: "job_schedule_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_dependencies_successor_item_id_fkey"
+            columns: ["successor_item_id"]
+            isOneToOne: false
+            referencedRelation: "job_schedule_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_schedule_item_assignments: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          job_id: string
+          schedule_item_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          job_id: string
+          schedule_item_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          job_id?: string
+          schedule_item_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_schedule_item_assignments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_item_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_schedule_item_assignments_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_item_assignments_schedule_item_id_fkey"
+            columns: ["schedule_item_id"]
+            isOneToOne: false
+            referencedRelation: "job_schedule_items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_item_assignments_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "profiles"
+            referencedColumns: ["user_id"]
+          },
+        ]
+      }
+      job_schedule_items: {
+        Row: {
+          company_id: string
+          cost_code_id: string | null
+          created_at: string
+          created_by: string | null
+          duration_days: number
+          end_date: string | null
+          id: string
+          item_type: string
+          job_id: string
+          linked_purchase_order_id: string | null
+          notes: string | null
+          parent_item_id: string | null
+          percent_complete: number
+          requires_purchase_order: boolean
+          sort_order: number
+          start_date: string | null
+          status: string
+          title: string
+          trade: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          cost_code_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_days?: number
+          end_date?: string | null
+          id?: string
+          item_type?: string
+          job_id: string
+          linked_purchase_order_id?: string | null
+          notes?: string | null
+          parent_item_id?: string | null
+          percent_complete?: number
+          requires_purchase_order?: boolean
+          sort_order?: number
+          start_date?: string | null
+          status?: string
+          title: string
+          trade?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          cost_code_id?: string | null
+          created_at?: string
+          created_by?: string | null
+          duration_days?: number
+          end_date?: string | null
+          id?: string
+          item_type?: string
+          job_id?: string
+          linked_purchase_order_id?: string | null
+          notes?: string | null
+          parent_item_id?: string | null
+          percent_complete?: number
+          requires_purchase_order?: boolean
+          sort_order?: number
+          start_date?: string | null
+          status?: string
+          title?: string
+          trade?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_schedule_items_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_items_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "cost_codes"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_items_cost_code_id_fkey"
+            columns: ["cost_code_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["cost_code_id"]
+          },
+          {
+            foreignKeyName: "job_schedule_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "job_cost_summary"
+            referencedColumns: ["job_id"]
+          },
+          {
+            foreignKeyName: "job_schedule_items_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_items_linked_purchase_order_id_fkey"
+            columns: ["linked_purchase_order_id"]
+            isOneToOne: false
+            referencedRelation: "purchase_orders"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_schedule_items_parent_item_id_fkey"
+            columns: ["parent_item_id"]
+            isOneToOne: false
+            referencedRelation: "job_schedule_items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       job_security_camera_mappings: {
         Row: {
           access_notes: string | null
@@ -8567,6 +8824,51 @@ export type Database = {
           },
         ]
       }
+      rfp_communications: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          message: string
+          rfp_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          message: string
+          rfp_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          message?: string
+          rfp_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "rfp_communications_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "rfp_communications_rfp_id_fkey"
+            columns: ["rfp_id"]
+            isOneToOne: false
+            referencedRelation: "rfps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       rfp_invited_vendors: {
         Row: {
           company_id: string
@@ -9114,9 +9416,9 @@ export type Database = {
           scope_of_work: string | null
           start_date: string | null
           status: string
+          subcontract_number: string | null
           subcontractor_signer_name: string | null
           subcontractor_signer_title: string | null
-          subcontract_number: string | null
           total_distributed_amount: number | null
           updated_at: string
           vendor_id: string
@@ -9139,9 +9441,9 @@ export type Database = {
           scope_of_work?: string | null
           start_date?: string | null
           status?: string
+          subcontract_number?: string | null
           subcontractor_signer_name?: string | null
           subcontractor_signer_title?: string | null
-          subcontract_number?: string | null
           total_distributed_amount?: number | null
           updated_at?: string
           vendor_id: string
@@ -9164,9 +9466,9 @@ export type Database = {
           scope_of_work?: string | null
           start_date?: string | null
           status?: string
+          subcontract_number?: string | null
           subcontractor_signer_name?: string | null
           subcontractor_signer_title?: string | null
-          subcontract_number?: string | null
           total_distributed_amount?: number | null
           updated_at?: string
           vendor_id?: string
@@ -11004,6 +11306,7 @@ export type Database = {
           token: string
           updated_at: string
           vendor_id: string
+          vendor_portal_role: string | null
         }
         Insert: {
           accepted_at?: string | null
@@ -11019,6 +11322,7 @@ export type Database = {
           token?: string
           updated_at?: string
           vendor_id: string
+          vendor_portal_role?: string | null
         }
         Update: {
           accepted_at?: string | null
@@ -11034,6 +11338,7 @@ export type Database = {
           token?: string
           updated_at?: string
           vendor_id?: string
+          vendor_portal_role?: string | null
         }
         Relationships: [
           {
@@ -11071,6 +11376,7 @@ export type Database = {
           can_submit_rfis: boolean
           can_submit_submittals: boolean
           can_upload_compliance_docs: boolean
+          can_view_all_job_bids: boolean
           can_view_job_details: boolean
           can_view_photos: boolean
           can_view_plans: boolean
@@ -11098,6 +11404,7 @@ export type Database = {
           can_submit_rfis?: boolean
           can_submit_submittals?: boolean
           can_upload_compliance_docs?: boolean
+          can_view_all_job_bids?: boolean
           can_view_job_details?: boolean
           can_view_photos?: boolean
           can_view_plans?: boolean
@@ -11125,6 +11432,7 @@ export type Database = {
           can_submit_rfis?: boolean
           can_submit_submittals?: boolean
           can_upload_compliance_docs?: boolean
+          can_view_all_job_bids?: boolean
           can_view_job_details?: boolean
           can_view_photos?: boolean
           can_view_plans?: boolean
@@ -11250,8 +11558,8 @@ export type Database = {
           contact_title: string | null
           created_at: string
           customer_number: string | null
-          email_contacts: Json
           email: string | null
+          email_contacts: Json
           id: string
           is_active: boolean
           logo_url: string | null
@@ -11275,8 +11583,8 @@ export type Database = {
           contact_title?: string | null
           created_at?: string
           customer_number?: string | null
-          email_contacts?: Json
           email?: string | null
+          email_contacts?: Json
           id?: string
           is_active?: boolean
           logo_url?: string | null
@@ -11300,8 +11608,8 @@ export type Database = {
           contact_title?: string | null
           created_at?: string
           customer_number?: string | null
-          email_contacts?: Json
           email?: string | null
+          email_contacts?: Json
           id?: string
           is_active?: boolean
           logo_url?: string | null
@@ -11654,9 +11962,7 @@ export type Database = {
           city: string | null
           company_id: string | null
           contact_person: string | null
-          contact_title: string | null
           created_at: string | null
-          email_contacts: Json | null
           email: string | null
           id: string | null
           is_active: boolean | null
@@ -11676,9 +11982,7 @@ export type Database = {
           city?: string | null
           company_id?: string | null
           contact_person?: string | null
-          contact_title?: string | null
           created_at?: string | null
-          email_contacts?: Json | null
           email?: string | null
           id?: string | null
           is_active?: boolean | null
@@ -11698,9 +12002,7 @@ export type Database = {
           city?: string | null
           company_id?: string | null
           contact_person?: string | null
-          contact_title?: string | null
           created_at?: string | null
-          email_contacts?: Json | null
           email?: string | null
           id?: string | null
           is_active?: boolean | null
@@ -12349,6 +12651,7 @@ export type Database = {
         | "company_admin"
         | "vendor"
         | "design_professional"
+        | "owner"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -12364,12 +12667,12 @@ export type Tables<
   DefaultSchemaTableNameOrOptions extends
     | keyof (DefaultSchema["Tables"] & DefaultSchema["Views"])
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof (DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"] &
         DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Views"])
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -12393,11 +12696,11 @@ export type TablesInsert<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -12418,11 +12721,11 @@ export type TablesUpdate<
   DefaultSchemaTableNameOrOptions extends
     | keyof DefaultSchema["Tables"]
     | { schema: keyof DatabaseWithoutInternals },
-  TableName extends DefaultSchemaTableNameOrOptions extends {
+  TableName extends (DefaultSchemaTableNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaTableNameOrOptions["schema"]]["Tables"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaTableNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -12443,11 +12746,11 @@ export type Enums<
   DefaultSchemaEnumNameOrOptions extends
     | keyof DefaultSchema["Enums"]
     | { schema: keyof DatabaseWithoutInternals },
-  EnumName extends DefaultSchemaEnumNameOrOptions extends {
+  EnumName extends (DefaultSchemaEnumNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[DefaultSchemaEnumNameOrOptions["schema"]]["Enums"]
-    : never = never,
+    : never) = never,
 > = DefaultSchemaEnumNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -12460,11 +12763,11 @@ export type CompositeTypes<
   PublicCompositeTypeNameOrOptions extends
     | keyof DefaultSchema["CompositeTypes"]
     | { schema: keyof DatabaseWithoutInternals },
-  CompositeTypeName extends PublicCompositeTypeNameOrOptions extends {
+  CompositeTypeName extends (PublicCompositeTypeNameOrOptions extends {
     schema: keyof DatabaseWithoutInternals
   }
     ? keyof DatabaseWithoutInternals[PublicCompositeTypeNameOrOptions["schema"]]["CompositeTypes"]
-    : never = never,
+    : never) = never,
 > = PublicCompositeTypeNameOrOptions extends {
   schema: keyof DatabaseWithoutInternals
 }
@@ -12540,6 +12843,7 @@ export const Constants = {
         "company_admin",
         "vendor",
         "design_professional",
+        "owner",
       ],
     },
   },
