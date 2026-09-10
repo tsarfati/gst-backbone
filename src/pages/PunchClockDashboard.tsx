@@ -144,12 +144,14 @@ const [confirmPunchOutOpen, setConfirmPunchOutOpen] = useState(false);
         ? companyJobIds
         : companyJobIds.filter((jobId) => allowedJobIds.includes(jobId));
       
-      // Load active punches for users in this company AND jobs in this company
+      // Load every active punch for visible jobs in this company. Do not also
+      // filter by the current employee roster: access can be changed while a
+      // person is punched in, and hiding that punch would leave admins unable
+      // to see or clear a still-active on-site record.
       const { data: activeData } = await supabase
         .from('current_punch_status')
         .select('*')
         .eq('is_active', true)
-        .in('user_id', companyUserIds)
         .in('job_id', visibleCompanyJobIds.length > 0 ? visibleCompanyJobIds : ['00000000-0000-0000-0000-000000000000'])
         .order('punch_in_time', { ascending: false });
 
