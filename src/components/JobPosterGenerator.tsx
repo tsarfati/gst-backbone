@@ -4,6 +4,7 @@ import { FileImage, Loader2 } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
+import { resolveCompanyLogoUrl } from '@/utils/resolveCompanyLogoUrl';
 import { jsPDF } from 'jspdf';
 import QRCode from 'qrcode';
 
@@ -112,10 +113,16 @@ export function JobPosterGenerator({ jobId, jobName, qrCode }: JobPosterGenerato
 
       let yPos = 0.15; // Minimal top margin
 
+      // Company logos are commonly stored as a Storage object path rather than a
+      // browser-loadable URL. Normalize both the company and visitor-setting values
+      // before drawing them into the PDF.
+      const resolvedLogoUrl = resolveCompanyLogoUrl(logoUrl);
+      let logoAdded = false;
+
       // Load and add company logo if available
-      if (logoUrl) {
+      if (resolvedLogoUrl) {
         try {
-          const logoDataUrl = await loadImageAsDataUrl(logoUrl);
+          const logoDataUrl = await loadImageAsDataUrl(resolvedLogoUrl);
           if (logoDataUrl) {
             const logoMaxWidth = 6.5; // Even larger logo
             const logoMaxHeight = 2.5;
@@ -139,11 +146,14 @@ export function JobPosterGenerator({ jobId, jobName, qrCode }: JobPosterGenerato
             const logoX = centerX - logoWidth / 2;
             pdf.addImage(logoDataUrl, 'PNG', logoX, yPos, logoWidth, logoHeight);
             yPos += logoHeight + 0.1;
+            logoAdded = true;
           }
         } catch (error) {
           console.error('Error loading logo:', error);
         }
-      } else {
+      }
+
+      if (!logoAdded) {
         // Add company name as fallback
         pdf.setFontSize(56);
         pdf.setFont('helvetica', 'bold');
