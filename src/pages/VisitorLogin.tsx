@@ -694,13 +694,13 @@ export default function VisitorLogin() {
   const normalizedPhone = normalizePhoneForSms(formData.visitor_phone);
   const companySatisfied = !settings?.require_company_name || Boolean(formData.vendor_id || formData.company_name.trim());
   const customFieldSatisfied = !jobSettings.notes_field_required || Boolean(formData.notes.trim());
-  const photoSatisfied = !settings?.require_photo || Boolean(photoDataUrl);
+  // A required photo is captured after the visitor presses Check In. Requiring it
+  // here would disable the only button that can open the camera.
   const isFormReadyToSubmit =
     Boolean(formData.visitor_name.trim()) &&
     Boolean(normalizedPhone) &&
     companySatisfied &&
-    customFieldSatisfied &&
-    photoSatisfied;
+    customFieldSatisfied;
 
   return (
     <div 
@@ -918,7 +918,7 @@ export default function VisitorLogin() {
                     Checking In...
                   </>
                 ) : (
-                  'Check In'
+                  settings?.require_photo && !photoDataUrl ? 'Take Photo & Check In' : 'Check In'
                 )}
               </Button>
             </form>
