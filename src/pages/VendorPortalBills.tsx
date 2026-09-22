@@ -70,6 +70,7 @@ export default function VendorPortalBills() {
         invoice.company_name,
         invoice.status,
         String(invoice.amount || ""),
+        String(invoice.payable_amount || ""),
       ]
         .filter(Boolean)
         .some((value) => String(value).toLowerCase().includes(q));
@@ -371,7 +372,10 @@ export default function VendorPortalBills() {
                     </div>
                     <div className="flex flex-col gap-3 md:items-end">
                       <div className="text-right">
-                        <p className="font-semibold">${Number(invoice.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        <p className="font-semibold">
+                          ${Number(isPaid ? invoice.amount : invoice.payable_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                        {!isPaid && <p className="text-xs text-muted-foreground">Currently payable</p>}
                         <p className="text-xs text-muted-foreground">
                           {invoice.due_date ? `Due ${new Date(invoice.due_date).toLocaleDateString()}` : `Created ${new Date(invoice.created_at).toLocaleDateString()}`}
                         </p>

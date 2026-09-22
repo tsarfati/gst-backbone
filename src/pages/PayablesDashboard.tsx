@@ -28,6 +28,7 @@ import { useToast } from "@/hooks/use-toast";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import { loadUserUiPreferences, saveUserUiPreferences } from "@/utils/userUiPreferences";
+import { getEffectivePaidByInvoice, getInvoiceRemainingPayable } from "@/utils/paymentAllocations";
 
 interface PayableMetrics {
   totalOutstanding: number;
@@ -166,7 +167,7 @@ export default function PayablesDashboard() {
 
       let query = supabase
         .from('invoices')
-        .select('id, status, amount, created_at, job_id, vendors!inner(company_id)')
+        .select('id, status, amount, retainage_amount, retainage_released_amount, retainage_release_due_date, due_date, created_at, job_id, vendors!inner(company_id)')
         .eq('vendors.company_id', currentCompany?.id || profile?.current_company_id);
       
       // Filter by job if not "all"
@@ -202,13 +203,37 @@ export default function PayablesDashboard() {
         return canAccessAssignedJobOnly([row.job_id, ...distJobs], isPrivileged, allowedJobIds);
       });
 
+      const visibleInvoiceIds = visibleInvoices.map((invoice: any) => String(invoice.id));
+      const { data: paymentLines, error: paymentLinesError } = visibleInvoiceIds.length > 0
+        ? await supabase
+            .from('payment_invoice_lines')
+            .select('invoice_id, payment_id, amount_paid, payments:payment_id(amount)')
+            .in('invoice_id', visibleInvoiceIds)
+        : { data: [] as any[], error: null };
+      if (paymentLinesError) throw paymentLinesError;
+
+      const paidByInvoiceId = getEffectivePaidByInvoice((paymentLines || []) as any[]);
+      const remainingByInvoiceId = new Map(
+        visibleInvoices.map((invoice: any) => [
+          String(invoice.id),
+          getInvoiceRemainingPayable(invoice, paidByInvoiceId.get(String(invoice.id)) || 0),
+        ]),
+      );
+
       // Calculate metrics
       const totalOutstanding = visibleInvoices
         .filter(inv => inv.status !== 'paid')
-        .reduce((sum, inv) => sum + (inv.amount || 0), 0);
+        .reduce((sum, inv) => sum + (remainingByInvoiceId.get(String(inv.id)) || 0), 0);
 
-      const overdueBills = visibleInvoices
-        .filter(inv => inv.status === 'overdue').length;
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const overdueBills = visibleInvoices.filter((invoice: any) => {
+        if ((remainingByInvoiceId.get(String(invoice.id)) || 0) <= 0.01) return false;
+        const effectiveDueDate = Number(invoice.retainage_released_amount || 0) > 0
+          ? (invoice.retainage_release_due_date || invoice.due_date)
+          : invoice.due_date;
+        return Boolean(effectiveDueDate && new Date(`${effectiveDueDate}T00:00:00`) < today);
+      }).length;
 
       const pendingApproval = visibleInvoices
         .filter(inv => inv.status === 'pending').length;

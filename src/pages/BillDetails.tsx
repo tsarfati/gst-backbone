@@ -41,7 +41,7 @@ import BillInternalNotes from "@/components/BillInternalNotes";
 import FileShareModal from "@/components/FileShareModal";
 import BillVendorThread from "@/components/BillVendorThread";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
-import { getEffectivePaidByInvoice, getInvoiceNetPayable, getInvoiceRemainingPayable } from "@/utils/paymentAllocations";
+import { getEffectivePaidByInvoice, getInvoiceNetPayable, getInvoiceRemainingPayable, getInvoiceRetainageHeld } from "@/utils/paymentAllocations";
 
   const getStatusVariant = (status: string) => {
     switch (status) {
@@ -1262,13 +1262,21 @@ export default function BillDetails() {
                     <div>
                       <p className="text-sm text-muted-foreground">Retainage ({bill?.retainage_percentage}%)</p>
                       <p className="font-medium text-xl text-orange-600">
-                        -${Number(bill?.retainage_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        -${getInvoiceRetainageHeld(bill || {}).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
+                    {Number(bill?.retainage_released_amount || 0) > 0 && (
+                      <div>
+                        <p className="text-sm text-muted-foreground">Retainage Released</p>
+                        <p className="font-medium text-xl text-green-600">
+                          ${Number(bill?.retainage_released_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        </p>
+                      </div>
+                    )}
                     <div>
                       <p className="text-sm text-muted-foreground">Net Payable</p>
                       <p className="font-medium text-2xl text-green-600">
-                        ${(Number(bill?.amount || 0) - Number(bill?.retainage_amount || 0)).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
+                        ${getInvoiceNetPayable(bill || {}).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}
                       </p>
                     </div>
                   </>
@@ -1318,6 +1326,12 @@ export default function BillDetails() {
                     {bill?.due_date ? new Date(bill.due_date).toLocaleDateString() : 'N/A'}
                   </p>
                 </div>
+                {bill?.retainage_release_due_date && Number(bill?.retainage_released_amount || 0) > 0 && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Retainage Due Date</p>
+                    <p className="font-medium">{new Date(`${bill.retainage_release_due_date}T00:00:00`).toLocaleDateString()}</p>
+                  </div>
+                )}
                 <div>
                   <p className="text-sm text-muted-foreground">Payment Terms</p>
                   <p className="font-medium">{bill?.payment_terms ? `${bill.payment_terms} days` : 'N/A'}</p>

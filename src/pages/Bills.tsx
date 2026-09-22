@@ -33,6 +33,7 @@ interface Bill {
   vendor_logo_url: string | null;
   amount: number;
   retainage_amount?: number;
+  retainage_released_amount?: number;
   amount_paid?: number;
   balance_due?: number;
   status: string;
@@ -378,11 +379,14 @@ export default function Bills() {
           vendor_logo_url: (bill.vendors as any)?.logo_url || null,
           amount: bill.amount,
           retainage_amount: Number(bill.retainage_amount || 0),
+          retainage_released_amount: Number(bill.retainage_released_amount || 0),
           amount_paid: 0,
           balance_due: getInvoiceNetPayable(bill),
           status: bill.status,
           issue_date: bill.issue_date,
-          due_date: bill.due_date,
+          due_date: Number(bill.retainage_released_amount || 0) > 0
+            ? (bill.retainage_release_due_date || bill.due_date)
+            : bill.due_date,
           job_name: jobName,
           cost_code_description: (bill.cost_codes as any)?.description || 'No Cost Code',
           description: bill.description || '',

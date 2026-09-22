@@ -7,7 +7,7 @@ import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle, Di
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ArrowLeft, Edit, FileText, Plus, Download, Send, CheckCircle2, FileDown, Settings } from "lucide-react";
+import { ArrowLeft, Edit, FileText, Plus, Download, Send, CheckCircle2, FileDown, Settings, Unlock } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/contexts/AuthContext";
@@ -22,6 +22,7 @@ import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import FileShareModal from "@/components/FileShareModal";
 import { downloadGeneratedSubcontractDocument, generateSubcontractPDF } from "@/utils/subcontractPdfGenerator";
 import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
+import { getEffectivePaidByInvoice, getInvoiceRetainageHeld } from "@/utils/paymentAllocations";
 
 export default function SubcontractDetails() {
   const { id } = useParams();
@@ -39,6 +40,7 @@ export default function SubcontractDetails() {
   const [loading, setLoading] = useState(true);
   const [invoices, setInvoices] = useState<any[]>([]);
   const [payments, setPayments] = useState<any[]>([]);
+  const [totalPaidOnInvoices, setTotalPaidOnInvoices] = useState(0);
   const [changeOrders, setChangeOrders] = useState<any[]>([]);
   const [viewingFile, setViewingFile] = useState<{file: File, name: string, path: string} | null>(null);
   const [costCodeLookup, setCostCodeLookup] = useState<Record<string, { code: string; description: string; type?: string }>>({});
@@ -49,6 +51,9 @@ export default function SubcontractDetails() {
   const [workflowDialogOpen, setWorkflowDialogOpen] = useState(false);
   const [templateDialogOpen, setTemplateDialogOpen] = useState(false);
   const [templateActionLoading, setTemplateActionLoading] = useState(false);
+  const [retainageDialogOpen, setRetainageDialogOpen] = useState(false);
+  const [retainageActionLoading, setRetainageActionLoading] = useState(false);
+  const [retainageDueDate, setRetainageDueDate] = useState(new Date().toISOString().split('T')[0]);
   const [availableTemplates, setAvailableTemplates] = useState<Array<{ id: string; template_name: string; template_format?: string | null; template_file_type?: string | null }>>([]);
   const [selectedTemplate, setSelectedTemplate] = useState<string>('');
   const [workflowForm, setWorkflowForm] = useState({
@@ -215,8 +220,13 @@ export default function SubcontractDetails() {
           const invoiceIds = invoiceData.map((inv: any) => inv.id);
           const { data: paymentLines } = await supabase
             .from('payment_invoice_lines')
-            .select('payment_id, amount_paid, payments(*)')
+            .select('invoice_id, payment_id, amount_paid, payments:payment_id(*)')
             .in('invoice_id', invoiceIds);
+
+          const paidByInvoiceId = getEffectivePaidByInvoice((paymentLines || []) as any[]);
+          setTotalPaidOnInvoices(
+            invoiceIds.reduce((sum: number, invoiceId: string) => sum + (paidByInvoiceId.get(invoiceId) || 0), 0),
+          );
 
           // Extract unique payments
           const paymentsMap = new Map();
@@ -228,6 +238,7 @@ export default function SubcontractDetails() {
           setPayments(Array.from(paymentsMap.values()));
         } else {
           setPayments([]);
+          setTotalPaidOnInvoices(0);
         }
       }
     } catch (error) {
@@ -377,6 +388,50 @@ export default function SubcontractDetails() {
   const isPrivilegedCompanyUser =
     !isExternalPortalRoute &&
     ['admin', 'controller', 'company_admin', 'owner', 'super_admin'].includes(String(profile?.role || '').toLowerCase());
+
+  const retainageInvoices = invoices.filter((invoice) =>
+    ['approved', 'pending_payment', 'paid'].includes(String(invoice.status || '').toLowerCase()),
+  );
+
+  const retainageHeld = retainageInvoices.reduce(
+    (sum, invoice) => sum + getInvoiceRetainageHeld(invoice),
+    0,
+  );
+
+  const retainageReleased = retainageInvoices.reduce(
+    (sum, invoice) => sum + Number(invoice.retainage_released_amount || 0),
+    0,
+  );
+
+  const handleReleaseRetainage = async () => {
+    if (!id || retainageHeld <= 0) return;
+
+    try {
+      setRetainageActionLoading(true);
+      const { data, error } = await supabase.rpc('release_subcontract_retainage', {
+        p_subcontract_id: id,
+        p_due_date: retainageDueDate,
+      });
+      if (error) throw error;
+
+      const result = data?.[0];
+      setRetainageDialogOpen(false);
+      await fetchSubcontract();
+      toast({
+        title: "Retainage released",
+        description: `$${formatNumber(Number(result?.released_amount || 0))} is now available for payment across ${Number(result?.updated_invoice_count || 0)} bill${Number(result?.updated_invoice_count || 0) === 1 ? '' : 's'}.`,
+      });
+    } catch (error: any) {
+      console.error('Error releasing subcontract retainage:', error);
+      toast({
+        title: "Unable to release retainage",
+        description: error?.message || "Retainage could not be released.",
+        variant: "destructive",
+      });
+    } finally {
+      setRetainageActionLoading(false);
+    }
+  };
 
   const createContractEvent = async (eventType: string, eventNote: string, metadata: Record<string, any> = {}) => {
     if (!subcontract?.id) return;
@@ -730,8 +785,14 @@ export default function SubcontractDetails() {
 
         <div className="space-y-6">
           <Card>
-            <CardHeader>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
               <CardTitle>Financial Section</CardTitle>
+              {isPrivilegedCompanyUser && retainageHeld > 0.009 && (
+                <Button size="sm" variant="outline" onClick={() => setRetainageDialogOpen(true)}>
+                  <Unlock className="h-4 w-4 mr-2" />
+                  Release Retainage
+                </Button>
+              )}
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
@@ -739,9 +800,19 @@ export default function SubcontractDetails() {
                 <p className="font-semibold text-foreground text-xl">${formatNumber(subcontract.contract_amount)}</p>
               </div>
               {subcontract.apply_retainage && (
-                <div>
-                  <p className="text-sm text-muted-foreground">Retainage</p>
-                  <p className="font-semibold text-foreground">{subcontract.retainage_percentage}% applied</p>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div>
+                    <p className="text-sm text-muted-foreground">Retainage Rate</p>
+                    <p className="font-semibold text-foreground">{subcontract.retainage_percentage}%</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Currently Held</p>
+                    <p className="font-semibold text-amber-600">${formatNumber(retainageHeld)}</p>
+                  </div>
+                  <div>
+                    <p className="text-sm text-muted-foreground">Released</p>
+                    <p className="font-semibold text-green-600">${formatNumber(retainageReleased)}</p>
+                  </div>
                 </div>
               )}
             {(() => {
@@ -804,8 +875,8 @@ export default function SubcontractDetails() {
           <CommitmentInfo 
             totalCommit={parseFloat(subcontract.contract_amount) + invoices.filter(inv => inv.status === 'approved').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0)}
             prevGross={invoices.filter(inv => inv.status !== 'draft').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0)}
-            prevRetention={invoices.filter(inv => inv.status !== 'draft').reduce((sum, inv) => sum + (parseFloat(inv.amount || 0) * (subcontract.retainage_percentage || 0) / 100), 0)}
-            prevPayments={invoices.filter(inv => inv.status === 'paid').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0)}
+            prevRetention={retainageHeld}
+            prevPayments={totalPaidOnInvoices}
             contractBalance={parseFloat(subcontract.contract_amount) - invoices.filter(inv => inv.status !== 'draft').reduce((sum, inv) => sum + parseFloat(inv.amount || 0), 0)}
           />
         </div>
@@ -1113,6 +1184,35 @@ export default function SubcontractDetails() {
                 {templateActionLoading ? 'Generating...' : 'Generate Contract'}
               </Button>
             )}
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={retainageDialogOpen} onOpenChange={setRetainageDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Release Retainage</DialogTitle>
+            <DialogDescription>
+              Release ${formatNumber(retainageHeld)} currently held for {subcontract.vendors?.name || 'this contractor'}.
+              The original bills will reopen for only their retained amounts; previously paid work will remain paid.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-2">
+            <Label htmlFor="retainage-due-date">Retainage due date</Label>
+            <Input
+              id="retainage-due-date"
+              type="date"
+              value={retainageDueDate}
+              onChange={(event) => setRetainageDueDate(event.target.value)}
+            />
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setRetainageDialogOpen(false)} disabled={retainageActionLoading}>
+              Cancel
+            </Button>
+            <Button onClick={handleReleaseRetainage} disabled={retainageActionLoading || !retainageDueDate}>
+              {retainageActionLoading ? 'Releasing...' : `Release $${formatNumber(retainageHeld)}`}
+            </Button>
           </DialogFooter>
         </DialogContent>
       </Dialog>

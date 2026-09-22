@@ -4287,6 +4287,10 @@ export type Database = {
           purchase_order_id: string | null
           retainage_amount: number | null
           retainage_percentage: number | null
+          retainage_release_due_date: string | null
+          retainage_released_amount: number
+          retainage_released_at: string | null
+          retainage_released_by: string | null
           status: string
           subcontract_id: string | null
           updated_at: string
@@ -4316,6 +4320,10 @@ export type Database = {
           purchase_order_id?: string | null
           retainage_amount?: number | null
           retainage_percentage?: number | null
+          retainage_release_due_date?: string | null
+          retainage_released_amount?: number
+          retainage_released_at?: string | null
+          retainage_released_by?: string | null
           status?: string
           subcontract_id?: string | null
           updated_at?: string
@@ -4345,6 +4353,10 @@ export type Database = {
           purchase_order_id?: string | null
           retainage_amount?: number | null
           retainage_percentage?: number | null
+          retainage_release_due_date?: string | null
+          retainage_released_amount?: number
+          retainage_released_at?: string | null
+          retainage_released_by?: string | null
           status?: string
           subcontract_id?: string | null
           updated_at?: string
@@ -12181,6 +12193,13 @@ export type Database = {
           cost_code_id: string
           id: string
           percentage: number
+        }[]
+      }
+      release_subcontract_retainage: {
+        Args: { p_due_date?: string; p_subcontract_id: string }
+        Returns: {
+          released_amount: number
+          updated_invoice_count: number
         }[]
       }
       get_job_albums: {

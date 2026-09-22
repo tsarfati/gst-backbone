@@ -16,7 +16,7 @@ import jsPDF from "jspdf";
 import autoTable from "jspdf-autotable";
 import { createAoAXlsxBlob, exportAoAToXlsx } from "@/utils/exceljsExport";
 import { formatNumber } from "@/utils/formatNumber";
-import { getEffectivePaidByInvoice } from "@/utils/paymentAllocations";
+import { getEffectivePaidByInvoice, getInvoiceRemainingPayable } from "@/utils/paymentAllocations";
 import { addCompanyLogoToPdf } from "@/utils/reportPdfBranding";
 import { format } from "date-fns";
 
@@ -138,7 +138,7 @@ export default function APAgingByJobReport() {
 
       const invoiceQuery = supabase
         .from("invoices")
-        .select("id, vendor_id, job_id, invoice_number, issue_date, due_date, amount, status, jobs(id, name), vendors!inner(name, company_id)")
+        .select("id, vendor_id, job_id, invoice_number, issue_date, due_date, amount, retainage_amount, retainage_released_amount, retainage_release_due_date, status, jobs(id, name), vendors!inner(name, company_id)")
         // Include paid rows here because some partially paid bills were previously
         // marked as paid. We filter true zero-balance bills after payment lines load.
         .in("status", AP_AGING_CANDIDATE_STATUSES);
@@ -199,8 +199,11 @@ export default function APAgingByJobReport() {
         .flatMap((invoice: any) => {
           const originalAmount = Number(invoice.amount || 0);
           const amountPaid = amountPaidByInvoiceId.get(invoice.id) || 0;
-          const outstandingAmount = Math.max(0, originalAmount - amountPaid);
-          const daysPastDue = getDaysPastDue(invoice.due_date || invoice.issue_date);
+          const outstandingAmount = getInvoiceRemainingPayable(invoice, amountPaid);
+          const effectiveDueDate = Number(invoice.retainage_released_amount || 0) > 0
+            ? (invoice.retainage_release_due_date || invoice.due_date)
+            : invoice.due_date;
+          const daysPastDue = getDaysPastDue(effectiveDueDate || invoice.issue_date);
           const agingBucket = getAgingBucket(daysPastDue);
           const groupedJobAmounts = new Map<string, { job_name: string; amount: number }>();
 
@@ -235,7 +238,7 @@ export default function APAgingByJobReport() {
               vendor_name: invoice.vendors?.name || "Unknown Vendor",
               invoice_number: invoice.invoice_number || "(No invoice #)",
               issue_date: invoice.issue_date || null,
-              due_date: invoice.due_date || null,
+              due_date: effectiveDueDate || null,
               status: invoice.status || "unknown",
               original_amount: originalAmount * allocationRatio,
               amount_paid: amountPaid * allocationRatio,

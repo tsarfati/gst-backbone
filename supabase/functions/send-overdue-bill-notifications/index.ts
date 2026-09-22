@@ -44,12 +44,15 @@ const handler = async (req: Request): Promise<Response> => {
     // Get all overdue bills (due date before today, not yet paid)
     const today = new Date().toISOString().split('T')[0];
     
-    const { data: overdueBills, error: billsError } = await supabase
+    const { data: candidateBills, error: billsError } = await supabase
       .from("invoices")
       .select(`
         id,
         invoice_number,
         amount,
+        retainage_amount,
+        retainage_released_amount,
+        retainage_release_due_date,
         due_date,
         status,
         job_id,
@@ -65,7 +68,6 @@ const handler = async (req: Request): Promise<Response> => {
           name
         )
       `)
-      .lt("due_date", today)
       .in("status", ["approved", "pending_payment"])
       .order("due_date", { ascending: true });
 
@@ -73,6 +75,52 @@ const handler = async (req: Request): Promise<Response> => {
       console.error("Error fetching overdue bills:", billsError);
       throw billsError;
     }
+
+    const candidateIds = (candidateBills || []).map((bill: any) => bill.id);
+    const { data: candidatePaymentLines, error: candidatePaymentLinesError } = candidateIds.length > 0
+      ? await supabase
+          .from("payment_invoice_lines")
+          .select("payment_id")
+          .in("invoice_id", candidateIds)
+      : { data: [], error: null };
+    if (candidatePaymentLinesError) throw candidatePaymentLinesError;
+
+    const paymentIds = Array.from(new Set((candidatePaymentLines || []).map((line: any) => line.payment_id).filter(Boolean)));
+    const { data: allPaymentLines, error: allPaymentLinesError } = paymentIds.length > 0
+      ? await supabase
+          .from("payment_invoice_lines")
+          .select("invoice_id, payment_id, amount_paid, payments:payment_id(amount)")
+          .in("payment_id", paymentIds)
+      : { data: [], error: null };
+    if (allPaymentLinesError) throw allPaymentLinesError;
+
+    const linesByPaymentId = new Map<string, any[]>();
+    (allPaymentLines || []).forEach((line: any) => {
+      const lines = linesByPaymentId.get(line.payment_id) || [];
+      lines.push(line);
+      linesByPaymentId.set(line.payment_id, lines);
+    });
+    const paidByInvoiceId = new Map<string, number>();
+    linesByPaymentId.forEach((lines) => {
+      const allocated = lines.reduce((sum, line) => sum + Number(line.amount_paid || 0), 0);
+      const paymentAmount = Number(lines[0]?.payments?.amount || 0);
+      const scale = paymentAmount > 0 && allocated > paymentAmount + 0.01 ? paymentAmount / allocated : 1;
+      lines.forEach((line) => {
+        paidByInvoiceId.set(
+          line.invoice_id,
+          (paidByInvoiceId.get(line.invoice_id) || 0) + Number(line.amount_paid || 0) * scale,
+        );
+      });
+    });
+
+    const overdueBills = (candidateBills || []).flatMap((bill: any) => {
+      const released = Number(bill.retainage_released_amount || 0);
+      const held = Math.max(0, Number(bill.retainage_amount || 0) - released);
+      const balance = Math.max(0, Number(bill.amount || 0) - held - (paidByInvoiceId.get(bill.id) || 0));
+      const effectiveDueDate = released > 0 ? (bill.retainage_release_due_date || bill.due_date) : bill.due_date;
+      if (balance <= 0.01 || !effectiveDueDate || effectiveDueDate >= today) return [];
+      return [{ ...bill, amount: balance, due_date: effectiveDueDate }];
+    });
 
     // Log status breakdown for debugging
     const statusCounts = (overdueBills ?? []).reduce((acc: Record<string, number>, bill: any) => {

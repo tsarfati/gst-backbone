@@ -35,7 +35,7 @@ import DragDropUpload from "@/components/DragDropUpload";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessAssignedJobOnly } from "@/utils/jobAccess";
 import { evaluateInvoiceCoding } from "@/utils/invoiceCoding";
-import { getEffectivePaidByInvoice, getInvoiceNetPayable, getInvoiceRemainingPayable } from "@/utils/paymentAllocations";
+import { getEffectivePaidByInvoice, getInvoiceNetPayable, getInvoiceRemainingPayable, getInvoiceRetainageHeld } from "@/utils/paymentAllocations";
 
 interface Vendor {
   id: string;
@@ -79,6 +79,8 @@ interface Invoice {
   balance_due?: number;
   retainage_amount?: number;
   retainage_percentage?: number;
+  retainage_released_amount?: number;
+  retainage_release_due_date?: string;
 }
 
 interface Payment {
@@ -324,7 +326,10 @@ export default function MakePayment() {
           vendor: invoice.vendors,
           jobs: jobInfo,
           amount_paid: amountPaid,
-          balance_due: balanceDue
+          balance_due: balanceDue,
+          due_date: Number(invoice.retainage_released_amount || 0) > 0
+            ? (invoice.retainage_release_due_date || invoice.due_date)
+            : invoice.due_date,
         };
       }).filter(inv => inv.balance_due > 0);
       
@@ -1520,8 +1525,10 @@ export default function MakePayment() {
                           <TableCell>{invoice.due_date ? new Date(invoice.due_date).toLocaleDateString() : 'N/A'}</TableCell>
                           <TableCell className="font-medium">${invoice.amount.toFixed(2)}</TableCell>
                           <TableCell>
-                            {Number(invoice.retainage_amount || 0) > 0 ? (
-                              <span className="text-orange-600">-${Number(invoice.retainage_amount).toFixed(2)}</span>
+                            {getInvoiceRetainageHeld(invoice) > 0 ? (
+                              <span className="text-orange-600">-${getInvoiceRetainageHeld(invoice).toFixed(2)}</span>
+                            ) : Number(invoice.retainage_released_amount || 0) > 0 ? (
+                              <span className="text-green-600">Released</span>
                             ) : '-'}
                           </TableCell>
                           <TableCell>

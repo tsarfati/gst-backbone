@@ -8,6 +8,7 @@ type PaymentLineLike = {
 type PayableInvoiceLike = {
   amount?: number | string | null;
   retainage_amount?: number | string | null;
+  retainage_released_amount?: number | string | null;
 };
 
 const roundCurrency = (amount: number) => Math.round(amount * 100) / 100;
@@ -15,7 +16,15 @@ const roundCurrency = (amount: number) => Math.round(amount * 100) / 100;
 export function getInvoiceNetPayable(invoice: PayableInvoiceLike) {
   const grossAmount = Number(invoice.amount || 0);
   const retainageAmount = Number(invoice.retainage_amount || 0);
-  return roundCurrency(Math.max(0, grossAmount - retainageAmount));
+  const releasedRetainage = Number(invoice.retainage_released_amount || 0);
+  const unreleasedRetainage = Math.max(0, retainageAmount - releasedRetainage);
+  return roundCurrency(Math.max(0, grossAmount - unreleasedRetainage));
+}
+
+export function getInvoiceRetainageHeld(invoice: PayableInvoiceLike) {
+  const retainageAmount = Number(invoice.retainage_amount || 0);
+  const releasedRetainage = Number(invoice.retainage_released_amount || 0);
+  return roundCurrency(Math.max(0, retainageAmount - releasedRetainage));
 }
 
 export function getInvoiceRemainingPayable(invoice: PayableInvoiceLike, amountPaid: number) {

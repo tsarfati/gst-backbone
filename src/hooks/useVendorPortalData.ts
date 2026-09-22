@@ -5,6 +5,7 @@ import { useAuth } from "@/contexts/AuthContext";
 import { useCompany } from "@/contexts/CompanyContext";
 import { resolveCompanyLogoUrl } from "@/utils/resolveCompanyLogoUrl";
 import { useActiveVendorPortalVendor } from "@/hooks/useActiveVendorPortalVendor";
+import { getEffectivePaidByInvoice, getInvoiceRemainingPayable } from "@/utils/paymentAllocations";
 
 export interface VendorPortalCompanySummary {
   id: string;
@@ -42,6 +43,7 @@ export interface VendorPortalInvoice {
   id: string;
   invoice_number: string | null;
   amount: number;
+  payable_amount: number;
   status: string;
   issue_date: string | null;
   due_date: string | null;
@@ -322,10 +324,20 @@ export function useVendorPortalData() {
       const { data: invoiceRows, error: invoiceError } = await applyVendorIdFilter(
         supabase
           .from("invoices")
-          .select("id, invoice_number, amount, status, issue_date, due_date, created_at, job_id, description, internal_notes, jobs:job_id(id, name, company_id)"),
+          .select("id, invoice_number, amount, retainage_amount, retainage_released_amount, retainage_release_due_date, status, issue_date, due_date, created_at, job_id, description, internal_notes, jobs:job_id(id, name, company_id)"),
         candidateVendorIds,
       ).order("created_at", { ascending: false });
       if (invoiceError) throw invoiceError;
+
+      const invoiceIds = ((invoiceRows as any[]) || []).map((row: any) => String(row.id));
+      const { data: paymentLineRows, error: paymentLineError } = invoiceIds.length > 0
+        ? await supabase
+            .from("payment_invoice_lines")
+            .select("invoice_id, payment_id, amount_paid, payments:payment_id(amount)")
+            .in("invoice_id", invoiceIds)
+        : { data: [] as any[], error: null };
+      if (paymentLineError) throw paymentLineError;
+      const paidByInvoiceId = getEffectivePaidByInvoice((paymentLineRows || []) as any[]);
 
       let assignmentRows: any[] | null = null;
       let assignmentError: any = null;
@@ -487,9 +499,12 @@ export function useVendorPortalData() {
           id: String(row.id),
           invoice_number: row.invoice_number || null,
           amount: Number(row.amount || 0),
+          payable_amount: getInvoiceRemainingPayable(row, paidByInvoiceId.get(String(row.id)) || 0),
           status: String(row.status || "draft"),
           issue_date: row.issue_date || null,
-          due_date: row.due_date || null,
+          due_date: Number(row.retainage_released_amount || 0) > 0
+            ? (row.retainage_release_due_date || row.due_date || null)
+            : (row.due_date || null),
           created_at: String(row.created_at),
           job_id: row.job_id || null,
           job_name: row?.jobs?.name || null,

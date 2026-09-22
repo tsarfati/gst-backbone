@@ -529,7 +529,8 @@ export default function VendorPortalDashboard() {
                     </p>
                   </div>
                   <div className="text-right">
-                    <p className="font-semibold">${Number(invoice.amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p className="font-semibold">${Number(invoice.payable_amount || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                    <p className="text-xs text-muted-foreground">Currently payable</p>
                     <p className="text-xs text-muted-foreground">
                       {invoice.due_date ? `Due ${new Date(invoice.due_date).toLocaleDateString()}` : `Created ${new Date(invoice.created_at).toLocaleDateString()}`}
                     </p>

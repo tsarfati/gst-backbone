@@ -28,6 +28,7 @@ import {
   isNonDirectMessageReadStored,
   persistNonDirectMessageReadEverywhere,
 } from '@/utils/nonDirectMessageRead';
+import { getEffectivePaidByInvoice, getInvoiceRemainingPayable } from '@/utils/paymentAllocations';
 
 interface Notification {
   id: string;
@@ -592,7 +593,7 @@ export default function Dashboard() {
 
       const { data: payableBills, error: payableBillsError } = await supabase
         .from('invoices')
-        .select('id, amount, due_date, job_id, vendors!inner(company_id)')
+        .select('id, amount, retainage_amount, retainage_released_amount, retainage_release_due_date, due_date, job_id, vendors!inner(company_id)')
         .eq('vendors.company_id', currentCompany.id)
         .in('status', ['approved', 'pending_payment']);
 
@@ -605,28 +606,28 @@ export default function Dashboard() {
         const { data: paymentLines, error: paymentLinesError } = invoiceIds.length > 0
           ? await supabase
               .from('payment_invoice_lines')
-              .select('invoice_id, amount_paid')
+              .select('invoice_id, payment_id, amount_paid, payments:payment_id(amount)')
               .in('invoice_id', invoiceIds)
           : { data: [] as any[], error: null };
 
         if (paymentLinesError) throw paymentLinesError;
 
-        const paidByInvoiceId = new Map<string, number>();
-        ((paymentLines || []) as any[]).forEach((line) => {
-          const invoiceId = String(line.invoice_id || '');
-          if (!invoiceId) return;
-          paidByInvoiceId.set(invoiceId, (paidByInvoiceId.get(invoiceId) || 0) + Number(line.amount_paid || 0));
-        });
+        const paidByInvoiceId = getEffectivePaidByInvoice((paymentLines || []) as any[]);
 
         const today = new Date();
         today.setHours(0, 0, 0, 0);
         const nextSummary = visiblePayableBills.reduce(
           (summary, bill: any) => {
-            const amount = Number(bill.amount || 0);
-            const balance = Math.max(0, amount - (paidByInvoiceId.get(String(bill.id)) || 0));
+            const balance = getInvoiceRemainingPayable(
+              bill,
+              paidByInvoiceId.get(String(bill.id)) || 0,
+            );
             if (balance <= 0.01) return summary;
 
-            const dueDate = bill.due_date ? new Date(`${bill.due_date}T00:00:00`) : null;
+            const effectiveDueDate = Number(bill.retainage_released_amount || 0) > 0
+              ? (bill.retainage_release_due_date || bill.due_date)
+              : bill.due_date;
+            const dueDate = effectiveDueDate ? new Date(`${effectiveDueDate}T00:00:00`) : null;
             const isOverdue = Boolean(dueDate && dueDate < today);
 
             if (isOverdue) {
