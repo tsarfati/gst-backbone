@@ -740,114 +740,26 @@ export default function TimeCardDetailView({ open, onOpenChange, timeCardId, onT
     try {
       setApproving(true);
 
-      // Update the change request status to approved
-      const { error: changeRequestError } = await supabase
-        .from('time_card_change_requests')
-        .update({
-          status: 'approved',
-          reviewed_by: user?.id,
-          reviewed_at: new Date().toISOString()
-        })
-        .eq('id', pendingChangeRequest.id);
+      const approveChangeRequest = supabase.rpc as unknown as (
+        functionName: string,
+        args: Record<string, unknown>,
+      ) => Promise<{ error: Error | null }>;
+      const { error: approvalError } = await approveChangeRequest(
+        'approve_time_card_change_request',
+        {
+          p_request_id: pendingChangeRequest.id,
+          p_review_notes: comments || null,
+        },
+      );
 
-      if (changeRequestError) throw changeRequestError;
-
-      // Update the time card status to approved-edited
-      const { error: timeCardError } = await supabase
-        .from('time_cards')
-        .update({
-          status: 'approved-edited',
-          approved_by: user?.id,
-          approved_at: new Date().toISOString()
-        })
-        .eq('id', timeCard.id);
-
-      if (timeCardError) throw timeCardError;
-
-      // Log to audit trail with field changes
-      const auditEntries = [];
-      const originalPunchIn = pendingChangeRequest.original_punch_in_time || timeCard.punch_in_time;
-      const originalPunchOut = pendingChangeRequest.original_punch_out_time || timeCard.punch_out_time;
-      const originalJobId = pendingChangeRequest.original_job_id || timeCard.job_id;
-      const originalCostCodeId = pendingChangeRequest.original_cost_code_id || timeCard.cost_code_id;
-      
-      // Main approval entry
-      auditEntries.push({
-        time_card_id: timeCard.id,
-        changed_by: user?.id,
-        change_type: 'change_request_approved',
-        reason: comments || 'Change request approved',
-        created_at: new Date().toISOString()
-      });
-
-      // Add entries for each field change with formatted values
-      if (pendingChangeRequest.proposed_punch_in_time && pendingChangeRequest.proposed_punch_in_time !== originalPunchIn) {
-        auditEntries.push({
-          time_card_id: timeCard.id,
-          changed_by: user?.id,
-          change_type: 'change_request_approved',
-          field_name: 'punch_in_time',
-          old_value: formatCompanyDateTime(originalPunchIn, companyTimeZone),
-          new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_in_time, companyTimeZone),
-          reason: comments || 'Change request approved',
-          created_at: new Date().toISOString()
-        });
-      }
-
-      if (pendingChangeRequest.proposed_punch_out_time && pendingChangeRequest.proposed_punch_out_time !== originalPunchOut) {
-        auditEntries.push({
-          time_card_id: timeCard.id,
-          changed_by: user?.id,
-          change_type: 'change_request_approved',
-          field_name: 'punch_out_time',
-          old_value: formatCompanyDateTime(originalPunchOut, companyTimeZone),
-          new_value: formatCompanyDateTime(pendingChangeRequest.proposed_punch_out_time, companyTimeZone),
-          reason: comments || 'Change request approved',
-          created_at: new Date().toISOString()
-        });
-      }
-
-      if (pendingChangeRequest.proposed_job_id && pendingChangeRequest.proposed_job_id !== originalJobId) {
-        const oldJobName = jobs[originalJobId]?.name || originalJobId;
-        const newJobName = jobs[pendingChangeRequest.proposed_job_id]?.name || pendingChangeRequest.proposed_job_id;
-        auditEntries.push({
-          time_card_id: timeCard.id,
-          changed_by: user?.id,
-          change_type: 'change_request_approved',
-          field_name: 'job_id',
-          old_value: oldJobName,
-          new_value: newJobName,
-          reason: comments || 'Change request approved',
-          created_at: new Date().toISOString()
-        });
-      }
-
-      if (pendingChangeRequest.proposed_cost_code_id && pendingChangeRequest.proposed_cost_code_id !== originalCostCodeId) {
-        const oldCostCode = costCodes[originalCostCodeId]?.code || originalCostCodeId;
-        const newCostCode = costCodes[pendingChangeRequest.proposed_cost_code_id]?.code || pendingChangeRequest.proposed_cost_code_id;
-        auditEntries.push({
-          time_card_id: timeCard.id,
-          changed_by: user?.id,
-          change_type: 'change_request_approved',
-          field_name: 'cost_code',
-          old_value: oldCostCode,
-          new_value: newCostCode,
-          reason: comments || 'Change request approved',
-          created_at: new Date().toISOString()
-        });
-      }
-
-      // Insert all audit entries
-      if (auditEntries.length > 0) {
-        await supabase.from('time_card_audit_trail').insert(auditEntries);
-      }
+      if (approvalError) throw approvalError;
 
       toast({
         title: "Change Request Approved",
-        description: "The time card has been marked as approved-edited.",
+        description: "The requested changes were applied and the time card was recalculated.",
       });
 
-      // Reload the time card details
+      await onTimeCardUpdated?.();
       onOpenChange(false);
     } catch (error) {
       console.error('Error approving change request:', error);
