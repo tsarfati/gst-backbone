@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts"
 import { createClient } from 'https://esm.sh/@supabase/supabase-js@2'
+import { adjustJobShiftTimes } from '../_shared/shiftTime.ts'
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -68,6 +69,19 @@ serve(async (req) => {
       .eq('company_id', company_id)
       .in('job_id', uniqueJobIds)
 
+    const { data: companyUiSettings } = await supabaseClient
+      .from('company_ui_settings')
+      .select('settings')
+      .eq('company_id', company_id)
+      .is('user_id', null)
+      .order('updated_at', { ascending: false })
+      .limit(1)
+      .maybeSingle()
+
+    const companyTimeZone = typeof companyUiSettings?.settings?.timeZone === 'string'
+      ? companyUiSettings.settings.timeZone
+      : 'America/New_York'
+
     // Create settings map (job-specific overrides company-level)
     const settingsMap = new Map()
     uniqueJobIds.forEach(jobId => {
@@ -92,63 +106,14 @@ serve(async (req) => {
 
         // Apply shift time rules if configured
         if (job?.shift_start_time && job?.shift_end_time) {
-          // FIXED: Convert UTC punch times to local date for shift comparison
-          // The punch times are stored as UTC but represent local times (EST = UTC-5)
-          const TIMEZONE_OFFSET_HOURS = 5 // EST offset from UTC
-          
-          const localPunchIn = new Date(punchInTime.getTime() - TIMEZONE_OFFSET_HOURS * 3600000)
-          const localPunchOut = new Date(punchOutTime.getTime() - TIMEZONE_OFFSET_HOURS * 3600000)
-          
-          const shiftStart = new Date(localPunchIn)
-          const [startHours, startMinutes] = job.shift_start_time.split(':').map(Number)
-          shiftStart.setHours(startHours, startMinutes, 0, 0)
-
-          const shiftEnd = new Date(localPunchOut)
-          const [endHours, endMinutes] = job.shift_end_time.split(':').map(Number)
-          shiftEnd.setHours(endHours, endMinutes, 0, 0)
-
-          // Handle overnight shifts
-          if (shiftEnd < shiftStart) {
-            shiftEnd.setDate(shiftEnd.getDate() + 1)
-          }
-
-          const earlyGrace = job.early_punch_in_grace_minutes ?? 0
-          const lateGrace = job.late_punch_out_grace_minutes ?? 0
-          const countEarly = job.count_early_punch_in === true
-          const countLate = job.count_late_punch_out === true
-
-          // Early punch-in handling:
-          // - If early time should NOT be counted, always start at shift start.
-          // - If it SHOULD be counted, only allow up to earlyGrace minutes before shift start.
-          if (localPunchIn < shiftStart) {
-            const earliestCountedStart = countEarly
-              ? new Date(shiftStart.getTime() - earlyGrace * 60000)
-              : shiftStart
-
-            if (localPunchIn < earliestCountedStart) {
-              // Convert back to UTC for storage
-              adjustedPunchIn = new Date(earliestCountedStart.getTime() + TIMEZONE_OFFSET_HOURS * 3600000)
-            } else if (!countEarly) {
-              // Within window but early time shouldn't be counted
-              adjustedPunchIn = new Date(shiftStart.getTime() + TIMEZONE_OFFSET_HOURS * 3600000)
-            }
-          }
-
-           // Late punch-out handling:
-           // - If late time should NOT be counted, always end at shift end.
-           // - If it SHOULD be counted, ignore up to lateGrace minutes after shift end;
-           //   only time beyond the grace window is counted.
-           if (localPunchOut > shiftEnd) {
-             const graceEnd = new Date(shiftEnd.getTime() + lateGrace * 60000)
-
-             if (!countLate) {
-               adjustedPunchOut = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000)
-             } else if (localPunchOut < graceEnd) {
-               // Within grace window (less than graceEnd): treat as ending at shift end
-               adjustedPunchOut = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000)
-             }
-             // If localPunchOut >= graceEnd and countLate is true, keep actual punchOutTime
-           }
+          const adjustedShift = adjustJobShiftTimes(
+            punchInTime,
+            punchOutTime,
+            job,
+            companyTimeZone,
+          )
+          adjustedPunchIn = adjustedShift.punchIn
+          adjustedPunchOut = adjustedShift.punchOut
         }
 
         // Get settings for this job

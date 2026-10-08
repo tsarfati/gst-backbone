@@ -1,6 +1,6 @@
 const DEFAULT_JOB_TIME_ZONE = "America/New_York";
 
-type ShiftSettings = {
+export type ShiftSettings = {
   shift_start_time: string | null;
   shift_end_time: string | null;
   count_early_punch_in: boolean | null;

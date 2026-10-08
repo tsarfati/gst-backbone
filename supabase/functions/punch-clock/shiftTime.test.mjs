@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { adjustJobShiftTimes } from "./shiftTime.ts";
+import { adjustJobShiftTimes } from "../_shared/shiftTime.ts";
 
 const settings = {
   shift_start_time: "07:00:00",

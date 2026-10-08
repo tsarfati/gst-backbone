@@ -275,7 +275,8 @@ export default function PunchClockSettingsComponent() {
 
     // Use effectiveRole (company-specific role when available) instead of profile.role
     // so company admins/controllers aren't blocked by a generic profile role.
-    const isAdmin = effectiveRole === 'admin' || effectiveRole === 'controller';
+    const isAdmin = ['admin', 'company_admin', 'owner', 'controller']
+      .includes(String(effectiveRole || '').trim().toLowerCase());
     if (!isAdmin) {
       toast({
         title: "Access Denied",

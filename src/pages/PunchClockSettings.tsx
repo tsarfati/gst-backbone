@@ -398,7 +398,8 @@ export default function PunchClockSettings() {
   const handleRecalculate = async () => {
     if (!currentCompany) return;
 
-    const isAdmin = profile?.role === 'admin' || profile?.role === 'controller';
+    const isAdmin = ['admin', 'company_admin', 'owner', 'controller']
+      .includes(String(effectiveRole || '').trim().toLowerCase());
     if (!isAdmin) {
       toast({
         title: 'Access Denied',
