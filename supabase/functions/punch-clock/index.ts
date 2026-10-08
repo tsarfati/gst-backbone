@@ -7,6 +7,7 @@
 
 import { serve } from "https://deno.land/std@0.177.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.57.4";
+import { adjustJobShiftTimes } from "./shiftTime.ts";
 
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
@@ -1728,49 +1729,26 @@ serve(async (req) => {
             .maybeSingle();
 
           if (jobShiftSettings?.shift_start_time && jobShiftSettings?.shift_end_time) {
-            const TIMEZONE_OFFSET_HOURS = 5;
-            
-            const localPunchIn = new Date(punchInDate.getTime() - TIMEZONE_OFFSET_HOURS * 3600000);
-            const localPunchOut = new Date(punchOutDate.getTime() - TIMEZONE_OFFSET_HOURS * 3600000);
-            
-            const shiftStart = new Date(localPunchIn);
-            const [startHours, startMinutes] = jobShiftSettings.shift_start_time.split(':').map(Number);
-            shiftStart.setHours(startHours, startMinutes, 0, 0);
+            const { data: companyUiSettings } = await supabaseAdmin
+              .from('company_ui_settings')
+              .select('settings')
+              .eq('company_id', companyId)
+              .is('user_id', null)
+              .order('updated_at', { ascending: false })
+              .limit(1)
+              .maybeSingle();
 
-            const shiftEnd = new Date(localPunchOut);
-            const [endHours, endMinutes] = jobShiftSettings.shift_end_time.split(':').map(Number);
-            shiftEnd.setHours(endHours, endMinutes, 0, 0);
-
-            if (shiftEnd < shiftStart) {
-              shiftEnd.setDate(shiftEnd.getDate() + 1);
-            }
-
-            const earlyGrace = jobShiftSettings.early_punch_in_grace_minutes ?? 0;
-            const lateGrace = jobShiftSettings.late_punch_out_grace_minutes ?? 0;
-            const countEarly = jobShiftSettings.count_early_punch_in === true;
-            const countLate = jobShiftSettings.count_late_punch_out === true;
-
-            if (localPunchIn < shiftStart) {
-              const earliestCountedStart = countEarly
-                ? new Date(shiftStart.getTime() - earlyGrace * 60000)
-                : shiftStart;
-
-              if (localPunchIn < earliestCountedStart) {
-                punchInDate = new Date(earliestCountedStart.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
-              } else if (!countEarly) {
-                punchInDate = new Date(shiftStart.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
-              }
-            }
-
-            if (localPunchOut > shiftEnd) {
-              const graceEnd = new Date(shiftEnd.getTime() + lateGrace * 60000);
-
-              if (!countLate) {
-                punchOutDate = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
-              } else if (localPunchOut < graceEnd) {
-                punchOutDate = new Date(shiftEnd.getTime() + TIMEZONE_OFFSET_HOURS * 3600000);
-              }
-            }
+            const companyTimeZone = typeof companyUiSettings?.settings?.timeZone === 'string'
+              ? companyUiSettings.settings.timeZone
+              : 'America/New_York';
+            const adjustedShift = adjustJobShiftTimes(
+              punchInDate,
+              punchOutDate,
+              jobShiftSettings,
+              companyTimeZone,
+            );
+            punchInDate = adjustedShift.punchIn;
+            punchOutDate = adjustedShift.punchOut;
           }
 
           const { data: jobOvertimeSettings } = await supabaseAdmin

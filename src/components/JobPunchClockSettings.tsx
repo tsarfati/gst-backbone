@@ -93,7 +93,8 @@ export default function JobPunchClockSettings() {
 
   // Use active company role first, fallback to profile.role for backward compatibility
   const effectiveRole = activeCompanyRole || profile?.role;
-  const isManager = effectiveRole === 'admin' || effectiveRole === 'controller' || effectiveRole === 'project_manager';
+  const isManager = ['admin', 'company_admin', 'owner', 'controller', 'project_manager', 'manager']
+    .includes(String(effectiveRole || '').trim().toLowerCase());
 
   useEffect(() => {
     if (currentCompany) {
