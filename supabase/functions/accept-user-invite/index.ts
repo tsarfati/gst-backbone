@@ -290,7 +290,7 @@ serve(async (req: Request): Promise<Response> => {
     // Grant/activate company access
     const { data: existingAccess, error: existingAccessError } = await supabaseAdmin
       .from("user_company_access")
-      .select("id")
+      .select("id, role, is_active")
       .eq("company_id", pendingInvite.company_id)
       .eq("user_id", userData.user.id)
       .maybeSingle();
@@ -362,13 +362,38 @@ serve(async (req: Request): Promise<Response> => {
       }
     }
 
+    const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
+      .from("profiles")
+      .select("user_id, status, approved_at, approved_by")
+      .eq("user_id", userData.user.id)
+      .maybeSingle();
+    if (existingProfileError) throw existingProfileError;
+
+    // Reprocessing an old or partially synchronized invite must be idempotent. An
+    // existing approved internal membership is authoritative; never demote it back
+    // to pending just because the invite token is opened again.
+    const preserveExistingApproval =
+      !isExternalInviteRole &&
+      existingAccess?.id &&
+      existingAccess.is_active !== false &&
+      String(existingProfile?.status || "").toLowerCase() === "approved";
+    const shouldBeApproved = isExternalInviteRole || Boolean(preserveExistingApproval);
+
     // Apply custom role to profile (if present on invite).
     // Be robust to missing profile rows (can happen with invite/account race conditions).
     const profilePatch: Record<string, unknown> = {
       custom_role_id: pendingInvite.custom_role_id ?? null,
-      status: isExternalInviteRole ? "approved" : "pending",
-      approved_at: isExternalInviteRole ? nowIso : null,
-      approved_by: isExternalInviteRole ? (pendingInvite.invited_by || userData.user.id) : null,
+      status: shouldBeApproved ? "approved" : "pending",
+      approved_at: isExternalInviteRole
+        ? nowIso
+        : preserveExistingApproval
+          ? existingProfile?.approved_at || nowIso
+          : null,
+      approved_by: isExternalInviteRole
+        ? (pendingInvite.invited_by || userData.user.id)
+        : preserveExistingApproval
+          ? existingProfile?.approved_by || pendingInvite.invited_by || userData.user.id
+          : null,
       current_company_id: pendingInvite.company_id,
       default_company_id: pendingInvite.company_id,
     };
@@ -376,13 +401,6 @@ serve(async (req: Request): Promise<Response> => {
       // Keep base profile role neutral and rely on company access + custom role permissions
       profilePatch.role = "employee";
     }
-
-    const { data: existingProfile, error: existingProfileError } = await supabaseAdmin
-      .from("profiles")
-      .select("user_id")
-      .eq("user_id", userData.user.id)
-      .maybeSingle();
-    if (existingProfileError) throw existingProfileError;
 
     if (existingProfile?.user_id) {
       const { error: profileUpdateError } = await supabaseAdmin
@@ -450,9 +468,15 @@ serve(async (req: Request): Promise<Response> => {
       customRoleId: pendingInvite.custom_role_id ?? null,
       customRoleName,
     });
-    const approvedRequestStatus = isExternalInviteRole ? "approved" : "pending";
-    const approvedReviewedAt = isExternalInviteRole ? nowIso : null;
-    const approvedReviewedBy = isExternalInviteRole ? (pendingInvite.invited_by || userData.user.id) : null;
+    const approvedRequestStatus = shouldBeApproved ? "approved" : "pending";
+    const approvedReviewedAt = shouldBeApproved
+      ? (preserveExistingApproval ? existingProfile?.approved_at || nowIso : nowIso)
+      : null;
+    const approvedReviewedBy = shouldBeApproved
+      ? (preserveExistingApproval
+        ? existingProfile?.approved_by || pendingInvite.invited_by || userData.user.id
+        : pendingInvite.invited_by || userData.user.id)
+      : null;
 
     const { data: existingRequestRows, error: existingRequestError } = await supabaseAdmin
       .from("company_access_requests")
@@ -492,7 +516,7 @@ serve(async (req: Request): Promise<Response> => {
       if (createRequestError) throw createRequestError;
     }
 
-    if (!isExternalInviteRole) {
+    if (!isExternalInviteRole && !preserveExistingApproval) {
       // Notify invited user + company approvers that account is pending approval.
       // Approval is handled in User Management (status transition pending -> approved).
       try {
