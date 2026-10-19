@@ -12,7 +12,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
-import { ArrowLeft, Plus, Smile, Frown, Pencil, Trash2, Send, ArrowUpDown, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowLeft, Plus, Smile, Frown, Pencil, Trash2, Send, ArrowUpDown, ArrowUp, ArrowDown, SlidersHorizontal } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { AlertDialog, AlertDialogAction, AlertDialogCancel, AlertDialogContent, AlertDialogDescription, AlertDialogFooter, AlertDialogHeader, AlertDialogTitle } from "@/components/ui/alert-dialog";
 import { usePostCreditCardTransactions } from "@/hooks/usePostCreditCardTransactions";
@@ -48,9 +48,15 @@ export default function CreditCardTransactions() {
   const { postTransactionsToGL } = usePostCreditCardTransactions();
   const [sortColumn, setSortColumn] = useState<'date' | 'amount' | 'attachment' | 'status' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
+  const [showFilterDialog, setShowFilterDialog] = useState(false);
+  const [codingFilter, setCodingFilter] = useState<'all' | 'uncoded' | 'coded' | 'posted' | 'hide_coded_with_attachment'>('all');
+  const [attachmentFilter, setAttachmentFilter] = useState<'all' | 'with' | 'without'>('all');
+  const [minimumAmount, setMinimumAmount] = useState('');
+  const [maximumAmount, setMaximumAmount] = useState('');
   const scrollPositionRef = useRef<number>(0);
   const deepLinkHandledRef = useRef<string | null>(null);
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
+  const allowedJobIdsKey = allowedJobIds.join(",");
   
   // New transaction form
   const [newTransaction, setNewTransaction] = useState({
@@ -63,10 +69,10 @@ export default function CreditCardTransactions() {
   });
 
   useEffect(() => {
-    if (id && currentCompany && !websiteJobAccessLoading) {
+    if (id && currentCompany?.id && !websiteJobAccessLoading) {
       fetchData();
     }
-  }, [id, currentCompany, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(",")]);
+  }, [id, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIdsKey]);
 
   useEffect(() => {
     if (transactions.length > 0) {
@@ -316,10 +322,33 @@ export default function CreditCardTransactions() {
     return balanceMap;
   }, [transactions]);
 
-  const sortedTransactions = useMemo(() => {
-    if (!sortColumn) return transactions;
+  const filteredTransactions = (() => {
+    const parsedMinimum = minimumAmount.trim() === '' ? null : Number(minimumAmount);
+    const parsedMaximum = maximumAmount.trim() === '' ? null : Number(maximumAmount);
+
+    return transactions.filter((transaction) => {
+      const coded = isTransactionCoded(transaction);
+      const posted = Boolean(transaction.journal_entry_id);
+      const hasAttachment = Boolean(transaction.attachment_url);
+      const absoluteAmount = Math.abs(Number(transaction.amount || 0));
+
+      if (codingFilter === 'uncoded' && (coded || posted)) return false;
+      if (codingFilter === 'coded' && (!coded || posted)) return false;
+      if (codingFilter === 'posted' && !posted) return false;
+      if (codingFilter === 'hide_coded_with_attachment' && coded && hasAttachment) return false;
+      if (attachmentFilter === 'with' && !hasAttachment) return false;
+      if (attachmentFilter === 'without' && hasAttachment) return false;
+      if (parsedMinimum !== null && Number.isFinite(parsedMinimum) && absoluteAmount < parsedMinimum) return false;
+      if (parsedMaximum !== null && Number.isFinite(parsedMaximum) && absoluteAmount > parsedMaximum) return false;
+
+      return true;
+    });
+  })();
+
+  const sortedTransactions = (() => {
+    if (!sortColumn) return filteredTransactions;
     
-    return [...transactions].sort((a, b) => {
+    return [...filteredTransactions].sort((a, b) => {
       let comparison = 0;
       
       if (sortColumn === 'date') {
@@ -339,7 +368,20 @@ export default function CreditCardTransactions() {
       
       return sortDirection === 'asc' ? comparison : -comparison;
     });
-  }, [transactions, sortColumn, sortDirection]);
+  })();
+
+  const activeFilterCount =
+    (codingFilter !== 'all' ? 1 : 0) +
+    (attachmentFilter !== 'all' ? 1 : 0) +
+    (minimumAmount.trim() !== '' ? 1 : 0) +
+    (maximumAmount.trim() !== '' ? 1 : 0);
+
+  const clearFilters = () => {
+    setCodingFilter('all');
+    setAttachmentFilter('all');
+    setMinimumAmount('');
+    setMaximumAmount('');
+  };
 
   const handleSort = (column: 'date' | 'amount' | 'attachment' | 'status') => {
     if (sortColumn === column) {
@@ -393,10 +435,15 @@ export default function CreditCardTransactions() {
   };
 
   const handleSelectAll = (checked: boolean) => {
+    const visibleIds = sortedTransactions.map((transaction) => transaction.id);
     if (checked) {
-      setSelectedTransactions(new Set(transactions.map(t => t.id)));
+      setSelectedTransactions((current) => new Set([...current, ...visibleIds]));
     } else {
-      setSelectedTransactions(new Set());
+      setSelectedTransactions((current) => {
+        const next = new Set(current);
+        visibleIds.forEach((transactionId) => next.delete(transactionId));
+        return next;
+      });
     }
   };
 
@@ -490,7 +537,7 @@ export default function CreditCardTransactions() {
   };
 
   // Helper to resolve whether attachment is required based on cost code/account
-  const requiresAttachmentFor = (t: any): boolean => {
+  function requiresAttachmentFor(t: any): boolean {
     const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
     if (t.job_id && t.cost_code_id) {
       const ccJob = t.cost_codes;
@@ -507,9 +554,9 @@ export default function CreditCardTransactions() {
       return t.chart_of_accounts.require_attachment ?? true;
     }
     return true;
-  };
+  }
 
-  const isTransactionCoded = (t: any): boolean => {
+  function isTransactionCoded(t: any): boolean {
     // Primary source of truth: stored coding_status flag from DB
     if (t.coding_status === "coded") {
       return true;
@@ -553,7 +600,7 @@ export default function CreditCardTransactions() {
     const coded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
     console.log('CC coded calc', { id: t.id, hasVendor, hasJobOrAccount, hasCostCode, hasAttachment, requiresByCode, coded, ccJob: t.cost_codes, acct: t.chart_of_accounts });
     return coded;
-  };
+  }
 
   const getStatusBadge = (t: any) => {
     const badges: JSX.Element[] = [];
@@ -774,8 +821,100 @@ export default function CreditCardTransactions() {
       )}
 
       <Card>
-        <CardHeader>
-          <CardTitle>Transactions</CardTitle>
+        <CardHeader className="py-4">
+          <div className="flex items-center justify-between gap-3">
+            <div className="flex items-center gap-2">
+              <CardTitle>Transactions</CardTitle>
+              <span className="text-sm text-muted-foreground">
+                {filteredTransactions.length === transactions.length
+                  ? transactions.length
+                  : `${filteredTransactions.length} of ${transactions.length}`}
+              </span>
+            </div>
+            <Dialog open={showFilterDialog} onOpenChange={setShowFilterDialog}>
+              <DialogTrigger asChild>
+                <Button variant="outline" size="sm" className="h-8">
+                  <SlidersHorizontal className="h-4 w-4 mr-2" />
+                  Filters
+                  {activeFilterCount > 0 && (
+                    <Badge variant="secondary" className="ml-2 h-5 min-w-5 px-1.5">
+                      {activeFilterCount}
+                    </Badge>
+                  )}
+                </Button>
+              </DialogTrigger>
+              <DialogContent className="sm:max-w-md">
+                <DialogHeader>
+                  <DialogTitle>Transaction Filters</DialogTitle>
+                  <DialogDescription>
+                    Customize which credit-card transactions are shown.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4">
+                  <div className="space-y-2">
+                    <Label>Coding status</Label>
+                    <Select value={codingFilter} onValueChange={(value: 'all' | 'uncoded' | 'coded' | 'posted' | 'hide_coded_with_attachment') => setCodingFilter(value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All transactions</SelectItem>
+                        <SelectItem value="uncoded">Uncoded only</SelectItem>
+                        <SelectItem value="coded">Coded, not posted</SelectItem>
+                        <SelectItem value="posted">Posted only</SelectItem>
+                        <SelectItem value="hide_coded_with_attachment">Hide coded with attachments</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Attachment</Label>
+                    <Select value={attachmentFilter} onValueChange={(value: 'all' | 'with' | 'without') => setAttachmentFilter(value)}>
+                      <SelectTrigger>
+                        <SelectValue />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">With or without attachments</SelectItem>
+                        <SelectItem value="with">With attachments only</SelectItem>
+                        <SelectItem value="without">Without attachments only</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="space-y-2">
+                      <Label htmlFor="transaction-minimum-amount">Minimum amount</Label>
+                      <Input
+                        id="transaction-minimum-amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="$0.00"
+                        value={minimumAmount}
+                        onChange={(event) => setMinimumAmount(event.target.value)}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="transaction-maximum-amount">Maximum amount</Label>
+                      <Input
+                        id="transaction-maximum-amount"
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        placeholder="No maximum"
+                        value={maximumAmount}
+                        onChange={(event) => setMaximumAmount(event.target.value)}
+                      />
+                    </div>
+                  </div>
+                  <div className="flex justify-between gap-2 pt-2">
+                    <Button variant="ghost" onClick={clearFilters} disabled={activeFilterCount === 0}>
+                      Clear filters
+                    </Button>
+                    <Button onClick={() => setShowFilterDialog(false)}>Show transactions</Button>
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
+          </div>
         </CardHeader>
         <CardContent>
           <Table className="border-separate border-spacing-0 [&_th]:h-6 [&_th]:py-0 [&_th]:text-sm [&_td]:h-7 [&_td]:py-0 [&_td]:text-sm">
@@ -783,7 +922,7 @@ export default function CreditCardTransactions() {
               <TableRow>
                 <TableHead className="w-12">
                   <Checkbox
-                    checked={transactions.length > 0 && selectedTransactions.size === transactions.length}
+                    checked={sortedTransactions.length > 0 && sortedTransactions.every((transaction) => selectedTransactions.has(transaction.id))}
                     onCheckedChange={handleSelectAll}
                   />
                 </TableHead>
@@ -831,7 +970,9 @@ export default function CreditCardTransactions() {
               {sortedTransactions.length === 0 ? (
                 <TableRow>
                   <TableCell colSpan={7} className="text-center text-muted-foreground py-8">
-                    No transactions found. Import a CSV or add transactions manually.
+                    {transactions.length === 0
+                      ? 'No transactions found. Import a CSV or add transactions manually.'
+                      : 'No transactions match the selected filters.'}
                   </TableCell>
                 </TableRow>
               ) : (

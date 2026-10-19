@@ -43,6 +43,7 @@ export function CreditCardTransactionModal({
   const { currentCompany } = useCompany();
   const { toast } = useToast();
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds, canAccessJob } = useWebsiteJobAccess();
+  const allowedJobIdsKey = allowedJobIds.join(',');
 
   const [transaction, setTransaction] = useState<any>(null);
   const [jobs, setJobs] = useState<any[]>([]);
@@ -84,6 +85,9 @@ export function CreditCardTransactionModal({
   const [panStart, setPanStart] = useState({ x: 0, y: 0 });
   const [scrollStart, setScrollStart] = useState({ left: 0, top: 0 });
   const previewScrollRef = useRef<HTMLDivElement>(null);
+  const initialMatchesRef = useRef(initialMatches);
+  initialMatchesRef.current = initialMatches;
+  const initialMatchesKey = (initialMatches || []).map((match: any) => String(match?.id || '')).join(',');
   
   // Clamp zoom between 50% and 300%
   const clampZoom = useCallback((z: number) => Math.max(50, Math.min(300, z)), []);
@@ -239,16 +243,14 @@ useEffect(() => {
 }, [open, ccDistribution, transaction?.cost_code_id]);
 
 useEffect(() => {
-  if (open && transactionId && currentCompany && !websiteJobAccessLoading) {
-    // Preload matches passed in from parent
-    if (initialMatches && initialMatches.length > 0) {
-      setSuggestedMatches(initialMatches);
-      setShowMatches(true);
-    } else {
-      setSuggestedMatches([]);
-      setShowMatches(false);
-    }
+  if (!open) return;
+  const matches = initialMatchesRef.current || [];
+  setSuggestedMatches(matches);
+  setShowMatches(matches.length > 0);
+}, [open, transactionId, initialMatchesKey]);
 
+useEffect(() => {
+  if (open && transactionId && currentCompany?.id && !websiteJobAccessLoading) {
     // Clear state when switching transactions
     setAttachmentPreview(null);
     setSelectedVendorId(null);
@@ -272,7 +274,7 @@ useEffect(() => {
     setIsLinkedToBill(false);
     setBillDistribution([]);
   }
-}, [open, transactionId, currentCompany, initialMatches, websiteJobAccessLoading, isPrivileged, allowedJobIds.join(',')]);
+}, [open, transactionId, currentCompany?.id, websiteJobAccessLoading, isPrivileged, allowedJobIdsKey]);
 
 // Recompute coded status when key fields change
 useEffect(() => {
