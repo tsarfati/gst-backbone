@@ -49,8 +49,9 @@ export default function CreditCardTransactions() {
   const [sortColumn, setSortColumn] = useState<'date' | 'amount' | 'attachment' | 'status' | null>(null);
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [showFilterDialog, setShowFilterDialog] = useState(false);
-  const [codingFilter, setCodingFilter] = useState<'all' | 'uncoded' | 'coded' | 'posted' | 'hide_coded_with_attachment'>('all');
-  const [attachmentFilter, setAttachmentFilter] = useState<'all' | 'with' | 'without'>('all');
+  const [visibleCodingStatuses, setVisibleCodingStatuses] = useState({ uncoded: true, coded: true, posted: true });
+  const [visibleAttachmentStatuses, setVisibleAttachmentStatuses] = useState({ with: true, without: true });
+  const [hideCodedWithAttachment, setHideCodedWithAttachment] = useState(false);
   const [minimumAmount, setMinimumAmount] = useState('');
   const [maximumAmount, setMaximumAmount] = useState('');
   const scrollPositionRef = useRef<number>(0);
@@ -332,12 +333,12 @@ export default function CreditCardTransactions() {
       const hasAttachment = Boolean(transaction.attachment_url);
       const absoluteAmount = Math.abs(Number(transaction.amount || 0));
 
-      if (codingFilter === 'uncoded' && (coded || posted)) return false;
-      if (codingFilter === 'coded' && (!coded || posted)) return false;
-      if (codingFilter === 'posted' && !posted) return false;
-      if (codingFilter === 'hide_coded_with_attachment' && coded && hasAttachment) return false;
-      if (attachmentFilter === 'with' && !hasAttachment) return false;
-      if (attachmentFilter === 'without' && hasAttachment) return false;
+      if (posted && !visibleCodingStatuses.posted) return false;
+      if (!posted && coded && !visibleCodingStatuses.coded) return false;
+      if (!posted && !coded && !visibleCodingStatuses.uncoded) return false;
+      if (hasAttachment && !visibleAttachmentStatuses.with) return false;
+      if (!hasAttachment && !visibleAttachmentStatuses.without) return false;
+      if (hideCodedWithAttachment && coded && hasAttachment) return false;
       if (parsedMinimum !== null && Number.isFinite(parsedMinimum) && absoluteAmount < parsedMinimum) return false;
       if (parsedMaximum !== null && Number.isFinite(parsedMaximum) && absoluteAmount > parsedMaximum) return false;
 
@@ -371,14 +372,16 @@ export default function CreditCardTransactions() {
   })();
 
   const activeFilterCount =
-    (codingFilter !== 'all' ? 1 : 0) +
-    (attachmentFilter !== 'all' ? 1 : 0) +
+    (Object.values(visibleCodingStatuses).every(Boolean) ? 0 : 1) +
+    (Object.values(visibleAttachmentStatuses).every(Boolean) ? 0 : 1) +
+    (hideCodedWithAttachment ? 1 : 0) +
     (minimumAmount.trim() !== '' ? 1 : 0) +
     (maximumAmount.trim() !== '' ? 1 : 0);
 
   const clearFilters = () => {
-    setCodingFilter('all');
-    setAttachmentFilter('all');
+    setVisibleCodingStatuses({ uncoded: true, coded: true, posted: true });
+    setVisibleAttachmentStatuses({ with: true, without: true });
+    setHideCodedWithAttachment(false);
     setMinimumAmount('');
     setMaximumAmount('');
   };
@@ -852,33 +855,55 @@ export default function CreditCardTransactions() {
                 </DialogHeader>
                 <div className="space-y-4">
                   <div className="space-y-2">
-                    <Label>Coding status</Label>
-                    <Select value={codingFilter} onValueChange={(value: 'all' | 'uncoded' | 'coded' | 'posted' | 'hide_coded_with_attachment') => setCodingFilter(value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">All transactions</SelectItem>
-                        <SelectItem value="uncoded">Uncoded only</SelectItem>
-                        <SelectItem value="coded">Coded, not posted</SelectItem>
-                        <SelectItem value="posted">Posted only</SelectItem>
-                        <SelectItem value="hide_coded_with_attachment">Hide coded with attachments</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label>Show coding statuses</Label>
+                    <div className="grid grid-cols-3 gap-2 rounded-md border p-3">
+                      {([
+                        ['uncoded', 'Uncoded'],
+                        ['coded', 'Coded'],
+                        ['posted', 'Posted'],
+                      ] as const).map(([status, label]) => (
+                        <label key={status} className="flex items-center gap-2 text-sm cursor-pointer">
+                          <Checkbox
+                            checked={visibleCodingStatuses[status]}
+                            onCheckedChange={(checked) =>
+                              setVisibleCodingStatuses((current) => ({ ...current, [status]: checked === true }))
+                            }
+                          />
+                          {label}
+                        </label>
+                      ))}
+                    </div>
                   </div>
                   <div className="space-y-2">
-                    <Label>Attachment</Label>
-                    <Select value={attachmentFilter} onValueChange={(value: 'all' | 'with' | 'without') => setAttachmentFilter(value)}>
-                      <SelectTrigger>
-                        <SelectValue />
-                      </SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="all">With or without attachments</SelectItem>
-                        <SelectItem value="with">With attachments only</SelectItem>
-                        <SelectItem value="without">Without attachments only</SelectItem>
-                      </SelectContent>
-                    </Select>
+                    <Label>Show attachment statuses</Label>
+                    <div className="grid grid-cols-2 gap-2 rounded-md border p-3">
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={visibleAttachmentStatuses.with}
+                          onCheckedChange={(checked) =>
+                            setVisibleAttachmentStatuses((current) => ({ ...current, with: checked === true }))
+                          }
+                        />
+                        With attachments
+                      </label>
+                      <label className="flex items-center gap-2 text-sm cursor-pointer">
+                        <Checkbox
+                          checked={visibleAttachmentStatuses.without}
+                          onCheckedChange={(checked) =>
+                            setVisibleAttachmentStatuses((current) => ({ ...current, without: checked === true }))
+                          }
+                        />
+                        Without attachments
+                      </label>
+                    </div>
                   </div>
+                  <label className="flex items-center gap-2 rounded-md border p-3 text-sm cursor-pointer">
+                    <Checkbox
+                      checked={hideCodedWithAttachment}
+                      onCheckedChange={(checked) => setHideCodedWithAttachment(checked === true)}
+                    />
+                    Hide transactions that are both coded and attached
+                  </label>
                   <div className="grid grid-cols-2 gap-3">
                     <div className="space-y-2">
                       <Label htmlFor="transaction-minimum-amount">Minimum amount</Label>
