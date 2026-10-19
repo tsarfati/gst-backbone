@@ -34,7 +34,6 @@ export default function CreditCardTransactions() {
   const [creditCard, setCreditCard] = useState<any>(null);
   const [transactions, setTransactions] = useState<any[]>([]);
   const [jobs, setJobs] = useState<any[]>([]);
-  const [costCodes, setCostCodes] = useState<any[]>([]);
   const [distsByTx, setDistsByTx] = useState<Record<string, any[]>>({});
   const [users, setUsers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -127,17 +126,6 @@ export default function CreditCardTransactions() {
         ? allJobs
         : allJobs.filter((job: any) => allowedJobIds.includes(job.id));
       setJobs(visibleJobs);
-
-      // Fetch cost codes (company-wide only, job-specific codes are handled separately)
-      const { data: costCodesData } = await supabase
-        .from("cost_codes")
-        .select("*")
-        .eq("company_id", currentCompany?.id)
-        .eq("is_active", true)
-        .is("job_id", null)
-        .order("code");
-
-      setCostCodes(costCodesData || []);
 
       // Fetch distributions for all listed transactions and hydrate with cost code metadata
       const txIds = allTransactions.map((t: any) => t.id);
@@ -539,26 +527,6 @@ export default function CreditCardTransactions() {
   await handlePostToGL(codedNotPosted);
   };
 
-  // Helper to resolve whether attachment is required based on cost code/account
-  function requiresAttachmentFor(t: any): boolean {
-    const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
-    if (t.job_id && t.cost_code_id) {
-      const ccJob = t.cost_codes;
-      if (ccJob) {
-        const companyMatches = (costCodes || []).filter((c: any) => core(c.code) === core(ccJob.code));
-        if (companyMatches.some((c: any) => c.require_attachment === false) || ccJob?.require_attachment === false) return false;
-        const typeMatch = ccJob?.type ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(ccJob.type || '').toLowerCase()) : null;
-        const resolved = typeMatch || companyMatches[0] || ccJob;
-        return resolved?.require_attachment ?? true;
-      }
-      return true;
-    }
-    if (t.chart_account_id && t.chart_of_accounts) {
-      return t.chart_of_accounts.require_attachment ?? true;
-    }
-    return true;
-  }
-
   function isTransactionCoded(t: any): boolean {
     // Primary source of truth: stored coding_status flag from DB
     if (t.coding_status === "coded") {
@@ -573,23 +541,9 @@ export default function CreditCardTransactions() {
       const distSum = dist.reduce((sum: number, d: any) => sum + (Number(d.amount) || 0), 0);
       const validLines = dist.every((d: any) => d.job_id && d.cost_codes?.id && Number(d.amount) > 0);
       const hasVendor = !!t.vendor_id;
-      const hasAttachment = !!t.attachment_url;
 
-      // Determine if any line requires an attachment using company-level overrides by code/type
-      const core = (s: any) => String(s ?? "").toLowerCase().replace(/\s+/g, "").replace(/[^0-9.]/g, "");
-      const perLineRequires = dist.map((line: any) => {
-        const jobCC = line.cost_codes; // { id, code, type, require_attachment }
-        if (!jobCC) return true; // default require if unknown
-        const companyMatches = (costCodes || []).filter((c: any) => core(c.code) === core(jobCC.code));
-        if (jobCC.require_attachment === false || companyMatches.some((c: any) => c.require_attachment === false)) return false;
-        const typeMatch = jobCC?.type ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(jobCC.type || '').toLowerCase()) : null;
-        const resolved = typeMatch || companyMatches[0] || jobCC;
-        return resolved?.require_attachment ?? true;
-      });
-      const requiresByCode = perLineRequires.some(Boolean);
-
-      const coded = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor && (requiresByCode ? hasAttachment : true);
-      console.log('CC coded calc (dist)', { id: t.id, validLines, distSum, totalAmt, hasVendor, requiresByCode, hasAttachment, coded });
+      const coded = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor;
+      console.log('CC coded calc (dist)', { id: t.id, validLines, distSum, totalAmt, hasVendor, coded });
       return coded;
     }
 
@@ -597,11 +551,8 @@ export default function CreditCardTransactions() {
     const hasVendor = !!t.vendor_id;
     const hasJobOrAccount = !!t.job_id || !!t.chart_account_id;
     const hasCostCode = t.job_id ? !!t.cost_code_id : true;
-    const hasAttachment = !!t.attachment_url;
-    const requiresByCode = requiresAttachmentFor(t);
-    const attachmentSatisfied = requiresByCode ? hasAttachment : true;
-    const coded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
-    console.log('CC coded calc', { id: t.id, hasVendor, hasJobOrAccount, hasCostCode, hasAttachment, requiresByCode, coded, ccJob: t.cost_codes, acct: t.chart_of_accounts });
+    const coded = hasVendor && hasJobOrAccount && hasCostCode;
+    console.log('CC coded calc', { id: t.id, hasVendor, hasJobOrAccount, hasCostCode, coded, ccJob: t.cost_codes, acct: t.chart_of_accounts });
     return coded;
   }
 

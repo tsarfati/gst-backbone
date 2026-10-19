@@ -1219,40 +1219,10 @@ const resolveAttachmentRequirement = (): boolean => {
         sumMatch: Math.abs(distSum - totalAmt) < 0.01
       });
       
-      // Check attachment requirement based on distribution with company overrides
-      let requiresByCode = false;
-      try {
-        const ids = Array.from(new Set(distribution.map((d: any) => d.cost_code_id).filter(Boolean)));
-        let jobLevelCodes: any[] = [];
-        if (ids.length > 0) {
-          const { data: ccBatch } = await supabase
-            .from('cost_codes')
-            .select('id, code, type, require_attachment, job_id')
-            .in('id', ids);
-          jobLevelCodes = ccBatch || [];
-        }
-        const core = (s: any) => String(s ?? '').toLowerCase().replace(/\s+/g, '');
-        const perLineRequires = distribution.map((line: any) => {
-          const jobCC = jobLevelCodes.find((c: any) => c.id === line.cost_code_id);
-          if (!jobCC) return true; // default require if unknown
-          const companyMatches = (costCodes || []).filter((c: any) => core(c.code) === core(jobCC.code));
-          if (jobCC.require_attachment === false || companyMatches.some((c: any) => c.require_attachment === false)) return false;
-          const typeMatch = jobCC?.type ? companyMatches.find((c: any) => String(c.type || '').toLowerCase() === String(jobCC.type || '').toLowerCase()) : null;
-          const resolved = typeMatch || companyMatches[0] || jobCC;
-          return resolved?.require_attachment ?? true;
-        });
-        requiresByCode = perLineRequires.some(Boolean);
-      } catch {
-        requiresByCode = true;
-      }
-      
-      const hasAttachment = !!trans.attachment_url;
-      const complete = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor && (requiresByCode ? hasAttachment : true);
+      const complete = validLines && Math.abs(distSum - totalAmt) < 0.01 && hasVendor;
       const newStatus = complete ? 'coded' : 'uncoded';
 
       console.log('Final status calculation:', {
-        requiresByCode,
-        hasAttachment,
         complete,
         newStatus
       });
@@ -1309,14 +1279,8 @@ const resolveAttachmentRequirement = (): boolean => {
     const jobSelected = isJobSelected || !!transaction.job_id;
     const hasJobOrAccount = !!(selectedJobOrAccount || transaction.job_id || transaction.chart_account_id);
     const hasCostCode = jobSelected ? !!transaction.cost_code_id : true; // Cost code only required for jobs
-    const hasAttachment = !!transaction.attachment_url;
-
-    const requiresByCode = resolveAttachmentRequirement();
-    // If required by code/account: must have attachment; otherwise not needed
-    const attachmentSatisfied = requiresByCode ? hasAttachment : true;
-
-    // All fields including vendor are required for coded status
-    const isCoded = hasVendor && hasJobOrAccount && hasCostCode && attachmentSatisfied;
+    // Coding status reflects the accounting assignment. Receipt attachment is tracked separately.
+    const isCoded = hasVendor && hasJobOrAccount && hasCostCode;
     const newStatus = isCoded ? 'coded' : 'uncoded';
 
     const currentStatus = transaction.coding_status;
@@ -2418,9 +2382,7 @@ const resolveAttachmentRequirement = (): boolean => {
                     const hasVendor = !!selectedVendorId;
                     const hasJobOrAccount = !!selectedJobOrAccount;
                     const hasCostCode = isJobSelected ? !!transaction.cost_code_id : true;
-                    const hasAttachment = !!transaction.attachment_url;
-                    const requiresByCode = resolveAttachmentRequirement();
-                    const coded = hasVendor && hasJobOrAccount && hasCostCode && (requiresByCode ? hasAttachment : true);
+                    const coded = hasVendor && hasJobOrAccount && hasCostCode;
                     return coded && !transaction?.journal_entry_id;
                   })() && (
                     <Button
