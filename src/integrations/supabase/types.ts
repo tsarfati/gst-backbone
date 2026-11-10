@@ -10,7 +10,7 @@ export type Database = {
   // Allows to automatically instantiate createClient with right options
   // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
   __InternalSupabase: {
-    PostgrestVersion: "14.5"
+    PostgrestVersion: "13.0.5"
   }
   public: {
     Tables: {
@@ -12055,9 +12055,17 @@ export type Database = {
         }
         Returns: undefined
       }
+      ap_effective_paid_for_invoice: {
+        Args: { p_invoice_id: string }
+        Returns: number
+      }
       approve_tenant_request: {
         Args: { p_request_id: string }
         Returns: undefined
+      }
+      approve_time_card_change_request: {
+        Args: { p_request_id: string; p_review_notes?: string }
+        Returns: Json
       }
       audit_company_unknown_employee_access: {
         Args: { p_company_name: string }
@@ -12193,13 +12201,6 @@ export type Database = {
           cost_code_id: string
           id: string
           percentage: number
-        }[]
-      }
-      release_subcontract_retainage: {
-        Args: { p_due_date?: string; p_subcontract_id: string }
-        Returns: {
-          released_amount: number
-          updated_invoice_count: number
         }[]
       }
       get_job_albums: {
@@ -12469,6 +12470,13 @@ export type Database = {
         }
         Returns: undefined
       }
+      release_subcontract_retainage: {
+        Args: { p_due_date?: string; p_subcontract_id: string }
+        Returns: {
+          released_amount: number
+          updated_invoice_count: number
+        }[]
+      }
       repair_message_attachment_urls: { Args: never; Returns: number }
       resolve_user_names: {
         Args: { p_user_ids: string[] }
@@ -12510,6 +12518,10 @@ export type Database = {
       }
       switch_user_company: {
         Args: { p_company_id: string; p_user_id: string }
+        Returns: undefined
+      }
+      sync_ap_invoice_payment_status: {
+        Args: { p_invoice_id: string }
         Returns: undefined
       }
       task_user_is_assignable: {
