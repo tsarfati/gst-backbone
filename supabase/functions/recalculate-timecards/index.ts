@@ -142,8 +142,12 @@ serve(async (req) => {
         // Calculate total hours
         let totalHours = (adjustedPunchOut.getTime() - adjustedPunchIn.getTime()) / (1000 * 60 * 60)
 
+        // Keep the stored break value in sync with the deduction so reports and
+        // detail views show the same rule that was applied to total hours.
+        const breakMinutes = totalHours > autoBreakWaitHours ? autoBreakDuration : 0
+
         // Apply auto break deduction if over threshold
-        if (totalHours > autoBreakWaitHours) {
+        if (breakMinutes > 0) {
           totalHours -= autoBreakDuration / 60
         }
 
@@ -173,6 +177,7 @@ serve(async (req) => {
             punch_out_time: adjustedPunchOut.toISOString(),
             total_hours: totalHours,
             overtime_hours: overtimeHours,
+            break_minutes: breakMinutes,
             updated_at: new Date().toISOString()
           })
           .eq('id', card.id)
