@@ -526,7 +526,7 @@ export async function convertImageReceiptToPdf(
   drawProvenanceBox(page, transaction, font, boldFont);
   appendReceiptRecordPages(document, transaction, metadata, font, boldFont);
   const bytes = await document.save();
-  return new Blob([bytes], { type: "application/pdf" });
+  return new Blob([bytes as BlobPart], { type: "application/pdf" });
 }
 
 export async function createCreditCardTransactionsWorkbook(
