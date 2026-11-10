@@ -1,20 +1,20 @@
 import { useEffect, useState } from 'react';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Building2, Clock, Save, MapPin } from 'lucide-react';
+import { Building2, Clock, Save, MapPin, AlertCircle } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 import { supabase } from '@/integrations/supabase/client';
-import { JobShiftTimeSettings } from '@/components/JobShiftTimeSettings';
 import { formatDistanceLabel } from '@/lib/distanceUnits';
+import { Alert, AlertDescription } from '@/components/ui/alert';
 
 interface Job { id: string; name: string }
 
@@ -22,6 +22,12 @@ type RoundingDirection = 'up' | 'down' | 'nearest';
 
 interface JobSettings {
   job_id: string;
+  shift_start_time: string;
+  shift_end_time: string;
+  count_early_punch_in: boolean;
+  early_punch_in_grace_minutes: number;
+  count_late_punch_out: boolean;
+  late_punch_out_grace_minutes: number;
   punch_time_window_start?: string;
   punch_time_window_end?: string;
   earliest_punch_start_time?: string;
@@ -51,6 +57,12 @@ interface JobSettings {
 
 const defaultJobSettings: JobSettings = {
   job_id: '',
+  shift_start_time: '',
+  shift_end_time: '',
+  count_early_punch_in: false,
+  early_punch_in_grace_minutes: 15,
+  count_late_punch_out: true,
+  late_punch_out_grace_minutes: 15,
   punch_time_window_start: '06:00',
   punch_time_window_end: '22:00',
   earliest_punch_start_time: '05:30',
@@ -128,15 +140,36 @@ export default function JobPunchClockSettings() {
   const loadJobSettings = async (jobId: string) => {
     try {
       setLoading(true);
-      const { data, error } = await supabase
-        .from('job_punch_clock_settings')
-        .select('*')
-        .eq('job_id', jobId)
-        .maybeSingle();
-      if (error) throw error;
+      const [settingsResult, jobResult] = await Promise.all([
+        supabase
+          .from('job_punch_clock_settings')
+          .select('*')
+          .eq('job_id', jobId)
+          .maybeSingle(),
+        supabase
+          .from('jobs')
+          .select('shift_start_time, shift_end_time, count_early_punch_in, early_punch_in_grace_minutes, count_late_punch_out, late_punch_out_grace_minutes')
+          .eq('id', jobId)
+          .single(),
+      ]);
+      if (settingsResult.error) throw settingsResult.error;
+      if (jobResult.error) throw jobResult.error;
+
+      const data = settingsResult.data;
+      const jobData = jobResult.data;
+      const shiftSettings = {
+        shift_start_time: jobData?.shift_start_time || '',
+        shift_end_time: jobData?.shift_end_time || '',
+        count_early_punch_in: jobData?.count_early_punch_in || false,
+        early_punch_in_grace_minutes: jobData?.early_punch_in_grace_minutes || 15,
+        count_late_punch_out: jobData?.count_late_punch_out ?? true,
+        late_punch_out_grace_minutes: jobData?.late_punch_out_grace_minutes || 15,
+      };
+
       if (data) {
         setSettings({
           job_id: jobId,
+          ...shiftSettings,
           punch_time_window_start: data.punch_time_window_start || '06:00',
           punch_time_window_end: data.punch_time_window_end || '22:00',
           earliest_punch_start_time: data.earliest_punch_start_time || '05:30',
@@ -164,7 +197,7 @@ export default function JobPunchClockSettings() {
           overtime_past_window_threshold_minutes: data.overtime_past_window_threshold_minutes ?? 30,
         });
       } else {
-        setSettings({ ...defaultJobSettings, job_id: jobId });
+        setSettings({ ...defaultJobSettings, ...shiftSettings, job_id: jobId });
       }
     } catch (e) {
       console.error('Failed to load job settings', e);
@@ -182,6 +215,19 @@ export default function JobPunchClockSettings() {
     }
     try {
       setSaving(true);
+      const { error: jobError } = await supabase
+        .from('jobs')
+        .update({
+          shift_start_time: settings.shift_start_time || null,
+          shift_end_time: settings.shift_end_time || null,
+          count_early_punch_in: settings.count_early_punch_in,
+          early_punch_in_grace_minutes: settings.early_punch_in_grace_minutes,
+          count_late_punch_out: settings.count_late_punch_out,
+          late_punch_out_grace_minutes: settings.late_punch_out_grace_minutes,
+        })
+        .eq('id', selectedJobId);
+      if (jobError) throw jobError;
+
       const payload = {
         job_id: selectedJobId,
         company_id: currentCompany.id,
@@ -208,6 +254,8 @@ export default function JobPunchClockSettings() {
         early_punch_in_buffer_minutes: settings.early_punch_in_buffer_minutes,
         require_timecard_change_approval: settings.require_timecard_change_approval,
         overtime_past_window_threshold_minutes: settings.overtime_past_window_threshold_minutes,
+        enable_distance_warning: settings.enable_distance_warning,
+        max_distance_from_job_meters: settings.max_distance_from_job_meters,
         created_by: profile?.user_id || user?.id,
       };
 
@@ -215,7 +263,7 @@ export default function JobPunchClockSettings() {
         .from('job_punch_clock_settings')
         .upsert(payload, { onConflict: 'job_id' });
       if (error) throw error;
-      toast({ title: 'Saved', description: 'Job punch clock settings saved.' });
+      toast({ title: 'Saved', description: 'All job time settings saved.' });
     } catch (e) {
       console.error('Failed to save job settings', e);
       toast({ title: 'Error', description: 'Failed to save job settings', variant: 'destructive' });
@@ -259,15 +307,16 @@ export default function JobPunchClockSettings() {
         </CardContent>
       </Card>
 
-      {selectedJobId && <JobShiftTimeSettings jobId={selectedJobId} />}
-
       {selectedJobId && (
         <Card>
           <CardHeader>
             <CardTitle className="flex items-center gap-2">
               <Clock className="h-5 w-5" />
-              Job Time Rules (override general)
+              Job Time Settings
             </CardTitle>
+            <CardDescription>
+              Configure shift times and job-specific punch clock rules in one place
+            </CardDescription>
           </CardHeader>
           <CardContent className="space-y-4">
 
@@ -275,6 +324,69 @@ export default function JobPunchClockSettings() {
               <div className="text-muted-foreground"><span className="loading-dots">Loading job settings</span></div>
             ) : (
               <div className="space-y-6">
+                <div className="space-y-4">
+                  <div>
+                    <h3 className="font-medium">Shift Time Rules</h3>
+                    <p className="text-sm text-muted-foreground">Configure standard shift times and how early or late punches are handled</p>
+                  </div>
+
+                  {(!settings.shift_start_time || !settings.shift_end_time) && (
+                    <Alert>
+                      <AlertCircle className="h-4 w-4" />
+                      <AlertDescription>
+                        Set shift start and end times to enable time adjustment rules. Without shift times, all punch times will be counted as-is.
+                      </AlertDescription>
+                    </Alert>
+                  )}
+
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="shift-start">Shift Start Time</Label>
+                      <Input id="shift-start" type="time" value={settings.shift_start_time} onChange={(e) => setSettings(s => ({...s, shift_start_time: e.target.value}))} placeholder="08:00" />
+                      <p className="text-xs text-muted-foreground">Standard start time for this job's shift</p>
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="shift-end">Shift End Time</Label>
+                      <Input id="shift-end" type="time" value={settings.shift_end_time} onChange={(e) => setSettings(s => ({...s, shift_end_time: e.target.value}))} placeholder="17:00" />
+                      <p className="text-xs text-muted-foreground">Standard end time for this job's shift (supports overnight shifts)</p>
+                    </div>
+                  </div>
+
+                  {settings.shift_start_time && settings.shift_end_time && (
+                    <div className="space-y-4 rounded-lg border p-4">
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="count-early">Count Early Punch-In Time</Label>
+                          <p className="text-sm text-muted-foreground">Count time before shift start when it is within the grace period</p>
+                        </div>
+                        <Switch id="count-early" checked={settings.count_early_punch_in} onCheckedChange={(checked) => setSettings(s => ({...s, count_early_punch_in: checked}))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="early-grace">Early Punch-In Grace Period (minutes)</Label>
+                        <Input id="early-grace" type="number" min={0} max={120} value={settings.early_punch_in_grace_minutes} onChange={(e) => setSettings(s => ({...s, early_punch_in_grace_minutes: Number(e.target.value)}))} />
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <div className="space-y-0.5">
+                          <Label htmlFor="count-late">Count Late Punch-Out Time</Label>
+                          <p className="text-sm text-muted-foreground">Count time after shift end when it exceeds the grace period</p>
+                        </div>
+                        <Switch id="count-late" checked={settings.count_late_punch_out} onCheckedChange={(checked) => setSettings(s => ({...s, count_late_punch_out: checked}))} />
+                      </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="late-grace">Late Punch-Out Grace Period (minutes)</Label>
+                        <Input id="late-grace" type="number" min={0} max={120} value={settings.late_punch_out_grace_minutes} onChange={(e) => setSettings(s => ({...s, late_punch_out_grace_minutes: Number(e.target.value)}))} />
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                <Separator />
+
+                <div>
+                  <h3 className="font-medium">Job Time Rules</h3>
+                  <p className="text-sm text-muted-foreground">These values override the general punch clock settings for this job</p>
+                </div>
+
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   <div className="space-y-2">
                     <Label>Earliest Punch Start</Label>
@@ -484,6 +596,13 @@ export default function JobPunchClockSettings() {
                       </p>
                     </div>
                   )}
+                </div>
+
+                <div className="flex justify-end border-t pt-4">
+                  <Button onClick={saveJobSettings} disabled={saving}>
+                    <Save className="h-4 w-4 mr-2" />
+                    {saving ? 'Saving...' : 'Save Job Time Settings'}
+                  </Button>
                 </div>
               </div>
             )}
