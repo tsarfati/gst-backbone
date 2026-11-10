@@ -7,7 +7,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { User, Save } from 'lucide-react';
+import { User, Save, RefreshCw } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
@@ -15,6 +15,7 @@ import { useCompany } from '@/contexts/CompanyContext';
 import { useSettings } from '@/contexts/SettingsContext';
 import JobCostCodeAssignments, { JobCostCodes } from './JobCostCodeAssignments';
 import { formatDistanceLabel } from '@/lib/distanceUnits';
+import { useActiveCompanyRole } from '@/hooks/useActiveCompanyRole';
 
 interface Employee {
   id: string;
@@ -52,10 +53,12 @@ export default function EmployeeTimecardSettings({
   const { toast } = useToast();
   const { currentCompany } = useCompany();
   const { settings: appSettings } = useSettings();
+  const activeCompanyRole = useActiveCompanyRole();
   const [employees, setEmployees] = useState<Employee[]>([]);
   const [settings, setSettings] = useState<EmployeeTimecardSettings | null>(null);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const [distanceSettingsColumnsAvailable, setDistanceSettingsColumnsAvailable] = useState(true);
 
   const allowedPunchInDistanceMeters = [10, 50, 100, 300] as const;
@@ -65,7 +68,9 @@ export default function EmployeeTimecardSettings({
     return message.includes('enforce_punch_in_distance') || message.includes('punch_in_distance_limit_meters');
   };
 
-  const isManager = profile?.role === 'admin' || profile?.role === 'controller' || profile?.role === 'project_manager';
+  const effectiveRole = String(activeCompanyRole || profile?.role || '').trim().toLowerCase();
+  const isManager = ['admin', 'company_admin', 'owner', 'controller', 'project_manager', 'manager'].includes(effectiveRole);
+  const canRecalculate = ['admin', 'company_admin', 'owner', 'controller'].includes(effectiveRole);
 
   useEffect(() => {
     loadEmployees();
@@ -238,6 +243,32 @@ export default function EmployeeTimecardSettings({
       toast({ title: "Error", description: "Failed to save punch clock settings", variant: "destructive" });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const recalculateEmployeeTimeCards = async () => {
+    if (!selectedEmployeeId || !currentCompany?.id) return;
+
+    const employeeName = employees.find((employee) => employee.user_id === selectedEmployeeId)?.display_name || 'this employee';
+    if (!window.confirm(`Recalculate all completed time cards for ${employeeName} using the current settings?`)) {
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      const { data, error } = await supabase.functions.invoke('recalculate-timecards', {
+        body: { company_id: currentCompany.id, user_ids: [selectedEmployeeId] },
+      });
+      if (error) throw error;
+      toast({
+        title: 'Time Cards Recalculated',
+        description: `Recalculated ${data.updated_count} of ${data.total_processed} time cards for ${employeeName}.`,
+      });
+    } catch (error) {
+      console.error('Employee time card recalculation error:', error);
+      toast({ title: 'Error', description: 'Failed to recalculate this employee’s time cards.', variant: 'destructive' });
+    } finally {
+      setRecalculating(false);
     }
   };
 
@@ -423,8 +454,14 @@ export default function EmployeeTimecardSettings({
           </Card>
 
           {/* Save Button */}
-          <div className="flex justify-end">
-            <Button onClick={saveEmployeeSettings} disabled={saving}>
+          <div className="flex flex-wrap justify-end gap-2">
+            {canRecalculate && (
+              <Button variant="outline" onClick={recalculateEmployeeTimeCards} disabled={saving || recalculating}>
+                <RefreshCw className={`h-4 w-4 mr-2 ${recalculating ? 'animate-spin' : ''}`} />
+                {recalculating ? 'Recalculating...' : 'Recalculate This Employee’s Time Cards'}
+              </Button>
+            )}
+            <Button onClick={saveEmployeeSettings} disabled={saving || recalculating}>
               <Save className="h-4 w-4 mr-2" />
               {saving ? 'Saving...' : 'Save Employee Settings'}
             </Button>

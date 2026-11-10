@@ -6,7 +6,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Separator } from '@/components/ui/separator';
-import { Building2, Clock, Save, MapPin, AlertCircle } from 'lucide-react';
+import { Building2, Clock, Save, MapPin, AlertCircle, RefreshCw } from 'lucide-react';
 import { useToast } from '@/hooks/use-toast';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -101,11 +101,14 @@ export default function JobPunchClockSettings() {
   const [settings, setSettings] = useState<JobSettings>(defaultJobSettings);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [recalculating, setRecalculating] = useState(false);
   const distanceUnit = appSettings.distanceUnit ?? 'meters';
 
   // Use active company role first, fallback to profile.role for backward compatibility
   const effectiveRole = activeCompanyRole || profile?.role;
   const isManager = ['admin', 'company_admin', 'owner', 'controller', 'project_manager', 'manager']
+    .includes(String(effectiveRole || '').trim().toLowerCase());
+  const canRecalculate = ['admin', 'company_admin', 'owner', 'controller']
     .includes(String(effectiveRole || '').trim().toLowerCase());
 
   useEffect(() => {
@@ -269,6 +272,32 @@ export default function JobPunchClockSettings() {
       toast({ title: 'Error', description: 'Failed to save job settings', variant: 'destructive' });
     } finally {
       setSaving(false);
+    }
+  };
+
+  const recalculateJobTimeCards = async () => {
+    if (!selectedJobId || !currentCompany?.id) return;
+
+    const selectedJobName = jobs.find((job) => job.id === selectedJobId)?.name || 'this job';
+    if (!window.confirm(`Recalculate all completed time cards for ${selectedJobName} using the current job settings?`)) {
+      return;
+    }
+
+    try {
+      setRecalculating(true);
+      const { data, error } = await supabase.functions.invoke('recalculate-timecards', {
+        body: { company_id: currentCompany.id, job_ids: [selectedJobId] },
+      });
+      if (error) throw error;
+      toast({
+        title: 'Time Cards Recalculated',
+        description: `Recalculated ${data.updated_count} of ${data.total_processed} time cards for ${selectedJobName}.`,
+      });
+    } catch (error) {
+      console.error('Job time card recalculation error:', error);
+      toast({ title: 'Error', description: 'Failed to recalculate this job’s time cards.', variant: 'destructive' });
+    } finally {
+      setRecalculating(false);
     }
   };
 
@@ -598,8 +627,14 @@ export default function JobPunchClockSettings() {
                   )}
                 </div>
 
-                <div className="flex justify-end border-t pt-4">
-                  <Button onClick={saveJobSettings} disabled={saving}>
+                <div className="flex flex-wrap justify-end gap-2 border-t pt-4">
+                  {canRecalculate && (
+                    <Button variant="outline" onClick={recalculateJobTimeCards} disabled={saving || recalculating}>
+                      <RefreshCw className={`h-4 w-4 mr-2 ${recalculating ? 'animate-spin' : ''}`} />
+                      {recalculating ? 'Recalculating...' : 'Recalculate This Job’s Time Cards'}
+                    </Button>
+                  )}
+                  <Button onClick={saveJobSettings} disabled={saving || recalculating}>
                     <Save className="h-4 w-4 mr-2" />
                     {saving ? 'Saving...' : 'Save Job Time Settings'}
                   </Button>

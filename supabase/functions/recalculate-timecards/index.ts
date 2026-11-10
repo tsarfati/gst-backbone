@@ -18,30 +18,46 @@ serve(async (req) => {
       Deno.env.get('SUPABASE_SERVICE_ROLE_KEY') ?? ''
     )
 
-    const { company_id, job_ids } = await req.json()
+    const { company_id, job_ids, user_ids } = await req.json()
 
     if (!company_id) {
       throw new Error('company_id is required')
     }
 
-    // Get all time cards for the company (optionally filtered by jobs)
-    let query = supabaseClient
-      .from('time_cards')
-      .select('*')
-      .eq('company_id', company_id)
-      .not('punch_out_time', 'is', null)
-      .is('deleted_at', null)
+    // PostgREST responses are capped (commonly at 1,000 rows), so page through
+    // every matching card instead of silently recalculating only the first page.
+    const pageSize = 1000
+    const timeCards: any[] = []
+    let from = 0
 
-    if (job_ids && job_ids.length > 0) {
-      query = query.in('job_id', job_ids)
+    while (true) {
+      let query = supabaseClient
+        .from('time_cards')
+        .select('*')
+        .eq('company_id', company_id)
+        .not('punch_out_time', 'is', null)
+        .is('deleted_at', null)
+        .order('id', { ascending: true })
+        .range(from, from + pageSize - 1)
+
+      if (job_ids && job_ids.length > 0) {
+        query = query.in('job_id', job_ids)
+      }
+
+      if (user_ids && user_ids.length > 0) {
+        query = query.in('user_id', user_ids)
+      }
+
+      const { data: page, error: fetchError } = await query
+      if (fetchError) throw fetchError
+
+      timeCards.push(...(page || []))
+      if (!page || page.length < pageSize) break
+      from += pageSize
     }
-
-    const { data: timeCards, error: fetchError } = await query
-
-    if (fetchError) throw fetchError
     
     // Get unique job IDs from time cards
-    const uniqueJobIds = [...new Set(timeCards?.map(tc => tc.job_id).filter(Boolean))]
+    const uniqueJobIds = [...new Set(timeCards.map(tc => tc.job_id).filter(Boolean))]
     
     // Fetch job settings for all jobs
     const { data: jobs, error: jobsError } = await supabaseClient
@@ -93,7 +109,7 @@ serve(async (req) => {
     const errors: any[] = []
 
     // Process each time card
-    for (const card of timeCards || []) {
+    for (const card of timeCards) {
       try {
         if (!card.job_id) continue
         const job = jobsMap.get(card.job_id)
@@ -178,7 +194,7 @@ serve(async (req) => {
     return new Response(
       JSON.stringify({
         success: true,
-        total_processed: timeCards?.length || 0,
+        total_processed: timeCards.length,
         updated_count: updatedCount,
         errors: errors.length > 0 ? errors : undefined
       }),
