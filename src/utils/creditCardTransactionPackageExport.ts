@@ -68,12 +68,15 @@ const MIME_EXTENSIONS: Record<string, string> = {
   "application/pdf": "pdf",
   "image/jpeg": "jpg",
   "image/png": "png",
+  "image/gif": "gif",
   "image/heic": "heic",
   "image/heif": "heif",
   "image/webp": "webp",
   "application/vnd.openxmlformats-officedocument.wordprocessingml.document": "docx",
   "application/msword": "doc",
 };
+
+const IMAGE_EXTENSIONS = new Set(["jpg", "jpeg", "png", "gif", "webp", "bmp", "heic", "heif", "avif"]);
 
 function sanitizeFileNamePart(value: string | null | undefined, fallback: string, maxLength = 48) {
   const cleaned = String(value || "")
@@ -424,6 +427,108 @@ export async function addPdfProvenance(
   return new Blob([bytes as BlobPart], { type: "application/pdf" });
 }
 
+async function renderImageBlobToPng(blob: Blob) {
+  if (typeof document === "undefined") {
+    throw new Error("Image conversion requires a browser environment");
+  }
+
+  let imageSource: CanvasImageSource | null = null;
+  let width = 0;
+  let height = 0;
+  let releaseImageSource: (() => void) | undefined;
+
+  if (typeof createImageBitmap === "function") {
+    try {
+      const bitmap = await createImageBitmap(blob);
+      imageSource = bitmap;
+      width = bitmap.width;
+      height = bitmap.height;
+      releaseImageSource = () => bitmap.close();
+    } catch {
+      // Some browsers decode formats such as GIF or HEIC through Image but not createImageBitmap.
+    }
+  }
+
+  if (!imageSource) {
+    const objectUrl = URL.createObjectURL(blob);
+    const image = new Image();
+    imageSource = image;
+    releaseImageSource = () => URL.revokeObjectURL(objectUrl);
+    await new Promise<void>((resolve, reject) => {
+      image.onload = () => resolve();
+      image.onerror = () => reject(new Error("The browser could not decode the receipt image"));
+      image.src = objectUrl;
+    });
+    width = image.naturalWidth;
+    height = image.naturalHeight;
+  }
+
+  try {
+    if (!width || !height) throw new Error("The receipt image has invalid dimensions");
+    const canvas = document.createElement("canvas");
+    canvas.width = width;
+    canvas.height = height;
+    const context = canvas.getContext("2d");
+    if (!context) throw new Error("Unable to initialize image conversion");
+    context.fillStyle = "#ffffff";
+    context.fillRect(0, 0, width, height);
+    context.drawImage(imageSource, 0, 0, width, height);
+    const pngBlob = await new Promise<Blob>((resolve, reject) => {
+      canvas.toBlob((result) => {
+        if (result) resolve(result);
+        else reject(new Error("Unable to encode the receipt image"));
+      }, "image/png");
+    });
+    return new Uint8Array(await pngBlob.arrayBuffer());
+  } finally {
+    releaseImageSource?.();
+  }
+}
+
+export async function convertImageReceiptToPdf(
+  blob: Blob,
+  transaction: CreditCardPackageTransaction,
+  metadata: CreditCardReportMetadata,
+  extension: string,
+) {
+  const document = await PDFDocument.create();
+  const normalizedType = blob.type.toLowerCase();
+  const normalizedExtension = extension.toLowerCase();
+  const sourceBytes = new Uint8Array(await blob.arrayBuffer());
+  const image = normalizedType === "image/jpeg" || normalizedExtension === "jpg" || normalizedExtension === "jpeg"
+    ? await document.embedJpg(sourceBytes)
+    : normalizedType === "image/png" || normalizedExtension === "png"
+      ? await document.embedPng(sourceBytes)
+      : await document.embedPng(await renderImageBlobToPng(blob));
+
+  const portrait: [number, number] = [612, 792];
+  const landscape: [number, number] = [792, 612];
+  const pageSize = image.width > image.height ? landscape : portrait;
+  const page = document.addPage(pageSize);
+  page.drawRectangle({ x: 0, y: 0, width: pageSize[0], height: pageSize[1], color: rgb(1, 1, 1) });
+
+  const margin = 18;
+  const scale = Math.min(
+    (pageSize[0] - margin * 2) / image.width,
+    (pageSize[1] - margin * 2) / image.height,
+  );
+  const imageWidth = image.width * scale;
+  const imageHeight = image.height * scale;
+  page.drawImage(image, {
+    x: (pageSize[0] - imageWidth) / 2,
+    y: (pageSize[1] - imageHeight) / 2,
+    width: imageWidth,
+    height: imageHeight,
+  });
+
+  const font = await document.embedFont(StandardFonts.Helvetica);
+  const boldFont = await document.embedFont(StandardFonts.HelveticaBold);
+  drawProvenanceBox(page, transaction, font, boldFont);
+  appendReceiptRecordPages(document, transaction, metadata, font, boldFont);
+  const bytes = await document.save();
+  return new Blob([bytes], { type: "application/pdf" });
+}
+
 export async function createCreditCardTransactionsWorkbook(
   transactions: CreditCardPackageTransaction[],
   metadata: CreditCardReportMetadata,
@@ -572,20 +677,29 @@ export async function exportCreditCardTransactionsPackage(options: {
     }
 
     const extension = attachmentExtension(transaction.attachment_url!, blob);
-    const fileName = uniqueAttachmentName(
-      transaction,
-      extension,
-      usedNames,
-    );
+    const isPdf = extension === "pdf" || blob.type.toLowerCase() === "application/pdf";
+    const isImage = blob.type.toLowerCase().startsWith("image/") || IMAGE_EXTENSIONS.has(extension);
+    const outputExtension = isPdf || isImage ? "pdf" : extension;
+    const fileName = uniqueAttachmentName(transaction, outputExtension, usedNames);
     let exportBlob = blob;
     let status = "Included";
-    if (extension === "pdf" || blob.type.toLowerCase() === "application/pdf") {
+    if (isPdf) {
       try {
         exportBlob = await addPdfProvenance(blob, transaction, metadata);
         status = "Included with BuilderLYNK metadata";
       } catch (error) {
         console.warn("Unable to add BuilderLYNK metadata to receipt PDF", transaction.id, error);
         status = "Included without PDF metadata (processing failed)";
+      }
+    } else if (isImage) {
+      try {
+        exportBlob = await convertImageReceiptToPdf(blob, transaction, metadata, extension);
+        status = "Converted to PDF with BuilderLYNK metadata";
+      } catch (error) {
+        console.warn("Unable to convert receipt image to PDF", transaction.id, error);
+        failedAttachments += 1;
+        attachmentResults.set(transaction.id, { fileName: "", status: "Image-to-PDF conversion failed" });
+        continue;
       }
     } else {
       status = "Included in original format";
