@@ -1,11 +1,10 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
-import { ArrowRight, CalendarRange, Search } from "lucide-react";
+import { ArrowRight, CalendarRange } from "lucide-react";
 import JobScheduleTab from "@/components/JobScheduleTab";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { PremiumLoadingScreen } from "@/components/PremiumLoadingScreen";
@@ -40,7 +39,6 @@ export default function ConstructionSchedule() {
   const { toast } = useToast();
   const [jobs, setJobs] = useState<ScheduleJob[]>([]);
   const [loading, setLoading] = useState(true);
-  const [search, setSearch] = useState("");
   const {
     loading: jobAccessLoading,
     hasGlobalJobAccess,
@@ -104,23 +102,7 @@ export default function ConstructionSchedule() {
     }
   };
 
-  const filteredJobs = useMemo(() => {
-    const query = search.trim().toLowerCase();
-    if (!query) return jobs;
-
-    return jobs.filter((job) => {
-      const customerName = String(job.customer?.display_name || job.customer?.name || "").toLowerCase();
-      return [
-        job.name,
-        job.project_number || "",
-        job.address || "",
-        customerName,
-      ].some((value) => String(value).toLowerCase().includes(query));
-    });
-  }, [jobs, search]);
-
-  const selectedJob = filteredJobs.find((job) => job.id === selectedJobId)
-    || jobs.find((job) => job.id === selectedJobId)
+  const selectedJob = jobs.find((job) => job.id === selectedJobId)
     || null;
 
   const handleSelectJob = (jobId: string) => {
@@ -160,35 +142,22 @@ export default function ConstructionSchedule() {
       </div>
 
       <Card>
-        <CardHeader className="pb-4">
+        <CardHeader className="pb-3">
           <CardTitle>Select Job</CardTitle>
           <CardDescription>
             Choose which project schedule to open. You can switch jobs here without leaving the workspace.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_360px]">
-            <div className="space-y-2">
-              <Label htmlFor="schedule-job-search">Search jobs</Label>
-              <div className="relative">
-                <Search className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                <Input
-                  id="schedule-job-search"
-                  value={search}
-                  onChange={(event) => setSearch(event.target.value)}
-                  placeholder="Search by job, customer, address, or project number"
-                  className="pl-9"
-                />
-              </div>
-            </div>
+        <CardContent>
+          <div className="grid gap-4 lg:grid-cols-[minmax(0,420px)_minmax(0,1fr)] lg:items-end">
             <div className="space-y-2">
               <Label>Select job</Label>
               <Select value={selectedJobId} onValueChange={handleSelectJob}>
                 <SelectTrigger>
-                  <SelectValue placeholder={filteredJobs.length ? "Choose a job" : "No jobs available"} />
+                  <SelectValue placeholder={jobs.length ? "Choose a job" : "No jobs available"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {filteredJobs.map((job) => (
+                  {jobs.map((job) => (
                     <SelectItem key={job.id} value={job.id}>
                       {job.project_number ? `${job.project_number} · ${job.name}` : job.name}
                     </SelectItem>
@@ -196,47 +165,10 @@ export default function ConstructionSchedule() {
                 </SelectContent>
               </Select>
             </div>
+            <div className="rounded-lg border bg-muted/20 px-4 py-3 text-sm text-muted-foreground">
+              The standalone schedule page uses the same schedule data as the job detail schedule tab, but with a wider workspace.
+            </div>
           </div>
-
-          {filteredJobs.length > 0 ? (
-            <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-              {filteredJobs.slice(0, 6).map((job) => {
-                const isSelected = job.id === selectedJobId;
-                return (
-                  <button
-                    key={job.id}
-                    type="button"
-                    onClick={() => handleSelectJob(job.id)}
-                    className={`rounded-xl border p-4 text-left transition-colors ${
-                      isSelected
-                        ? "border-primary bg-primary/5 shadow-sm"
-                        : "border-border hover:border-primary/40 hover:bg-muted/40"
-                    }`}
-                  >
-                    <div className="flex items-start justify-between gap-3">
-                      <div className="min-w-0">
-                        <div className="truncate font-medium">{job.name}</div>
-                        <div className="mt-1 text-sm text-muted-foreground">
-                          {job.customer?.display_name || job.customer?.name || "No customer"}
-                        </div>
-                      </div>
-                      <Badge variant={isSelected ? "default" : "outline"}>
-                        {job.status || "planning"}
-                      </Badge>
-                    </div>
-                    <div className="mt-3 space-y-1 text-xs text-muted-foreground">
-                      <div>{job.project_number || "No project number"}</div>
-                      <div className="truncate">{job.address || "No address"}</div>
-                    </div>
-                  </button>
-                );
-              })}
-            </div>
-          ) : (
-            <div className="rounded-lg border border-dashed p-10 text-center text-muted-foreground">
-              No matching jobs found for this schedule workspace.
-            </div>
-          )}
         </CardContent>
       </Card>
 

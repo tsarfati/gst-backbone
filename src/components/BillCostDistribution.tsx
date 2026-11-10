@@ -394,8 +394,8 @@ export default function BillCostDistribution({
                   <PopoverContent className="w-[400px] p-0 bg-background z-50" align="start">
                     <Command>
                       <CommandInput placeholder="Search jobs or expenses..." />
-                      <CommandEmpty>No results found.</CommandEmpty>
                       <CommandList>
+                        <CommandEmpty>No results found.</CommandEmpty>
                         {jobs.length > 0 && (
                           <CommandGroup heading="Jobs">
                             {jobs.map(job => (
@@ -494,8 +494,8 @@ export default function BillCostDistribution({
                     <PopoverContent className="w-[400px] p-0 bg-background z-50" align="start">
                       <Command>
                         <CommandInput placeholder="Search cost codes..." />
-                        <CommandEmpty>No cost codes found.</CommandEmpty>
                         <CommandList>
+                          <CommandEmpty>No cost codes found.</CommandEmpty>
                           {getJobCostCodes(dist.job_id).map(code => (
                             <CommandItem
                               key={code.id}

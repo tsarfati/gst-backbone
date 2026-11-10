@@ -1,13 +1,13 @@
 import { useRef, useState, useEffect, type ReactNode } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Calendar } from '@/components/ui/calendar';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Badge } from '@/components/ui/badge';
-import { CalendarIcon, MapPin, Search, Users, Filter, X, Briefcase, Layers } from 'lucide-react';
+import { CalendarIcon, MapPin, Users, Filter, X, Briefcase, Layers } from 'lucide-react';
 import { format } from 'date-fns';
 import { cn } from '@/lib/utils';
 
@@ -123,24 +123,24 @@ function MultiSelectDropdown({
           }, 0);
         }}
       >
-        <div className="p-3 border-b space-y-2">
-          <div className="relative">
-            <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-muted-foreground" />
-            <Input
+        <Command shouldFilter={false}>
+          <div className="border-b">
+            <CommandInput
               value={searchValue}
-              onChange={(e) => setSearchValue(e.target.value)}
+              onValueChange={setSearchValue}
               placeholder={`Search ${label.toLowerCase()}...`}
-              className="pl-9 h-9"
+              className="h-9"
             />
+            <div className="flex items-center gap-2 p-3 pt-2">
+              <Button size="sm" variant="outline" onClick={onSelectAll}>Select All</Button>
+              <Button size="sm" variant="outline" onClick={onClearAll}>Clear All</Button>
+            </div>
           </div>
-          <div className="flex items-center gap-2">
-            <Button size="sm" variant="outline" onClick={onSelectAll}>Select All</Button>
-            <Button size="sm" variant="outline" onClick={onClearAll}>Clear All</Button>
-          </div>
-        </div>
-        <div className="max-h-72 overflow-y-auto p-3 space-y-2">
-          {children}
-        </div>
+          <CommandList className="max-h-72">
+            <CommandEmpty>No matching {label.toLowerCase()}.</CommandEmpty>
+            <CommandGroup>{children}</CommandGroup>
+          </CommandList>
+        </Command>
       </PopoverContent>
     </Popover>
   );
@@ -353,16 +353,20 @@ export default function TimecardReportFilters({
             onOpenChange={setEmployeesOpen}
           >
             {filteredEmployees.map((employee) => (
-              <div key={employee.id} className="flex items-center space-x-2">
+              <CommandItem
+                key={employee.id}
+                value={`${employee.display_name || `${employee.first_name} ${employee.last_name}`} ${employee.user_id}`}
+                onSelect={() => toggleEmployee(employee.user_id)}
+                className="flex items-center space-x-2"
+              >
                 <Checkbox
-                  id={`employee-${employee.id}`}
                   checked={filters.employees.includes(employee.user_id)}
-                  onCheckedChange={() => toggleEmployee(employee.user_id)}
+                  className="pointer-events-none"
                 />
-                <Label htmlFor={`employee-${employee.id}`} className="text-sm">
+                <span className="text-sm">
                   {employee.display_name || `${employee.first_name} ${employee.last_name}`}
-                </Label>
-              </div>
+                </span>
+              </CommandItem>
             ))}
           </MultiSelectDropdown>
 
@@ -378,16 +382,13 @@ export default function TimecardReportFilters({
             onOpenChange={setJobsOpen}
           >
             {filteredJobs.map((job) => (
-              <div key={job.id} className="flex items-center space-x-2">
+              <CommandItem key={job.id} value={`${job.name} ${job.id}`} onSelect={() => toggleJob(job.id)} className="flex items-center space-x-2">
                 <Checkbox
-                  id={`job-${job.id}`}
                   checked={filters.jobs.includes(job.id)}
-                  onCheckedChange={() => toggleJob(job.id)}
+                  className="pointer-events-none"
                 />
-                <Label htmlFor={`job-${job.id}`} className="text-sm">
-                  {job.name}
-                </Label>
-              </div>
+                <span className="text-sm">{job.name}</span>
+              </CommandItem>
             ))}
           </MultiSelectDropdown>
 
@@ -403,16 +404,13 @@ export default function TimecardReportFilters({
             onOpenChange={setLocationsOpen}
           >
             {filteredLocations.map((location) => (
-              <div key={location} className="flex items-center space-x-2">
+              <CommandItem key={location} value={location} onSelect={() => toggleLocation(location)} className="flex items-center space-x-2">
                 <Checkbox
-                  id={`location-${location}`}
                   checked={filters.locations.includes(location)}
-                  onCheckedChange={() => toggleLocation(location)}
+                  className="pointer-events-none"
                 />
-                <Label htmlFor={`location-${location}`} className="text-sm truncate">
-                  {location}
-                </Label>
-              </div>
+                <span className="text-sm truncate">{location}</span>
+              </CommandItem>
             ))}
           </MultiSelectDropdown>
 
@@ -437,17 +435,16 @@ export default function TimecardReportFilters({
             onOpenChange={setGroupsOpen}
           >
             {filteredGroups.map((group) => (
-              <div key={group.id} className="flex items-center space-x-2">
+              <CommandItem key={group.id} value={`${group.name} ${group.id}`} onSelect={() => toggleGroup(group.id)} className="flex items-center space-x-2">
                 <Checkbox
-                  id={`group-${group.id}`}
                   checked={filters.groups.includes(group.id)}
-                  onCheckedChange={() => toggleGroup(group.id)}
+                  className="pointer-events-none"
                 />
-                <Label htmlFor={`group-${group.id}`} className="text-sm flex items-center gap-2 truncate">
+                <span className="text-sm flex items-center gap-2 truncate">
                   <span className="w-2.5 h-2.5 rounded-full" style={{ backgroundColor: group.color || '#3b82f6' }} />
                   <span className="truncate">{group.name}</span>
-                </Label>
-              </div>
+                </span>
+              </CommandItem>
             ))}
           </MultiSelectDropdown>
         </div>

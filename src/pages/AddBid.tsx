@@ -7,7 +7,9 @@ import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { ArrowLeft, Save, X, FileText, Paperclip } from 'lucide-react';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
+import { ArrowLeft, Save, X, FileText, Paperclip, Check, ChevronsUpDown } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useCompany } from '@/contexts/CompanyContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -101,6 +103,7 @@ export default function AddBid() {
   const [pendingFiles, setPendingFiles] = useState<PendingFile[]>([]);
   const [selectedFileIndex, setSelectedFileIndex] = useState<number | null>(null);
   const [vendorSearch, setVendorSearch] = useState('');
+  const [vendorPickerOpen, setVendorPickerOpen] = useState(false);
   
   const [formData, setFormData] = useState({
     vendor_id: '',
@@ -448,36 +451,52 @@ export default function AddBid() {
                   className="h-7 text-xs"
                 />
               </div>
-              <Select 
-                value={formData.vendor_id} 
-                onValueChange={(value) => setFormData(prev => ({ ...prev, vendor_id: value }))}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Select a vendor" />
-                </SelectTrigger>
-                <SelectContent>
-                  <div className="px-2 pb-2">
-                    <Input
+              <Popover open={vendorPickerOpen} onOpenChange={setVendorPickerOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={vendorPickerOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    {formData.vendor_id
+                      ? availableVendors.find((vendor) => vendor.id === formData.vendor_id)?.name || 'Select a vendor'
+                      : 'Select a vendor'}
+                    <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command shouldFilter={false}>
+                    <CommandInput
                       placeholder="Search vendors..."
                       value={vendorSearch}
-                      onChange={(e) => setVendorSearch(e.target.value)}
-                      className="h-8"
-                      onKeyDown={(e) => e.stopPropagation()}
+                      onValueChange={setVendorSearch}
                     />
-                  </div>
-                  {filteredAvailableVendors.length === 0 ? (
-                    <SelectItem value="__none__" disabled>
-                      {availableVendors.length === 0 ? 'No available vendors' : 'No matching vendors'}
-                    </SelectItem>
-                  ) : (
-                    filteredAvailableVendors.map(vendor => (
-                      <SelectItem key={vendor.id} value={vendor.id}>
-                        {vendor.name}
-                      </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
+                    <CommandList>
+                      <CommandEmpty>
+                        {availableVendors.length === 0 ? 'No available vendors' : 'No matching vendors'}
+                      </CommandEmpty>
+                      <CommandGroup>
+                        {filteredAvailableVendors.map((vendor) => (
+                          <CommandItem
+                            key={vendor.id}
+                            value={`${vendor.name} ${vendor.id}`}
+                            onSelect={() => {
+                              setFormData((prev) => ({ ...prev, vendor_id: vendor.id }));
+                              setVendorPickerOpen(false);
+                              setVendorSearch('');
+                            }}
+                          >
+                            <Check className={cn('mr-2 h-4 w-4', formData.vendor_id === vendor.id ? 'opacity-100' : 'opacity-0')} />
+                            {vendor.name}
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
               {availableVendors.length === 0 && vendors.length > 0 && (
                 <p className="text-sm text-muted-foreground">
                   All vendors have already submitted bids for this RFP

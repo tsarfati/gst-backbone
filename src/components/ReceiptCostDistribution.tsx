@@ -69,6 +69,8 @@ export default function ReceiptCostDistribution({
   );
   const [jobs, setJobs] = useState<Job[]>([]);
   const [costCodesByJob, setCostCodesByJob] = useState<Record<string, CostCode[]>>({});
+  const [openJobControlPickerId, setOpenJobControlPickerId] = useState<string | null>(null);
+  const [openCostCodePickerId, setOpenCostCodePickerId] = useState<string | null>(null);
 const [loading, setLoading] = useState(true);
 const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'labor' | 'material' | 'equipment' | 'sub' | 'other'>>({});
   const { loading: websiteJobAccessLoading, isPrivileged, allowedJobIds } = useWebsiteJobAccess();
@@ -312,7 +314,10 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
 
               <div>
                 <Label className="text-xs">Job/Control *</Label>
-                <Popover>
+                <Popover
+                  open={openJobControlPickerId === dist.id}
+                  onOpenChange={(isOpen) => setOpenJobControlPickerId(isOpen ? dist.id : null)}
+                >
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -342,7 +347,10 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
                               <CommandItem
                                 key={`job_${job.id}`}
                                 value={job.name}
-                                onSelect={() => updateDistribution(dist.id, 'job_id', `job_${job.id}`)}
+                                onSelect={() => {
+                                  updateDistribution(dist.id, 'job_id', `job_${job.id}`);
+                                  setOpenJobControlPickerId(null);
+                                }}
                               >
                                 <Check
                                   className={cn(
@@ -361,7 +369,10 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
                               <CommandItem
                                 key={`account_${account.id}`}
                                 value={`${account.account_number} ${account.account_name}`}
-                                onSelect={() => updateDistribution(dist.id, 'job_id', `account_${account.id}`)}
+                                onSelect={() => {
+                                  updateDistribution(dist.id, 'job_id', `account_${account.id}`);
+                                  setOpenJobControlPickerId(null);
+                                }}
                               >
                                 <Check
                                   className={cn(
@@ -383,7 +394,10 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
               {dist.job_id && (
               <div>
                 <Label className="text-xs">Cost Code *</Label>
-                <Popover>
+                <Popover
+                  open={openCostCodePickerId === dist.id}
+                  onOpenChange={(isOpen) => setOpenCostCodePickerId(isOpen ? dist.id : null)}
+                >
                   <PopoverTrigger asChild>
                     <Button
                       variant="outline"
@@ -426,34 +440,37 @@ const [categoryFilter, setCategoryFilter] = useState<Record<string, 'all' | 'lab
                     </div>
                     <Command>
                       <CommandInput placeholder="Search cost codes..." className="h-8" />
-                      <CommandEmpty>No cost code found.</CommandEmpty>
-                      <CommandGroup className="max-h-[300px] overflow-auto" onWheel={(e) => e.stopPropagation()}>
-                        {costCodesForJob.map((cc) => (
-                        <CommandItem
-                          key={cc.id}
-                          value={`${cc.id}-${cc.code} ${cc.description}`}
-                          onSelect={() => {
-                            updateDistribution(dist.id, 'cost_code_id', cc.id);
-                          }}
-                          className="hover:bg-primary/10 hover:text-primary data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
-                        >
-                            <Check
-                              className={cn(
-                                "mr-2 h-4 w-4",
-                                dist.cost_code_id === cc.id ? "opacity-100" : "opacity-0"
-                              )}
-                            />
-                            <span className="text-xs">
-                              {cc.code} - {cc.description}
-                              {cc.type && (
-                                <span className="text-muted-foreground ml-1">
-                                  ({cc.type.charAt(0).toUpperCase() + cc.type.slice(1)})
-                                </span>
-                              )}
-                            </span>
-                          </CommandItem>
-                        ))}
-                      </CommandGroup>
+                      <CommandList className="max-h-[300px] overflow-y-auto" onWheel={(e) => e.stopPropagation()}>
+                        <CommandEmpty>No cost code found.</CommandEmpty>
+                        <CommandGroup>
+                          {costCodesForJob.map((cc) => (
+                            <CommandItem
+                              key={cc.id}
+                              value={`${cc.id}-${cc.code} ${cc.description}`}
+                              onSelect={() => {
+                                updateDistribution(dist.id, 'cost_code_id', cc.id);
+                                setOpenCostCodePickerId(null);
+                              }}
+                              className="hover:bg-primary/10 hover:text-primary data-[selected=true]:bg-primary/10 data-[selected=true]:text-primary"
+                            >
+                              <Check
+                                className={cn(
+                                  "mr-2 h-4 w-4",
+                                  dist.cost_code_id === cc.id ? "opacity-100" : "opacity-0"
+                                )}
+                              />
+                              <span className="text-xs">
+                                {cc.code} - {cc.description}
+                                {cc.type && (
+                                  <span className="text-muted-foreground ml-1">
+                                    ({cc.type.charAt(0).toUpperCase() + cc.type.slice(1)})
+                                  </span>
+                                )}
+                              </span>
+                            </CommandItem>
+                          ))}
+                        </CommandGroup>
+                      </CommandList>
                     </Command>
                   </PopoverContent>
                 </Popover>

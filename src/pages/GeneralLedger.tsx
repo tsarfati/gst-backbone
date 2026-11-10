@@ -7,12 +7,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem } from "@/components/ui/command";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
-import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
 import { CalendarIcon, ChevronDown, Loader2, Download, FileDown, X, Mail } from "lucide-react";
 import ReportEmailModal from "@/components/ReportEmailModal";
@@ -547,8 +546,8 @@ const formatCurrency = (n: number | null | undefined) =>
                       </div>
                     </div>
                     <CommandInput placeholder="Search accounts..." />
-                    <CommandEmpty>No accounts found.</CommandEmpty>
-                    <ScrollArea className="h-[300px]">
+                    <CommandList className="max-h-[300px]">
+                      <CommandEmpty>No accounts found.</CommandEmpty>
                       <CommandGroup>
                         {accounts.map((acc) => {
                           const checked = selectedAccountIds.includes(acc.id);
@@ -560,7 +559,7 @@ const formatCurrency = (n: number | null | undefined) =>
                           );
                         })}
                       </CommandGroup>
-                    </ScrollArea>
+                    </CommandList>
                   </Command>
                 </PopoverContent>
               </Popover>

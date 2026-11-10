@@ -18,6 +18,7 @@ import {
   createCreditCardTransactionsWorkbook,
   exportCreditCardTransactionsPackage,
   type CreditCardPackageTransaction,
+  type CreditCardTransactionAuditEntry,
 } from "@/utils/creditCardTransactionPackageExport";
 import { useWebsiteJobAccess } from "@/hooks/useWebsiteJobAccess";
 import { canAccessJobIds } from "@/utils/jobAccess";
@@ -41,7 +42,7 @@ interface ReportDistribution {
   cost_code_id: string | null;
   amount: number | null;
   percentage: number | null;
-  jobs: { name: string } | null;
+  jobs: { name: string; project_number: string | null } | null;
   cost_codes: ReportCostCode | null;
 }
 
@@ -55,8 +56,13 @@ interface RawReportTransaction {
   attachment_url: string | null;
   coding_status: string | null;
   journal_entry_id: string | null;
+  reference_number: string | null;
+  notes: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+  created_by: string;
   vendors: { name: string } | null;
-  jobs: { id: string; name: string } | null;
+  jobs: { id: string; name: string; project_number: string | null } | null;
   cost_codes: ReportCostCode | null;
   chart_of_accounts: { account_name: string } | null;
   credit_cards: {
@@ -166,8 +172,13 @@ export default function CreditCardTransactionReport() {
             attachment_url,
             coding_status,
             journal_entry_id,
+            reference_number,
+            notes,
+            created_at,
+            updated_at,
+            created_by,
             vendors (name),
-            jobs:job_id(id, name),
+            jobs:job_id(id, name, project_number),
             cost_codes (code, description, type),
             chart_of_accounts (account_name),
             credit_cards:credit_card_id(card_name, cardholder_name, card_number_last_four)
@@ -207,7 +218,7 @@ export default function CreditCardTransactionReport() {
               cost_code_id,
               amount,
               percentage,
-              jobs:job_id(name),
+              jobs:job_id(name, project_number),
               cost_codes:cost_code_id(code, description, type)
             `)
             .in("transaction_id", idBatch);
@@ -231,6 +242,59 @@ export default function CreditCardTransactionReport() {
         return canAccessJobIds([txn.job_id, ...distJobIds], isPrivileged, allowedJobIds);
       });
 
+      type RawAuditEntry = Omit<CreditCardTransactionAuditEntry, "changed_by_name"> & {
+        record_id: string;
+        changed_by: string;
+      };
+      const auditRows: RawAuditEntry[] = [];
+      for (let start = 0; start < txIds.length; start += 200) {
+        const idBatch = txIds.slice(start, start + 200);
+        const { data, error } = await supabase
+          .from("company_audit_log")
+          .select("record_id, action, field_name, old_value, new_value, reason, created_at, changed_by")
+          .eq("company_id", currentCompany.id)
+          .eq("table_name", "credit_card_transactions")
+          .in("record_id", idBatch)
+          .order("created_at", { ascending: true });
+        if (error) throw error;
+        auditRows.push(...((data || []) as RawAuditEntry[]));
+      }
+
+      const userIds = Array.from(new Set([
+        ...visibleTransactions.map((txn) => txn.created_by),
+        ...auditRows.map((entry) => entry.changed_by),
+      ].filter(Boolean)));
+      const profileNames = new Map<string, string>();
+      for (let start = 0; start < userIds.length; start += 200) {
+        const idBatch = userIds.slice(start, start + 200);
+        const { data, error } = await supabase
+          .from("profiles")
+          .select("user_id, first_name, last_name, display_name")
+          .in("user_id", idBatch);
+        if (error) throw error;
+        (data || []).forEach((profile) => {
+          const name = profile.display_name
+            || [profile.first_name, profile.last_name].filter(Boolean).join(" ")
+            || "Unknown user";
+          profileNames.set(profile.user_id, name);
+        });
+      }
+
+      const auditByTransaction = new Map<string, CreditCardTransactionAuditEntry[]>();
+      auditRows.forEach((entry) => {
+        const group = auditByTransaction.get(entry.record_id) || [];
+        group.push({
+          action: entry.action,
+          field_name: entry.field_name,
+          old_value: entry.old_value,
+          new_value: entry.new_value,
+          reason: entry.reason,
+          created_at: entry.created_at,
+          changed_by_name: profileNames.get(entry.changed_by) || null,
+        });
+        auditByTransaction.set(entry.record_id, group);
+      });
+
       const formattedData: TransactionData[] = visibleTransactions.map((txn) => {
         const distGroup = distsByTransaction[txn.id] || [];
         const uniqueValues = (values: Array<string | null | undefined>) =>
@@ -242,6 +306,11 @@ export default function CreditCardTransactionReport() {
           distGroup.length > 0
             ? distGroup.map((row) => row.jobs?.name)
             : [txn.jobs?.name],
+        );
+        const jobNumbers = uniqueValues(
+          distGroup.length > 0
+            ? distGroup.map((row) => row.jobs?.project_number)
+            : [txn.jobs?.project_number],
         );
         const costCodeNumbers = uniqueValues(costCodeSources.map((code) => code.code));
         const costCodeDescriptions = uniqueValues(costCodeSources.map((code) => code.description));
@@ -262,6 +331,7 @@ export default function CreditCardTransactionReport() {
           description: txn.description,
           vendor_name: txn.vendors?.name || null,
           job_name: jobNames.join("; ") || null,
+          job_number: jobNumbers.join("; ") || null,
           cost_code: costCodeDisplays.join("; ") || null,
           cost_code_number: costCodeNumbers.join("; ") || null,
           cost_code_description: costCodeDescriptions.join("; ") || null,
@@ -273,6 +343,12 @@ export default function CreditCardTransactionReport() {
           coding_status: txn.coding_status,
           journal_entry_id: txn.journal_entry_id,
           attachment_url: txn.attachment_url,
+          reference_number: txn.reference_number,
+          notes: txn.notes,
+          created_at: txn.created_at,
+          updated_at: txn.updated_at,
+          created_by_name: profileNames.get(txn.created_by) || null,
+          audit_trail: auditByTransaction.get(txn.id) || [],
           allocation_summary: distGroup.length > 0
             ? distGroup.map((row) => {
                 const job = row.jobs?.name || "No job";

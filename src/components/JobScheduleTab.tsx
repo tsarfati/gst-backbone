@@ -1,14 +1,17 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { addDays, differenceInCalendarDays, format, parseISO, startOfDay } from "date-fns";
 import {
   AlertTriangle,
   CalendarRange,
   CheckCircle2,
+  ChevronDown,
+  ChevronRight,
   Diamond,
   Link2,
   Loader2,
   Plus,
   Save,
+  Settings2,
   Trash2,
   Users,
   Workflow,
@@ -31,6 +34,9 @@ import { useAuth } from "@/contexts/AuthContext";
 type ScheduleStatus = "not_started" | "ready" | "in_progress" | "blocked" | "completed" | "delayed";
 type DependencyType = "fs" | "ss" | "ff" | "sf";
 type ScheduleItemType = "activity" | "milestone";
+type ScheduleZoomLevel = "month_1" | "month_2" | "month_3" | "full";
+type TimelineDragMode = "move" | "resize_start" | "resize_end";
+type ScheduleBarContent = "title" | "dates" | "progress";
 
 interface JobScheduleItem {
   id: string;
@@ -97,6 +103,11 @@ interface DerivedScheduleItem extends JobScheduleItem {
   assignedUsers: TeamMemberOption[];
 }
 
+interface VisibleScheduleItem {
+  item: DerivedScheduleItem;
+  depth: number;
+}
+
 interface PersistedScheduleItemPayload {
   id: string;
   company_id: string;
@@ -117,6 +128,16 @@ interface PersistedScheduleItemPayload {
   notes: string | null;
   created_by: string | null;
   updated_at?: string;
+}
+
+interface TimelineDragState {
+  itemId: string;
+  mode: TimelineDragMode;
+  pointerStartX: number;
+  originalLeftPx: number;
+  originalWidthPx: number;
+  originalItem: JobScheduleItem;
+  originalItems: JobScheduleItem[];
 }
 
 interface JobScheduleTabProps {
@@ -146,6 +167,13 @@ const DEPENDENCY_OPTIONS: Array<{ value: DependencyType; label: string }> = [
 const ITEM_TYPE_OPTIONS: Array<{ value: ScheduleItemType; label: string }> = [
   { value: "activity", label: "Activity" },
   { value: "milestone", label: "Milestone" },
+];
+
+const ZOOM_LEVEL_OPTIONS: Array<{ value: ScheduleZoomLevel; label: string; pixelsPerDay: number }> = [
+  { value: "month_1", label: "1 Month", pixelsPerDay: 28 },
+  { value: "month_2", label: "2 Months", pixelsPerDay: 16 },
+  { value: "month_3", label: "3 Months", pixelsPerDay: 10 },
+  { value: "full", label: "Full Schedule", pixelsPerDay: 6 },
 ];
 
 const statusToneClass: Record<ScheduleStatus, string> = {
@@ -495,6 +523,10 @@ function computeFloatDays(itemMap: Map<string, JobScheduleItem>, dependencies: J
   return floatDays;
 }
 
+function getZoomLevelConfig(level: ScheduleZoomLevel) {
+  return ZOOM_LEVEL_OPTIONS.find((option) => option.value === level) || ZOOM_LEVEL_OPTIONS[0];
+}
+
 function toScheduleItemPayload(item: JobScheduleItem, overrides: Partial<PersistedScheduleItemPayload> = {}): PersistedScheduleItemPayload {
   return {
     id: item.id,
@@ -536,7 +568,28 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
   const [savingDependencies, setSavingDependencies] = useState(false);
   const [selectedItemId, setSelectedItemId] = useState<string | null>(null);
   const [selectedAssignments, setSelectedAssignments] = useState<string[]>([]);
+  const [zoomLevel, setZoomLevel] = useState<ScheduleZoomLevel>("month_2");
+  const [barContent, setBarContent] = useState<ScheduleBarContent>("title");
+  const [dragState, setDragState] = useState<TimelineDragState | null>(null);
+  const [collapsedGroupIds, setCollapsedGroupIds] = useState<string[]>([]);
   const { avatarMap } = useUserAvatars(teamMembers.map((member) => member.user_id));
+  const itemsRef = useRef<JobScheduleItem[]>([]);
+  const dependenciesRef = useRef<JobScheduleDependency[]>([]);
+  const jobStartDateRef = useRef(jobStartDate);
+  const suppressTimelineClickRef = useRef(false);
+  const timelineElementRefs = useRef<Record<string, HTMLDivElement | null>>({});
+
+  useEffect(() => {
+    itemsRef.current = items;
+  }, [items]);
+
+  useEffect(() => {
+    dependenciesRef.current = dependencies;
+  }, [dependencies]);
+
+  useEffect(() => {
+    jobStartDateRef.current = jobStartDate;
+  }, [jobStartDate]);
 
   useEffect(() => {
     let ignore = false;
@@ -680,10 +733,91 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
 
   const selectedItem = useMemo(() => derivedItems.find((item) => item.id === selectedItemId) || null, [derivedItems, selectedItemId]);
 
+  const childItemsByParentId = useMemo(() => {
+    const next = new Map<string, DerivedScheduleItem[]>();
+    derivedItems.forEach((item) => {
+      if (!item.parent_item_id) return;
+      const list = next.get(item.parent_item_id) || [];
+      list.push(item);
+      next.set(item.parent_item_id, list);
+    });
+    next.forEach((list) => list.sort((a, b) => {
+      const sortDelta = (a.sort_order || 0) - (b.sort_order || 0);
+      if (sortDelta !== 0) return sortDelta;
+      return String(a.start_date || "").localeCompare(String(b.start_date || ""));
+    }));
+    return next;
+  }, [derivedItems]);
+
+  const descendantIdsByItemId = useMemo(() => {
+    const next = new Map<string, Set<string>>();
+    const collect = (itemId: string): Set<string> => {
+      if (next.has(itemId)) return next.get(itemId)!;
+      const descendants = new Set<string>();
+      for (const child of childItemsByParentId.get(itemId) || []) {
+        descendants.add(child.id);
+        collect(child.id).forEach((descendantId) => descendants.add(descendantId));
+      }
+      next.set(itemId, descendants);
+      return descendants;
+    };
+    derivedItems.forEach((item) => {
+      collect(item.id);
+    });
+    return next;
+  }, [childItemsByParentId, derivedItems]);
+
+  const visibleItems = useMemo<VisibleScheduleItem[]>(() => {
+    const itemMapById = new Map(derivedItems.map((item) => [item.id, item]));
+    const collapsedIds = new Set(collapsedGroupIds);
+    const roots = derivedItems
+      .filter((item) => !item.parent_item_id || !itemMapById.has(item.parent_item_id))
+      .sort((a, b) => {
+        const sortDelta = (a.sort_order || 0) - (b.sort_order || 0);
+        if (sortDelta !== 0) return sortDelta;
+        return String(a.start_date || "").localeCompare(String(b.start_date || ""));
+      });
+
+    const flattened: VisibleScheduleItem[] = [];
+    const visit = (item: DerivedScheduleItem, depth: number) => {
+      flattened.push({ item, depth });
+      if (collapsedIds.has(item.id)) return;
+      for (const child of childItemsByParentId.get(item.id) || []) {
+        visit(child, depth + 1);
+      }
+    };
+
+    roots.forEach((item) => visit(item, 0));
+    return flattened;
+  }, [childItemsByParentId, collapsedGroupIds, derivedItems]);
+
+  const toggleGroupCollapsed = (itemId: string) => {
+    setCollapsedGroupIds((current) => (
+      current.includes(itemId)
+        ? current.filter((value) => value !== itemId)
+        : [...current, itemId]
+    ));
+  };
+
   useEffect(() => {
     if (!selectedItemId) return;
     setSelectedAssignments(assignmentMap[selectedItemId] || []);
   }, [selectedItemId, assignmentMap]);
+
+  useEffect(() => {
+    if (!selectedItemId) return;
+    const selectedItemValue = derivedItems.find((item) => item.id === selectedItemId);
+    if (!selectedItemValue?.parent_item_id) return;
+    const parentsToExpand: string[] = [];
+    let currentParentId: string | null = selectedItemValue.parent_item_id;
+    const itemById = new Map(derivedItems.map((item) => [item.id, item]));
+    while (currentParentId) {
+      parentsToExpand.push(currentParentId);
+      currentParentId = itemById.get(currentParentId)?.parent_item_id || null;
+    }
+    if (parentsToExpand.length === 0) return;
+    setCollapsedGroupIds((current) => current.filter((itemId) => !parentsToExpand.includes(itemId)));
+  }, [derivedItems, selectedItemId]);
 
   const timelineRange = useMemo(() => {
     const parsedStarts = derivedItems.map((item) => parseDate(item.start_date)).filter((value): value is Date => Boolean(value));
@@ -698,13 +832,29 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
   }, [derivedItems, jobStartDate, jobEndDate]);
 
   const timelineTicks = useMemo(() => {
-    const tickCount = Math.min(Math.max(timelineRange.totalDays, 7), 18);
-    const step = Math.max(Math.ceil(timelineRange.totalDays / tickCount), 1);
     const ticks: Date[] = [];
-    for (let offset = 0; offset < timelineRange.totalDays; offset += step) ticks.push(addDays(timelineRange.minDate, offset));
+    for (let offset = 0; offset < timelineRange.totalDays; offset += 1) {
+      ticks.push(addDays(timelineRange.minDate, offset));
+    }
     if (ticks.length === 0) ticks.push(timelineRange.minDate);
     return ticks;
   }, [timelineRange]);
+
+  const timelineGrid = useMemo(() => {
+    const { pixelsPerDay } = getZoomLevelConfig(zoomLevel);
+    const columnWidth = pixelsPerDay;
+    const stepDays = 1;
+    const columns = Math.max(timelineTicks.length, 1);
+    const canvasWidth = Math.max(columns * columnWidth, 920);
+    return { stepDays, columnWidth, canvasWidth, pixelsPerDay, columns };
+  }, [zoomLevel, timelineTicks]);
+
+  const timelineLabelStep = useMemo(() => {
+    if (timelineGrid.columnWidth >= 20) return 1;
+    if (timelineGrid.columnWidth >= 12) return 2;
+    if (timelineGrid.columnWidth >= 8) return 4;
+    return 7;
+  }, [timelineGrid.columnWidth]);
 
   const summary = useMemo(() => {
     const today = startOfDay(new Date());
@@ -735,7 +885,12 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
     setAssignmentMap((current) => ({ ...current, [itemId]: userIds }));
   };
 
-  const persistScheduledItems = async (scheduledItems: JobScheduleItem[], successTitle: string, successDescription: string) => {
+  const persistScheduledItems = async (
+    scheduledItems: JobScheduleItem[],
+    successTitle: string,
+    successDescription: string,
+    options: { notify?: boolean } = {},
+  ) => {
     const { data, error } = await (supabase as any)
       .from("job_schedule_items")
       .upsert(scheduledItems.map((item) => toScheduleItemPayload(item, { updated_at: new Date().toISOString() })))
@@ -744,7 +899,147 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
       .order("start_date", { ascending: true });
     if (error) throw error;
     setItems((((data || []) as JobScheduleItem[]) || []).map((item) => ({ ...item, item_type: (item.item_type || "activity") as ScheduleItemType, cost_code_id: item.cost_code_id || null })));
-    toast({ title: successTitle, description: successDescription });
+    if (options.notify !== false) {
+      toast({ title: successTitle, description: successDescription });
+    }
+  };
+
+  const buildDraggedItems = (state: TimelineDragState, deltaUnits: number) => {
+    if (deltaUnits === 0) return state.originalItems;
+
+    const dayDelta = deltaUnits;
+    const originalStart = parseDate(state.originalItem.start_date);
+    const originalEnd = parseDate(state.originalItem.end_date) || (originalStart ? getComputedEndDate(originalStart, state.originalItem) : null);
+    if (!originalStart || !originalEnd) return state.originalItems;
+
+    let nextStart = originalStart;
+    let nextEnd = originalEnd;
+
+    if (state.mode === "move") {
+      nextStart = addDays(originalStart, dayDelta);
+      nextEnd = addDays(originalEnd, dayDelta);
+    } else if (state.mode === "resize_start") {
+      const candidateStart = addDays(originalStart, dayDelta);
+      nextStart = candidateStart > originalEnd ? originalEnd : candidateStart;
+    } else {
+      const candidateEnd = addDays(originalEnd, dayDelta);
+      nextEnd = candidateEnd < originalStart ? originalStart : candidateEnd;
+    }
+
+    const durationDays = state.originalItem.item_type === "milestone"
+      ? 0
+      : Math.max(differenceInCalendarDays(nextEnd, nextStart) + 1, 1);
+
+    return state.originalItems.map((item) => (
+      item.id === state.itemId
+        ? {
+            ...item,
+            start_date: toIsoDate(nextStart),
+            end_date: toIsoDate(state.originalItem.item_type === "milestone" ? nextStart : nextEnd),
+            duration_days: durationDays,
+          }
+        : item
+    ));
+  };
+
+  const beginTimelineDrag = (
+    event: React.PointerEvent<HTMLDivElement>,
+    item: JobScheduleItem,
+    mode: TimelineDragMode,
+  ) => {
+    if (!canEdit) return;
+    event.preventDefault();
+    event.stopPropagation();
+    const start = parseDate(item.start_date) || timelineRange.minDate;
+    const end = parseDate(item.end_date) || getComputedEndDate(start, item);
+    const offset = Math.max(differenceInCalendarDays(start, timelineRange.minDate), 0);
+    const span = Math.max(differenceInCalendarDays(end, start) + 1, 1);
+    const originalLeftPx = offset * timelineGrid.pixelsPerDay;
+    const originalWidthPx = Math.max(span * timelineGrid.pixelsPerDay, item.item_type === "milestone" ? 20 : 34);
+    const nextDragState: TimelineDragState = {
+      itemId: item.id,
+      mode,
+      pointerStartX: event.clientX,
+      originalLeftPx,
+      originalWidthPx,
+      originalItem: { ...item },
+      originalItems: itemsRef.current.map((entry) => ({ ...entry })),
+    };
+    setDragState(nextDragState);
+
+    const element = timelineElementRefs.current[item.id];
+    const applyPreview = (deltaX: number) => {
+      if (!element) return;
+      element.style.willChange = "transform, width, left";
+      if (nextDragState.mode === "move") {
+        element.style.left = `${nextDragState.originalLeftPx + 16}px`;
+        element.style.width = `${nextDragState.originalWidthPx}px`;
+        element.style.transform = `translate3d(${deltaX}px, -50%, 0)`;
+        return;
+      }
+
+      if (nextDragState.mode === "resize_start") {
+        const nextWidth = Math.max(nextDragState.originalWidthPx - deltaX, 34);
+        const clampedDelta = Math.min(deltaX, nextDragState.originalWidthPx - 34);
+        element.style.left = `${nextDragState.originalLeftPx + 16}px`;
+        element.style.width = `${nextWidth}px`;
+        element.style.transform = `translate3d(${clampedDelta}px, -50%, 0)`;
+        return;
+      }
+
+      const nextWidth = Math.max(nextDragState.originalWidthPx + deltaX, 34);
+      element.style.left = `${nextDragState.originalLeftPx + 16}px`;
+      element.style.width = `${nextWidth}px`;
+      element.style.transform = "translate3d(0, -50%, 0)";
+    };
+
+    const clearPreview = () => {
+      if (!element) return;
+      element.style.left = "";
+      element.style.width = "";
+      element.style.transform = "";
+      element.style.willChange = "";
+    };
+
+    const handlePointerMove = (event: PointerEvent) => {
+      const deltaX = event.clientX - nextDragState.pointerStartX;
+      if (Math.abs(deltaX) > 2) suppressTimelineClickRef.current = true;
+      applyPreview(deltaX);
+    };
+
+    const handlePointerUp = async (event: PointerEvent) => {
+      const deltaX = event.clientX - nextDragState.pointerStartX;
+      const deltaUnits = Math.round(deltaX / timelineGrid.pixelsPerDay);
+      const nextPreviewItems = buildDraggedItems(nextDragState, deltaUnits);
+      clearPreview();
+      setDragState(null);
+
+      window.removeEventListener("pointermove", handlePointerMove);
+      window.removeEventListener("pointerup", handlePointerUp);
+
+      if (deltaUnits === 0) return;
+
+      try {
+        const scheduledItems = autoScheduleItems(nextPreviewItems, dependenciesRef.current, jobStartDateRef.current);
+        await persistScheduledItems(
+          scheduledItems,
+          "Schedule updated",
+          "Timeline changes were saved and dependent activities were recalculated.",
+          { notify: false },
+        );
+      } catch (error: any) {
+        console.error("Failed to save dragged schedule item:", error);
+        setItems(nextDragState.originalItems);
+        toast({
+          title: "Could not update schedule",
+          description: error?.message || "Please try again.",
+          variant: "destructive",
+        });
+      }
+    };
+
+    window.addEventListener("pointermove", handlePointerMove);
+    window.addEventListener("pointerup", handlePointerUp, { once: true });
   };
 
   const openDependencyDialog = (itemId: string) => {
@@ -779,7 +1074,12 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
       };
       const nextItems = items.map((row) => (row.id === item.id ? nextItem : row));
       const scheduledItems = autoScheduleItems(nextItems, dependencies, jobStartDate);
-      await persistScheduledItems(scheduledItems, "Schedule item saved", `${item.title || "Activity"} was updated and successor dates were recalculated.`);
+      await persistScheduledItems(
+        scheduledItems,
+        "Schedule item saved",
+        `${item.title || "Activity"} was updated and successor dates were recalculated.`,
+        { notify: false },
+      );
       await persistAssignments(item.id, assignedUserIds);
       setSelectedItemId(null);
     } catch (error: any) {
@@ -790,7 +1090,10 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
     }
   };
 
-  const addItem = async (itemType: ScheduleItemType = "activity") => {
+  const addItem = async (
+    itemType: ScheduleItemType = "activity",
+    options: { title?: string; parentItemId?: string | null } = {},
+  ) => {
     if (!companyId) {
       toast({ title: "Missing company", description: "This job is missing a company context.", variant: "destructive" });
       return;
@@ -802,7 +1105,8 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
         company_id: companyId,
         job_id: jobId,
         item_type: itemType,
-        title: `${itemType === "milestone" ? "New milestone" : "New activity"} ${items.length + 1}`,
+        title: options.title || `${itemType === "milestone" ? "New milestone" : "New activity"} ${items.length + 1}`,
+        parent_item_id: options.parentItemId ?? null,
         trade: "",
         status: "not_started",
         start_date: fallbackStart,
@@ -819,6 +1123,9 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
       if (error) throw error;
       const next = { ...(data as JobScheduleItem), item_type: ((data as any).item_type || itemType) as ScheduleItemType, cost_code_id: (data as any).cost_code_id || null };
       setItems((current) => [...current, next]);
+      if (options.parentItemId) {
+        setCollapsedGroupIds((current) => current.filter((value) => value !== options.parentItemId));
+      }
       setSelectedItemId(next.id);
       setSelectedAssignments([]);
       toast({ title: itemType === "milestone" ? "Milestone added" : "Activity added", description: `A new ${itemType} is ready to edit.` });
@@ -930,14 +1237,49 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
         <CardHeader className="flex flex-col gap-4 lg:flex-row lg:items-center lg:justify-between">
           <div>
             <CardTitle className="flex items-center gap-2"><Workflow className="h-5 w-5" />Job Schedule</CardTitle>
-            <p className="text-sm text-muted-foreground mt-1">Click any activity bar to open its details. Assign project-team employees, link cost codes, and manage dependencies from the modal.</p>
+            <p className="text-sm text-muted-foreground mt-1">Click any activity bar to open its details. Drag bars to move dates, drag the handles to shorten or extend them, and use zoom to tighten or widen the schedule view.</p>
           </div>
-          {canEdit && (
-            <div className="flex flex-wrap gap-2">
+          <div className="flex flex-wrap items-center gap-2">
+            <div className="min-w-[180px]">
+              <Select value={zoomLevel} onValueChange={(value) => setZoomLevel(value as ScheduleZoomLevel)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select zoom" />
+                </SelectTrigger>
+                <SelectContent>
+                  {ZOOM_LEVEL_OPTIONS.map((option) => (
+                    <SelectItem key={option.value} value={option.value}>
+                      {option.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="min-w-[220px]">
+              <Select value={barContent} onValueChange={(value) => setBarContent(value as ScheduleBarContent)}>
+                <SelectTrigger>
+                  <div className="flex items-center gap-2">
+                    <Settings2 className="h-4 w-4" />
+                    <SelectValue placeholder="Bar display" />
+                  </div>
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="title">Bar Shows Task Name</SelectItem>
+                  <SelectItem value="dates">Bar Shows Dates</SelectItem>
+                  <SelectItem value="progress">Bar Shows Progress</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            {canEdit && (
+              <div className="flex flex-wrap gap-2">
+              <Button variant="outline" onClick={() => void addItem("activity", { title: `New group ${items.length + 1}` })}>
+                <Plus className="h-4 w-4 mr-2" />
+                Add Group
+              </Button>
               <Button variant="outline" onClick={() => void addItem("milestone")}><Diamond className="h-4 w-4 mr-2" />Add Milestone</Button>
               <Button onClick={() => void addItem("activity")}><Plus className="h-4 w-4 mr-2" />Add Activity</Button>
-            </div>
-          )}
+              </div>
+            )}
+          </div>
         </CardHeader>
         <CardContent>
           {derivedItems.length === 0 ? (
@@ -947,49 +1289,144 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
               <div className="min-w-[900px]">
                 <div className="grid grid-cols-[280px_1fr] border-b bg-muted/30">
                   <div className="px-4 py-3 text-sm font-medium">Activity Timeline</div>
-                  <div className="relative px-4 py-3">
-                    <div className="flex justify-between gap-2 text-xs text-muted-foreground">
-                      {timelineTicks.map((tick) => <span key={tick.toISOString()}>{format(tick, "MMM d")}</span>)}
+                  <div className="px-4 py-2">
+                    <div
+                      className="grid gap-0 text-[10px] text-muted-foreground"
+                      style={{
+                        width: `${timelineGrid.canvasWidth}px`,
+                        gridTemplateColumns: `repeat(${timelineGrid.columns}, minmax(${timelineGrid.columnWidth}px, ${timelineGrid.columnWidth}px))`,
+                      }}
+                    >
+                      {timelineTicks.map((tick, index) => {
+                        const showTick = index % timelineLabelStep === 0 || tick.getDate() === 1;
+                        const showMonth = index === 0 || tick.getDate() === 1;
+                        return (
+                          <span
+                            key={tick.toISOString()}
+                            className={`overflow-hidden whitespace-nowrap ${index % 7 === 0 ? "font-medium text-foreground" : ""}`}
+                          >
+                            {showTick ? (showMonth ? format(tick, "MMM d") : format(tick, "d")) : ""}
+                          </span>
+                        );
+                      })}
                     </div>
                   </div>
                 </div>
-                {derivedItems.map((item) => {
+                {visibleItems.map(({ item, depth }) => {
                   const start = parseDate(item.start_date) || timelineRange.minDate;
                   const end = parseDate(item.end_date) || getComputedEndDate(start, item);
                   const offset = Math.max(differenceInCalendarDays(start, timelineRange.minDate), 0);
                   const span = Math.max(differenceInCalendarDays(end, start) + 1, 1);
-                  const left = `${(offset / timelineRange.totalDays) * 100}%`;
-                  const width = `${Math.max((span / timelineRange.totalDays) * 100, 2)}%`;
+                  const left = offset * timelineGrid.pixelsPerDay;
+                  const width = Math.max(span * timelineGrid.pixelsPerDay, item.item_type === "milestone" ? 20 : 34);
                   const isBlocked = item.blockedByDependencies || item.blockedByPo;
+                  const isDragging = dragState?.itemId === item.id;
+                  const childCount = childItemsByParentId.get(item.id)?.length || 0;
+                  const isCollapsed = collapsedGroupIds.includes(item.id);
+                  const barDisplayText = barContent === "dates"
+                    ? `${formatDateLabel(item.start_date)} - ${formatDateLabel(item.end_date)}`
+                    : barContent === "progress"
+                      ? `${Math.round(item.percent_complete)}% complete`
+                      : item.title;
                   return (
                     <div key={item.id} className="grid grid-cols-[280px_1fr] border-b last:border-b-0">
-                      <button type="button" onClick={() => handleOpenItem(item.id)} className="px-4 py-3 text-left hover:bg-muted/40 transition-colors">
-                        <div className="font-medium text-sm">{item.title}</div>
-                        <div className="mt-1 flex flex-wrap gap-1">
+                      <button type="button" onClick={() => handleOpenItem(item.id)} className="px-4 py-2 text-left hover:bg-muted/40 transition-colors">
+                        <div className="flex min-w-0 items-center gap-2 text-sm" style={{ paddingLeft: `${depth * 18}px` }}>
+                          {childCount > 0 ? (
+                            <button
+                              type="button"
+                              className="inline-flex h-5 w-5 items-center justify-center rounded-sm border bg-background/60 text-muted-foreground hover:text-foreground"
+                              onClick={(event) => {
+                                event.preventDefault();
+                                event.stopPropagation();
+                                toggleGroupCollapsed(item.id);
+                              }}
+                            >
+                              {isCollapsed ? <ChevronRight className="h-3.5 w-3.5" /> : <ChevronDown className="h-3.5 w-3.5" />}
+                            </button>
+                          ) : (
+                            <span className="inline-block h-5 w-5 shrink-0" />
+                          )}
+                          <span className="truncate font-medium">{item.title}</span>
                           {item.trade ? <Badge variant="outline">{item.trade}</Badge> : null}
                           {item.item_type === "milestone" ? <Badge variant="outline">Milestone</Badge> : null}
+                          {childCount > 0 ? <Badge variant="secondary">{childCount} item{childCount === 1 ? "" : "s"}</Badge> : null}
                           <Badge className={statusToneClass[item.status]}>{STATUS_OPTIONS.find((option) => option.value === item.status)?.label || item.status}</Badge>
                           {item.isCritical ? <Badge variant="destructive">Critical</Badge> : null}
                         </div>
                         {item.assignedUsers.length > 0 ? (
-                          <div className="mt-2 flex items-center gap-2 text-xs text-muted-foreground"><Users className="h-3.5 w-3.5" />{item.assignedUsers.map((member) => member.name).join(", ")}</div>
+                          <div className="mt-0.5 flex items-center gap-2 text-[11px] text-muted-foreground"><Users className="h-3.5 w-3.5" />{item.assignedUsers.map((member) => member.name).join(", ")}</div>
                         ) : null}
                       </button>
-                      <button type="button" onClick={() => handleOpenItem(item.id)} className="relative px-4 py-4 hover:bg-muted/30 transition-colors">
-                        <div className="absolute inset-y-0 left-4 right-4 rounded-md bg-muted/20" />
+                      <div
+                        role="button"
+                        tabIndex={0}
+                        onClick={() => {
+                          if (suppressTimelineClickRef.current) {
+                            suppressTimelineClickRef.current = false;
+                            return;
+                          }
+                          handleOpenItem(item.id);
+                        }}
+                        onKeyDown={(event) => {
+                          if (event.key === "Enter" || event.key === " ") {
+                            event.preventDefault();
+                            handleOpenItem(item.id);
+                          }
+                        }}
+                        className="relative select-none px-4 py-2 hover:bg-muted/30 transition-colors"
+                      >
+                        <div
+                          className="relative h-10 rounded-md bg-muted/20"
+                          style={{
+                            width: `${timelineGrid.canvasWidth}px`,
+                            backgroundImage: "linear-gradient(to right, hsl(var(--border)) 1px, transparent 1px)",
+                            backgroundSize: `${timelineGrid.columnWidth}px 100%`,
+                          }}
+                        />
                         {item.item_type === "milestone" ? (
-                          <div className="absolute top-1/2 -translate-y-1/2" style={{ left }}>
+                          <div
+                            className={`absolute top-1/2 -translate-y-1/2 cursor-pointer select-none ${isDragging ? "z-20" : ""}`}
+                            style={{ left: `${left + 16}px` }}
+                            onPointerDown={(event) => beginTimelineDrag(event, item, "move")}
+                            ref={(element) => {
+                              timelineElementRefs.current[item.id] = element;
+                            }}
+                          >
                             <div className={`${item.isCritical ? "text-rose-500" : isBlocked ? "text-amber-500" : "text-violet-500"}`}><Diamond className="h-6 w-6 fill-current" /></div>
                           </div>
                         ) : (
-                          <div className={`absolute top-1/2 h-8 -translate-y-1/2 rounded-md px-3 py-1 text-xs font-medium text-white shadow-sm ${item.isCritical ? "bg-rose-500" : isBlocked ? "bg-amber-500" : item.status === "completed" ? "bg-emerald-500" : "bg-primary"}`} style={{ left, width }}>
-                            <div className="flex h-full items-center justify-between gap-3 overflow-hidden whitespace-nowrap">
-                              <span className="truncate">{formatDateLabel(item.start_date)} - {formatDateLabel(item.end_date)}</span>
-                              <span>{Math.round(item.percent_complete)}%</span>
+                          <div
+                            className={`absolute top-1/2 flex h-8 -translate-y-1/2 select-none items-center rounded-md text-xs font-medium text-white shadow-sm transition-none ${item.isCritical ? "bg-rose-500" : isBlocked ? "bg-amber-500" : item.status === "completed" ? "bg-emerald-500" : "bg-primary"} ${canEdit ? "cursor-grab active:cursor-grabbing" : ""} ${isDragging ? "z-20 ring-2 ring-background/80" : ""}`}
+                            style={{
+                              left: `${left + 16}px`,
+                              width: `${width}px`,
+                              touchAction: "none",
+                            }}
+                            onPointerDown={(event) => beginTimelineDrag(event, item, "move")}
+                            ref={(element) => {
+                              timelineElementRefs.current[item.id] = element;
+                            }}
+                          >
+                            {canEdit ? (
+                              <div
+                                className="h-full w-2 cursor-ew-resize rounded-l-md bg-black/20"
+                                onPointerDown={(event) => beginTimelineDrag(event, item, "resize_start")}
+                              />
+                            ) : null}
+                            <div className="flex h-full min-w-0 flex-1 flex-col justify-center overflow-hidden px-3 py-1">
+                              <span className="truncate text-[10px] font-medium text-white/80">{formatDateLabel(item.start_date)} - {formatDateLabel(item.end_date)}</span>
+                              <span className="truncate">{barDisplayText}</span>
                             </div>
+                            {canEdit ? (
+                              <div
+                                className="h-full w-2 cursor-ew-resize rounded-r-md bg-black/20"
+                                onPointerDown={(event) => beginTimelineDrag(event, item, "resize_end")}
+                              />
+                            ) : null}
                           </div>
                         )}
-                      </button>
+                      </div>
                     </div>
                   );
                 })}
@@ -1062,6 +1499,26 @@ export default function JobScheduleTab({ jobId, companyId, canEdit, jobStartDate
                     <SelectContent>
                       <SelectItem value="none">No cost code</SelectItem>
                       {costCodes.map((option) => <SelectItem key={option.id} value={option.id}>{option.code}{option.description ? ` - ${option.description}` : ""}</SelectItem>)}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Group Under</Label>
+                  <Select
+                    value={selectedItem.parent_item_id || "none"}
+                    onValueChange={(value) => updateItem(selectedItem.id, { parent_item_id: value === "none" ? null : value })}
+                    disabled={!canEdit}
+                  >
+                    <SelectTrigger><SelectValue placeholder="No group" /></SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="none">No group</SelectItem>
+                      {derivedItems
+                        .filter((item) => item.id !== selectedItem.id && !descendantIdsByItemId.get(selectedItem.id)?.has(item.id))
+                        .map((item) => (
+                          <SelectItem key={item.id} value={item.id}>
+                            {item.title}
+                          </SelectItem>
+                        ))}
                     </SelectContent>
                   </Select>
                 </div>

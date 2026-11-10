@@ -5,7 +5,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { ScrollArea } from '@/components/ui/scroll-area';
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Users, Plus, Edit, Trash2, ChevronDown } from 'lucide-react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useCompany } from '@/contexts/CompanyContext';
@@ -359,26 +359,28 @@ export default function EmployeeGroupManager({ onGroupChange }: EmployeeGroupMan
                           </Button>
                         </PopoverTrigger>
                         <PopoverContent className="w-80 p-0" align="end">
-                          <div className="border-b p-2">
-                            <Input
+                          <Command shouldFilter={false}>
+                            <CommandInput
                               placeholder="Search users..."
                               value={searchByGroup[group.id] || ''}
-                              onChange={(e) =>
+                              onValueChange={(value) =>
                                 setSearchByGroup((prev) => ({
                                   ...prev,
-                                  [group.id]: e.target.value,
+                                  [group.id]: value,
                                 }))
                               }
                             />
-                          </div>
-                          <ScrollArea className="h-72">
-                            <div className="p-2 space-y-1">
+                            <CommandList className="max-h-72">
+                              <CommandEmpty>No matching users.</CommandEmpty>
+                              <CommandGroup>
                               {filteredUsersByGroup[group.id].map((user) => {
                                 const checked = members.includes(user.user_id);
                                 return (
-                                  <label
+                                  <CommandItem
                                     key={`${group.id}-${user.user_id}`}
-                                    className="flex cursor-pointer items-center justify-between rounded px-2 py-1 hover:bg-muted gap-3"
+                                    value={`${userLabel(user)} ${user.email || ''} ${user.user_id}`}
+                                    onSelect={() => void toggleMember(group.id, user.user_id, !checked)}
+                                    className="flex cursor-pointer items-center justify-between gap-3"
                                   >
                                     <div className="min-w-0 flex items-center gap-2">
                                       <div className="h-7 w-7 shrink-0 rounded-full overflow-hidden bg-primary/10 flex items-center justify-center">
@@ -403,13 +405,14 @@ export default function EmployeeGroupManager({ onGroupChange }: EmployeeGroupMan
                                     </div>
                                     <Checkbox
                                       checked={checked}
-                                      onCheckedChange={(v) => void toggleMember(group.id, user.user_id, !!v)}
+                                      className="pointer-events-none"
                                     />
-                                  </label>
+                                  </CommandItem>
                                 );
                               })}
-                            </div>
-                          </ScrollArea>
+                              </CommandGroup>
+                            </CommandList>
+                          </Command>
                         </PopoverContent>
                       </Popover>
                       <Button variant="outline" size="sm" onClick={() => void handleRenameGroup(group)} disabled={renamingGroupId === group.id}>

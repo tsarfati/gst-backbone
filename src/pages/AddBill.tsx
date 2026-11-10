@@ -2301,8 +2301,8 @@ const [purchaseOrders, setPurchaseOrders] = useState<any[]>([]);
                               <PopoverContent className="w-[500px] p-0 bg-background z-[60]" align="start">
                                 <Command>
                                   <CommandInput placeholder="Search cost codes..." />
-                                  <CommandEmpty>No cost code found.</CommandEmpty>
                                   <CommandList>
+                                    <CommandEmpty>No cost code found.</CommandEmpty>
                                     {(lineItemCostCodes[item.id] || []).filter(c => !isGroupingCodeText(c.code) && !c.is_dynamic_group).map((code) => (
                                       <CommandItem
                                         key={`${code.id}-${code.type || 'unknown'}`}

@@ -1,13 +1,10 @@
 import { useState, useRef, useEffect, useMemo } from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from '@/components/ui/command';
 import { Search, FileText, Building, Users, Receipt, Megaphone, Briefcase, Zap, BarChart3 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { Card, CardContent } from '@/components/ui/card';
 import { useSearchIndex, SearchIndexItem } from '@/hooks/useSearchIndex';
-import { Separator } from '@/components/ui/separator';
 
 const getIconForType = (type: string) => {
   switch (type) {
@@ -116,16 +113,12 @@ export default function GlobalSearch() {
       </PopoverTrigger>
       <PopoverContent className="w-[600px] p-0" align="start">
         <Command shouldFilter={false}>
-          <div className="flex items-center border-b px-3">
-            <Search className="h-4 w-4 shrink-0 opacity-50" />
-            <input
-              ref={inputRef}
-              placeholder="Search anything: data, actions, reports..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="flex h-11 w-full rounded-md bg-transparent py-3 px-3 text-sm outline-none placeholder:text-muted-foreground disabled:cursor-not-allowed disabled:opacity-50"
-            />
-          </div>
+          <CommandInput
+            ref={inputRef}
+            placeholder="Search anything: data, actions, reports..."
+            value={searchQuery}
+            onValueChange={setSearchQuery}
+          />
           <CommandList className="max-h-[400px]">
             {!searchQuery.trim() ? (
               <div className="p-4 text-center text-sm text-muted-foreground">
@@ -141,17 +134,15 @@ export default function GlobalSearch() {
                   {filteredResults.length} {filteredResults.length === 1 ? 'Result' : 'Results'}
                 </div>
                 {Object.entries(groupedResults).map(([groupLabel, items]) => (
-                  <div key={groupLabel} className="mb-3">
-                    <div className="bg-primary text-primary-foreground px-3 py-2 font-semibold text-sm rounded-md mb-1">
-                      {groupLabel}
-                    </div>
+                  <CommandGroup key={groupLabel} heading={groupLabel} className="mb-3">
                     {items.map((result) => {
                       const IconComponent = getIconForType(result.type);
                       return (
-                        <div
+                        <CommandItem
                           key={result.id}
-                          onClick={() => handleSelect(result)}
-                          className="cursor-pointer p-3 hover:bg-accent rounded-md transition-colors"
+                          value={`${result.title} ${result.description || ''} ${result.id}`}
+                          onSelect={() => handleSelect(result)}
+                          className="cursor-pointer p-3"
                         >
                           <div className="flex items-start space-x-3">
                             <IconComponent className="h-5 w-5 mt-0.5 text-primary" />
@@ -162,10 +153,10 @@ export default function GlobalSearch() {
                               )}
                             </div>
                           </div>
-                        </div>
+                        </CommandItem>
                       );
                     })}
-                  </div>
+                  </CommandGroup>
                 ))}
               </div>
             )}
